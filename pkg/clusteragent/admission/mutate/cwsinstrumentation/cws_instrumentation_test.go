@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package mutate
+package cwsinstrumentation
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -480,7 +481,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "all namespaces, image name",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				include:                      []string{"kube_namespace:.*"},
 				cwsInjectorImageName:         "my-image",
@@ -503,7 +504,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "all namespaces, image name, image tag",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				include:                      []string{"kube_namespace:.*"},
 				cwsInjectorImageName:         "my-image",
@@ -526,7 +527,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "all namespaces, image name, image tag, image registry",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				include:                      []string{"kube_namespace:.*"},
 				cwsInjectorImageName:         "my-image",
@@ -549,7 +550,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "no namespace, image name",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				exclude:                      []string{"kube_namespace:.*"},
 				cwsInjectorImageName:         "my-image",
@@ -560,7 +561,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "my-namespace, image name",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				include:                      []string{"kube_namespace:my-namespace"},
 				cwsInjectorImageName:         "my-image",
@@ -583,7 +584,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "missing my-namespace, image name",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				include:                      []string{"kube_namespace:my-namespace2"},
 				exclude:                      []string{"kube_namespace:.*"},
@@ -595,7 +596,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "my-namespace skipped, image name",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				exclude:                      []string{"kube_namespace:my-namespace"},
 				cwsInjectorImageName:         "my-image",
@@ -607,7 +608,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "my-namespace skipped, all namespaces, image name",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				exclude:                      []string{"kube_namespace:my-namespace"},
 				cwsInjectorImageName:         "my-image",
@@ -619,7 +620,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "my-namespace skipped and selected, image name",
 			args: args{
-				pod:                          fakePod("my-pod"),
+				pod:                          common.FakePod("my-pod"),
 				ns:                           "my-namespace",
 				include:                      []string{"kube_namespace:my-namespace"},
 				exclude:                      []string{"kube_namespace:my-namespace"},
@@ -643,7 +644,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "all namespaces, image name, CWS instrumentation ready",
 			args: args{
-				pod: fakePodWithAnnotations(map[string]string{
+				pod: common.FakePodWithAnnotations(map[string]string{
 					cwsInstrumentationPodAnotationStatus: cwsInstrumentationPodAnotationReady,
 				}),
 				ns:                           "my-namespace",
@@ -658,7 +659,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		{
 			name: "all namespaces, image name, CWS instrumentation",
 			args: args{
-				pod: fakePodWithAnnotations(map[string]string{
+				pod: common.FakePodWithAnnotations(map[string]string{
 					cwsInstrumentationPodAnotationStatus: "hello",
 				}),
 				ns:                           "my-namespace",

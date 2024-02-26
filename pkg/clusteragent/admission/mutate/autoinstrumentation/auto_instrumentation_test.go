@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package mutate
+package autoinstrumentation
 
 import (
 	"fmt"
@@ -15,14 +15,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 )
 
 func TestInjectAutoInstruConfig(t *testing.T) {
@@ -36,7 +39,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}{
 		{
 			name: "nominal case: java",
-			pod:  fakePod("java-pod"),
+			pod:  common.FakePod("java-pod"),
 			libsToInject: []libInfo{
 				{
 					lang:  "java",
@@ -49,7 +52,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "JAVA_TOOL_OPTIONS not empty",
-			pod:  fakePodWithEnvValue("java-pod", "JAVA_TOOL_OPTIONS", "predefined"),
+			pod:  common.FakePodWithEnvValue("java-pod", "JAVA_TOOL_OPTIONS", "predefined"),
 			libsToInject: []libInfo{
 				{
 					lang:  "java",
@@ -62,7 +65,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "JAVA_TOOL_OPTIONS set via ValueFrom",
-			pod:  fakePodWithEnvFieldRefValue("java-pod", "JAVA_TOOL_OPTIONS", "path"),
+			pod:  common.FakePodWithEnvFieldRefValue("java-pod", "JAVA_TOOL_OPTIONS", "path"),
 			libsToInject: []libInfo{
 				{
 					lang:  "java",
@@ -73,7 +76,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "nominal case: js",
-			pod:  fakePod("js-pod"),
+			pod:  common.FakePod("js-pod"),
 			libsToInject: []libInfo{
 				{
 					lang:  "js",
@@ -86,7 +89,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "NODE_OPTIONS not empty",
-			pod:  fakePodWithEnvValue("js-pod", "NODE_OPTIONS", "predefined"),
+			pod:  common.FakePodWithEnvValue("js-pod", "NODE_OPTIONS", "predefined"),
 			libsToInject: []libInfo{
 				{
 					lang:  "js",
@@ -99,7 +102,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "NODE_OPTIONS set via ValueFrom",
-			pod:  fakePodWithEnvFieldRefValue("js-pod", "NODE_OPTIONS", "path"),
+			pod:  common.FakePodWithEnvFieldRefValue("js-pod", "NODE_OPTIONS", "path"),
 			libsToInject: []libInfo{
 				{
 					lang:  "js",
@@ -110,7 +113,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "nominal case: python",
-			pod:  fakePod("python-pod"),
+			pod:  common.FakePod("python-pod"),
 			libsToInject: []libInfo{
 				{
 					lang:  "python",
@@ -123,7 +126,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "PYTHONPATH not empty",
-			pod:  fakePodWithEnvValue("python-pod", "PYTHONPATH", "predefined"),
+			pod:  common.FakePodWithEnvValue("python-pod", "PYTHONPATH", "predefined"),
 			libsToInject: []libInfo{
 				{
 					lang:  "python",
@@ -136,7 +139,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "PYTHONPATH set via ValueFrom",
-			pod:  fakePodWithEnvFieldRefValue("python-pod", "PYTHONPATH", "path"),
+			pod:  common.FakePodWithEnvFieldRefValue("python-pod", "PYTHONPATH", "path"),
 			libsToInject: []libInfo{
 				{
 					lang:  "python",
@@ -147,7 +150,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "Unknown language",
-			pod:  fakePod("unknown-pod"),
+			pod:  common.FakePod("unknown-pod"),
 			libsToInject: []libInfo{
 				{
 					lang:  "unknown",
@@ -158,7 +161,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "nominal case: dotnet",
-			pod:  fakePod("dotnet-pod"),
+			pod:  common.FakePod("dotnet-pod"),
 			libsToInject: []libInfo{
 				{
 					lang:  "dotnet",
@@ -171,7 +174,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "CORECLR_ENABLE_PROFILING not empty",
-			pod:  fakePodWithEnvValue("dotnet-pod", "CORECLR_PROFILER", "predefined"),
+			pod:  common.FakePodWithEnvValue("dotnet-pod", "CORECLR_PROFILER", "predefined"),
 			libsToInject: []libInfo{
 				{
 					lang:  "dotnet",
@@ -184,7 +187,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "CORECLR_ENABLE_PROFILING set via ValueFrom",
-			pod:  fakePodWithEnvFieldRefValue("dotnet-pod", "CORECLR_PROFILER", "path"),
+			pod:  common.FakePodWithEnvFieldRefValue("dotnet-pod", "CORECLR_PROFILER", "path"),
 			libsToInject: []libInfo{
 				{
 					lang:  "dotnet",
@@ -195,7 +198,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "nominal case: ruby",
-			pod:  fakePod("ruby-pod"),
+			pod:  common.FakePod("ruby-pod"),
 			libsToInject: []libInfo{
 				{
 					lang:  "ruby",
@@ -208,7 +211,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "RUBYOPT not empty",
-			pod:  fakePodWithEnvValue("ruby-pod", "RUBYOPT", "predefined"),
+			pod:  common.FakePodWithEnvValue("ruby-pod", "RUBYOPT", "predefined"),
 			libsToInject: []libInfo{
 				{
 					lang:  "ruby",
@@ -221,7 +224,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 		},
 		{
 			name: "RUBYOPT set via ValueFrom",
-			pod:  fakePodWithEnvFieldRefValue("ruby-pod", "RUBYOPT", "path"),
+			pod:  common.FakePodWithEnvFieldRefValue("ruby-pod", "RUBYOPT", "path"),
 			libsToInject: []libInfo{
 				{
 					lang:  "ruby",
@@ -233,10 +236,10 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			apmInstrumentation, err := newAPMInstrumentationWebhook()
+			webhook, err := GetWebhook()
 			require.NoError(t, err)
 
-			err = apmInstrumentation.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
+			err = webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return
@@ -298,7 +301,7 @@ func TestExtractLibInfo(t *testing.T) {
 	}{
 		{
 			name:              "java",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -309,7 +312,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "js",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/js-lib.version", "v1"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/js-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -320,7 +323,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "python",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/python-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -331,7 +334,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "custom",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/java-lib.custom-image", "custom/image"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.custom-image", "custom/image"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -342,7 +345,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:                 "unknown",
-			pod:                  fakePodWithAnnotation("admission.datadoghq.com/unknown-lib.version", "v1"),
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/unknown-lib.version", "v1"),
 			containerRegistry:    "registry",
 			expectedLibsToInject: []libInfo{},
 		},
@@ -404,7 +407,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "ruby",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/ruby-lib.version", "v1"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/ruby-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -415,7 +418,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "all",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{ // TODO: Add new entry when a new language is supported
 				{
@@ -460,7 +463,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "all with unsupported version",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "unsupported"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -488,7 +491,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "single step instrumentation with no pinned versions",
-			pod:               fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -516,7 +519,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "single step instrumentation with pinned java version",
-			pod:               fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -531,7 +534,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "single step instrumentation with pinned java and python versions",
-			pod:               fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:               common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -550,7 +553,7 @@ func TestExtractLibInfo(t *testing.T) {
 		},
 		{
 			name:              "single step instrumentation with pinned java version and java annotation",
-			pod:               fakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
 			containerRegistry: "registry",
 			expectedLibsToInject: []libInfo{
 				{
@@ -569,17 +572,17 @@ func TestExtractLibInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
+			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", tt.containerRegistry)
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
 
-			// reset pinned libraries between test runs
-			pinnedLibs = &pinnedLibraries{}
+			// Need to create a new instance of the webhook to take into account
+			// the config changes.
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook()
+			require.NoError(t, errInitAPMInstrumentation)
 
-			apmInstrumentation, err := newAPMInstrumentationWebhook()
-			require.NoError(t, err)
-
-			libsToInject, _ := apmInstrumentation.extractLibInfo(tt.pod, tt.containerRegistry)
+			libsToInject, _ := apmInstrumentationWebhook.extractLibInfo(tt.pod)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
 		})
 	}
@@ -595,7 +598,7 @@ func TestInjectLibConfig(t *testing.T) {
 	}{
 		{
 			name:    "nominal case",
-			pod:     fakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", `{"version":1,"service_language":"java","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
+			pod:     common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", `{"version":1,"service_language":"java","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
 			lang:    java,
 			wantErr: false,
 			expectedEnvs: []corev1.EnvVar{
@@ -611,7 +614,7 @@ func TestInjectLibConfig(t *testing.T) {
 		},
 		{
 			name:    "inject all case",
-			pod:     fakePodWithAnnotation("admission.datadoghq.com/all-lib.config.v1", `{"version":1,"service_language":"all","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
+			pod:     common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.config.v1", `{"version":1,"service_language":"all","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
 			lang:    "all",
 			wantErr: false,
 			expectedEnvs: []corev1.EnvVar{
@@ -627,7 +630,7 @@ func TestInjectLibConfig(t *testing.T) {
 		},
 		{
 			name:         "invalid json",
-			pod:          fakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", "invalid"),
+			pod:          common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", "invalid"),
 			lang:         java,
 			wantErr:      true,
 			expectedEnvs: nil,
@@ -670,7 +673,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 	}{
 		{
 			name:    "no resources",
-			pod:     fakePod("java-pod"),
+			pod:     common.FakePod("java-pod"),
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
 			wantErr: false,
@@ -679,7 +682,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		},
 		{
 			name:    "with resources",
-			pod:     fakePod("java-pod"),
+			pod:     common.FakePod("java-pod"),
 			cpu:     "100m",
 			mem:     "500",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
@@ -690,7 +693,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		},
 		{
 			name:    "cpu only",
-			pod:     fakePod("java-pod"),
+			pod:     common.FakePod("java-pod"),
 			cpu:     "200m",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
@@ -700,7 +703,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		},
 		{
 			name:    "memory only",
-			pod:     fakePod("java-pod"),
+			pod:     common.FakePod("java-pod"),
 			mem:     "512Mi",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
@@ -710,7 +713,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		},
 		{
 			name:    "with invalid resources",
-			pod:     fakePod("java-pod"),
+			pod:     common.FakePod("java-pod"),
 			cpu:     "foo",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
@@ -829,13 +832,13 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		pod                       *corev1.Pod
 		expectedEnvs              []corev1.EnvVar
 		expectedInjectedLibraries map[string]string
-		langDetectionDeployments  []mockDeployment
+		langDetectionDeployments  []common.MockDeployment
 		wantErr                   bool
 		setupConfig               func()
 	}{
 		{
 			name: "inject all",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
@@ -926,7 +929,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject library and all",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
@@ -976,7 +979,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject library and all no library version",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
@@ -1067,7 +1070,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject all error - bad json",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					// TODO: we might not want to be injecting the libraries if the config is malformed
@@ -1146,7 +1149,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject java",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
@@ -1186,7 +1189,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject python",
-			pod:  fakePodWithParent("ns", map[string]string{"admission.datadoghq.com/python-lib.version": "latest", "admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
+			pod:  common.FakePodWithParent("ns", map[string]string{"admission.datadoghq.com/python-lib.version": "latest", "admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -1216,7 +1219,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject node",
-			pod:  fakePodWithParent("ns", map[string]string{"admission.datadoghq.com/js-lib.version": "latest", "admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
+			pod:  common.FakePodWithParent("ns", map[string]string{"admission.datadoghq.com/js-lib.version": "latest", "admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
@@ -1246,7 +1249,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject java bad json",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
@@ -1282,7 +1285,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "inject with enabled false",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/java-lib.version":   "latest",
@@ -1310,7 +1313,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: user configuration is respected",
-			pod: fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{
+			pod: common.FakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{
 				{
 					Name:  "DD_SERVICE",
 					Value: "user-deployment",
@@ -1388,7 +1391,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: disable with label",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{}, map[string]string{
 					"admission.datadoghq.com/enabled": "false",
@@ -1409,7 +1412,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: default service name for ReplicaSet",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{},
 				map[string]string{},
@@ -1440,7 +1443,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: default service name for StatefulSet",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{},
 				map[string]string{},
@@ -1471,7 +1474,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: default service name (disabled)",
-			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
+			pod:  common.FakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -1488,7 +1491,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: disabled namespaces should not be instrumented",
-			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-app-123"),
+			pod:  common.FakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-app-123"),
 			expectedEnvs: []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -1508,7 +1511,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: enabled namespaces should be instrumented",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{},
 				map[string]string{},
@@ -1541,7 +1544,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled and language annotation provided",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/js-lib.version":   "v1.10",
@@ -1598,7 +1601,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled with libVersions set",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{},
 				map[string]string{},
@@ -1653,7 +1656,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled, with language annotation and libVersions set",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{
 					"admission.datadoghq.com/js-lib.version": "v1.10",
@@ -1706,7 +1709,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation enabled and language detection",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{},
 				map[string]string{},
@@ -1757,12 +1760,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"python": "latest", "java": "latest"},
-			langDetectionDeployments: []mockDeployment{
+			langDetectionDeployments: []common.MockDeployment{
 				{
-					containerName:  "pod",
-					deploymentName: "test-app",
-					namespace:      "ns",
-					languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
+					ContainerName:  "pod",
+					DeploymentName: "test-app",
+					Namespace:      "ns",
+					Languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
 				},
 			},
 			wantErr: false,
@@ -1773,7 +1776,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Library annotation, Single Step Instrumentation with library pinned and language detection",
-			pod: fakePodWithParent(
+			pod: common.FakePodWithParent(
 				"ns",
 				map[string]string{"admission.datadoghq.com/js-lib.version": "v1.10"},
 				map[string]string{},
@@ -1820,12 +1823,12 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"js": "v1.10"},
-			langDetectionDeployments: []mockDeployment{
+			langDetectionDeployments: []common.MockDeployment{
 				{
-					containerName:  "pod",
-					deploymentName: "test-app",
-					namespace:      "ns",
-					languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
+					ContainerName:  "pod",
+					DeploymentName: "test-app",
+					Namespace:      "ns",
+					Languages:      util.LanguageSet{util.Language("python"): struct{}{}, util.Language("java"): struct{}{}},
 				},
 			},
 			wantErr: false,
@@ -1843,15 +1846,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			fakeStoreWithDeployment(t, tt.langDetectionDeployments)
+			common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
-			// reset pinned libraries between test runs
-			pinnedLibs = &pinnedLibraries{}
+			// Need to create a new instance of the webhook to take into account
+			// the config changes.
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook()
+			require.NoError(t, errInitAPMInstrumentation)
 
-			apmInstrumentation, err := newAPMInstrumentationWebhook()
-			require.NoError(t, err)
-
-			err = apmInstrumentation.injectAutoInstrumentation(tt.pod, "", fake.NewSimpleDynamicClient(scheme))
+			err := apmInstrumentationWebhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 
 			container := tt.pod.Spec.Containers[0]
@@ -1923,19 +1925,19 @@ func TestShouldInject(t *testing.T) {
 	}{
 		{
 			name:        "instrumentation on, no label",
-			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:         common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 			want:        true,
 		},
 		{
 			name:        "instrumentation on, label disabled",
-			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
+			pod:         common.FakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 			want:        false,
 		},
 		{
 			name: "instrumentation on with disabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:  common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
@@ -1944,7 +1946,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with disabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns2", "", ""),
+			pod:  common.FakePodWithNamespaceAndLabel("ns2", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
@@ -1953,7 +1955,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with disabled namespace, disabled label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
+			pod:  common.FakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
@@ -1962,7 +1964,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with disabled namespace, label enabled",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
+			pod:  common.FakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
@@ -1971,19 +1973,19 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name:        "instrumentation off, label enabled",
-			pod:         fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
+			pod:         common.FakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 			want:        true,
 		},
 		{
 			name:        "instrumentation off, no label",
-			pod:         fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:         common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 			want:        false,
 		},
 		{
 			name: "instrumentation off with enabled namespace, label enabled",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
+			pod:  common.FakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "true"),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
@@ -1992,7 +1994,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation off with enabled namespace, label disabled",
-			pod:  fakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
+			pod:  common.FakePodWithNamespaceAndLabel("ns", "admission.datadoghq.com/enabled", "false"),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
@@ -2001,7 +2003,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation off with enabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:  common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
@@ -2010,7 +2012,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with enabled namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns", "", ""),
+			pod:  common.FakePodWithNamespaceAndLabel("ns", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
@@ -2019,7 +2021,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on with enabled other namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("ns2", "", ""),
+			pod:  common.FakePodWithNamespaceAndLabel("ns2", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
@@ -2028,7 +2030,7 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on in kube-system namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("kube-system", "", ""),
+			pod:  common.FakePodWithNamespaceAndLabel("kube-system", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 			},
@@ -2036,12 +2038,54 @@ func TestShouldInject(t *testing.T) {
 		},
 		{
 			name: "instrumentation on in default (datadog) namespace, no label",
-			pod:  fakePodWithNamespaceAndLabel("default", "", ""),
+			pod:  common.FakePodWithNamespaceAndLabel("default", "", ""),
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("kube_resources_namespace", "default")
 			},
 			want: false,
+		},
+		{
+			name:        "Mutate unlabelled, no label",
+			pod:         common.FakePodWithLabel("", ""),
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
+			want:        true,
+		},
+		{
+			name:        "Mutate unlabelled, label enabled",
+			pod:         common.FakePodWithLabel("admission.datadoghq.com/enabled", "true"),
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
+			want:        true,
+		},
+		{
+			name:        "Mutate unlabelled, label disabled",
+			pod:         common.FakePodWithLabel("admission.datadoghq.com/enabled", "false"),
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true) },
+			want:        false,
+		},
+		{
+			name:        "no Mutate unlabelled, no label",
+			pod:         common.FakePodWithLabel("", ""),
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
+			want:        false,
+		},
+		{
+			name:        "no Mutate unlabelled, label enabled",
+			pod:         common.FakePodWithLabel("admission.datadoghq.com/enabled", "true"),
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
+			want:        true,
+		},
+		{
+			name:        "no Mutate unlabelled, label disabled",
+			pod:         common.FakePodWithLabel("admission.datadoghq.com/enabled", "false"),
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
+			want:        false,
+		},
+		{
+			name:        "no Mutate unlabelled, label disabled",
+			pod:         common.FakePodWithLabel("admission.datadoghq.com/enabled", "false"),
+			setupConfig: func() { mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false) },
+			want:        false,
 		},
 	}
 
@@ -2052,9 +2096,10 @@ func TestShouldInject(t *testing.T) {
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
-			apmInstrumentationWebhook, errInitAPMInstrumentation = newAPMInstrumentationWebhook()
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook()
+			require.NoError(t, errInitAPMInstrumentation)
 
-			if got := shouldInject(tt.pod); got != tt.want {
+			if got := ShouldInject(tt.pod); got != tt.want {
 				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
 			}
 		})

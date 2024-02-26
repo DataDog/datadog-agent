@@ -5,15 +5,15 @@
 
 //go:build kubeapiserver
 
-// Package mutate implements the mutations needed by the auto-instrumentation feature.
-package mutate
+package autoinstrumentation
 
 import (
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	corev1 "k8s.io/api/core/v1"
 )
 
 // getOwnerNameAndKind returns the name and kind of the first owner of the pod if it exists

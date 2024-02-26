@@ -5,29 +5,28 @@
 
 //go:build kubeapiserver
 
-package mutate
+// Package common provides functions used by several mutating webhooks
+package common
 
 import (
 	"encoding/json"
 	"fmt"
 
 	"github.com/wI2L/jsondiff"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
 
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error
-type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) error
+// MutationFunc is a function that mutates a pod
+type MutationFunc func(*corev1.Pod, string, dynamic.Interface) error
 
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func Mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byte, error) {
+func Mutate(rawPod []byte, ns string, m MutationFunc, dc dynamic.Interface) ([]byte, error) {
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
@@ -42,32 +41,7 @@ func Mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byt
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
 	}
 
-	patch, err := jsondiff.CompareJSON(rawPod, bytes) // TODO: Try to generate the patch at the mutateFunc
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
-	}
-
-	return json.Marshal(patch)
-}
-
-// mutatePodExecOptions handles mutating PodExecOptions and encoding and decoding admission
-// requests and responses for the public mutate functions
-func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, userInfo *authenticationv1.UserInfo, m mutatePodExecFunc, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
-	var exec corev1.PodExecOptions
-	if err := json.Unmarshal(rawPodExecOptions, &exec); err != nil {
-		return nil, fmt.Errorf("failed to decode raw object: %v", err)
-	}
-
-	if err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
-		return nil, err
-	}
-
-	bytes, err := json.Marshal(exec)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
-	}
-
-	patch, err := jsondiff.CompareJSON(rawPodExecOptions, bytes) // TODO: Try to generate the patch at the mutateFunc
+	patch, err := jsondiff.CompareJSON(rawPod, bytes) // TODO: Try to generate the patch at the MutationFunc
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
@@ -85,9 +59,9 @@ func contains(envs []corev1.EnvVar, name string) bool {
 	return false
 }
 
-// envIndex returns the index of env var in an env var list
+// EnvIndex returns the index of env var in an env var list
 // returns -1 if not found
-func envIndex(envs []corev1.EnvVar, name string) int {
+func EnvIndex(envs []corev1.EnvVar, name string) int {
 	for i := range envs {
 		if envs[i].Name == name {
 			return i
@@ -97,10 +71,10 @@ func envIndex(envs []corev1.EnvVar, name string) int {
 	return -1
 }
 
-// injectEnv injects an env var into a pod template if it doesn't exist
-func injectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
+// InjectEnv injects an env var into a pod template if it doesn't exist
+func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
 	injected := false
-	podStr := podString(pod)
+	podStr := PodString(pod)
 	log.Debugf("Injecting env var '%s' into pod %s", env.Name, podStr)
 	for i, ctr := range pod.Spec.Containers {
 		if contains(ctr.Env, env.Name) {
@@ -125,9 +99,9 @@ func injectEnv(pod *corev1.Pod, env corev1.EnvVar) bool {
 	return injected
 }
 
-// injectVolume injects a volume into a pod template if it doesn't exist
-func injectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.VolumeMount) bool {
-	podStr := podString(pod)
+// InjectVolume injects a volume into a pod template if it doesn't exist
+func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.VolumeMount) bool {
+	podStr := PodString(pod)
 	for _, vol := range pod.Spec.Volumes {
 		if vol.Name == volume.Name {
 			log.Debugf("Ignoring pod %q: volume %q already exists", podStr, vol.Name)
@@ -162,8 +136,8 @@ func injectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 	return shouldInject
 }
 
-// podString returns a string that helps identify the pod
-func podString(pod *corev1.Pod) string {
+// PodString returns a string that helps identify the pod
+func PodString(pod *corev1.Pod) string {
 	if pod.GetNamespace() == "" || pod.GetName() == "" {
 		return fmt.Sprintf("with generate name %s", pod.GetGenerateName())
 	}
@@ -184,9 +158,9 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 	return false
 }
 
-// shouldMutatePod returns true if Admission Controller is allowed to mutate the pod
+// ShouldMutatePod returns true if Admission Controller is allowed to mutate the pod
 // via pod label or mutateUnlabelled configuration
-func shouldMutatePod(pod *corev1.Pod) bool {
+func ShouldMutatePod(pod *corev1.Pod) bool {
 	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
 	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
 		switch val {
@@ -195,31 +169,9 @@ func shouldMutatePod(pod *corev1.Pod) bool {
 		case "false":
 			return false
 		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
+			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, PodString(pod))
 		}
 	}
 
 	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
-}
-
-// shouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
-func shouldInject(pod *corev1.Pod) bool {
-	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
-	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, podString(pod))
-		}
-	}
-
-	apmWebhook, err := GetAPMInstrumentationWebhook()
-	if err != nil {
-		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
-	}
-
-	return apmWebhook.isEnabled(pod.Namespace) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
