@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -35,6 +36,27 @@ const (
 	MergePolicy    CombinePolicy = "merge"
 	OverridePolicy CombinePolicy = "override"
 )
+
+// OverrideField defines a combine field
+type OverrideField = string
+
+const (
+	// OverrideAllFields used to override all the fields
+	OverrideAllFields OverrideField = "all"
+	// OverrideExpressionField used to override the expression
+	OverrideExpressionField OverrideField = "expression"
+	// OverrideActionFields used to override the actions
+	OverrideActionFields OverrideField = "actions"
+	// OverrideEveryField used to override the every field
+	OverrideEveryField OverrideField = "every"
+	// OverrideTagsField used to override the tags
+	OverrideTagsField OverrideField = "tags"
+)
+
+// OverrideOptions defines combine options
+type OverrideOptions struct {
+	Fields []OverrideField `yaml:"fields"`
+}
 
 // Ruleset loading operations
 const (
@@ -89,6 +111,7 @@ type RuleDefinition struct {
 	Filters                []string            `yaml:"filters"`
 	Disabled               bool                `yaml:"disabled"`
 	Combine                CombinePolicy       `yaml:"combine"`
+	OverrideOptions        OverrideOptions     `yaml:"override_options"`
 	Actions                []*ActionDefinition `yaml:"actions"`
 	Every                  time.Duration       `yaml:"every"`
 	Silent                 bool                `yaml:"silent"`
@@ -104,17 +127,36 @@ func (rd *RuleDefinition) GetTag(tagKey string) (string, bool) {
 	return "", false
 }
 
+func applyOverride(rd1, rd2 *RuleDefinition) {
+	// keep track of the combine
+	rd1.Combine = rd2.Combine
+
+	// for backward compatibility, by default only the expression is copied if no options
+	if len(rd2.OverrideOptions.Fields) == 0 {
+		rd1.Expression = rd2.Expression
+	} else if slices.Contains(rd2.OverrideOptions.Fields, OverrideAllFields) {
+		*rd1 = *rd2
+	} else {
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideExpressionField) {
+			rd1.Expression = rd2.Expression
+		}
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideActionFields) {
+			rd1.Actions = rd2.Actions
+		}
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideEveryField) {
+			rd1.Every = rd2.Every
+		}
+		if slices.Contains(rd2.OverrideOptions.Fields, OverrideTagsField) {
+			rd1.Tags = rd2.Tags
+		}
+	}
+}
+
 // MergeWith merges rule rd2 into rd
 func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 	switch rd2.Combine {
 	case OverridePolicy:
-		// keep the old expression if the new one is empty
-		expression := rd.Expression
-
-		*rd = *rd2
-		if rd2.Expression == "" {
-			rd.Expression = expression
-		}
+		applyOverride(rd, rd2)
 	default:
 		if !rd2.Disabled {
 			return &ErrRuleLoad{Definition: rd2, Err: ErrDefinitionIDConflict}

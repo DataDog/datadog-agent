@@ -1047,11 +1047,44 @@ workflow:
   - when: manual
     allow_failure: true
 
+# New E2E related rules
+
+
+.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_auto_e2e
+    when: on_success
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_release_branch
+    when: on_success
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  - <<: *if_mergequeue
+    when: never
+
 .always_on_container_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
+  - <<: *if_auto_e2e
+    when: always
   - <<: *if_main_branch
     when: always
+  - <<: *if_release_branch
+    when: always
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: always
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - <<: *if_mergequeue
     when: never
   - changes:
@@ -1081,16 +1114,7 @@ workflow:
     allow_failure: true
 
 .on_container_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
-    when: never
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/core/tagger/**/*
@@ -1118,16 +1142,7 @@ workflow:
     allow_failure: true
 
 .on_rc_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
-    when: never
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - pkg/config/remote/**/*
@@ -1151,6 +1166,78 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_asc_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for ASC
+        - test/new-e2e/tests/agent-shared-components/**/*
+  - when: manual
+    allow_failure: true
+
+.on_subcommands_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for subcommands
+        - test/new-e2e/tests/agent-subcommands/**/*
+  - when: manual
+    allow_failure: true
+
+.on_language-detection_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for language detection
+        - test/new-e2e/tests/language-detection/**/*
+  - when: manual
+    allow_failure: true
+
+.on_npm_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for npm
+        - test/new-e2e/tests/npm/**/*
+  - when: manual
+    allow_failure: true
+
+.on_aml_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for AML
+        - test/new-e2e/tests/agent-metrics-logs/**/*
+  - when: manual
+    allow_failure: true
+
+.on_cws_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for CWS
+        - test/new-e2e/tests/cws/**/*
+  - when: manual
+    allow_failure: true
+
+.on_process_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for process
+        - test/new-e2e/tests/process/**/*
+  - when: manual
+    allow_failure: true
+
+.on_orchestrator_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for orchestrator
+        - test/new-e2e/tests/orchestrator/**/*
+  - when: manual
+    allow_failure: true
+
 .on_install_script_release_manual:
   - <<: *if_not_version_7
     when: never
@@ -1163,16 +1250,7 @@ workflow:
     allow_failure: true
 
 .on_apm_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
-    when: never
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - pkg/trace/**/*

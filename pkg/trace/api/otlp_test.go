@@ -167,6 +167,18 @@ func TestOTLPMetrics(t *testing.T) {
 		},
 	}).Traces().ResourceSpans()
 
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-out:
+			case <-stop:
+				return
+			}
+		}
+	}()
+	defer close(stop)
+
 	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{})
 	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{})
 
