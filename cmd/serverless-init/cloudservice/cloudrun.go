@@ -13,7 +13,7 @@ import (
 
 const (
 	revisionNameEnvVar = "K_REVISION"
-	serviceNameEnvVar  = "K_SERVICE"
+	ServiceNameEnvVar  = "K_SERVICE"
 )
 
 var metadataHelperFunc = helper.GetMetaData
@@ -26,7 +26,7 @@ func (c *CloudRun) GetTags() map[string]string {
 	tags := metadataHelperFunc(helper.GetDefaultConfig()).TagMap()
 
 	revisionName := os.Getenv(revisionNameEnvVar)
-	serviceName := os.Getenv(serviceNameEnvVar)
+	serviceName := os.Getenv(ServiceNameEnvVar)
 
 	if revisionName != "" {
 		tags["revision_name"] = revisionName
@@ -60,6 +60,6 @@ func (c *CloudRun) Init() error {
 }
 
 func isCloudRunService() bool {
-	_, exists := os.LookupEnv(serviceNameEnvVar)
+	_, exists := os.LookupEnv(ServiceNameEnvVar)
 	return exists
 }

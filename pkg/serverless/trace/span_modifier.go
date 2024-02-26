@@ -6,6 +6,7 @@
 package trace
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -13,9 +14,9 @@ import (
 )
 
 const (
-	functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
-	ddOriginTagName    = "_dd.origin"
-	ddOriginTagValue   = "lambda"
+	functionNameEnvVar     = "AWS_LAMBDA_FUNCTION_NAME"
+	ddOriginTagName        = "_dd.origin"
+	ddOriginTagValueLambda = "lambda"
 )
 
 type spanModifier struct {
@@ -39,7 +40,12 @@ func (s *spanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 
 	// ensure all spans have tag _dd.origin in addition to span.Origin
 	if origin := span.Meta[ddOriginTagName]; origin == "" {
-		traceutil.SetMeta(span, ddOriginTagName, ddOriginTagValue)
+		ddOriginValue := ddOriginTagValueLambda
+		if serverlessInitOrigin := cloudservice.GetCloudServiceType().GetOrigin(); serverlessInitOrigin != "local" {
+			ddOriginValue = serverlessInitOrigin
+		}
+		traceutil.SetMeta(span, ddOriginTagName, ddOriginValue)
+
 	}
 
 	if span.Name == "aws.lambda.load" {
