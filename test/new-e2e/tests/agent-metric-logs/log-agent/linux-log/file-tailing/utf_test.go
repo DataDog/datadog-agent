@@ -116,6 +116,6 @@ func (s *UtfSuite) testUtfLittleEndianCollection() {
 
 func (s *UtfSuite) generateUtfLog(endianness, content string) {
 	s.T().Helper()
-	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open(%s, 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, logFile, content, endianness)
+	utfLogGenerationCommand := fmt.Sprintf(`sudo python3 -c "f = open('/var/log/hello-world-utf.log', 'ab'); t = '%s\n'.encode('utf-16-%s'); f.write(t); f.close()"`, content, endianness)
 	s.Env().RemoteHost.MustExecute(utfLogGenerationCommand)
 }

@@ -69,8 +69,10 @@ func (s *MultiLineSuite) BeforeTest(suiteName, testName string) {
 	}, 1*time.Minute, 10*time.Second)
 
 	// Create a new log folder location
+	// s.Env().RemoteHost.MkdirAll(utils.LinuxLogsFolderPath)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
 
+	// s.Env().RemoteHost.WriteFile(logFilePath, []byte{})
 	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo touch %s", logFilePath))
 	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s", logFilePath))
 
@@ -79,7 +81,8 @@ func (s *MultiLineSuite) BeforeTest(suiteName, testName string) {
 func (s *MultiLineSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo rm -rf %s", utils.LinuxLogsFolderPath))
+	// s.Env().RemoteHost.Execute(fmt.Sprintf("sudo rm -rf %s", utils.LinuxLogsFolderPath))
+	s.Env().RemoteHost.Remove(utils.LinuxLogsFolderPath)
 }
 
 func (s *MultiLineSuite) generateMultilineLogs(prefix string, count int) {
