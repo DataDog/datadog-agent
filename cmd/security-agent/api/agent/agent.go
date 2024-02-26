@@ -33,15 +33,13 @@ import (
 type Agent struct {
 	runtimeAgent    *secagent.RuntimeSecurityAgent
 	complianceAgent *compliance.Agent
-	ac              optional.Option[autodiscovery.Component]
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent, ac optional.Option[autodiscovery.Component]) *Agent {
+func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent) *Agent {
 	return &Agent{
 		runtimeAgent:    runtimeAgent,
 		complianceAgent: complianceAgent,
-		ac:              ac,
 	}
 }
 
@@ -51,9 +49,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/flare", a.makeFlare).Methods("POST")
 	r.HandleFunc("/hostname", a.getHostname).Methods("GET")
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		a.getStatus(w, r, a.ac)
-	}).Methods("GET")
+	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
@@ -89,9 +85,9 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request, ac optional.Option[autodiscovery.Component]) {
+func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	s, err := status.GetStatus(false, nil, ac)
+	s, err := status.GetStatus(false, nil, optional.NewNoneOption[autodiscovery.Component]())
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
@@ -150,7 +146,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 		complianceStatus = a.complianceAgent.GetStatus()
 	}
 
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus, a.ac)
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

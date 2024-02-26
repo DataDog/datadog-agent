@@ -24,31 +24,28 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Server implements security agent API server
 type Server struct {
 	listener net.Listener
 	agent    *agent.Agent
-	ac       *autodiscovery.Component
 }
 
 // NewServer creates a new Server instance
-func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent, ac optional.Option[autodiscovery.Component]) (*Server, error) {
+func NewServer(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
 		listener: listener,
-		agent:    agent.NewAgent(runtimeAgent, complianceAgent, ac),
+		agent:    agent.NewAgent(runtimeAgent, complianceAgent),
 	}, nil
 }
 

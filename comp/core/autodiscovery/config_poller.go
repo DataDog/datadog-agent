@@ -55,7 +55,7 @@ func (cp *configPoller) stop() {
 
 // start starts polling the provider descriptor. It blocks until the provider
 // returns all the known configs.
-func (cp *configPoller) start(ctx context.Context, ac *autoconfig) {
+func (cp *configPoller) start(ctx context.Context, ac *AutoConfig) {
 	switch provider := cp.provider.(type) {
 	case providers.StreamingConfigProvider:
 		cp.stopChan = make(chan struct{})
@@ -78,7 +78,7 @@ func (cp *configPoller) start(ctx context.Context, ac *autoconfig) {
 }
 
 // stream streams config from the corresponding config provider
-func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingConfigProvider, ac *autoconfig) {
+func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingConfigProvider, ac *AutoConfig) {
 	var ranOnce bool
 	ctx, cancel := context.WithCancel(context.Background())
 	changesCh := provider.Stream(ctx)
@@ -122,7 +122,7 @@ func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingCon
 }
 
 // poll polls config of the corresponding config provider
-func (cp *configPoller) poll(provider providers.CollectingConfigProvider, ac *autoconfig) {
+func (cp *configPoller) poll(provider providers.CollectingConfigProvider, ac *AutoConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	ticker := time.NewTicker(cp.pollInterval)
 	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
@@ -160,7 +160,7 @@ func (cp *configPoller) poll(provider providers.CollectingConfigProvider, ac *au
 	}
 }
 
-func (cp *configPoller) collectOnce(ctx context.Context, provider providers.CollectingConfigProvider, ac *autoconfig) {
+func (cp *configPoller) collectOnce(ctx context.Context, provider providers.CollectingConfigProvider, ac *AutoConfig) {
 	// retrieve the list of newly added configurations as well
 	// as removed configurations
 	newConfigs, removedConfigs := cp.collect(ctx, provider)

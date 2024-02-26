@@ -25,12 +25,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) []diagnosis.Diagnosis {
+func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
 	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
 		return diagnoseChecksInAgentProcess(coll)
 	}
-
-	return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, ac)
+	if ac, ok := acOpt.Get(); ok {
+		return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, ac)
+	}
+	return []diagnosis.Diagnosis{
+		{
+			Result:    diagnosis.DiagnosisUnexpectedError,
+			Name:      "Collector or AutoDiscovery not found",
+			Diagnosis: "Collector or AutoDiscovery not found",
+			RawError:  "Collector or AutoDiscovery not found",
+		},
+	}
 }
 
 func getInstanceDiagnoses(instance check.Check) []diagnosis.Diagnosis {

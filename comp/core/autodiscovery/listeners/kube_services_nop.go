@@ -7,4 +7,5 @@
 
 package listeners
 
-var NewKubeServiceListener ServiceListenerFactory = nil
+// NewKubeServiceListener returns the kube service implementation of the ServiceListener interface
+var NewKubeServiceListener ServiceListenerFactory

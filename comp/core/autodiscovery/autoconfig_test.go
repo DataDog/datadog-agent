@@ -158,7 +158,7 @@ func (suite *AutoConfigTestSuite) SetupSuite() {
 	)
 }
 
-func NewMockAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *autoconfig {
+func NewMockAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
 	ac := NewAutoConfigNoStart(scheduler, secretResolver)
 	go ac.serviceListening()
 	return ac
@@ -363,7 +363,7 @@ func TestResolveTemplate(t *testing.T) {
 	assert.Len(t, sch.scheduled, 1)
 }
 
-func countLoadedConfigs(ac *autoconfig) int {
+func countLoadedConfigs(ac *AutoConfig) int {
 	count := -1 // -1 would indicate f was not called
 	ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
 		count = len(loadedConfigs)
@@ -406,7 +406,7 @@ func TestRemoveTemplate(t *testing.T) {
 }
 
 func TestGetLoadedConfigNotInitialized(t *testing.T) {
-	ac := autoconfig{}
+	ac := AutoConfig{}
 	assert.Equal(t, countLoadedConfigs(&ac), 0)
 }
 

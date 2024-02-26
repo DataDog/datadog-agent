@@ -566,7 +566,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.Di
 	diagCfg.RunLocal = true
 
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg, senderManager, collector, secretResolver, ac)
+	diagnoses, err := diagnose.Run(diagCfg, senderManager, collector, secretResolver, optional.NewOption[autodiscovery.Component](ac))
 	if err != nil {
 		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return

@@ -114,7 +114,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				workloadmeta.OptionalModule(),
 				tagger.OptionalModule(),
-				autodiscovery.NoStartModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
+				autodiscovery.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				diagnosesendermanagerimpl.Module(),

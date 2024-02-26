@@ -338,8 +338,8 @@ func start(log log.Component,
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
 	// don't import cmd/agent
 
-	// create and setup the Autoconfig instance
-	// The Autoconfig instance setup happens in the workloadmeta start hook
+	// create and setup the autoconfig instance
+	// The autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 

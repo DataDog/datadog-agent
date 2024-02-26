@@ -34,7 +34,13 @@ import (
 type ProfileData map[string][]byte
 
 // CreateDCAArchive packages up the files
-func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) (string, error) {
+func CreateDCAArchive(local bool,
+	distPath, logFilePath string,
+	pdata ProfileData,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) (string, error) {
 	fb, err := flarehelpers.NewFlareBuilder(local)
 	if err != nil {
 		return "", err
@@ -49,19 +55,28 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 	return fb.Save()
 }
 
-func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) {
+func createDCAArchive(fb flaretypes.FlareBuilder,
+	confSearchPaths map[string]string,
+	logFilePath string,
+	pdata ProfileData,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil)
 	} else {
 		// The Status will be unavailable unless the agent is running.
-		// Only zip it up if the agent is running
-		err := fb.AddFileFromFunc("cluster-agent-status.log", func() ([]byte, error) {
-			return clusteragentStatus.GetAndFormatStatus(ac)
-		})
-		if err != nil {
-			log.Errorf("Error getting the status of the DCA, %q", err)
-			return
+		if compAC, ok := ac.Get(); ok {
+			// Only zip it up if the agent is running
+			err := fb.AddFileFromFunc("cluster-agent-status.log", func() ([]byte, error) {
+				return clusteragentStatus.GetAndFormatStatus(compAC)
+			})
+			if err != nil {
+				log.Errorf("Error getting the status of the DCA, %q", err)
+				return
+			}
 		}
 	}
 
@@ -163,7 +178,11 @@ func getClusterAgentConfigCheck(fb flaretypes.FlareBuilder) error {
 	return fb.AddFile("config-check.log", b.Bytes())
 }
 
-func getClusterAgentDiagnose(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) error {
+func getClusterAgentDiagnose(fb flaretypes.FlareBuilder,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)

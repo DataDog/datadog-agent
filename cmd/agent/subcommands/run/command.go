@@ -356,7 +356,7 @@ func getSharedFxOption() fx.Option {
 		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, _ tagger.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-					// create and setup the Autoconfig instance
+					//  setup the AutoConfig instance
 					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},

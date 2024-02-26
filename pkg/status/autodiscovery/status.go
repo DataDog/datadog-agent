@@ -25,6 +25,7 @@ func PopulateStatus(ac autodiscovery.Component, stats map[string]interface{}) {
 	stats["filterErrors"] = containers.GetFilterErrors()
 }
 
+// PopulateStatusWithoutAD populates the status stats without autodicsovery component
 func PopulateStatusWithoutAD(stats map[string]interface{}) {
 	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
 	stats["filterErrors"] = containers.GetFilterErrors()

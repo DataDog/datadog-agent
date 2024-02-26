@@ -42,7 +42,7 @@ type dependencies struct {
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
 	Collector             optional.Option[collector.Component]
-	ac                    autodiscovery.Component
+	AC                    optional.Option[autodiscovery.Component]
 }
 
 type flare struct {
@@ -54,7 +54,7 @@ type flare struct {
 	providers             []types.FlareCallback
 	collector             optional.Option[collector.Component]
 	secretResolver        secrets.Component
-	ac                    autodiscovery.Component
+	ac                    optional.Option[autodiscovery.Component]
 }
 
 func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
@@ -66,7 +66,7 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
 		collector:             deps.Collector,
-		ac:                    deps.ac,
+		ac:                    deps.AC,
 	}
 
 	rcListener := rcclient.TaskListenerProvider{
@@ -133,7 +133,6 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 		f.providers,
 		func(fb types.FlareBuilder) error {
 			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.secretResolver, f.ac)
-			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.ac)
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,

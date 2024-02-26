@@ -9,4 +9,6 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewPrometheusPodsConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to kubelet.
+// Connectivity is not checked at this stage to allow for retries, Collect will do it.
+var NewPrometheusPodsConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)

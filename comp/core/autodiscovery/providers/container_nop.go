@@ -7,4 +7,6 @@
 
 package providers
 
-var NewContainerConfigProvider ConfigProviderFactory = nil
+// NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
+// and pods
+var NewContainerConfigProvider ConfigProviderFactory

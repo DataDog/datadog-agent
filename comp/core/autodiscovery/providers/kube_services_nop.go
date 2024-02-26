@@ -9,4 +9,6 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewKubeServiceConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewKubeServiceConfigProvider returns a new ConfigProvider connected to apiserver.
+// Connectivity is not checked at this stage to allow for retries, Collect will do it.
+var NewKubeServiceConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)

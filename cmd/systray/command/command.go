@@ -103,7 +103,7 @@ func MakeCommand() *cobra.Command {
 					path.DefaultJmxLogFile,
 					path.DefaultDogstatsDLogFile,
 				)),
-				autodiscovery.NoStartModule(),
+				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 				flare.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				diagnosesendermanagerimpl.Module(),

@@ -18,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
@@ -39,11 +37,7 @@ var (
 	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func setupAutoDiscovery(confSearchPaths []string,
-	metaScheduler *scheduler.MetaScheduler,
-	secretResolver secrets.Component,
-	wmeta workloadmeta.Component,
-	ac autodiscovery.Component) {
+func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, ac autodiscovery.Component) {
 	providers.InitConfigFilesReader(confSearchPaths)
 	ac.AddConfigProvider(
 		providers.NewFileConfigProvider(),

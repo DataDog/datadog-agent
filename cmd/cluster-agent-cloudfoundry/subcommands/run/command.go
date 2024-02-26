@@ -93,13 +93,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
 				collectorimpl.Module(),
-<<<<<<< HEAD
 				// The cluster-agent-cloudfoundry agent do not have a status command
 				// so there is no need to initialize the status component
 				fx.Provide(func() status.Component { return nil }),
-=======
 				autodiscovery.Module(),
->>>>>>> 1f2bdcde0c (remove global common.AC)
 			)
 		},
 	}
@@ -107,17 +104,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-<<<<<<< HEAD
-func run(log log.Component, taggerComp tagger.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, statusComponent status.Component) error {
-=======
 func run(log log.Component,
 	taggerComp tagger.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
-	collector collector.Component) error {
->>>>>>> 1f2bdcde0c (remove global common.AC)
+	collector collector.Component,
+	statusComponent status.Component) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
@@ -161,8 +155,6 @@ func run(log log.Component,
 		return err
 	}
 
-	// create and setup the Autoconfig instance
-	// The Autoconfig instance setup happens in the workloadmeta start hook
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
@@ -171,11 +163,7 @@ func run(log log.Component,
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-<<<<<<< HEAD
-	if err = api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
-=======
-	if err = api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector)); err != nil {
->>>>>>> 1f2bdcde0c (remove global common.AC)
+	if err = api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

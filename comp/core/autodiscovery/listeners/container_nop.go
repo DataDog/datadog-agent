@@ -7,4 +7,4 @@
 
 package listeners
 
-var NewContainerListener ServiceListenerFactory = nil
+var NewContainerListener ServiceListenerFactory

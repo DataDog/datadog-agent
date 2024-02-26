@@ -9,4 +9,5 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewZookeeperConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
+var NewZookeeperConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)

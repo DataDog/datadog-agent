@@ -94,7 +94,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
-				autodiscovery.NoStartModule(),
+				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 			)
 		},
 	}
@@ -159,7 +159,7 @@ func run(cliParams *cliParams,
 	diagnoseSenderManager diagnosesendermanager.Component,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	ac autodiscovery.Component) error {
+	ac optional.Option[autodiscovery.Component]) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData

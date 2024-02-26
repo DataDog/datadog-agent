@@ -18,7 +18,11 @@ import (
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
-func GetClusterAgentDiagnose(w io.Writer, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) error {
+func GetClusterAgentDiagnose(w io.Writer,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future

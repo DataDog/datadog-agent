@@ -45,7 +45,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 		makeFlare(w, r, senderManager, collector, secretResolver, ac)
 	}).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent, ac) }).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
@@ -60,11 +60,11 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	}).Methods("GET")
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, ac autodiscovery.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
-	s, err := statusComponent.GetStatus(ac, format, verbose)
+	s, err := statusComponent.GetStatus(format, verbose)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
@@ -154,7 +154,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, senderManager, collector, secretResolver, ac)
+	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, senderManager, collector, secretResolver, optional.NewOption[autodiscovery.Component](ac))
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

@@ -89,8 +89,8 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component, ac optional.Opti
 }
 
 // GetAndFormatStatus gets and formats the status all in one go
-func GetAndFormatStatus(invAgent inventoryagent.Component, ac compAutodiscovery.Component) ([]byte, error) {
-	s, err := GetStatus(true, invAgent, optional.NewOption(ac))
+func GetAndFormatStatus(invAgent inventoryagent.Component, ac optional.Option[compAutodiscovery.Component]) ([]byte, error) {
+	s, err := GetStatus(true, invAgent, ac)
 	if err != nil {
 		return nil, err
 	}
@@ -109,9 +109,9 @@ func GetAndFormatStatus(invAgent inventoryagent.Component, ac compAutodiscovery.
 }
 
 // GetAndFormatSecurityAgentStatus gets and formats the security agent status
-func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]interface{}, ac optional.Option[compAutodiscovery.Component]) ([]byte, error) {
+func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]interface{}) ([]byte, error) {
 	// inventory metadata is not enabled in the security agent, we pass nil to GetStatus
-	s, err := GetStatus(true, nil, ac)
+	s, err := GetStatus(true, nil, optional.NewNoneOption[compAutodiscovery.Component]())
 	if err != nil {
 		return nil, err
 	}

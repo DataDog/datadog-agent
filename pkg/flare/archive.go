@@ -54,7 +54,12 @@ type searchPaths map[string]string
 
 // CompleteFlare packages up the files with an already created builder. This is aimed to be used by the flare
 // component while we migrate to a component architecture.
-func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager, invAgent inventoryagent.Component, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) error {
+func CompleteFlare(fb flaretypes.FlareBuilder,
+	senderManager sender.DiagnoseSenderManager,
+	invAgent inventoryagent.Component,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) error {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -274,7 +279,11 @@ func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url str
 	getCheck("process_discovery", "process_config.process_discovery.enabled")
 }
 
-func getDiagnoses(isFlareLocal bool, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) func() ([]byte, error) {
+func getDiagnoses(isFlareLocal bool,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) func() ([]byte, error) {
 
 	fct := func(w io.Writer) error {
 		// Run diagnose always "local" (in the host process that is)

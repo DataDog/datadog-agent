@@ -9,4 +9,5 @@ package providers
 
 import "github.com/DataDog/datadog-agent/pkg/config"
 
-var NewKubeServiceFileConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error) = nil
+// NewKubeServiceFileConfigProvider returns a new KubeServiceFileConfigProvider
+var NewKubeServiceFileConfigProvider func(providerConfig *config.ConfigurationProviders) (ConfigProvider, error)

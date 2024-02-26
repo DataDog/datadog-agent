@@ -7,4 +7,5 @@
 
 package listeners
 
-var NewCloudFoundryListener ServiceListenerFactory = nil
+// NewCloudFoundryListener creates a CloudFoundryListener
+var NewCloudFoundryListener ServiceListenerFactory

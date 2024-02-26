@@ -41,6 +41,7 @@ func RegisterProviderWithComponents(name string, factory ConfigProviderFactory, 
 	providerCatalog[name] = factory
 }
 
+// RegisterProviders adds all the default providers to the catalog
 func RegisterProviders(providerCatalog map[string]ConfigProviderFactory) {
 	RegisterProvider(names.CloudFoundryBBS, NewCloudFoundryConfigProvider, providerCatalog)
 	RegisterProvider(names.ClusterChecksRegisterName, NewClusterChecksConfigProvider, providerCatalog)

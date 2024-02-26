@@ -252,7 +252,12 @@ func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) {
+func ListStdOut(w io.Writer,
+	diagCfg diagnosis.Config,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -339,7 +344,11 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 // Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) ([]diagnosis.Diagnoses, error) {
+func Run(diagCfg diagnosis.Config,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) ([]diagnosis.Diagnoses, error) {
 
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
@@ -359,7 +368,12 @@ func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, c
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) error {
+func RunStdOut(w io.Writer,
+	diagCfg diagnosis.Config,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -407,7 +421,11 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.Diagn
 	return nil
 }
 
-func getSuites(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, ac autodiscovery.Component) []diagnosis.Suite {
+func getSuites(diagCfg diagnosis.Config,
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	ac optional.Option[autodiscovery.Component]) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
 
 	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {

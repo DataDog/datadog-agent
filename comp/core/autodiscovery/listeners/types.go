@@ -64,7 +64,7 @@ type Config interface {
 // ServiceListenerFactory builds a service listener
 type ServiceListenerFactory func(Config) (ServiceListener, error)
 
-// register registers a service listener factory
+// Register registers a service listener factory
 func Register(name string,
 	factory ServiceListenerFactory,
 	serviceListenerFactories map[string]ServiceListenerFactory) {
