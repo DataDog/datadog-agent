@@ -310,7 +310,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				return err
 			}
 
-			fmt.Printf("out: %s\n", out)
+			//fmt.Printf("out: %s\n", out)
 
 			err = serie.Tags.ForEachErr(func(tag string) error {
 				return ps.String(seriesTags, tag)
