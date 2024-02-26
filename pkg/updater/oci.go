@@ -16,11 +16,6 @@ import (
 	ociSpec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-const (
-	// mediaTypeImageLayerGz is the media type for an OCI image layer in gz format
-	mediaTypeImageLayerGz = "application/vnd.oci.image.layer.v1.tar+gzip"
-)
-
 // extractOCI extracts the OCI archive at `ociArchivePath`
 func extractOCI(ociArchivePath string, destinationPath string) error {
 	index := &ociSpec.Index{}
@@ -84,7 +79,7 @@ func extractOCILayer(blobsPath string, destinationPath string, layer ociSpec.Des
 
 	layerPath := path.Join(blobsPath, layer.Digest.Encoded())
 	switch layer.MediaType {
-	case mediaTypeImageLayerGz:
+	case ociSpec.MediaTypeImageLayerGzip:
 		err := extractTarArchive(layerPath, destinationPath, compressionGzip)
 		if err != nil {
 			return err // already wrapped
