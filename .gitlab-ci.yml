@@ -1239,14 +1239,14 @@ workflow:
 .on_updater_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_main_branch
     when: on_success
   - <<: *if_release_branch
     when: on_success
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: on_success
-  - <<: *if_mergequeue
-    when: never
   - changes:
       paths:
         - pkg/updater/**/*
