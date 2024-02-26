@@ -111,13 +111,14 @@ e2e_test_junit_upload:
   dependencies:
     # We need to exhaustively list all the `new-e2e-…` jobs that produce junit reports here
     # to avoid downloading all the artifacts of all the jobs of all the previous stages.
-    - new-e2e-agent-shared-components-main
-    - new-e2e-agent-subcommands-main
-    - new-e2e-language-detection-main
-    - new-e2e-npm-main
-    - new-e2e-aml-main
-    - new-e2e-process-main
-    - new-e2e-cws-main
-    - new-e2e-orchestrator-main
+    - new-e2e-agent-shared-components
+    - new-e2e-agent-subcommands
+    - new-e2e-language-detection
+    - new-e2e-npm
+    - new-e2e-aml
+    - new-e2e-process
+    - new-e2e-cws
+    - new-e2e-orchestrator
     - new-e2e-apm
     - new-e2e-remote-config
+    - new-e2e-updater
