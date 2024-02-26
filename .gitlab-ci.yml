@@ -1041,6 +1041,8 @@ workflow:
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e
     when: never
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_auto_e2e
     when: on_success
   - <<: *if_main_branch
@@ -1054,12 +1056,12 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - <<: *if_mergequeue
-    when: never
 
 .always_on_container_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_auto_e2e
     when: always
   - <<: *if_main_branch
@@ -1073,8 +1075,6 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - <<: *if_mergequeue
-    when: never
   - changes:
       paths:
         - comp/core/tagger/**/*
