@@ -977,6 +977,8 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_windows_installer_changes_or_manual:
+  - <<: *if_not_e2e
+    when: never
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
