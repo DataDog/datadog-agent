@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -329,6 +330,7 @@ func getSharedFxOption() fx.Option {
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statusimpl.Module(),
+		authtokenimpl.Module(),
 		apiimpl.Module(),
 
 		dogstatsd.Bundle(),

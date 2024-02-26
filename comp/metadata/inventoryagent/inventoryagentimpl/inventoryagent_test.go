@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -31,8 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) *inventoryagent {
-	p := newInventoryAgentProvider(
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) provides {
+	return newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
@@ -41,8 +42,13 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprob
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			authtokenimpl.Module(),
 		),
 	)
+}
+
+func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) *inventoryagent {
+	p := getProvides(t, confOverrides, sysprobeConfOverrides)
 	return p.Comp.(*inventoryagent)
 }
 
@@ -259,17 +265,7 @@ func TestConfigRefresh(t *testing.T) {
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
-	ret := newInventoryAgentProvider(
-		fxutil.Test[dependencies](
-			t,
-			logimpl.MockModule(),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: nil}),
-			sysprobeconfigimpl.MockModule(),
-			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: nil}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
-		),
-	)
+	ret := getProvides(t, nil, nil)
 
 	headerStatusProvider := ret.StatusHeaderProvider.Provider
 
@@ -512,6 +508,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			authtokenimpl.Module(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

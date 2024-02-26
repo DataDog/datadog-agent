@@ -419,6 +419,10 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 										ID:         "foobar",
 										Expression: "open.file.path == \"/etc/local-default/foobar\"",
 									},
+									{
+										ID:         "foobar2",
+										Expression: "open.file.path == \"/etc/local-default/foobar2\"",
+									},
 								},
 								Macros: nil,
 							}}, nil
@@ -451,8 +455,34 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 									},
 									{
 										ID:         "foobar",
-										Expression: "",
+										Expression: "open.file.path == \"/etc/local-custom/foobar\"",
 										Combine:    OverridePolicy,
+										OverrideOptions: OverrideOptions{
+											Fields: []OverrideField{
+												"actions",
+												"tags",
+											},
+										},
+										Tags: map[string]string{
+											"tag1": "test2",
+										},
+										Actions: []*ActionDefinition{
+											{
+												Kill: &KillDefinition{
+													Signal: "SIGKILL",
+												},
+											},
+										},
+									},
+									{
+										ID:         "foobar2",
+										Expression: "open.file.path == \"/etc/local-custom/foobar2\"",
+										Combine:    OverridePolicy,
+										OverrideOptions: OverrideOptions{
+											Fields: []OverrideField{
+												"expression",
+											},
+										},
 										Tags: map[string]string{
 											"tag1": "test2",
 										},
@@ -476,29 +506,18 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 					t.Errorf("Missing %s rule set", DefaultRuleSetTagValue)
 				}
 
-				assert.Equal(t, 3, len(got.RuleSets[DefaultRuleSetTagValue].rules))
+				assert.Equal(t, 4, len(got.RuleSets[DefaultRuleSetTagValue].rules))
 
 				expectedRules := map[eval.RuleID]*Rule{
 					"foo": {
 						Rule: &eval.Rule{
 							ID:         "foo",
 							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
-							Tags:       []string{"tag1:test1"},
 						},
 						Definition: &RuleDefinition{
 							ID:         "foo",
 							Expression: "open.file.path == \"/etc/rc-custom/shadow\"",
 							Combine:    OverridePolicy,
-							Tags: map[string]string{
-								"tag1": "test1",
-							},
-							Actions: []*ActionDefinition{
-								{
-									Kill: &KillDefinition{
-										Signal: "SIGKILL",
-									},
-								},
-							},
 						}},
 					"bar": {
 						Rule: &eval.Rule{
@@ -531,6 +550,17 @@ func TestEvaluationSet_LoadPolicies_Overriding(t *testing.T) {
 								},
 							},
 						}},
+					"foobar2": {
+						Rule: &eval.Rule{
+							ID:         "foobar2",
+							Expression: "open.file.path == \"/etc/local-custom/foobar2\"",
+						},
+						Definition: &RuleDefinition{
+							ID:         "foobar2",
+							Expression: "open.file.path == \"/etc/local-custom/foobar2\"",
+							Combine:    OverridePolicy,
+						},
+					},
 				}
 
 				var r DiffReporter
