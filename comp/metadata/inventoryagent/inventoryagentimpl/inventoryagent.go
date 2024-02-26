@@ -17,6 +17,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -89,6 +90,7 @@ type inventoryagent struct {
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
+	authToken    authtoken.Component
 }
 
 type dependencies struct {
@@ -98,6 +100,7 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig optional.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
+	AuthToken      authtoken.Component
 }
 
 type provides struct {
@@ -117,6 +120,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		log:          deps.Log,
 		hostname:     hname,
 		data:         make(agentMetadata),
+		authToken:    deps.AuthToken,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -189,7 +193,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, confi
 			return cfg
 		}
 	} else {
-		ia.log.Errorf("could not fetch %s process configuration: %s", name, err)
+		ia.log.Infof("could not fetch %s process configuration: %s", name, err)
 	}
 	return fallback
 }

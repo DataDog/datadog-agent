@@ -76,7 +76,10 @@ func (o *OTLPReceiver) Start() {
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
-			o.grpcsrv = grpc.NewServer(grpc.MaxRecvMsgSize(10 * 1024 * 1024))
+			o.grpcsrv = grpc.NewServer(
+				grpc.MaxRecvMsgSize(10*1024*1024),
+				grpc.MaxConcurrentStreams(1), // Each payload must be sent to processing stage before we decode the next.
+			)
 			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
@@ -307,12 +310,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			tagContainersTags: payloadTags.String(),
 		}
 	}
-	select {
-	case o.out <- &p:
-		// success
-	default:
-		log.Warn("Payload in channel full. Dropped 1 payload.")
-	}
+
+	o.out <- &p
 	return src
 }
 

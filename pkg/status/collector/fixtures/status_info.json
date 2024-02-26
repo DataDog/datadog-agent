@@ -239,7 +239,10 @@
           "CheckID": "telemetry",
           "CheckName": "telemetry",
           "CheckVersion": "",
-          "EventPlatformEvents": {},
+          "EventPlatformEvents": {
+            "dbm-samples":  12,
+            "unknown-type": 34
+          },
           "Events": 0,
           "ExecutionTimes": [
             0,
@@ -286,7 +289,10 @@
           "MetricSamples": 2,
           "ServiceChecks": 0,
           "TotalErrors": 0,
-          "TotalEventPlatformEvents": {},
+          "TotalEventPlatformEvents": {
+            "dbm-samples":  132,
+            "unknown-type": 342
+          },
           "TotalEvents": 0,
           "TotalHistogramBuckets": 0,
           "TotalMetricSamples": 2,
