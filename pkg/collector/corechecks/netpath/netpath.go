@@ -128,7 +128,7 @@ func (c *Check) traceroute(senderInstance sender.Sender) (int, error) {
 		UseSrcPort: false,
 		NumPaths:   uint16(numpaths),
 		MinTTL:     uint8(DefaultMinTTL),
-		MaxTTL:     uint8(15),
+		MaxTTL:     uint8(24),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond,
 		Timeout:    DefaultReadTimeout,
 		BrokenNAT:  false,
