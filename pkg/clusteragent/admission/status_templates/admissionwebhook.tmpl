@@ -1,0 +1,39 @@
+  {{- if .admissionWebhook.Error }}
+  Error: {{ .admissionWebhook.Error }}
+  {{ else }}
+  {{- if .admissionWebhook.Disabled }}
+  Disabled: {{ .admissionWebhook.Disabled }}
+  {{ else }}
+  {{ if .admissionWebhook.WebhookError }}
+  MutatingWebhookConfigurations name: {{ .admissionWebhook.WebhookName }}
+  Error: {{ .admissionWebhook.WebhookError }}
+  {{- end }}
+  {{- if .admissionWebhook.Webhooks }}
+    Webhooks info
+    -------------
+      MutatingWebhookConfigurations name: {{ .admissionWebhook.Webhooks.Name }}
+      Created at: {{ .admissionWebhook.Webhooks.CreatedAt }}
+
+      {{- range $name, $config := .admissionWebhook.Webhooks.Webhooks }}
+      ---------
+        Name: {{ $name }}
+        {{- range $k, $v := $config }}
+        {{$k}}: {{$v}}
+        {{- end }}
+      {{- end }}
+  {{- end }}
+  {{ if .admissionWebhook.SecretError }}
+  Secret name: {{ .admissionWebhook.SecretName }}
+  Error: {{ .admissionWebhook.SecretError }}
+  {{- end }}
+  {{- if .admissionWebhook.Secret }}
+    Secret info
+    -----------
+    Secret name: {{ .admissionWebhook.Secret.Name }}
+    Secret namespace: {{ .admissionWebhook.Secret.Namespace }}
+    Created at: {{ .admissionWebhook.Secret.CreatedAt }}
+    CA bundle digest: {{ .admissionWebhook.Secret.CABundleDigest }}
+    Duration before certificate expiration: {{ .admissionWebhook.Secret.CertValidDuration }}
+  {{- end }}
+  {{- end }}
+  {{- end }}

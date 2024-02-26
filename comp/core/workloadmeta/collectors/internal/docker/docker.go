@@ -111,12 +111,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx, filter)
+	err = c.generateEventsFromImageList(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = c.generateEventsFromImageList(ctx)
+	err = c.generateEventsFromContainerList(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -300,7 +300,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 				Name:   strings.TrimPrefix(container.Name, "/"),
 				Labels: container.Config.Labels,
 			},
-			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer),
+			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer, c.store),
 			EnvVars: extractEnvVars(container.Config.Env),
 			Ports:   extractPorts(container),
 			Runtime: workloadmeta.ContainerRuntimeDocker,
@@ -345,7 +345,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	return event, nil
 }
 
-func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook) workloadmeta.ContainerImage {
+func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
 	image := workloadmeta.ContainerImage{
 		RawName: imageSpec,
@@ -396,6 +396,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	image.ShortName = shortName
 	image.Tag = tag
 	image.ID = container.Image
+	image.RepoDigest = util.ExtractRepoDigestFromImage(image.ID, image.Registry, store) // "sha256:digest"
 	return image
 }
 

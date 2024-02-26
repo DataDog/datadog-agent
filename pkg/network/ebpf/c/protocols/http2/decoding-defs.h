@@ -46,6 +46,14 @@
 // A limit of max pseudo headers which we process in the request/response.
 #define HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING 4
 
+// Threshold to to trigger the dynamic table cleanup.
+#define HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD 200
+// Represents the maximum number of dynamic_table entries to clean up in a single tail call.
+// This number is above the HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD to ensure that we clean up all entries, and not missing
+// anything.
+#define HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS 300
+
+
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
 // For request - those are method, path. For response - status code.
 // Thus differentiating between the limits can allow reducing code size.
@@ -237,5 +245,10 @@ typedef struct {
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
     __u64 fragmented_frame_count;
 } http2_telemetry_t;
+
+typedef struct {
+    __u64 value;
+    __u64 previous;
+} dynamic_counter_t;
 
 #endif
