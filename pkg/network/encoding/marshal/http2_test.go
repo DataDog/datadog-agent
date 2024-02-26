@@ -13,7 +13,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -91,12 +90,12 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
+					HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{Key: httpKey1, Value: http2Stats1},
+						{Key: httpKey2, Value: http2Stats2},
+					},
 				},
 			},
-		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			httpKey1: http2Stats1,
-			httpKey2: http2Stats2,
 		},
 	}
 	out := &model.HTTP2Aggregations{
@@ -122,7 +121,7 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 		out.EndpointAggregations[1].StatsByStatusCode[code] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
-	http2Encoder := newHTTP2Encoder(in.HTTP2)
+	http2Encoder := newHTTP2Encoder()
 	aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
@@ -177,14 +176,14 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 					Dest:   util.AddressFromString("10.2.2.2"),
 					SPort:  60000,
 					DPort:  80,
+					HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{Key: key, Value: http2ReqStats},
+					},
 				},
 			},
 		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			key: http2ReqStats,
-		},
 	}
-	http2Encoder := newHTTP2Encoder(payload.HTTP2)
+	http2Encoder := newHTTP2Encoder()
 	http2Aggregations, tags, _ := getHTTP2Aggregations(t, http2Encoder, payload.Conns[0])
 
 	require.NotNil(t, http2Aggregations)
@@ -226,23 +225,6 @@ func (s *HTTP2Suite) TestHTTP2IDCollisionRegression() {
 func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	http2Stats := http.NewRequestStats(aggregateByStatusCode)
 	assert := assert.New(t)
-	connections := []network.ConnectionStats{
-		{
-			Source: util.AddressFromString("1.1.1.1"),
-			SPort:  60000,
-			Dest:   util.AddressFromString("2.2.2.2"),
-			DPort:  80,
-			Pid:    1,
-		},
-		{
-			Source: util.AddressFromString("1.1.1.1"),
-			SPort:  60000,
-			Dest:   util.AddressFromString("2.2.2.2"),
-			DPort:  80,
-			Pid:    2,
-		},
-	}
-
 	httpKey := http.NewKey(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -254,16 +236,27 @@ func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	)
 	http2Stats.AddRequest(104, 1.0, 0, nil)
 
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: connections,
+	connections := []network.ConnectionStats{
+		{
+			Source: util.AddressFromString("1.1.1.1"),
+			SPort:  60000,
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  80,
+			Pid:    1,
+			HTTP2Stats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+				{httpKey, http2Stats},
+			},
 		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			httpKey: http2Stats,
+		{
+			Source: util.AddressFromString("1.1.1.1"),
+			SPort:  60000,
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  80,
+			Pid:    2,
 		},
 	}
 
-	http2Encoder := newHTTP2Encoder(in.HTTP2)
+	http2Encoder := newHTTP2Encoder()
 
 	// assert that the first connection matching the HTTP2 data will get
 	// back a non-nil result
@@ -280,89 +273,6 @@ func testHTTP2IDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.Http2Aggregations)
-}
-
-func (s *HTTP2Suite) TestHTTP2LocalhostScenario() {
-	t := s.T()
-	t.Run("status code", func(t *testing.T) {
-		testHTTP2LocalhostScenario(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTP2LocalhostScenario(t, false)
-	})
-}
-
-func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
-	assert := assert.New(t)
-	cliport := uint16(6000)
-	serverport := uint16(80)
-	connections := []network.ConnectionStats{
-		{
-			Source: util.AddressFromString("127.0.0.1"),
-			SPort:  cliport,
-			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  serverport,
-			Pid:    1,
-		},
-		{
-			Source: util.AddressFromString("127.0.0.1"),
-			SPort:  serverport,
-			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  cliport,
-			Pid:    2,
-		},
-	}
-
-	http2Stats := http.NewRequestStats(aggregateByStatusCode)
-	httpKey := http.NewKey(
-		util.AddressFromString("127.0.0.1"),
-		util.AddressFromString("127.0.0.1"),
-		cliport,
-		serverport,
-		[]byte("/"),
-		true,
-		http.MethodGet,
-	)
-	http2Stats.AddRequest(103, 1.0, 0, nil)
-
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: connections,
-		},
-		HTTP2: map[http.Key]*http.RequestStats{
-			httpKey: http2Stats,
-		},
-	}
-	if runtime.GOOS == "windows" {
-		/*
-		 * on Windows, there are separate http transactions for
-		 * each side of the connection.  And they're kept separate,
-		 * and keyed separately.  Address this condition until the
-		 * platforms are resynced
-		 */
-		httpKeyWin := http.NewKey(
-			util.AddressFromString("127.0.0.1"),
-			util.AddressFromString("127.0.0.1"),
-			serverport,
-			cliport,
-			[]byte("/"),
-			true,
-			http.MethodGet,
-		)
-
-		in.HTTP2[httpKeyWin] = http2Stats
-	}
-	http2Encoder := newHTTP2Encoder(in.HTTP2)
-
-	// assert that both ends (client:server, server:client) of the connection
-	// will have HTTP2 stats
-	aggregations, _, _ := getHTTP2Aggregations(t, http2Encoder, in.Conns[0])
-	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(http2Stats.NormalizeStatusCode(103))].Count)
-
-	aggregations, _, _ = getHTTP2Aggregations(t, http2Encoder, in.Conns[1])
-	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(http2Stats.NormalizeStatusCode(103))].Count)
 }
 
 func getHTTP2Aggregations(t *testing.T, encoder *http2Encoder, c network.ConnectionStats) (*model.HTTP2Aggregations, uint64, map[string]struct{}) {

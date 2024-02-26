@@ -6,8 +6,6 @@
 package marshal
 
 import (
-	"fmt"
-	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -71,12 +69,12 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 					Dest:   localhost,
 					SPort:  clientPort,
 					DPort:  serverPort,
+					HTTPStats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{Key: httpKey1, Value: httpStats1},
+						{Key: httpKey2, Value: httpStats2},
+					},
 				},
 			},
-		},
-		HTTP: map[http.Key]*http.RequestStats{
-			httpKey1: httpStats1,
-			httpKey2: httpStats2,
 		},
 	}
 	out := &model.HTTPAggregations{
@@ -102,7 +100,7 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 		out.EndpointAggregations[1].StatsByStatusCode[code] = &model.HTTPStats_Data{Count: 1, FirstLatencySample: 20, Latencies: nil}
 	}
 
-	httpEncoder := newHTTPEncoder(in.HTTP)
+	httpEncoder := newHTTPEncoder()
 	aggregations, tags, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
 
 	require.NotNil(t, aggregations)
@@ -159,14 +157,14 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 					Dest:   util.AddressFromString("10.2.2.2"),
 					SPort:  60000,
 					DPort:  80,
+					HTTPStats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+						{Key: key, Value: httpReqStats},
+					},
 				},
 			},
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			key: httpReqStats,
-		},
 	}
-	httpEncoder := newHTTPEncoder(payload.HTTP)
+	httpEncoder := newHTTPEncoder()
 	httpAggregations, tags, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
 
 	require.NotNil(t, httpAggregations)
@@ -207,23 +205,6 @@ func TestIDCollisionRegression(t *testing.T) {
 func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	httpStats := http.NewRequestStats(aggregateByStatusCode)
 	assert := assert.New(t)
-	connections := []network.ConnectionStats{
-		{
-			Source: util.AddressFromString("1.1.1.1"),
-			SPort:  60000,
-			Dest:   util.AddressFromString("2.2.2.2"),
-			DPort:  80,
-			Pid:    1,
-		},
-		{
-			Source: util.AddressFromString("1.1.1.1"),
-			SPort:  60000,
-			Dest:   util.AddressFromString("2.2.2.2"),
-			DPort:  80,
-			Pid:    2,
-		},
-	}
-
 	httpKey := http.NewKey(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -235,16 +216,33 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	)
 	httpStats.AddRequest(104, 1.0, 0, nil)
 
+	connections := []network.ConnectionStats{
+		{
+			Source: util.AddressFromString("1.1.1.1"),
+			SPort:  60000,
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  80,
+			Pid:    1,
+			HTTPStats: []network.USMKeyValue[http.Key, *http.RequestStats]{
+				{Key: httpKey, Value: httpStats},
+			},
+		},
+		{
+			Source: util.AddressFromString("1.1.1.1"),
+			SPort:  60000,
+			Dest:   util.AddressFromString("2.2.2.2"),
+			DPort:  80,
+			Pid:    2,
+		},
+	}
+
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		HTTP: map[http.Key]*http.RequestStats{
-			httpKey: httpStats,
-		},
 	}
 
-	httpEncoder := newHTTPEncoder(in.HTTP)
+	httpEncoder := newHTTPEncoder()
 
 	// assert that the first connection matching the HTTP data will get
 	// back a non-nil result
@@ -261,87 +259,6 @@ func testIDCollisionRegression(t *testing.T, aggregateByStatusCode bool) {
 	var conn model.Connection
 	streamer.Unwrap(t, &conn)
 	assert.Empty(conn.HttpAggregations)
-}
-
-func TestLocalhostScenario(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testLocalhostScenario(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testLocalhostScenario(t, false)
-	})
-}
-
-func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
-	assert := assert.New(t)
-	connections := []network.ConnectionStats{
-		{
-			Source: util.AddressFromString("127.0.0.1"),
-			SPort:  60000,
-			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  80,
-			Pid:    1,
-		},
-		{
-			Source: util.AddressFromString("127.0.0.1"),
-			SPort:  80,
-			Dest:   util.AddressFromString("127.0.0.1"),
-			DPort:  60000,
-			Pid:    2,
-		},
-	}
-
-	httpStats := http.NewRequestStats(aggregateByStatusCode)
-	httpKey := http.NewKey(
-		util.AddressFromString("127.0.0.1"),
-		util.AddressFromString("127.0.0.1"),
-		60000,
-		80,
-		[]byte("/"),
-		true,
-		http.MethodGet,
-	)
-	httpStats.AddRequest(103, 1.0, 0, nil)
-
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: connections,
-		},
-		HTTP: map[http.Key]*http.RequestStats{
-			httpKey: httpStats,
-		},
-	}
-	if runtime.GOOS == "windows" {
-		/*
-		 * on Windows, there are separate http transactions for
-		 * each side of the connection.  And they're kept separate,
-		 * and keyed separately.  Address this condition until the
-		 * platforms are resynced
-		 */
-		httpKeyWin := http.NewKey(
-			util.AddressFromString("127.0.0.1"),
-			util.AddressFromString("127.0.0.1"),
-			80,
-			60000,
-			[]byte("/"),
-			true,
-			http.MethodGet,
-		)
-
-		in.HTTP[httpKeyWin] = httpStats
-	}
-
-	httpEncoder := newHTTPEncoder(in.HTTP)
-
-	// assert that both ends (client:server, server:client) of the connection
-	// will have HTTP stats
-	aggregations, _, _ := getHTTPAggregations(t, httpEncoder, in.Conns[0])
-	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
-
-	aggregations, _, _ = getHTTPAggregations(t, httpEncoder, in.Conns[1])
-	assert.Equal("/", aggregations.EndpointAggregations[0].Path)
-	assert.Equal(uint32(1), aggregations.EndpointAggregations[0].StatsByStatusCode[int32(httpStats.NormalizeStatusCode(103))].Count)
 }
 
 func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.ConnectionStats) (*model.HTTPAggregations, uint64, map[string]struct{}) {
@@ -376,72 +293,4 @@ func verifyQuantile(t *testing.T, sketch *ddsketch.DDSketch, q float64, expected
 	acceptableError := expectedValue * sketch.IndexMapping.RelativeAccuracy()
 	assert.True(t, val >= expectedValue-acceptableError)
 	assert.True(t, val <= expectedValue+acceptableError)
-}
-
-func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Connections {
-	localhost := util.AddressFromString("127.0.0.1")
-
-	payload := network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: make([]network.ConnectionStats, sourcePortsMax*destPortsMax),
-		},
-		HTTP: make(map[http.Key]*http.RequestStats),
-	}
-
-	httpStats := http.NewRequestStats(false)
-	httpStats.AddRequest(100, 10, 0, nil)
-	httpStats.AddRequest(200, 10, 0, nil)
-	httpStats.AddRequest(300, 10, 0, nil)
-	httpStats.AddRequest(400, 10, 0, nil)
-	httpStats.AddRequest(500, 10, 0, nil)
-
-	for sport := uint16(0); sport < sourcePortsMax; sport++ {
-		for dport := uint16(0); dport < destPortsMax; dport++ {
-			index := sport*sourcePortsMax + dport
-
-			payload.Conns[index].Dest = localhost
-			payload.Conns[index].Source = localhost
-			payload.Conns[index].DPort = dport + 1
-			payload.Conns[index].SPort = sport + 1
-			if index%2 == 0 {
-				payload.Conns[index].IPTranslation = &network.IPTranslation{
-					ReplSrcIP:   localhost,
-					ReplDstIP:   localhost,
-					ReplSrcPort: dport + 1,
-					ReplDstPort: sport + 1,
-				}
-			}
-
-			payload.HTTP[http.NewKey(
-				localhost,
-				localhost,
-				sport+1,
-				dport+1,
-				[]byte(fmt.Sprintf("/api/%d-%d", sport+1, dport+1)),
-				true,
-				http.MethodGet,
-			)] = httpStats
-		}
-	}
-
-	return payload
-}
-
-func commonBenchmarkHTTPEncoder(b *testing.B, numberOfPorts uint16) {
-	payload := generateBenchMarkPayload(numberOfPorts, numberOfPorts)
-	b.ResetTimer()
-	b.ReportAllocs()
-	var h *httpEncoder
-	for i := 0; i < b.N; i++ {
-		h = newHTTPEncoder(payload.HTTP)
-	}
-	runtime.KeepAlive(h)
-}
-
-func BenchmarkHTTPEncoder100Requests(b *testing.B) {
-	commonBenchmarkHTTPEncoder(b, 10)
-}
-
-func BenchmarkHTTPEncoder10000Requests(b *testing.B) {
-	commonBenchmarkHTTPEncoder(b, 100)
 }

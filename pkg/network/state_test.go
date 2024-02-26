@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"runtime"
 	"sync"
 	"syscall"
 	"testing"
@@ -2559,4 +2560,209 @@ func getIPProtocol(nt ConnectionType) uint8 {
 	default:
 		panic("unknown connection type")
 	}
+}
+
+func TestHTTP2LocalhostScenario(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTP2LocalhostScenario(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTP2LocalhostScenario(t, false)
+	})
+}
+
+func testHTTP2LocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
+	cliport := uint16(6000)
+	serverport := uint16(80)
+	http2Stats := http.NewRequestStats(aggregateByStatusCode)
+	httpKey := http.NewKey(
+		util.AddressFromString("127.0.0.1"),
+		util.AddressFromString("127.0.0.1"),
+		cliport,
+		serverport,
+		[]byte("/"),
+		true,
+		http.MethodGet,
+	)
+	http2Stats.AddRequest(103, 1.0, 0, nil)
+
+	connections := []ConnectionStats{
+		{
+			Source:    util.AddressFromString("127.0.0.1"),
+			SPort:     cliport,
+			Dest:      util.AddressFromString("127.0.0.1"),
+			DPort:     serverport,
+			Pid:       1,
+			Monotonic: StatCounters{SentBytes: 4},
+			Cookie:    1,
+		},
+		{
+			Source:    util.AddressFromString("127.0.0.1"),
+			SPort:     serverport,
+			Dest:      util.AddressFromString("127.0.0.1"),
+			DPort:     cliport,
+			Pid:       2,
+			Monotonic: StatCounters{RecvBytes: 4},
+			Cookie:    2,
+		},
+	}
+
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKey = http.NewKey(
+			util.AddressFromString("127.0.0.1"),
+			util.AddressFromString("127.0.0.1"),
+			serverport,
+			cliport,
+			[]byte("/"),
+			true,
+			http.MethodGet,
+		)
+	}
+
+	state := newDefaultState()
+	delta := state.GetDelta("client", latestEpochTime(), connections, nil, map[protocols.ProtocolType]interface{}{
+		protocols.HTTP2: map[http.Key]*http.RequestStats{
+			httpKey: http2Stats,
+		},
+	})
+
+	require.Len(t, delta.Conns, 2)
+	assert.Len(t, delta.Conns[0].HTTP2Stats, 1)
+	assert.Equal(t, 1, delta.Conns[0].HTTP2Stats[0].Value.Data[http2Stats.NormalizeStatusCode(103)].Count)
+	assert.Len(t, delta.Conns[1].HTTP2Stats, 1)
+	assert.Equal(t, 1, delta.Conns[1].HTTP2Stats[0].Value.Data[http2Stats.NormalizeStatusCode(103)].Count)
+}
+
+func TestLocalhostScenario(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testLocalhostScenario(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testLocalhostScenario(t, false)
+	})
+}
+
+func testLocalhostScenario(t *testing.T, aggregateByStatusCode bool) {
+	httpStats := http.NewRequestStats(aggregateByStatusCode)
+	httpKey := http.NewKey(
+		util.AddressFromString("127.0.0.1"),
+		util.AddressFromString("127.0.0.1"),
+		60000,
+		80,
+		[]byte("/"),
+		true,
+		http.MethodGet,
+	)
+	httpStats.AddRequest(103, 1.0, 0, nil)
+
+	connections := []ConnectionStats{
+		{
+			Source:    util.AddressFromString("127.0.0.1"),
+			SPort:     60000,
+			Dest:      util.AddressFromString("127.0.0.1"),
+			DPort:     80,
+			Pid:       1,
+			Cookie:    1,
+			Monotonic: StatCounters{SentBytes: 4},
+		},
+		{
+			Source:    util.AddressFromString("127.0.0.1"),
+			SPort:     80,
+			Dest:      util.AddressFromString("127.0.0.1"),
+			DPort:     60000,
+			Pid:       2,
+			Cookie:    2,
+			Monotonic: StatCounters{RecvBytes: 4},
+		},
+	}
+
+	if runtime.GOOS == "windows" {
+		/*
+		 * on Windows, there are separate http transactions for
+		 * each side of the connection.  And they're kept separate,
+		 * and keyed separately.  Address this condition until the
+		 * platforms are resynced
+		 */
+		httpKey = http.NewKey(
+			util.AddressFromString("127.0.0.1"),
+			util.AddressFromString("127.0.0.1"),
+			80,
+			60000,
+			[]byte("/"),
+			true,
+			http.MethodGet,
+		)
+	}
+
+	state := newDefaultState()
+	delta := state.GetDelta("client", latestEpochTime(), connections, nil, map[protocols.ProtocolType]interface{}{
+		protocols.HTTP: map[http.Key]*http.RequestStats{
+			httpKey: httpStats,
+		},
+	})
+
+	require.Len(t, delta.Conns, 2)
+	assert.Len(t, delta.Conns[0].HTTPStats, 1)
+	assert.Equal(t, 1, delta.Conns[0].HTTPStats[0].Value.Data[httpStats.NormalizeStatusCode(103)].Count)
+	assert.Len(t, delta.Conns[1].HTTPStats, 1)
+	assert.Equal(t, 1, delta.Conns[1].HTTPStats[0].Value.Data[httpStats.NormalizeStatusCode(103)].Count)
+}
+
+func TestKafkaLocalhostScenario(t *testing.T) {
+	const (
+		clientPort  = uint16(1234)
+		serverPort  = uint16(12345)
+		topicName   = "TopicName"
+		apiVersion2 = 1
+	)
+
+	kafkaKey := kafka.NewKey(
+		util.AddressFromString("127.0.0.1"),
+		util.AddressFromString("127.0.0.1"),
+		clientPort,
+		serverPort,
+		topicName,
+		kafka.FetchAPIKey,
+		apiVersion2,
+	)
+
+	connections := []ConnectionStats{
+		{
+			Source:    util.AddressFromString("127.0.0.1"),
+			SPort:     clientPort,
+			Dest:      util.AddressFromString("127.0.0.1"),
+			DPort:     serverPort,
+			Pid:       1,
+			Cookie:    1,
+			Monotonic: StatCounters{SentBytes: 4},
+		},
+		{
+			Source:    util.AddressFromString("127.0.0.1"),
+			SPort:     serverPort,
+			Dest:      util.AddressFromString("127.0.0.1"),
+			DPort:     clientPort,
+			Pid:       2,
+			Cookie:    2,
+			Monotonic: StatCounters{RecvBytes: 4},
+		},
+	}
+
+	state := newDefaultState()
+	delta := state.GetDelta("client", latestEpochTime(), connections, nil, map[protocols.ProtocolType]interface{}{
+		protocols.Kafka: map[kafka.Key]*kafka.RequestStat{
+			kafkaKey: &kafka.RequestStat{Count: 10},
+		},
+	})
+
+	require.Len(t, delta.Conns, 2)
+	assert.Len(t, delta.Conns[0].KafkaStats, 1)
+	assert.Equal(t, 10, delta.Conns[0].KafkaStats[0].Value.Count)
+	assert.Len(t, delta.Conns[1].KafkaStats, 1)
+	assert.Equal(t, 10, delta.Conns[1].KafkaStats[0].Value.Count)
 }

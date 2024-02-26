@@ -20,18 +20,14 @@ type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
 }
 
-func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
-	if len(httpPayloads) == 0 {
-		return nil
-	}
-
+func newHTTPEncoder() *httpEncoder {
 	return &httpEncoder{
 		httpAggregationsBuilder: model.NewHTTPAggregationsBuilder(nil),
 	}
 }
 
 func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
-	if e == nil {
+	if len(c.HTTPStats) == 0 {
 		return 0, nil
 	}
 

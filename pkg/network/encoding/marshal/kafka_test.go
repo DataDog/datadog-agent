@@ -6,16 +6,14 @@
 package marshal
 
 import (
-	"fmt"
 	"runtime"
 	"testing"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -37,13 +35,7 @@ const (
 )
 
 var (
-	localhost         = util.AddressFromString("127.0.0.1")
-	defaultConnection = network.ConnectionStats{
-		Source: localhost,
-		Dest:   localhost,
-		SPort:  clientPort,
-		DPort:  serverPort,
-	}
+	localhost = util.AddressFromString("127.0.0.1")
 )
 
 type KafkaSuite struct {
@@ -77,18 +69,21 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 		apiVersion2,
 	)
 
+	defaultConnection := network.ConnectionStats{
+		Source: localhost,
+		Dest:   localhost,
+		SPort:  clientPort,
+		DPort:  serverPort,
+		KafkaStats: []network.USMKeyValue[kafka.Key, *kafka.RequestStat]{
+			{Key: kafkaKey1, Value: &kafka.RequestStat{Count: 10}},
+			{Key: kafkaKey2, Value: &kafka.RequestStat{Count: 2}},
+		},
+	}
+
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: []network.ConnectionStats{
 				defaultConnection,
-			},
-		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
-			kafkaKey1: {
-				Count: 10,
-			},
-			kafkaKey2: {
-				Count: 2,
 			},
 		},
 	}
@@ -113,7 +108,7 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 		},
 	}
 
-	encoder := newKafkaEncoder(in.Kafka)
+	encoder := newKafkaEncoder()
 	t.Cleanup(encoder.Close)
 
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
@@ -125,23 +120,6 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	t := s.T()
 	assert := assert.New(t)
-	connections := []network.ConnectionStats{
-		{
-			Source: localhost,
-			SPort:  clientPort,
-			Dest:   localhost,
-			DPort:  serverPort,
-			Pid:    1,
-		},
-		{
-			Source: localhost,
-			SPort:  clientPort,
-			Dest:   localhost,
-			DPort:  serverPort,
-			Pid:    2,
-		},
-	}
-
 	kafkaKey := kafka.NewKey(
 		localhost,
 		localhost,
@@ -152,18 +130,33 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 		apiVersion1,
 	)
 
+	connections := []network.ConnectionStats{
+		{
+			Source: localhost,
+			SPort:  clientPort,
+			Dest:   localhost,
+			DPort:  serverPort,
+			Pid:    1,
+			KafkaStats: []network.USMKeyValue[kafka.Key, *kafka.RequestStat]{
+				{Key: kafkaKey, Value: &kafka.RequestStat{Count: 10}},
+			},
+		},
+		{
+			Source: localhost,
+			SPort:  clientPort,
+			Dest:   localhost,
+			DPort:  serverPort,
+			Pid:    2,
+		},
+	}
+
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
-			kafkaKey: {
-				Count: 10,
-			},
-		},
 	}
 
-	encoder := newKafkaEncoder(in.Kafka)
+	encoder := newKafkaEncoder()
 	t.Cleanup(encoder.Close)
 	aggregations := getKafkaAggregations(t, encoder, in.Conns[0])
 
@@ -177,59 +170,6 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 	assert.Nil(encoder.GetKafkaAggregations(in.Conns[1]))
 }
 
-func (s *KafkaSuite) TestKafkaLocalhostScenario() {
-	t := s.T()
-	assert := assert.New(t)
-	connections := []network.ConnectionStats{
-		{
-			Source: localhost,
-			SPort:  clientPort,
-			Dest:   localhost,
-			DPort:  serverPort,
-			Pid:    1,
-		},
-		{
-			Source: localhost,
-			SPort:  serverPort,
-			Dest:   localhost,
-			DPort:  clientPort,
-			Pid:    2,
-		},
-	}
-
-	kafkaKey := kafka.NewKey(
-		localhost,
-		localhost,
-		clientPort,
-		serverPort,
-		topicName,
-		kafka.FetchAPIKey,
-		apiVersion2,
-	)
-
-	in := &network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: connections,
-		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
-			kafkaKey: {
-				Count: 10,
-			},
-		},
-	}
-
-	encoder := newKafkaEncoder(in.Kafka)
-	t.Cleanup(encoder.Close)
-
-	// assert that both ends (client:server, server:client) of the connection
-	// will have Kafka stats
-	for _, conn := range in.Conns {
-		aggregations := getKafkaAggregations(t, encoder, conn)
-		assert.Equal(topicName, aggregations.KafkaAggregations[0].Topic)
-		assert.Equal(uint32(10), aggregations.KafkaAggregations[0].Count)
-	}
-}
-
 func getKafkaAggregations(t *testing.T, encoder *kafkaEncoder, c network.ConnectionStats) *model.DataStreamsAggregations {
 	kafkaBlob := encoder.GetKafkaAggregations(c)
 	require.NotNil(t, kafkaBlob)
@@ -239,56 +179,4 @@ func getKafkaAggregations(t *testing.T, encoder *kafkaEncoder, c network.Connect
 	require.NoError(t, err)
 
 	return aggregations
-}
-
-func generateBenchMarkPayloadKafka(entries uint16) network.Connections {
-	localhost := util.AddressFromString("127.0.0.1")
-
-	payload := network.Connections{
-		BufferedData: network.BufferedData{
-			Conns: make([]network.ConnectionStats, 1),
-		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{},
-	}
-
-	payload.Conns[0].Dest = localhost
-	payload.Conns[0].Source = localhost
-	payload.Conns[0].DPort = 1111
-	payload.Conns[0].SPort = 1112
-
-	for index := uint16(0); index < entries; index++ {
-		payload.Kafka[kafka.NewKey(
-			localhost,
-			localhost,
-			1112,
-			1111,
-			fmt.Sprintf("%s-%d", topicName, index+1),
-			kafka.ProduceAPIKey,
-			apiVersion1,
-		)] = &kafka.RequestStat{
-			Count: 10,
-		}
-	}
-
-	return payload
-}
-
-func commonBenchmarkKafkaEncoder(b *testing.B, entries uint16) {
-	payload := generateBenchMarkPayloadKafka(entries)
-	b.ResetTimer()
-	b.ReportAllocs()
-	var h *kafkaEncoder
-	for i := 0; i < b.N; i++ {
-		h = newKafkaEncoder(payload.Kafka)
-		h.GetKafkaAggregations(payload.Conns[0])
-		h.Close()
-	}
-}
-
-func BenchmarkKafkaEncoder100Requests(b *testing.B) {
-	commonBenchmarkKafkaEncoder(b, 100)
-}
-
-func BenchmarkKafkaEncoder10000Requests(b *testing.B) {
-	commonBenchmarkKafkaEncoder(b, 10000)
 }

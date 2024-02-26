@@ -28,11 +28,7 @@ type kafkaEncoder struct {
 	aggregations *model.DataStreamsAggregations
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
-	if len(kafkaPayloads) == 0 {
-		return nil
-	}
-
+func newKafkaEncoder() *kafkaEncoder {
 	return &kafkaEncoder{
 		aggregations: &model.DataStreamsAggregations{
 			// It's not that important to get the initial size of this slice
@@ -45,7 +41,7 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncod
 }
 
 func (e *kafkaEncoder) GetKafkaAggregations(c network.ConnectionStats) []byte {
-	if e == nil {
+	if len(c.KafkaStats) == 0 {
 		return nil
 	}
 

@@ -20,18 +20,14 @@ type http2Encoder struct {
 	http2AggregationsBuilder *model.HTTP2AggregationsBuilder
 }
 
-func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
-	if len(http2Payloads) == 0 {
-		return nil
-	}
-
+func newHTTP2Encoder() *http2Encoder {
 	return &http2Encoder{
 		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
 	}
 }
 
 func (e *http2Encoder) WriteHTTP2AggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
-	if e == nil {
+	if len(c.HTTP2Stats) == 0 {
 		return 0, nil
 	}
 
