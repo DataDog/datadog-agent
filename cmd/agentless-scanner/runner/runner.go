@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -122,10 +123,8 @@ func New(opts Options) (*Runner, error) {
 		return nil, err
 	}
 
-	rcClient, err := client.NewUnverifiedGRPCClient(
-		ipcAddress,
-		config.GetIPCPort(),
-		security.FetchAuthToken,
+	rcClient, err := client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+		client.WithProducts([]data.Product{data.ProductCSMSideScanning}),
 		client.WithAgent("sidescanner", version.AgentVersion),
 		client.WithPollInterval(5*time.Second),
 	)
@@ -491,6 +490,7 @@ func (s *Runner) Start(ctx context.Context) {
 
 // Stop stops the runner main loop.
 func (s *Runner) Stop() {
+	log.Infof("stopping agentless-scanner main loop")
 	close(s.configsCh)
 }
 

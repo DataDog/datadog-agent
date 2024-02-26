@@ -725,8 +725,7 @@ func ctxTerminated() context.Context {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		select {
-		case sig := <-ch:
-			fmt.Fprintf(os.Stderr, "received %s signal\n", sig)
+		case <-ch:
 			cancel()
 		case <-ctx.Done():
 		}
