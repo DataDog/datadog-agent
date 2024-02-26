@@ -103,10 +103,12 @@ func runTestInject(t *testing.T) {
 }
 
 func TestInject(t *testing.T) {
+	t.Skip("JavaTLS tests are currently disabled")
 	runTestInject(t)
 }
 
 func TestInjectInReadOnlyFS(t *testing.T) {
+	t.Skip("JavaTLS tests are currently disabled")
 	curDir, err := os.Getwd()
 	require.NoError(t, err)
 	rodir := filepath.Join(os.TempDir(), "rodir")

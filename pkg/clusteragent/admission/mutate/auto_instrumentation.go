@@ -13,8 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,7 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -74,6 +78,11 @@ const (
 
 type language string
 
+type pinnedLibraries struct {
+	libraries []libInfo
+	once      sync.Once
+}
+
 const (
 	java   language = "java"
 	js     language = "js"
@@ -85,6 +94,11 @@ const (
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
+
+	// defaultMilliCPURequest defines default milli cpu request number.
+	defaultMilliCPURequest int64 = 50 // 0.05 core
+	// defaultMemoryRequest defines default memory request size.
+	defaultMemoryRequest int64 = 20 * 1024 * 1024 // 20 MB
 
 	// Env vars
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
@@ -108,11 +122,103 @@ var (
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: localLibraryInstrumentationInstallType,
 	}
+
+	pinnedLibs = &pinnedLibraries{}
+	// We need a global variable to store the APMInstrumentationWebhook instance
+	// because other webhooks depend on it. The "config" and the "tags" webhooks
+	// depend on the "auto_instrumentation" webhook to decide if a pod should be
+	// injected. They first check if the pod has the label to enable mutations.
+	// If it doesn't, they mutate the pod if the option to mutate unlabeled is
+	// set to true or if APM SSI is enabled in the namespace.
+	apmInstrumentationWebhook *APMInstrumentationWebhook
+	errInitAPMInstrumentation error
+	initOnce                  sync.Once
 )
 
+// APMInstrumentationWebhook is the main handler for the APM instrumentation mutating webhook endpoints
+type APMInstrumentationWebhook struct {
+	// filter is used to filter the pods to instrument
+	filter *containers.Filter
+}
+
+// GetAPMInstrumentationWebhook returns the APMInstrumentationWebhook instance,
+// creating it if it doesn't exist
+func GetAPMInstrumentationWebhook() (*APMInstrumentationWebhook, error) {
+	initOnce.Do(func() {
+		if apmInstrumentationWebhook == nil {
+			apmInstrumentationWebhook, errInitAPMInstrumentation = newAPMInstrumentationWebhook()
+		}
+	})
+
+	return apmInstrumentationWebhook, errInitAPMInstrumentation
+}
+
+// newAPMInstrumentationWebhook returns a new instance of APMInstrumentationWebhook
+func newAPMInstrumentationWebhook() (*APMInstrumentationWebhook, error) {
+	filter, err := apmSSINamespaceFilter()
+	if err != nil {
+		return nil, err
+	}
+
+	return &APMInstrumentationWebhook{
+		filter: filter,
+	}, nil
+}
+
+// apmSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
+// The filter excludes two namespaces by default: "kube-system" and the
+// namespace where datadog is installed.
+// Cases:
+// - No enabled namespaces and no disabled namespaces: inject in all namespaces
+// except the 2 namespaces excluded by default.
+// - Enabled namespaces and no disabled namespaces: inject only in the
+// namespaces specified in the list of enabled namespaces. If one of the
+// namespaces excluded by default is included in the list, it will be injected.
+// - Disabled namespaces and no enabled namespaces: inject only in the
+// namespaces that are not included in the list of disabled namespaces and that
+// are not one of the ones disabled by default.
+// - Enabled and disabled namespaces: return error.
+func apmSSINamespaceFilter() (*containers.Filter, error) {
+	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+
+	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
+		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
+	}
+
+	// Prefix the namespaces as needed by the containers.Filter.
+	prefix := containers.KubeNamespaceFilterPrefix
+	apmEnabledNamespacesWithPrefix := make([]string, len(apmEnabledNamespaces))
+	apmDisabledNamespacesWithPrefix := make([]string, len(apmDisabledNamespaces))
+
+	for i := range apmEnabledNamespaces {
+		apmEnabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmEnabledNamespaces[i])
+	}
+	for i := range apmDisabledNamespaces {
+		apmDisabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmDisabledNamespaces[i])
+	}
+
+	disabledByDefault := []string{
+		prefix + "^kube-system$",
+		prefix + fmt.Sprintf("^%s$", apiServerCommon.GetResourcesNamespace()),
+	}
+
+	var filterExcludeList []string
+	if len(apmEnabledNamespacesWithPrefix) > 0 && len(apmDisabledNamespacesWithPrefix) == 0 {
+		// In this case, we want to include only the namespaces in the enabled list.
+		// In the containers.Filter, the include list is checked before the
+		// exclude list, that's why we set the exclude list to all namespaces.
+		filterExcludeList = []string{prefix + ".*"}
+	} else {
+		filterExcludeList = append(apmDisabledNamespacesWithPrefix, disabledByDefault...)
+	}
+
+	return containers.NewFilter(containers.GlobalFilter, apmEnabledNamespacesWithPrefix, filterExcludeList)
+}
+
 // InjectAutoInstrumentation injects APM libraries into pods
-func InjectAutoInstrumentation(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, injectAutoInstrumentation, dc)
+func (w *APMInstrumentationWebhook) InjectAutoInstrumentation(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
+	return Mutate(rawPod, ns, w.injectAutoInstrumentation, dc)
 }
 
 func initContainerName(lang language) string {
@@ -124,13 +230,13 @@ func libImageName(registry string, lang language, tag string) string {
 	return fmt.Sprintf(imageFormat, registry, lang, tag)
 }
 
-func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+func (w *APMInstrumentationWebhook) injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	if pod == nil {
 		return errors.New("cannot inject lib into nil pod")
 	}
 	injectApmTelemetryConfig(pod)
 
-	if isApmInstrumentationEnabled(pod.Namespace) {
+	if w.isEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
 		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
 			log.Debugf("Skipping single step instrumentation of pod %q due to label", podString(pod))
@@ -150,13 +256,13 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 	}
 
 	containerRegistry := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
-	libsToInject, autoDetected := extractLibInfo(pod, containerRegistry)
+	libsToInject, autoDetected := w.extractLibInfo(pod, containerRegistry)
 	if len(libsToInject) == 0 {
 		return nil
 	}
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
-	if isApmInstrumentationEnabled(pod.Namespace) {
+	if w.isEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
 		injectionType = singleStepInstrumentationInstallType
@@ -166,7 +272,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 		injectionType = localLibraryInstrumentationInstallType
 	}
 
-	return injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType)
+	return w.injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType)
 }
 
 func injectApmTelemetryConfig(pod *corev1.Pod) {
@@ -189,24 +295,73 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
 }
 
-func getAllLibsToInject(registry string) map[string]libInfo {
-	libsToInject := map[string]libInfo{}
-	var libVersion string
-	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
+// getLibrariesToInjectForApmInstrumentation returns the list of tracing libraries to inject, when APM Instrumentation is enabled
+// - if apm_config.instrumentation.lib_versions set, returns only tracing libraries from apm_config.instrumentation.lib_versions
+// - if language detection is on and can detect the apps' languages, returns only auto-detected languages
+// - otherwise returns all tracing libraries supported by APM Instrumentation
+func getLibrariesToInjectForApmInstrumentation(pod *corev1.Pod, registry string) ([]libInfo, bool) {
+	autoDetected := false
+
+	// Pinned tracing libraries in APM Instrumentation configuration
+	libsToInject := getPinnedLibraries(registry)
+	if len(libsToInject) > 0 {
+		return libsToInject, autoDetected
+	}
+
+	// Tracing libraries for language detection
+	libsToInject = getLibrariesLanguageDetection(pod, registry)
+	if len(libsToInject) > 0 {
+		autoDetected = true
+		return libsToInject, autoDetected
+	}
+
+	// Latest tracing libraries for all supported languages (java, js, dotnet, python, ruby)
+	libsToInject = getAllLatestLibraries(registry)
+
+	return libsToInject, autoDetected
+}
+
+// getPinnedLibraries returns tracing libraries to inject as configured by apm_config.instrumentation.lib_versions
+func getPinnedLibraries(registry string) []libInfo {
+
+	pinnedLibs.once.Do(func() {
+		var libVersion string
+		singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
+
+		// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified, inject only the libraries from the configuration
+		for lang, version := range singleStepLibraryVersions {
+			if !slices.Contains(supportedLanguages, language(lang)) {
+				log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
+				continue
+			}
+			log.Infof("Library version %s is specified for language %s", version, lang)
+			libVersion = version
+			pinnedLibs.libraries = append(pinnedLibs.libraries, libInfo{lang: language(lang), image: libImageName(registry, language(lang), libVersion)})
+		}
+	})
+
+	return pinnedLibs.libraries
+}
+
+// getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
+// The langages information is available in workloadmeta-store and attached on the pod's owner.
+func getLibrariesLanguageDetection(pod *corev1.Pod, registry string) []libInfo {
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
+		// Use libraries returned by language detection for APM Instrumentation
+		return getAutoDetectedLibraries(pod, registry)
+	}
+
+	return []libInfo{}
+}
+
+// getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
+func getAllLatestLibraries(registry string) []libInfo {
+	libsToInject := []libInfo{}
 
 	for _, lang := range supportedLanguages {
-		libVersion = "latest"
-
-		if version, ok := singleStepLibraryVersions[string(lang)]; ok {
-			log.Warnf("Library version %s is specified for language %s", version, string(lang))
-			libVersion = version
-		}
-
-		libsToInject[string(lang)] = libInfo{
-			lang:  lang,
-			image: libImageName(registry, lang, libVersion),
-		}
+		libsToInject = append(libsToInject, libInfo{lang: language(lang), image: libImageName(registry, lang, "latest")})
 	}
+
 	return libsToInject
 }
 
@@ -218,60 +373,45 @@ type libInfo struct {
 
 // extractLibInfo returns the language, the image,
 // and a boolean indicating whether the library should be injected into the pod
-func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool) {
-	libInfoMap := map[string]libInfo{}
+func (w *APMInstrumentationWebhook) extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool) {
 	var libInfoList []libInfo
 	var autoDetected = false
 
-	// Inject all libraries if Single Step Instrumentation is enabled
-	if isApmInstrumentationEnabled(pod.Namespace) {
-		libInfoMap = getAllLibsToInject(containerRegistry)
-		if len(libInfoMap) > 0 {
-			log.Debugf("Single Step Instrumentation: Injecting all libraries into pod %q in namespace %q", podString(pod), pod.Namespace)
-		}
-	}
-
 	// The library version specified via annotation on the Pod takes precedence over libraries injected with Single Step Instrumentation
 	if shouldInject(pod) {
-		libInfoList = extractLibrariesFromAnnotations(pod, containerRegistry, libInfoMap)
-
-		// If user doesn't provide langages information, try getting the languages from process languages auto-detection. The langages information are available in workloadmeta-store and attached on the pod's owner.
-		if len(libInfoList) == 0 && config.Datadog.GetBool("admission_controller.inject_auto_detected_libraries") {
-			libInfoList = extractLibrariesFromOwnerAnnotations(pod, containerRegistry)
-			if len(libInfoList) > 0 {
-				autoDetected = true
-			}
+		libInfoList = extractLibrariesFromAnnotations(pod, containerRegistry)
+		if len(libInfoList) > 0 {
+			return libInfoList, autoDetected
 		}
 	}
 
-	if len(libInfoList) == 0 {
-		// Inject all if admission.datadoghq.com/all-lib.version exists
-		// without any other language-specific annotations.
-		// This annotation is typically expected to be set via remote-config
-		// for batch instrumentation without language detection.
-		injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
-		if version, found := pod.Annotations[injectAllAnnotation]; found {
-			// This logic will be updated once we bundle all libs in
-			// one single init container. Versions will be supported by then.
-			if version != "latest" {
-				log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
-				version = "latest"
-			}
-			for _, lang := range supportedLanguages {
-				libInfoList = append(libInfoList, libInfo{
-					lang:  lang,
-					image: libImageName(containerRegistry, lang, version),
-				})
-			}
+	// Get libraries to inject for APM Instrumentation
+	if w.isEnabled(pod.Namespace) {
+		libInfoList, autoDetected = getLibrariesToInjectForApmInstrumentation(pod, containerRegistry)
+		if len(libInfoList) > 0 {
+			return libInfoList, autoDetected
 		}
+	}
+
+	// Get libraries to inject for Remote Instrumentation
+	// Inject all if admission.datadoghq.com/all-lib.version exists
+	// without any other language-specific annotations.
+	// This annotation is typically expected to be set via remote-config
+	// for batch instrumentation without language detection.
+	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+	if version, found := pod.Annotations[injectAllAnnotation]; found {
+		if version != "latest" {
+			log.Warnf("Ignoring version %q. To inject all libs, the only supported version is latest for now", version)
+		}
+		libInfoList = getAllLatestLibraries(containerRegistry)
 	}
 
 	return libInfoList, autoDetected
 }
 
-// extractLibrariesFromOwnerAnnotations constructs the libraries to be injected if the languages
+// getAutoDetectedLibraries constructs the libraries to be injected if the languages
 // were stored in workloadmeta store based on owner annotations (for example: Deployment, Daemonset, Statefulset).
-func extractLibrariesFromOwnerAnnotations(pod *corev1.Pod, registry string) []libInfo {
+func getAutoDetectedLibraries(pod *corev1.Pod, registry string) []libInfo {
 	libList := []libInfo{}
 
 	ownerName, ownerKind, found := getOwnerNameAndKind(pod)
@@ -299,38 +439,27 @@ func extractLibrariesFromOwnerAnnotations(pod *corev1.Pod, registry string) []li
 func extractLibrariesFromAnnotations(
 	pod *corev1.Pod,
 	registry string,
-	libInfoMap map[string]libInfo,
 ) []libInfo {
 	annotations := pod.Annotations
 	libList := []libInfo{}
 	for _, lang := range supportedLanguages {
 		customLibAnnotation := strings.ToLower(fmt.Sprintf(customLibAnnotationKeyFormat, lang))
 		if image, found := annotations[customLibAnnotation]; found {
-			if li, ok := libInfoMap[string(lang)]; ok {
-				log.Debugf(
-					"Found %s library annotation %s, will overwrite %s injected with Single Step Instrumentation",
-					string(lang), image, li.image,
-				)
-			}
-			libInfoMap[string(lang)] = libInfo{
-				lang:  lang,
-				image: image,
-			}
+			log.Debugf(
+				"Found %s library annotation %s, will overwrite %s injected with Single Step Instrumentation",
+				string(lang), customLibAnnotation, image,
+			)
+			libList = append(libList, libInfo{lang: lang, image: image})
 		}
 
 		libVersionAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, lang))
 		if version, found := annotations[libVersionAnnotation]; found {
 			image := fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, lang, version)
-			if li, ok := libInfoMap[string(lang)]; ok {
-				log.Debugf(
-					"Found %s library annotation for version %s, will overwrite %s injected with Single Step Instrumentation",
-					string(lang), version, li.image,
-				)
-			}
-			libInfoMap[string(lang)] = libInfo{
-				lang:  lang,
-				image: image,
-			}
+			log.Debugf(
+				"Found %s library annotation for version %s, will overwrite %s injected with Single Step Instrumentation",
+				string(lang), version, image,
+			)
+			libList = append(libList, libInfo{lang: lang, image: image})
 		}
 
 		for _, ctr := range pod.Spec.Containers {
@@ -355,13 +484,22 @@ func extractLibrariesFromAnnotations(
 		}
 	}
 
-	for _, li := range libInfoMap {
-		libList = append(libList, li)
-	}
 	return libList
 }
 
-func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {
+// isEnabled indicates if Single Step Instrumentation is enabled for the namespace in the cluster
+func (w *APMInstrumentationWebhook) isEnabled(namespace string) bool {
+	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
+
+	if !apmInstrumentationEnabled {
+		log.Debugf("APM Instrumentation is disabled")
+		return false
+	}
+
+	return !w.filter.IsExcluded(nil, "", "", namespace)
+}
+
+func (w *APMInstrumentationWebhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {
 	var lastError error
 
 	initContainerToInject := make(map[language]string)
@@ -475,7 +613,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 
 	injectLibVolume(pod)
 
-	if isApmInstrumentationEnabled(pod.Namespace) {
+	if w.isEnabled(pod.Namespace) {
 		libConfig := basicConfig()
 		if name, err := getServiceNameFromPod(pod); err == nil {
 			// Set service name if it can be derived from a pod
@@ -503,39 +641,45 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 			},
 		},
 	}
-	resources, hasResources, err := initResources()
+
+	resources, err := initResources()
 	if err != nil {
 		return err
 	}
-	if hasResources {
-		initContainer.Resources = resources
-	}
+	initContainer.Resources = resources
 	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
 	return nil
 }
 
-func initResources() (corev1.ResourceRequirements, bool, error) {
-	hasResources := false
+func initResources() (corev1.ResourceRequirements, error) {
+
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
+
 	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
-			return resources, hasResources, err
+			return resources, err
 		}
 		resources.Requests[corev1.ResourceCPU] = quantity
 		resources.Limits[corev1.ResourceCPU] = quantity
-		hasResources = true
+	} else {
+		resources.Requests[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
+		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
 	}
+
 	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
 		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
-			return resources, hasResources, err
+			return resources, err
 		}
 		resources.Requests[corev1.ResourceMemory] = quantity
 		resources.Limits[corev1.ResourceMemory] = quantity
-		hasResources = true
+	} else {
+		resources.Requests[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
+		resources.Limits[corev1.ResourceMemory] = *resource.NewQuantity(defaultMemoryRequest, resource.DecimalSI)
 	}
-	return resources, hasResources, nil
+
+	return resources, nil
 }
 
 // injectLibRequirements injects the minimal config requirements (env vars and volume mounts) to enable instrumentation
@@ -603,12 +747,10 @@ func getServiceNameFromPod(pod *corev1.Pod) (string, error) {
 // when no other config has been provided.
 func basicConfig() common.LibConfig {
 	return common.LibConfig{
-		Tracing:             pointer.Ptr(true),
-		LogInjection:        pointer.Ptr(true),
-		HealthMetrics:       pointer.Ptr(true),
-		RuntimeMetrics:      pointer.Ptr(true),
-		TracingSamplingRate: pointer.Ptr(1.0),
-		TracingRateLimit:    pointer.Ptr(100),
+		Tracing:        pointer.Ptr(true),
+		LogInjection:   pointer.Ptr(true),
+		HealthMetrics:  pointer.Ptr(true),
+		RuntimeMetrics: pointer.Ptr(true),
 	}
 }
 

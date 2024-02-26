@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -40,6 +42,9 @@ const (
 	collectorID   = "docker"
 	componentName = "workloadmeta-docker"
 )
+
+// imageEventActionSbom is an event that we set to create a fake docker event.
+const imageEventActionSbom = events.Action("sbom")
 
 type resolveHook func(ctx context.Context, co types.ContainerJSON) (string, error)
 
@@ -106,12 +111,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx, filter)
+	err = c.generateEventsFromImageList(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = c.generateEventsFromImageList(ctx)
+	err = c.generateEventsFromContainerList(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -174,27 +179,27 @@ func (c *collector) stream(ctx context.Context) {
 }
 
 func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
-	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, types.ContainerListOptions{}, filter)
+	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter)
 	if err != nil {
 		return err
 	}
 
-	events := make([]workloadmeta.CollectorEvent, 0, len(containers))
+	evs := make([]workloadmeta.CollectorEvent, 0, len(containers))
 	for _, container := range containers {
 		ev, err := c.buildCollectorEvent(ctx, &docker.ContainerEvent{
 			ContainerID: container.ID,
-			Action:      docker.ContainerEventActionStart,
+			Action:      events.ActionStart,
 		})
 		if err != nil {
 			log.Warnf(err.Error())
 			continue
 		}
 
-		events = append(events, ev)
+		evs = append(evs, ev)
 	}
 
-	if len(events) > 0 {
-		c.store.Notify(events)
+	if len(evs) > 0 {
+		c.store.Notify(evs)
 	}
 
 	return nil
@@ -253,16 +258,14 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	}
 
 	switch ev.Action {
-	case docker.ContainerEventActionStart,
-		docker.ContainerEventActionRename,
-		docker.ContainerEventActionHealthStatus:
+	case events.ActionStart, events.ActionRename, events.ActionHealthStatusRunning, events.ActionHealthStatusHealthy, events.ActionHealthStatusUnhealthy, events.ActionHealthStatus:
 
 		container, err := c.dockerUtil.InspectNoCache(ctx, ev.ContainerID, false)
 		if err != nil {
 			return event, fmt.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
 		}
 
-		if ev.Action != docker.ContainerEventActionStart && !container.State.Running {
+		if ev.Action != events.ActionStart && !container.State.Running {
 			return event, fmt.Errorf("received event: %s on dead container: %q, discarding", ev.Action, ev.ContainerID)
 		}
 
@@ -297,7 +300,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 				Name:   strings.TrimPrefix(container.Name, "/"),
 				Labels: container.Config.Labels,
 			},
-			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer),
+			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer, c.store),
 			EnvVars: extractEnvVars(container.Config.Env),
 			Ports:   extractPorts(container),
 			Runtime: workloadmeta.ContainerRuntimeDocker,
@@ -314,7 +317,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 			PID:        container.State.Pid,
 		}
 
-	case docker.ContainerEventActionDie, docker.ContainerEventActionDied:
+	case events.ActionDie, docker.ActionDied:
 		var exitCode *uint32
 		if exitCodeString, found := ev.Attributes["exitCode"]; found {
 			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
@@ -342,7 +345,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	return event, nil
 }
 
-func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook) workloadmeta.ContainerImage {
+func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
 	image := workloadmeta.ContainerImage{
 		RawName: imageSpec,
@@ -393,6 +396,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	image.ShortName = shortName
 	image.Tag = tag
 	image.ID = container.Image
+	image.RepoDigest = util.ExtractRepoDigestFromImage(image.ID, image.Registry, store) // "sha256:digest"
 	return image
 }
 
@@ -524,7 +528,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 	defer c.handleImagesMut.Unlock()
 
 	switch event.Action {
-	case docker.ImageEventActionPull, docker.ImageEventActionTag, docker.ImageEventActionUntag, docker.ImageEventActionSbom:
+	case events.ActionPull, events.ActionTag, events.ActionUnTag, imageEventActionSbom:
 		imgMetadata, err := c.getImageMetadata(ctx, event.ImageID, bom)
 		if err != nil {
 			return fmt.Errorf("could not get image metadata for image %q: %w", event.ImageID, err)
@@ -537,7 +541,7 @@ func (c *collector) handleImageEvent(ctx context.Context, event *docker.ImageEve
 		}
 
 		c.store.Notify([]workloadmeta.CollectorEvent{workloadmetaEvent})
-	case docker.ImageEventActionDelete:
+	case events.ActionDelete:
 		workloadmetaEvent := workloadmeta.CollectorEvent{
 			Source: workloadmeta.SourceRuntime,
 			Type:   workloadmeta.EventTypeUnset,

@@ -39,6 +39,9 @@ import (
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
 	"github.com/docker/docker/client"
+
+	// This is required to load sqlite based RPM databases
+	_ "modernc.org/sqlite"
 )
 
 const (

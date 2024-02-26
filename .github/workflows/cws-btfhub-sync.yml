@@ -85,5 +85,5 @@ jobs:
               owner,
               repo,
               issue_number: result.data.number,
-              labels: ['changelog/no-changelog', 'qa/skip-qa', 'qa/no-code-change', 'team/agent-security']
+              labels: ['changelog/no-changelog', 'qa/no-code-change', 'team/agent-security']
             });

@@ -1386,7 +1386,7 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	testutil.IptablesSave(t)
 	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
 	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
-	testutil.RunCommands(t, cmds, true)
+	testutil.RunCommands(t, cmds, false)
 
 	cfg := testConfig()
 	cfg.CollectDNSStats = true

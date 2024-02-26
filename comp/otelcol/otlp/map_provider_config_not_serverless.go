@@ -15,15 +15,13 @@ const defaultTracesConfig string = `
 receivers:
   otlp:
 
-processors:
-  batch:
-    timeout: 10s
-
 exporters:
   otlp:
     tls:
       insecure: true
     compression: none
+    sending_queue:
+      enabled: false
 
 service:
   telemetry:
@@ -32,7 +30,6 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
       exporters: [otlp]
 `
 

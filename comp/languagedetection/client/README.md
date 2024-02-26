@@ -38,3 +38,4 @@ sequenceDiagram
 ## Note
 
 - This code assumes that a pod has a single and stable owner.
+- For more information about the language detection and library injection feature, refer to [this](https://github.com/DataDog/datadog-agent/blob/main/pkg/languagedetection/util/README.md) document.

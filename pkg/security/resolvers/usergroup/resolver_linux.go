@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	usergrouputils "github.com/DataDog/datadog-agent/pkg/security/common/usergrouputils"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -121,7 +122,7 @@ func (r *Resolver) refreshUserCache(containerID string, fsys fs.FS) (map[int]str
 		return entryCache.entries, nil
 	}
 
-	entries, err := parsePasswd(fsys, "/etc/passwd")
+	entries, err := usergrouputils.ParsePasswd(fsys, "/etc/passwd")
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +142,7 @@ func (r *Resolver) refreshGroupCache(containerID string, fsys fs.FS) (map[int]st
 		return entryCache.entries, nil
 	}
 
-	entries, err := parseGroup(fsys, "/etc/group")
+	entries, err := usergrouputils.ParseGroup(fsys, "/etc/group")
 	if err != nil {
 		return nil, err
 	}

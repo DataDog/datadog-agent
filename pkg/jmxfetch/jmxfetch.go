@@ -21,7 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -73,6 +73,7 @@ type JMXFetch struct {
 	Command            string
 	Reporter           JMXReporter
 	Checks             []string
+	DSD                dogstatsdServer.Component
 	IPCPort            int
 	IPCHost            string
 	Output             func(...interface{})
@@ -199,7 +200,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	case ReporterJSON:
 		reporter = "json"
 	default:
-		if global.DSD != nil && global.DSD.UdsListenerRunning() {
+		if j.DSD != nil && j.DSD.UdsListenerRunning() {
 			reporter = fmt.Sprintf("statsd:unix://%s", config.Datadog.GetString("dogstatsd_socket"))
 		} else {
 			bindHost := config.GetBindHost()

@@ -348,6 +348,7 @@ func TestBuildTemplates(t *testing.T) {
 		inputInitConfig [][]integration.Data
 		inputInstances  [][]integration.Data
 		expectedConfigs []integration.Config
+		ignoreAdTags    bool
 	}{
 		{
 			name:            "wrong number of checkNames",
@@ -402,10 +403,40 @@ func TestBuildTemplates(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:            "valid inputs with list and ignore ad tags",
+			inputCheckNames: []string{"a", "b"},
+			inputInitConfig: [][]integration.Data{{integration.Data("{\"test\": 1}")}, {integration.Data("{}")}},
+			inputInstances:  [][]integration.Data{{integration.Data("{\"foo\": 1}"), integration.Data("{\"foo\": 2}")}, {integration.Data("{1:2}")}},
+			ignoreAdTags:    true,
+			expectedConfigs: []integration.Config{
+				{
+					Name:                    "a",
+					ADIdentifiers:           []string{key},
+					InitConfig:              integration.Data("{\"test\": 1}"),
+					Instances:               []integration.Data{integration.Data("{\"foo\": 1}")},
+					IgnoreAutodiscoveryTags: true,
+				},
+				{
+					Name:                    "a",
+					ADIdentifiers:           []string{key},
+					InitConfig:              integration.Data("{\"test\": 1}"),
+					Instances:               []integration.Data{integration.Data("{\"foo\": 2}")},
+					IgnoreAutodiscoveryTags: true,
+				},
+				{
+					Name:                    "b",
+					ADIdentifiers:           []string{key},
+					InitConfig:              integration.Data("{}"),
+					Instances:               []integration.Data{integration.Data("{1:2}")},
+					IgnoreAutodiscoveryTags: true,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedConfigs, BuildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances))
+			assert.Equal(t, tt.expectedConfigs, BuildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances, tt.ignoreAdTags))
 		})
 	}
 }
