@@ -387,8 +387,9 @@ def test(
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     if coverage:
         if platform.system() == 'Windows':
+            # The '{{{{' is necessary to escape the f-string first and the .format() second. It's needed for the Powershell 'If' loop.
             coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-$packages = if ($args.count -eq 0) {{"{{packages}}"}} else {{$args}}
+$packages = if ($args.count -eq 0) {{{{"{{packages}}"}}}} else {"{{$args}}"}
 go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" $packages
 exit $LASTEXITCODE"""
         else:
