@@ -124,7 +124,7 @@ class CodecovWorkaround:
 
             with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
                 f.write(
-                    """@echo off
+                    f"""@echo off
 powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
                 )
 
