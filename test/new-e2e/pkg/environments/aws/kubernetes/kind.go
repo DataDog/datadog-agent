@@ -130,7 +130,6 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ku
 
 // KindRunFunc is the Pulumi run function that runs the provisioner
 func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
-
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
