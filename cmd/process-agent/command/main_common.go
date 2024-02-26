@@ -165,6 +165,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			profiler.Component,
 			expvars.Component,
 			apiserver.Component,
+			// TODO: This is needed by the container-provider which is not currently a component.
+			// We should ensure the tagger is a dependency when converting to a component.
+			tagger.Component,
 		) {
 		}),
 
