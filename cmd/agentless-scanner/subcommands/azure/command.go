@@ -19,6 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -37,6 +41,7 @@ func GroupCommand(parent *cobra.Command, statsd ddogstatsd.ClientInterface, sc *
 	}
 	cmd.AddCommand(azureAttachCommand(sc))
 	cmd.AddCommand(azureScanCommand(statsd, sc, evp))
+	cmd.AddCommand(azureOfflineCommand(statsd, sc, evp))
 
 	return cmd
 }
@@ -90,6 +95,56 @@ func azureScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig
 	}
 	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
 
+	return cmd
+}
+
+func azureOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+	var localFlags struct {
+		workers       int
+		subscription  string
+		resourceGroup string
+		taskType      string
+		maxScans      int
+		printResults  bool
+	}
+	cmd := &cobra.Command{
+		Use:   "offline",
+		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := common.CtxTerminated()
+			if localFlags.workers <= 0 {
+				return fmt.Errorf("workers must be greater than 0")
+			}
+			taskType, err := types.ParseTaskType(localFlags.taskType)
+			if err != nil {
+				return err
+			}
+			return azureOfflineCmd(
+				ctx,
+				statsd,
+				sc,
+				evp,
+				localFlags.workers,
+				taskType,
+				localFlags.maxScans,
+				localFlags.printResults,
+				localFlags.subscription,
+				localFlags.resourceGroup,
+				flags.GlobalFlags.DiskMode,
+				flags.GlobalFlags.DefaultActions,
+				flags.GlobalFlags.NoForkScanners)
+		},
+	}
+
+	cmd.Flags().IntVar(&localFlags.workers, "workers", 40, "number of scans running in parallel")
+	cmd.Flags().StringVar(&localFlags.subscription, "subscription", "", "only scan resources in the specified subscription")
+	cmd.Flags().StringVar(&localFlags.resourceGroup, "resource-group", "", "only scan resources in the specified resource group")
+	cmd.Flags().StringVar(&localFlags.taskType, "task-type", string(types.TaskTypeAzureDisk), fmt.Sprintf("scan type (%s or %s)", types.TaskTypeAzureDisk, types.TaskTypeHost))
+	cmd.Flags().IntVar(&localFlags.maxScans, "max-scans", 0, "maximum number of scans to perform")
+	cmd.Flags().BoolVar(&localFlags.printResults, "print-results", false, "print scan results to stdout")
+
+	// TODO support scanning all RGs in a subscription
+	_ = cmd.MarkFlagRequired("resource-group")
 	return cmd
 }
 
@@ -184,6 +239,122 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		})
 		scanner.Stop()
 	}()
+	scanner.Start(ctx, statsd, sc)
+	return nil
+}
+
+func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+	defer statsd.Flush()
+
+	hostname, err := utils.GetHostnameWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("could not fetch hostname: %w", err)
+	}
+
+	if len(subscription) == 0 {
+		self, err := azurebackend.GetInstanceMetadata(ctx)
+		if err != nil {
+			return err
+		}
+		subscription = self.Compute.SubscriptionID
+	}
+
+	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
+	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAzure)
+	scanner, err := runner.New(runner.Options{
+		ScannerID:      scannerID,
+		DdEnv:          sc.Env,
+		Workers:        workers,
+		ScannersMax:    8,
+		PrintResults:   printResults,
+		NoFork:         noForkScanners,
+		DefaultActions: actions,
+		DefaultRoles:   roles,
+		Statsd:         statsd,
+		EventForwarder: *evp,
+	})
+	if err != nil {
+		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
+	}
+	if err := scanner.CleanSlate(statsd, sc); err != nil {
+		log.Error(err)
+	}
+
+	pushDisks := func() error {
+		config, err := azurebackend.GetConfig(ctx, subscription)
+		if err != nil {
+			return err
+		}
+		vmClient := config.ComputeClientFactory.NewVirtualMachinesClient()
+
+		pager := vmClient.NewListPager(resourceGroup, nil)
+		count := 0
+		for pager.More() {
+			nextResult, err := pager.NextPage(ctx)
+			if err != nil {
+				return fmt.Errorf("could not scan subscription %q for disks: %w", subscription, err)
+			}
+
+			if nextResult.Value == nil {
+				continue
+			}
+			for _, vm := range nextResult.Value {
+				// TODO use InstanceView to check if VM is running
+				//if instance.State.Name != ec2types.InstanceStateNameRunning { continue }
+
+				if *vm.Properties.StorageProfile.OSDisk.OSType != armcompute.OperatingSystemTypesLinux {
+					log.Debugf("Skipping %s VM: %s", *vm.Properties.StorageProfile.OSDisk.OSType, *vm.ID)
+					continue
+				}
+
+				diskID, err := types.ParseAzureResourceID(*vm.Properties.StorageProfile.OSDisk.ManagedDisk.ID)
+				if err != nil {
+					return err
+				}
+				log.Debugf("%v %s %s", *vm.Location, *vm.Name, diskID)
+				scan, err := types.NewScanTask(
+					types.TaskTypeAzureDisk,
+					diskID.AsText(),
+					scannerID,
+					*vm.ID,
+					nil, //ec2TagsToStringTags(instance.Tags),
+					actions,
+					roles,
+					diskMode)
+				if err != nil {
+					return err
+				}
+
+				if !scanner.PushConfig(ctx, &types.ScanConfig{
+					Type:  types.ConfigTypeAzure,
+					Tasks: []*types.ScanTask{scan},
+					Roles: roles,
+				}) {
+					return nil
+				}
+				count++
+				if maxScans > 0 && count >= maxScans {
+					return nil
+				}
+			}
+		}
+		return nil
+	}
+
+	go func() {
+		defer scanner.Stop()
+		var err error
+		switch taskType {
+		case types.TaskTypeAzureDisk:
+			err = pushDisks()
+		default:
+			panic("unreachable")
+		}
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+
 	scanner.Start(ctx, statsd, sc)
 	return nil
 }
