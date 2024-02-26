@@ -25,6 +25,11 @@ func PopulateStatus(ac autodiscovery.Component, stats map[string]interface{}) {
 	stats["filterErrors"] = containers.GetFilterErrors()
 }
 
+func PopulateStatusWithoutAD(stats map[string]interface{}) {
+	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
+	stats["filterErrors"] = containers.GetFilterErrors()
+}
+
 //go:embed status_templates
 var templatesFS embed.FS
 

@@ -30,7 +30,7 @@ import (
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
 func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, wmeta, taggerComp, senderManager, agentAPI, collector)
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting
