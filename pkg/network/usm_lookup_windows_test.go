@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -31,14 +30,14 @@ func TestUSMLookup(t *testing.T) {
 
 	// In windows the USMLookup operation is done only once and using the
 	// original tuple order, so in the case below only c1 should match the data
-	c1 := network.ConnectionStats{
+	c1 := ConnectionStats{
 		Source: util.AddressFromString("1.1.1.1"),
 		Dest:   util.AddressFromString("2.2.2.2"),
 		SPort:  60000,
 		DPort:  80,
 	}
 
-	c2 := network.ConnectionStats{
+	c2 := ConnectionStats{
 		Source: util.AddressFromString("2.2.2.2"),
 		Dest:   util.AddressFromString("1.1.1.1"),
 		SPort:  80,
