@@ -38,9 +38,16 @@ build do
 
 
     # Config
-    mkdir '/etc/datadog-agent'
+    mkdir "/etc/datadog-agent"
     mkdir "/etc/init"
     mkdir "/var/log/datadog"
+    move "bin/agent/dist/datadog.yaml", "#{etc_dir}/datadog.yaml.example"
+    move "bin/agent/dist/conf.d", "#{etc_dir}/conf.d"
+    move "bin/agent/dist/system-probe.yaml", "#{etc_dir}/system-probe.yaml.example"
+    move "bin/agent/dist/security-agent.yaml", "#{etc_dir}/security-agent.yaml.example"
+
+    # Packages
+    mkdir "/opt/datadog-packages"
 
     copy 'bin/updater', "#{install_dir}/bin/"
 
