@@ -269,6 +269,8 @@ func elfBuildWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
 
 	const instrumentationSectionName = ".build.instrumentation"
 	sec := objFile.Section(instrumentationSectionName)
+	// if the section is not present then it was not added during compilation.
+	// This means that programs in this ELF are not instrumented.
 	if sec == nil {
 		return false, nil
 	}
