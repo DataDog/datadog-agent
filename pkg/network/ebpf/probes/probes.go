@@ -80,12 +80,12 @@ const (
 	// TCPReadSockReturn traces the return for the tcp_read_sock() kernel function
 	TCPReadSockReturn ProbeFuncName = "kretprobe__tcp_read_sock"
 
-	// TCPClose traces the tcp_close() system call on kernels with ringbuffer support
+	// TCPClose traces the tcp_close() system call
 	TCPClose ProbeFuncName = "kprobe__tcp_close"
 	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
 	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
 	// TCPCloseFlushReturn traces the return of tcp_close() system call
-	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush_batch"
+	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
 
 	// We use the following two probes for UDP sends
 
@@ -135,14 +135,14 @@ const (
 	// UnderscoredSKBFreeDatagramLocked traces __skb_free_datagram_locked()
 	UnderscoredSKBFreeDatagramLocked ProbeFuncName = "kprobe____skb_free_datagram_locked"
 
-	// UDPDestroySock traces the udp_destroy_sock() function on kernels with ringbuffer support
+	// UDPDestroySock traces the udp_destroy_sock() function
 	UDPDestroySock ProbeFuncName = "kprobe__udp_destroy_sock"
-	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call on kernels with ringbuffer support
+	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
 	// UDPv6DestroySock traces the udpv6_destroy_sock() function on kernels with ringbuffer support
 	UDPv6DestroySock ProbeFuncName = "kprobe__udpv6_destroy_sock"
-	// UDPv6DestroySockReturn traces the return of the udpv6_destroy_sock() system call on kernels with ringbuffer support
+	// UDPv6DestroySockReturn traces the return of the udpv6_destroy_sock() system call
 	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call

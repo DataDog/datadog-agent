@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
@@ -60,7 +59,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 		device := file.Sys().(*syscall.Stat_t).Dev
 		inode := file.Sys().(*syscall.Stat_t).Ino
-		ringbufferEnabled := kprobe.RingBufferSupported(config)
+		ringbufferEnabled := util.RingBufferSupported(config)
 
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_device",
@@ -70,7 +69,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 			Name:  "systemprobe_ino",
 			Value: inode,
 		})
-		kprobe.AddBoolConst(&o, ringbufferEnabled, "ringbuffers_enabled")
+		util.AddBoolConst(&o, ringbufferEnabled, "ringbuffers_enabled")
 
 		if ringbufferEnabled {
 			mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{

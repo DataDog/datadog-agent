@@ -12,7 +12,9 @@ import (
 	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
+	cebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -80,4 +82,24 @@ func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpfte
 			log.Error("Failed to remove helper calls from eBPF programs: ", err)
 		}
 	}
+}
+
+// RingBufferSupported returns true if ring buffer is supported on the kernel and enabled in the config
+func RingBufferSupported(c *config.Config) bool {
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbuffersEnabled
+}
+
+// AddBoolConst modifies the options to include a constant editor for a boolean value
+func AddBoolConst(options *manager.Options, flag bool, name string) {
+	val := uint64(1)
+	if !flag {
+		val = uint64(0)
+	}
+
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  name,
+			Value: val,
+		},
+	)
 }

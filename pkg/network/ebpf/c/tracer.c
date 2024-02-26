@@ -16,6 +16,7 @@
 #include "tracer/maps.h"
 #include "tracer/port.h"
 #include "tracer/tcp_recv.h"
+#include "protocols/classification/protocol-classification.h"
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
@@ -187,7 +188,31 @@ int kretprobe__udp_sendpage(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
-    handle_tcp_close(ctx);
+    struct sock *sk;
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    sk = (struct sock *)PT_REGS_PARM1(ctx);
+
+    // Should actually delete something only if the connection never got established & increment counter
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
+        increment_telemetry_count(tcp_failed_connect);
+    }
+
+    // Get network namespace id
+    log_debug("kprobe/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return;
+    }
+    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+
+    cleanup_conn(ctx, &t, sk);
+
+    // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
+    // so, there is no one to use the map and clean it.
+    if (is_protocol_classification_supported()) {
+        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+    }
+
     return 0;
 }
 
@@ -207,7 +232,7 @@ int kretprobe__tcp_close_clean_protocols(struct pt_regs *ctx) {
 }
 
 SEC("kretprobe/tcp_close")
-int kretprobe__tcp_close_flush_batch(struct pt_regs *ctx) {
+int kretprobe__tcp_close_flush(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);
     return 0;
 }
@@ -912,7 +937,7 @@ int kprobe__inet_csk_listen_stop(struct pt_regs *ctx) {
     return 0;
 }
 
-static __always_inline void handle_udp_destroy_sock(void *ctx, struct sock *skp) {
+static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) {
     conn_tuple_t tup = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int valid_tuple = read_conn_tuple(&tup, skp, pid_tgid, CONN_TYPE_UDP);
@@ -926,28 +951,26 @@ static __always_inline void handle_udp_destroy_sock(void *ctx, struct sock *skp)
 
     if (lport == 0) {
         log_debug("ERR(udp_destroy_sock): lport is 0");
-        return;
+        return 0;
     }
 
     port_binding_t pb = {};
     pb.netns = get_netns_from_sock(skp);
     pb.port = lport;
     remove_port_bind(&pb, &udp_port_bindings);
-    return;
+    return 0;
 }
 
 SEC("kprobe/udp_destroy_sock")
 int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    handle_udp_destroy_sock(ctx, sk);
-    return 0;
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("kprobe/udpv6_destroy_sock")
 int kprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-    handle_udp_destroy_sock(ctx, sk);
-    return 0;
+    return handle_udp_destroy_sock(ctx, sk);
 }
 
 SEC("kretprobe/udp_destroy_sock")

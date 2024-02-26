@@ -12,7 +12,6 @@
 #include "cookie.h"
 #include "ip.h"
 #include "port_range.h"
-#include "protocols/classification/protocol-classification.h"
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
@@ -113,11 +112,11 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         batch_ptr->len++;
         return;
     case 3:
+        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
+        // via a tail call in order to cope with the eBPF stack limitation of 512 bytes.
         batch_ptr->c3 = conn;
         batch_ptr->len++;
         return;
-        // In this case the batch is ready to be flushed, which we defer to kretprobe/tcp_close
-        // via a tail call in order to cope with the eBPF stack limitation of 512 bytes.
     }
 
     // If we hit this section it means we had one or more interleaved tcp_close calls.
@@ -134,39 +133,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     return;
 }
 
-static __always_inline void handle_tcp_close(struct pt_regs *ctx) {
-    struct sock *sk;
-    conn_tuple_t t = {};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    sk = (struct sock *)PT_REGS_PARM1(ctx);
-
-    // Should actually delete something only if the connection never got established & increment counter
-    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        increment_telemetry_count(tcp_failed_connect);
-    }
-
-    // Get network namespace id
-    log_debug("kprobe/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return;
-    }
-    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
-
-    cleanup_conn(ctx, &t, sk);
-
-    // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
-    // so, there is no one to use the map and clean it.
-    if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
-    }
-
-    return;
-}
-
 
 // This function is used to flush the conn_close_batch to the perf buffer.
 // It is only called on older kernel versions that do not support ring buffers.
-__maybe_unused static __always_inline void flush_conn_close_if_full(void *ctx) {
+static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
@@ -183,19 +153,5 @@ __maybe_unused static __always_inline void flush_conn_close_if_full(void *ctx) {
 
     submit_event(ctx, cpu, &batch_copy, sizeof(batch_t));
 }
-
-
-// // This function is used to flush the conn_close_batch to the ring buffer.
-// // It is only called on newer kernel versions that support ring buffers.
-// __maybe_unused static __always_inline void flush_conn_close_if_full_ringbuffer(void *ctx) {
-//     u32 cpu = bpf_get_smp_processor_id();
-//     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);
-//     if (!batch_ptr || batch_ptr->len != CONN_CLOSED_BATCH_SIZE) {
-//         return;
-//     }
-//     submit_event(ctx, cpu, batch_ptr, sizeof(batch_t));
-//     batch_ptr->len = 0;
-//     batch_ptr->id++;
-// }
 
 #endif // __TRACER_EVENTS_H
