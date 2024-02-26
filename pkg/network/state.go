@@ -1167,7 +1167,7 @@ func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.
 }
 
 func usmStat[K comparable, V any](stats *USMConnectionIndex[K, V], c *ConnectionStats) []USMKeyValue[K, V] {
-	if data := stats.Find(*c); data != nil {
+	if data := stats.Find(*c); data != nil && len(data.Data) > 0 && !data.IsPIDCollision(*c) {
 		return data.Data
 	}
 
