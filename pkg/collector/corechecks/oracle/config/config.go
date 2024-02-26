@@ -14,16 +14,19 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v3"
 )
 
+const defaultLoader = "core"
+
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
 	MinCollectionInterval int           `yaml:"min_collection_interval"`
 	CustomQueries         []CustomQuery `yaml:"custom_queries"`
+	Loader                string        `yaml:"loader"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -146,6 +149,7 @@ type InstanceConfig struct {
 	Asm                                asmConfig              `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 	Locks                              locksConfig            `yaml:"locks"`
+	Loader                             string                 `yaml:"loader"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -210,6 +214,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.UseGlobalCustomQueries = "true"
 
 	instance.DatabaseInstanceCollectionInterval = 1800
+
+	instance.Loader = defaultLoader
+	initCfg.Loader = defaultLoader
 	// Defaults end
 
 	if err := yaml.Unmarshal(rawInstance, &instance); err != nil {

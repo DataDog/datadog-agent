@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
@@ -74,7 +74,7 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 
 func getUsedPGA(db *sqlx.DB) (float64, error) {
 	var pga float64
-	err := chk.db.Get(&pga, `SELECT 
+	err := chk.db.Get(&pga, `SELECT
 	sum(p.pga_used_mem)
 FROM   v$session s,
 	v$process p
@@ -90,15 +90,15 @@ func getSession(db *sqlx.DB) (string, error) {
 
 func getLOBReads(db *sqlx.DB) (float64, error) {
 	var r float64
-	err := chk.db.Get(&r, `SELECT name,value 
-	FROM v$sesstat  m, v$statname n, v$session s 
+	err := chk.db.Get(&r, `SELECT name,value
+	FROM v$sesstat  m, v$statname n, v$session s
 	WHERE n.statistic# = m.statistic# AND s.sid = m.sid AND s.username = 'C##DATADOG' AND n.name = 'lob reads'`)
 	return r, err
 }
 
 func getTemporaryLobs(db *sqlx.DB) (int, error) {
 	var r int
-	err := chk.db.Get(&r, `SELECT SUM(cache_lobs) + SUM(nocache_lobs) + SUM(abstract_lobs) 
+	err := chk.db.Get(&r, `SELECT SUM(cache_lobs) + SUM(nocache_lobs) + SUM(abstract_lobs)
 	FROM v$temporary_lobs l, v$session s WHERE s.SID = l.SID AND s.username = 'C##DATADOG'`)
 	return r, err
 }
@@ -188,18 +188,18 @@ func TestLicense(t *testing.T) {
 	err = db.Get(&usedFeaturesCount, `SELECT NVL(SUM(detected_usages),0)
 	FROM dba_feature_usage_statistics
  	WHERE name in (
-		'ADDM', 
-		'Automatic SQL Tuning Advisor', 
-		'Automatic Workload Repository', 
-		'AWR Baseline', 
-		'AWR Baseline Template', 
-		'AWR Report', 
-		'EM Performance Page', 
-		'Real-Time SQL Monitoring', 
-		'SQL Access Advisor', 
-		'SQL Monitoring and Tuning pages', 
-		'SQL Performance Analyzer', 
-		'SQL Tuning Advisor', 
+		'ADDM',
+		'Automatic SQL Tuning Advisor',
+		'Automatic Workload Repository',
+		'AWR Baseline',
+		'AWR Baseline Template',
+		'AWR Report',
+		'EM Performance Page',
+		'Real-Time SQL Monitoring',
+		'SQL Access Advisor',
+		'SQL Monitoring and Tuning pages',
+		'SQL Performance Analyzer',
+		'SQL Tuning Advisor',
 		'SQL Tuning Set (user)'
 		)
  `)
