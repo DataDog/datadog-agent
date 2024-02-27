@@ -74,7 +74,7 @@ components_missing_implementation_folder = [
     "comp/core/hostname/hostnameinterface",
 ]
 
-implementation_defintions = [
+implementation_definitions = [
     "type Mock interface",
     "func Module() fxutil.Module",
     "func MockModule() fxutil.Module",
@@ -88,7 +88,7 @@ def check_component_contents_and_file_hiearchy(file, content, directory):
     if str(file) in components_to_migrate:
         return ""
 
-    for implemenation_definition in implementation_defintions:
+    for implemenation_definition in implementation_definitions:
         if any(l.startswith(implemenation_definition) for l in content):
             return f"** {file} define '{implemenation_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
 
@@ -101,7 +101,7 @@ def check_component_contents_and_file_hiearchy(file, content, directory):
     for folder in directory.iterdir():
         if folder.match('*impl'):
             missing_implementation_folder = False
-            # TODO: check that the implementation_defintions are present in any of the files of the impl folder
+            # TODO: check that the implementation_definitions are present in any of the files of the impl folder
             break
 
     if missing_implementation_folder:
