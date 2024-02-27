@@ -1218,7 +1218,7 @@ workflow:
     allow_failure: true
 
 .on_updater_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
+  - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_mergequeue
     when: never
