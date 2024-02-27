@@ -84,6 +84,8 @@ chown -R dd-agent:dd-agent ${INSTALL_DIR}
 chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 chown -R dd-agent:dd-agent ${PACKAGES_LOCK_DIR}
 chmod -R 755 ${PACKAGES_DIR}
+# Lock_dir is world writable as any application with a tracer injected
+# needs to write the PID
 chown -R 666 ${PACKAGES_LOCK_DIR}
 
 # Make system-probe configs read-only
