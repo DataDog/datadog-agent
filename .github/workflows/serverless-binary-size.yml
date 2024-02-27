@@ -116,7 +116,7 @@ jobs:
           path: go/src/github.com/DataDog/datadog-lambda-extension/graphs
 
       - name: Post comment
-        uses: marocchino/sticky-pull-request-comment@v2.5.0
+        uses: marocchino/sticky-pull-request-comment@v2.9.0
         if: steps.compare.outputs.diff > env.SIZE_ALLOWANCE
         with:
           hide_and_recreate: true
