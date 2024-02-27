@@ -5,5 +5,5 @@
 # The system probe and security agent junit upload jobs were split
 # to bypass the logical complexity of having many optionally needed jobs.
 include:
-  - /.gitlab/junit_upload/functional_test_junit_upload_system_probe.yml
-  - /.gitlab/junit_upload/functional_test_junit_upload_security-agent.yml
+  - /.gitlab/functional_test_junit_upload/functional_test_junit_upload_system_probe.yml
+  - /.gitlab/functional_test_junit_upload/functional_test_junit_upload_security-agent.yml
