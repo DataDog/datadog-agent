@@ -34,6 +34,8 @@ type SysProbeConfig struct {
 	ProcessModuleEnabled bool
 	// Using GRPC server for communication with system probe
 	GRPCServerEnabled bool
+	// System probe NPM module on/off configuration
+	NPMModuleEnabled bool
 }
 
 // Check is an interface for Agent checks that collect data. Each check returns

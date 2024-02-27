@@ -65,7 +65,7 @@ func (c *ContainerCheck) Init(sysconfig *SysProbeConfig, info *HostInfo, _ bool)
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize(c.config)
 
-	_, c.npmEnabled = syscfg.EnabledModules[sysconfig.NetworkTracerModule] && syscfg.Enabled
+	c.npmEnabled = sysconfig.NPMModuleEnabled
 	c.runInCoreAgent = c.config.GetBool("process_config.run_in_core_agent.enabled")
 	return nil
 }
