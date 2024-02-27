@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
+// GetRegistryValue returns a registry value from a remote host
 func GetRegistryValue(host *components.RemoteHost, path string, value string) (string, error) {
 	cmd := fmt.Sprintf("Get-ItemPropertyValue -Path '%s' -Name '%s'", path, value)
 	out, err := host.Execute(cmd)
