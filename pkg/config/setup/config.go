@@ -1424,8 +1424,8 @@ func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 
 func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
-	knownKeys := config.GetKnownKeys()
-	loadedKeys := config.AllKeys()
+	knownKeys := config.GetKnownKeysLowercased()
+	loadedKeys := config.AllKeysLowercased()
 	for _, key := range loadedKeys {
 		if _, found := knownKeys[key]; !found {
 			// Check if any subkey terminated with a '.*' wildcard is marked as known
@@ -1472,7 +1472,7 @@ func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
 		}
 	}
 
-	allKeys := config.AllKeys()
+	allKeys := config.AllKeysLowercased()
 	for _, key := range allKeys {
 		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
 		if unknownValue := config.Get(key); unknownValue != nil {
