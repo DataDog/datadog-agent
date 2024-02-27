@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 )
 
 const (
@@ -126,7 +126,7 @@ func entityForPID(pid int32, capture bool) (string, error) {
 		return replay.ContainerIDForPID(pid)
 	}
 
-	cID, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(pid), pidToEntityCacheDuration)
+	cID, err := provider.GetProvider().GetMetaCollector().GetContainerIDForPID(int(pid), pidToEntityCacheDuration)
 	if err != nil {
 		return "", err
 	}
