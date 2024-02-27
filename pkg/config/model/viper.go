@@ -92,13 +92,11 @@ func (c *safeConfig) Set(key string, value interface{}, source Source) {
 
 	// modify the config then release the lock to avoid deadlocks
 	var receivers []NotificationReceiver
-	func() {
-		c.Lock()
-		defer c.Unlock()
-		c.configSources[source].Set(key, value)
-		c.mergeViperInstances(key)
-		receivers = slices.Clone(c.notificationReceivers)
-	}()
+	c.Lock()
+	c.configSources[source].Set(key, value)
+	c.mergeViperInstances(key)
+	receivers = slices.Clone(c.notificationReceivers)
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
