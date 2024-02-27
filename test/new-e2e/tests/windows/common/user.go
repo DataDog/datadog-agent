@@ -35,10 +35,31 @@ func MakeDownLevelLogonName(domain string, user string) string {
 //   - domain\username
 //   - username@domain
 func GetSIDForUser(host *components.RemoteHost, user string) (string, error) {
-	// strip leading .\ if present
-	user = strings.TrimPrefix(user, ".\\")
+	// NTAccount does not support .\username syntax
+	user, err := DotSlashNameToLogonName(host, user)
+	if err != nil {
+		return "", err
+	}
 
 	cmd := fmt.Sprintf(`(New-Object System.Security.Principal.NTAccount('%s')).Translate([System.Security.Principal.SecurityIdentifier]).Value.ToString()`, user)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
+}
+
+// DotSlashNameToLogonName converts a .\username to a hostname\username.
+//
+// Simply stripping the .\ prefix is not sufficient because isolated named are ambiguous
+// and may resolve to a domain account rather than a local account.
+//
+// SCM uses .\ to specify the local machine when returning a local service account name.
+func DotSlashNameToLogonName(host *components.RemoteHost, user string) (string, error) {
+	if !strings.HasPrefix(user, ".\\") {
+		return user, nil
+	}
+	hostname, err := GetHostname(host)
+	if err != nil {
+		return "", err
+	}
+	user = strings.TrimPrefix(user, ".\\")
+	return MakeDownLevelLogonName(hostname, user), nil
 }
