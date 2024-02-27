@@ -277,7 +277,7 @@ variables:
 .if_not_run_all_builds: &if_not_run_all_builds
   if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
-# Rule to trigger test setup, run, and cleanup.
+# Rule to trigger installer tests
 # By default:
 # - on main and deploy pipelines, installer tests are run
 # - on branch pipelines, installer tests are run on a subset of the OSes we test
