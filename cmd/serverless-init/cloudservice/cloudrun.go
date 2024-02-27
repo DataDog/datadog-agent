@@ -13,7 +13,8 @@ import (
 
 const (
 	revisionNameEnvVar = "K_REVISION"
-	ServiceNameEnvVar  = "K_SERVICE"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	ServiceNameEnvVar = "K_SERVICE"
 )
 
 var metadataHelperFunc = helper.GetMetaData
