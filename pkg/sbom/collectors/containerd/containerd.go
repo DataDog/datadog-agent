@@ -62,11 +62,6 @@ func (c *Collector) CleanCache() error {
 	return c.trivyCollector.CleanCache()
 }
 
-// initOptions initializes the options of the collector
-func (c *Collector) initOptions() {
-	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
-}
-
 // Init initializes the collector
 func (c *Collector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
@@ -75,7 +70,7 @@ func (c *Collector) Init(cfg config.Config) error {
 	}
 	c.trivyCollector = trivyCollector
 	c.fromFileSystem = cfg.GetBool("sbom.container_image.use_mount")
-	c.initOptions()
+	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	return nil
 }
 

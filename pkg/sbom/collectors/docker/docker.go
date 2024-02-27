@@ -12,14 +12,14 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/docker/docker/client"
-
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
+
+	"github.com/docker/docker/client"
 )
 
 // ScanRequest defines a scan request

@@ -10,15 +10,15 @@ package tests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"os/exec"
 	"testing"
-
-	"github.com/avast/retry-go/v4"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+
+	"github.com/avast/retry-go/v4"
 )
 
 func TestSBOM(t *testing.T) {

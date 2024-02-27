@@ -55,15 +55,6 @@ func (c *Collector) CleanCache() error {
 	return nil
 }
 
-// initOptions initializes the options of the collector
-func (c *Collector) initOptions() {
-	if flavor.GetFlavor() == flavor.SecurityAgent {
-		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}
-	} else {
-		c.opts = sbom.ScanOptionsFromConfig(config.Datadog, false)
-	}
-}
-
 // Init initialize the host collector
 func (c *Collector) Init(cfg config.Config) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg)
@@ -71,7 +62,11 @@ func (c *Collector) Init(cfg config.Config) error {
 		return err
 	}
 	c.trivyCollector = trivyCollector
-	c.initOptions()
+	if flavor.GetFlavor() == flavor.SecurityAgent {
+		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}
+	} else {
+		c.opts = sbom.ScanOptionsFromConfig(config.Datadog, false)
+	}
 	return nil
 }
 
