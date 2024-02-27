@@ -59,8 +59,6 @@ type EventContextSerializer struct {
 	Async bool `json:"async,omitempty"`
 	// The list of rules that the event matched (only valid in the context of an anomaly)
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
-	// Origin of the event
-	Origin string `json:"origin,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -232,7 +230,6 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:      eventType.String(),
-			Origin:    event.Origin,
 			Variables: newVariablesContext(event, opts, ""),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event, opts),
