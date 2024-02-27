@@ -157,16 +157,6 @@ Package statsd implements a component to get a statsd client.
 
 Package status implements the core status component information provider interface
 
-## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
-
-*Datadog Team*: windows-agent
-
-
-
-### [comp/etw/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw/etw)
-
-Package etw provides an ETW tracing interface
-
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -457,3 +447,9 @@ component temporarily wraps pkg/trace/config.
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
 Package status implements the core status component information provider interface
+
+### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
+
+*Datadog Team*: windows-agent
+
+Package etw provides an ETW tracing interface
