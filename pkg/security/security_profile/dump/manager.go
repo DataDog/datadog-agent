@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/gopsutil/process"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -46,7 +48,7 @@ type ActivityDumpHandler interface {
 
 // SecurityProfileManager is a generic interface used to communicate with the Security Profile manager
 type SecurityProfileManager interface {
-	FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry
+	FetchSilentWorkloads() map[cgroupModel.WorkloadKey][]*cgroupModel.CacheEntry
 	OnLocalStorageCleanup(files []string)
 }
 
@@ -391,6 +393,57 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	// loop through the process cache entry tree and push traced pids if necessary
 	adm.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
 
+	newDump.ActivityTree.Walk(func(node *activity_tree.ProcessNode) bool {
+		pid := node.Process.Pid
+		proc, err := process.NewProcess(int32(pid))
+		if err != nil {
+			seclog.Tracef("unable to find pid: %d", pid)
+			return false
+		}
+
+		mapStats, err := proc.MemoryMaps(true)
+		if err != nil {
+			seclog.Tracef("unable to get a filled process for pid %d: %d", pid, err)
+			return false
+		}
+
+		if mapStats != nil {
+			for _, mapStat := range *mapStats {
+				if mapStat.Path != "" && mapStat.Path != node.Process.FileEvent.PathnameStr {
+					var stats unix.Statx_t
+					if err := unix.Statx(unix.AT_FDCWD, mapStat.Path, 0, unix.STATX_ALL, &stats); err != nil {
+						seclog.Tracef("unable to stat mapped file %s", mapStat.Path)
+						continue
+					}
+
+					var fileEvent model.FileEvent
+					var event *model.Event
+
+					fileEvent.PathnameStr = mapStat.Path
+					fileEvent.BasenameStr = filepath.Base(mapStat.Path)
+					fileEvent.UID = stats.Uid
+					fileEvent.GID = stats.Gid
+					fileEvent.CTime = uint64(time.Unix(stats.Ctime.Sec, int64(stats.Ctime.Nsec)).Nanosecond())
+					fileEvent.MTime = uint64(time.Unix(stats.Mtime.Sec, int64(stats.Mtime.Nsec)).Nanosecond())
+					fileEvent.Mode = stats.Mode
+					fileEvent.Inode = stats.Ino
+					fileEvent.Device = stats.Dev_major<<20 | stats.Dev_minor
+					fileEvent.NLink = stats.Nlink
+					fileEvent.MountID = uint32(stats.Mnt_id)
+
+					hashes := adm.resolvers.HashResolver.ComputeHashes(model.FileOpenEventType, pid, newDump.Metadata.ContainerID, &fileEvent)
+					fileEvent.Hashes = hashes
+
+					event = model.NewFakeEvent()
+					if node.InsertFileEvent(&fileEvent, event, activity_tree.Snapshot, newDump.ActivityTree.Stats, false, nil, adm.resolvers) {
+						seclog.Debugf("Mapped file %s was added to dump %s", mapStat.Path, newDump.ContainerID)
+					}
+				}
+			}
+		}
+
+		return false
+	})
 	// Delay the activity dump snapshot to reduce the overhead on the main goroutine
 	select {
 	case adm.snapshotQueue <- newDump:
@@ -408,9 +461,10 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 }
 
 // handleDefaultDumpRequest starts dumping a new workload with the provided load configuration and the default dump configuration
-func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
+func (adm *ActivityDumpManager) startDumpWithConfig(containerID string, containerFlags, cookie uint64, loadConfig model.ActivityDumpLoadConfig) error {
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.Metadata.ContainerID = containerID
+		ad.Metadata.ContainerFlags = containerFlags
 		ad.SetLoadConfig(cookie, loadConfig)
 
 		if adm.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs {
@@ -453,7 +507,7 @@ func (adm *ActivityDumpManager) HandleCGroupTracingEvent(event *model.CgroupTrac
 		return
 	}
 
-	if err := adm.startDumpWithConfig(event.ContainerContext.ID, event.ConfigCookie, event.Config); err != nil {
+	if err := adm.startDumpWithConfig(event.ContainerContext.ID, event.ContainerContext.Flags, event.ConfigCookie, event.Config); err != nil {
 		seclog.Warnf("%v", err)
 	}
 }
@@ -506,14 +560,14 @@ workloadLoop:
 				continue
 			}
 
-			if ad.selector.Match(selector) {
+			if ad.selector.Key() == selector {
 				// we already have an activity dump for this selector, ignore
 				continue workloadLoop
 			}
 		}
 
 		// if we're still here, we can start tracing this workload
-		if err := adm.startDumpWithConfig(workloads[0].ID, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
+		if err := adm.startDumpWithConfig(workloads[0].ID, workloads[0].Flags, utils.NewCookie(), *adm.loadController.getDefaultLoadConfig()); err != nil {
 			if !errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break

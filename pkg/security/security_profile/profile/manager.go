@@ -132,7 +132,7 @@ type SecurityProfileManager struct {
 	securityProfileSyscallsMap *ebpf.Map
 
 	profilesLock sync.Mutex
-	profiles     map[cgroupModel.WorkloadSelector]*SecurityProfile
+	profiles     map[cgroupModel.WorkloadKey]*SecurityProfile
 
 	pendingCacheLock sync.Mutex
 	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *SecurityProfile]
@@ -180,7 +180,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
 		resolvers:                  resolvers,
-		profiles:                   make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
+		profiles:                   make(map[cgroupModel.WorkloadKey]*SecurityProfile),
 		pendingCache:               profileCache,
 		cacheHit:                   atomic.NewUint64(0),
 		cacheMiss:                  atomic.NewUint64(0),
@@ -264,7 +264,7 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 // propagateWorkloadSelectorsToProviders (thread unsafe) propagates the list of workload selectors to the Security
 // Profiles providers.
 func (m *SecurityProfileManager) propagateWorkloadSelectorsToProviders() {
-	var selectors []cgroupModel.WorkloadSelector
+	var selectors []cgroupModel.WorkloadKey
 	for selector := range m.profiles {
 		selectors = append(selectors, selector)
 	}
@@ -287,7 +287,7 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 	}
 
 	// check if the workload of this selector already exists
-	profile, ok := m.profiles[workload.WorkloadSelector]
+	profile, ok := m.profiles[workload.WorkloadSelector.Key()]
 	if !ok {
 		// check the cache
 		m.pendingCacheLock.Lock()
@@ -311,13 +311,13 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			}
 
 			// insert the profile in the list of active profiles
-			m.profiles[workload.WorkloadSelector] = profile
+			m.profiles[workload.WorkloadSelector.Key()] = profile
 		} else {
 			m.cacheMiss.Inc()
 
 			// create a new entry
 			profile = NewSecurityProfile(workload.WorkloadSelector, m.eventTypes)
-			m.profiles[workload.WorkloadSelector] = profile
+			m.profiles[workload.WorkloadSelector.Key()] = profile
 
 			// notify the providers that we're interested in a new workload selector
 			m.propagateWorkloadSelectorsToProviders()
@@ -373,7 +373,7 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	defer m.profilesLock.Unlock()
 
 	// check if this workload had a Security Profile
-	return m.profiles[selector]
+	return m.profiles[selector.Key()]
 }
 
 // FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
@@ -443,7 +443,7 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	}
 
 	// remove the profile from the list of profiles
-	delete(m.profiles, profile.selector)
+	delete(m.profiles, profile.selector.Key())
 
 	// propagate the workload selectors
 	m.propagateWorkloadSelectorsToProviders()
@@ -471,7 +471,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	defer m.profilesLock.Unlock()
 
 	// Update the Security Profile content
-	profile, ok := m.profiles[selector]
+	profile, ok := m.profiles[selector.Key()]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
 		profile = NewSecurityProfile(selector, m.eventTypes)
@@ -778,8 +778,9 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	for _, p := range m.profiles {
+	for selector, p := range m.profiles {
 		msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity)
+		msg.Metadata.Name = string(selector)
 		out.Profiles = append(out.Profiles, msg)
 	}
 
@@ -844,11 +845,11 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 }
 
 // FetchSilentWorkloads returns the list of workloads for which we haven't received any profile
-func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry {
+func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadKey][]*cgroupModel.CacheEntry {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	out := make(map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry)
+	out := make(map[cgroupModel.WorkloadKey][]*cgroupModel.CacheEntry)
 
 	for selector, profile := range m.profiles {
 		profile.Lock()

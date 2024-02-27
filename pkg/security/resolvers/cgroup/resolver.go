@@ -11,12 +11,15 @@ package cgroup
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
+	"github.com/DataDog/datadog-agent/pkg/security/common/containerutils"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -34,6 +37,8 @@ const (
 	CGroupMaxEvent
 )
 
+const systemdSystemDir = "/lib/systemd/system"
+
 // Listener is used to propagate CGroup events
 type Listener func(workload *cgroupModel.CacheEntry)
 
@@ -42,6 +47,7 @@ type Resolver struct {
 	sync.RWMutex
 	workloads            *simplelru.LRU[string, *cgroupModel.CacheEntry]
 	tagsResolver         tags.Resolver
+	sbomResolver         *sbom.Resolver
 	workloadsWithoutTags chan *cgroupModel.CacheEntry
 
 	listenersLock sync.Mutex
@@ -49,9 +55,10 @@ type Resolver struct {
 }
 
 // NewResolver returns a new cgroups monitor
-func NewResolver(tagsResolver tags.Resolver) (*Resolver, error) {
+func NewResolver(tagsResolver tags.Resolver, sbomResolver *sbom.Resolver) (*Resolver, error) {
 	cr := &Resolver{
 		tagsResolver:         tagsResolver,
+		sbomResolver:         sbomResolver,
 		workloadsWithoutTags: make(chan *cgroupModel.CacheEntry, 100),
 		listeners:            make(map[Event][]Listener),
 	}
@@ -132,6 +139,7 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
 		return
 	}
+	newCGroup.Flags = uint64(process.ContainerFlags)
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
@@ -164,11 +172,35 @@ func (cr *Resolver) checkTags(workload *cgroupModel.CacheEntry) {
 	}
 }
 
+func (cr *Resolver) ResolveTags(cgroupID string, cgroupFlags uint64) (newTags []string, selector cgroupModel.WorkloadSelector, err error) {
+	if cgroupFlags&containerutils.CGroupManagerSystemd != 0 {
+		systemdService := cgroupID
+		serviceVersion := "latest"
+		servicePath := filepath.Join(systemdSystemDir, systemdService+".service")
+		if pkg := cr.sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
+			serviceVersion = pkg.Version
+		}
+		selector, err = cgroupModel.NewWorkloadSelector(systemdService, serviceVersion)
+		newTags = []string{
+			"service:" + cgroupID,
+			"version:" + serviceVersion,
+		}
+	} else {
+		if newTags, err = cr.tagsResolver.ResolveWithErr(cgroupID); err != nil {
+			return nil, selector, fmt.Errorf("failed to get container tags %s: %w", cgroupID, err)
+		}
+	}
+	return
+}
+
 // fetchTags fetches tags for the provided workload
-func (cr *Resolver) fetchTags(workload *cgroupModel.CacheEntry) error {
-	newTags, err := cr.tagsResolver.ResolveWithErr(workload.ID)
+func (cr *Resolver) fetchTags(workload *cgroupModel.CacheEntry) (err error) {
+	newTags, selector, err := cr.ResolveTags(workload.ID, workload.Flags)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", workload.ID, err)
+	}
+	if selector.IsReady() {
+		workload.WorkloadSelector = selector
 	}
 	workload.SetTags(newTags)
 	return nil

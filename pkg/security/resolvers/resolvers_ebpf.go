@@ -95,7 +95,8 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	} else {
 		tagsResolver = tags.NewResolver(config.Probe)
 	}
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
+
+	cgroupsResolver, err := cgroup.NewResolver(tagsResolver, sbomResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +192,9 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 
 	r.CGroupResolver.Start(ctx)
 	if r.SBOMResolver != nil {
-		r.SBOMResolver.Start(ctx)
+		if err := r.SBOMResolver.Start(ctx); err != nil {
+			return err
+		}
 	}
 
 	if err := r.UserSessions.Start(r.manager); err != nil {

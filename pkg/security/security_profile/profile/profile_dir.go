@@ -66,7 +66,7 @@ type DirectoryProvider struct {
 	onNewProfileCallback      func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)
 
 	// selectors is used to select the profiles we currently care about
-	selectors []cgroupModel.WorkloadSelector
+	selectors []cgroupModel.WorkloadKey
 	// profileMapping is an in-memory mapping of the profiles currently on the file system
 	profileMapping map[cgroupModel.WorkloadSelector]profileFSEntry
 }
@@ -143,7 +143,7 @@ func (dp *DirectoryProvider) Stop() error {
 }
 
 // UpdateWorkloadSelectors updates the selectors used to query profiles
-func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadSelector) {
+func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadKey) {
 	dp.Lock()
 	defer dp.Unlock()
 	dp.selectors = selectors
@@ -236,7 +236,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	// check if this profile matches a workload selector
 	for _, selector := range dp.selectors {
-		if workloadSelector.Match(selector) {
+		if workloadSelector.Key() == selector {
 			dp.onNewProfileCallback(workloadSelector, profile)
 		}
 	}

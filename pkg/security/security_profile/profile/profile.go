@@ -162,8 +162,8 @@ func (p *SecurityProfile) ToSecurityProfileMessage(timeResolver *timeResolver.Re
 		LoadedInKernel:          p.loadedInKernel,
 		LoadedInKernelTimestamp: timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
 		Selector: &api.WorkloadSelectorMessage{
-			Name: p.selector.Image,
-			Tag:  p.selector.Tag,
+			Name: p.selector.Name(),
+			Tag:  p.selector.Version(),
 		},
 		ProfileCookie: p.profileCookie,
 		Version:       p.Version,
