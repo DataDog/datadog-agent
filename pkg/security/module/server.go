@@ -303,6 +303,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 			Version:     version.AgentVersion,
 			OS:          runtime.GOOS,
 			Arch:        utils.RuntimeArch(),
+			Origin:      a.probe.Origin(),
 		},
 	}
 

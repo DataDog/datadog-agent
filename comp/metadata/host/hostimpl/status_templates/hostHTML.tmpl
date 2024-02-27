@@ -21,7 +21,7 @@
 <div class="stat">
   <span class="stat_title">Hostnames</span>
   <span class="stat_data">
-    {{- range $type, $value := .meta -}}
+    {{- range $type, $value := .metadata.meta -}}
       {{- if ne $type "timezones" -}}
         {{- if $value}}
           {{formatTitle $type}}: {{$value -}}<br>

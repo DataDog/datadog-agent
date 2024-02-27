@@ -109,6 +109,8 @@ func (c *Check) ProcessMemory() error {
 			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_allocated_memory", common.IntegrationName), r.PGAAllocMem, tags)
 			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_freeable_memory", common.IntegrationName), r.PGAFreeableMem, tags)
 			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_max_memory", common.IntegrationName), r.PGAMaxMem, tags)
+			// we send pga_maximum_memory for backward compatibility with the old Oracle integration
+			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_maximum_memory", common.IntegrationName), r.PGAMaxMem, tags)
 		}
 
 		if c.config.InactiveSessions.Enabled && r.Status.Valid && r.Status.String == "INACTIVE" && r.LastCallEt.Valid {
