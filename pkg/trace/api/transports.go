@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // measuringTransport is a transport that emits count and timing metrics
@@ -25,22 +25,23 @@ type measuringTransport struct {
 	rt     http.RoundTripper
 	prefix string
 	tags   []string
+	statsd statsd.ClientInterface
 }
 
 // newMeasuringTransport creates a measuringTransport wrapping another round
 // tripper emitting metrics.
-func newMeasuringTransport(rt http.RoundTripper, prefix string, tags []string) *measuringTransport {
-	return &measuringTransport{rt, prefix, tags}
+func newMeasuringTransport(rt http.RoundTripper, prefix string, tags []string, statsd statsd.ClientInterface) *measuringTransport {
+	return &measuringTransport{rt, prefix, tags, statsd}
 }
 
 // RoundTrip makes an HTTP round trip measuring request count and timing.
 func (m *measuringTransport) RoundTrip(req *http.Request) (rres *http.Response, rerr error) {
 	defer func(start time.Time) {
-		metrics.Count(fmt.Sprintf("%s.proxy_request", m.prefix), 1, m.tags, 1)
-		metrics.Timing(fmt.Sprintf("%s.proxy_request_duration_ms", m.prefix), time.Since(start), m.tags, 1)
+		_ = m.statsd.Count(fmt.Sprintf("%s.proxy_request", m.prefix), 1, m.tags, 1)
+		_ = m.statsd.Timing(fmt.Sprintf("%s.proxy_request_duration_ms", m.prefix), time.Since(start), m.tags, 1)
 		if rerr != nil {
 			tags := append(m.tags, fmt.Sprintf("error:%s", fmt.Sprintf("%T", rerr)))
-			metrics.Count(fmt.Sprintf("%s.proxy_request_error", m.prefix), 1, tags, 1)
+			_ = m.statsd.Count(fmt.Sprintf("%s.proxy_request_error", m.prefix), 1, tags, 1)
 		}
 	}(time.Now())
 	return m.rt.RoundTrip(req)
@@ -143,7 +144,8 @@ func newMeasuringForwardingTransport(
 	additionalEndpoints map[string][]string,
 	metricPrefix string,
 	metricTags []string,
+	statsd statsd.ClientInterface,
 ) http.RoundTripper {
 	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints)
-	return newMeasuringTransport(forwardingTransport, metricPrefix, metricTags)
+	return newMeasuringTransport(forwardingTransport, metricPrefix, metricTags, statsd)
 }

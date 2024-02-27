@@ -310,7 +310,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         if (current_header->type == kStaticHeader) {
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
-               current_stream->request_started = bpf_ktime_get_ns();
                current_stream->request_method.static_table_entry = current_header->index;
                current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
@@ -318,12 +317,9 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 current_stream->status_code.static_table_entry = current_header->index;
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
-            } else if (current_header->index == kEmptyPath) {
-                current_stream->path_size = HTTP2_ROOT_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_ROOT_PATH, HTTP2_ROOT_PATH_LEN);
-            } else if (current_header->index == kIndexPath) {
-                current_stream->path_size = HTTP2_INDEX_PATH_LEN;
-                bpf_memcpy(current_stream->request_path, HTTP2_INDEX_PATH, HTTP2_INDEX_PATH_LEN);
+            } else if (is_path_index(current_header->index)) {
+                current_stream->path.static_table_entry = current_header->index;
+                current_stream->path.finalized = true;
             }
             continue;
         }
@@ -335,15 +331,15 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
-                current_stream->path_size = dynamic_value->string_len;
-                current_stream->is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.length = dynamic_value->string_len;
+                current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
+                current_stream->path.finalized = true;
+                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
             }  else if (is_method_index(dynamic_value->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->request_method.length = current_header->new_dynamic_value_size;
@@ -360,15 +356,15 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
             if (is_path_index(current_header->original_index)) {
-                current_stream->path_size = current_header->new_dynamic_value_size;
-                current_stream->is_huffman_encoded = current_header->is_huffman_encoded;
-                bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
+                current_stream->path.length = current_header->new_dynamic_value_size;
+                current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
+                current_stream->path.finalized = true;
+                bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
             } else if (is_status_index(current_header->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
             } else if (is_method_index(current_header->original_index)) {
-                current_stream->request_started = bpf_ktime_get_ns();
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value.buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->request_method.length = current_header->new_dynamic_value_size;
@@ -572,6 +568,12 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
             iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
             iteration_value->frames_count++;
         }
+
+        // We are not checking for frame splits in the previous condition due to a verifier issue.
+        if (is_headers_or_rst_frame || is_data_end_of_stream) {
+            check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame.length);
+        }
+
         skb_info->data_off += current_frame.length;
 
         // If we have found enough interesting frames, we can stop iterating.
@@ -610,12 +612,14 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
         // Deleting the entry for the original tuple.
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
         terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
         // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
         flip_tuple(&dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
         return 0;
     }
 
@@ -655,10 +659,12 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
+        check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame.length);
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = dispatcher_args_copy.skb_info.data_off;
         iteration_value->frames_count = 1;
     }
+
     dispatcher_args_copy.skb_info.data_off += current_frame.length;
     // We're exceeding the packet boundaries, so we have a remainder.
     if (dispatcher_args_copy.skb_info.data_off > dispatcher_args_copy.skb_info.data_end) {
@@ -844,12 +850,57 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
     }
     // Zeroing the iteration index to call EOS parser
     tail_call_state->iteration = 0;
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
+    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_DYNAMIC_TABLE_CLEANER);
 
 delete_iteration:
     // restoring the original value.
     dispatcher_args_copy.skb_info.data_off = original_off;
     bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
+
+    return 0;
+}
+
+SEC("socket/http2_dynamic_table_cleaner")
+int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+    if (dynamic_counter == NULL) {
+        goto next;
+    }
+
+    // We're checking if the difference between the current value of the dynamic global table, to the previous index we
+    // cleaned, is bigger than our threshold. If so, we need to clean the table.
+    if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
+        goto next;
+    }
+
+    dynamic_table_index_t dynamic_index = {
+        .tup = dispatcher_args_copy.tup,
+    };
+
+    #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
+    for (__u16 index = 0; index < HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS; index++) {
+        // We should reserve the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries in the dynamic table.
+        // So if we're about to delete an entry that is in the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries,
+        // we should stop the cleanup.
+        if (dynamic_counter->previous + HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD >= dynamic_counter->value) {
+            break;
+        }
+        // Setting the current index.
+        dynamic_index.index = dynamic_counter->previous;
+        // Trying to delete the entry, it might not exist, so we're ignoring the return value.
+        bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
+        // Incrementing the previous index.
+        dynamic_counter->previous++;
+    }
+
+next:
+    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
 
     return 0;
 }
@@ -921,7 +972,8 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         }
 
         http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
-        current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
+        // A new stream must start with a request, so if it does not exist, we should not process it.
+        current_stream = bpf_map_lookup_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
         if (current_stream == NULL) {
             continue;
         }
@@ -929,7 +981,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         // When we accept an RST, it means that the current stream is terminated.
         // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
         // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (!current_stream->status_code.finalized || current_stream->request_started == 0)) {
+        if (is_rst && (!current_stream->status_code.finalized || !current_stream->request_method.finalized || !current_stream->path.finalized)) {
             bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
             continue;
         }
@@ -940,6 +992,13 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+
+        // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
+        // thus we except it to have a valid path and method. If the End of Stream came from a response, we except it to
+        // be after seeing a request, thus it should have a path and method as well.
+        if ((!current_stream->path.finalized) || (!current_stream->request_method.finalized)) {
+            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        }
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

@@ -58,6 +58,7 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
 	config.SetKnown("apm_config.features")
+	config.SetKnown("apm_config.max_catalog_entries")
 
 	bindVectorOptions(config, Traces)
 

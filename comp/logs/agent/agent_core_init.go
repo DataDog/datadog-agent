@@ -53,7 +53,7 @@ func (a *agent) SetupPipeline(
 		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
 		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
-	lnchrs.AddLauncher(journald.NewLauncher())
+	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources))
 

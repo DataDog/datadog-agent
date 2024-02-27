@@ -55,7 +55,7 @@ build_iteration 1
 description 'Datadog Updater
  The Datadog Updater is a lightweight process that updates the Datadog Agent
  and Tracers.
- 
+
  See http://www.datadoghq.com/ for more information
 '
 
@@ -76,6 +76,10 @@ package :deb do
       gpg_key_name "#{ENV['DEB_GPG_KEY_NAME']}"
     end
   end
+end
+
+package :ociru do
+  skip_packager true
 end
 
 # ------------------------------------
@@ -110,6 +114,8 @@ if linux_target?
   extra_package_file "#{systemd_directory}/stop-experiment.path"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
+  extra_package_file '/var/run/datadog-packages/'
+  extra_package_file '/opt/datadog-packages/'
 end
 
 if linux_target?

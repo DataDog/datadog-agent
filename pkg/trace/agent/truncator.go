@@ -6,6 +6,8 @@
 package agent
 
 import (
+	"strings"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -25,6 +27,11 @@ func (a *Agent) Truncate(s *pb.Span) {
 	// Soft fail on those
 	for k, v := range s.Meta {
 		modified := false
+
+		// Do not truncate structured meta tags.
+		if isStructuredMetaKey(k) {
+			continue
+		}
 
 		if len(k) > MaxMetaKeyLen {
 			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
@@ -61,6 +68,17 @@ const (
 	// MaxMetricsKeyLen the maximum length of a metric name key
 	MaxMetricsKeyLen = MaxMetaKeyLen
 )
+
+// isStructuredMetaKey returns true when the given key is a structured meta tag.
+// Structured meta tags are prefixed by `_dd.` and suffixed by .json, .msgpack
+// or .protobuf. Examples include _dd.appsec.json and _dd.iast.json.
+// The suffix also serves describing the serialization format in use.
+func isStructuredMetaKey(key string) bool {
+	return strings.HasPrefix(key, "_dd.") &&
+		(strings.HasSuffix(key, ".json") ||
+			strings.HasSuffix(key, ".msgpack") ||
+			strings.HasSuffix(key, ".protobuf"))
+}
 
 // TruncateResource truncates a span's resource to the maximum allowed length.
 // It returns true if the input was below the max size.

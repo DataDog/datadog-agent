@@ -17,6 +17,9 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@v4
+
       - name: Get repo current milestone
         id: current-milestone
         run: |
@@ -35,7 +38,7 @@ jobs:
               exit 1
             fi
           fi
-          if [[ $MILESTONE !~ ^7\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! $MILESTONE =~ ^7\.[0-9]+\.[0-9]+$ ]]; then
             echo "Error: Malformed milestone $MILESTONE. It should be of the form '7.x.y'."
             exit 1
           fi

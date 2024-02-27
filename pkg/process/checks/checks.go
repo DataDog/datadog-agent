@@ -21,8 +21,6 @@ const (
 	ContainerCheckName     = "container"
 	RTContainerCheckName   = "rtcontainer"
 	ConnectionsCheckName   = "connections"
-	PodCheckName           = "pod"
-	PodCheckManifestName   = "pod_manifest"
 	DiscoveryCheckName     = "process_discovery"
 	ProcessEventsCheckName = "process_events"
 )
@@ -107,11 +105,10 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 // If you want to add a check you MUST register it here.
 func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.Config) []Check {
 	return []Check{
-		NewProcessCheck(config),
+		NewProcessCheck(config, sysprobeYamlCfg),
 		NewContainerCheck(config),
 		NewRTContainerCheck(config),
 		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
-		NewPodCheck(),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),
 	}

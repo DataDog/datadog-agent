@@ -60,7 +60,7 @@ func (s *Server) Start() error {
 	// Validate token for every request
 	r.Use(validateToken)
 
-	err := util.CreateAndSetAuthToken()
+	err := util.CreateAndSetAuthToken(config.Datadog)
 	if err != nil {
 		return err
 	}

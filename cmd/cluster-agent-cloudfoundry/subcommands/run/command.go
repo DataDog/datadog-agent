@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -47,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -92,6 +92,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
 				collectorimpl.Module(),
+				// The cluster-agent-cloudfoundry agent do not have a status command
+				// so there is no need to initialize the status component
+				fx.Provide(func() status.Component { return nil }),
 			)
 		},
 	}
@@ -99,7 +102,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func run(log log.Component, taggerComp tagger.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component) error {
+func run(log log.Component, taggerComp tagger.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, statusComponent status.Component) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
@@ -111,7 +114,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	// Setup healthcheck port
 	var healthPort = pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, healthPort)
+		err := healthprobe.Serve(mainCtx, pkgconfig.Datadog, healthPort)
 		if err != nil {
 			return pkglog.Errorf("Error starting health port, exiting: %v", err)
 		}
@@ -148,14 +151,12 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
-	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption[pkgcollector.Collector](collector), demultiplexer), true)
-	collector.Start()
-	diagnose.Init(optional.NewOption(collector))
+	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, demultiplexer); err != nil {
+	if err = api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector), statusComponent); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

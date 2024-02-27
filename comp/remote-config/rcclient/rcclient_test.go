@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -77,9 +76,9 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
-		ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+		ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 		client.WithAgent("test-agent", "9.99.9"),
-		client.WithProducts([]data.Product{data.ProductAgentConfig}),
+		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
 	)
 

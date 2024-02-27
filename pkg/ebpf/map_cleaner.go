@@ -8,10 +8,11 @@
 package ebpf
 
 import (
+	"errors"
 	"sync"
 	"time"
 
-	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,7 +32,7 @@ type MapCleaner[K any, V any] struct {
 }
 
 // NewMapCleaner instantiates a new MapCleaner
-func NewMapCleaner[K any, V any](emap *cebpf.Map, defaultBatchSize uint32) (*MapCleaner[K, V], error) {
+func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32) (*MapCleaner[K, V], error) {
 	batchSize := defaultBatchSize
 	if defaultBatchSize > emap.MaxEntries() {
 		batchSize = emap.MaxEntries()
@@ -126,6 +127,7 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	it := mc.emap.IterateWithBatchSize(int(mc.batchSize))
 
 	for it.Next(&key, &val) {
+		totalCount++
 		if !shouldClean(nowTS, key, val) {
 			continue
 		}
@@ -136,6 +138,17 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 	var deletionError error
 	if len(keysToDelete) > 0 {
 		deletedCount, deletionError = mc.emap.BatchDelete(keysToDelete)
+		// We might have a partial deletion (as a key might be missing due to other cleaning mechanism), so we want
+		// to have a best-effort method to delete all keys. We cannot know which keys were deleted, so we have to try
+		// and delete all of them one by one.
+		if errors.Is(deletionError, ebpf.ErrKeyNotExist) {
+			deletionError = nil
+			for _, k := range keysToDelete {
+				if err := mc.emap.Delete(&k); err == nil {
+					deletedCount++
+				}
+			}
+		}
 	}
 
 	elapsed := time.Since(now)

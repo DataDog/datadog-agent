@@ -232,6 +232,8 @@ func TestAnomalyDetection(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
 		anomalyDetectionWarmupPeriod:            time.Second,
@@ -418,6 +420,8 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: 0,
 		anomalyDetectionMinimumStablePeriodDNS:  0,
 		anomalyDetectionWarmupPeriod:            3 * time.Second,
@@ -500,7 +504,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDockerInstance1.stop()
+	defer testDockerInstance2.stop()
 
 	t.Run("anomaly-detection-warmup-2", func(t *testing.T) {
 		test.GetCustomEventSent(t, func() error {
@@ -590,6 +594,8 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 		anomalyDetectionWarmupPeriod:            10 * time.Second,
@@ -800,6 +806,8 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		enableSecurityProfile:                   true,
 		securityProfileDir:                      outputDir,
 		securityProfileWatchDir:                 true,
+		enableAutoSuppression:                   true,
+		autoSuppressionEventTypes:               []string{"exec", "dns"},
 		anomalyDetectionMinimumStablePeriodExec: reinsertPeriod,
 		anomalyDetectionMinimumStablePeriodDNS:  reinsertPeriod,
 		anomalyDetectionWarmupPeriod:            reinsertPeriod,
@@ -933,4 +941,114 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestSecurityProfileDifferentiateArgs(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// skip test that are about to be run on docker (to avoid trying spawning docker in docker)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNodeForAD() {
+		t.Skip("Skip test when not run in dedicated env")
+	}
+
+	var expectedFormats = []string{"profile"}
+	var testActivityDumpTracedEventTypes = []string{"exec"}
+
+	outputDir := t.TempDir()
+	os.MkdirAll(outputDir, 0755)
+	defer os.RemoveAll(outputDir)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          3,
+		activityDumpCgroupDifferentiateArgs:     true,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		enableAnomalyDetection:                  true,
+		anomalyDetectionEventTypes:              []string{"exec"},
+		anomalyDetectionMinimumStablePeriodExec: time.Second,
+		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
+		anomalyDetectionWarmupPeriod:            time.Second,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerInstance, dump, err := test.StartADockerGetDump()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dockerInstance.stop()
+
+	time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+	cmd := dockerInstance.Command("/bin/date", []string{"-u"}, []string{})
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd = dockerInstance.Command("/bin/date", []string{"-R"}, []string{})
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+	err = test.StopActivityDump(dump.Name, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// test profiling part
+	validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, nil, func(sp *profile.SecurityProfile) bool {
+		nodes := WalkActivityTree(sp.ActivityTree, func(node *ProcessNodeAndParent) bool {
+			if node.Node.Process.FileEvent.PathnameStr == "/bin/date" || node.Node.Process.Argv0 == "/bin/date" {
+				if len(node.Node.Process.Argv) == 1 && slices.Contains([]string{"-u", "-R"}, node.Node.Process.Argv[0]) {
+					return true
+				}
+			}
+			return false
+		})
+		if len(nodes) != 2 {
+			t.Fatalf("found %d nodes, expected two.", len(nodes))
+		}
+		processNodesFound := uint32(0)
+		for _, node := range nodes {
+			if len(node.Process.Argv) == 1 && node.Process.Argv[0] == "-u" {
+				processNodesFound |= 1
+			} else if len(node.Process.Argv) == 1 && node.Process.Argv[0] == "-R" {
+				processNodesFound |= 2
+			}
+		}
+		if processNodesFound != (1 | 2) {
+			t.Fatalf("could not find processes with expected arguments: %d", processNodesFound)
+		}
+		return true
+	})
+
+	// test matching part
+	time.Sleep(6 * time.Second) // a quick sleep to let the profile to be loaded (5sec debounce + 1sec spare)
+	err = test.GetCustomEventSent(t, func() error {
+		cmd := dockerInstance.Command("/bin/date", []string{"--help"}, []string{})
+		_, err = cmd.CombinedOutput()
+		return err
+	}, func(r *rules.Rule, event *events.CustomEvent) bool {
+		assert.Equal(t, events.AnomalyDetectionRuleID, r.Rule.ID, "wrong custom event rule ID")
+		return true
+	}, time.Second*3, model.ExecEventType)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

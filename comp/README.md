@@ -28,6 +28,12 @@ Package api implements the "api" bundle,
 
 Package api implements the internal Agent API which exposes endpoints such as config, flare or status
 
+### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
+
+Package authtoken implements the creation and access to the auth_token used to communicate between Agent processes.
+This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
+auth_token file but can fetch it it's available.
+
 ## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer) (Component Bundle)
 
 *Datadog Team*: windows-agent
@@ -327,10 +333,6 @@ Package forwarders implements a component to provide forwarders used by the proc
 
 Package hostinfo wraps the hostinfo inside a component. This is useful because it is relied on by other components.
 
-### [comp/process/podcheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/podcheck)
-
-Package podcheck implements a component to handle Kubernetes data collection in the Process Agent.
-
 ### [comp/process/processcheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processcheck)
 
 Package processcheck implements a component to handle Process data collection in the Process Agent.
@@ -373,6 +375,18 @@ Package remoteconfig defines the fx options for the Bundle
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 
 
+
+### [comp/remote-config/rcservice](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcservice)
+
+Package rcservice is a remote config service that can run within the agent to receive remote config updates from the DD backend.
+
+### [comp/remote-config/rcserviceha](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha)
+
+Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
+
+### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
+
+Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.
 
 ## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmptraps) (Component Bundle)
 
@@ -443,3 +457,17 @@ component temporarily wraps pkg/trace/config.
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
 Package status implements the core status component information provider interface
+
+## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
+
+*Datadog Team*: fleet
+
+Package updater implements the updater component.
+
+### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
+
+Package localapi is the updater local api component.
+
+### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
+
+Package updater is the updater component.

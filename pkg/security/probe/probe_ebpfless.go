@@ -277,7 +277,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -504,7 +504,7 @@ func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.Origin = "ebpfless"
+	p.event.Origin = EBPFLessOrigin
 	return p.event
 }
 

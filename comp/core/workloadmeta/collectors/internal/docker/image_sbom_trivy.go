@@ -127,12 +127,11 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 					Status:             status,
 					Error:              reportedError,
 				}
-
 				// Updating workloadmeta entities directly is not thread-safe, that's why we
 				// generate an update event here instead.
 				event := &dutil.ImageEvent{
 					ImageID:   result.ImgMeta.ID,
-					Action:    dutil.ImageEventActionSbom,
+					Action:    imageEventActionSbom,
 					Timestamp: time.Now(),
 				}
 				if err := c.handleImageEvent(ctx, event, sbom); err != nil {
