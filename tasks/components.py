@@ -114,7 +114,7 @@ def get_components_and_bundles():
     ok = True
     components = []
     bundles = []
-    for component_file in pathlib.Path('comp').glob('**/*'):
+    for component_file in pathlib.Path('comp').glob('**'):
         if not component_file.is_dir():
             continue
 
@@ -170,16 +170,16 @@ def get_components_and_bundles():
 
         sorted_bundles.append(Bundle(b.path, b.doc, b.team, sorted(bundle_components)))
 
+    components_without_bundle = []
     # look for un-bundled components
     for c in components:
         if not any(c in b.components for b in sorted_bundles):
-            print(f"** component {c.path} is not in any bundle")
-            ok = False
+            components_without_bundle.append(c)
 
-    return sorted(sorted_bundles), ok
+    return sorted(sorted_bundles), sorted(components_without_bundle), ok
 
 
-def make_components_md(bundles):
+def make_components_md(bundles, components_without_bundle):
     pkg_root = 'github.com/DataDog/datadog-agent/'
     yield '# Agent Components'
     yield '<!-- NOTE: this file is auto-generated; do not edit -->'
@@ -200,9 +200,16 @@ def make_components_md(bundles):
                 yield f'*Datadog Team*: {c.team}'
                 yield ''
             yield c.doc
+    for c in components_without_bundle:
+        yield f'### [{c.path}](https://pkg.go.dev/{pkg_root}{c.path})'
+        yield ''
+        if c.team != b.team:
+            yield f'*Datadog Team*: {c.team}'
+            yield ''
+        yield c.doc
 
 
-def make_codeowners(codeowners_lines, bundles):
+def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     codeowners_lines = codeowners_lines.__iter__()
 
     # pass through the codeowners lines up to and including "# BEGIN COMPONENTS"
@@ -225,6 +232,8 @@ def make_codeowners(codeowners_lines, bundles):
     for c in different_components:
         if c.team:
             yield f'/{c.path} @DataDog/{c.team}'
+    for c in components_without_bundle:
+        yield f'/{c.path} @DataDog/{c.team}'
 
     # drop lines from the existing codeowners until "# END COMPONENTS"
     for line in codeowners_lines:
@@ -245,12 +254,12 @@ def lint_components(_, fix=False):
     """
     Verify (or with --fix, ensure) component-related things are correct.
     """
-    bundles, ok = get_components_and_bundles()
+    bundles, components_without_bundle, ok = get_components_and_bundles()
     fixable = False
 
     # Check comp/README.md
     filename = "comp/README.md"
-    components_md = '\n'.join(make_components_md(bundles))
+    components_md = '\n'.join(make_components_md(bundles, components_without_bundle))
     if fix:
         with open(filename, "w") as f:
             f.write(components_md)
@@ -266,7 +275,7 @@ def lint_components(_, fix=False):
     filename = ".github/CODEOWNERS"
     with open(filename, "r") as f:
         current = f.read()
-    codeowners = '\n'.join(make_codeowners(current.splitlines(), bundles))
+    codeowners = '\n'.join(make_codeowners(current.splitlines(), bundles, components_without_bundle))
     if fix:
         with open(".github/CODEOWNERS", "w") as f:
             f.write(codeowners)
@@ -277,7 +286,7 @@ def lint_components(_, fix=False):
 
     if not ok:
         if fixable:
-            print("Run `inv lint-components --fix` to fix errors")
+            print("Run `inv components.lint-components --fix` to fix errors")
         raise Exit(code=1)
 
 
