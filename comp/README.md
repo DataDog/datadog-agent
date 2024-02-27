@@ -34,16 +34,6 @@ Package authtoken implements the creation and access to the auth_token used to c
 This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
 auth_token file but can fetch it it's available.
 
-## [comp/apm](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm) (Component Bundle)
-
-*Datadog Team*: windows-agent
-
-
-
-### [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer)
-
-Package apmetwtracer provides ETW events to the .Net tracer
-
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -443,6 +433,12 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
+
+### [comp/trace/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/etwtracer)
+
+*Datadog Team*: windows-agent
+
+Package apmetwtracer provides ETW events to the .Net tracer
 
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 

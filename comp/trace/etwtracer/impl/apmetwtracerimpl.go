@@ -15,15 +15,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/apm/etwtracer"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/etw"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
-	"github.com/Microsoft/go-winio"
-	"github.com/alecthomas/units"
-	"go.uber.org/fx"
-	"golang.org/x/sys/windows"
 	"io"
 	"net"
 	"os"
@@ -31,6 +22,17 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/Microsoft/go-winio"
+	"github.com/alecthomas/units"
+	"go.uber.org/fx"
+	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/etw"
+	"github.com/DataDog/datadog-agent/comp/tracer/apmetwtracer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 // Module defines the fx options for this component.
