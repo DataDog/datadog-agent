@@ -18,6 +18,7 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 const (
@@ -45,10 +46,13 @@ type ContainerCheck struct {
 	containerFailedLogLimit *util.LogLimit
 
 	maxBatchSize int
+
+	runInCoreAgent bool
+	npmEnabled     bool
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
+func (c *ContainerCheck) Init(sysconfig *SysProbeConfig, info *HostInfo, _ bool) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider()
 	c.hostInfo = info
 
@@ -60,13 +64,16 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize(c.config)
+
+	_, c.npmEnabled = syscfg.EnabledModules[sysconfig.NetworkTracerModule] && syscfg.Enabled
+	c.runInCoreAgent = c.config.GetBool("process_config.run_in_core_agent.enabled")
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
 // Keep in mind that ContainerRTCheck.IsEnabled should only be enabled if the `ContainerCheck` is enabled
 func (c *ContainerCheck) IsEnabled() bool {
-	return canEnableContainerChecks(c.config, true)
+	return canEnableContainerChecks(c.config, true) || (flavor.GetFlavor() == flavor.ProcessAgent && c.runInCoreAgent && c.npmEnabled)
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -110,6 +117,11 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(containers, pidToCid)
+
+	// Skip submission
+	if c.runInCoreAgent && flavor.GetFlavor() == flavor.ProcessAgent {
+		return nil, nil
+	}
 
 	groupSize := len(containers) / c.maxBatchSize
 	if len(containers)%c.maxBatchSize != 0 {

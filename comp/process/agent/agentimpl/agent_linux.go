@@ -47,7 +47,7 @@ func agentEnabled(p processAgentParams) bool {
 					"Please ensure the process-agent is enabled as a standalone agent to collect " +
 					"process, container and network performance metrics.")
 			}
-			return false
+			return true
 		}
 		return runInCoreAgent
 	default:
