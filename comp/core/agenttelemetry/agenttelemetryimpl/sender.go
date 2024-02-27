@@ -3,6 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// ---------------------------------------------------
+//
+// This is experimental code and is subject to change.
+//
+// ---------------------------------------------------
+
 package agenttelemetryimpl
 
 import (
@@ -37,8 +43,8 @@ const (
 type sender interface {
 	startSession(cancelCtx context.Context) *senderSession
 	flushSession(ss *senderSession) error
-	sendAgentStatusPayload(session *senderSession, agentStatusPayload map[string]interface{}) error
-	sendAgentMetricPayloads(session *senderSession, metrics []*agentmetric) error
+	sendAgentStatusPayload(ss *senderSession, agentStatusPayload map[string]interface{}) error
+	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error
 }
 
 type client interface {
@@ -317,7 +323,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	return nil
 }
 
-func (s *senderImpl) sendAgentMetricPayloads(session *senderSession, metrics []*agentmetric) error {
+func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) error {
 	// Are there any metrics
 	if len(metrics) == 0 {
 		return nil
@@ -334,7 +340,7 @@ func (s *senderImpl) sendAgentMetricPayloads(session *senderSession, metrics []*
 	// metric.
 	var payloads []*AgentMetricsPayload
 	for _, am := range metrics {
-		for idx, m := range am.filteredMetrics {
+		for idx, m := range am.metrics {
 			var payload *AgentMetricsPayload
 
 			// reuse or add a payload
@@ -345,14 +351,14 @@ func (s *senderImpl) sendAgentMetricPayloads(session *senderSession, metrics []*
 				payloads = append(payloads, &newPayload)
 			}
 			payload = payloads[idx]
-			s.addMetricPayload(am.metricName, am.promMetricFamily, m, payload)
+			s.addMetricPayload(am.name, am.family, m, payload)
 		}
 	}
 
 	// We will batch multiples metrics payloads into single "batch" payload type
 	// but for now send it one by one
 	for _, payload := range payloads {
-		if err := s.sendPayload(session, "agent-metrics", payload); err != nil {
+		if err := s.sendPayload(ss, "agent-metrics", payload); err != nil {
 			return err
 		}
 	}
@@ -360,21 +366,21 @@ func (s *senderImpl) sendAgentMetricPayloads(session *senderSession, metrics []*
 	return nil
 }
 
-func (s *senderImpl) sendAgentStatusPayload(session *senderSession, agentStatusPayload map[string]interface{}) error {
+func (s *senderImpl) sendAgentStatusPayload(ss *senderSession, agentStatusPayload map[string]interface{}) error {
 	payload := s.agentStatusPayloadTemplate
 	payload.AgentStatus = agentStatusPayload
 	payload.AgentStatus["agent_metadata"] = s.metadataPayloadTemplate
 
-	return s.sendPayload(session, "agent-status", payload)
+	return s.sendPayload(ss, "agent-status", payload)
 }
 
-func (s *senderImpl) sendPayload(session *senderSession, requestType string, payload interface{}) error {
+func (s *senderImpl) sendPayload(ss *senderSession, requestType string, payload interface{}) error {
 	// Add payload to session
-	session.payloads = append(session.payloads, payloadInfo{requestType, payload})
+	ss.payloads = append(ss.payloads, payloadInfo{requestType, payload})
 
 	// Flush session if it is full
-	if len(session.payloads) >= maximumNumberOfPayloads {
-		return s.flushSession(session)
+	if len(ss.payloads) >= maximumNumberOfPayloads {
+		return s.flushSession(ss)
 	}
 
 	return nil

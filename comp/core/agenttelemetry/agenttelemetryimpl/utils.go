@@ -3,10 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// ---------------------------------------------------
+//
+// This is experimental code and is subject to change.
+//
+// ---------------------------------------------------
+
 package agenttelemetryimpl
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -93,4 +100,62 @@ func areTagsMatching(metricTags []*dto.LabelPair, matchTags map[string]interface
 	}
 
 	return false
+}
+
+// Currently aggregation supports only summing of metrics but it can be extended to
+// support other operations. Plwase note that source labels are not copied intentionally
+func aggregateMetric(mt dto.MetricType, aggm *dto.Metric, srcm *dto.Metric) {
+	switch mt {
+	case dto.MetricType_COUNTER:
+		if aggm.Counter == nil {
+			aggm.Counter = &dto.Counter{}
+			value := float64(0)
+			aggm.Counter.Value = &value
+		}
+		*aggm.Counter.Value += srcm.Counter.GetValue()
+	case dto.MetricType_GAUGE:
+		if aggm.Gauge == nil {
+			aggm.Gauge = &dto.Gauge{}
+			value := float64(0)
+			aggm.Gauge.Value = &value
+		}
+		*aggm.Gauge.Value += srcm.Gauge.GetValue()
+	case dto.MetricType_HISTOGRAM:
+		if aggm.Histogram == nil {
+			// Histogram is a complex structure and hard to initialize completlty and properly
+			// howwever we are using and interested only in its buckets but in future additional fields
+			// may be used and should be initialized properly
+			aggm.Histogram = &dto.Histogram{}
+			// just copy the buckets from the source metric on first iteration
+			aggm.Histogram.Bucket = append(aggm.Histogram.Bucket, srcm.Histogram.Bucket...)
+			// reset buckets specific Label (just in case - it is not used in the current code or Agent)
+			for _, aggmb := range aggm.Histogram.Bucket {
+				if aggmb.Exemplar != nil {
+					aggmb.Exemplar.Label = nil
+				}
+			}
+		} else {
+			// for the same metric family bucket structure is the same
+			for i, srcb := range srcm.Histogram.Bucket {
+				*aggm.Histogram.Bucket[i].CumulativeCount += srcb.GetCumulativeCount()
+			}
+		}
+	}
+}
+
+// Make cloned lables sorted by label name and value label pairs
+func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
+	sorted := make([]*dto.LabelPair, len(labels))
+	copy(sorted, labels)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].GetName() < sorted[j].GetName() ||
+			(sorted[i].GetName() == sorted[j].GetName() && sorted[i].GetValue() < sorted[j].GetValue())
+	})
+
+	return sorted
+}
+
+// Make string key from LabelPair
+func makeLabelPairKey(l *dto.LabelPair) string {
+	return fmt.Sprintf("%s:%s:", l.GetName(), l.GetValue())
 }

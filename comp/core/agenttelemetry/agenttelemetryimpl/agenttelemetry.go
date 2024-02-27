@@ -3,6 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// ---------------------------------------------------
+//
+// This is experimental code and is subject to change.
+//
+// ---------------------------------------------------
+
 // Package agenttelemetryimpl provides the implementation of the agenttelemetry component.
 package agenttelemetryimpl
 
@@ -10,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
@@ -20,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"golang.org/x/exp/maps"
 
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/fx"
@@ -73,9 +81,9 @@ func (j job) Run() {
 
 // Passing metrics to sender Interfacing with sender
 type agentmetric struct {
-	metricName       string
-	filteredMetrics  []*dto.Metric
-	promMetricFamily *dto.MetricFamily
+	name    string
+	metrics []*dto.Metric
+	family  *dto.MetricFamily
 }
 
 func createSender(
@@ -158,59 +166,156 @@ func newAtel(deps dependencies) agenttelemetry.Component {
 	return a
 }
 
-func (a *atel) filterMetric(profile *Profile, promMetricFamily *dto.MetricFamily) *agentmetric {
-	var amc *MetricConfig
+func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*dto.Metric) []*dto.Metric {
+	// Nothing to aggregate?
+	if len(ms) == 0 {
+		return nil
+	}
+
+	// Special case when no aggregate tags are defined - aggregate all metrics
+	// aggregateMetric will sum all metrics into a single one without copying tags
+	if !mCfg.aggregateTagsExists {
+		ma := &dto.Metric{}
+		for _, m := range ms {
+			aggregateMetric(mt, ma, m)
+		}
+
+		return []*dto.Metric{ma}
+	}
+
+	amMap := make(map[string]*dto.Metric)
+
+	// Initialize total metric
+	var totalm *dto.Metric
+	if mCfg.AggregateTotal {
+		totalm = &dto.Metric{}
+	}
+
+	// Enumerate the metric's timeseries and aggregate them
+	for _, m := range ms {
+		tagsKey := ""
+
+		// if tags are defined, we need to create a key from them by dropping not specified
+		// in configuration tags. The key is constructed by conatenating specified tag names and values
+		// if the a timeseries has tags is not specified in
+		origTags := m.GetLabel()
+		if len(origTags) > 0 {
+			// sort tags (to have a consistent key for the same tag set)
+			tags := cloneLabelsSorted(origTags)
+
+			// create a key from the tags (and drop not specified in the configuration tags)
+			var specTags = make([]*dto.LabelPair, 0, len(origTags))
+			for _, t := range tags {
+				if _, ok := mCfg.aggregateTagsMap[t.GetName()]; ok {
+					specTags = append(specTags, t)
+					tagsKey += makeLabelPairKey(t)
+				}
+			}
+			if mCfg.AggregateTotal {
+				aggregateMetric(mt, totalm, m)
+			}
+
+			// finally aggregate the metric on the created key
+			if aggm, ok := amMap[tagsKey]; ok {
+				aggregateMetric(mt, aggm, m)
+			} else {
+				// ... or create a new one with specifi value and specified tags
+				aggm := &dto.Metric{}
+				aggregateMetric(mt, aggm, m)
+				aggm.Label = specTags
+				amMap[tagsKey] = aggm
+			}
+		} else {
+			// if no tags are specified, we aggregate all metrics into a single one
+			if mCfg.AggregateTotal {
+				aggregateMetric(mt, totalm, m)
+			}
+		}
+	}
+
+	// Add total metric if needed
+	if mCfg.AggregateTotal {
+		totalName := "total"
+		totalValue := strconv.Itoa(len(ms))
+		totalm.Label = []*dto.LabelPair{
+			{Name: &totalName, Value: &totalValue},
+		}
+		amMap[totalName] = totalm
+	}
+
+	// Anything to report?
+	if len(amMap) == 0 {
+		return nil
+	}
+
+	// Convert the map to a slice
+	return maps.Values(amMap)
+}
+
+func isMetricFiltered(p *Profile, mCfg *MetricConfig, mt dto.MetricType, m *dto.Metric) bool {
+	// filter out zero values if specified in the profile
+	if p.excludeZeroMetric && isZeroValueMetric(mt, m) {
+		return false
+	}
+
+	// filter out if contains excluded tags
+	if len(p.excludeTagsMap) > 0 && areTagsMatching(m.GetLabel(), p.excludeTagsMap) {
+		return false
+	}
+
+	// filter out if tag does not contain in existing aggregateTags
+	if mCfg.aggregateTagsExists && !areTagsMatching(m.GetLabel(), mCfg.aggregateTagsMap) {
+		return false
+	}
+
+	return true
+}
+
+func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentmetric {
+	var mCfg *MetricConfig
 	var ok bool
 
 	// Check if the metric is included in the profile
-	if amc, ok = profile.metricsMap[promMetricFamily.GetName()]; !ok {
+	if mCfg, ok = p.metricsMap[mfam.GetName()]; !ok {
+		return nil
+	}
+
+	// Filter out not supported types
+	mt := mfam.GetType()
+	if !isSupportedMetricType(mt) {
 		return nil
 	}
 
 	// Filter the metric according to the profile configuration
 	// Currently we only support filtering out zero values if specified in the profile
-	var filteredMetrics []*dto.Metric
-	for _, m := range promMetricFamily.Metric {
-		mt := promMetricFamily.GetType()
-
-		// Filter out not supported types
-		if !isSupportedMetricType(mt) {
-			continue
+	var fm []*dto.Metric
+	for _, m := range mfam.Metric {
+		if isMetricFiltered(p, mCfg, mt, m) {
+			fm = append(fm, m)
 		}
-
-		// filter out zero values if specified in the profile
-		if profile.excludeZeroMetric && isZeroValueMetric(mt, m) {
-			continue
-		}
-
-		// filter out if contains excluded tags
-		if len(profile.excludeTags) > 0 && areTagsMatching(m.GetLabel(), profile.excludeTags) {
-			continue
-		}
-
-		// and now we can add the metric to the filtered metrics
-		filteredMetrics = append(filteredMetrics, m)
 	}
 
+	amt := a.aggregateMetricTags(mCfg, mt, fm)
+
 	// nothing to report
-	if len(filteredMetrics) == 0 {
+	if len(fm) == 0 {
 		return nil
 	}
 
 	return &agentmetric{
-		metricName:       amc.Name,
-		filteredMetrics:  filteredMetrics,
-		promMetricFamily: promMetricFamily,
+		name:    mCfg.Name,
+		metrics: amt,
+		family:  mfam,
 	}
 }
 
-func (a *atel) reportAgentMetrics(session *senderSession, profile *Profile) {
+func (a *atel) reportAgentMetrics(session *senderSession, p *Profile) {
 	// If no metrics are configured nothing to report
-	if len(profile.metricsMap) == 0 {
+	if len(p.metricsMap) == 0 {
 		return
 	}
 
-	a.logComp.Debugf("Collect Agent Metric telemetry for profile %s", profile.Name)
+	a.logComp.Debugf("Collect Agent Metric telemetry for profile %s", p.Name)
 
 	// Gather all prom metrircs. Currently Gather() does not allow filtering by
 	// matric name, so we need to gather all metrics and filter them on our own.
@@ -224,7 +329,7 @@ func (a *atel) reportAgentMetrics(session *senderSession, profile *Profile) {
 	// ... and filter them according to the profile configuration
 	var metrics []*agentmetric
 	for _, pm := range pms {
-		if am := a.filterMetric(profile, pm); am != nil {
+		if am := a.transformMetricFamily(p, pm); am != nil {
 			metrics = append(metrics, am)
 		}
 	}
@@ -236,7 +341,7 @@ func (a *atel) reportAgentMetrics(session *senderSession, profile *Profile) {
 	}
 
 	// Send the metrics if any were filtered
-	a.logComp.Debugf("Reporting Agent Metric telemetry for profile %s", profile.Name)
+	a.logComp.Debugf("Reporting Agent Metric telemetry for profile %s", p.Name)
 
 	err = a.sender.sendAgentMetricPayloads(session, metrics)
 	if err != nil {
@@ -244,13 +349,13 @@ func (a *atel) reportAgentMetrics(session *senderSession, profile *Profile) {
 	}
 }
 
-func (a *atel) renderAgentStatus(profile *Profile, fullStatus map[string]interface{}, statusOutput map[string]interface{}) {
+func (a *atel) renderAgentStatus(p *Profile, fullStatus map[string]interface{}, statusOutput map[string]interface{}) {
 	// Render template if needed
-	if profile.Status.Template != "none" {
+	if p.Status.Template != "none" {
 		// Filter full Agent Status JSON via template which is selected by appending template suffix
 		// to "pkg\status\render\templates\agent-telemetry-<suffix>.tmpl" file name. Currently we
 		// support only "basic" suffix/template with future extensions to use other templates.
-		statusBytes, err := render.FormatAgentTelemetry(fullStatus, profile.Status.Template)
+		statusBytes, err := render.FormatAgentTelemetry(fullStatus, p.Status.Template)
 		if err != nil {
 			a.logComp.Errorf("Failed to collect Agent Status telemetry. Error: %s", err.Error())
 			return
@@ -268,8 +373,8 @@ func (a *atel) renderAgentStatus(profile *Profile, fullStatus map[string]interfa
 	}
 }
 
-func (a *atel) addAgentStatusExtra(profile *Profile, fullStatus map[string]interface{}, statusOutput map[string]interface{}) {
-	for _, builder := range profile.statusExtraBuilder {
+func (a *atel) addAgentStatusExtra(p *Profile, fullStatus map[string]interface{}, statusOutput map[string]interface{}) {
+	for _, builder := range p.statusExtraBuilder {
 		// Evaluate JQ expression against the agent status JSON object
 		jqResult := builder.jqSource.Run(fullStatus)
 		jqValue, ok := jqResult.Next()
@@ -336,13 +441,13 @@ func (a *atel) addAgentStatusExtra(profile *Profile, fullStatus map[string]inter
 	}
 }
 
-func (a *atel) reportAgentStatus(session *senderSession, profile *Profile) {
+func (a *atel) reportAgentStatus(session *senderSession, p *Profile) {
 	// If no status is configured nothing to report
-	if profile.Status == nil {
+	if p.Status == nil {
 		return
 	}
 
-	a.logComp.Debugf("Collect Agent Status telemetry for profile %s", profile.Name)
+	a.logComp.Debugf("Collect Agent Status telemetry for profile %s", p.Name)
 
 	// Get Agent Status JSON object
 	statusBytes, err := a.statusComp.GetStatus("json", true)
@@ -360,14 +465,14 @@ func (a *atel) reportAgentStatus(session *senderSession, profile *Profile) {
 
 	// Render Agent Status JSON object (using template if needed and adding extra attributes)
 	var statusPayloadJSON = make(map[string]interface{})
-	a.renderAgentStatus(profile, statusJSON, statusPayloadJSON)
-	a.addAgentStatusExtra(profile, statusJSON, statusPayloadJSON)
+	a.renderAgentStatus(p, statusJSON, statusPayloadJSON)
+	a.addAgentStatusExtra(p, statusJSON, statusPayloadJSON)
 	if len(statusPayloadJSON) == 0 {
 		a.logComp.Debug("No Agent Status telemetry collected")
 		return
 	}
 
-	a.logComp.Debugf("Reporting Agent Status telemetry for profile %s", profile.Name)
+	a.logComp.Debugf("Reporting Agent Status telemetry for profile %s", p.Name)
 
 	// Send the Agent Telemetry status payload
 	err = a.sender.sendAgentStatusPayload(session, statusPayloadJSON)

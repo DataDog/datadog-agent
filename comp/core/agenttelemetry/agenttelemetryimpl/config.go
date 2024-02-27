@@ -3,6 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// ---------------------------------------------------
+//
+// This is experimental code and is subject to change.
+//
+// ---------------------------------------------------
+
 package agenttelemetryimpl
 
 import (
@@ -39,7 +45,7 @@ type Profile struct {
 	statusExtraBuilder []jBuilder
 	metricsMap         map[string]*MetricConfig
 	excludeZeroMetric  bool
-	excludeTags        map[string]any
+	excludeTagsMap     map[string]any
 }
 
 // AgentMetricConfig specifies agent telemetry metrics payloads to be generated and emitted
@@ -56,7 +62,13 @@ type ExcludeMetricConfig struct {
 
 // MetricConfig is a list of metric selecting subset of telemetry.Gather() metrics to be included in agent
 type MetricConfig struct {
-	Name string `yaml:"name"` // required
+	Name           string   `yaml:"name"` // required
+	AggregateTags  []string `yaml:"aggregate_tags,omitempty"`
+	AggregateTotal bool     `yaml:"aggregate_total"`
+
+	// compiled
+	aggregateTagsExists bool
+	aggregateTagsMap    map[string]any
 }
 
 // AgentStatusConfig is a single agent telemetry status payload
@@ -97,6 +109,29 @@ type Schedule struct {
 // -------------------------------------------
 // Metric's full name typically in the form of "<metric group>.<metric name>".
 // It is required parameter to avoid emitting all available metrics unintentionally.
+//
+// profiles[].metric.metrics[].aggregate_tags (optional)
+// -----------------------------------------------------
+// List of tags to be used for metric aggregation. If not specified, or [] is specified,
+// metric will be aggregated without any tags. If specified, metric will be aggregated using
+// the specified tags. Unspecified tags
+//   * will not be used and effectively will be removed from the metric's JSON object
+//   * their timeseries value will be summed up according to the remaining metric tags
+//   * in case if no tags a specified, all timeseries will be summed up and no tags will be
+//     reported in the metric's JSON object
+//   * in case none of the tags matches to the aggregateTags time series will be fremoved
+//     from the metric's JSON object
+// The primary goal of such aggregation is not actually to reduce the number of timeseries
+// and the amount of data to be sent to the backend, although it is welcome side-effect,
+// but to make sure that no privacy leak will happen by accident, by enforcing requirement
+// for explicit tag specification.
+//
+// profiles[].metric.metrics[].aggregate_total (optional)
+// -----------------------------------------------------
+// When included, specifies whether the metric should be aggregated as a total. A
+// special tag "total" will be added to the metric's JSON object (accordingly "total is
+// reserved tag"). If not specified, specified, default value of `false` will be used.
+// It is useful only if "aggregate_tags" is also specified and will be ignored otherwise.
 //
 // profiles[].status (optional)
 // --------------------------------
@@ -186,6 +221,7 @@ type Schedule struct {
 // ----------------------------------------------------------------------------------
 //
 // Default agent telemetry profiles config if not specified in the agent config file.
+// Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
 var defaultProfiles = `
   profiles:
   - name: core-metrics
@@ -193,18 +229,23 @@ var defaultProfiles = `
       exclude:
         zero_metric: true
         tags:
-          - "check_name:cpu"
-          - "check_name:memory"
-          - "check_name:uptime"
-          - "check_name:network"
-          - "check_name:io"
-          - "check_name:file_handle"
+          - check_name:cpu
+          - check_name:memory
+          - check_name:uptime
+          - check_name:network
+          - check_name:io
+          - check_name:file_handle
       metrics:  
         - name: checks.runs
+          aggregate_tags:
+            - check_name
+            - state
         - name: checks.execution_time
+          aggregate_tags:
+            - check_name
         - name: checks.warnings
-        - name: checks.metrics_samples
-        - name: checks.events
+          aggregate_tags:
+            - check_name
         - name: logs.decoded
         - name: logs.processed
         - name: logs.sent
@@ -212,13 +253,24 @@ var defaultProfiles = `
         - name: logs.dropped
         - name: logs.sender_latency
         - name: logs.destination_http_resp
+          aggregate_tags:
+            - status_code
         - name: transactions.input_count
         - name: transactions.requeued
         - name: transactions.retries
         - name: dogstatsd.udp_packets
+          aggregate_tags:
+            - state
         - name: dogstatsd.uds_packets
+          aggregate_tags:
+            - transport
+            - state
         - name: dogstatsd.uds_origin_detection_error
+          aggregate_tags:
+            - transport
         - name: dogstatsd.uds_connections
+          aggregate_tags:
+            - transport
     schedule:
       start_after: 30
       iterations: 0
@@ -235,100 +287,145 @@ var defaultProfiles = `
       period: 900
 `
 
-func compileAgentTelemetryProfile(p *Profile) error {
-	var err error
-
-	// Profile requires name
-	if len(p.Name) == 0 {
-		return fmt.Errorf("profile requires 'name' attribute to be specified")
+func compileMetricsExclude(p *Profile) error {
+	if p.Metric.Exclude == nil {
+		return nil
 	}
 
-	// -----------------------------------
-	// "Compile" metric section (optional)
-	//
-	if p.Metric != nil {
-		// Exclude (optional)
-		if p.Metric.Exclude != nil {
-			if p.Metric.Exclude.ZeroMetric == nil && len(p.Metric.Exclude.Tags) == 0 {
-				return fmt.Errorf("profile '%s' requires either 'metric.exclude.zero_metric' or 'metric.exclude.tags' attribute to be specified", p.Name)
-			}
-
-			// Exclude zero metric (optional with default "false")
-			if p.Metric.Exclude.ZeroMetric != nil {
-				p.excludeZeroMetric = *p.Metric.Exclude.ZeroMetric
-			} else {
-				p.excludeZeroMetric = false
-			}
-
-			// Exclude tags (optional)
-			p.excludeTags = make(map[string]any)
-			for _, t := range p.Metric.Exclude.Tags {
-				tv := strings.SplitN(t, ":", 2)
-				// Setup for 2 cases - exclude a tag with any value or only with a specific value
-				if len(tv) == 1 {
-					// previous value does not matter, we do not care about tag values anymore
-					p.excludeTags[tv[0]] = struct{}{}
-					continue
-				}
-
-				// let's see if the tag is already in the map ...
-				if v, ok := p.excludeTags[tv[0]]; ok {
-					// ... and it value-less meaning any value is excluded
-					if _, ok := v.(struct{}); !ok {
-						(v.(map[string]struct{})[tv[1]]) = struct{}{}
-					}
-				} else {
-					// If the tag and value is not in the map yet, let's add it
-					vals := make(map[string]struct{})
-					vals[tv[1]] = struct{}{}
-					p.excludeTags[tv[0]] = vals
-				}
-			}
-		}
-
-		// Compile metrics themselves
-		p.metricsMap = make(map[string]*MetricConfig)
-		for i := 0; i < len(p.Metric.Metrics); i++ {
-			metric := &p.Metric.Metrics[i]
-
-			// Validate name (required)
-			if len(metric.Name) == 0 {
-				return fmt.Errorf("profile '%s' requires 'metrics[].name' attribute to be specified", p.Name)
-			}
-			// Split metric name into metric group and metric name to convert it to Prometheus metric name
-			metricNames := strings.Split(metric.Name, ".")
-			if len(metricNames) != 2 {
-				return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, metric.Name)
-			}
-
-			// Convert Datadog metric name to Prometheus metric name (used for quick(er) matching)
-			promName := fmt.Sprintf("%s__%s", metricNames[0], metricNames[1])
-			p.metricsMap[promName] = metric
-		}
+	if p.Metric.Exclude.ZeroMetric == nil && len(p.Metric.Exclude.Tags) == 0 {
+		return fmt.Errorf("profile '%s' requires either 'metric.exclude.zero_metric' or 'metric.exclude.tags' attribute to be specified", p.Name)
 	}
 
-	// -----------------------------------
-	// "Compile" status section (optional)
-	//
-	if p.Status != nil {
-		// Validate template (optional with default "basic". "none" is also supported)
-		if len(p.Status.Template) == 0 {
-			p.Status.Template = "basic"
-		} else if p.Status.Template != "basic" && p.Status.Template != "none" {
-			return fmt.Errorf("profile '%s' template attribute can have 'basic' or 'none' value but %s is provided", p.Name, p.Status.Template)
+	// Exclude zero metric (optional with default "false")
+	if p.Metric.Exclude.ZeroMetric != nil {
+		p.excludeZeroMetric = *p.Metric.Exclude.ZeroMetric
+	} else {
+		p.excludeZeroMetric = false
+	}
+
+	// Exclude tags (optional)
+	p.excludeTagsMap = make(map[string]any)
+	for _, t := range p.Metric.Exclude.Tags {
+		tv := strings.SplitN(t, ":", 2)
+		// Setup for 2 cases - exclude a tag with any value or only with a specific value
+		if len(tv) == 1 {
+			// previous value does not matter, we do not care about tag values anymore
+			p.excludeTagsMap[tv[0]] = struct{}{}
+			continue
 		}
 
-		// Compile status extra
-		p.statusExtraBuilder, err = compileJBuilders(p.Status.Extra)
-		if err != nil {
-			return fmt.Errorf("failed to compile 'extra' attribute for profile '%s'. Error: %w", p.Name, err)
+		// let's see if the tag is already in the map ...
+		if v, ok := p.excludeTagsMap[tv[0]]; ok {
+			// ... and it value-less meaning any value is excluded
+			if _, ok := v.(struct{}); !ok {
+				(v.(map[string]struct{})[tv[1]]) = struct{}{}
+			}
+		} else {
+			// If the tag and value is not in the map yet, let's add it
+			vals := make(map[string]struct{})
+			vals[tv[1]] = struct{}{}
+			p.excludeTagsMap[tv[0]] = vals
 		}
 	}
 
 	return nil
 }
 
-func compileAgentTelemetrySchedules(cfg *Config) error {
+func compileMetric(p *Profile, m *MetricConfig) error {
+	// Validate name (required)
+	if len(m.Name) == 0 {
+		return fmt.Errorf("profile '%s' requires 'metrics[].name' attribute to be specified", p.Name)
+	}
+	// Split metric name into metric group and metric name to convert it to Prometheus metric name
+	names := strings.Split(m.Name, ".")
+	if len(names) != 2 {
+		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
+	}
+
+	// Convert Datadog metric name to Prometheus metric name (used for quick(er) matching)
+	promName := fmt.Sprintf("%s__%s", names[0], names[1])
+	p.metricsMap[promName] = m
+
+	// Compile aggregate tags (optional)
+	if len(m.AggregateTags) == 0 {
+		m.aggregateTagsExists = false
+	} else {
+		m.aggregateTagsExists = true
+		m.aggregateTagsMap = make(map[string]any)
+		for _, t := range m.AggregateTags {
+			m.aggregateTagsMap[t] = struct{}{}
+		}
+	}
+
+	return nil
+}
+
+// Compile metric section
+func compileMetrics(p *Profile) error {
+	// No metric section - nothing to do
+	if p.Metric == nil || len(p.Metric.Metrics) == 0 {
+		return nil
+	}
+
+	if err := compileMetricsExclude(p); err != nil {
+		return err
+	}
+
+	// Compile metrics themselves
+	p.metricsMap = make(map[string]*MetricConfig)
+	for i := 0; i < len(p.Metric.Metrics); i++ {
+		if err := compileMetric(p, &p.Metric.Metrics[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Compile status section
+func compileStatus(p *Profile) error {
+	// No status section - nothing to do
+	if p.Status == nil {
+		return nil
+	}
+
+	// Validate template (optional with default "basic". "none" is also supported)
+	if len(p.Status.Template) == 0 {
+		p.Status.Template = "basic"
+	} else if p.Status.Template != "basic" && p.Status.Template != "none" {
+		return fmt.Errorf("profile '%s' template attribute can have 'basic' or 'none' value but %s is provided", p.Name, p.Status.Template)
+	}
+
+	// Compile status extra
+	var err error
+	p.statusExtraBuilder, err = compileJBuilders(p.Status.Extra)
+	if err != nil {
+		return fmt.Errorf("failed to compile 'extra' attribute for profile '%s'. Error: %w", p.Name, err)
+	}
+
+	return nil
+}
+
+// Compile profile
+func compileProfile(p *Profile) error {
+	// Profile requires name
+	if len(p.Name) == 0 {
+		return fmt.Errorf("profile requires 'name' attribute to be specified")
+	}
+
+	if err := compileMetrics(p); err != nil {
+		return err
+	}
+
+	if err := compileStatus(p); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Compile schedules
+func compileSchedules(cfg *Config) error {
 	cfg.schedule = make(map[Schedule][]*Profile)
 
 	for i := 0; i < len(cfg.Profiles); i++ {
@@ -366,15 +463,16 @@ func compileAgentTelemetrySchedules(cfg *Config) error {
 	return nil
 }
 
+// Compile agent telemetry config
 func compileConfig(cfg *Config) error {
 	for i := 0; i < len(cfg.Profiles); i++ {
-		err := compileAgentTelemetryProfile(&cfg.Profiles[i])
+		err := compileProfile(&cfg.Profiles[i])
 		if err != nil {
 			return err
 		}
 	}
 
-	if err := compileAgentTelemetrySchedules(cfg); err != nil {
+	if err := compileSchedules(cfg); err != nil {
 		return err
 	}
 
@@ -390,16 +488,26 @@ func parseConfig(cfg config.Component) (*Config, error) {
 		}, nil
 	}
 
-	// Parse agent telemetry config
 	var atCfg Config
-	err := cfg.UnmarshalKey("agent_telemetry", &atCfg)
-	if err != nil {
-		return nil, err
+
+	// Parse agent telemetry config
+	atCfgMap := cfg.GetStringMap("agent_telemetry")
+	if len(atCfgMap) > 0 {
+		// Reconvert to string and back to object.
+		// Config.UnmarshalKey() is better but it did not work in some cases
+		atCfgBytes, err := yaml.Marshal(atCfgMap)
+		if err != nil {
+			return nil, err
+		}
+		err = yaml.Unmarshal(atCfgBytes, &atCfg)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Add default profiles if not specified
 	if len(atCfg.Profiles) == 0 {
-		err = yaml.Unmarshal([]byte(defaultProfiles), &atCfg)
+		err := yaml.Unmarshal([]byte(defaultProfiles), &atCfg)
 		if err != nil {
 			return nil, err
 		}
@@ -408,7 +516,7 @@ func parseConfig(cfg config.Component) (*Config, error) {
 	}
 
 	// Compile agent telemetry config
-	err = compileConfig(&atCfg)
+	err := compileConfig(&atCfg)
 	if err != nil {
 		return nil, err
 	}

@@ -6,13 +6,14 @@
   },
   {{- end }}
   {{- with .DogStatsdStats -}}
-  {{- $alreadyIterated := 0 }}
   "dogstatsd": {
-  {{- range $key, $value := .}}
-    {{- if (gt $alreadyIterated 0)}},{{- end }}
-    "{{$key}}": {{$value}}
-    {{- $alreadyIterated = 1 }}
-  {{- end }}
+    "EventParseErrors": {{.EventParseErrors}},
+    "MetricParseErrors": {{.MetricParseErrors}},
+    "ServiceCheckParseErrors": {{.ServiceCheckParseErrors}},
+    "UdpPacketReadingErrors":  {{.UdpPacketReadingErrors}},
+    "UdsOriginDetectionErrors": {{.UdsOriginDetectionErrors}},
+    "UdsPacketReadingErrors": {{.UdsPacketReadingErrors}},
+    "UnterminatedMetricErrors": {{.UnterminatedMetricErrors}}
   }
   {{- end }}
 }  
