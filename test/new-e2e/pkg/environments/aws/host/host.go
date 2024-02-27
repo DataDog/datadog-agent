@@ -267,3 +267,43 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 
 	return provisioner
 }
+
+// AwsHostParams is the set of properties for the AWS Host environment.
+type AwsHostParams struct {
+	// Name is the name of the EC2 VM.
+	Name string
+	// PulumiContext is the Pulumi context to use.
+	PulumiContext *pulumi.Context
+	// AwsEnvironment is the AWS environment to use.
+	AwsEnvironment *aws.Environment
+	// Options is the set of options for the EC2 VM.
+	Options []ec2.VMOption
+	// Importer is the component that will be used to import the EC2 host from pulumi.
+	Importer *remote.HostOutput
+}
+
+func NewHost(params AwsHostParams) (host *remote.Host, err error) {
+	var awsEnv aws.Environment
+	if params.AwsEnvironment == nil {
+		awsEnv, err = aws.NewEnvironment(params.PulumiContext)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		awsEnv = *params.AwsEnvironment
+	}
+
+	host, err = ec2.NewVM(awsEnv, params.Name, params.Options...)
+	if err != nil {
+		return nil, err
+	}
+	if params.Importer == nil {
+		// nothing to export to
+		return host, nil
+	}
+	err = host.Export(params.PulumiContext, params.Importer)
+	if err != nil {
+		return nil, err
+	}
+	return host, nil
+}
