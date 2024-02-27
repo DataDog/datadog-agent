@@ -269,6 +269,10 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 	if opts != nil && opts.VariableStore != nil {
 		store := opts.VariableStore
 		for name, variable := range store.Variables {
+			if _, found := model.SECLVariables[name]; found {
+				continue
+			}
+
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
 				continue

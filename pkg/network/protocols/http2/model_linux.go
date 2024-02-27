@@ -347,37 +347,37 @@ func (tx *EbpfTx) destEndpoint() string {
 	return net.JoinHostPort(tx.destAddress().String(), strconv.Itoa(int(tx.Tuple.Dport)))
 }
 
-func (t http2StreamKey) family() ebpf.ConnFamily {
+func (t HTTP2StreamKey) family() ebpf.ConnFamily {
 	if t.Tup.Metadata&uint32(ebpf.IPv6) != 0 {
 		return ebpf.IPv6
 	}
 	return ebpf.IPv4
 }
 
-func (t http2StreamKey) sourceAddress() util.Address {
+func (t HTTP2StreamKey) sourceAddress() util.Address {
 	if t.family() == ebpf.IPv4 {
 		return util.V4Address(uint32(t.Tup.Saddr_l))
 	}
 	return util.V6Address(t.Tup.Saddr_l, t.Tup.Saddr_h)
 }
 
-func (t http2StreamKey) sourceEndpoint() string {
+func (t HTTP2StreamKey) sourceEndpoint() string {
 	return net.JoinHostPort(t.sourceAddress().String(), strconv.Itoa(int(t.Tup.Sport)))
 }
 
-func (t http2StreamKey) destAddress() util.Address {
+func (t HTTP2StreamKey) destAddress() util.Address {
 	if t.family() == ebpf.IPv4 {
 		return util.V4Address(uint32(t.Tup.Daddr_l))
 	}
 	return util.V6Address(t.Tup.Daddr_l, t.Tup.Daddr_h)
 }
 
-func (t http2StreamKey) destEndpoint() string {
+func (t HTTP2StreamKey) destEndpoint() string {
 	return net.JoinHostPort(t.destAddress().String(), strconv.Itoa(int(t.Tup.Dport)))
 }
 
 // String returns a string representation of the http2 stream key.
-func (t http2StreamKey) String() string {
+func (t HTTP2StreamKey) String() string {
 	return fmt.Sprintf(
 		"[%s] [%s ⇄ %s] (stream id %d)",
 		t.family(),
