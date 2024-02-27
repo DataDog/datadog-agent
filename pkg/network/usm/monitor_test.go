@@ -620,6 +620,9 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	occurrences := 0
 	for key, stats := range allStats {
+		if key.Method.String() != req.Method {
+			continue
+		}
 		if key.Path.Content.Get() != req.URL.Path {
 			continue
 		}
