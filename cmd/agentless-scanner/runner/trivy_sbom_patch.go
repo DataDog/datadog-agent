@@ -9,7 +9,7 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	trivydxcore "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx/core"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 )
 
 const (

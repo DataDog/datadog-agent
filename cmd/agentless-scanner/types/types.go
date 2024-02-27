@@ -22,7 +22,7 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/docker/distribution/reference"
+	"github.com/distribution/reference"
 )
 
 const (
