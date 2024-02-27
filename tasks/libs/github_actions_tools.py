@@ -55,6 +55,9 @@ def trigger_macos_workflow(
     if concurrency_key is not None:
         inputs["concurrency_key"] = concurrency_key
 
+    if "GO_TEST_SKIP_FLAKE" in os.environ:
+        inputs["go_test_skip_flake"] = os.environ["GO_TEST_SKIP_FLAKE"]
+
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
     # by yourself.
     workflow_id = str(uuid.uuid1())
