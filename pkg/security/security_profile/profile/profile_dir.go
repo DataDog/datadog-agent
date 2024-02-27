@@ -66,7 +66,7 @@ type DirectoryProvider struct {
 	onNewProfileCallback      func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)
 
 	// selectors is used to select the profiles we currently care about
-	selectors []cgroupModel.WorkloadSelector
+	selectors []cgroupModel.WorkloadKey
 	// profileMapping is an in-memory mapping of the profiles currently on the file system
 	profileMapping map[cgroupModel.WorkloadSelector]profileFSEntry
 }
@@ -143,7 +143,7 @@ func (dp *DirectoryProvider) Stop() error {
 }
 
 // UpdateWorkloadSelectors updates the selectors used to query profiles
-func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadSelector) {
+func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadKey) {
 	dp.Lock()
 	defer dp.Unlock()
 	dp.selectors = selectors
@@ -158,7 +158,7 @@ func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Wor
 func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 	// we don't want to keep the lock for too long, especially not while calling the callback
 	dp.Lock()
-	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	selectors := make([]cgroupModel.WorkloadKey, len(dp.selectors))
 	copy(selectors, dp.selectors)
 	profileMapping := maps.Clone(dp.profileMapping)
 	propagateCb := dp.onNewProfileCallback
@@ -232,12 +232,11 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 	if err != nil {
 		return err
 	}
-	profileManagerSelector := workloadSelector
-	profileManagerSelector.Tag = "*"
+	profileManagerSelector, _ := cgroupModel.NewWorkloadSelector(workloadSelector.Name(), "*")
 
 	// lock selectors and profiles mapping
 	dp.Lock()
-	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	selectors := make([]cgroupModel.WorkloadKey, len(dp.selectors))
 	copy(selectors, dp.selectors)
 	profileMapping := maps.Clone(dp.profileMapping)
 	propagateCb := dp.onNewProfileCallback
@@ -245,7 +244,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	// prioritize a persited profile over activity dumps
 	if existingProfile, ok := profileMapping[profileManagerSelector]; ok {
-		if existingProfile.selector.Tag == "*" && profile.Selector.GetImageTag() != "*" {
+		if existingProfile.selector.Version() == "*" && profile.Selector.GetImageTag() != "*" {
 			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
 			return nil
 		}
@@ -265,7 +264,7 @@ func (dp *DirectoryProvider) loadProfile(profilePath string) error {
 
 	// check if this profile matches a workload selector
 	for _, selector := range selectors {
-		if workloadSelector.Match(selector) {
+		if workloadSelector.Key() == selector {
 			propagateCb(workloadSelector, profile)
 		}
 	}

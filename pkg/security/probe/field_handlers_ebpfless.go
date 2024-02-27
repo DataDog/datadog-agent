@@ -333,7 +333,7 @@ func (fh *EBPFLessFieldHandlers) ResolveXAttrNamespace(_ *model.Event, e *model.
 
 // ResolveHashes resolves the hash of the provided file
 func (fh *EBPFLessFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process.Pid, process.ContainerID, file)
 }
 
 // ResolveHashesFromEvent resolves the hashes of the requested event

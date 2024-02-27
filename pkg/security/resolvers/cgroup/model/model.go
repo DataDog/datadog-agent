@@ -23,10 +23,18 @@ var (
 	ErrNoImageProvided = errors.New("no image name provided") // ErrNoImageProvided is returned when no image name is provided
 )
 
+// WorkloadKey defines the key has uniquely defines a workload
+type WorkloadKey string
+
+// Match returns true if the input selector matches the current selector
+func (wk *WorkloadKey) Match(selector WorkloadSelector) bool {
+	return *wk == selector.Key()
+}
+
 // WorkloadSelector is a selector used to uniquely indentify the image of a workload
 type WorkloadSelector struct {
-	Image string
-	Tag   string
+	image string
+	tag   string
 }
 
 // NewWorkloadSelector returns an initialized instance of a WorkloadSelector
@@ -37,34 +45,57 @@ func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
 		tag = "latest"
 	}
 	return WorkloadSelector{
-		Image: image,
-		Tag:   tag,
+		image: image,
+		tag:   tag,
 	}, nil
+}
+
+// Version returns the selector name
+func (ws *WorkloadSelector) Name() string {
+	return ws.image
+}
+
+// Version returns the selector version
+func (ws *WorkloadSelector) Version() string {
+	return ws.tag
+}
+
+// Key returns the selector key
+func (ws *WorkloadSelector) Key() WorkloadKey {
+	return WorkloadKey(ws.image + ":" + ws.tag)
+}
+
+// IsReady returns true if the selector is ready
+func (ws *WorkloadSelector) Clone() *WorkloadSelector {
+	return &WorkloadSelector{
+		image: ws.image,
+		tag:   ws.tag,
+	}
 }
 
 // IsReady returns true if the selector is ready
 func (ws *WorkloadSelector) IsReady() bool {
-	return len(ws.Image) != 0
+	return len(ws.image) != 0
 }
 
 // Match returns true if the input selector matches the current selector
 func (ws *WorkloadSelector) Match(selector WorkloadSelector) bool {
-	if ws.Tag == "*" || selector.Tag == "*" {
-		return ws.Image == selector.Image
+	if ws.tag == "*" || selector.tag == "*" {
+		return ws.image == selector.image
 	}
-	return ws.Image == selector.Image && ws.Tag == selector.Tag
+	return ws.image == selector.image && ws.tag == selector.tag
 }
 
 // String returns a string representation of a workload selector
 func (ws WorkloadSelector) String() string {
-	return fmt.Sprintf("[image_name:%s image_tag:%s]", ws.Image, ws.Tag)
+	return fmt.Sprintf("[image_name:%s image_tag:%s]", ws.image, ws.tag)
 }
 
 // ToTags returns a string array representation of a workload selector
 func (ws WorkloadSelector) ToTags() []string {
 	return []string{
-		"image_name:" + ws.Image,
-		"image_tag:" + ws.Tag,
+		"image_name:" + ws.Name(),
+		"image_tag:" + ws.Version(),
 	}
 }
 
@@ -130,22 +161,25 @@ func (cgce *CacheEntry) SetTags(tags []string) {
 	defer cgce.Unlock()
 
 	cgce.Tags = tags
-	cgce.WorkloadSelector.Image = utils.GetTagValue("image_name", tags)
-	cgce.WorkloadSelector.Tag = utils.GetTagValue("image_tag", tags)
-	if len(cgce.WorkloadSelector.Image) != 0 && len(cgce.WorkloadSelector.Tag) == 0 {
-		cgce.WorkloadSelector.Tag = "latest"
+	cgce.WorkloadSelector.image = utils.GetTagValue("image_name", tags)
+	if cgce.WorkloadSelector.image == "" {
+		cgce.WorkloadSelector.image = utils.GetTagValue("service", tags)
+	}
+	cgce.WorkloadSelector.tag = utils.GetTagValue("image_tag", tags)
+	if cgce.WorkloadSelector.tag == "" {
+		cgce.WorkloadSelector.tag = utils.GetTagValue("version", tags)
+	}
+	if len(cgce.WorkloadSelector.image) != 0 && len(cgce.WorkloadSelector.tag) == 0 {
+		cgce.WorkloadSelector.tag = "latest"
 	}
 }
 
 // GetWorkloadSelectorCopy returns a copy of the workload selector of this cgroup
 func (cgce *CacheEntry) GetWorkloadSelectorCopy() *WorkloadSelector {
-	cgce.Lock()
-	defer cgce.Unlock()
+	cgce.RLock()
+	defer cgce.RUnlock()
 
-	return &WorkloadSelector{
-		Image: cgce.WorkloadSelector.Image,
-		Tag:   cgce.WorkloadSelector.Tag,
-	}
+	return cgce.WorkloadSelector.Clone()
 }
 
 // NeedsTagsResolution returns true if this workload is missing its tags

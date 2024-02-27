@@ -141,6 +141,18 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	}
 }
 
+func (at *ActivityTree) walk(processNodes []*ProcessNode, fn func(*ProcessNode) bool) {
+	for _, node := range processNodes {
+		if stop := fn(node); !stop {
+			at.walk(node.Children, fn)
+		}
+	}
+}
+
+func (at *ActivityTree) Walk(fn func(*ProcessNode) bool) {
+	at.walk(at.ProcessNodes, fn)
+}
+
 // GetChildren returns the list of root ProcessNodes from the ActivityTree
 func (at *ActivityTree) GetChildren() *[]*ProcessNode {
 	return &at.ProcessNodes

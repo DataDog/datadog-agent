@@ -1297,6 +1297,18 @@ func (p *EBPFProbe) RefreshUserCache(containerID string) error {
 	return p.Resolvers.UserGroupResolver.RefreshCache(containerID)
 }
 
+// RefreshUserCache refreshes the user cache
+func (p *EBPFProbe) RefreshSBOM(containerID string) error {
+	seclog.Debugf("Rfreshing SBOM for container %d", containerID)
+
+	cgroup, found := p.Resolvers.CGroupResolver.GetWorkload(containerID)
+	if !found {
+		return errors.New("not found")
+	}
+	p.Resolvers.SBOMResolver.OnWorkloadSelectorResolvedEvent(cgroup)
+	return nil
+}
+
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *EBPFProbe) Snapshot() error {
@@ -2033,6 +2045,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		switch {
 		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
+
+		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
+			_ = p.RefreshSBOM(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
 			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {

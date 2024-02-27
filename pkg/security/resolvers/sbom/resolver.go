@@ -49,8 +49,7 @@ const maxSBOMGenerationRetries = 3
 type SBOM struct {
 	sync.RWMutex
 
-	report *trivy.Report
-	files  map[uint64]*Package
+	files map[uint64]*Package
 
 	Host        string
 	Source      string
@@ -64,12 +63,32 @@ type SBOM struct {
 }
 
 func getWorkloadKey(selector *cgroupModel.WorkloadSelector) string {
-	return selector.Image + ":" + selector.Tag
+	return selector.Name() + ":" + selector.Version()
 }
 
 // IsComputed returns true if SBOM was successfully generated
 func (s *SBOM) IsComputed() bool {
 	return s.scanSuccessful.Load()
+}
+
+func (s *SBOM) SetReport(report *trivy.Report) {
+	// cleanup file cache
+	s.files = make(map[uint64]*Package)
+
+	// build file cache
+	for _, result := range report.Results {
+		for _, resultPkg := range result.Packages {
+			pkg := &Package{
+				Name:       resultPkg.Name,
+				Version:    resultPkg.Version,
+				SrcVersion: resultPkg.SrcVersion,
+			}
+			for _, file := range resultPkg.InstalledFiles {
+				seclog.Tracef("indexing %s as %+v", file, pkg)
+				s.files[murmur3.StringSum64(file)] = pkg
+			}
+		}
+	}
 }
 
 // reset (thread unsafe) cleans up internal fields before a SBOM is inserted in cache, the goal is to save space and delete references
@@ -101,6 +120,7 @@ func NewSBOM(host string, source string, id string, cgroup *cgroupModel.CacheEnt
 type Resolver struct {
 	sbomsLock      sync.RWMutex
 	sboms          map[string]*SBOM
+	hostSBOM       *SBOM
 	sbomsCacheLock sync.RWMutex
 	sbomsCache     *simplelru.LRU[string, *SBOM]
 	scannerChan    chan *SBOM
@@ -139,6 +159,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 	if err != nil {
 		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path: %w", hostProcRootPath, err)
 	}
+
 	stat, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
 		return nil, fmt.Errorf("stat failed for `%s`: couldn't stat host proc root path", hostProcRootPath)
@@ -191,8 +212,24 @@ func (r *Resolver) prepareContextTags() {
 }
 
 // Start starts the goroutine of the SBOM resolver
-func (r *Resolver) Start(ctx context.Context) {
+func (r *Resolver) Start(ctx context.Context) (err error) {
 	r.sbomScanner.Start(ctx)
+
+	hostRoot := os.Getenv("HOST_ROOT")
+	if hostRoot == "" {
+		hostRoot = "/"
+	}
+
+	r.hostSBOM, err = NewSBOM(r.hostname, r.source, "", nil, "")
+	if err != nil {
+		return err
+	}
+
+	report, err := r.generateSBOM(hostRoot)
+	if err != nil {
+		return err
+	}
+	r.hostSBOM.SetReport(report)
 
 	go func() {
 		ctx, cancel := context.WithCancel(ctx)
@@ -211,42 +248,43 @@ func (r *Resolver) Start(ctx context.Context) {
 			}
 		}
 	}()
+
+	return nil
 }
 
 // generateSBOM calls Trivy to generate the SBOM of a sbom
-func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
+func (r *Resolver) generateSBOM(root string) (report *trivy.Report, err error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
 	scanRequest := host.NewScanRequest(root, os.DirFS("/"))
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
-		return fmt.Errorf("couldn't retrieve global host scanner result channel")
+		return nil, fmt.Errorf("couldn't retrieve global host scanner result channel")
 	}
 	if err := r.sbomScanner.Scan(scanRequest); err != nil {
 		r.failedSBOMGenerations.Inc()
-		return fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
+		return nil, fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
 	}
 
 	result, more := <-ch
 	if !more {
-		return fmt.Errorf("failed to generate SBOM for %s: result channel is closed", root)
+		return nil, fmt.Errorf("failed to generate SBOM for %s: result channel is closed", root)
 	}
 
 	if result.Error != nil {
 		// TODO: add a retry mechanism for retryable errors
-		return fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
+		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
 	}
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
 	trivyReport, ok := result.Report.(*trivy.Report)
 	if !ok {
-		return fmt.Errorf("failed to convert report for %s", root)
+		return nil, fmt.Errorf("failed to convert report for %s", root)
 	}
-	sbom.report = trivyReport
 
-	return nil
+	return trivyReport, nil
 }
 
 // analyzeWorkload generates the SBOM of the provided sbom and send it to the security agent
@@ -299,11 +337,13 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			}
 		}
 
-		lastErr = r.generateSBOM(containerProcRootPath, sbom)
-		if lastErr == nil {
+		var report *trivy.Report
+		if report, lastErr = r.generateSBOM(containerProcRootPath); lastErr == nil {
+			sbom.SetReport(report)
 			scanned = true
 			break
 		}
+
 		seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 	}
 	if lastErr != nil {
@@ -312,27 +352,6 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	if !scanned {
 		return fmt.Errorf("couldn't generate sbom: all root candidates failed")
 	}
-
-	// cleanup file cache
-	sbom.files = make(map[uint64]*Package)
-
-	// build file cache
-	for _, result := range sbom.report.Results {
-		for _, resultPkg := range result.Packages {
-			pkg := &Package{
-				Name:       resultPkg.Name,
-				Version:    resultPkg.Version,
-				SrcVersion: resultPkg.SrcVersion,
-			}
-			for _, file := range resultPkg.InstalledFiles {
-				seclog.Tracef("indexing %s as %+v", file, pkg)
-				sbom.files[murmur3.StringSum64(file)] = pkg
-			}
-		}
-	}
-
-	// we can get rid of the report now that we've generate the file mapping
-	sbom.report = nil
 
 	// mark the SBOM ass successful
 	sbom.scanSuccessful.Store(true)
@@ -351,8 +370,12 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
-	sbom, ok := r.sboms[containerID]
-	if !ok {
+
+	sbom := r.hostSBOM
+	if containerID != "" {
+		sbom = r.sboms[containerID]
+	}
+	if sbom == nil {
 		return nil
 	}
 
@@ -397,7 +420,6 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	if ok {
 		// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
 		sbom.files = cachedSBOM.files
-		sbom.report = cachedSBOM.report
 		r.sbomsCacheHit.Inc()
 		return
 	}
@@ -427,7 +449,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 
 	_, ok := r.sboms[id]
 	if !ok {
-		workloadKey := getWorkloadKey(cgroup.GetWorkloadSelectorCopy())
+		workloadKey := getWorkloadKey(cgroup.WorkloadSelector.Clone())
 		sbom, err := r.newWorkloadEntry(id, cgroup, workloadKey)
 		if err != nil {
 			seclog.Errorf("couldn't create new SBOM entry for sbom '%s': %v", id, err)

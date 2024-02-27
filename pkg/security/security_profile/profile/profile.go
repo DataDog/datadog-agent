@@ -97,8 +97,8 @@ func NewSecurityProfile(selector cgroupModel.WorkloadSelector, eventTypes []mode
 		timeResolver:    tr,
 		pathsReducer:    pathsReducer,
 	}
-	if selector.Tag != "" && selector.Tag != "*" {
-		sp.versionContexts[selector.Tag] = &VersionContext{
+	if version := selector.Version(); version != "" && version != "*" {
+		sp.versionContexts[version] = &VersionContext{
 			eventTypeState: make(map[model.EventType]*EventTypeState),
 		}
 	}
@@ -134,7 +134,7 @@ func (p *SecurityProfile) LoadFromProto(input *proto.SecurityProfile, opts LoadO
 	p.generateCookies()
 	// if the input is an activity dump then change the selector to a profile selector
 	if input.Selector.GetImageTag() != "*" {
-		p.selector.Tag = "*"
+		p.selector, _ = cgroupModel.NewWorkloadSelector(p.selector.Name(), "*")
 	}
 }
 
@@ -231,7 +231,7 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 		LoadedInKernel:          p.loadedInKernel,
 		LoadedInKernelTimestamp: p.timeResolver.ResolveMonotonicTimestamp(p.loadedNano).String(),
 		Selector: &api.WorkloadSelectorMessage{
-			Name: p.selector.Image,
+			Name: p.selector.Name(),
 			Tag:  imageTags,
 		},
 		ProfileCookie: p.profileCookie,

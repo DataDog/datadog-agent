@@ -728,7 +728,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     fill_args_envs(event, syscall);
 
     // [activity_dump] check if this process should be traced
-    should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);
+    should_trace_new_process(ctx, now, (event->container.flags<<32)|tgid, event->container.container_id, event->proc_entry.comm);
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;

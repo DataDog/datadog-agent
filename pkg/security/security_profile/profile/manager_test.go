@@ -837,14 +837,15 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 	var profile *SecurityProfile
 	for _, ti := range tests {
 		t.Run(ti.name, func(t *testing.T) {
+			workloadSelector, _ := cgroupModel.NewWorkloadSelector("image", "tag")
 			if ti.newProfile || profile == nil {
-				profile = NewSecurityProfile(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
+				profile = NewSecurityProfile(workloadSelector, []model.EventType{model.ExecEventType, model.DNSEventType}, nil)
 				profile.ActivityTree = activity_tree.NewActivityTree(profile, nil, "security_profile")
 				profile.Instances = append(profile.Instances, &cgroupModel.CacheEntry{
 					ContainerContext: model.ContainerContext{
 						ID: defaultContainerID,
 					},
-					WorkloadSelector: cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+					WorkloadSelector: selector,
 				})
 				profile.loadedNano = uint64(t0.UnixNano())
 			}

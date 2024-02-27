@@ -235,14 +235,25 @@ func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 	if ad.selector != nil && ad.selector.IsReady() {
 		return ad.selector
 	}
-	imageTag := utils.GetTagValue("image_tag", ad.Tags)
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), imageTag)
+
+	name := utils.GetTagValue("image_name", ad.Tags)
+	if name == "" {
+		name = utils.GetTagValue("service", ad.Tags)
+	}
+
+	version := utils.GetTagValue("image_tag", ad.Tags)
+	if version == "" {
+		name = utils.GetTagValue("version", ad.Tags)
+	}
+
+	selector, err := cgroupModel.NewWorkloadSelector(name, version)
 	if err != nil {
 		return nil
 	}
+
 	ad.selector = &selector
 	// Once per workload, when tags are resolved and the firs time we successfully get the selector, tag all the existing nodes
-	ad.ActivityTree.TagAllNodes(imageTag)
+	ad.ActivityTree.TagAllNodes(version)
 	return ad.selector
 }
 
@@ -378,11 +389,13 @@ func (ad *ActivityDump) enable() error {
 
 	if len(ad.Metadata.ContainerID) > 0 {
 		// insert container ID in traced_cgroups map (it might already exist, do not update in that case)
-		if err := ad.adm.tracedCgroupsMap.Update(ad.Metadata.ContainerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
+		containerID := make([]byte, 64)
+		copy(containerID, []byte(ad.Metadata.ContainerID))
+		if err := ad.adm.tracedCgroupsMap.Update(containerID, ad.LoadConfigCookie, ebpf.UpdateNoExist); err != nil {
 			if !errors.Is(err, ebpf.ErrKeyExist) {
 				// delete activity dump load config
 				_ = ad.adm.activityDumpsConfigMap.Delete(ad.LoadConfigCookie)
-				return fmt.Errorf("couldn't push activity dump container ID %s: %w", ad.Metadata.ContainerID, err)
+				return fmt.Errorf("couldn't push activity dump container ID %s: %w", containerID, err)
 			}
 		}
 	}
@@ -613,12 +626,12 @@ func (ad *ActivityDump) resolveTags() error {
 		return nil
 	}
 
-	var err error
-	ad.Tags, err = ad.adm.resolvers.TagsResolver.ResolveWithErr(ad.Metadata.ContainerID)
+	tags, _, err := ad.adm.resolvers.CGroupResolver.ResolveTags(ad.Metadata.ContainerID, ad.Metadata.ContainerFlags)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
 	}
 
+	ad.Tags = tags
 	return nil
 }
 

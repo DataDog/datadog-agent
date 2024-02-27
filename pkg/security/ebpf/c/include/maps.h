@@ -29,15 +29,15 @@ BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
-BPF_HASH_MAP(traced_cgroups, struct container_context_t, u64, 1) // max entries will be overridden at runtime
-BPF_HASH_MAP(cgroup_wait_list, struct container_context_t, u64, 1) // max entries will be overridden at runtime
+BPF_HASH_MAP(traced_cgroups, char[CONTAINER_ID_LEN], u64, 1) // max entries will be overridden at runtime
+BPF_HASH_MAP(cgroup_wait_list, char[CONTAINER_ID_LEN], u64, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_pids, u32, u64, 8192) // max entries will be overridden at runtime
 BPF_HASH_MAP(traced_comms, char[TASK_COMM_LEN], u64, 200)
 BPF_HASH_MAP(basename_approvers, struct basename_t, struct basename_filter_t, 255)
 BPF_HASH_MAP(register_netdevice_cache, u64, struct register_netdevice_cache_t, 1024)
 BPF_HASH_MAP(netdevice_lookup_cache, u64, struct device_ifindex_t, 1024)
 BPF_HASH_MAP(fd_link_pid, u8, u32, 1)
-BPF_HASH_MAP(security_profiles, struct container_context_t, struct security_profile_t, 1) // max entries will be overriden at runtime
+BPF_HASH_MAP(security_profiles, char[CONTAINER_ID_LEN], struct security_profile_t, 1) // max entries will be overriden at runtime
 BPF_HASH_MAP(secprofs_syscalls, u64, struct security_profile_syscalls_t, 1) // max entries will be overriden at runtime
 
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct activity_dump_rate_limiter_ctx, 1) // max entries will be overridden at runtime

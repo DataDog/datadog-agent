@@ -49,7 +49,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityPro
 		LastSeen:  ts,
 	}
 	copy(ctx.Tags, input.Tags)
-	output.ProfileContexts[wSelector.Tag] = ctx
+	output.ProfileContexts[wSelector.Version()] = ctx
 
 	return output, nil
 }

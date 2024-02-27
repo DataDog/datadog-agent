@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -93,11 +94,11 @@ func (r *RCProfileProvider) Start(ctx context.Context) error {
 }
 
 func selectorToTag(selector *cgroupModel.WorkloadSelector) string {
-	return selector.Image + separator + selector.Tag
+	return selector.Name() + separator + selector.Version()
 }
 
 // UpdateWorkloadSelectors updates the selectors used to query profiles
-func (r *RCProfileProvider) UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadSelector) {
+func (r *RCProfileProvider) UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadKey) {
 	r.Lock()
 	defer r.Unlock()
 
@@ -106,7 +107,12 @@ func (r *RCProfileProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Work
 	var tags []string
 
 	for _, selector := range selectors {
-		tags = append(tags, selectorToTag(&selector))
+		split := strings.SplitN(string(selector), ":", 2)
+		tag := split[0]
+		if len(split) > 1 {
+			tag += separator + split[1]
+		}
+		tags = append(tags, tag)
 	}
 
 	r.client.SetCWSWorkloads(tags)

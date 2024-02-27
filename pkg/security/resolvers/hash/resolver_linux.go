@@ -162,12 +162,12 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model.FileEvent) []string {
 	// resolve FileEvent
 	event.FieldHandlers.ResolveFilePath(event, file)
-	return resolver.ComputeHashes(event.GetEventType(), &event.ProcessContext.Process, file)
+	return resolver.ComputeHashes(event.GetEventType(), event.ProcessContext.Process.Pid, event.ProcessContext.ContainerID, file)
 }
 
 // ComputeHashes computes the hashes of the provided file event.
 // Disclaimer: This resolver considers that the FileEvent has already been resolved
-func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
+func (resolver *Resolver) ComputeHashes(eventType model.EventType, pid uint32, containerID string, file *model.FileEvent) []string {
 	if !resolver.opts.Enabled {
 		return nil
 	}
@@ -188,7 +188,7 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 		return nil
 	}
 
-	resolver.hash(eventType, process, file)
+	resolver.hash(eventType, pid, containerID, file)
 	return file.Hashes
 }
 
@@ -218,7 +218,7 @@ func getFileInfo(path string) (fs.FileMode, int64, error) {
 }
 
 // hash hashes the provided file event
-func (resolver *Resolver) hash(eventType model.EventType, process *model.Process, file *model.FileEvent) {
+func (resolver *Resolver) hash(eventType model.EventType, pid uint32, containerID string, file *model.FileEvent) {
 	if !file.IsPathnameStrResolved || len(file.PathnameStr) == 0 {
 		resolver.hashMiss[eventType][model.PathnameResolutionError].Inc()
 		file.HashState = model.PathnameResolutionError
@@ -234,7 +234,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	// check if the hash(es) of this file is in cache
 	fileKey := LRUCacheKey{
 		path:        file.PathnameStr,
-		containerID: process.ContainerID,
+		containerID: containerID,
 		inode:       file.Inode,
 		pathID:      file.PathKey.PathID,
 	}
@@ -248,9 +248,9 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		}
 	}
 
-	rootPIDs := []uint32{process.Pid}
+	rootPIDs := []uint32{pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(process.ContainerID)
+		w, ok := resolver.cgroupResolver.GetWorkload(containerID)
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}

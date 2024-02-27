@@ -19,7 +19,7 @@ func ProtoToWorkloadSelector(selector *proto.ProfileSelector) WorkloadSelector {
 	}
 
 	return WorkloadSelector{
-		Image: selector.GetImageName(),
-		Tag:   selector.GetImageTag(),
+		image: selector.GetImageName(),
+		tag:   selector.GetImageTag(),
 	}
 }

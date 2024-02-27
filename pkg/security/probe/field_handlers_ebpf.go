@@ -472,7 +472,7 @@ func (fh *EBPFFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.Fi
 
 // ResolveHashes resolves the hashes of the requested file event
 func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process.Pid, process.ContainerID, file)
 }
 
 // ResolveContainerID resolves the container ID of the event

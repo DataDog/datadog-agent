@@ -26,7 +26,7 @@ func NewProbe(config *config.Config, opts Opts, wmeta optional.Option[workloadme
 	p := newProbe(config, opts)
 
 	if opts.EBPFLessEnabled {
-		pp, err := NewEBPFLessProbe(p, config, opts)
+		pp, err := NewEBPFLessProbe(p, config, opts, wmeta)
 		if err != nil {
 			return nil, err
 		}
