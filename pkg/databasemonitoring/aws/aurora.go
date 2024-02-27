@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
+//go:build ec2
+
 // Package aws contains database-monitoring specific aurora discovery logic
 package aws
 
