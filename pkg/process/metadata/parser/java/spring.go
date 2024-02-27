@@ -106,7 +106,7 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 						} else {
 							source, err := func() (*props.PropertyGetter, error) {
 								defer rc.Close()
-								source, err := newPropertySourceFromStream(rc, f.Name)
+								source, err := newPropertySourceFromStream(rc, f.Name, f.UncompressedSize64)
 								return source, err
 							}()
 							if err != nil {

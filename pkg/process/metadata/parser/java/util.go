@@ -19,6 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// maxParseFileSize is the maximum file size in bytes the parser will accept.
+	maxParseFileSize = 1024 * 1024
+)
+
 // mapSource is a type holding properties stored as map. It implements PropertyGetter
 type mapSource struct {
 	m map[string]string
@@ -58,7 +63,11 @@ func newArgumentSource(arguments []string, prefix string) *mapSource {
 }
 
 // newPropertySourceFromStream create a PropertyGetter by selecting the most appropriate parser giving the file extension.
-func newPropertySourceFromStream(rc io.Reader, filename string) (*props.PropertyGetter, error) {
+// An error will be returned if the filesize is greater than maxParseFileSize
+func newPropertySourceFromStream(rc io.Reader, filename string, filesize uint64) (*props.PropertyGetter, error) {
+	if filesize > maxParseFileSize {
+		return nil, fmt.Errorf("unable to parse %q. max file size exceeded(actual: %d, max: %d)", filename, filesize, maxParseFileSize)
+	}
 	var properties props.PropertyGetter
 	var err error
 	ext := strings.ToLower(filepath.Ext(filename))
@@ -114,7 +123,11 @@ func scanSourcesFromFileSystem(profilePatterns map[string][]string) map[string]*
 					var value *props.PropertyGetter
 					value, _ = func() (*props.PropertyGetter, error) {
 						defer f.Close()
-						return newPropertySourceFromStream(f, p)
+						fi, statErr := f.Stat()
+						if statErr != nil {
+							return nil, statErr
+						}
+						return newPropertySourceFromStream(f, p, uint64(fi.Size()))
 					}()
 					if value != nil {
 						arr, ok := ret[profile]

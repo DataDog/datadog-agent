@@ -78,6 +78,7 @@ func TestNewPropertySourceFromStream(t *testing.T) {
 		name          string
 		filename      string
 		errorExpected bool
+		filesize      uint64
 	}{
 		{
 			name:          "should not be case sensitive to file extensions",
@@ -88,6 +89,7 @@ func TestNewPropertySourceFromStream(t *testing.T) {
 			name:          "should allow properties files",
 			filename:      "test.properties",
 			errorExpected: false,
+			filesize:      maxParseFileSize,
 		},
 		{
 			name:          "should allow also yml files",
@@ -99,10 +101,16 @@ func TestNewPropertySourceFromStream(t *testing.T) {
 			filename:      "unknown.extension",
 			errorExpected: true,
 		},
+		{
+			name:          "should not parse files larger than MiB",
+			filename:      "large.yaml",
+			errorExpected: true,
+			filesize:      maxParseFileSize + 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, err := newPropertySourceFromStream(strings.NewReader(" "), tt.filename)
+			value, err := newPropertySourceFromStream(strings.NewReader(" "), tt.filename, tt.filesize)
 			if tt.errorExpected {
 				require.Error(t, err)
 			} else {
