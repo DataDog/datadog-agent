@@ -10,7 +10,6 @@ package server
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/twmb/murmur3"
@@ -87,23 +86,15 @@ type shardKeyGeneratorIsolation struct {
 }
 
 func (s *shardKeyGeneratorIsolation) Generate(sample metrics.MetricSample, shards int) uint32 {
-	defer s.tagsBuffer.Reset()
-	for _, tag := range sample.Tags {
-		if strings.HasPrefix(tag, "service:") {
-			s.tagsBuffer.Append(tag)
-		}
-	}
-	// If we cannot isolate the samples based on the origin on known tags, we
-	// fallback on the base shard key generator.
-	if s.tagsBuffer.Len() == 0 && sample.OriginFromUDS == "" && sample.OriginFromClient == "" {
+	// We fall back on the generic sharding if:
+	// - the sample has a custom cardinality
+	// - we don't have the origin
+	if sample.Cardinality != "" || (sample.OriginFromUDS == "" && sample.OriginFromClient == "") {
 		return s.shardKeyGeneratorBase.Generate(sample, shards)
 	}
 
-	// Otherwise, we isolate the samples based on the origin and well-known tags.
-
-	// WARNING: This might break aggregations if multiple containers send tags with different origins
-	// that should be aggregated together (which only happens when the origin doesn't bring *any* tag).
-	i, j := s.tagsBuffer.Hash(), uint64(0)
+	// Otherwise, we isolate the samples based on the origin.
+	i, j := uint64(0), uint64(0)
 	i, j = murmur3.SeedStringSum128(i, j, sample.OriginFromUDS)
 	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginFromClient)
 
