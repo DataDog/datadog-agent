@@ -121,6 +121,9 @@ func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Co
 	}
 
 	c.platform, c.family, c.build, err = host.PlatformInformation()
+	if err != nil {
+		return err
+	}
 
 	// Platform Architecture
 	c.arch = "32-bit"
