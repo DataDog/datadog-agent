@@ -26,6 +26,8 @@ const (
 	// Valid From: May 2023
 	// Valid To:   May 2025
 	DatadogCodeSignatureThumbprint = `B03F29CC07566505A718583E9270A6EE17678742`
+	// RegistryKeyPath is the root registry key that the Datadog Agent uses to store some state
+	RegistryKeyPath = "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent"
 )
 
 // GetDatadogAgentProductCode returns the product code GUID for the Datadog Agent
@@ -112,4 +114,17 @@ func TestAgentVersion(t *testing.T, expected string, actual string) bool {
 		require.NoErrorf(t, err, "invalid actual version %s", actual)
 		assert.Equal(t, expectedVersion.GetNumberAndPre(), actualVersion.GetNumberAndPre(), "agent version mismatch")
 	})
+}
+
+// GetAgentUserFromRegistry gets the domain and username that the agent was installed with from the registry
+func GetAgentUserFromRegistry(host *components.RemoteHost) (string, string, error) {
+	domain, err := windows.GetRegistryValue(host, RegistryKeyPath, "installedDomain")
+	if err != nil {
+		return "", "", err
+	}
+	username, err := windows.GetRegistryValue(host, RegistryKeyPath, "installedUser")
+	if err != nil {
+		return "", "", err
+	}
+	return domain, username, nil
 }

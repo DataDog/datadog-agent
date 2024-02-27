@@ -360,6 +360,9 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, []string{t.remoteMSIPath})
 	}
 	common.CheckInstallation(tt, t.InstallTestClient)
+	tt.Run("user in registry", func(tt *testing.T) {
+		AssertInstalledUserInRegistry(tt, t.host, t.expectedUsername, t.expectedUserDomain)
+	})
 	t.testAgentCodeSignature(tt)
 	t.TestRuntimeExpectations(tt)
 }
