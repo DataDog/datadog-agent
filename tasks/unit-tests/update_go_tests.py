@@ -22,4 +22,4 @@ class TestUpdateGo(unittest.TestCase):
         _update_references(warn=False, version="1.2.3", dry_run=True)
 
     def test_go_mods(self):
-        _update_go_mods(warn=False, minor="1.2", include_otel_modules=True, dry_run=True)
+        _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)

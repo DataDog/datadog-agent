@@ -605,6 +605,11 @@ func (p *WindowsProbe) zeroEvent() *model.Event {
 	return p.event
 }
 
+// Origin returns origin
+func (p *Probe) Origin() string {
+	return ""
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()

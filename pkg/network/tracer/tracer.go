@@ -168,7 +168,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
 		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
 			tr.bpfErrorsCollector = errorsCollector
-			bpfTelemetry = tr.bpfErrorsCollector.EBPFTelemetry
+			bpfTelemetry = tr.bpfErrorsCollector.T
 		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
