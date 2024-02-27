@@ -7,6 +7,8 @@ package netpath
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"hash/fnv"
 	"math/rand"
 	"net"
 	"sort"
@@ -464,19 +467,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 		probe *results.Probe
 	}
 
-	pathId := uuid.New().String()
-
-	traceroutePath := NetworkPath{
-		PathId:    pathId,
-		Timestamp: time.Now().UnixMilli(),
-		Source: NetworkPathSource{
-			Hostname: hname,
-		},
-		Destination: NetworkPathDestination{
-			Hostname:  destinationHost,
-			IpAddress: destinationIP.String(),
-		},
-	}
+	var pathHops []NetworkPathHop
 
 	for idx, probes := range r.Flows {
 		log.Debugf("flow idx: %d\n", idx)
@@ -619,7 +610,7 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 				RTT:       durationMs,
 				Success:   isSuccess,
 			}
-			traceroutePath.Hops = append(traceroutePath.Hops, hop)
+			pathHops = append(pathHops, hop)
 
 			//prevHop = hop
 
@@ -632,6 +623,21 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 		}
 	}
 
+	pathId := PathIdHash(hname, destinationHost, destinationIP, pathHops)
+
+	traceroutePath := NetworkPath{
+		PathId:    pathId,
+		Timestamp: time.Now().UnixMilli(),
+		Source: NetworkPathSource{
+			Hostname: hname,
+		},
+		Destination: NetworkPathDestination{
+			Hostname:  destinationHost,
+			IpAddress: destinationIP.String(),
+		},
+		Hops: pathHops,
+	}
+
 	payloadBytes, err := json.Marshal(traceroutePath)
 	if err != nil {
 		return fmt.Errorf("error marshalling device metadata: %s", err)
@@ -639,6 +645,23 @@ func (c *Check) traceRouteDublinAsPath(sender sender.Sender, r *results.Results,
 	log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
 	sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
 	return nil
+}
+
+func PathIdHash(sourceHost string, destHost string, destIp net.IP, pathHops []NetworkPathHop) string {
+	h := fnv.New64()
+	h.Write([]byte(sourceHost)) //nolint:errcheck
+	h.Write([]byte(destHost))   //nolint:errcheck
+	h.Write(destIp)             //nolint:errcheck
+	for _, hop := range pathHops {
+		h.Write([]byte(hop.IpAddress))                //nolint:errcheck
+		binary.Write(h, binary.LittleEndian, hop.TTL) //nolint:errcheck
+	}
+	hashInt64 := h.Sum64()
+
+	hopHashBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(hopHashBytes, hashInt64)
+
+	return base64.RawURLEncoding.EncodeToString(hopHashBytes)
 }
 
 func (c *Check) getHostname(ipAddr string) string {
