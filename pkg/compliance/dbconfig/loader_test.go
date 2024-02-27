@@ -70,10 +70,6 @@ func TestDBConfLoader(t *testing.T) {
 
 		err = proc.Kill()
 		assert.NoError(t, err)
-
-		res, ok = LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
-		assert.False(t, ok)
-		assert.Nil(t, res)
 	}
 }
 

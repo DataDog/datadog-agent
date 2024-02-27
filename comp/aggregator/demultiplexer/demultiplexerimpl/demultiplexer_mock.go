@@ -8,6 +8,8 @@
 package demultiplexerimpl
 
 import (
+	"go.uber.org/fx"
+
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -15,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for this component.
@@ -50,7 +51,7 @@ type mockDependencies struct {
 	Hostname hostname.Component
 }
 
-func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerComp.Mock) {
+func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerComp.Mock, sender.SenderManager) {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 
@@ -61,5 +62,5 @@ func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerC
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
-	return instance, instance
+	return instance, instance, instance
 }
