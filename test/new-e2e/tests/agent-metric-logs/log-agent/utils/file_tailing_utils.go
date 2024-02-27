@@ -173,7 +173,8 @@ func CleanUp(ls LogsTestSuite) {
 	if ls.IsDevMode() {
 		switch ls.Env().RemoteHost.OSFamily {
 		default: // default is linux
-			ls.Env().RemoteHost.Remove(LinuxLogsFolderPath)
+			err := ls.Env().RemoteHost.Remove(LinuxLogsFolderPath)
+			require.NoError(t, err, "Unable to remove linux log file")
 			checkCmd = fmt.Sprintf("ls %s 2>/dev/null || echo 'Files do not exist'", LinuxLogsFolderPath)
 		case os.WindowsFamily:
 			if ls.IsDevMode() {
