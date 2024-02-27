@@ -7,4 +7,6 @@
 
 package oracle_dbm
 
+// CheckName is the name of the check that was renamed to `oracle`.
+// This is used to keep the compatibility with the old configuration.
 const CheckName = "oracle-dbm"
