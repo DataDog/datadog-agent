@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"hash/fnv"
-	"regexp"
 	"strconv"
 
 	"strings"
@@ -35,10 +34,7 @@ type Instance struct {
 const (
 	auroraPostgresqlEngine = "aurora-postgresql"
 	auroraMysqlEngine      = "aurora-mysql"
-	regexPattern           = `^([a-z]+-[a-z]+-\d+)[a-z]$`
 )
-
-var awsRegionRegex = regexp.MustCompile(regexPattern)
 
 // GetAuroraClusterEndpoints queries an AWS account for the endpoints of an Aurora cluster
 // requires the dbClusterIdentifier for the cluster

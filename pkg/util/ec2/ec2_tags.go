@@ -184,6 +184,7 @@ func GetTags(ctx context.Context) ([]string, error) {
 }
 
 // EC2Identity holds the instances identity document
+// nolint: revive
 type EC2Identity struct {
 	Region     string
 	InstanceID string
