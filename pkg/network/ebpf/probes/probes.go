@@ -91,6 +91,8 @@ const (
 
 	// IPMakeSkb traces ip_make_skb
 	IPMakeSkb ProbeFuncName = "kprobe__ip_make_skb"
+	// IPMakeSkbPre4180 tracer ip_make_sbk on kernels prior to 4.18.0
+	IPMakeSkbPre4180 ProbeFuncName = "kprobe__ip_make_skb__pre_4_18_0"
 	// IPMakeSkbReturn traces return of ip_make_skb
 	IPMakeSkbReturn ProbeFuncName = "kretprobe__ip_make_skb"
 	// IP6MakeSkb traces ip6_make_skb
