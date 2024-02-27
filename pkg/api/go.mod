@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/api
 go 1.21.7
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/config => ../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
