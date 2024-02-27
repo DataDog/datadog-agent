@@ -28,10 +28,15 @@ type Tester struct {
 	InstallTestClient *common.TestClient
 
 	agentPackage      *windowsAgent.Package
+	installUser       string
 	isPreviousVersion bool
 
 	// Path to the MSI on the remote host, only available after install is run
 	remoteMSIPath string
+
+	expectedUsername    string
+	expectedUserDomain  string
+	expectedServiceuser string
 
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
@@ -55,6 +60,9 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	if err != nil {
 		return nil, err
 	}
+	t.expectedUsername = "ddagentuser"
+	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
+	t.expectedServiceuser = ".\\ddagentuser"
 
 	t.beforeInstallSystemDirListPath = `C:\system-files-before-install.log`
 	t.afterUninstallSystemDirListPath = `C:\system-files-after-uninstall.log`
@@ -107,6 +115,22 @@ func WithAgentPackage(agentPackage *windowsAgent.Package) TesterOption {
 func WithPreviousVersion() TesterOption {
 	return func(t *Tester) {
 		t.isPreviousVersion = true
+	}
+}
+
+// WithInstallUser sets the user to install the agent as
+func WithInstallUser(user string) TesterOption {
+	return func(t *Tester) {
+		t.installUser = user
+	}
+}
+
+// WithExpectedAgentUser sets the expected user the agent should run as
+func WithExpectedAgentUser(domain string, user string, serviceUser string) TesterOption {
+	return func(t *Tester) {
+		t.expectedUserDomain = domain
+		t.expectedUsername = user
+		t.expectedServiceuser = serviceUser
 	}
 }
 
@@ -313,6 +337,9 @@ func (t *Tester) testRunningExpectedVersion(tt *testing.T) bool {
 // InstallAgent installs the agent
 func (t *Tester) InstallAgent(args string, logfile string) error {
 	var err error
+	if t.installUser != "" {
+		args = args + fmt.Sprintf(` DDAGENTUSER_NAME="%s"`, t.installUser)
+	}
 	if !strings.Contains(args, "APIKEY") {
 		// TODO: Add apikey option
 		apikey := "00000000000000000000000000000000"
