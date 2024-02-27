@@ -7,6 +7,7 @@ package httpsec_test
 
 import (
 	"bytes"
+	"context"
 	"math/rand"
 	"os"
 	"testing"
@@ -26,10 +27,12 @@ func init() {
 
 func TestProxyLifecycleProcessor(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-	lp, err := appsec.New(nil)
+	lp, shutdown, err := appsec.NewWithShutdown(nil)
 	if err != nil {
 		t.Skipf("appsec disabled: %v", err)
 	}
+	require.NotNil(t, shutdown)
+	defer func() { require.NoError(t, shutdown(context.Background())) }()
 	require.NotNil(t, lp)
 
 	execCtx := &executioncontext.ExecutionContext{}
