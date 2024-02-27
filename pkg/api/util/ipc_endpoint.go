@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package util
 
 import (
@@ -22,17 +27,31 @@ type IPCEndpoint struct {
 	closeConn bool
 }
 
-// Option allows configuration of the IPCEndpoint during construction
-type Option func(*IPCEndpoint)
+// GetOption is an option that can be passed to DoGet
+type GetOption func(url.URL) url.URL
 
-// send GET method to the endpoint
-func (end *IPCEndpoint) DoGet() ([]byte, error) {
+// WithValues is an option to add url.Values to the GET request
+func WithValues(values url.Values) GetOption {
+	return func(u url.URL) url.URL {
+		u.RawQuery = values.Encode()
+		return u
+	}
+}
+
+// DoGet sends GET method to the endpoint
+func (end *IPCEndpoint) DoGet(options ...GetOption) ([]byte, error) {
 	conn := LeaveConnectionOpen
 	if end.closeConn {
 		conn = CloseConnection
 	}
+
+	target := end.target
+	for _, opt := range options {
+		target = opt(target)
+	}
+
 	// TODO: after removing callers to api/util/DoGet, pass `end.token` instead of using global var
-	res, err := DoGet(end.client, end.target.String(), conn)
+	res, err := DoGet(end.client, target.String(), conn)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(res, &errMap) //nolint:errcheck
@@ -46,17 +65,13 @@ func (end *IPCEndpoint) DoGet() ([]byte, error) {
 	return res, err
 }
 
+// EndpointOption allows configuration of the IPCEndpoint during construction
+type EndpointOption func(*IPCEndpoint)
+
 // WithCloseConnection is an option to close the connection
 func WithCloseConnection(state bool) func(*IPCEndpoint) {
 	return func(end *IPCEndpoint) {
 		end.closeConn = state
-	}
-}
-
-// WithValues is an option to add url.Values to the GET request
-func WithValues(values url.Values) func(*IPCEndpoint) {
-	return func(end *IPCEndpoint) {
-		end.target.RawQuery = values.Encode()
 	}
 }
 
@@ -74,7 +89,8 @@ func WithHostAndPort(cmdHost string, cmdPort int) func(*IPCEndpoint) {
 	}
 }
 
-func NewIPCEndpoint(config config.Component, endpointPath string, options ...Option) (*IPCEndpoint, error) {
+// NewIPCEndpoint constructs a new IPC Endpoint using the given config, path, and options
+func NewIPCEndpoint(config config.Component, endpointPath string, options ...EndpointOption) (*IPCEndpoint, error) {
 	// sets a global `token` in `doget.go`
 	// TODO: add `token` to Endpoint struct, instead of storing it in a global var
 	if err := SetAuthToken(config); err != nil {

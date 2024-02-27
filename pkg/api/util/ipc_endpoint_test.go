@@ -116,11 +116,11 @@ func TestIPCEndpointGetWithValues(t *testing.T) {
 	v.Set("verbose", "true")
 
 	// test construction with option for url.Values
-	end, err := NewIPCEndpoint(conf, "test/api", WithValues(v))
+	end, err := NewIPCEndpoint(conf, "test/api")
 	assert.NoError(t, err)
 
 	// test that DoGet will use query parameters from the url.Values
-	res, err := end.DoGet()
+	res, err := end.DoGet(WithValues(v))
 	assert.NoError(t, err)
 	assert.Equal(t, res, []byte("ok"))
 	assert.Equal(t, gotURL, "/test/api?verbose=true")
