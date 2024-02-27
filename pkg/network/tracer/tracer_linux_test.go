@@ -2108,7 +2108,7 @@ func TestConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true
-	conntracker, err := newConntracker(cfg, nil)
+	conntracker, err := newConntracker(cfg)
 	// ensure we always clean up the conntracker, regardless of behavior
 	if conntracker != nil {
 		t.Cleanup(conntracker.Close)
@@ -2117,7 +2117,7 @@ func TestConntrackerFallback(t *testing.T) {
 	require.NotNil(t, conntracker)
 
 	cfg.AllowNetlinkConntrackerFallback = false
-	conntracker, err = newConntracker(cfg, nil)
+	conntracker, err = newConntracker(cfg)
 	// ensure we always clean up the conntracker, regardless of behavior
 	if conntracker != nil {
 		t.Cleanup(conntracker.Close)
