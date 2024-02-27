@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -128,6 +129,7 @@ func GetFile(client *ssh.Client, src string, dst string) error {
 	defer sftpClient.Close()
 
 	// remote
+	src = convertToForwardSlash(src)
 	fsrc, err := sftpClient.Open(src)
 	if err != nil {
 		return err
@@ -151,6 +153,7 @@ func copyFolder(sftpClient *sftp.Client, srcFolder string, dstFolder string) err
 		return err
 	}
 
+	dstFolder = convertToForwardSlash(dstFolder)
 	if err := sftpClient.MkdirAll(dstFolder); err != nil {
 		return err
 	}
@@ -178,6 +181,7 @@ func copyFile(sftpClient *sftp.Client, src string, dst string) error {
 	}
 	defer srcFile.Close()
 
+	dst = convertToForwardSlash(dst)
 	dstFile, err := sftpClient.Create(dst)
 	if err != nil {
 		return err
@@ -198,6 +202,7 @@ func FileExists(client *ssh.Client, path string) (bool, error) {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	info, err := sftpClient.Lstat(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -217,6 +222,7 @@ func ReadFile(client *ssh.Client, path string) ([]byte, error) {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	f, err := sftpClient.Open(path)
 	if err != nil {
 		return nil, err
@@ -239,6 +245,7 @@ func WriteFile(client *ssh.Client, path string, content []byte) (int64, error) {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	f, err := sftpClient.Create(path)
 	if err != nil {
 		return 0, err
@@ -285,6 +292,7 @@ func appendWithSftp(client *ssh.Client, path string, content []byte) (int64, err
 	defer sftpClient.Close()
 
 	// Open the file in append mode and create it if it doesn't exist
+	path = convertToForwardSlash(path)
 	f, err := sftpClient.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY)
 	if err != nil {
 		return 0, err
@@ -308,6 +316,7 @@ func ReadDir(client *ssh.Client, path string) ([]fs.DirEntry, error) {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	infos, err := sftpClient.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -331,6 +340,7 @@ func Lstat(client *ssh.Client, path string) (fs.FileInfo, error) {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	return sftpClient.Lstat(path)
 }
 
@@ -344,6 +354,7 @@ func MkdirAll(client *ssh.Client, path string) error {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	return sftpClient.MkdirAll(path)
 }
 
@@ -356,6 +367,7 @@ func Remove(client *ssh.Client, path string) error {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	return sftpClient.Remove(path)
 }
 
@@ -368,5 +380,15 @@ func RemoveAll(client *ssh.Client, path string) error {
 	}
 	defer sftpClient.Close()
 
+	path = convertToForwardSlash(path)
 	return sftpClient.RemoveAll(path)
+}
+
+// convertToForwardSlash replaces backslashes in the path with forward slashes
+//
+// This is necessary for remote paths because the sftp package only supports forward slashes.
+// This is safe for remote Windows hosts, the Windows SSH implementation does this conversion, too.
+// https://github.com/PowerShell/openssh-portable/blob/59aba65cf2e2f423c09d12ad825c3b32a11f408f/scp.c#L636-L650
+func convertToForwardSlash(path string) string {
+	return strings.ReplaceAll(path, "\\", "/")
 }
