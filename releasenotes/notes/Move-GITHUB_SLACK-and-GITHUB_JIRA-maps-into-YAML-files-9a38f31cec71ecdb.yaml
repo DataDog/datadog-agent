@@ -8,5 +8,5 @@
 ---
 other:
   - |
-    Move GitHub Teams to Jira Projects mapping, and GitHub Teams to
-    Slack Channel mapping out of Python files and into YAML files.
+    Move GitHub teams to Jira projects mapping and GitHub teams to
+    Slack channel mapping out of Python files and into YAML files.
