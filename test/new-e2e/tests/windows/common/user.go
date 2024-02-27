@@ -12,11 +12,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
-// JoinUserDomain joins a user and domain into a single string
-func JoinUserDomain(user string, domain string) string {
+// MakeDownLevelLogonName joins a user and domain into a single string, e.g. DOMAIN\user
+//
+// domain is converted to NetBIOS format per the MSDN definition.
+//
+// If domain is empty then the user is returned as-is. Use caution in this case as the isolated name may be ambiguous.
+//
+// https://learn.microsoft.com/en-us/windows/win32/secauthn/user-name-formats#down-level-logon-name
+func MakeDownLevelLogonName(domain string, user string) string {
 	if domain == "" {
 		return user
 	}
+	domain = NameToNetBIOSName(domain)
 	return domain + "\\" + user
 }
 
