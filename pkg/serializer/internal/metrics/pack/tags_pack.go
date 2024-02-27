@@ -2,6 +2,10 @@ package pack
 
 import "strconv"
 
+type TagsPackerInterface interface {
+	Pack(tags []string, consumer StringConsumer) error
+}
+
 type TagsPacker struct {
 	tags []string
 }
@@ -72,3 +76,18 @@ func findNumberOfMatchingTags(a []string, b []string) int {
 func (u *TagsUnpacker) UnPack(tags []string, consumer StringConsumer) {
 
 }
+
+type NoopTagsPacker struct{}
+
+func (p *NoopTagsPacker) Pack(tags []string, consumer StringConsumer) error {
+	for _, tag := range tags {
+		err := consumer(tag)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var _ TagsPackerInterface = &TagsPacker{}
+var _ TagsPackerInterface = &NoopTagsPacker{}

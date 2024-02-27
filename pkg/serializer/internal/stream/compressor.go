@@ -13,6 +13,7 @@ import (
 	"compress/zlib"
 	"errors"
 	"expvar"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -204,7 +205,7 @@ func (c *Compressor) Close() ([]byte, error) {
 	tlmBytesIn.Add(float64(c.uncompressedWritten))
 	expvarsBytesOut.Add(int64(c.compressed.Len()))
 	tlmBytesOut.Add(float64(c.compressed.Len()))
-
+	fmt.Printf("-----> Compressor: %d bytes in, %d bytes out: ratio: %f\n", c.uncompressedWritten, c.compressed.Len(), float64(c.uncompressedWritten)/float64(c.compressed.Len()))
 	return payload, nil
 }
 

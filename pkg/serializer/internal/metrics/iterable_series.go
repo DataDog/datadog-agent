@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
@@ -217,9 +218,19 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 		return nil, err
 	}
 
-	metricPacker := pack.NewStringPacker()
-	tagsPacker1 := pack.NewTagsPacker()
-	tagsPacker2 := pack.NewTagsPacker()
+	var metricPacker pack.StringPackerInterface
+	var tagsPacker1 pack.TagsPackerInterface
+	var tagsPacker2 pack.TagsPackerInterface
+
+	if os.Getenv("PACKER") == "true" {
+		metricPacker = pack.NewStringPacker()
+		tagsPacker1 = pack.NewTagsPacker()
+		tagsPacker2 = pack.NewTagsPacker()
+	} else {
+		metricPacker = &pack.NoopStringPacker{}
+		tagsPacker1 = &pack.NoopTagsPacker{}
+		tagsPacker2 = &pack.NoopTagsPacker{}
+	}
 
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
