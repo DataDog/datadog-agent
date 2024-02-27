@@ -8,35 +8,33 @@ package sysprobefunctional
 import (
 	"flag"
 	"os"
-	"path"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/iis"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
-	componentsos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/stretchr/testify/require"
 )
 
 type vmSuite struct {
-	e2e.BaseSuite[environments.Host]
+	e2e.BaseSuite[iis.Env]
+	//e2e.Suite[iis.Env]
 }
 
 var (
 	kitchenDir string
 	testspath  string
 	reporoot   string
+	currDir    string
 	devMode    = flag.Bool("devmode", false, "run tests in dev mode")
 )
 
 func init() {
 	// Get the absolute path to the test assets directory
-	currDir, _ := os.Getwd()
+	currDir, _ = os.Getwd()
 
 	reporoot, _ = filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
 	kitchenDir = filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
@@ -44,7 +42,32 @@ func init() {
 }
 
 func TestVMSuite(t *testing.T) {
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsDefault))))}
+	/*
+		sites := []windows.IISSiteDefinition{
+			{
+				Name:        "TestSite1",
+				BindingPort: "*:8081:",
+				AssetsDir:   path.Join(exPath, "assets"),
+			},
+			{
+				Name:        "TestSite2",
+				BindingPort: "*:8082:",
+				AssetsDir:   path.Join(exPath, "assets"),
+			},
+		}
+
+		t.Logf("AssetsDir: %s", sites[0].AssetsDir)
+		err = windows.CreateIISSite(vm, sites)
+		require.NoError(t, err)
+		t.Log("Sites created, continuing")
+	*/
+	assetsDir := filepath.Join(currDir, "assets")
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(iis.Provisioner(
+		iis.WithIISOptions(iis.WithSite("TestSite1", "*:8081:", assetsDir)),
+		iis.WithIISOptions(iis.WithSite("TestSite2", "*:8082:", assetsDir)),
+	)),
+	}
+
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
@@ -55,41 +78,10 @@ func TestVMSuite(t *testing.T) {
 func (v *vmSuite) TestSystemProbeSuite() {
 	t := v.T()
 	// get the remote host
-	vm := v.Env().RemoteHost
-
-	err := windows.InstallIIS(vm)
-	require.NoError(t, err)
-	// HEADSUP the paths are windows, but this will execute in linux. So fix the paths
-	t.Log("IIS Installed, continuing")
-
-	t.Log("Creating sites")
-	// figure out where we're being executed from.  These paths should be in
-	// native path separators (i.e. not windows paths if executing in ci/on linux)
-
-	_, srcfile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	exPath := filepath.Dir(srcfile)
-
-	sites := []windows.IISSiteDefinition{
-		{
-			Name:        "TestSite1",
-			BindingPort: "*:8081:",
-			AssetsDir:   path.Join(exPath, "assets"),
-		},
-		{
-			Name:        "TestSite2",
-			BindingPort: "*:8082:",
-			AssetsDir:   path.Join(exPath, "assets"),
-		},
-	}
-
-	t.Logf("AssetsDir: %s", sites[0].AssetsDir)
-	err = windows.CreateIISSite(vm, sites)
-	require.NoError(t, err)
-	t.Log("Sites created, continuing")
+	vm := v.Env().IISHost
 
 	rs := windows.NewRemoteExecutable(vm, t, "testsuite.exe", testspath)
-	err = rs.FindTestPrograms()
+	err := rs.FindTestPrograms()
 	require.NoError(t, err)
 
 	err = rs.CreateRemotePaths()
@@ -101,13 +93,13 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	// install the agent (just so we can get the driver(s) installed)
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	require.NoError(t, err)
-	remoteMSIPath, err := windows.GetTemporaryFile(vm)
+	remoteMSIPath, err := common.GetTemporaryFile(vm)
 	require.NoError(t, err)
 	t.Log("Getting install package...")
-	err = windows.PutOrDownloadFile(vm, agentPackage.URL, remoteMSIPath)
+	err = common.PutOrDownloadFile(vm, agentPackage.URL, remoteMSIPath)
 	require.NoError(t, err)
 
-	err = windows.InstallMSI(vm, remoteMSIPath, "", "")
+	err = common.InstallMSI(vm, remoteMSIPath, "", "")
 	t.Log("Install complete")
 	require.NoError(t, err)
 
