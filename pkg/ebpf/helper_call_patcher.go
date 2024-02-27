@@ -28,6 +28,11 @@ var noopIns = asm.Mov.Reg(asm.R1, asm.R1)
 //	} else {
 //	    bpf_perf_event_output(...);
 //	}
+//
+// Please try to favor the use of either CO-RE or runtime compilation to
+// conditionally select eBPF helpers. This should be regarded as a last resort
+// when the aforementioned options don't apply (prebuilt artifacts, for
+// example).
 func NewHelperCallRemover(helpers ...asm.BuiltinFunc) Modifier {
 	return &helperCallRemover{
 		helpers: helpers,
