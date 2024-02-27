@@ -34,6 +34,7 @@ func (s *ServiceConfig) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	// flatten some types so they are easier to use
+	// ServicesDependedOn is returned as an object list, but we just want the service names
 	type expandedServiceConfig struct {
 		ServicesDependedOn []struct {
 			ServiceName string
@@ -50,7 +51,7 @@ func (s *ServiceConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// FetchUserSID fetches the SID for the given user from the host
+// FetchUserSID fetches the SID for the service user
 func (s *ServiceConfig) FetchUserSID(host *components.RemoteHost) error {
 	if s.UserName == "" {
 		return fmt.Errorf("UserName is not set")
@@ -99,6 +100,8 @@ func RestartService(host *components.RemoteHost, service string) error {
 }
 
 // GetServiceConfig returns the configuration of the service
+//
+// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-service?view=powershell-7.4
 func GetServiceConfig(host *components.RemoteHost, service string) (*ServiceConfig, error) {
 	cmd := fmt.Sprintf("Get-Service -Name '%s' | ConvertTo-Json", service)
 	output, err := host.Execute(cmd)
@@ -144,7 +147,7 @@ func GetServiceAliasSID(alias string) (string, error) {
 	return "", fmt.Errorf("unknown alias %s", alias)
 }
 
-// GetServiceConfigMap returns a map of the configuration of the services
+// GetServiceConfigMap returns a map of service names to service configuration
 func GetServiceConfigMap(host *components.RemoteHost, services []string) (ServiceConfigMap, error) {
 	result := make(ServiceConfigMap)
 	for _, service := range services {

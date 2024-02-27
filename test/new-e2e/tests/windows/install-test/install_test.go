@@ -184,7 +184,7 @@ func (is *agentMSISuite) TestRepair() {
 	t.TestUninstall(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
 }
 
-// TC-INS-001
+// TC-INS-006
 func (is *agentMSISuite) TestAgentUser() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
