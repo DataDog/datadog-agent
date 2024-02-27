@@ -16,13 +16,14 @@ import (
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
-	AgentUser         string `installer_arg:"DDAGENTUSER_NAME"`
-	AgentUserPassword string `installer_arg:"DDAGENTUSER_PASSWORD"`
-	Site              string `installer_arg:"SITE"`
-	DdURL             string `installer_arg:"DD_URL"`
-	APIKey            string `installer_arg:"APIKEY"`
-	InstallLogFile    string
-	Package           *Package
+	AgentUser           string `installer_arg:"DDAGENTUSER_NAME"`
+	AgentUserPassword   string `installer_arg:"DDAGENTUSER_PASSWORD"`
+	Site                string `installer_arg:"SITE"`
+	DdURL               string `installer_arg:"DD_URL"`
+	APIKey              string `installer_arg:"APIKEY"`
+	WIXFAILWHENDEFERRED string `installer_arg:"WIXFAILWHENDEFERRED"`
+	InstallLogFile      string
+	Package             *Package
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -128,6 +129,14 @@ func WithLastStablePackage() InstallAgentOption {
 func WithFakeIntake(fakeIntake *components.FakeIntake) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.DdURL = fakeIntake.URL
+		return nil
+	}
+}
+
+// WithWIXFailWhenDeferred specifies the WIXFAILWHENDEFERRED parameter.
+func WithWIXFailWhenDeferred() InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.WIXFAILWHENDEFERRED = "1"
 		return nil
 	}
 }

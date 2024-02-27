@@ -335,16 +335,16 @@ func (t *Tester) testRunningExpectedVersion(tt *testing.T) bool {
 }
 
 // InstallAgent installs the agent
-func (t *Tester) InstallAgent(args string, logfile string) error {
+func (t *Tester) InstallAgent(options ...windowsAgent.InstallAgentOption) error {
 	var err error
 	opts := []windowsAgent.InstallAgentOption{
 		windowsAgent.WithPackage(t.agentPackage),
 		windowsAgent.WithValidAPIKey(),
-		windowsAgent.WithInstallLogFile(logfile),
 	}
 	if t.installUser != "" {
 		opts = append(opts, windowsAgent.WithAgentUser(t.installUser))
 	}
+	opts = append(opts, options...)
 	t.remoteMSIPath, err = windowsAgent.InstallAgent(t.host, opts...)
 	return err
 }
