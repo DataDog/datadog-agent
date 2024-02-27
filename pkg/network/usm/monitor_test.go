@@ -415,7 +415,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
-	checkRequestIncluded(t, stats, &nethttp.Request{URL: url}, true)
+	checkRequestIncluded(t, stats, &nethttp.Request{URL: url, Method: nethttp.MethodGet}, true)
 }
 
 // TestKeepAliveWithIncompleteResponseRegression checks that USM captures a request, although we initially saw a
