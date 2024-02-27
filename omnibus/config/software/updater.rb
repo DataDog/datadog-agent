@@ -59,7 +59,7 @@ build do
       systemdPath = "/usr/lib/systemd/system/"
     end
 
-    # Add systemd units
+    # Add stable systemd units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",
       "datadog-agent-trace.service.erb" => "datadog-agent-trace.service",
