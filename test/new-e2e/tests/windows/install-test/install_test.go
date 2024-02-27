@@ -206,6 +206,56 @@ func (is *agentMSISuite) TestRepair() {
 	t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
 }
 
+// TC-INS-001
+func (is *agentMSISuite) TestAgentUser() {
+	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
+	is.Require().NoError(err, "should get output dir")
+	is.T().Logf("Output dir: %s", outputDir)
+
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	hostinfo, err := windows.GetHostInfo(vm)
+	is.Require().NoError(err)
+
+	domainPart := windows.NameToNetBIOSName(hostinfo.Hostname)
+	serviceDomainPart := "."
+
+	tcs := []struct {
+		testname            string
+		builtinaccount      bool
+		username            string
+		expectedDomain      string
+		expectedUser        string
+		expectedServiceUser string
+	}{
+		{"user_only", false, "testuser", domainPart, "testuser", fmt.Sprintf("%s\\testuser", serviceDomainPart)},
+		{"dotslash_user", false, ".\\testuser", domainPart, "testuser", fmt.Sprintf("%s\\testuser", serviceDomainPart)},
+		{"domain_user", false, fmt.Sprintf("%s\\testuser", domainPart), domainPart, "testuser", fmt.Sprintf("%s\\testuser", serviceDomainPart)},
+		{"LocalSystem", true, "LocalSystem", "NT AUTHORITY", "SYSTEM", "LocalSystem"},
+		{"SYSTEM", true, "SYSTEM", "NT AUTHORITY", "SYSTEM", "LocalSystem"},
+	}
+	for _, tc := range tcs {
+		if !is.Run(tc.testname, func() {
+			outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
+			is.Require().NoError(err, "should get output dir")
+
+			t := is.installAgent(vm, "", filepath.Join(outputDir, "install.log"),
+				WithInstallUser(tc.username),
+				WithExpectedAgentUser(tc.expectedDomain, tc.expectedUser, tc.expectedServiceUser),
+			)
+
+			if !t.TestExpectations(is.T()) {
+				is.T().FailNow()
+			}
+
+			t.TestUninstall(is.T(), filepath.Join(outputDir, "uninstall.log"))
+		}) {
+			is.T().FailNow()
+		}
+	}
+}
+
 func (is *agentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, args string, logfile string, testerOpts ...TesterOption) *Tester {
 	opts := []TesterOption{
 		WithAgentPackage(agentPackage),

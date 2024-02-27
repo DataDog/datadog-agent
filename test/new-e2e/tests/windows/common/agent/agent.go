@@ -128,3 +128,13 @@ func GetAgentUserFromRegistry(host *components.RemoteHost) (string, string, erro
 	}
 	return domain, username, nil
 }
+
+// GetInstallPathFromRegistry gets the install path from the registry, e.g. C:\Program Files\Datadog\Datadog Agent
+func GetInstallPathFromRegistry(host *components.RemoteHost) (string, error) {
+	return windows.GetRegistryValue(host, RegistryKeyPath, "InstallPath")
+}
+
+// GetConfigRootFromRegistry gets the config root from the registry, e.g. C:\ProgramData\Datadog
+func GetConfigRootFromRegistry(host *components.RemoteHost) (string, error) {
+	return windows.GetRegistryValue(host, RegistryKeyPath, "ConfigRoot")
+}

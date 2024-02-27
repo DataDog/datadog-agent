@@ -61,6 +61,6 @@ func iterServiceConfigMaps(t *testing.T, expected windows.ServiceConfigMap, actu
 // The UserSIDs are compared rather than the user names to avoid needing to handle name formatting differences
 func AssertServiceUsers(t *testing.T, expected windows.ServiceConfigMap, actual windows.ServiceConfigMap) bool {
 	return iterServiceConfigMaps(t, expected, actual, func(expected *windows.ServiceConfig, actual *windows.ServiceConfig) bool {
-		return assert.Equal(t, expected.UserSID, actual.UserSID, "service %s user should be (%s,%s)", expected.ServiceName, expected.UserName, expected.UserSID)
+		return assert.Equal(t, expected.UserSID, actual.UserSID, "service %s user should be (%s,%s)", actual.ServiceName, expected.UserName, expected.UserSID)
 	})
 }
