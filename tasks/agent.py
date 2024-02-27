@@ -2,7 +2,6 @@
 Agent namespaced tasks
 """
 
-
 import ast
 import glob
 import json
@@ -767,7 +766,8 @@ def _send_build_metrics(ctx, overall_duration):
         aws_cmd = "aws"
     job_name = os.environ.get('CI_JOB_NAME_SLUG')
     branch = os.environ.get('CI_COMMIT_REF_NAME')
-    if not job_name or not branch or not src_dir:
+    pipeline_id = os.environ.get('CI_PIPELINE_ID')
+    if not job_name or not branch or not src_dir or not pipeline_id:
         print(
             '''Missing required environment variables, this is probably not a CI job.
                   skipping sending build metrics'''
@@ -790,6 +790,7 @@ def _send_build_metrics(ctx, overall_duration):
                         f'cached:{metrics["cached"]}',
                         f'job:{job_name}',
                         f'branch:{branch}',
+                        f'pipeline:{pipeline_id}',
                     ],
                     'unit': 'seconds',
                     'type': 0,
@@ -803,6 +804,7 @@ def _send_build_metrics(ctx, overall_duration):
                 'tags': [
                     f'job:{job_name}',
                     f'branch:{branch}',
+                    f'pipeline:{pipeline_id}',
                 ],
                 'unit': 'seconds',
                 'type': 0,
@@ -817,6 +819,7 @@ def _send_build_metrics(ctx, overall_duration):
                     'tags': [
                         f'job:{job_name}',
                         f'branch:{branch}',
+                        f'pipeline:{pipeline_id}',
                     ],
                     'unit': 'seconds',
                     'type': 0,
@@ -832,6 +835,7 @@ def _send_build_metrics(ctx, overall_duration):
                         f'job:{job_name}',
                         f'branch:{branch}',
                         f'packager:{packager}',
+                        f'pipeline:{pipeline_id}',
                     ],
                     'unit': 'seconds',
                     'type': 0,

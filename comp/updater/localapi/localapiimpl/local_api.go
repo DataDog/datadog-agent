@@ -33,10 +33,11 @@ type dependencies struct {
 	Log     log.Component
 }
 
-func newLocalAPIComponent(dependencies dependencies) (localapi.Component, error) {
+func newLocalAPIComponent(lc fx.Lifecycle, dependencies dependencies) (localapi.Component, error) {
 	localAPI, err := updater.NewLocalAPI(dependencies.Updater)
 	if err != nil {
 		return nil, fmt.Errorf("could not create local API: %w", err)
 	}
+	lc.Append(fx.Hook{OnStart: localAPI.Start, OnStop: localAPI.Stop})
 	return localAPI, nil
 }

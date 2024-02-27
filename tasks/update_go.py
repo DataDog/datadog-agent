@@ -92,7 +92,7 @@ def update_go(
             raise
 
     _update_references(warn, version)
-    _update_go_mods(warn, new_major_minor, include_otel_modules)
+    _update_go_mods(warn, version, include_otel_modules)
 
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
@@ -184,7 +184,7 @@ def _update_references(warn: bool, version: str, dry_run: bool = False):
         _update_file(warn, path, pattern, replace, dry_run=dry_run)
 
 
-def _update_go_mods(warn: bool, minor: str, include_otel_modules: bool, dry_run: bool = False):
+def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_run: bool = False):
     for path, module in DEFAULT_MODULES.items():
         if not include_otel_modules and module.used_by_otel:
             # only update the go directives in go.mod files not used by otel
@@ -192,7 +192,7 @@ def _update_go_mods(warn: bool, minor: str, include_otel_modules: bool, dry_run:
             continue
         mod_file = f"./{path}/go.mod"
         # $ only matches \n, not \r\n, so we need to use \r?$ to make it work on Windows
-        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR}\r?$", f"go {minor}", dry_run=dry_run)
+        _update_file(warn, mod_file, f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$", f"go {version}", dry_run=dry_run)
 
 
 def _create_releasenote(ctx: Context, version: str):
