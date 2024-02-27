@@ -39,6 +39,11 @@ func agentEnabled(p processAgentParams) bool {
 			}
 			return true
 		}
+
+		if runInCoreAgent {
+			p.Log.Info("The process checks will run in the core agent")
+		}
+
 		return !runInCoreAgent
 	case flavor.DefaultAgent:
 		if npmEnabled {
