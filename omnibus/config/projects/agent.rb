@@ -67,9 +67,11 @@ else
     if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
+      runtime_dependency "glibc-common >= 2.17"
     else
       runtime_script_dependency :pre, "glibc"
       runtime_script_dependency :pre, "shadow"
+      runtime_dependency "glibc >= 2.17"
     end
   else
     maintainer 'Datadog Packages <package@datadoghq.com>'
