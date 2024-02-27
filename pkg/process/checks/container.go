@@ -17,8 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 )
 
 const (
@@ -26,9 +28,12 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
+func NewContainerCheck(config ddconfig.Reader, syscfg *sysconfigtypes.Config) *ContainerCheck {
+	_, npmModuleEnabled := syscfg.EnabledModules[sysconfig.NetworkTracerModule]
 	return &ContainerCheck{
 		config: config,
+		runInCoreAgent: config.GetBool("process_config.run_in_core_agent.enabled"),
+		npmEnabled:     npmModuleEnabled && syscfg.Enabled,
 	}
 }
 
@@ -65,8 +70,6 @@ func (c *ContainerCheck) Init(sysconfig *SysProbeConfig, info *HostInfo, _ bool)
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize(c.config)
 
-	c.npmEnabled = sysconfig.NPMModuleEnabled
-	c.runInCoreAgent = c.config.GetBool("process_config.run_in_core_agent.enabled")
 	return nil
 }
 

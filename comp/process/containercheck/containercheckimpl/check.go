@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 )
 
 // Module defines the fx options for this component.
@@ -32,6 +33,7 @@ type dependencies struct {
 	fx.In
 
 	Config config.Component
+	Sysconfig sysprobeconfig.Component
 }
 
 type result struct {
@@ -43,7 +45,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		containerCheck: checks.NewContainerCheck(deps.Config),
+		containerCheck: checks.NewContainerCheck(deps.Config, deps.Sysconfig.SysProbeObject()),
 	}
 	return result{
 		Check: types.ProvidesCheck{

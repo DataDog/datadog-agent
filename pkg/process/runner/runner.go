@@ -104,7 +104,8 @@ func NewRunner(config ddconfig.Reader, sysCfg *sysconfigtypes.Config, hostInfo *
 		cfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = sysCfg.SocketAddress
 		cfg.GRPCServerEnabled = sysCfg.GRPCServerEnabled
-		_, cfg.NPMModuleEnabled = sysCfg.EnabledModules[sysconfig.NetworkTracerModule]
+		_, NPMModuleEnabled := sysCfg.EnabledModules[sysconfig.NetworkTracerModule]
+		cfg.NPMModuleEnabled = NPMModuleEnabled
 	}
 
 	for _, c := range enabledChecks {

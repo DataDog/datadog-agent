@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
@@ -116,6 +117,8 @@ type ProcessCheck struct {
 	workloadMetaServer    *workloadmeta.GRPCServer
 
 	serviceExtractor *parser.ServiceExtractor
+
+	runInCoreAgent bool
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -197,6 +200,11 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	log.Info("Process.IsEnabled, runInCoreAgent: ", p.config.GetBool("process_config.run_in_core_agent.enabled"), " flavor: ", flavor.GetFlavor())
+	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	return p.config.GetBool("process_config.process_collection.enabled")
 }
 

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 var (
@@ -111,7 +112,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
 	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
-	return npmModuleEnabled && c.syscfg.Enabled
+	return npmModuleEnabled && c.syscfg.Enabled && flavor.GetFlavor() == flavor.ProcessAgent
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
