@@ -33,6 +33,7 @@ ALL_TAGS = {
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "npm",
     "oracle",
+    "oracle-dbm",
     "orchestrator",
     "otlp",
     "podman",
@@ -64,6 +65,7 @@ AGENT_TAGS = {
     "kubelet",
     "netcgo",
     "oracle",
+    "oracle-dbm",
     "orchestrator",
     "otlp",
     "podman",
@@ -86,6 +88,7 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
         "kubeapiserver",
         "kubelet",
         "oracle",
+        "oracle-dbm",
         "orchestrator",
         "podman",
         "systemd",
