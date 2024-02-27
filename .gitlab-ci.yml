@@ -292,7 +292,9 @@ variables:
 .if_run_e2e_tests: &if_run_e2e_tests
   if: $RUN_E2E_TESTS == "on"
 
-# When RUN_E2E_TESTS is set to "auto", we run only a subset of installer tests on branch pipelines. For e2e tests it will run tests only if they are impacted by some modifications made on the PR.
+# When RUN_E2E_TESTS is set to "auto", we run: 
+# - a subset of installer tests on branch pipelines. 
+# - agent-related e2e tests based on files changed in the PR.
 .if_auto_e2e_tests: &if_auto_e2e_tests
   if: $RUN_E2E_TESTS == "auto"
 
