@@ -46,6 +46,9 @@ build do
     move "bin/agent/dist/system-probe.yaml", "#{etc_dir}/system-probe.yaml.example"
     move "bin/agent/dist/security-agent.yaml", "#{etc_dir}/security-agent.yaml.example"
 
+    # Packages
+    mkdir "/opt/datadog-packages"
+
     copy 'bin/updater', "#{install_dir}/bin/"
 
     # Systemd

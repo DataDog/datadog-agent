@@ -23,7 +23,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -540,7 +541,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					&metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      mutate.CWSInstrumentationPodLabelEnabled,
+								Key:      cwsinstrumentation.PodLabelEnabled,
 								Operator: metav1.LabelSelectorOpNotIn,
 								Values:   []string{"false"},
 							},
@@ -579,7 +580,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					"/inject-pod-cws",
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{
-							mutate.CWSInstrumentationPodLabelEnabled: "true",
+							cwsinstrumentation.PodLabelEnabled: "true",
 						},
 					},
 					nil,
@@ -617,7 +618,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					&metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      mutate.CWSInstrumentationPodLabelEnabled,
+								Key:      cwsinstrumentation.PodLabelEnabled,
 								Operator: metav1.LabelSelectorOpNotIn,
 								Values:   []string{"false"},
 							},
@@ -656,7 +657,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 					nil,
 					&metav1.LabelSelector{
 						MatchLabels: map[string]string{
-							mutate.CWSInstrumentationPodLabelEnabled: "true",
+							cwsinstrumentation.PodLabelEnabled: "true",
 						},
 					},
 					[]admiv1beta1.OperationType{admiv1beta1.Create},
@@ -902,6 +903,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
+			c.mutatingWebhooks = mutatingWebhooks()
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)
@@ -919,8 +921,8 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := config.Datadog.GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
-	namespaceSelector, _ := buildLabelSelectors(true)
-	_, objectSelector := buildLabelSelectors(false)
+	namespaceSelector, _ := common.DefaultLabelSelectors(true)
+	_, objectSelector := common.DefaultLabelSelectors(false)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -1007,7 +1009,7 @@ func TestGetWebhookSkeletonV1beta1(t *testing.T) {
 			c := &ControllerV1beta1{}
 			c.config = NewConfig(false, tt.namespaceSelector)
 
-			nsSelector, objSelector := buildLabelSelectors(tt.namespaceSelector)
+			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
 			assert.EqualValues(t, tt.want, c.getWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nsSelector, objSelector))
 		})
