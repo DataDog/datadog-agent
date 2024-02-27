@@ -40,14 +40,6 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3 h1:SobA9WYm4K/MUtWlbKaomWTmnuYp1KhIm8Wlx3vmpsg=
 github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
-github.com/DataDog/datadog-agent/pkg/proto v0.51.0-rc.2 h1:7J+tqK3bWfOXZlLtHcvasokWQVq7UAKtrXTZMQgSYi0=
-github.com/DataDog/datadog-agent/pkg/proto v0.51.0-rc.2/go.mod h1:wjr5YlVvGip6VmAGzHrdBaGUu1LaA9B6gHvInm5kHiY=
-github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2 h1:lG8c2Clqdy7GlgdJUL6H5scTx7VofNZPunSodyoODpo=
-github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.51.0-rc.2/go.mod h1:Vc+snp0Bey4MrrJyiV2tVxxJb6BmLomPvN1RgAvjGaQ=
-github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.2 h1:MeiOAIy+R+x1G+Qk/YC2+s4Si5KP4NCAR6XJ9etXWKg=
-github.com/DataDog/datadog-agent/pkg/trace v0.51.0-rc.2/go.mod h1:/7q3SMOAqtKayFwr/5Sp2LLpu39lyZgV9eFp9lAZGC4=
-github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.2 h1:o7Ys6VLP6wVQULSOlTlv/N9X9l4toLUBJSE+iOdA2vo=
-github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.2/go.mod h1:X7ODRWbUGbvM07oZPDbrYzKqt8205dXjD35M9yWrMm8=
 github.com/DataDog/datadog-go/v5 v5.4.0 h1:Ea3eXUVwrVV28F/fo3Dr3aa+TL/Z7Xi6SUPKW8L99aI=
 github.com/DataDog/datadog-go/v5 v5.4.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/go-sqllexer v0.0.9 h1:Cx2Cu1S0hfj4coCCA8hzjM9+UNFRkcu1avIV//RU5Qw=

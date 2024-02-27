@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/obfuscate
 
-go 1.21
+go 1.21.7
 
 require (
 	github.com/DataDog/datadog-go/v5 v5.1.1

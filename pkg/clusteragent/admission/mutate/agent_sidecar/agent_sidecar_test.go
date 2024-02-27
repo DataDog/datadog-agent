@@ -8,7 +8,9 @@
 package agentsidecar
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -252,4 +254,147 @@ func TestInjectAgentSidecar(t *testing.T) {
 		})
 	}
 
+}
+
+func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
+	mockConfig := config.Mock(t)
+
+	tests := []struct {
+		name          string
+		setConfig     func()
+		expectedImage string
+	}{
+		{
+			name:          "no configuration set",
+			setConfig:     func() {},
+			expectedImage: "gcr.io/datadoghq/agent:latest",
+		},
+		{
+			name: "setting custom registry, image and tag",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", "my-registry")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_name", "my-image")
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_tag", "my-tag")
+			},
+			expectedImage: "my-registry/my-image:my-tag",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			test.setConfig()
+			sidecar := getDefaultSidecarTemplate()
+			assert.Equal(tt, test.expectedImage, sidecar.Image)
+		})
+	}
+}
+
+func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
+	mockConfig := config.Mock(t)
+
+	tests := []struct {
+		name              string
+		setConfig         func()
+		expectedEnvVars   []corev1.EnvVar
+		unexpectedEnvVars []string
+	}{
+		{
+			name: "cluster agent not enabled",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
+			},
+			unexpectedEnvVars: []string{
+				"DD_CLUSTER_AGENT_ENABLED",
+				"DD_CLUSTER_AGENT_AUTH_TOKEN",
+				"DD_CLUSTER_AGENT_URL",
+				"DD_ORCHESTRATOR_EXPLORER_ENABLED",
+			},
+		},
+		{
+			name: "cluster agent enabled with default values",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+			},
+			expectedEnvVars: []corev1.EnvVar{
+				{
+					Name:  "DD_CLUSTER_AGENT_ENABLED",
+					Value: "true",
+				},
+				{
+					Name: "DD_CLUSTER_AGENT_AUTH_TOKEN",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Key: "token",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "datadog-secret",
+							},
+						},
+					},
+				},
+				{
+					Name:  "DD_CLUSTER_AGENT_URL",
+					Value: fmt.Sprintf("https://datadog-cluster-agent.%s.svc.cluster.local:5005", apicommon.GetMyNamespace()),
+				},
+				{
+					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
+					Value: "true",
+				},
+			},
+		},
+		{
+			name: "cluster agent enabled with custom values",
+			setConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
+				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
+				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")
+			},
+			expectedEnvVars: []corev1.EnvVar{
+				{
+					Name:  "DD_CLUSTER_AGENT_ENABLED",
+					Value: "true",
+				},
+				{
+					Name: "DD_CLUSTER_AGENT_AUTH_TOKEN",
+					ValueFrom: &corev1.EnvVarSource{
+						SecretKeyRef: &corev1.SecretKeySelector{
+							Key: "token",
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "datadog-secret",
+							},
+						},
+					},
+				},
+				{
+					Name:  "DD_CLUSTER_AGENT_URL",
+					Value: fmt.Sprintf("https://test-service-name.%s.svc.cluster.local:12345", apicommon.GetMyNamespace()),
+				},
+				{
+					Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
+					Value: "true",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			test.setConfig()
+			sidecar := getDefaultSidecarTemplate()
+			envVarsMap := make(map[string]corev1.EnvVar)
+			for _, envVar := range sidecar.Env {
+				envVarsMap[envVar.Name] = envVar
+			}
+
+			for _, expectedVar := range test.expectedEnvVars {
+				_, exist := envVarsMap[expectedVar.Name]
+				assert.True(t, exist)
+				assert.Equal(tt, expectedVar, envVarsMap[expectedVar.Name])
+			}
+
+			for _, unexpectedVar := range test.unexpectedEnvVars {
+				_, exist := envVarsMap[unexpectedVar]
+				assert.False(t, exist)
+			}
+		})
+	}
 }
