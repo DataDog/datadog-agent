@@ -93,7 +93,7 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) bool {
 		}
 
 		source, dest := translatedAddrs(conn)
-		if conn.Direction == INCOMING {
+		if conn.Direction == OUTGOING {
 			source = netip.AddrPortFrom(source.Addr(), 0)
 		}
 
