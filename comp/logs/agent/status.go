@@ -17,6 +17,9 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
+// Use for testing onlye
+var logsProvider = logsStatus.Get
+
 type statusProvider struct{}
 
 func (p statusProvider) Name() string {
@@ -36,7 +39,7 @@ func (p statusProvider) getStatusInfo(verbose bool) map[string]interface{} {
 }
 
 func (p statusProvider) populateStatus(verbose bool, stats map[string]interface{}) {
-	stats["logsStats"] = logsStatus.Get(verbose)
+	stats["logsStats"] = logsProvider(verbose)
 }
 
 func (p statusProvider) JSON(verbose bool, stats map[string]interface{}) error {
