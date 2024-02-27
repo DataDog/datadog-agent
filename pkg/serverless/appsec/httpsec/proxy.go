@@ -56,7 +56,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	log.Debugf("appsec: proxy-lifecycle: invocation started with raw payload `%s`", startDetails.InvokeEventRawPayload)
 
 	payloadBytes := invocationlifecycle.ParseLambdaPayload(startDetails.InvokeEventRawPayload)
-	log.Debugf("Parsed payload string: %s", bytesStringer(payloadBytes))
+	log.Debugf("Parsed payload string: %s", payloadBytes)
 
 	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {

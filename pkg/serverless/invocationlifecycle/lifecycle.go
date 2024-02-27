@@ -87,8 +87,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	log.Debug("[lifecycle] ---------------------------------------")
 
 	payloadBytes := ParseLambdaPayload(startDetails.InvokeEventRawPayload)
-	// TODO: avoid the unnecessary copy of payloadBytes when the logger isn't in debug level thanks to a []byte stringer
-	log.Debugf("Parsed payload string: %s", string(payloadBytes))
+	log.Debugf("Parsed payload string: %s", payloadBytes)
 
 	lowercaseEventPayload, err := trigger.Unmarshal(bytes.ToLower(payloadBytes))
 	if err != nil {

@@ -20,7 +20,7 @@ const ddPrefix = "DD_"
 
 // OutputDatadogEnvVariablesForDebugging outputs the Datadog environment variables for debugging purposes
 func OutputDatadogEnvVariablesForDebugging() {
-	log.Debug(buildDebugString())
+	log.DebugFunc(buildDebugString)
 }
 
 func buildDebugString() string {
