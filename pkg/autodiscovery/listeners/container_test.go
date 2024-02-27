@@ -278,12 +278,12 @@ func TestCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newContainerListener(t)
 
-			//if tt.container != nil {
-			//	listener.Store().(workloadmeta.Mock).Set(tt.container)
-			//}
-			//if tt.pod != nil {
-			//	listener.Store().(workloadmeta.Mock).Set(tt.pod)
-			//}
+			if tt.container != nil {
+				listener.Store().(workloadmeta.Mock).Set(tt.container)
+			}
+			if tt.pod != nil {
+				listener.Store().(workloadmeta.Mock).Set(tt.pod)
+			}
 
 			listener.createContainerService(tt.container)
 
