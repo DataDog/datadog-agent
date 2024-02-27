@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package windows contains helpers for Windows E2E tests
-package windows
+// Package common contains helpers for Windows E2E tests
+package common
 
 import (
 	"fmt"
