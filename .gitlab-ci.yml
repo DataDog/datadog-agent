@@ -1239,7 +1239,7 @@ workflow:
     allow_failure: true
 
 .on_main_or_rc_and_no_skip_e2e:
-  - <<: *if_not_e2e
+  - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_release_branch
     when: on_success
