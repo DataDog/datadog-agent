@@ -42,3 +42,25 @@ func AssertInstalledUserInRegistry(t *testing.T, host *components.RemoteHost, ex
 
 	return true
 }
+
+func iterServiceConfigMaps(t *testing.T, expected windows.ServiceConfigMap, actual windows.ServiceConfigMap, f func(*windows.ServiceConfig, *windows.ServiceConfig) bool) bool {
+	for name, e := range expected {
+		a, ok := actual[name]
+		if !assert.True(t, ok, "service %s not found", name) {
+			return false
+		}
+		if !f(e, a) {
+			return false
+		}
+	}
+	return true
+}
+
+// AssertServiceUsers asserts that the service users from the expected map match the actual map
+//
+// The UserSIDs are compared rather than the user names to avoid needing to handle name formatting differences
+func AssertServiceUsers(t *testing.T, expected windows.ServiceConfigMap, actual windows.ServiceConfigMap) bool {
+	return iterServiceConfigMaps(t, expected, actual, func(expected *windows.ServiceConfig, actual *windows.ServiceConfig) bool {
+		return assert.Equal(t, expected.UserSID, actual.UserSID, "service %s user should be (%s,%s)", expected.ServiceName, expected.UserName, expected.UserSID)
+	})
+}
