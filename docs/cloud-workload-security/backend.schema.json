@@ -897,10 +897,6 @@
         "source": {
           "type": "string",
           "description": "Process source"
-        },
-        "variables": {
-          "$ref": "#/$defs/Variables",
-          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -1030,10 +1026,6 @@
           "type": "string",
           "description": "Process source"
         },
-        "variables": {
-          "$ref": "#/$defs/Variables",
-          "description": "Variables values"
-        },
         "parent": {
           "$ref": "#/$defs/Process",
           "description": "Parent process"
@@ -1044,6 +1036,10 @@
           },
           "type": "array",
           "description": "Ancestor processes"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,

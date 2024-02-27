@@ -60,8 +60,6 @@ type ProcessSerializer struct {
 	CmdLine string `json:"cmdline,omitempty"`
 	// User name
 	User string `json:"user,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -109,7 +107,7 @@ func newRegistrySerializer(re *model.RegistryEvent, _ *model.Event, _ ...uint64)
 	}
 	return rs
 }
-func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
 		ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
@@ -119,7 +117,6 @@ func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *P
 		Executable: newFileSerializer(&ps.FileEvent, e),
 		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
 		User:       e.FieldHandlers.ResolveUser(e, ps),
-		Variables:  newVariablesContext(e, opts, "process."),
 	}
 
 	if len(ps.ContainerID) != 0 {
@@ -130,13 +127,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *P
 	return psSerializer
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts *eval.Opts) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
 
 	ps := ProcessContextSerializer{
-		ProcessSerializer: newProcessSerializer(&pc.Process, e, opts),
+		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
 	ctx := eval.NewContext(e)
@@ -149,7 +146,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessSerializer(&pce.Process, e, opts)
+		s := newProcessSerializer(&pce.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
