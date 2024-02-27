@@ -212,12 +212,12 @@ func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion s
 		require.NoError(tt, err, "agent should be able to restart after editing python version")
 	})
 
-	t.Run(fmt.Sprintf("check python %s is used", version), func(tt *testing.T) {
+	t.Run(fmt.Sprintf("check python %s is used", majorVersion), func(tt *testing.T) {
 		statusVersion, err := client.GetPythonVersion()
 		require.NoError(tt, err)
 		majorPythonVersion := strings.Split(statusVersion, ".")[0]
 
-		require.Equal(tt, version, majorPythonVersion)
+		require.Equal(tt, majorVersion, majorPythonVersion)
 	})
 }
 
