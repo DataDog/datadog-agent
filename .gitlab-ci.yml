@@ -204,7 +204,7 @@ variables:
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
-  RUN_E2E_ESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
