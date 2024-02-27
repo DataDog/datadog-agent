@@ -279,23 +279,6 @@ func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 	})
 }
 
-// InstallAgentPackage installs the agent and returns any errors
-func (t *Tester) InstallAgentPackage(tt *testing.T, agentPackage *windowsAgent.Package, args string, logfile string) (string, error) {
-	// Put the MSI on the host
-	remoteMSIPath, err := windows.GetTemporaryFile(t.host)
-	require.NoError(tt, err)
-	err = windows.PutOrDownloadFile(t.host, agentPackage.URL, remoteMSIPath)
-	require.NoError(tt, err)
-
-	if !strings.Contains(args, "APIKEY") {
-		// TODO: Add apikey option
-		apikey := "00000000000000000000000000000000"
-		args = fmt.Sprintf(`%s APIKEY="%s"`, args, apikey)
-	}
-	err = windows.InstallMSI(t.host, remoteMSIPath, args, logfile)
-	return remoteMSIPath, err
-}
-
 // TestUninstall uninstalls the agent and runs tests
 func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 	return tt.Run("uninstall the agent", func(tt *testing.T) {
@@ -328,9 +311,14 @@ func (t *Tester) testRunningExpectedVersion(tt *testing.T) bool {
 }
 
 // InstallAgent installs the agent
-func (t *Tester) InstallAgent(tt *testing.T, args string, logfile string) error {
+func (t *Tester) InstallAgent(args string, logfile string) error {
 	var err error
-	t.remoteMSIPath, err = t.InstallAgentPackage(tt, t.agentPackage, args, logfile)
+	if !strings.Contains(args, "APIKEY") {
+		// TODO: Add apikey option
+		apikey := "00000000000000000000000000000000"
+		args = fmt.Sprintf(`%s APIKEY="%s"`, args, apikey)
+	}
+	t.remoteMSIPath, err = windowsAgent.InstallAgent(t.host, t.agentPackage.URL, args, logfile)
 	return err
 }
 

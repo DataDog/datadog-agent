@@ -33,6 +33,22 @@ func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
 	return windows.GetProductCodeByName(host, "Datadog Agent")
 }
 
+// InstallAgent installs the agent and returns the remote MSI path and any errors
+func InstallAgent(host *components.RemoteHost, msiURL string, args string, logfile string) (string, error) {
+	// Put the MSI on the host
+	remoteMSIPath, err := windows.GetTemporaryFile(host)
+	if err != nil {
+		return "", err
+	}
+	err = windows.PutOrDownloadFile(host, msiURL, remoteMSIPath)
+	if err != nil {
+		return "", err
+	}
+
+	err = windows.InstallMSI(host, remoteMSIPath, args, logfile)
+	return remoteMSIPath, err
+}
+
 // RepairAllAgent repairs the Datadog Agent
 func RepairAllAgent(host *components.RemoteHost, args string, logPath string) error {
 	product, err := GetDatadogAgentProductCode(host)

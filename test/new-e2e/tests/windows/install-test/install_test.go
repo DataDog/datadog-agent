@@ -124,7 +124,7 @@ func (is *agentMSISuite) TestUpgrade() {
 	is.Require().NoError(err, "should create tester")
 
 	if !is.Run(fmt.Sprintf("upgrade to %s", t.agentPackage.AgentVersion()), func() {
-		err = t.InstallAgent(is.T(), "", filepath.Join(outputDir, "upgrade.log"))
+		err = t.InstallAgent("", filepath.Join(outputDir, "upgrade.log"))
 		is.Require().NoError(err, "should upgrade to agent %s", t.agentPackage.AgentVersion())
 	}) {
 		is.T().FailNow()
@@ -154,7 +154,7 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	is.Require().NoError(err, "should create tester")
 
 	if !is.Run(fmt.Sprintf("upgrade to %s with rollback", t.agentPackage.AgentVersion()), func() {
-		err = t.InstallAgent(is.T(), "WIXFAILWHENDEFERRED=1", filepath.Join(outputDir, "upgrade.log"))
+		err = t.InstallAgent("WIXFAILWHENDEFERRED=1", filepath.Join(outputDir, "upgrade.log"))
 		is.Require().Error(err, "should fail to install agent %s", t.agentPackage.AgentVersion())
 	}) {
 		is.T().FailNow()
@@ -215,7 +215,7 @@ func (is *agentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPac
 	is.Require().NoError(err, "should create tester")
 
 	if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
-		err = t.InstallAgent(is.T(), args, logfile)
+		err = t.InstallAgent(args, logfile)
 		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
 	}) {
 		is.T().FailNow()
