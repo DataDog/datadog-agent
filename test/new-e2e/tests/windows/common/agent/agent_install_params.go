@@ -6,6 +6,9 @@
 package agent
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -24,6 +27,22 @@ type InstallAgentParams struct {
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
 type InstallAgentOption = func(*InstallAgentParams) error
+
+func (p *InstallAgentParams) toArgs() []string {
+	var args []string
+	typeOfInstallAgentParams := reflect.TypeOf(*p)
+	for fieldIndex := 0; fieldIndex < typeOfInstallAgentParams.NumField(); fieldIndex++ {
+		field := typeOfInstallAgentParams.Field(fieldIndex)
+		installerArg := field.Tag.Get("installer_arg")
+		if installerArg != "" {
+			installerArgValue := reflect.ValueOf(*p).FieldByName(field.Name).String()
+			if installerArgValue != "" {
+				args = append(args, fmt.Sprintf("%s=%s", installerArg, installerArgValue))
+			}
+		}
+	}
+	return args
+}
 
 // WithAgentUser specifies the DDAGENTUSER_NAME parameter.
 func WithAgentUser(username string) InstallAgentOption {

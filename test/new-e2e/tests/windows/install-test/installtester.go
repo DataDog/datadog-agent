@@ -337,15 +337,15 @@ func (t *Tester) testRunningExpectedVersion(tt *testing.T) bool {
 // InstallAgent installs the agent
 func (t *Tester) InstallAgent(args string, logfile string) error {
 	var err error
+	opts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithPackage(t.agentPackage),
+		windowsAgent.WithValidAPIKey(),
+		windowsAgent.WithInstallLogFile(logfile),
+	}
 	if t.installUser != "" {
-		args = args + fmt.Sprintf(` DDAGENTUSER_NAME="%s"`, t.installUser)
+		opts = append(opts, windowsAgent.WithAgentUser(t.installUser))
 	}
-	if !strings.Contains(args, "APIKEY") {
-		// TODO: Add apikey option
-		apikey := "00000000000000000000000000000000"
-		args = fmt.Sprintf(`%s APIKEY="%s"`, args, apikey)
-	}
-	t.remoteMSIPath, err = windowsAgent.InstallAgent(t.host, t.agentPackage.URL, args, logfile)
+	t.remoteMSIPath, err = windowsAgent.InstallAgent(t.host, opts...)
 	return err
 }
 
