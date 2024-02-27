@@ -297,7 +297,7 @@ labels that can be use:
 
 > [!NOTE]
 > Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the agent build
-> All of the follows require QA, so cannot use `qa/no-code-change`:
+> All of the following require QA, so cannot use `qa/no-code-change`:
 > - New feature
 > - Fixing a typo in a log message
 > - Changing the log level
