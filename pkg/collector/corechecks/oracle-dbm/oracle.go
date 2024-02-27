@@ -173,15 +173,6 @@ func (c *Check) Run() error {
 		c.connection = conn
 	}
 
-	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
-
-	if dbInstanceIntervalExpired {
-		err := sendDbInstanceMetadata(c)
-		if err != nil {
-			return fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err)
-		}
-	}
-
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 	if metricIntervalExpired {
 		if c.dbmEnabled {
@@ -232,6 +223,15 @@ func (c *Check) Run() error {
 			if err != nil {
 				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
 			}
+		}
+	}
+
+	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
+
+	if dbInstanceIntervalExpired {
+		err := sendDbInstanceMetadata(c)
+		if err != nil {
+			return fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err)
 		}
 	}
 
