@@ -354,16 +354,19 @@ func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 	common.CheckAgentBehaviour(tt, t.InstallTestClient)
 }
 
-func (t *Tester) expectedServiceUsers() windows.ServiceConfigMap {
+func (t *Tester) expectedServiceUsers() (windows.ServiceConfigMap, error) {
 	m := windows.GetEmptyServiceConfigMap(t.expectedInstalledServices())
 	m["DatadogAgent"].UserName = t.expectedServiceuser
 	m["datadog-trace-agent"].UserName = t.expectedServiceuser
 	m["datadog-process-agent"].UserName = "LocalSystem"
 	m["datadog-system-probe"].UserName = "LocalSystem"
 	for _, s := range m {
-		s.FetchUserSID(t.host)
+		err := s.FetchUserSID(t.host)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return m
+	return m, nil
 }
 
 func (t *Tester) expectedInstalledServices() []string {
@@ -387,7 +390,9 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	tt.Run("service config", func(tt *testing.T) {
 		actual, err := windows.GetServiceConfigMap(t.host, t.expectedInstalledServices())
 		require.NoError(tt, err)
-		AssertServiceUsers(tt, t.expectedServiceUsers(), actual)
+		expectedServiceUsers, err := t.expectedServiceUsers()
+		require.NoError(tt, err)
+		AssertServiceUsers(tt, expectedServiceUsers, actual)
 	})
 	t.testAgentCodeSignature(tt)
 	t.TestRuntimeExpectations(tt)
