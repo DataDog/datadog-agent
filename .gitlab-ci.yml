@@ -1305,11 +1305,11 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_fakeintake_changes: &on_fakeintake_changes
-  - changes:
-      - "test/fakeintake/**/*"
-      - .gitlab/binary_build/fakeintake.yml
-      - .gitlab/container_build/fakeintake.yml
-      - .gitlab/dev_container_deploy/fakeintake.yml
+  changes:
+    - "test/fakeintake/**/*"
+    - .gitlab/binary_build/fakeintake.yml
+    - .gitlab/container_build/fakeintake.yml
+    - .gitlab/dev_container_deploy/fakeintake.yml
 
 .on_fakeintake_changes_on_main_or_manual:
   - <<: *on_fakeintake_changes
