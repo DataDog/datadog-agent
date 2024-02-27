@@ -25,11 +25,7 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
-	suite.Run(t, &eksSuite{
-		k8sSuite: k8sSuite{
-			cgroupTests: true,
-		},
-	})
+	suite.Run(t, &eksSuite{})
 }
 
 func (suite *eksSuite) SetupSuite() {

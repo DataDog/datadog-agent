@@ -36,8 +36,7 @@ import (
 const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
-	kubeNamespaceTracegenCgroupV1Workload   = "workload-tracegen-cgroupv1"
-	kubeNamespaceTracegenCgroupV2Workload   = "workload-tracegen-cgroupv2"
+	kubeNamespaceTracegenWorkload           = "workload-tracegen"
 	kubeDeploymentTracegenUDPWorkload       = "tracegen-udp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
@@ -53,9 +52,6 @@ type k8sSuite struct {
 
 	K8sConfig *restclient.Config
 	K8sClient kubernetes.Interface
-
-	// cgroupTests is a flag to enable or disable cgroup-specific tests
-	cgroupTests bool
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -1044,32 +1040,15 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 	return stdoutSb.String(), stderrSb.String(), nil
 }
 
-func (suite *k8sSuite) TestCgroupV1TraceOriginDetection() {
-	if !suite.cgroupTests {
-		return
-	}
-	// We use a nodeselector to schedule the pods on bottlerocket nodes that currently
-	// run with cgroupv1 now and use host cgroup namespace.
-	// We currently simply assume that they use cgroupv1.
-	suite.testTraceInNamespace(kubeNamespaceTracegenCgroupV1Workload)
-}
-
-func (suite *k8sSuite) TestCgroupV2TraceOriginDetection() {
-	if !suite.cgroupTests {
-		return
-	}
-	suite.testTraceInNamespace(kubeNamespaceTracegenCgroupV2Workload)
-}
-
-func (suite *k8sSuite) testTraceInNamespace(namespace string) {
+func (suite *k8sSuite) TestTraces() {
 	deployments := []string{kubeDeploymentTracegenUDSWorkload, kubeDeploymentTracegenUDPWorkload}
 	for _, app := range deployments {
-		suite.testTrace(namespace, app)
+		suite.testTraceForDeployment(app)
 	}
 }
 
 // testTrace verifies that traces are tagged with container and pod tags.
-func (suite *k8sSuite) testTrace(kubeNamespace, kubeDeployment string) {
+func (suite *k8sSuite) testTraceForDeployment(kubeDeployment string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
 		require.NoErrorf(c, cerr, "Failed to query fake intake")
@@ -1090,7 +1069,7 @@ func (suite *k8sSuite) testTrace(kubeNamespace, kubeDeployment string) {
 				regexp.MustCompile(`^image_tag:main$`),
 				regexp.MustCompile(`^kube_container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_deployment:` + kubeDeployment + `$`),
-				regexp.MustCompile(`^kube_namespace:` + kubeNamespace + `$`),
+				regexp.MustCompile(`^kube_namespace:` + kubeNamespaceTracegenWorkload + `$`),
 				regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
 				regexp.MustCompile(`^kube_ownerref_name:` + kubeDeployment + `-[[:alnum:]]+$`),
 				regexp.MustCompile(`^kube_replica_set:` + kubeDeployment + `-[[:alnum:]]+$`),
