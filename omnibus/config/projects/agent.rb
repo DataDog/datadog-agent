@@ -67,7 +67,7 @@ else
     if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
-      runtime_dependency "centos-release >= 7"
+      runtime_dependency "glibc-common >= 2.17"
     else
       runtime_script_dependency :pre, "glibc"
       runtime_script_dependency :pre, "shadow"
