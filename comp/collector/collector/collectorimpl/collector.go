@@ -220,10 +220,12 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	if err := c.runner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
+		c.delete(id)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
 
 	if err := c.cancelCheck(ch, c.cancelCheckTimeout); err != nil {
+		c.delete(id)
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
