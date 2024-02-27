@@ -162,6 +162,8 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
+	// Backward compatibility for old Python integration
+
 	if !c.initialized {
 		err := c.init()
 		if err != nil {

@@ -146,6 +146,7 @@ type InstanceConfig struct {
 	Asm                                asmConfig              `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 	Locks                              locksConfig            `yaml:"locks"`
+	OnlyCustomQueries                  bool                   `yaml:"only_custom_queries"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
