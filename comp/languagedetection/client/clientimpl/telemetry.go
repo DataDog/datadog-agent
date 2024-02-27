@@ -31,7 +31,7 @@ func newComponentTelemetry(telemetry telemetry.Component) *componentTelemetry {
 		ProcessedEvents: telemetry.NewCounterWithOpts(
 			subsystem,
 			"processed_events",
-			[]string{"scanned_pod", "scanned_container", "detected_language"},
+			[]string{"scanned_pod_namespace", "scanned_pod", "scanned_container", "detected_language"},
 			"Number of events processed for the given pod, container and language",
 			commonOpts,
 		),

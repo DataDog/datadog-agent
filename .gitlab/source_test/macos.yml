@@ -16,9 +16,7 @@ tests_macos:
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - inv -e github.trigger-macos-test --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
-  after_script:
-    - inv -e junit-macos-repack --infile junit-tests_macos.tgz --outfile junit-tests_macos-repacked.tgz
+    - inv -e github.trigger-macos --workflow-type "test" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
   timeout: 6h
   artifacts:
     expire_in: 2 weeks
@@ -47,4 +45,4 @@ lint_macos:
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r tasks/libs/requirements-github.txt
-    - inv -e github.trigger-macos-lint --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
+    - inv -e github.trigger-macos --workflow-type "lint" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"

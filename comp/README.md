@@ -444,6 +444,20 @@ Package apmetwtracer provides ETW events to the .Net tracer
 
 Package status implements the core status component information provider interface
 
+## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
+
+*Datadog Team*: fleet
+
+Package updater implements the updater component.
+
+### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
+
+Package localapi is the updater local api component.
+
+### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
+
+Package updater is the updater component.
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent
