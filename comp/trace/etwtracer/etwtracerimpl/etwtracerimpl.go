@@ -5,8 +5,8 @@
 
 //go:build windows
 
-// Package apmetwtracerimpl provides a component for the .Net tracer application
-package apmetwtracerimpl
+// Package etwtracerimpl provides a component for the .Net tracer application
+package etwtracerimpl
 
 import (
 	"bufio"
@@ -30,14 +30,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/etw"
-	"github.com/DataDog/datadog-agent/comp/tracer/apmetwtracer"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(newApmEtwTracerImpl),
+	fx.Provide(newEtwTracerImpl),
 )
 
 type dependencies struct {
@@ -54,11 +54,11 @@ type pidContext struct {
 
 type pidMap = map[uint32]pidContext
 
-func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
+func newEtwTracerImpl(deps dependencies) (etwtracer.Component, error) {
 	// Microsoft-Windows-DotNETRuntime
 	guid, _ := windows.GUIDFromString("{E13C0D23-CCBC-4E12-931B-D9CC2EEE27E4}")
 
-	apmEtwTracer := &apmetwtracerimpl{
+	apmEtwTracer := &etwtracerimpl{
 		dotNetRuntimeProviderGUID: guid,
 		pids:                      make(pidMap),
 		log:                       deps.Log,
@@ -74,7 +74,7 @@ func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 	return apmEtwTracer, nil
 }
 
-type apmetwtracerimpl struct {
+type etwtracerimpl struct {
 	session                   etw.Session
 	dotNetRuntimeProviderGUID windows.GUID
 
@@ -124,7 +124,7 @@ type win32MessageBytePipe interface {
 	CloseWrite() error
 }
 
-func (a *apmetwtracerimpl) readBinary(ctx context.Context, c net.Conn, data any) error {
+func (a *etwtracerimpl) readBinary(ctx context.Context, c net.Conn, data any) error {
 	for {
 		// There's no way to interrupt a read with a context cancellation
 		// so use read deadline to regularly poll the context error.
@@ -158,7 +158,7 @@ func (a *apmetwtracerimpl) readBinary(ctx context.Context, c net.Conn, data any)
 	}
 }
 
-func (a *apmetwtracerimpl) writeBinary(c net.Conn, data any) error {
+func (a *etwtracerimpl) writeBinary(c net.Conn, data any) error {
 	err := c.SetWriteDeadline(time.Now().Add(30 * time.Second))
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func (a *apmetwtracerimpl) writeBinary(c net.Conn, data any) error {
 	return nil
 }
 
-func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
+func (a *etwtracerimpl) handleConnection(c net.Conn) {
 	// calls https://github.com/microsoft/go-winio/blob/e6aebd619a7278545b11188a0e21babea6b94182/pipe.go#L147
 	// which closes a pipe in message-mode
 	defer func(pipe win32MessageBytePipe) {
@@ -272,7 +272,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 	}
 }
 
-func (a *apmetwtracerimpl) start(_ context.Context) error {
+func (a *etwtracerimpl) start(_ context.Context) error {
 	a.log.Infof("Starting Datadog APM ETW tracer component")
 	var err error
 	etwSessionName := "Datadog APM ETW tracer"
@@ -325,7 +325,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	return nil
 }
 
-func (a *apmetwtracerimpl) doTrace() {
+func (a *etwtracerimpl) doTrace() {
 	var payloadBuffer bytes.Buffer
 	// preallocate a fixed size
 	payloadBuffer.Grow(int(payloadBufferSize))
@@ -420,7 +420,7 @@ func (a *apmetwtracerimpl) doTrace() {
 	})
 }
 
-func (a *apmetwtracerimpl) stop(_ context.Context) error {
+func (a *etwtracerimpl) stop(_ context.Context) error {
 	a.log.Infof("Stopping Datadog APM ETW tracer component")
 	err := a.session.StopTracing()
 	err = errors.Join(err, a.pipeListener.Close())
@@ -435,7 +435,7 @@ func (a *apmetwtracerimpl) stop(_ context.Context) error {
 	return err
 }
 
-func (a *apmetwtracerimpl) addPID(pid uint32) error {
+func (a *etwtracerimpl) addPID(pid uint32) error {
 	if len(a.pids) >= MAX_EVENT_FILTER_PID_COUNT {
 		return fmt.Errorf("too many processes registered")
 	}
@@ -454,7 +454,7 @@ func (a *apmetwtracerimpl) addPID(pid uint32) error {
 	return err
 }
 
-func (a *apmetwtracerimpl) removePID(pid uint32) error {
+func (a *etwtracerimpl) removePID(pid uint32) error {
 	var pidCtx pidContext
 	var ok bool
 	if pidCtx, ok = a.pids[pid]; !ok {
@@ -466,7 +466,7 @@ func (a *apmetwtracerimpl) removePID(pid uint32) error {
 	return a.reconfigureProvider()
 }
 
-func (a *apmetwtracerimpl) reconfigureProvider() error {
+func (a *etwtracerimpl) reconfigureProvider() error {
 	pidsList := make([]uint32, 0, len(a.pids))
 	for p := range a.pids {
 		pidsList = append(pidsList, p)

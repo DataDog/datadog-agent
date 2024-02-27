@@ -438,7 +438,7 @@ component temporarily wraps pkg/trace/config.
 
 *Datadog Team*: windows-agent
 
-Package apmetwtracer provides ETW events to the .Net tracer
+Package etwtracer provides ETW events to the .Net tracer
 
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 

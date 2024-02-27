@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
-	apmetwtracer "github.com/DataDog/datadog-agent/comp/tracer/etwtracer"
-	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/tracer/etwtracer/impl"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
@@ -184,7 +184,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module(),
-		apmetwtracerimpl.Module,
+		etwtracerimpl.Module,
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
@@ -193,7 +193,7 @@ func getPlatformModules() fx.Option {
 		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
-		fx.Invoke(func(_ apmetwtracer.Component) {}),
+		fx.Invoke(func(_ etwtracer.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }
