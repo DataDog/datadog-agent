@@ -1,8 +1,12 @@
 import datetime
 import functools
+import os
 import platform
+import subprocess
 import sys
 from time import sleep, time
+
+import boto3
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.user_interactions import yes_no_question
@@ -77,6 +81,68 @@ def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
             job["status"] not in ["running", "canceled"] and "cleanup" not in job["name"]
         ):
             gitlab.cancel_job(job["id"])
+
+        # SMP job cancellation needs extra steps to properly cancel it
+        if job["name"] == "single-machine-performance-regression_detector":
+            try:
+                print("Trying to cancel smp job")
+                cancel_smp_job(gitlab, job["pipeline"]["id"], job["id"])
+            except Exception as e:
+                print(f"Error while cancelling SMP job: {e}")
+
+
+def cancel_smp_job(_, pipeline_id, job_id):
+    client = boto3.client("s3")
+
+    s3_bucket_name = os.environ.get("S3_ARTIFACTS_URI").replace("s3://", "").split("/")[0]
+
+    client.download_file(
+        s3_bucket_name,
+        f"datadog-agent/{pipeline_id}/smp/{job_id}/submission_metadata",
+        "submission_metadata",
+    )
+
+    result = subprocess.run(
+        [
+            "./smp",
+            "--team-id",
+            os.environ["SMP_AGENT_TEAM_ID"],
+            "--api-base",
+            os.environ["SMP_API"],
+            "--aws-named-profile",
+            os.environ["AWS_NAMED_PROFILE"],
+            "job",
+            "cancel",
+            "--submission-metadata",
+            "submission_metadata",
+        ],
+        capture_output=True,
+    )
+
+    print("RESULT : ", result)
+    print("OUTPUT: ", result.stdout)
+    print("ERR: ", result.stderr)
+
+    status = subprocess.run(
+        [
+            "./smp",
+            "--team-id",
+            os.environ["SMP_AGENT_TEAM_ID"],
+            "--api-base",
+            os.environ["SMP_API"],
+            "--aws-named-profile",
+            os.environ["AWS_NAMED_PROFILE"],
+            "job",
+            "status",
+            "--submission-metadata",
+            "submission_metadata",
+        ],
+        capture_output=True,
+    )
+
+    print("RESULT STATUS: ", status)
+    print("OUTPUT STATUS: ", status.stdout)
+    print("ERR STATUS: ", status.stderr)
 
 
 def trigger_agent_pipeline(

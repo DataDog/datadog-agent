@@ -84,6 +84,8 @@ single-machine-performance-regression_detector:
             --target-cpu-allotment ${CPUS}
             --target-memory-allotment ${MEMORY}
             --submission-metadata submission_metadata
+    # Push the submisson_metadata file to S3 to be able to cancel it later from another job
+    - aws s3 cp submission_metadata $S3_ARTIFACTS_URI/smp/${CI_JOB_ID}/submission_metadata
     # Wait for job to complete.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
             job status
