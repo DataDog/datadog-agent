@@ -367,13 +367,13 @@ func (s *Runner) Start(ctx context.Context) {
 		for result := range s.resultsCh {
 			if result.Err != nil {
 				if !errors.Is(result.Err, context.Canceled) {
-					log.Errorf("%s: %s scanner reported a failure: %v", result.Scan, result.Action, result.Err)
+					log.Errorf("%s: %s: %s scanner reported a failure: %v", result.Scan, result.Scan.TargetID, result.Action, result.Err)
 				}
 				if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsFailure(result.Err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
-				log.Infof("%s: scanner %s finished (waited %s | took %s): %s", result.Scan, result.Action, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt), nResults(result))
+				log.Infof("%s: %s: scanner %s finished (waited %s | took %s): %s", result.Scan, result.Scan.TargetID, result.Action, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt), nResults(result))
 				if vulns := result.Vulns; vulns != nil {
 					if hasResults(vulns.BOM) {
 						if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsSuccess(), 1.0); err != nil {
