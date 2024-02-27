@@ -1307,15 +1307,17 @@ workflow:
 .on_fakeintake_changes:
   - changes:
       - "test/fakeintake/**/*"
-      - .gitlab/fakeintake.yml
+      - .gitlab/binary_build/fakeintake.yml
+      - .gitlab/container_build/fakeintake.yml
+      - .gitlab/dev_container_deploy/fakeintake.yml
 
-.on_fakeintake_changes_main:
-  - !reference [.on_fakeintake_changes]
-  - if: $CI_COMMIT_BRANCH == "main"
-
-.on_fakeintake_changes_with_manual:
-  - changes:
-      - "test/fakeintake/**/*"
-      - .gitlab/fakeintake.yml
+.on_fakeintake_changes_on_main_or_manual:
+  - <<: *on_fakeintake_changes
+    if: $CI_COMMIT_BRANCH == "main"
+  - <<: *on_fakeintake_changes
     when: manual
     allow_failure: true
+
+.on_fakeintake_changes_on_main:
+  - <<: *on_fakeintake_changes
+    if: $CI_COMMIT_BRANCH == "main"
