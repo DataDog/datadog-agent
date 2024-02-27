@@ -153,7 +153,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component, collector optional.Option[collector.Component]) error {
+func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component, collector optional.Option[collector.Component], secretResolver secrets.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
@@ -212,7 +212,7 @@ func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Compo
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseSenderManager, collector)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseSenderManager, collector, secretResolver)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

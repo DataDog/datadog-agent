@@ -156,7 +156,7 @@ func run(log log.Component, taggerComp tagger.Component, demultiplexer demultipl
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector), statusComponent); err != nil {
+	if err = api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
