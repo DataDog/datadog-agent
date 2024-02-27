@@ -86,6 +86,6 @@ func runFxWrapper(params *cliParams) error {
 	)
 }
 
-func run(localAPI localapi.Component) error {
-	return localAPI.Serve()
+func run(_ localapi.Component) error {
+	select {}
 }
