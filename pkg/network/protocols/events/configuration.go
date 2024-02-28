@@ -8,6 +8,7 @@
 package events
 
 import (
+	"math"
 	"os"
 	"sync"
 
@@ -85,7 +86,7 @@ func setupPerfMap(proto string, m *manager.Manager) {
 func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs int) {
 	handler := ddebpf.NewRingBufferHandler(defaultPerfHandlerSize)
 	mapName := eventMapName(proto)
-	ringBufferSize := numCPUs * defaultPerfEventBufferSize
+	ringBufferSize := toPowerOf2(numCPUs * defaultPerfEventBufferSize)
 	rb := &manager.RingBuffer{
 		Map: manager.Map{Name: mapName},
 		RingBufferOptions: manager.RingBufferOptions{
@@ -213,4 +214,10 @@ func setHandler(proto string, handler ddebpf.EventHandler) {
 		handlerByProtocol = make(map[string]ddebpf.EventHandler)
 	}
 	handlerByProtocol[proto] = handler
+}
+
+// toPowerOf2 converts a number to its nearest power of 2
+func toPowerOf2(x int) int {
+	log := math.Log2(float64(x))
+	return int(math.Pow(2, math.Round(log)))
 }
