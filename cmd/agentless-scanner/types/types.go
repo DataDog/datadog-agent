@@ -160,7 +160,7 @@ type ScanConfigRaw struct {
 		TargetID string   `json:"arn"`
 		Actions  []string `json:"actions"`
 
-		// Options fields: TaskTypeAMI
+		// Optional fields: TaskTypeAMI
 		ImageID   string   `json:"image_id,omitempty"`
 		ImageTags []string `json:"image_tags,omitempty"`
 
@@ -169,7 +169,7 @@ type ScanConfigRaw struct {
 		HostTags []string `json:"host_tags,omitempty"`
 		DiskMode string   `json:"disk_mode,omitempty"`
 
-		// Options fields: TaskTypeLambda
+		// Optional fields: TaskTypeLambda
 		LambdaVersion string   `json:"lambda_version,omitempty"`
 		LambdaTags    []string `json:"lambda_tags,omitempty"`
 	} `json:"tasks"`
