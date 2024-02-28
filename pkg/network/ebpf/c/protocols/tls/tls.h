@@ -12,6 +12,7 @@
 #define TLS_VERSION13 0x0304
 
 #define TLS_HANDSHAKE 0x16
+#define TLS_APPLICATION_DATA 0x17
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
@@ -31,30 +32,43 @@ typedef struct {
 #define TLS_HANDSHAKE_CLIENT_HELLO 0x01
 #define TLS_HANDSHAKE_SERVER_HELLO 0x02
 
-static __always_inline bool is_tls(const char* buf, __u32 buf_size) {
-    if (buf_size < (sizeof(tls_record_header_t)+sizeof(tls_hello_message_t))) {
+static __always_inline bool is_valid_tls_version(__u16 version) {
+    switch (version) {
+    case SSL_VERSION20:
+    case SSL_VERSION30:
+    case TLS_VERSION10:
+    case TLS_VERSION11:
+    case TLS_VERSION12:
+    case TLS_VERSION13:
+        return true;
+    }
+
+    return false;
+}
+
+static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
+    switch (msg->handshake_type) {
+    case TLS_HANDSHAKE_CLIENT_HELLO:
+    case TLS_HANDSHAKE_SERVER_HELLO:
+        return is_valid_tls_version(msg->version);
+    }
+
+    return false;
+}
+
+static __always_inline bool is_tls(const char *buf, __u32 buf_size) {
+    if (buf_size < (sizeof(tls_record_header_t) + sizeof(tls_hello_message_t))) {
         return false;
     }
 
     tls_record_header_t *tls_record_header = (tls_record_header_t *)buf;
-    if (tls_record_header->content_type != TLS_HANDSHAKE) {
-        return false;
+    switch (tls_record_header->content_type) {
+    case TLS_HANDSHAKE:
+        return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)));
+    case TLS_APPLICATION_DATA:
+        return is_valid_tls_version(tls_record_header->version);
     }
 
-    tls_hello_message_t *tls_hello_message = (tls_hello_message_t *)(buf + sizeof(tls_record_header_t));
-    if (tls_hello_message->handshake_type != TLS_HANDSHAKE_CLIENT_HELLO && tls_hello_message->handshake_type != TLS_HANDSHAKE_SERVER_HELLO) {
-        return false;
-    }
-
-    switch (tls_hello_message->version) {
-        case SSL_VERSION20:
-        case SSL_VERSION30:
-        case TLS_VERSION10:
-        case TLS_VERSION11:
-        case TLS_VERSION12:
-        case TLS_VERSION13:
-            return true;
-    }
     return false;
 }
 
