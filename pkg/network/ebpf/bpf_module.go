@@ -77,7 +77,7 @@ func ReadConntrackBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, er
 	return readModule(bpfDir, "conntrack", debug)
 }
 
-// ReadEBPFTelemetryModule from the asset file
+// ReadEBPFInstrumentationModule from the asset file
 func ReadEBPFInstrumentationModule(bpfDir, objectFile string) (bytecode.AssetReader, error) {
 	return readModule(bpfDir, objectFile, false)
 }
