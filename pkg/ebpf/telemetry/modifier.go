@@ -44,7 +44,9 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) er
 }
 
 // ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
-type ErrorsTelemetryModifier struct{}
+type ErrorsTelemetryModifier struct {
+	SkipProgram func(string) bool
+}
 
 // String returns the name of the modifier.
 func (t *ErrorsTelemetryModifier) String() string {
@@ -55,7 +57,7 @@ func (t *ErrorsTelemetryModifier) String() string {
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
 func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, opts *manager.Options, bytecode io.ReaderAt) error {
-	return setupForTelemetry(m, opts, errorsTelemetry, bytecode)
+	return setupForTelemetry(m, opts, errorsTelemetry, bytecode, t.SkipProgram)
 }
 
 // AfterInit pre-populates the telemetry maps with entries corresponding to the ebpf program of the manager.

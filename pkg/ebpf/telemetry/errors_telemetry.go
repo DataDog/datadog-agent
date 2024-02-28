@@ -123,7 +123,7 @@ func patchConstant(ins asm.Instructions, symbol string, constant int64) error {
 	return nil
 }
 
-func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt) error {
+func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
 	if err := initializeProbeKeys(m, bpfTelemetry); err != nil {
 		return err
 	}
@@ -140,21 +140,28 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 
 	for fn, p := range progs {
 		space := sizes.stackHas8BytesFree(fn)
-		if !space {
+		// return error if there is not enough stack space to cache the pointer to the telemetry array
+		// if the program is intended to be skipped then we continue since we still need to patch
+		if !space && !shouldSkip(p.Name) {
 			return fmt.Errorf("Function %s does not have enough free stack space for instrumentation", fn)
 		}
 
-		// patch 'telemetry_program_id_key'
+		// patch constant 'telemetry_program_id_key'
+		// This will be patched with the intended index into the helper errors array for this probe.
 		if err := patchConstant(p.Instructions, "telemetry_program_id_key", int64(bpfTelemetry.probeKeys[p.Name])); err != nil {
 			return fmt.Errorf("failed to patch constant 'telemetry_program_id_key' for program %s: %w", p.Name, err)
 		}
 
+		// when building ebpf programs with instrumentation, we specify the `-pg` compiler flag. This isntruments
+		// a call -1 in the beginning of the bytecode sequence. This 'call -1' is referred to as the
+		// trampoline call or patch point.
 		const ebpfEntryTrampolinePatchCall = -1
+
 		// max trampoline offset is maximum number of instruction from program entry before the
 		// trampoline call.
 		// The trampoline call can either be the first instruction or the second instruction,
 		// It will be the second instruction if r1 is used subsequently in the program, so the compiler
-		// has to set rX=r1 before the trampoline patch point.
+		// has to set rX=r1 before the trampoline call.
 		const maxTrampolineOffset = 2
 		iter := p.Instructions.Iterate()
 		var telemetryPatchSite *asm.Instruction
@@ -170,14 +177,27 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			// along with the correct opcode, for it to be recognized as a built-in call. However, the `call -1` does
 			// not satisfy this requirement. Therefore, we use a looser check relying on the constant to be `-1` to correctly
 			// identify the patch point.
+			//
+			// For reference IsBuiltinCall() => ins.OpCode.JumpOp() == Call && ins.Src == R0 && ins.Dst == R0
+			// We keep the first condition and augment it by checking the constant of the call.
 			if ins.OpCode.JumpOp() == asm.Call && ins.Constant == ebpfEntryTrampolinePatchCall && iter.Offset <= maxTrampolineOffset {
 				telemetryPatchSite = iter.Ins
 				telemetryPatchIndex = int(iter.Offset)
 			}
 		}
 
+		// The patcher expects a trampoline call in all programs associated with this manager.
+		// No trampoline call is therefore an error condition. If this program is built without
+		// instrumentation we should never have come this far.
 		if telemetryPatchSite == nil {
 			return fmt.Errorf("No compiler instrumented patch site found for program %s\n", p.Name)
+		}
+
+		// if a specific program in a manager should not be instrumented,
+		// instrument patch point with a NOP (r1=r1)
+		if shouldSkip(p.Name) {
+			*telemetryPatchSite = asm.Mov.Reg(asm.R1, asm.R1).WithMetadata(telemetryPatchSite.Metadata)
+			return nil
 		}
 
 		trampoline := asm.Instruction{
@@ -185,6 +205,8 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			Offset: int16(insCount - telemetryPatchIndex - 1),
 		}.WithMetadata(telemetryPatchSite.Metadata)
 		*telemetryPatchSite = trampoline
+
+		// Append instrumentation blocks to the bytecode
 
 		var instrumentationBlock []*asm.Instruction
 		var instrumentationBlockCount int
@@ -258,7 +280,7 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
 // This must be called before ebpf-manager.Manager.Init/InitWithOptions
-func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt) error {
+func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
 
@@ -299,7 +321,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	}
 
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
-		return patchEBPFInstrumentation(m, bpfTelemetry, bytecode)
+		return patchEBPFInstrumentation(m, bpfTelemetry, bytecode, shouldSkip)
 	})
 
 	// add telemetry maps to list of maps, if not present
