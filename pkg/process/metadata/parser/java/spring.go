@@ -195,11 +195,11 @@ func GetSpringBootAppName(cwd string, jarname string, args []string) (string, er
 }
 
 // IsSpringBootArchive heuristically determines if a jar archive is a spring boot packaged jar
-func IsSpringBootArchive(reader *zip.Reader) (bool, error) {
+func IsSpringBootArchive(reader *zip.Reader) bool {
 	for _, f := range reader.File {
 		if f.Name == "BOOT-INF/" {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
