@@ -949,6 +949,7 @@ core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Copyright (C) 2014-2015 
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
 core,github.com/dgryski/go-rendezvous,MIT,Copyright (c) 2017-2020 Damian Gryski <damian@gryski.com>
+core,github.com/distribution/reference,Apache-2.0,Copyright 2014 The CNCF Distribution Project Authors
 core,github.com/dlclark/regexp2,MIT,Copyright (c) Doug Clark
 core,github.com/dlclark/regexp2/syntax,MIT,Copyright (c) Doug Clark
 core,github.com/docker/cli/cli/config,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
