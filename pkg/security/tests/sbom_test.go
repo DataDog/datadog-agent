@@ -23,7 +23,11 @@ import (
 
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
+	originalFlavor := flavor.GetFlavor()
 	flavor.SetFlavor(flavor.SecurityAgent)
+	defer func() {
+		flavor.SetFlavor(originalFlavor)
+	}()
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
