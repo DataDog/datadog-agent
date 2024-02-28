@@ -290,7 +290,9 @@ labels that can be use:
   Python version shipped in the agent).
 - `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.
 - `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
-- `backport/<branch-name>`: Add this label to automatically create a PR against the `<branch-name>` branch with your backported changes. The PR creation is triggered on merge for PRs with this label but also on label use for already merged PRs.
+- `backport/<branch-name>`: Add this label to automatically create a PR against the `<branch-name>` branch with your backported changes. The backport PR creation is triggered:
+  - When a PR with the label is merged
+  - When an already merged PR gets the label.
 
 ## Integrations
 
