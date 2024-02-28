@@ -556,11 +556,11 @@ EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com":
 def changelog(ctx, new_commit_sha):
     # Environment variable to deal with both local and CI environments
     if "CI_PROJECT_DIR" in os.environ:
-        os.environ["PARENT_DIR"] = os.environ["CI_PROJECT_DIR"]
+        parent_dir = os.environ["CI_PROJECT_DIR"]
     else:
-        os.environ["PARENT_DIR"] = os.getcwd()
+        parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        "$PARENT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_changelog_commit_sha",
+        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_changelog_commit_sha",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:
