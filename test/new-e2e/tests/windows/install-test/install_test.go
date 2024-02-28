@@ -19,8 +19,8 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"

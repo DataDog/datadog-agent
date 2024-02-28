@@ -1,56 +1,48 @@
 ---
 include:
-  - /.gitlab/setup.yml
-  - /.gitlab/shared.yml
-  - /.gitlab/maintenance_jobs.yml
-  - /.gitlab/deps_build.yml
-  - /.gitlab/package_deps_build.yml
-  - /.gitlab/deps_fetch.yml
-  - /.gitlab/source_test.yml
-  - /.gitlab/source_test_stats.yml
-  - /.gitlab/source_test_junit_upload.yml
-  - /.gitlab/binary_build.yml
-  - /.gitlab/cancel-prev-pipelines.yml
-  - /.gitlab/do_not_merge.yml
-  - /.gitlab/integration_test.yml
-  - /.gitlab/package_build.yml
-  - /.gitlab/kitchen_deploy.yml
-  - /.gitlab/e2e_pre_test.yml
-  - /.gitlab/kitchen_testing.yml
-  - /.gitlab/kitchen_tests_upload.yml
-  - /.gitlab/new-e2e_testing.yml
-  - /.gitlab/new-e2e_common/testing.yml
-  - /.gitlab/install_script_testing.yml
-  - /.gitlab/pkg_metrics.yml
-  - /.gitlab/container_build.yml
-  - /.gitlab/container_scan.yml
-  - /.gitlab/check_deploy.yml
-  - /.gitlab/dev_container_deploy.yml
-  - /.gitlab/deploy_common.yml
-  - /.gitlab/deploy_containers.yml
-  - /.gitlab/deploy_packages.yml
-  - /.gitlab/deploy_cws_instrumentation.yml
-  - /.gitlab/deploy_dca.yml
-  - /.gitlab/choco_build.yml
-  - /.gitlab/choco_deploy.yml
-  - /.gitlab/internal_image_deploy.yml
-  - /.gitlab/trigger_release.yml
-  - /.gitlab/e2e.yml
-  - /.gitlab/e2e_test_junit_upload.yml
-  - /.gitlab/fakeintake.yml
-  - /.gitlab/kitchen_cleanup.yml
-  - /.gitlab/functional_test.yml
-  - /.gitlab/functional_test_cleanup.yml
-  - /.gitlab/functional_test_junit_upload.yml
-  - /.gitlab/internal_kubernetes_deploy.yml
-  - /.gitlab/notify.yml
-  - /.gitlab/kitchen_common/cleanup.yml
-  - /.gitlab/kitchen_common/testing.yml
-  - /.gitlab/functional_test/common.yml
-  - /.gitlab/benchmarks/benchmarks.yml
-  - /.gitlab/benchmarks/macrobenchmarks.yml
-  - /.gitlab/rc_jobs/rc_kubernetes_deploy.yml
-  - /.gitlab/rc_jobs/post_rc_tasks.yml
+  - /.gitlab/.pre/cancel-prev-pipelines.yml
+  - /.gitlab/benchmarks/include.yml
+  - /.gitlab/binary_build/include.yml
+  - /.gitlab/check_deploy/check_deploy.yml
+  - /.gitlab/check_merge/do_not_merge.yml
+  - /.gitlab/choco_build/choco_build.yml
+  - /.gitlab/choco_deploy/choco_deploy.yml
+  - /.gitlab/common/shared.yml
+  - /.gitlab/container_build/include.yml
+  - /.gitlab/container_scan/container_scan.yml
+  - /.gitlab/deploy_containers/deploy_containers.yml
+  - /.gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
+  - /.gitlab/deploy_dca/deploy_dca.yml
+  - /.gitlab/deploy_packages/include.yml
+  - /.gitlab/deps_build/deps_build.yml
+  - /.gitlab/deps_fetch/deps_fetch.yml
+  - /.gitlab/dev_container_deploy/include.yml
+  - /.gitlab/e2e/e2e.yml
+  - /.gitlab/e2e_test_junit_upload/e2e_test_junit_upload.yml
+  - /.gitlab/e2e_pre_test/e2e_pre_test.yml
+  - /.gitlab/functional_test/include.yml
+  - /.gitlab/functional_test_cleanup/functional_test_cleanup.yml
+  - /.gitlab/functional_test_junit_upload/include.yml
+  - /.gitlab/install_script_testing/install_script_testing.yml
+  - /.gitlab/integration_test/include.yml
+  - /.gitlab/internal_image_deploy/internal_image_deploy.yml
+  - /.gitlab/internal_kubernetes_deploy/include.yml
+  - /.gitlab/kitchen_cleanup/include.yml
+  - /.gitlab/kitchen_deploy/kitchen_deploy.yml
+  - /.gitlab/kitchen_testing/include.yml
+  - /.gitlab/kitchen_tests_upload/kitchen_tests_upload.yml
+  - /.gitlab/maintenance_jobs/include.yml
+  - /.gitlab/notify/notify.yml
+  - /.gitlab/package_build/include.yml
+  - /.gitlab/package_deps_build/package_deps_build.yml
+  - /.gitlab/pkg_metrics/pkg_metrics.yml
+  - /.gitlab/post_rc_build/post_rc_tasks.yml
+  - /.gitlab/setup/setup.yml
+  - /.gitlab/software_composition_analysis/software_composition_analysis.yml
+  - /.gitlab/source_test/include.yml
+  - /.gitlab/source_test_junit_upload/source_test_junit_upload.yml
+  - /.gitlab/source_test_stats/include.yml
+  - /.gitlab/trigger_release/trigger_release.yml
 
 default:
   retry:
@@ -73,6 +65,7 @@ stages:
   - source_test
   - source_test_stats
   - source_test_junit_upload
+  - software_composition_analysis
   - binary_build
   - package_deps_build
   - kernel_matrix_testing
@@ -973,10 +966,13 @@ workflow:
         - tools/windows/DatadogAgentInstaller/**/*
         - .gitlab/new-e2e_testing/windows.yml
         - test/new-e2e/tests/windows/install-test/**/*
+        - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_windows_installer_changes_or_manual:
+  - <<: *if_not_e2e
+    when: never
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
@@ -1031,13 +1027,46 @@ workflow:
   - when: manual
     allow_failure: true
 
+# New E2E related rules
+
+
+.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+  - <<: *if_disable_e2e
+    when: never
+  - <<: *if_mergequeue
+    when: never
+  - <<: *if_auto_e2e
+    when: on_success
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_release_branch
+    when: on_success
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
 .always_on_container_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
     when: never
-  - <<: *if_main_branch
-    when: always
   - <<: *if_mergequeue
     when: never
+  - <<: *if_auto_e2e
+    when: always
+  - <<: *if_main_branch
+    when: always
+  - <<: *if_release_branch
+    when: always
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: always
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - changes:
       paths:
         - comp/core/tagger/**/*
@@ -1065,16 +1094,7 @@ workflow:
     allow_failure: true
 
 .on_container_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
-    when: never
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/core/tagger/**/*
@@ -1102,21 +1122,84 @@ workflow:
     allow_failure: true
 
 .on_rc_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
-    when: never
-  - <<: *if_main_branch
-    when: on_success
-  - <<: *if_release_branch
-    when: on_success
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: on_success
-  - <<: *if_mergequeue
-    when: never
+  - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - pkg/config/remote/**/*
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
+  - when: manual
+    allow_failure: true
+
+.on_asc_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for ASC
+        - test/new-e2e/tests/agent-shared-components/**/*
+  - when: manual
+    allow_failure: true
+
+.on_subcommands_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for subcommands
+        - test/new-e2e/tests/agent-subcommands/**/*
+  - when: manual
+    allow_failure: true
+
+.on_language-detection_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for language detection
+        - test/new-e2e/tests/language-detection/**/*
+  - when: manual
+    allow_failure: true
+
+.on_npm_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for npm
+        - test/new-e2e/tests/npm/**/*
+  - when: manual
+    allow_failure: true
+
+.on_aml_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for AML
+        - test/new-e2e/tests/agent-metrics-logs/**/*
+  - when: manual
+    allow_failure: true
+
+.on_cws_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for CWS
+        - test/new-e2e/tests/cws/**/*
+  - when: manual
+    allow_failure: true
+
+.on_process_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for process
+        - test/new-e2e/tests/process/**/*
+  - when: manual
+    allow_failure: true
+
+.on_orchestrator_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        # TODO: Add paths that should trigger tests for orchestrator
+        - test/new-e2e/tests/orchestrator/**/*
   - when: manual
     allow_failure: true
 
@@ -1132,7 +1215,23 @@ workflow:
     allow_failure: true
 
 .on_apm_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/trace/**/*
+        - cmd/trace-agent/**/*
+        - comp/trace/**/*
+        - test/new-e2e/tests/apm/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_updater_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
+    when: never
+  - <<: *if_mergequeue
     when: never
   - <<: *if_main_branch
     when: on_success
@@ -1140,14 +1239,11 @@ workflow:
     when: on_success
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: on_success
-  - <<: *if_mergequeue
-    when: never
   - changes:
       paths:
-        - pkg/trace/**/*
-        - cmd/trace-agent/**/*
-        - comp/trace/**/*
-        - test/new-e2e/tests/apm/**/*
+        - pkg/updater/**/*
+        - cmd/updater/**/*
+        - test/new-e2e/tests/updater/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
@@ -1207,3 +1303,21 @@ workflow:
       paths:
         - .go-version
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_fakeintake_changes: &on_fakeintake_changes
+  changes:
+    - "test/fakeintake/**/*"
+    - .gitlab/binary_build/fakeintake.yml
+    - .gitlab/container_build/fakeintake.yml
+    - .gitlab/dev_container_deploy/fakeintake.yml
+
+.on_fakeintake_changes_on_main_or_manual:
+  - <<: *on_fakeintake_changes
+    if: $CI_COMMIT_BRANCH == "main"
+  - <<: *on_fakeintake_changes
+    when: manual
+    allow_failure: true
+
+.on_fakeintake_changes_on_main:
+  - <<: *on_fakeintake_changes
+    if: $CI_COMMIT_BRANCH == "main"

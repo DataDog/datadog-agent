@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package kubernetes contains the provisioner for the Kubernetes based environments
-package kubernetes
+// Package awskubernetes contains the provisioner for the Kubernetes based environments
+package awskubernetes
 
 import (
 	"fmt"
@@ -130,7 +130,6 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ku
 
 // KindRunFunc is the Pulumi run function that runs the provisioner
 func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
-
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err

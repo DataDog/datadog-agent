@@ -12,6 +12,7 @@ import (
 	"context"
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -736,19 +737,21 @@ func TestKubAksConfigLoader(t *testing.T) {
 		webhook := "Webhook"
 		assert.Equal(t, &webhook, conf.Components.Kubelet.AuthorizationMode)
 
-		assert.NotNil(t, conf.Components.Kubelet.ClientCaFile)
-		assert.Equal(t, "root", conf.Components.Kubelet.ClientCaFile.User)
-		assert.Equal(t, "root", conf.Components.Kubelet.ClientCaFile.Group)
+		user, err := user.Current()
+		assert.NoError(t, err)
+
+		assert.Equal(t, user.Name, conf.Components.Kubelet.ClientCaFile.User)
+		assert.Equal(t, user.Name, conf.Components.Kubelet.ClientCaFile.Group)
 		assert.Equal(t, uint32(0644), conf.Components.Kubelet.ClientCaFile.Mode)
 
 		assert.NotNil(t, conf.Components.Kubelet.TlsCertFile)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsCertFile.User)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsCertFile.Group)
+		assert.Equal(t, user.Name, conf.Components.Kubelet.TlsCertFile.User)
+		assert.Equal(t, user.Name, conf.Components.Kubelet.TlsCertFile.Group)
 		assert.Equal(t, uint32(0600), conf.Components.Kubelet.TlsCertFile.Mode)
 
 		assert.NotNil(t, conf.Components.Kubelet.TlsPrivateKeyFile)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsPrivateKeyFile.User)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsPrivateKeyFile.Group)
+		assert.Equal(t, user.Name, conf.Components.Kubelet.TlsPrivateKeyFile.User)
+		assert.Equal(t, user.Name, conf.Components.Kubelet.TlsPrivateKeyFile.Group)
 		assert.Equal(t, uint32(0600), conf.Components.Kubelet.TlsPrivateKeyFile.Mode)
 
 		assert.NotEmpty(t, conf.Components.Kubelet.TlsCipherSuites)

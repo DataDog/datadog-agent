@@ -7,7 +7,6 @@ package environments
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
 // Kubernetes is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
@@ -16,11 +15,4 @@ type Kubernetes struct {
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
 	Agent             *components.KubernetesAgent
-}
-
-var _ e2e.Initializable = &Kubernetes{}
-
-// Init initializes the environment
-func (e *Kubernetes) Init(_ e2e.Context) error {
-	return nil
 }

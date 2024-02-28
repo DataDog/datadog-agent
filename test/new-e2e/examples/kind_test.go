@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/kubernetes"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -22,7 +22,7 @@ type myKindSuite struct {
 }
 
 func TestMyKindSuite(t *testing.T) {
-	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(kubernetes.Provisioner(kubernetes.WithoutFakeIntake())))
+	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(awskubernetes.Provisioner(awskubernetes.WithoutFakeIntake())))
 }
 
 func (v *myKindSuite) TestClusterAgentInstalled() {
