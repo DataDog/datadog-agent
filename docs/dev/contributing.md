@@ -296,8 +296,8 @@ labels that can be use:
   - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
 
 > [!NOTE]
-> Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the agent build.
-> All of the follows do not require QA:
+> Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the agent build
+> All of the following do not require QA:
 > - Changing the CI configuration without impacting the Agent packaging.
 > - Changing the documentation.
 > - Changing the developer tooling.
