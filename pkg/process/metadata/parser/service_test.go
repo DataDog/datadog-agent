@@ -224,7 +224,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 			serviceExtractorEnabled := true
 			useWindowsServiceName := true
-			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+			useImprovedAlgorithm := true
+			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -239,7 +240,8 @@ func TestExtractServiceMetadataDisabled(t *testing.T) {
 	procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	se.Extract(procsByPid)
 	assert.Empty(t, se.GetServiceContext(proc.Pid))
 }

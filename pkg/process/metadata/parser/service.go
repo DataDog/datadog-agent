@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type serviceExtractorFn func(args []string) string
+type serviceExtractorFn func(serviceExtractor *ServiceExtractor, process *procutil.Process, args []string) string
 
 const (
 	javaJarFlag         = "-jar"
@@ -53,6 +53,7 @@ var _ metadata.Extractor = &ServiceExtractor{}
 // ServiceExtractor infers a service tag by extracting it from a process
 type ServiceExtractor struct {
 	enabled               bool
+	useImprovedAlgorithm  bool
 	useWindowsServiceName bool
 	serviceByPID          map[int32]*serviceMetadata
 	scmReader             *scmReader
@@ -71,9 +72,10 @@ type WindowsServiceInfo struct {
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
-func NewServiceExtractor(enabled bool, useWindowsServiceName bool) *ServiceExtractor {
+func NewServiceExtractor(enabled, useWindowsServiceName, useImprovedAlgorithm bool) *ServiceExtractor {
 	return &ServiceExtractor{
 		enabled:               enabled,
+		useImprovedAlgorithm:  useImprovedAlgorithm,
 		useWindowsServiceName: useWindowsServiceName,
 		serviceByPID:          make(map[int32]*serviceMetadata),
 		scmReader:             newSCMReader(),
@@ -98,7 +100,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 				}
 			}
 		}
-		meta := extractServiceMetadata(proc.Cmdline)
+		meta := d.extractServiceMetadata(proc)
 		if meta != nil && log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("detected service metadata: %v", meta)
 		}
@@ -135,7 +137,8 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	return nil
 }
 
-func extractServiceMetadata(cmd []string) *serviceMetadata {
+func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *serviceMetadata {
+	cmd := process.Cmdline
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
 		return &serviceMetadata{
 			cmdline: cmd,
@@ -161,7 +164,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	}
 
 	if contextFn, ok := binsWithContext[exe]; ok {
-		tag := contextFn(cmd[1:])
+		tag := contextFn(d, process, cmd[1:])
 		return &serviceMetadata{
 			cmdline:        cmd,
 			serviceContext: "process_context:" + tag,
@@ -232,7 +235,7 @@ func parseExeStartWithSymbol(exe string) string {
 }
 
 // In most cases, the best context is the first non-argument / environment variable, if it exists
-func parseCommandContext(args []string) string {
+func parseCommandContext(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
 	var prevArgIsFlag bool
 
 	for _, a := range args {
@@ -251,7 +254,7 @@ func parseCommandContext(args []string) string {
 	return ""
 }
 
-func parseCommandContextPython(args []string) string {
+func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
 	var (
 		prevArgIsFlag bool
 		moduleFlag    bool
@@ -278,7 +281,7 @@ func parseCommandContextPython(args []string) string {
 	return ""
 }
 
-func parseCommandContextJava(args []string) string {
+func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
 	prevArgIsFlag := false
 
 	// Look for dd.service

@@ -58,13 +58,14 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			enabled := true
 			useWindowsServiceName := false
+			useImprovedAlgorithm := false
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 
-			se := NewServiceExtractor(enabled, useWindowsServiceName)
+			se := NewServiceExtractor(enabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -75,7 +76,8 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	makeServiceExtractor := func(t *testing.T, sysprobeConfig ddconfig.Reader) (*ServiceExtractor, *mockSCM) {
 		enabled := sysprobeConfig.GetBool("system_probe_config.process_service_inference.enabled")
 		useWindowsServiceName := sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-		se := NewServiceExtractor(enabled, useWindowsServiceName)
+		useImprovedAlgorithm := sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
+		se := NewServiceExtractor(enabled, useWindowsServiceName, useImprovedAlgorithm)
 		procsByPid := map[int32]*procutil.Process{1: {
 			Pid:     1,
 			Cmdline: []string{"C:\\nginx-1.23.2\\nginx.exe"},
