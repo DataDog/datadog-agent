@@ -352,32 +352,6 @@ func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 	common.CheckAgentBehaviour(tt, t.InstallTestClient)
 }
 
-func (t *Tester) testUserGroups(tt *testing.T) {
-	tt.Run("user groups", func(tt *testing.T) {
-		expectedGroups := []string{
-			"Performance Log Users",
-			"Event Log Readers",
-			"Performance Monitor Users",
-		}
-		var actualGroups []windows.SecurityIdentifier
-		if t.hostInfo.IsDomainController() {
-			// Domain controllers don't have local groups
-			adGroups, err := windows.GetADUserGroupMembership(t.host, t.expectedUsername)
-			require.NoError(tt, err)
-			for _, g := range adGroups {
-				actualGroups = append(actualGroups, g)
-			}
-		} else {
-			localGroups, err := windows.GetLocalUserGroupMembership(t.host, t.expectedUsername)
-			require.NoError(tt, err)
-			for _, g := range localGroups {
-				actualGroups = append(actualGroups, g)
-			}
-		}
-		AssertGroupMembership(tt, t.host, expectedGroups, actualGroups)
-	})
-}
-
 // More in depth checks on current version
 func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	if t.remoteMSIPath != "" {
@@ -394,7 +368,11 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	require.NoError(tt, err)
 	serviceTester.TestInstall(tt)
 
-	t.testUserGroups(tt)
+	tt.Run("user groups", func(tt *testing.T) {
+		AssertAgentUserGroupMembership(tt, t.host,
+			windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+		)
+	})
 
 	t.testAgentCodeSignature(tt)
 	t.TestRuntimeExpectations(tt)

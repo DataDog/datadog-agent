@@ -35,21 +35,6 @@ type SecurityIdentifier interface {
 	GetSID() string
 }
 
-// LocalGroup contains select properties of a local group
-//
-// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.localaccounts/get-localgroup
-type LocalGroup struct {
-	Identity
-}
-
-// ADGroup contains select properties of an AD group
-//
-// https://learn.microsoft.com/en-us/powershell/module/activedirectory/get-adgroup
-type ADGroup struct {
-	DistinguishedName string
-	Identity
-}
-
 // MakeDownLevelLogonName joins a user and domain into a single string, e.g. DOMAIN\user
 //
 // domain is converted to NetBIOS format per the MSDN definition.
@@ -102,14 +87,13 @@ func DotSlashNameToLogonName(host *components.RemoteHost, user string) (string, 
 	return MakeDownLevelLogonName(hostname, user), nil
 }
 
-// GetADUserGroupMembership returns the list of AD groups that the user is a member of
-func GetADUserGroupMembership(host *components.RemoteHost, user string) ([]*ADGroup, error) {
-	cmd := fmt.Sprintf(`(Get-ADUser "%s" -Properties MemberOf).MemberOf | Get-ADGroup | Foreach-Object {
+// GetADGroupMembers returns the list of members of the given AD group
+func GetADGroupMembers(host *components.RemoteHost, group string) ([]Identity, error) {
+	cmd := fmt.Sprintf(`ConvertTo-JSON -InputObject @(Get-ADGroupMember -Identity "%s" | Foreach-Object {
 		@{
-			DistinguishedName=$_.DistinguishedName
 			Name = $_.Name
 			SID = $_.SID.Value
-		}} | ConvertTo-JSON`, user)
+		}})`, group)
 	out, err := host.Execute(cmd)
 	if err != nil {
 		return nil, err
@@ -118,25 +102,21 @@ func GetADUserGroupMembership(host *components.RemoteHost, user string) ([]*ADGr
 	if out == "" {
 		return nil, nil
 	}
-	var groups []*ADGroup
-	err = json.Unmarshal([]byte(out), &groups)
+	var members []Identity
+	err = json.Unmarshal([]byte(out), &members)
 	if err != nil {
 		return nil, err
 	}
-	return groups, nil
+	return members, nil
 }
 
-// GetLocalUserGroupMembership returns the list of local groups that the user is a member of
-func GetLocalUserGroupMembership(host *components.RemoteHost, user string) ([]*LocalGroup, error) {
-	sid, err := GetSIDForUser(host, user)
-	if err != nil {
-		return nil, err
-	}
-	cmd := fmt.Sprintf(`Get-LocalGroup | Where-Object { "%s" -in ($_ | Get-LocalGroupMember | Select-Object -ExpandProperty SID)} | Foreach-Object {
+// GetLocalGroupMembers returns the list of members of the given local group
+func GetLocalGroupMembers(host *components.RemoteHost, group string) ([]Identity, error) {
+	cmd := fmt.Sprintf(`ConvertTo-JSON -InputObject @(Get-LocalGroupMember -Name "%s" | Foreach-Object {
 		@{
 			Name = $_.Name
 			SID = $_.SID.Value
-		}} | ConvertTo-JSON`, sid)
+		}})`, group)
 	out, err := host.Execute(cmd)
 	if err != nil {
 		return nil, err
@@ -145,10 +125,10 @@ func GetLocalUserGroupMembership(host *components.RemoteHost, user string) ([]*L
 	if out == "" {
 		return nil, nil
 	}
-	var groups []*LocalGroup
-	err = json.Unmarshal([]byte(out), &groups)
+	var members []Identity
+	err = json.Unmarshal([]byte(out), &members)
 	if err != nil {
 		return nil, err
 	}
-	return groups, nil
+	return members, nil
 }
