@@ -42,7 +42,13 @@ func TestGetVersionDataFromContainerTags(t *testing.T) {
 		assert.Equal(t, "", imageTag)
 		assert.Equal(t, "", gitCommitSha)
 	})
-}
+	t.Run("undefined", func(t *testing.T) {
+		cfg := config.New()
+		gitCommitSha, imageTag, err := GetVersionDataFromContainerTags("1", cfg)
+		assert.NoError(t, err)
+		assert.Equal(t, "", imageTag)
+		assert.Equal(t, "", gitCommitSha)
+	})
 
 func TestGetGitCommitShaFromTrace(t *testing.T) {
 	tts := []struct {

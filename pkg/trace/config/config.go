@@ -538,8 +538,10 @@ func computeGlobalTags() map[string]string {
 	return make(map[string]string)
 }
 
+var ErrContainerTagsNotDefined = errors.New("ContainerTags function not defined")
+
 func noopContainerTagsFunc(_ string) ([]string, error) {
-	return nil, errors.New("ContainerTags function not defined")
+	return nil, ErrContainerTagsNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.
