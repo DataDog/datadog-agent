@@ -48,11 +48,6 @@ func New(configPath string) (*types.Config, error) {
 }
 
 func newSysprobeConfig(configPath string) (*types.Config, error) {
-	// System probe is not supported on darwin, so we should fail gracefully in this case.
-	if runtime.GOOS == "darwin" {
-		return &types.Config{}, nil
-	}
-
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -150,7 +145,7 @@ func load() (*types.Config, error) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}
 	if runtime.GOOS == "windows" {
-		if c.ModuleIsEnabled(NetworkTracerModule) {
+		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}

@@ -81,8 +81,9 @@
 /.gitlab/windows_python_build.yml                    @DataDog/windows-agent
 
 /.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-platform @DataDog/windows-agent
 
-/.gitlab/docker_common/                              @DataDog/container-integrations @DataDog/agent-platform
+/.gitlab/common/                                     @DataDog/container-integrations @DataDog/agent-platform
 
 /.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/fakeintake.yml                              @DataDog/agent-e2e-testing
@@ -124,7 +125,7 @@
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 /.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
-/.gitlab/new-e2e_testing/windows.yml                 @DataDog/agent-platform @DataDog/windows-agent
+/.gitlab/software_composition_analysis.yml           @DataDog/software-integrity-and-trust
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -237,6 +238,7 @@
 /comp/snmptraps @DataDog/network-device-monitoring
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
+/comp/updater @DataDog/fleet
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
@@ -530,6 +532,7 @@
 /test/new-e2e/tests/windows                   @DataDog/windows-agent @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
+/test/new-e2e/tests/updater                   @DataDog/fleet
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
