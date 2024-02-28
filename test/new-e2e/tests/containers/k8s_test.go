@@ -1040,15 +1040,16 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 	return stdoutSb.String(), stderrSb.String(), nil
 }
 
-func (suite *k8sSuite) TestTraces() {
-	deployments := []string{kubeDeploymentTracegenUDSWorkload, kubeDeploymentTracegenUDPWorkload}
-	for _, app := range deployments {
-		suite.testTraceForDeployment(app)
-	}
+func (suite *k8sSuite) TestTraceUDP() {
+	suite.testTrace(kubeDeploymentTracegenUDSWorkload)
+}
+
+func (suite *k8sSuite) TestTraceTCP() {
+	suite.testTrace(kubeDeploymentTracegenUDPWorkload)
 }
 
 // testTrace verifies that traces are tagged with container and pod tags.
-func (suite *k8sSuite) testTraceForDeployment(kubeDeployment string) {
+func (suite *k8sSuite) testTrace(kubeDeployment string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
 		require.NoErrorf(c, cerr, "Failed to query fake intake")
@@ -1058,6 +1059,7 @@ func (suite *k8sSuite) testTraceForDeployment(kubeDeployment string) {
 			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
 				return k + ":" + v
 			})
+			// Assert origin detection is working properly
 			err = assertTags(tags, []*regexp.Regexp{
 				regexp.MustCompile(`^container_id:`),
 				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
