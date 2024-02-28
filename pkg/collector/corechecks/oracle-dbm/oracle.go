@@ -162,7 +162,22 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
-	// Backward compatibility for old Python integration
+	// Backward compatibility with the old Python integration
+	if c.config.OnlyCustomQueries {
+		copy(c.tags, c.configTags)
+	}
+
+	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
+
+	if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
+		err := c.CustomQueries()
+		if c.config.OnlyCustomQueries {
+			return err
+		}
+		if err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
+		}
+	}
 
 	if !c.initialized {
 		err := c.init()
@@ -188,7 +203,6 @@ func (c *Check) Run() error {
 		}
 	}
 
-	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 	if metricIntervalExpired {
 		if c.dbmEnabled {
 			err := c.dataGuard()
@@ -231,12 +245,6 @@ func (c *Check) Run() error {
 			err := c.ProcessMemory()
 			if err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect process memory %w", c.logPrompt, err))
-			}
-		}
-		if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
-			err := c.CustomQueries()
-			if err != nil {
-				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
 			}
 		}
 	}
