@@ -9,3 +9,7 @@ type MapErrTelemetry struct {
 type HelperErrTelemetry struct {
 	Count [320]uint64
 }
+type InstrumentationBlob struct {
+	Map_err_telemetry    [128]MapErrTelemetry
+	Helper_err_telemetry [256]HelperErrTelemetry
+}

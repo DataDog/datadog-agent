@@ -215,10 +215,6 @@ const (
 	//nolint:revive // TODO(NET) Fix revive linter
 	IpMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
 	//nolint:revive // TODO(NET) Fix revive linter
-	MapErrTelemetryMap BPFMapName = "map_err_telemetry_map"
-	//nolint:revive // TODO(NET) Fix revive linter
-	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
-	//nolint:revive // TODO(NET) Fix revive linter
 	TcpRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
 	//nolint:revive // TODO(NET) Fix revive linter
 	ProtocolClassificationBufMap BPFMapName = "classification_buf"

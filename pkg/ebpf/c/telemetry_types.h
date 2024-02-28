@@ -21,4 +21,11 @@ typedef struct {
     unsigned long err_count[MAX_TELEMETRY_INDX * T_MAX_ERRNO];
 } helper_err_telemetry_t;
 
+#define MAX_HASH_MAPS 128
+#define MAX_PROGRAMS 256
+typedef struct {
+    map_err_telemetry_t map_err_telemetry[MAX_HASH_MAPS];
+    helper_err_telemetry_t helper_err_telemetry[MAX_PROGRAMS];
+} instrumentation_blob_t;
+
 #endif

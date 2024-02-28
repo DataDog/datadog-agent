@@ -34,12 +34,13 @@ type EBPFErrorsCollector struct {
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
-func NewEBPFErrorsCollector() prometheus.Collector {
+func NewEBPFErrorsCollector(bpfDir string) prometheus.Collector {
+	// TODO: ebpf-instrument is this needed
 	if supported, _ := ebpfTelemetrySupported(); !supported {
 		return nil
 	}
 	return &EBPFErrorsCollector{
-		T:                newEBPFTelemetry(),
+		T:                newEBPFTelemetry(bpfDir),
 		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
 		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
 	}
@@ -56,36 +57,32 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	e.T.mtx.Lock()
 	defer e.T.mtx.Unlock()
 
-	if e.T.helperErrMap != nil {
-		var hval HelperErrTelemetry
-		for probeName, k := range e.T.probeKeys {
-			err := e.T.helperErrMap.Lookup(&k, &hval)
-			if err != nil {
-				log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
-				continue
-			}
-			for index, helperName := range helperNames {
-				base := maxErrno * index
-				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
-					for errStr, errCount := range count {
-						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
-					}
-				}
+	if e.T.EBPFInstrumentationMap == nil {
+		return
+	}
+
+	var val InstrumentationBlob
+	var key uint32
+	err := e.T.EBPFInstrumentationMap.Lookup(&key, &val)
+	if err != nil {
+		log.Warnf("failed to get instrumentation blob: %v", err)
+		return
+	}
+
+	for mapName, mapIndx := range e.T.mapKeys {
+		if count := getErrCount(val.Map_err_telemetry[mapIndx].Count[:]); len(count) > 0 {
+			for errStr, errCount := range count {
+				ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.GaugeValue, float64(errCount), mapName, errStr)
 			}
 		}
 	}
 
-	if e.T.mapErrMap != nil {
-		var val MapErrTelemetry
-		for m, k := range e.T.mapKeys {
-			err := e.T.mapErrMap.Lookup(&k, &val)
-			if err != nil {
-				log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
-				continue
-			}
-			if count := getErrCount(val.Count[:]); len(count) > 0 {
+	for programName, programIndex := range e.T.probeKeys {
+		for index, helperName := range helperNames {
+			base := maxErrno * index
+			if count := getErrCount(val.Helper_err_telemetry[programIndex].Count[base : base+maxErrno]); len(count) > 0 {
 				for errStr, errCount := range count {
-					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.GaugeValue, float64(errCount), m, errStr)
+					ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.GaugeValue, float64(errCount), helperName, programName, errStr)
 				}
 			}
 		}

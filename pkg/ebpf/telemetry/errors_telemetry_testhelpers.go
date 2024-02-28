@@ -14,49 +14,56 @@ import (
 // GetHelpersTelemetry returns a map of error telemetry for each ebpf program
 func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 	helperTelemMap := make(map[string]interface{})
-	if b.helperErrMap == nil {
+	if b.EBPFInstrumentationMap == nil {
 		return helperTelemMap
 	}
 
-	var val HelperErrTelemetry
-	for probeName, k := range b.probeKeys {
-		err := b.helperErrMap.Lookup(&k, &val)
-		if err != nil {
-			log.Debugf("failed to get telemetry for map:key %s:%d\n", probeName, k)
-			continue
-		}
+	var key uint32
+	val := new(InstrumentationBlob)
+	err := b.EBPFInstrumentationMap.Lookup(&key, val)
+	if err != nil {
+		log.Warnf("error looking up instrumentation blob: %v", err)
+		return helperTelemMap
+	}
 
+	for programName, programIndex := range b.probeKeys {
 		t := make(map[string]interface{})
-		for indx, helperName := range helperNames {
-			base := maxErrno * indx
-			if count := getErrCount(val.Count[base : base+maxErrno]); len(count) > 0 {
+		for index, helperName := range helperNames {
+			base := maxErrno * index
+			if count := getErrCount(val.Helper_err_telemetry[programIndex].Count[base : base+maxErrno]); len(count) > 0 {
 				t[helperName] = count
 			}
 		}
+
 		if len(t) > 0 {
-			helperTelemMap[probeName] = t
+			helperTelemMap[programName] = t
 		}
 	}
+
 	return helperTelemMap
 }
 
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
 func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 	t := make(map[string]interface{})
-	if b.mapErrMap == nil {
+	if b.EBPFInstrumentationMap == nil {
+		log.Warn("Instrumentation map is nil")
 		return t
 	}
 
-	var val MapErrTelemetry
-	for m, k := range b.mapKeys {
-		err := b.mapErrMap.Lookup(&k, &val)
-		if err != nil {
-			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
-			continue
-		}
-		if count := getErrCount(val.Count[:]); len(count) > 0 {
-			t[m] = count
+	var key uint32
+	val := new(InstrumentationBlob)
+	err := b.EBPFInstrumentationMap.Lookup(&key, val)
+	if err != nil {
+		log.Warn("failed to lookup instrumentation blob: %v", err)
+		return t
+	}
+
+	for mapName, mapIndx := range b.mapKeys {
+		if count := getErrCount(val.Map_err_telemetry[mapIndx].Count[:]); len(count) > 0 {
+			t[mapName] = count
 		}
 	}
+
 	return t
 }

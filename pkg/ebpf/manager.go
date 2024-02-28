@@ -59,17 +59,17 @@ func NewManager(mgr *manager.Manager, modifiers ...Modifier) *Manager {
 type Modifier interface {
 	fmt.Stringer
 	// BeforeInit is called before the ebpf.Manager.InitWithOptions call
-	BeforeInit(*manager.Manager, *manager.Options) error
+	BeforeInit(*manager.Manager, *manager.Options, io.ReaderAt) error
 
 	// AfterInit is called after the ebpf.Manager.InitWithOptions call
-	AfterInit(*manager.Manager, *manager.Options) error
+	AfterInit(*manager.Manager, *manager.Options, io.ReaderAt) error
 }
 
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
 	for _, mod := range m.EnabledModifiers {
 		log.Debugf("Running %s manager modifier", mod)
-		if err := mod.BeforeInit(m.Manager, opts); err != nil {
+		if err := mod.BeforeInit(m.Manager, opts, bytecode); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}
@@ -80,7 +80,7 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 
 	for _, mod := range m.EnabledModifiers {
 		log.Debugf("Running %s manager modifier", mod)
-		if err := mod.AfterInit(m.Manager, opts); err != nil {
+		if err := mod.AfterInit(m.Manager, opts, bytecode); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
 	}
