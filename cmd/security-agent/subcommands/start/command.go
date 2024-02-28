@@ -288,7 +288,10 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		return err
 	}
 
-	srv, err = api.NewServer(runtimeAgent, complianceAgent, statusComponent)
+	statusComponent.LoadProvider(complianceAgent.StatusProvider())
+	statusComponent.LoadProvider(runtimeAgent.StatusProvider())
+
+	srv, err = api.NewServer(statusComponent)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

@@ -569,13 +569,6 @@ func (a *Agent) runTelemetry(ctx context.Context) {
 	}
 }
 
-// GetStatus returns a map of the different last results of our checks.
-func (a *Agent) GetStatus() map[string]interface{} {
-	return map[string]interface{}{
-		"endpoints": a.opts.Reporter.Endpoints().GetStatus(),
-	}
-}
-
 func (a *Agent) getChecksStatus() interface{} {
 	a.statusesMu.RLock()
 	defer a.statusesMu.RUnlock()
