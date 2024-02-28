@@ -25,8 +25,7 @@ notify:
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
-    - set +x
-    - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_read_api_token --with-decryption --query "Parameter.Value" --out text)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - |
@@ -52,8 +51,7 @@ send_pipeline_stats:
   dependencies: []
   script:
     - source /root/.bashrc
-    - set +x
-    - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_read_api_token --with-decryption --query "Parameter.Value" --out text)
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
     - !reference [.setup_python_mirror_linux]
     - invoke -e notify.send-stats
