@@ -71,6 +71,7 @@ type kernelTelemetry struct {
 	fetchArgumentsFail   *tlsAwareCounter
 	http2IterationsFail  *tlsAwareCounter
 	contextFail          *tlsAwareCounter
+	goAwaySeen           *tlsAwareCounter
 
 	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
 	telemetryLastState HTTP2Telemetry
@@ -88,7 +89,11 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 		literalValueExceedsFrame:      newTLSAwareCounter(metricGroup, "literal_value_exceeds_frame"),
 		exceedingMaxInterestingFrames: newTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
 		exceedingMaxFramesToFilter:    newTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter"),
-		fragmentedFrameCount:          newTLSAwareCounter(metricGroup, "exceeding_data_end")}
+		fragmentedFrameCount:          newTLSAwareCounter(metricGroup, "exceeding_data_end"),
+		fetchArgumentsFail:            newTLSAwareCounter(metricGroup, "fetch_arguments_fail"),
+		http2IterationsFail:           newTLSAwareCounter(metricGroup, "http2_iterations_fail"),
+		contextFail:                   newTLSAwareCounter(metricGroup, "context_fail"),
+		goAwaySeen:                    newTLSAwareCounter(metricGroup, "go_away_seen")}
 
 	for bucketIndex := range http2KernelTel.pathSizeBucket {
 		http2KernelTel.pathSizeBucket[bucketIndex] = newTLSAwareCounter(metricGroup, "path_size_bucket_"+(strconv.Itoa(bucketIndex+1)))
@@ -112,6 +117,7 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 	t.fetchArgumentsFail.add(int64(telemetryDelta.Fetch_arguments_fail), isTLS)
 	t.http2IterationsFail.add(int64(telemetryDelta.Http2_iterations_fail), isTLS)
 	t.contextFail.add(int64(telemetryDelta.Context_fail), isTLS)
+	t.goAwaySeen.add(int64(telemetryDelta.Go_away_seen), isTLS)
 
 	for bucketIndex := range t.pathSizeBucket {
 		t.pathSizeBucket[bucketIndex].add(int64(telemetryDelta.Path_size_bucket[bucketIndex]), isTLS)
@@ -138,6 +144,7 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 		Fetch_arguments_fail:             t.Fetch_arguments_fail - other.Fetch_arguments_fail,
 		Http2_iterations_fail:            t.Http2_iterations_fail - other.Http2_iterations_fail,
 		Context_fail:                     t.Context_fail - other.Context_fail,
+		Go_away_seen:                     t.Go_away_seen - other.Go_away_seen,
 		Path_size_bucket:                 computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }

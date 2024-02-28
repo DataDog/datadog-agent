@@ -247,6 +247,7 @@ typedef struct {
     __u64 fetch_arguments_fail ;
     __u64 http2_iterations_fail;
     __u64 context_fail;
+    __u64 go_away_seen;
 } http2_telemetry_t;
 
 typedef struct {

@@ -87,6 +87,7 @@ type HTTP2Telemetry struct {
 	Fetch_arguments_fail             uint64
 	Http2_iterations_fail            uint64
 	Context_fail                     uint64
+	Go_away_seen                     uint64
 }
 
 type StaticTableEnumValue = uint8
