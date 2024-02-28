@@ -34,14 +34,15 @@ const btfFlushDelay = 1 * time.Minute
 type btfPlatform string
 
 const (
-	platformAmazon btfPlatform = "amzn"
-	platformCentOS btfPlatform = "centos"
-	platformDebian btfPlatform = "debian"
-	platformFedora btfPlatform = "fedora"
-	platformOracle btfPlatform = "ol"
-	platformRedhat btfPlatform = "rhel"
-	platformSUSE   btfPlatform = "sles"
-	platformUbuntu btfPlatform = "ubuntu"
+	platformAmazon       btfPlatform = "amzn"
+	platformCentOS       btfPlatform = "centos"
+	platformDebian       btfPlatform = "debian"
+	platformFedora       btfPlatform = "fedora"
+	platformOpenSUSELeap btfPlatform = "opensuse-leap"
+	platformOracle       btfPlatform = "ol"
+	platformRedhat       btfPlatform = "rhel"
+	platformSUSE         btfPlatform = "sles"
+	platformUbuntu       btfPlatform = "ubuntu"
 )
 
 func (p btfPlatform) String() string {
@@ -52,8 +53,10 @@ func btfPlatformFromString(platform string) (btfPlatform, error) {
 	switch platform {
 	case "amzn", "amazon":
 		return platformAmazon, nil
-	case "suse", "sles": //opensuse treated differently on purpose
+	case "suse", "sles":
 		return platformSUSE, nil
+	case "opensuse", "opensuse-leap":
+		return platformOpenSUSELeap, nil
 	case "redhat", "rhel":
 		return platformRedhat, nil
 	case "oracle", "ol":
@@ -222,6 +225,8 @@ var kernelVersionPatterns = []struct {
 	{regexp.MustCompile(`\.el[7-8]uek\.`), []btfPlatform{platformOracle}},
 	{regexp.MustCompile(`\.deb10\.`), []btfPlatform{platformDebian}},
 	{regexp.MustCompile(`\.fc\d{2}\.`), []btfPlatform{platformFedora}},
+	{regexp.MustCompile(`-lp15\d\.`), []btfPlatform{platformOpenSUSELeap}},
+	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap}},
 }
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
