@@ -99,7 +99,7 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     strip = "&& llvm-strip -g $out" if strip_object_files else ""
     nw.rule(
         name="llc",
-        command=f"llc -march=bpf -filetype=obj -o $out $in {strip}",
+        command=f"llc -stack-size-section -march=bpf -filetype=obj -o $out $in {strip}",
     )
 
 
@@ -227,6 +227,10 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
+def ninja_telemetry_ebpf_program(nw, infile, outfile, flags):
+    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
+
+
 def ninja_network_ebpf_program(nw, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
@@ -237,6 +241,19 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
     ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+
+
+def ninja_ebpf_telemetry_programs(nw, build_dir):
+    telemetry_bpf_dir = os.path.join("pkg", "ebpf", "telemetry", "c")
+    telemetry_flags = "-Ipkg/ebpf/telemetry/c -g -DINSTRUMENTATION_ENABLED"
+    telemetry_programs = [
+        "ebpf_instrumentation",
+    ]
+
+    for prog in telemetry_programs:
+        infile = os.path.join(telemetry_bpf_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{prog}.o")
+        ninja_telemetry_ebpf_program(nw, infile, outfile, telemetry_flags)
 
 
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
@@ -468,6 +485,7 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release=None,
     with_unit_test=False,
+    instrument_trampoline=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
     co_re_build_dir = os.path.join(build_dir, "co-re")
@@ -507,6 +525,8 @@ def ninja_generate(
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
+            if instrument_trampoline:
+                ninja_ebpf_telemetry_programs(nw, build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -659,7 +679,7 @@ def test(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
-            instrument_trampoline=False,
+            instrument_trampoline=True,
         )
 
     build_tags = [NPM_TAG]
@@ -1300,10 +1320,11 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    instrument_trampoline=False,
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test, instrument_trampoline=instrument_trampoline)
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1395,6 +1416,7 @@ def build_object_files(
         debug=debug,
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
+        instrument_trampoline=instrument_trampoline
     )
 
     if not is_windows:
