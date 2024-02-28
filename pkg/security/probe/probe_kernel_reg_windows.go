@@ -130,11 +130,28 @@ func parseCreateRegistryKey(e *etw.DDEventRecord) (*createKeyArgs, error) {
 	crc.computeFullPath()
 	return crc, nil
 }
+
+func (cka *createKeyArgs) translateBasePaths() {
+
+	table := map[string]string{
+		"\\\\REGISTRY\\MACHINE": "HKEY_LOCAL_MACHINE",
+		"\\REGISTRY\\MACHINE":   "HKEY_LOCAL_MACHINE",
+		"\\\\REGISTRY\\USER":    "HKEY_USERS",
+		"\\REGISTRY\\USER":      "HKEY_USERS",
+	}
+
+	for k, v := range table {
+		if strings.HasPrefix(strings.ToUpper(cka.relativeName), k) {
+			cka.relativeName = v + cka.relativeName[len(k):]
+		}
+	}
+}
 func (cka *createKeyArgs) computeFullPath() {
 
 	// var regPathResolver map[regObjectPointer]string
 
 	if strings.HasPrefix(cka.relativeName, regprefix) {
+		cka.translateBasePaths()
 		cka.computedFullPath = cka.relativeName
 		regPathResolver[cka.keyObject] = cka.relativeName
 		return
@@ -144,13 +161,16 @@ func (cka *createKeyArgs) computeFullPath() {
 	}
 	var outstr string
 	if cka.baseObject == 0 {
-		outstr = cka.baseName + "\\" + cka.relativeName
+		if len(cka.baseName) > 0 {
+			outstr = cka.baseName + "\\"
+		}
+		outstr += cka.relativeName
 	} else {
 
 		if s, ok := regPathResolver[cka.baseObject]; ok {
 			outstr = s + "\\" + cka.relativeName
 		} else {
-			outstr = "\\" + cka.relativeName
+			outstr = cka.relativeName
 		}
 	}
 	regPathResolver[cka.keyObject] = outstr

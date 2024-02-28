@@ -10,6 +10,7 @@ package collectorimpl
 import (
 	"context"
 	"sort"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -252,4 +253,8 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	assert.Equal(suite.T(), killed, []checkid.ID{"baz", "qux"})
 
 	assert.Zero(suite.T(), len(suite.c.checks))
+}
+
+func TestCollectorSuite(t *testing.T) {
+	suite.Run(t, new(CollectorTestSuite))
 }

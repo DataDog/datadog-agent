@@ -56,16 +56,12 @@ type pendingMsg struct {
 }
 
 func (p *pendingMsg) ToJSON() ([]byte, error) {
-	if len(p.actionReports) > 0 {
-		p.backendEvent.RuleActions = make(map[string][]json.RawMessage)
-	}
 	for _, report := range p.actionReports {
 		data, err := report.ToJSON()
 		if err != nil {
 			return nil, err
 		}
-		actionType := report.Type()
-		p.backendEvent.RuleActions[actionType] = append(p.backendEvent.RuleActions[actionType], data)
+		p.backendEvent.RuleActions = append(p.backendEvent.RuleActions, data)
 	}
 
 	backendEventJSON, err := easyjson.Marshal(p.backendEvent)
@@ -303,6 +299,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 			Version:     version.AgentVersion,
 			OS:          runtime.GOOS,
 			Arch:        utils.RuntimeArch(),
+			Origin:      a.probe.Origin(),
 		},
 	}
 

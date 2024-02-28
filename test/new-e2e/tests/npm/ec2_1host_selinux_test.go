@@ -65,7 +65,9 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMSELinuxSuite) TestFakeIntakeNPM_HostRequests() {
+//
+// The test start by 00 to validate the agent/system-probe is up and running
+func (v *ec2VMSELinuxSuite) Test00FakeIntakeNPM_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
