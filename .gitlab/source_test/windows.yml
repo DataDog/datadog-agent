@@ -12,6 +12,8 @@
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
     # inside JUNIT_TAR and then later used by datadog-ci
     - !reference [.setup_python_mirror_win]
+    - $FAST_TESTS_FLAG=""
+    - If ($FAST_TESTS -eq "true") { $FAST_TESTS_FLAG="--only-impacted-packages" }
     - >
       docker run --rm
       -m 16384M
@@ -27,7 +29,7 @@
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
-      -e EXTRA_OPTS="${EXTRA_OPTS}"
+      -e EXTRA_OPTS="$FAST_TESTS_FLAG"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
