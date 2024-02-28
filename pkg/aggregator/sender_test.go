@@ -673,9 +673,10 @@ func TestSenderGaugeWithTimestampValidation(t *testing.T) {
 
 	s := initSender(checkID1, "")
 
-	s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, time.Now())
+	s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, time.Unix(1000, 0))
 	metricSample := (<-s.itemChan).(*senderMetricSample)
 	assert.EqualValues(t, 42, metricSample.metricSample.Value)
+	assert.EqualValues(t, 1000, metricSample.metricSample.Timestamp)
 	assert.Nil(t, metricSample.metricSample.Tags)
 
 	// Timestamp 0 is invalid
