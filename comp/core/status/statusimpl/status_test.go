@@ -935,3 +935,118 @@ Status render errors
 		})
 	}
 }
+
+func TestLoadProvider(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				name:    "a",
+				section: status.CollectorSection,
+			}),
+			status.NewInformationProvider(mockProvider{
+				name:    "b",
+				section: status.CollectorSection,
+			}),
+			status.NewInformationProvider(mockProvider{
+				name:    "x",
+				section: "x section",
+			}),
+			status.NewInformationProvider(mockProvider{
+				name:    "a",
+				section: "a section",
+			}),
+			status.NewInformationProvider(mockProvider{
+				name:    "a",
+				section: "x section",
+			}),
+		),
+	))
+
+	statusComponent, err := newStatus(deps)
+
+	assert.NoError(t, err)
+
+	// We access the implementation directly to get a hold to the sorted providers
+	statusComponentImpl := statusComponent.(*statusImplementation)
+
+	// We test adding a new provider to an existing section
+	sortedSections := statusComponentImpl.sortedSectionNames
+	providerBySection := statusComponentImpl.sortedProvidersBySection["x section"]
+
+	statusComponentImpl.LoadProvider(mockProvider{
+		name:    "b",
+		section: "x section",
+	})
+
+	newSortedSectionNames := statusComponentImpl.sortedSectionNames
+	newProviderBySection := statusComponentImpl.sortedProvidersBySection["x section"]
+
+	assert.Equal(t, sortedSections, newSortedSectionNames)
+	assert.Equal(t, []string{"a", "x"}, getNames(providerBySection))
+	assert.Equal(t, []string{"a", "b", "x"}, getNames(newProviderBySection))
+
+	// We test adding a new section
+	statusComponentImpl.LoadProvider(mockProvider{
+		name:    "a",
+		section: "new section",
+	})
+
+	newSortedSectionNames = statusComponentImpl.sortedSectionNames
+
+	assert.Equal(t, []string{"collector", "a section", "x section"}, sortedSections)
+	assert.Equal(t, []string{"collector", "a section", "new section", "x section"}, newSortedSectionNames)
+	assert.Equal(t, []string{"a"}, getNames(statusComponentImpl.sortedProvidersBySection["new section"]))
+}
+
+func getNames(providers []status.Provider) []string {
+	result := []string{}
+	for _, provider := range providers {
+		result = append(result, provider.Name())
+	}
+
+	return result
+}
+
+func TestLoadHeaderProvider(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			agentParams,
+			status.NewHeaderInformationProvider(mockHeaderProvider{
+				name:  "header foo",
+				index: 2,
+			}),
+		),
+	))
+
+	statusComponent, err := newStatus(deps)
+
+	assert.NoError(t, err)
+
+	// We access the implementation directly to get a hold to the sorted providers
+	statusComponentImpl := statusComponent.(*statusImplementation)
+
+	// We test adding a new provider to an existing section
+	sortedHeaderProvidersSections := statusComponentImpl.sortedHeaderProviders
+
+	newHeaderProvider := mockHeaderProvider{
+		name:  "a",
+		index: 3,
+	}
+
+	statusComponentImpl.LoadHeaderProvider(newHeaderProvider)
+
+	newSortedHeaderProvidersSections := statusComponentImpl.sortedHeaderProviders
+
+	assert.Equal(t, 2, len(sortedHeaderProvidersSections))
+	assert.Equal(t, 3, len(newSortedHeaderProvidersSections))
+
+	_, ok := sortedHeaderProvidersSections[0].(*headerProvider)
+	assert.True(t, ok)
+
+	assert.Equal(t, sortedHeaderProvidersSections[0], newSortedHeaderProvidersSections[0])
+
+	assert.Equal(t, newHeaderProvider, newSortedHeaderProvidersSections[2])
+}

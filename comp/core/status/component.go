@@ -23,6 +23,12 @@ type Component interface {
 	GetStatus(format string, verbose bool, excludeSection ...string) ([]byte, error)
 	// Returns only the agent status for the especify section and format type
 	GetStatusBySection(section string, format string, verbose bool) ([]byte, error)
+
+	//LoadProvider allow to add a provider outside of the FX value group lifecycle
+	LoadProvider(provider Provider)
+
+	//LoadHeaderProvider allow to add a provider outside of the FX value group lifecycle
+	LoadHeaderProvider(provider HeaderProvider)
 }
 
 // Params store configurable options for the status component
