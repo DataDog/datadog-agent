@@ -55,7 +55,8 @@ def trigger_macos_workflow(
     if concurrency_key is not None:
         inputs["concurrency_key"] = concurrency_key
 
-    if "GO_TEST_SKIP_FLAKE" in os.environ:
+    # Test-only input, only to be passed to the test workflow
+    if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":
         inputs["go_test_skip_flake"] = os.environ["GO_TEST_SKIP_FLAKE"]
 
     # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
@@ -72,7 +73,11 @@ def trigger_macos_workflow(
     now = datetime.utcnow()
 
     gh = GithubAPI('DataDog/datadog-agent-macos-build')
-    gh.trigger_workflow(workflow_name, github_action_ref, inputs)
+    result = gh.trigger_workflow(workflow_name, github_action_ref, inputs)
+
+    if not result:
+        print("Couldn't trigger workflow run.")
+        raise Exit(code=1)
 
     # Thus the following hack: Send an id as input when creating a workflow on Github. The worklow will use the id and put it in the name of one of its jobs.
     # We then fetch workflows and check if it contains the id in its job name.
