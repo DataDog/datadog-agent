@@ -199,7 +199,9 @@ func GetUserRightsForUser(host *components.RemoteHost, user string) ([]string, e
 	for right, users := range rights {
 		for _, u := range users {
 			var s string
-			if !strings.HasPrefix(u, "S-") {
+			if strings.HasPrefix(u, "S-1-") {
+				s = u
+			} else {
 				// not a SID, look up the SID for the username
 				var ok bool
 				s, ok = sidCache[u]
