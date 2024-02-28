@@ -192,32 +192,22 @@ func CheckDogstatsdAgentRestarts(t *testing.T, client *TestClient) {
 	})
 }
 
-const (
-	// ExpectedPythonVersion2 is the expected python 2 version
-	// Bump this version when the version in omnibus/config/software/python2.rb changes
-	ExpectedPythonVersion2 = "2.7.18"
-	// ExpectedPythonVersion3 is the expected python 3 version
-	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.11.8"
-)
-
-// SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent
-func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion string) {
-	t.Run(fmt.Sprintf("set python version %s and restarts", majorVersion), func(tt *testing.T) {
-		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
-		err := client.SetConfig(configFilePath, "python_version", majorVersion)
+// CheckAgentPython runs tests to check the agent use the correct python version
+func CheckAgentPython(t *testing.T, client *TestClient, version string) {
+	t.Run(fmt.Sprintf("set python version %s and restarts", version), func(tt *testing.T) {
+		err := client.SetConfig("/etc/datadog-agent/datadog.yaml", "python_version", version)
 		require.NoError(tt, err, "failed to set python version: ", err)
 
 		_, err = client.SvcManager.Restart("datadog-agent")
 		require.NoError(tt, err, "agent should be able to restart after editing python version")
 	})
 
-	t.Run(fmt.Sprintf("check python %s is used", majorVersion), func(tt *testing.T) {
+	t.Run(fmt.Sprintf("check python %s is used", version), func(tt *testing.T) {
 		statusVersion, err := client.GetPythonVersion()
 		require.NoError(tt, err)
 		majorPythonVersion := strings.Split(statusVersion, ".")[0]
 
-		require.Equal(tt, majorVersion, majorPythonVersion)
+		require.Equal(tt, version, majorPythonVersion)
 	})
 }
 
