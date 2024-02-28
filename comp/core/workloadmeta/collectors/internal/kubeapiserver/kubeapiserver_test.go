@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestStoreGenerators(t *testing.T) {
@@ -25,32 +26,32 @@ func TestStoreGenerators(t *testing.T) {
 		{
 			name: "All configurations disabled",
 			cfg: map[string]bool{
-				"cluster_agent.collect_kubernetes_tags": false,
-				"language_detection.enabled":            false,
+				"cluster_agent.collect_kubernetes_tags":                 false,
+				"apm_config.instrumentation.language_detection.enabled": false,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore},
 		},
 		{
 			name: "Kubernetes tags enabled",
 			cfg: map[string]bool{
-				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.enabled":            false,
+				"cluster_agent.collect_kubernetes_tags":                 true,
+				"apm_config.instrumentation.language_detection.enabled": false,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore},
 		},
 		{
 			name: "Language detection enabled",
 			cfg: map[string]bool{
-				"cluster_agent.collect_kubernetes_tags": false,
-				"language_detection.enabled":            true,
+				"cluster_agent.collect_kubernetes_tags":                 false,
+				"apm_config.instrumentation.language_detection.enabled": true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newDeploymentStore},
 		},
 		{
 			name: "All configurations enabled",
 			cfg: map[string]bool{
-				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.enabled":            true,
+				"cluster_agent.collect_kubernetes_tags":                 true,
+				"apm_config.instrumentation.language_detection.enabled": true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore},
 		},

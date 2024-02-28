@@ -81,6 +81,21 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
+	////////////////////////////////
+	//                            //
+	// Language Detection Config  //
+	//                            //
+	////////////////////////////////
+	config.BindEnvAndSetDefault("apm_config.instrumentation.language_detection.enabled", "false", "DD_APM_INSTRUMENTATION_LANGUAGE_DETECTION_ENABLED")
+	// client period represents how frequently newly detected languages are reported to the language detection handler
+	config.BindEnvAndSetDefault("apm_config.instrumentation.language_detection.client_period", "10s", "DD_APM_INSTRUMENTATION_LANGUAGE_DETECTION_CLIENT_PERIOD")
+	// cleanup period represents how frequently we check for expired languages and remove them
+	config.BindEnvAndSetDefault("apm_config.instrumentation.language_detection.cleanup_period", "10m", "DD_APM_INSTRUMENTATION_LANGUAGE_DETECTION_CLEANUP_PERIOD")
+	// TTL refresh period represents how frequently we refresh the TTL of detected languages
+	config.BindEnvAndSetDefault("apm_config.instrumentation.language_detection.ttl_refresh_period", "20m", "DD_APM_INSTRUMENTATION_LANGUAGE_DETECTION_TTL_REFRESH_PERIOD")
+	// language TTL represents the TTL that is set for each language when it is detected
+	// it is also used when refreshing the expiration timestamp of the language
+	config.BindEnvAndSetDefault("apm_config.instrumentation.language_detection.language_ttl", "30m", "DD_APM_INSTRUMENTATION_LANGUAGE_DETECTION_LANGUAGE_TTL")
 
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")

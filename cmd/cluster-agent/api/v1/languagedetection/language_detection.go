@@ -44,8 +44,8 @@ var ownersLanguagesOnce sync.Once
 func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 	ownersLanguagesOnce.Do(func() {
 		ownersLanguages = *newOwnersLanguages()
-		languageTTL = config.Datadog.GetDuration("language_detection.cleanup.language_ttl")
-		cleanupPeriod := config.Datadog.GetDuration("language_detection.cleanup.period")
+		languageTTL = config.Datadog.GetDuration("apm_config.instrumentation.language_detection.language_ttl")
+		cleanupPeriod := config.Datadog.GetDuration("apm_config.instrumentation.language_detection.cleanup_period")
 
 		// Launch periodic cleanup mechanism
 		go func() {
@@ -63,7 +63,7 @@ func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 
 // preHandler is called by both leader and followers and returns true if the request should be forwarded or handled by the leader
 func preHandler(w http.ResponseWriter, r *http.Request) bool {
-	if !config.Datadog.GetBool("language_detection.enabled") {
+	if !config.Datadog.GetBool("apm_config.instrumentation.language_detection.enabled") {
 		ErrorResponses.Inc()
 		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusServiceUnavailable)
 		return false

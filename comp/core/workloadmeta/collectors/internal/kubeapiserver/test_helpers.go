@@ -34,8 +34,8 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	assert.NoError(t, err)
 
 	overrides := map[string]interface{}{
-		"cluster_agent.collect_kubernetes_tags": true,
-		"language_detection.enabled":            true,
+		"cluster_agent.collect_kubernetes_tags":                 true,
+		"apm_config.instrumentation.language_detection.enabled": true,
 	}
 
 	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(

@@ -245,7 +245,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Setup the leader forwarder for language detection and cluster checks
-	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") || pkgconfig.Datadog.GetBool("language_detection.enabled") {
+	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") || pkgconfig.Datadog.GetBool("apm_config.instrumentation.language_detection.enabled") {
 		apidca.NewGlobalLeaderForwarder(
 			pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
 			pkgconfig.Datadog.GetInt("cluster_agent.max_connections"),
@@ -380,7 +380,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 		}()
 	}
 
-	if pkgconfig.Datadog.GetBool("language_detection.enabled") {
+	if pkgconfig.Datadog.GetBool("apm_config.instrumentation.language_detection.enabled") {
 		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
