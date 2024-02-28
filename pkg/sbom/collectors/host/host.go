@@ -20,6 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
+// channelSize defines the result channel size
+// It doesn't need more than 1 because the host collector should
+// not trigger multiple scans at the same time unlike for container-images.
+const channelSize = 1
+
 // ScanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
 type ScanRequest struct {
@@ -110,6 +115,6 @@ func (c *Collector) Shutdown() {
 
 func init() {
 	collectors.RegisterCollector(collectors.HostCollector, &Collector{
-		resChan: make(chan sbom.ScanResult, 1),
+		resChan: make(chan sbom.ScanResult, channelSize),
 	})
 }
