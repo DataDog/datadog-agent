@@ -7,7 +7,6 @@
 package diagnose
 
 import (
-	_ "embed"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
