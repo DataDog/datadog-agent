@@ -154,20 +154,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	testOriginTags := func(withModifier bool, expectedOrigin string) {
 		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		if withModifier {
-			// Set the appropriate environment variable to simulate a cloud service
-			switch expectedOrigin {
-			case "cloudrun":
-				t.Setenv(cloudservice.ServiceNameEnvVar, "myCloudRunService")
-				defer os.Unsetenv(cloudservice.ServiceNameEnvVar)
-			case "containerapp":
-				t.Setenv(cloudservice.ContainerAppNameEnvVar, "myContainerApp")
-				defer os.Unsetenv(cloudservice.ContainerAppNameEnvVar)
-			case "appservice":
-				t.Setenv(cloudservice.RunZip, "myAppService")
-				defer os.Unsetenv(cloudservice.RunZip)
-			}
-
-			agnt.ModifySpan = (&spanModifier{}).ModifySpan
+			agnt.ModifySpan = (&spanModifier{ddOrigin: getDDOrigin()}).ModifySpan
 		}
 		tc := testutil.RandomTraceChunk(2, 1)
 		tc.Priority = 1 // ensure trace is never sampled out
@@ -205,10 +192,18 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 	}
 
 	// Test with and without the span modifier between different cloud services
-	for _, origin := range []string{"cloudrun", "containerapp", "appservice", "lambda"} {
+	cloudServiceToEnvVar := map[string]string{
+		"cloudrun":     cloudservice.ServiceNameEnvVar,
+		"containerapp": cloudservice.ContainerAppNameEnvVar,
+		"appservice":   cloudservice.RunZip,
+		"lambda":       functionNameEnvVar}
+	for origin, cloudServiceEnvVar := range cloudServiceToEnvVar {
+		// Set the appropriate environment variable to simulate a cloud service
+		t.Setenv(cloudServiceEnvVar, "myService")
 		cfg.GlobalTags = map[string]string{"some": "tag", "_dd.origin": origin}
 		testOriginTags(true, origin)
 		testOriginTags(false, origin)
+		os.Unsetenv(cloudServiceEnvVar)
 	}
 }
 
