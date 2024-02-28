@@ -7,20 +7,18 @@ package metrics
 
 // GaugeWithTimestamp tracks the value of a metric with a given timestamp
 type GaugeWithTimestamp struct {
-	points  []Point
-	sampled bool
+	points []Point
 }
 
 func (g *GaugeWithTimestamp) addSample(sample *MetricSample, timestamp float64) {
 	g.points = append(g.points, Point{Ts: timestamp, Value: sample.Value})
-	g.sampled = true
 }
 
 func (g *GaugeWithTimestamp) flush(_ float64) ([]*Serie, error) {
-	points, sampled := g.points, g.sampled
-	g.points, g.sampled = nil, false
+	points := g.points
+	g.points = nil
 
-	if !sampled {
+	if len(points) == 0 {
 		return []*Serie{}, NoSerieError{}
 	}
 
