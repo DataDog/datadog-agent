@@ -126,7 +126,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.block_profile_rate"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enable_goroutine_stacktraces"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.delta_profiles"), true)
-	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.custom_attributes"), []string{"module"})
+	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.custom_attributes"), []string{"module", "rule_id"})
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.unix_socket"), "")
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.extra_tags"), []string{})
 
