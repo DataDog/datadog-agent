@@ -21,13 +21,17 @@ import (
 )
 
 const (
-	dbmAdIdentifier        = "_dbm_aws_aurora"
+	dbmPostgresADIdentifier = "_dbm_postgres_aurora"
+	dbmMySQLADIdentifier    = "_dbm_mysql_aurora"
+
+	// dbmAuroraListenerName is the name of the aurora listener, used to init the listener
+	dbmAuroraListenerName  = "database-monitoring-aurora"
 	auroraPostgresqlEngine = "aurora-postgresql"
 	auroraMysqlEngine      = "aurora-mysql"
 )
 
 func init() {
-	Register(dbmAdIdentifier, NewDBMAuroraListener)
+	Register(dbmAuroraListenerName, NewDBMAuroraListener)
 }
 
 // DBMAuroraListener implements database-monitoring aurora discovery
@@ -48,6 +52,11 @@ type DBMAuroraListener struct {
 var engineToIntegrationType = map[string]string{
 	auroraPostgresqlEngine: "postgres",
 	auroraMysqlEngine:      "mysql",
+}
+
+var engineToADIdentifier = map[string]string{
+	auroraPostgresqlEngine: dbmPostgresADIdentifier,
+	auroraMysqlEngine:      dbmMySQLADIdentifier,
 }
 
 var _ Service = &DBMAuroraService{}
@@ -127,6 +136,10 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		_ = log.Error(err)
 		return
 	}
+	if len(ids) == 0 {
+		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
+		return
+	}
 	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids)
 	if err != nil {
 		_ = log.Error(err)
@@ -150,13 +163,11 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 }
 
 func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *aws.Instance) {
-	l.Lock()
-	defer l.Unlock()
 	if _, present := l.services[entityID]; present {
 		return
 	}
 	svc := &DBMAuroraService{
-		adIdentifier: dbmAdIdentifier,
+		adIdentifier: engineToADIdentifier[instance.Engine],
 		entityID:     entityID,
 		checkName:    engineToIntegrationType[instance.Engine],
 		instance:     instance,
@@ -168,8 +179,6 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *
 }
 
 func (l *DBMAuroraListener) deleteServices(entityIDs []string) {
-	l.Lock()
-	defer l.Unlock()
 	for _, entityID := range entityIDs {
 		if svc, present := l.services[entityID]; present {
 			l.delService <- svc
@@ -235,7 +244,7 @@ func (d *DBMAuroraService) IsReady(context.Context) bool {
 	return true
 }
 
-// GetCheckNames returns nil
+// GetCheckNames returns the check name for the service.
 func (d *DBMAuroraService) GetCheckNames(context.Context) []string {
 	return []string{d.checkName}
 }
@@ -259,7 +268,5 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterTemplates does nothing.
-//
-//nolint:revive
-func (d *DBMAuroraService) FilterTemplates(m map[string]integration.Config) {
+func (d *DBMAuroraService) FilterTemplates(map[string]integration.Config) {
 }

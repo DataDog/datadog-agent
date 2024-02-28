@@ -553,7 +553,7 @@ func TestResolve(t *testing.T) {
 			testName: "database monitoring aurora configuration resolves",
 			svc: &dummyService{
 				ID:            "dummy",
-				ADIdentifiers: []string{"database_monitoring_aurora"},
+				ADIdentifiers: []string{"_dbm_aws_aurora"},
 				Hosts: map[string]string{
 					"": "my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com",
 				},
@@ -563,12 +563,12 @@ func TestResolve(t *testing.T) {
 			},
 			tpl: integration.Config{
 				Name:          "postgres",
-				ADIdentifiers: []string{"database_monitoring_aurora"},
+				ADIdentifiers: []string{"_dbm_aws_aurora"},
 				Instances:     []integration.Data{integration.Data("host: %%host%%\nport: %%port%%\nregion: %%extra_region%%\nmanaged_authentication_enabled: %%extra_managed_authentication_enabled%%\ndbclusteridentifier: %%extra_dbclusteridentifier%%")},
 			},
 			out: integration.Config{
 				Name:          "postgres",
-				ADIdentifiers: []string{"database_monitoring_aurora"},
+				ADIdentifiers: []string{"_dbm_aws_aurora"},
 				Instances:     []integration.Data{integration.Data("dbclusteridentifier: my-cluster\nhost: my-cluster.cluster-123456789012.us-west-2.rds.amazonaws.com\nmanaged_authentication_enabled: true\nport: 5432\nregion: us-west-2\ntags:\n- foo:bar\n")},
 				ServiceID:     "dummy",
 			},
