@@ -13,7 +13,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -22,6 +21,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,6 +45,41 @@ var (
 	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
+
+	protocolClassificationTailCalls = []manager.TailCallRoute{
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationQueues,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationDBs,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.ClassificationProgsMap,
+			Key:           netebpf.ClassificationGRPC,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
+				UID:          probeUID,
+			},
+		},
+		{
+			ProgArrayName: probes.TCPCloseProgsMap,
+			Key:           0,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: probes.TCPCloseFlushReturn,
+				UID:          probeUID,
+			},
+		},
+	}
 
 	// these primarily exist for mocking out in tests
 	coreTracerLoader          = loadCORETracer
@@ -72,21 +107,6 @@ func ClassificationSupported(config *config.Config) bool {
 	}
 
 	return currentKernelVersion >= classificationMinimumKernel
-}
-
-// AddBoolConst modifies the options to include a constant editor for a boolean value
-func AddBoolConst(options *manager.Options, flag bool, name string) {
-	val := uint64(1)
-	if !flag {
-		val = uint64(0)
-	}
-
-	options.ConstantEditors = append(options.ConstantEditors,
-		manager.ConstantEditor{
-			Name:  name,
-			Value: val,
-		},
-	)
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
@@ -151,62 +171,19 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func getTailCallRouteForProtocolClassification(ringbufferSupported bool) []manager.TailCallRoute {
-	tcpCloseFuncName := probes.TCPCloseFlushReturnPerfbuffer
-	if ringbufferSupported {
-		tcpCloseFuncName = probes.TCPCloseFlushReturnRingbuffer
-	}
-	protocolClassificationTailCalls := []manager.TailCallRoute{
-		{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationQueues,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierQueuesSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationDBs,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierDBsSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		{
-			ProgArrayName: probes.ClassificationProgsMap,
-			Key:           netebpf.ClassificationGRPC,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.ProtocolClassifierGRPCSocketFilter,
-				UID:          probeUID,
-			},
-		},
-		{
-			ProgArrayName: probes.TCPCloseProgsMap,
-			Key:           0,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tcpCloseFuncName,
-				UID:          probeUID,
-			},
-		},
-	}
-	return protocolClassificationTailCalls
-}
-
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
 	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
-
-	ringbufferEnabled := RingBufferSupported(config)
-	AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffers_enabled")
 
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 
+	ringbufferEnabled := util.RingBufferSupported(config)
+	util.AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffers_enabled")
 	if ringbufferEnabled {
 		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
 			Type:       ebpf.RingBuf,
-			MaxEntries: uint32(ComputeDefaultClosedConnRingBufferSize()),
+			MaxEntries: uint32(util.ComputeDefaultClosedConnRingBufferSize()),
 			KeySize:    0,
 			ValueSize:  0,
 			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
@@ -217,11 +194,10 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	var closeProtocolClassifierSocketFilterFn func()
 	classificationSupported := ClassificationSupported(config)
-	AddBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
+	util.AddBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
-		protocolClassificationTailCalls := getTailCallRouteForProtocolClassification(ringbufferEnabled)
 		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls))
 		for _, tailCall := range protocolClassificationTailCalls {
 			tailCallsIdentifiersSet[tailCall.ProbeIdentificationPair] = struct{}{}
@@ -359,9 +335,4 @@ func isCORETracerSupported() error {
 	}
 
 	return errCORETracerNotSupported
-}
-
-// RingBufferSupported returns true if ring buffer is supported on the kernel and enabled in the config
-func RingBufferSupported(c *config.Config) bool {
-	return (features.HaveMapType(ebpf.RingBuf) == nil) && c.RingbuffersEnabled
 }

@@ -15,7 +15,7 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
 func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, cfg *config.Config) {
@@ -33,38 +33,7 @@ func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHan
 		{Name: probes.MapErrTelemetryMap},
 		{Name: probes.HelperErrTelemetryMap},
 	}
-	switch handler := connCloseEventHandler.(type) {
-	case *ebpf.RingBufferHandler:
-		options := manager.RingBufferOptions{
-			RecordGetter:     handler.RecordGetter,
-			RecordHandler:    handler.RecordHandler,
-			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-			RingBufferSize: kprobe.ComputeDefaultClosedConnRingBufferSize(),
-		}
-		rb := &manager.RingBuffer{
-			Map:               manager.Map{Name: probes.ConnCloseEventMap},
-			RingBufferOptions: options,
-		}
-
-		mgr.RingBuffers = []*manager.RingBuffer{rb}
-		ebpftelemetry.ReportRingBufferTelemetry(rb)
-	case *ebpf.PerfHandler:
-		pm := &manager.PerfMap{
-			Map: manager.Map{Name: probes.ConnCloseEventMap},
-			PerfMapOptions: manager.PerfMapOptions{
-				PerfRingBufferSize: kprobe.ComputeDefaultClosedConnPerfBufferSize(),
-				Watermark:          1,
-				RecordHandler:      handler.RecordHandler,
-				LostHandler:        handler.LostHandler,
-				RecordGetter:       handler.RecordGetter,
-				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
-			},
-		}
-		mgr.PerfMaps = []*manager.PerfMap{pm}
-		ebpftelemetry.ReportPerfMapTelemetry(pm)
-	}
-
+	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
 	for funcName := range programs {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

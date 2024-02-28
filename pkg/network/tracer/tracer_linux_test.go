@@ -1864,13 +1864,13 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
 	t.Run("ringbuff_enabled", func(t *testing.T) {
-		// ringbuffers are enabled by default
 		c := testConfig()
+		c.RingbuffersEnabled = true
 		testPreexistingEmptyIncomingConnectionDirection(t, c)
 	})
 	t.Run("ringbuff_disabled", func(t *testing.T) {
 		if features.HaveMapType(ebpf.RingBuf) != nil {
-			t.Skip()
+			t.Skip("skipping test as ringbuffers are not supported on this kernel")
 		}
 		c := testConfig()
 		c.RingbuffersEnabled = false
@@ -1881,6 +1881,7 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *config.Config) {
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
+
 	ch := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
 		<-ch
@@ -1904,7 +1905,7 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 		t.Log(conns) // for debugging failures
 		conn, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
 		return conn != nil
-	}, 3*time.Second, 100*time.Millisecond, "could not find closed connection")
+	}, 3*time.Second, 100*time.Millisecond)
 
 	m := conn.Monotonic
 	assert.Zero(t, m.SentBytes, "sent bytes should be 0")

@@ -241,17 +241,14 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    conn_flush_t conn = cleanup_conn(ctx, &t, sk);
-    if (conn.needs_individual_flush) {
-        emit_conn_close_event_ringbuffer(&conn.conn, ctx);
-    }
+    cleanup_conn(ctx, &t, sk);
     return 0;
 }
 
 SEC("fexit/tcp_close")
 int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_close");
-    flush_conn_close_if_full_ringbuffer(ctx);
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
@@ -531,10 +528,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *sk) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        conn_flush_t conn = cleanup_conn(ctx, &tup, sk);
-        if (conn.needs_individual_flush) {
-            emit_conn_close_event_ringbuffer(&conn.conn, ctx);
-        }
+        cleanup_conn(ctx, &tup, sk);
         lport = tup.sport;
     } else {
         // get the port for the current sock
@@ -571,14 +565,14 @@ int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
 SEC("fexit/udp_destroy_sock")
 int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_destroy_sock");
-    flush_conn_close_if_full_ringbuffer(ctx);
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 
 SEC("fexit/udpv6_destroy_sock")
 int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_destroy_sock");
-    flush_conn_close_if_full_ringbuffer(ctx);
+    flush_conn_close_if_full(ctx);
     return 0;
 }
 

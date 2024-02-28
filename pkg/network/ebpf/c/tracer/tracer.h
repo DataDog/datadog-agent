@@ -70,11 +70,6 @@ typedef struct {
     __u32 tcp_retransmits;
 } conn_t;
 
-typedef struct {
-    conn_t conn;
-    bool needs_individual_flush;
-} conn_flush_t;
-
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
 #define CONN_CLOSED_BATCH_SIZE 4
