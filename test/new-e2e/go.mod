@@ -28,7 +28,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240221174424-180d0c3c5d44
+	github.com/DataDog/test-infra-definitions v0.0.0-20240228091653-33a1630e43be
 	github.com/aws/aws-sdk-go-v2 v1.24.0
 	github.com/aws/aws-sdk-go-v2/config v1.25.10
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -242,4 +242,11 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
+)
+
+require (
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.23.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.23.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.23.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.23.0 // indirect
 )
