@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package containercheckimpl implements a component to handle Container data collection in the Process Agent.
+// Package containerconnectionscheckimpl implements a component to handle Container data collection in the Process Agent.
 package containerconnectionscheckimpl
 
 import (

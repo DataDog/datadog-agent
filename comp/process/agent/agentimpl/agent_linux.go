@@ -34,7 +34,7 @@ func agentEnabled(p processAgentParams) bool {
 	case flavor.ProcessAgent:
 		if npmEnabled {
 			p.Log.Info("Network Performance Monitoring is enabled, " +
-			"the container and connections check will run in the standalone process-agent.")
+				"the container and connections check will run in the standalone process-agent.")
 		}
 
 		if runInCoreAgent {
@@ -45,7 +45,7 @@ func agentEnabled(p processAgentParams) bool {
 	case flavor.DefaultAgent:
 		if npmEnabled {
 			p.Log.Info("Network Performance Monitoring is enabled, " +
-			"the container and connections check will run in the standalone process-agent.")
+				"the container and connections check will run in the standalone process-agent.")
 		}
 
 		return runInCoreAgent

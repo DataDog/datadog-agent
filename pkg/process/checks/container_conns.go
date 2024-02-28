@@ -49,7 +49,7 @@ type ContainerConnectionsCheck struct {
 }
 
 // Init initializes a ContainerConnectionsCheck instance.
-func (c *ContainerConnectionsCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
+func (c *ContainerConnectionsCheck) Init(_ *SysProbeConfig, _ *HostInfo, _ bool) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider()
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
