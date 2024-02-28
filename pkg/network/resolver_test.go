@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-func TestResolveConnectionsWithRollup(t *testing.T) {
+func TestResolveLocalConnections(t *testing.T) {
 	conns := []ConnectionStats{
 		{
 			Pid:       8579,
