@@ -35,7 +35,7 @@ func (r ScanRequest) Collector() string {
 
 // Type returns the scan request type
 func (r ScanRequest) Type() string {
-	return "daemon"
+	return sbom.ScanDaemonType
 }
 
 // ID returns the scan request ID
