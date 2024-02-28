@@ -1055,7 +1055,8 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 		require.NoErrorf(c, cerr, "Failed to query fake intake")
 
 		var err error
-		for _, trace := range traces {
+		// Iterate starting from the most recent traces
+		for _, trace := range lo.Reverse(traces) {
 			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
 				return k + ":" + v
 			})
