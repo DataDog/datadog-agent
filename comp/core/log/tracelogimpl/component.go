@@ -6,6 +6,12 @@
 // Package tracelogimpl provides a component that implements the log.Component for the trace-agent logger
 package tracelogimpl
 
+import (
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
 // TraceModule defines the fx options for the log component in its Trace variant.
 func TraceModule() fxutil.Module {
 	return fxutil.Component(
