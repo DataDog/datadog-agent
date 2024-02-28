@@ -8,33 +8,36 @@
 #ifdef INSTRUMENTATION_ENABLED
 BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 
-#define FETCH_TELEMETRY_BLOB() ({ \
-    instrumentation_blob_t *__tb; \
-    asm("%0 = *(u64 *)(r10 - 512)" : "=r"(__tb)); \
-    __tb; \
+// this macro reads the stack slot at offset 512
+// if everything went okay, then it should have the pointer
+// to the telemetry map.
+#define FETCH_TELEMETRY_BLOB() ({                   \
+    instrumentation_blob_t *__tb;                   \
+    asm("%0 = *(u64 *)(r10 - 512)" : "=r"(__tb));   \
+    __tb;                                           \
 })
 
 #define STR(x) #x
 #define MK_MAP_INDX(key) STR(key##_telemetry_key)
 
-#define map_update_with_telemetry(fn, map, args...)                    \
-    ({                                                                 \
-        long errno_ret; \
-        errno_ret = fn(&map, args);                                    \
-        unsigned long map_index;                                  \
-        LOAD_CONSTANT(MK_MAP_INDX(map), map_index);                    \
-        if (errno_ret < 0) {                                           \
-            instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();       \
-            if (tb) {                                            \
-                long error = errno_ret * -1;  \
-                if (error >= T_MAX_ERRNO) { \
-                    error = T_MAX_ERRNO - 1; \
-                } \
-                error &= (T_MAX_ERRNO - 1); \
+#define map_update_with_telemetry(fn, map, args...)                     \
+    ({                                                                  \
+        long errno_ret;                                                 \
+        errno_ret = fn(&map, args);                                     \
+        unsigned long map_index;                                        \
+        LOAD_CONSTANT(MK_MAP_INDX(map), map_index);                     \
+        if (errno_ret < 0) {                                            \
+            instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();        \
+            if (tb) {                                                   \
+                long error = errno_ret * -1;                            \
+                if (error >= T_MAX_ERRNO) {                             \
+                    error = T_MAX_ERRNO - 1;                            \
+                }                                                       \
+                error &= (T_MAX_ERRNO - 1);                             \
                 __sync_fetch_and_add(&tb->map_err_telemetry[map_index].err_count[error], 1); \
-            } \
-        }                                                              \
-        errno_ret; \
+            }                                                           \
+        }                                                               \
+        errno_ret;                                                      \
     })
 
 #define MK_FN_INDX(fn) FN_INDX_##fn

@@ -221,6 +221,8 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			return fmt.Errorf("failed to load collection spec from reader: %w", err)
 		}
 
+		// each program in the instrumentation file is a separate instrumentation
+		// all instrumentation run one after the other before returning execution back.
 		for _, program := range instrumentation.functions {
 			if _, ok := collectionSpec.Programs[program]; !ok {
 				return fmt.Errorf("no program %s present in instrumentation file %s.o", program, instrumentation.filename)
