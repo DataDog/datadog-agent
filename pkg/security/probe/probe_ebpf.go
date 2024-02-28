@@ -525,7 +525,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 func (p *EBPFProbe) zeroEvent() *model.Event {
 	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.Origin = "ebpf"
+	p.event.Origin = EBPFOrigin
 	return p.event
 }
 

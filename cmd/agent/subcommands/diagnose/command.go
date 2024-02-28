@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -231,7 +232,8 @@ func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	_ optional.Option[workloadmeta.Component],
 	_ optional.Option[tagger.Component],
-	collector optional.Option[collector.Component]) error {
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -241,12 +243,12 @@ func cmdDiagnose(cliParams *cliParams,
 
 	// Is it List command
 	if cliParams.listSuites {
-		pkgdiagnose.ListStdOut(color.Output, diagCfg, senderManager, collector)
+		pkgdiagnose.ListStdOut(color.Output, diagCfg, senderManager, collector, secretResolver)
 		return nil
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager, collector)
+	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager, collector, secretResolver)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

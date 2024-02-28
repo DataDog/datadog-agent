@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21
+go 1.21.7
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -94,7 +94,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.2
-	github.com/DataDog/appsec-internal-go v1.3.0
+	github.com/DataDog/appsec-internal-go v1.4.2
 	github.com/DataDog/datadog-agent/pkg/gohai v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.52.0-rc.3
@@ -752,7 +752,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240102182953-50ed04b92917 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	honnef.co/go/tools v0.3.2 // indirect
-	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a // indirect
 	k8s.io/kms v0.28.6 // indirect
 )
 
