@@ -45,7 +45,12 @@ type WindowsProbe struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	event         *model.Event
+
+	// note that these events are zeroed out and reused on every notification
+	// what that means is that they're not thread safe; there needs to be one
+	// event for each goroutine that's doing event processing.
+	fimEvent      *model.Event // this event is used/owned by the FIM goroutine
+	procEvent     *model.Event // this event is used/owned by the process start/stop goroutine
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
 	wg            sync.WaitGroup
@@ -91,7 +96,6 @@ func (p *WindowsProbe) initEtwFIM() error {
 	}
 	// log at Warning right now because it's not expected to be enabled
 	log.Warnf("Enabling FIM processing")
-
 	etwSessionName := "SystemProbeFIM_ETW"
 	etwcomp, err := etwimpl.NewEtw()
 	if err != nil {
@@ -202,7 +206,6 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
-		//log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
@@ -312,7 +315,7 @@ func (p *WindowsProbe) Start() error {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
 				// resolve process context
-				ev := p.zeroEvent()
+				ev := p.zeroFIMEvent()
 
 				// handle incoming events here
 				// each event will come in as a different type
@@ -388,7 +391,7 @@ func (p *WindowsProbe) Start() error {
 		for {
 			var pce *model.ProcessCacheEntry
 			var err error
-			ev := p.zeroEvent()
+			ev := p.zeroProcEvent()
 
 			select {
 			case <-p.ctx.Done():
@@ -541,10 +544,12 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 	p.fieldHandlers = &FieldHandlers{config: config, resolvers: p.Resolvers}
 
-	p.event = p.NewEvent()
+	p.procEvent = p.NewEvent()
+	p.fimEvent = p.NewEvent()
 
 	// be sure to zero the probe event before everything else
-	p.zeroEvent()
+	p.zeroProcEvent()
+	p.zeroFIMEvent()
 
 	return p, nil
 }
@@ -599,10 +604,15 @@ func (p *WindowsProbe) GetEventTags(_ string) []string {
 	return nil
 }
 
-func (p *WindowsProbe) zeroEvent() *model.Event {
-	p.event.Zero()
-	p.event.FieldHandlers = p.fieldHandlers
-	return p.event
+func (p *WindowsProbe) zeroFIMEvent() *model.Event {
+	p.fimEvent.Zero()
+	p.fimEvent.FieldHandlers = p.fieldHandlers
+	return p.fimEvent
+}
+func (p *WindowsProbe) zeroProcEvent() *model.Event {
+	p.procEvent.Zero()
+	p.procEvent.FieldHandlers = p.fieldHandlers
+	return p.procEvent
 }
 
 // Origin returns origin
