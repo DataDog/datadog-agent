@@ -190,6 +190,10 @@ jira_statuses = [
 ]
 github_team = "agent-security"
 github_labels = ["team/agent-security"]
+exclude_members = [
+  "jinroh",
+  "0intro",
+]
 
 [teams."CSPM Agent"]
 jira_project = "SEC"
