@@ -237,8 +237,7 @@ def run(
     repo_branch="dev",
     deploy=False,
     all_builds=True,
-    kitchen_tests=True,
-    e2e_tests=False,
+    e2e_tests=True,
     rc_build=False,
     rc_k8s_deployments=False,
 ):
@@ -318,14 +317,14 @@ def run(
                 )
             )
             all_builds = True
-        if not kitchen_tests:
+        if not e2e_tests:
             print(
                 color_message(
-                    "WARNING: ignoring --no-kitchen-tests option, RUN_KITCHEN_TESTS is automatically set to true on deploy pipelines",
+                    "WARNING: ignoring --no-e2e-tests option, RUN_E2E_TESTS is automatically set to true on deploy pipelines",
                     "orange",
                 )
             )
-            kitchen_tests = True
+            e2e_tests = True
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
 
@@ -348,7 +347,6 @@ def run(
             repo_branch,
             deploy=deploy,
             all_builds=all_builds,
-            kitchen_tests=kitchen_tests,
             e2e_tests=e2e_tests,
             rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
