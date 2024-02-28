@@ -68,6 +68,9 @@ type kernelTelemetry struct {
 	exceedingMaxFramesToFilter *tlsAwareCounter
 	// fragmentedFrameCount Count of times we have seen a fragmented frame.
 	fragmentedFrameCount *tlsAwareCounter
+	fetchArgumentsFail   *tlsAwareCounter
+	http2IterationsFail  *tlsAwareCounter
+	contextFail          *tlsAwareCounter
 
 	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
 	telemetryLastState HTTP2Telemetry
@@ -106,6 +109,10 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 	t.exceedingMaxInterestingFrames.add(int64(telemetryDelta.Exceeding_max_interesting_frames), isTLS)
 	t.exceedingMaxFramesToFilter.add(int64(telemetryDelta.Exceeding_max_frames_to_filter), isTLS)
 	t.fragmentedFrameCount.add(int64(telemetryDelta.Fragmented_frame_count), isTLS)
+	t.fetchArgumentsFail.add(int64(telemetryDelta.Fetch_arguments_fail), isTLS)
+	t.http2IterationsFail.add(int64(telemetryDelta.Http2_iterations_fail), isTLS)
+	t.contextFail.add(int64(telemetryDelta.Context_fail), isTLS)
+
 	for bucketIndex := range t.pathSizeBucket {
 		t.pathSizeBucket[bucketIndex].add(int64(telemetryDelta.Path_size_bucket[bucketIndex]), isTLS)
 	}
@@ -128,6 +135,9 @@ func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 		Exceeding_max_interesting_frames: t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
 		Exceeding_max_frames_to_filter:   t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
 		Fragmented_frame_count:           t.Fragmented_frame_count - other.Fragmented_frame_count,
+		Fetch_arguments_fail:             t.Fetch_arguments_fail - other.Fetch_arguments_fail,
+		Http2_iterations_fail:            t.Http2_iterations_fail - other.Http2_iterations_fail,
+		Context_fail:                     t.Context_fail - other.Context_fail,
 		Path_size_bucket:                 computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }
