@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"time"
 )
 
 // Sender allows sending metrics from checks/a check
@@ -29,6 +30,8 @@ type Sender interface {
 	Distribution(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
+	GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error
+	CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error
 	Event(e event.Event)
 	EventPlatformEvent(rawEvent []byte, eventType string)
 	GetSenderStats() stats.SenderStats

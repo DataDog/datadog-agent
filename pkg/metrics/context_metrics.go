@@ -65,6 +65,10 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 			m[contextKey] = NewSet()
 		case CounterType:
 			m[contextKey] = NewCounter(interval)
+		case GaugeWithTimestampType:
+			m[contextKey] = &GaugeWithTimestamp{}
+		case CountWithTimestampType:
+			m[contextKey] = &CountWithTimestamp{}
 		default:
 			err := fmt.Errorf("unknown sample metric type: %v", sample.Mtype)
 			log.Error(err)
