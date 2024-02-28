@@ -16,6 +16,93 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+func TestResolveConnectionsWithRollup(t *testing.T) {
+	conns := []ConnectionStats{
+		{
+			Pid:       8579,
+			Source:    util.AddressFromString("172.29.132.189"),
+			SPort:     37432,
+			Dest:      util.AddressFromString("172.29.168.124"),
+			DPort:     8080,
+			NetNS:     4026533024,
+			Direction: OUTGOING,
+			ContainerID: struct {
+				Source *intern.Value
+				Dest   *intern.Value
+			}{
+				Source: intern.GetByString("6254f6bc5dc03a50440268c2c0771c476fb9a7230c510afef6114c4498b2a4f8"),
+			},
+			Type:      TCP,
+			IntraHost: true,
+		},
+		{
+			Pid:       8576,
+			Source:    util.AddressFromString("172.29.132.189"),
+			SPort:     46822,
+			Dest:      util.AddressFromString("172.29.168.124"),
+			DPort:     8080,
+			NetNS:     4026533024,
+			Direction: OUTGOING,
+			ContainerID: struct {
+				Source *intern.Value
+				Dest   *intern.Value
+			}{
+				Source: intern.GetByString("6254f6bc5dc03a50440268c2c0771c476fb9a7230c510afef6114c4498b2a4f8"),
+			},
+			Type:      TCP,
+			IntraHost: true,
+		},
+		{
+			Pid:       1342852,
+			Source:    util.AddressFromString("172.29.168.124"),
+			SPort:     8080,
+			Dest:      util.AddressFromString("172.29.132.189"),
+			DPort:     46822,
+			NetNS:     4026533176,
+			Direction: INCOMING,
+			ContainerID: struct {
+				Source *intern.Value
+				Dest   *intern.Value
+			}{
+				Source: intern.GetByString("7e999c2c2349713e27cecf87ef8e0cf496aec08b06b6a8b8c988dd42a3839a98"),
+			},
+			Type:      TCP,
+			IntraHost: true,
+		},
+		{
+			Pid:       1344818,
+			Source:    util.AddressFromString("172.29.168.124"),
+			SPort:     8080,
+			Dest:      util.AddressFromString("172.29.132.189"),
+			DPort:     37432,
+			NetNS:     4026533176,
+			Direction: INCOMING,
+			ContainerID: struct {
+				Source *intern.Value
+				Dest   *intern.Value
+			}{
+				Source: intern.GetByString("7e999c2c2349713e27cecf87ef8e0cf496aec08b06b6a8b8c988dd42a3839a98"),
+			},
+			Type:      TCP,
+			IntraHost: true,
+		},
+	}
+
+	require.True(t, LocalResolver{true}.Resolve(slice.NewChain(conns)))
+	outgoing := conns[0:2]
+	incoming := conns[2:]
+
+	for _, o := range outgoing {
+		require.NotNil(t, o.ContainerID.Dest)
+		assert.Equal(t, incoming[0].ContainerID.Source.Get().(string), o.ContainerID.Dest.Get().(string))
+	}
+
+	for _, i := range incoming {
+		require.NotNil(t, i.ContainerID.Dest)
+		assert.Equal(t, outgoing[0].ContainerID.Source.Get().(string), i.ContainerID.Dest.Get().(string))
+	}
+}
+
 func TestResolveLoopbackConnections(t *testing.T) {
 	tests := []struct {
 		name            string
