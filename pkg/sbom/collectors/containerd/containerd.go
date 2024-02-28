@@ -26,8 +26,8 @@ import (
 // 1000 is already a very large default value
 const resultChanSize = 1000
 
-// ScanRequest defines a scan request
-// This struct should be hashable
+// ScanRequest defines a scan request. This struct should be
+// hashable to be pushed in the work queue for processing.
 type ScanRequest struct {
 	ImageID string
 }

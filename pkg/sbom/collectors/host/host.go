@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
-// ScanRequest defines a scan request
-// This struct should be hashable
+// ScanRequest defines a scan request. This struct should be
+// hashable to be pushed in the work queue for processing.
 type ScanRequest struct {
 	Path string
 }
