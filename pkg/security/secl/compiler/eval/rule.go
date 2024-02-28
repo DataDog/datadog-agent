@@ -22,11 +22,12 @@ type RuleSetTagValue = string
 
 // Rule - Rule object identified by an `ID` containing a SECL `Expression`
 type Rule struct {
-	ID         RuleID
-	Expression string
-	Tags       []string
-	Model      Model
-	Opts       *Opts
+	ID          RuleID
+	Expression  string
+	Tags        []string
+	Model       Model
+	Opts        *Opts
+	pprofLabels map[string]string
 
 	evaluator *RuleEvaluator
 	ast       *ast.Rule
@@ -53,10 +54,11 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 	}
 
 	return &Rule{
-		ID:         id,
-		Expression: expression,
-		Opts:       opts,
-		Tags:       tags,
+		ID:          id,
+		Expression:  expression,
+		Opts:        opts,
+		Tags:        tags,
+		pprofLabels: map[string]string{"rule_id": id},
 	}
 }
 
@@ -131,6 +133,11 @@ func (r *Rule) GetFields() []Field {
 	}
 
 	return fields
+}
+
+// GetPprofLabels returns the pprof labels
+func (r *Rule) GetPprofLabels() map[string]string {
+	return r.pprofLabels
 }
 
 // GetEvaluator - Returns the RuleEvaluator of the Rule corresponding to the SECL `Expression`

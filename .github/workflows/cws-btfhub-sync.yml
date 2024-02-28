@@ -48,7 +48,7 @@ jobs:
         run: |
           inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
+      - uses: stefanzweifel/git-auto-commit-action@v5
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"

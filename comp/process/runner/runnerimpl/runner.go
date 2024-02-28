@@ -48,7 +48,8 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (runner.Component, error) {
-	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(deps.Checks), deps.RTNotifier)
+	checks := fxutil.GetAndFilterGroup(deps.Checks)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func newRunner(deps dependencies) (runner.Component, error) {
 
 	runner := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: deps.Checks,
+		providedChecks: checks,
 	}
 
 	deps.Lc.Append(fx.Hook{

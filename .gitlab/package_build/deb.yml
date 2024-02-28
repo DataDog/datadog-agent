@@ -1,10 +1,8 @@
 ---
 .setup_deb_signing_key: &setup_deb_signing_key
-  - set +x
-  - DEB_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $DEB_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
   - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
-  - export DEB_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $DEB_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-  - set -x
+  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
 
 .agent_build_common_deb:
   script:
@@ -282,8 +280,7 @@ dogstatsd_deb-arm64:
 
 updater_deb-amd64:
   extends: .updater_build_common_deb
-  rules:
-    !reference [.on_a7]
+  rules: !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -291,15 +288,14 @@ updater_deb-amd64:
   variables:
     AGENT_MAJOR_VERSION: 7
     PACKAGE_ARCH: amd64
-    DESTINATION_DEB: 'datadog-updater_7_amd64.deb'
-    DESTINATION_DBG_DEB: 'datadog-updater-dbg_7_amd64.deb'
+    DESTINATION_DEB: "datadog-updater_7_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_amd64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 updater_deb-arm64:
   extends: .updater_build_common_deb
-  rules:
-    !reference [.on_a7]
+  rules: !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -307,8 +303,8 @@ updater_deb-arm64:
   variables:
     AGENT_MAJOR_VERSION: 7
     PACKAGE_ARCH: arm64
-    DESTINATION_DEB: 'datadog-updater_7_arm64.deb'
-    DESTINATION_DBG_DEB: 'datadog-updater-dbg_7_arm64.deb'
+    DESTINATION_DEB: "datadog-updater_7_arm64.deb"
+    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_arm64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
