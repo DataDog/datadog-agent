@@ -362,7 +362,7 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 		{
 			"logs disabled",
 			false,
-			flaretypes.NewEmptyProvider(),
+			flaretypes.Provider{},
 		},
 	}
 
@@ -379,7 +379,11 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 			provides := newLogsAgent(deps)
 
 			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
-			assert.NotNil(suite.T(), provides.FlareProvider.Provider)
+			if test.enabled {
+				assert.NotNil(suite.T(), provides.FlareProvider.Provider)
+			} else {
+				assert.Nil(suite.T(), provides.FlareProvider.Provider)
+			}
 		})
 	}
 }
