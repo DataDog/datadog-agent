@@ -777,7 +777,7 @@ replace k8s.io/cri-api => k8s.io/cri-api v0.25.5
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 replace (
-	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240206115617-f2d8d8dd20f9
+	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20240228111744-480257c68148
 	//github.com/aquasecurity/trivy => /home/djc/src/dd/trivy
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	// oras 1.2.2 is incompatible with github.com/docker/docker v24.0.2

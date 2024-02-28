@@ -316,8 +316,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.11.0 h1:G5fefqlKYsJX
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.11.0/go.mod h1:4ed2dYa6xQKKfVhJoLpNf89N0pKA8H2R0SyiCcL6PoI=
 github.com/DataDog/sketches-go v1.4.3 h1:ZB9nijteJRFUQixkQfatCqASartGNfiolIlMiEv3u/w=
 github.com/DataDog/sketches-go v1.4.3/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
-github.com/DataDog/trivy v0.0.0-20240206115617-f2d8d8dd20f9 h1:Uq/COJz124pQfabX7I7CNNYovyImARlV/D+Z31KW6sk=
-github.com/DataDog/trivy v0.0.0-20240206115617-f2d8d8dd20f9/go.mod h1:2w0U0AySWC0bFwgEG/Mj7b6WqJjHFBPmikz8+0yqWYY=
+github.com/DataDog/trivy v0.0.0-20240228111744-480257c68148 h1:SJj9+r89MXNCfl9/iK5FllpSgSZYFky5p9xjrgrhh08=
+github.com/DataDog/trivy v0.0.0-20240228111744-480257c68148/go.mod h1:2w0U0AySWC0bFwgEG/Mj7b6WqJjHFBPmikz8+0yqWYY=
 github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
 github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950 h1:2imDajw3V85w1iqHsuXN+hUBZQVF+r9eME8tsPq/HpA=
