@@ -193,10 +193,9 @@ func Poll(ctx context.Context, scan *types.ScanTask, device string, serialNumber
 // ListPartitions returns the list of partitions from the given block device.
 func ListPartitions(ctx context.Context, scan *types.ScanTask, deviceName string) ([]Partition, error) {
 	log.Debugf("%s: listing partitions from device %q", scan, deviceName)
-
 	var partitions []Partition
-	for i := 0; i < 5; i++ {
-		if !sleepCtx(ctx, 100*time.Millisecond) {
+	for i := 0; i < 20; i++ {
+		if !sleepCtx(ctx, 500*time.Millisecond) {
 			return nil, ctx.Err()
 		}
 		blockDevices, err := List(ctx, deviceName)
@@ -207,7 +206,11 @@ func ListPartitions(ctx context.Context, scan *types.ScanTask, deviceName string
 			continue
 		}
 		for _, part := range blockDevices[0].Children {
-			if part.FSType == "btrfs" || part.FSType == "ext2" || part.FSType == "ext3" || part.FSType == "ext4" || part.FSType == "xfs" {
+			if part.FSType == "btrfs" ||
+				part.FSType == "ext2" ||
+				part.FSType == "ext3" ||
+				part.FSType == "ext4" ||
+				part.FSType == "xfs" {
 				partitions = append(partitions, Partition{
 					DevicePath: part.Path,
 					FSType:     part.FSType,
