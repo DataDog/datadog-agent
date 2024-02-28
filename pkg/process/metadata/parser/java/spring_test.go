@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsSpringBootArchive(t *testing.T) {
@@ -48,9 +48,7 @@ func TestIsSpringBootArchive(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := &zip.Reader{File: tt.files}
-			ok, err := IsSpringBootArchive(reader)
-			assert.Nil(t, err, "Error not expected")
-			assert.Equal(t, tt.expected, ok)
+			require.Equal(t, tt.expected, IsSpringBootArchive(reader))
 		})
 	}
 }
@@ -120,8 +118,8 @@ func TestParseUri(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fsLocs, cpLocs := parseURI(strings.Split(tt.locations, ";"), tt.configName, tt.profiles, tt.cwd)
-			assert.Equal(t, tt.expectedFileSystemLocations, fsLocs)
-			assert.Equal(t, tt.expectedClassPathLocations, cpLocs)
+			require.Equal(t, tt.expectedFileSystemLocations, fsLocs)
+			require.Equal(t, tt.expectedClassPathLocations, cpLocs)
 		})
 	}
 }
@@ -139,9 +137,9 @@ func TestNewSpringBootArchiveSourceFromReader(t *testing.T) {
 	// create a test jar
 	buf := bytes.NewBuffer([]byte{})
 	writer := zip.NewWriter(buf)
-	assert.NoError(t, writeFile(writer, "BOOT-INF/classes/application.properties", "spring.application.name=default"))
-	assert.NoError(t, writeFile(writer, "BOOT-INF/classes/config/prod/application-prod.properties", "spring.application.name=prod"))
-	assert.NoError(t, writer.Close())
+	require.NoError(t, writeFile(writer, "BOOT-INF/classes/application.properties", "spring.application.name=default"))
+	require.NoError(t, writeFile(writer, "BOOT-INF/classes/config/prod/application-prod.properties", "spring.application.name=prod"))
+	require.NoError(t, writer.Close())
 	tests := []struct {
 		name     string
 		patterns []string
@@ -164,11 +162,11 @@ func TestNewSpringBootArchiveSourceFromReader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			props := newSpringBootArchiveSourceFromReader(reader, map[string][]string{"": tt.patterns})
-			assert.Len(t, props, 1)
-			assert.NotNil(t, props[""])
-			assert.Equal(t, tt.expected, props[""].GetDefault("spring.application.name", "unknown"))
+			require.Len(t, props, 1)
+			require.NotNil(t, props[""])
+			require.Equal(t, tt.expected, props[""].GetDefault("spring.application.name", "unknown"))
 		})
 	}
 }

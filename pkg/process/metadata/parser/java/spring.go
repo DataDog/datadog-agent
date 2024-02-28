@@ -19,6 +19,8 @@ import (
 )
 
 const (
+	bootInfJarPath = "BOOT-INF/classes/"
+
 	defaultLocations       = "optional:classpath:/;optional:classpath:/config/;optional:file:./;optional:file:./config/;optional:file:./config/*/"
 	defaultConfigName      = "application"
 	locationPropName       = "spring.config.locations"
@@ -86,42 +88,43 @@ func abs(path string, cwd string) string {
 	return path
 }
 
+// newPropertySourceFromInnerJarFile opens a file inside a zip archive and returns a PropertyGetter or error if unable to handle the file
+func newPropertySourceFromInnerJarFile(f *zip.File) (*props.PropertyGetter, error) {
+	rc, err := f.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return newPropertySourceFromStream(rc, f.Name, f.UncompressedSize64)
+
+}
+
 // newSpringBootArchiveSourceFromReader return a PropertyGetter combined source with properties sources from the jar application.
 func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[string][]string) map[string]*props.Combined {
 	ret := make(map[string]*props.Combined)
-	// probably we need something more efficient
 	matcher := antpath.New()
 	for _, f := range reader.File {
 		name := f.Name
 		// the generalized approach implies visiting also jar in BOOT-INF/lib but here we skip it
 		// to minimize the scanning time given that the general habit is to package config
 		// directly into the application and not in a lib embedded into the app
-		if strings.HasPrefix(name, "BOOT-INF/classes/") {
-			for profile, patterns := range patternMap {
-				for _, pattern := range patterns {
-					if matcher.Match(pattern, name) {
-						rc, err := f.Open()
-						if err != nil {
-							log.Trace("Unable to open", name, ":", err)
-						} else {
-							source, err := func() (*props.PropertyGetter, error) {
-								defer rc.Close()
-								return newPropertySourceFromStream(rc, f.Name, f.UncompressedSize64)
-							}()
-							if err != nil {
-								log.Trace("Error creating property source", err)
-							} else {
-								log.Trace("Loaded", f.Name)
-								val, ok := ret[profile]
-								if !ok {
-									val = &props.Combined{Sources: []props.PropertyGetter{}}
-									ret[profile] = val
-								}
-								val.Sources = append(val.Sources, *source)
-							}
-						}
+		if !strings.HasPrefix(name, bootInfJarPath) {
+			continue
+		}
+		for profile, patterns := range patternMap {
+			for _, pattern := range patterns {
+				if matcher.Match(pattern, name) {
+					source, err := newPropertySourceFromInnerJarFile(f)
+					if err != nil {
 						break
 					}
+					val, ok := ret[profile]
+					if !ok {
+						val = &props.Combined{Sources: []props.PropertyGetter{}}
+						ret[profile] = val
+					}
+					val.Sources = append(val.Sources, *source)
+					break
 				}
 			}
 		}
@@ -130,18 +133,16 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 }
 
 // GetSpringBootAppName tries to autodetect the name of a spring boot application given its working dir,
-// the jar path and the application arguments
+// the jar path and the application arguments.
+// When resolving properties, it supports placeholder resolution (a = ${b} -> will lookup then b)
 func GetSpringBootAppName(cwd string, jarname string, args []string) (string, error) {
 	absName := abs(jarname, cwd)
-	log.Tracef("open jar archive %s", absName)
-	archive, err := zip.OpenReader(jarname)
+	archive, err := zip.OpenReader(absName)
 	if err != nil {
 		return "", err
 	}
 	defer archive.Close()
-	ok, err := IsSpringBootArchive(&archive.Reader)
-	if !ok || err != nil {
-		log.Trace("Not a spring boot archive.")
+	if !IsSpringBootArchive(&archive.Reader) {
 		return "", nil
 	}
 
@@ -154,40 +155,42 @@ func GetSpringBootAppName(cwd string, jarname string, args []string) (string, er
 		//&props.Environment{Normalize: true},
 	}}
 
-	// resolved properties referring to other properties just in case...
+	// resolved properties referring to other properties (thanks to the Expander)
 	conf := &props.Configuration{Props: props.NewExpander(combined)}
 	// Looking in the environment (sysprops, arguments) first
 	appname, ok := conf.Get(appnamePropName)
-	if !ok {
-		locations := strings.Split(combined.GetDefault(locationPropName, defaultLocations), ";")
-		confname := combined.GetDefault(configPropName, defaultConfigName)
-		var profiles []string
-		rawProfile, ok := combined.Get(activeProfilesPropName)
-		if ok && len(rawProfile) > 0 {
-			profiles = strings.Split(rawProfile, ",")
-		}
-		log.Trace("Parsing spring configuration from locations", locations, "with configuration name", confname)
-		files, classpaths := parseURI(locations, confname, profiles, cwd)
-		log.Trace("Loading filesystem properties from", files)
-		fileSources := scanSourcesFromFileSystem(files)
-		log.Trace("Loading archive properties from classpath", classpaths)
-		classpathSources := newSpringBootArchiveSourceFromReader(&archive.Reader, classpaths)
-		//assemble by profile
-		for _, profile := range append(profiles, "") {
-			if val, ok := fileSources[profile]; ok {
-				combined.Sources = append(combined.Sources, val)
-			}
-			if val, ok := classpathSources[profile]; ok {
-				combined.Sources = append(combined.Sources, val)
-			}
-		}
-
-		if err != nil {
-			return "", err
-		}
-
-		appname, _ = conf.Get(appnamePropName)
+	if ok {
+		return appname, nil
 	}
+	// otherwise look in the fs and inside the jar
+	locations := strings.Split(combined.GetDefault(locationPropName, defaultLocations), ";")
+	confname := combined.GetDefault(configPropName, defaultConfigName)
+	var profiles []string
+	rawProfile, ok := combined.Get(activeProfilesPropName)
+	if ok && len(rawProfile) > 0 {
+		profiles = strings.Split(rawProfile, ",")
+	}
+	log.Trace("Parsing spring configuration from locations", locations, "with configuration name", confname)
+	files, classpaths := parseURI(locations, confname, profiles, cwd)
+	log.Trace("Loading filesystem properties from", files)
+	fileSources := scanSourcesFromFileSystem(files)
+	log.Trace("Loading archive properties from classpath", classpaths)
+	classpathSources := newSpringBootArchiveSourceFromReader(&archive.Reader, classpaths)
+	//assemble by profile
+	for _, profile := range append(profiles, "") {
+		if val, ok := fileSources[profile]; ok {
+			combined.Sources = append(combined.Sources, val)
+		}
+		if val, ok := classpathSources[profile]; ok {
+			combined.Sources = append(combined.Sources, val)
+		}
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	appname, _ = conf.Get(appnamePropName)
 	return appname, nil
 }
 

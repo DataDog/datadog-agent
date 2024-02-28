@@ -17,7 +17,9 @@ type flattener struct {
 	props map[string]string
 }
 
-// visit the current node recursively to convert to flattened properties
+// visit the current node recursively to convert to flattened properties.
+// The function will only recurse yaml.MappingNode and handle yaml.ScalarNode values.
+// This because this method is tailored to extract simple scalar values only like `spring.application.name`
 func (f *flattener) visit(path []string, node *yaml.Node) {
 	if len(node.Content)%2 != 0 {
 		return

@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestArgumentPropertySource(t *testing.T) {
@@ -51,25 +49,25 @@ func TestArgumentPropertySource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			argSource := newArgumentSource(tt.args, tt.prefix)
-			assert.Equal(t, tt.expected, argSource.m)
+			require.Equal(t, tt.expected, argSource.m)
 		})
 	}
 }
 func TestScanSourcesFromFileSystem(t *testing.T) {
 	cwd, err := os.Getwd()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	fileSources := scanSourcesFromFileSystem(map[string][]string{
 		"fs": {
 			filepath.ToSlash(abs("./application-fs.properties", cwd)),
 			filepath.ToSlash(abs("./*/application-fs.properties", cwd)),
 		},
 	})
-	assert.Len(t, fileSources, 1)
+	require.Len(t, fileSources, 1)
 	val, ok := fileSources["fs"]
 	if !ok {
-		assert.Fail(t, "Expecting property source for fs profile")
+		require.Fail(t, "Expecting property source for fs profile")
 	} else {
-		assert.Equal(t, "from-fs", val.GetDefault("spring.application.name", "notfound"))
+		require.Equal(t, "from-fs", val.GetDefault("spring.application.name", "notfound"))
 	}
 }
 
