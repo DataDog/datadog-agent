@@ -49,7 +49,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/http v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/net v0.21.0
@@ -68,6 +67,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.52.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.52.0-rc.3 // indirect
