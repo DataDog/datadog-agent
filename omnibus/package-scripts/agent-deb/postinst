@@ -65,6 +65,7 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
+set +e
 generate_install_id()
 {
   # Try generating a UUID based on /proc/sys/kernel/random/uuid
@@ -108,6 +109,7 @@ fi
 
 install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
 sh -c "echo '$install_signature' > $CONFIG_DIR/install.json"
+set -e
 
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
