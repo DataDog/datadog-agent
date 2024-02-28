@@ -43,7 +43,7 @@ func parseURI(locations []string, name string, profiles []string, cwd string) (m
 
 		isClasspath := false
 		if pl > 1 && parts[pl-2] == "classpath" {
-			parts[pl-1] = "BOOT-INF/classes/" + parts[pl-1]
+			parts[pl-1] = bootInfJarPath + parts[pl-1]
 			isClasspath = true
 		}
 
@@ -96,7 +96,6 @@ func newPropertySourceFromInnerJarFile(f *zip.File) (*props.PropertyGetter, erro
 	}
 	defer rc.Close()
 	return newPropertySourceFromStream(rc, f.Name, f.UncompressedSize64)
-
 }
 
 // newSpringBootArchiveSourceFromReader return a PropertyGetter combined source with properties sources from the jar application.
@@ -116,6 +115,7 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 				if matcher.Match(pattern, name) {
 					source, err := newPropertySourceFromInnerJarFile(f)
 					if err != nil {
+						log.Tracef("Error while reading properties from %q: %v", name, err)
 						break
 					}
 					val, ok := ret[profile]
@@ -170,11 +170,8 @@ func GetSpringBootAppName(cwd string, jarname string, args []string) (string, er
 	if ok && len(rawProfile) > 0 {
 		profiles = strings.Split(rawProfile, ",")
 	}
-	log.Trace("Parsing spring configuration from locations", locations, "with configuration name", confname)
 	files, classpaths := parseURI(locations, confname, profiles, cwd)
-	log.Trace("Loading filesystem properties from", files)
 	fileSources := scanSourcesFromFileSystem(files)
-	log.Trace("Loading archive properties from classpath", classpaths)
 	classpathSources := newSpringBootArchiveSourceFromReader(&archive.Reader, classpaths)
 	//assemble by profile
 	for _, profile := range append(profiles, "") {

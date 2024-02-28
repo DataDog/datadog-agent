@@ -15,8 +15,6 @@ import (
 
 	"github.com/rickar/props"
 	"github.com/vibrantbyte/go-antpath/antpath"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -82,6 +80,20 @@ func newPropertySourceFromStream(rc io.Reader, filename string, filesize uint64)
 	return &properties, err
 }
 
+// newPropertySourceFromFile wraps filename opening and closing, delegating the rest of the logic to newPropertySourceFromStream
+func newPropertySourceFromFile(filename string) (*props.PropertyGetter, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	return newPropertySourceFromStream(f, filename, uint64(fi.Size()))
+}
+
 // longestPathPrefix extracts the longest path's portion that's not a pattern (i.e. /test/**/*.xml will return /test/)
 func longestPathPrefix(pattern string) string {
 	idx := strings.IndexAny(pattern, "?*")
@@ -102,41 +114,29 @@ func scanSourcesFromFileSystem(profilePatterns map[string][]string) map[string]*
 	matcher := antpath.New()
 	for profile, pp := range profilePatterns {
 		for _, pattern := range pp {
-			path := longestPathPrefix(pattern)
-			_ = filepath.WalkDir(filepath.FromSlash(path), func(p string, d fs.DirEntry, err error) error {
+			startPath := longestPathPrefix(pattern)
+			_ = filepath.WalkDir(filepath.FromSlash(startPath), func(p string, d fs.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
 				path := filepath.ToSlash(p)
-
-				if d.IsDir() {
-					if !matcher.MatchStart(pattern, path) {
+				if !matcher.MatchStart(pattern, path) {
+					if d.IsDir() {
+						// skip the whole directory subtree since the prefix does not match
 						return filepath.SkipDir
 					}
-				} else if matcher.Match(pattern, path) {
-					// found
-					f, err2 := os.Open(path)
-					if err2 != nil {
-						log.Tracef("Error while reading properties from %s: %v", path, err2)
-						return nil
+					// skip the current file
+					return nil
+				}
+				// a match is found
+				value, _ := newPropertySourceFromFile(path)
+				if value != nil {
+					arr, ok := ret[profile]
+					if !ok {
+						arr = &props.Combined{Sources: []props.PropertyGetter{}}
+						ret[profile] = arr
 					}
-					var value *props.PropertyGetter
-					value, _ = func() (*props.PropertyGetter, error) {
-						defer f.Close()
-						fi, statErr := f.Stat()
-						if statErr != nil {
-							return nil, statErr
-						}
-						return newPropertySourceFromStream(f, p, uint64(fi.Size()))
-					}()
-					if value != nil {
-						arr, ok := ret[profile]
-						if !ok {
-							arr = &props.Combined{Sources: []props.PropertyGetter{}}
-							ret[profile] = arr
-						}
-						arr.Sources = append(arr.Sources, *value)
-					}
+					arr.Sources = append(arr.Sources, *value)
 				}
 				return nil
 			})
