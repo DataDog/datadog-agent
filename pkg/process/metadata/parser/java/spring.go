@@ -106,8 +106,7 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 						} else {
 							source, err := func() (*props.PropertyGetter, error) {
 								defer rc.Close()
-								source, err := newPropertySourceFromStream(rc, f.Name, f.UncompressedSize64)
-								return source, err
+								return newPropertySourceFromStream(rc, f.Name, f.UncompressedSize64)
 							}()
 							if err != nil {
 								log.Trace("Error creating property source", err)
@@ -175,12 +174,10 @@ func GetSpringBootAppName(cwd string, jarname string, args []string) (string, er
 		classpathSources := newSpringBootArchiveSourceFromReader(&archive.Reader, classpaths)
 		//assemble by profile
 		for _, profile := range append(profiles, "") {
-			val, ok := fileSources[profile]
-			if ok {
+			if val, ok := fileSources[profile]; ok {
 				combined.Sources = append(combined.Sources, val)
 			}
-			val, ok = classpathSources[profile]
-			if ok {
+			if val, ok := classpathSources[profile]; ok {
 				combined.Sources = append(combined.Sources, val)
 			}
 		}
