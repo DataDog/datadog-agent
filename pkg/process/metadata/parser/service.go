@@ -399,7 +399,7 @@ func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, ar
 	return "java"
 }
 
-// advancedGuessJavaServiceName inspects a jmv process to extract framework specific metadata that could be used as service name
+// advancedGuessJavaServiceName inspects a jvm process to extract framework specific metadata that could be used as service name
 // if found the function will return the service name and true. Otherwise, "",false
 func advancedGuessJavaServiceName(se *ServiceExtractor, process *procutil.Process, args []string, jarname string) (string, bool) {
 	if !se.useImprovedAlgorithm {
