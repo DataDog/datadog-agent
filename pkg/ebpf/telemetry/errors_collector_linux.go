@@ -31,8 +31,6 @@ type EBPFErrorsCollector struct {
 	*EBPFTelemetry
 	ebpfMapOpsErrors *prometheus.Desc
 	ebpfHelperErrors *prometheus.Desc
-	//we can use one map for both map errors and ebpf helpers errors, as the keys are different
-	lastValues map[string]uint64
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
@@ -47,7 +45,6 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 		},
 		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
 		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
-		lastValues:       make(map[string]uint64),
 	}
 }
 
@@ -74,11 +71,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				base := maxErrno * index
 				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
 					for errStr, errCount := range count {
-						errorsDelta := float64(errCount - e.lastValues[errStr])
-						if errorsDelta > 0 {
-							ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, errorsDelta, helperName, probeName, errStr)
-						}
-						e.lastValues[errStr] = errCount
+						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
 					}
 				}
 			}
@@ -95,11 +88,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 			if count := getErrCount(val.Count[:]); len(count) > 0 {
 				for errStr, errCount := range count {
-					errorsDelta := float64(errCount - e.lastValues[errStr])
-					if errorsDelta > 0 {
-						ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, errorsDelta, m, errStr)
-					}
-					e.lastValues[errStr] = errCount
+					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.GaugeValue, float64(errCount), m, errStr)
 				}
 			}
 		}
