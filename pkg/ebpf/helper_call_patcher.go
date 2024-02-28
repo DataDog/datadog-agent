@@ -16,8 +16,23 @@ import (
 
 var noopIns = asm.Mov.Reg(asm.R1, asm.R1)
 
-// NewHelperCallRemover provides a `Modifier` that patches the eBPF bytecode
-// replacing helper calls by NO-OP operations
+// NewHelperCallRemover provides a `Modifier` that patches eBPF bytecode
+// such that calls to the functions given by `helpers` are replaced by
+// NO-OP instructions.
+//
+// This is particularly useful for writing eBPF code following the pattern
+// below:
+//
+//	if (ring_buffers_supported) {
+//	    bpf_ringbuf_output(...);
+//	} else {
+//	    bpf_perf_event_output(...);
+//	}
+//
+// Please try to favor the use of either CO-RE or runtime compilation to
+// conditionally select eBPF helpers. This should be regarded as a last resort
+// when the aforementioned options don't apply (prebuilt artifacts, for
+// example).
 func NewHelperCallRemover(helpers ...asm.BuiltinFunc) Modifier {
 	return &helperCallRemover{
 		helpers: helpers,
@@ -38,7 +53,6 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 		for _, p := range progs {
 			iter := p.Instructions.Iterate()
 
-		InstructionLoop:
 			for iter.Next() {
 				ins := iter.Ins
 				if !ins.IsBuiltinCall() {
@@ -48,7 +62,7 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 				for _, fn := range h.helpers {
 					if ins.Constant == int64(fn) {
 						*ins = noopIns.WithMetadata(ins.Metadata)
-						continue InstructionLoop
+						break
 					}
 				}
 			}

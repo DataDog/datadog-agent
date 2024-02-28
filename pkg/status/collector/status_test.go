@@ -18,6 +18,14 @@ import (
 )
 
 func TestRender(t *testing.T) {
+	// We're checking that some dates are correctly formatted in the HTML
+	// so we need to set the timezone to UTC to avoid issues.
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+	defer func() {
+		os.Setenv("TZ", originalTZ)
+	}()
+
 	for _, test := range []struct {
 		name        string
 		fixtureFile string

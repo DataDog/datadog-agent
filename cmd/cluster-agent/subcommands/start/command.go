@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -53,15 +55,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
-	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
+	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
+	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
+	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
+	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -97,6 +103,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -140,6 +147,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
+				fx.Supply(
+					status.Params{
+						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+					},
+					status.NewInformationProvider(collectorStatus.Provider{}),
+					status.NewInformationProvider(leaderelection.Provider{}),
+					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
+					status.NewInformationProvider(admissionpkg.Provider{}),
+					status.NewInformationProvider(endpointsStatus.Provider{}),
+					status.NewInformationProvider(autodiscoveryStatus.Provider{}),
+					status.NewInformationProvider(clusterchecks.Provider{}),
+					status.NewInformationProvider(orchestratorStatus.Provider{}),
+				),
+				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
+				}),
+				statusimpl.Module(),
 				collectorimpl.Module(),
 				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
@@ -150,7 +174,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, rcService optional.Option[rccomp.Component]) error {
+func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, statusComponent status.Component, collector collector.Component, rcService optional.Option[rccomp.Component]) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -229,7 +253,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector)); err != nil {
+	if err := api.StartServer(wmeta, taggerComp, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -389,32 +413,16 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			StopCh:              stopCh,
 		}
 
-		err = admissionpkg.StartControllers(admissionCtx)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
 			// Webhook and secret controllers are started successfully
 			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
 
-			apmInstrumentationWebhook, err := mutate.GetAPMInstrumentationWebhook()
-			if err != nil {
-				pkglog.Errorf("failed to register APM Instrumentation webhook: %v", err)
-			} else {
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), apmInstrumentationWebhook.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
-			}
-
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.agent_sidecar.endpoint"), agentsidecar.InjectAgentSidecar, apiCl.DynamicCl, apiCl.Cl)
-
-			// CWS Instrumentation webhooks
-			cwsInstrumentation, err := mutate.NewCWSInstrumentation()
-			if err != nil {
-				pkglog.Errorf("failed to register CWS Instrumentation webhook: %v", err)
-			} else {
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"), cwsInstrumentation.InjectCWSPodInstrumentation, apiCl.DynamicCl, apiCl.Cl)
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"), cwsInstrumentation.InjectCWSCommandInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+			for _, webhookConf := range webhooks {
+				server.Register(webhookConf.Endpoint(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
 			}
 
 			// Start the k8s admission webhook server

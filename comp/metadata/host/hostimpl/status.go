@@ -43,15 +43,13 @@ func (h *host) populateStatus(stats map[string]interface{}) {
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	ctx := context.Background()
+	payload := utils.GetFromCache(context.TODO(), h.config)
+	metadataStats := make(map[string]interface{})
+	payloadBytes, _ := json.Marshal(payload)
 
-	payload := h.getPayload(ctx)
-	metaStats := make(map[string]interface{})
-	metaBytes, _ := json.Marshal(payload.Meta)
+	json.Unmarshal(payloadBytes, &metadataStats) //nolint:errcheck
 
-	json.Unmarshal(metaBytes, &metaStats) //nolint:errcheck
-
-	stats["meta"] = metaStats
+	stats["metadata"] = metadataStats
 
 	hostTags := make([]string, 0, len(payload.HostTags.System)+len(payload.HostTags.GoogleCloudPlatform))
 	hostTags = append(hostTags, payload.HostTags.System...)

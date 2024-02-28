@@ -544,6 +544,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
+	// Force the amount of dogstatsd workers (mainly used for benchmarks or some very specific use-case)
+	config.BindEnvAndSetDefault("dogstatsd_workers_count", 0)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -1424,8 +1426,8 @@ func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 
 func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
-	knownKeys := config.GetKnownKeys()
-	loadedKeys := config.AllKeys()
+	knownKeys := config.GetKnownKeysLowercased()
+	loadedKeys := config.AllKeysLowercased()
 	for _, key := range loadedKeys {
 		if _, found := knownKeys[key]; !found {
 			// Check if any subkey terminated with a '.*' wildcard is marked as known
@@ -1472,7 +1474,7 @@ func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
 		}
 	}
 
-	allKeys := config.AllKeys()
+	allKeys := config.AllKeysLowercased()
 	for _, key := range allKeys {
 		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
 		if unknownValue := config.Get(key); unknownValue != nil {

@@ -245,6 +245,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
+	_, udpSendPageEnabled := enabledProbes[probes.UDPSendPage]
+	util.AddBoolConst(&mgrOpts, udpSendPageEnabled, "udp_send_page_enabled")
+
 	for funcName := range enabledProbes {
 		probeIdentifier := manager.ProbeIdentificationPair{
 			EBPFFuncName: funcName,
