@@ -86,6 +86,10 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) bool {
 
 	log.TraceFunc(func() string { return fmt.Sprintf("ctrsByConn = %v", ctrsByConn) })
 
+	if len(ctrsByConn) == 0 {
+		return true
+	}
+
 	// go over connections again using hashtable computed earlier to resolve dest
 	conns.Iterate(func(_ int, conn *ConnectionStats) {
 		if !conn.IntraHost {
