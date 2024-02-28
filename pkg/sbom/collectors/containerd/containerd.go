@@ -22,6 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
+// resultChanSize defines the result channel size
+// 1000 is already a very large default value
+const resultChanSize = 1000
+
 // ScanRequest defines a scan request
 // This struct should be hashable
 type ScanRequest struct {
@@ -156,6 +160,6 @@ func (c *Collector) Shutdown() {
 
 func init() {
 	collectors.RegisterCollector(collectors.ContainerdCollector, &Collector{
-		resChan: make(chan sbom.ScanResult, 1000),
+		resChan: make(chan sbom.ScanResult, resultChanSize),
 	})
 }
