@@ -22,11 +22,15 @@ func TestBasicRegistryTest(t *testing.T) {
 		ID:         "test_open_rule",
 		Expression: `open.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
 	}
+	createDef := &rules.RuleDefinition{
+		ID:         "test_create_rule",
+		Expression: `create.registry.key_path == "HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"`,
+	}
 
 	opts := testOpts{
 		enableFIM: true,
 	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef}, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{openDef, createDef}, withStaticOpts(opts))
 
 	if err != nil {
 		t.Fatal(err)
@@ -37,19 +41,28 @@ func TestBasicRegistryTest(t *testing.T) {
 	// so wait around for it to start
 	time.Sleep(5 * time.Second)
 
-	test.Run(t, "registry 1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		/*
-			inputargs := []string{
-				"add",
-				"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
-				"/v",
-				"test",
-				"/t",
-				"REG_SZ",
-				"/d",
-				"c:\\windows\\system32\\calc.exe",
-			}
-		*/
+	test.Run(t, "Test registry with reg.exe", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		inputargs := []string{
+			"add",
+			"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+			"/v",
+			"test",
+			"/t",
+			"REG_SZ",
+			"/d",
+			"c:\\windows\\system32\\calc.exe",
+		}
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("reg.exe", inputargs, nil)
+
+			// we will ignore any error
+			_ = cmd.Run()
+			return nil
+		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
+		}))
+	})
+	test.Run(t, "Test registry with powershell", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		inputargs := []string{
 			"-c",
 			"Set-ItemProperty",
