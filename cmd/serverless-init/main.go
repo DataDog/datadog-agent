@@ -8,6 +8,7 @@
 package main
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/initcontainer"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -29,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -53,8 +53,10 @@ func main() {
 
 	err := fxutil.OneShot(run, fx.Supply(cliParams))
 
-	if err != nil {
-		logger.Error(err)
+		if err != nil {
+			log.Error(err)
+			os.Exit(-1)
+		}
 	}
 }
 
@@ -63,24 +65,8 @@ func run(cliParams *cliParams) {
 	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, cliParams.args)
 }
 
-func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
-	if err := config.SetupLogger(
-		loggerName,
-		"error", // will be re-set later with the value from the env var
-		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",      // syslog URI
-		false,   // syslog_rfc
-		true,    // log_to_console
-		false,   // log_format_json
-	); err != nil {
-		logger.Errorf("Unable to setup logger: %s", err)
-	}
-
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
-			logger.Errorf("Unable to change the log level: %s", err)
-		}
-	}
+func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+	setupLogger()
 
 	tracelog.SetLogger(corelogger{})
 
@@ -97,8 +83,8 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	origin := cloudService.GetOrigin()
 	prefix := cloudService.GetPrefix()
 
-	logConfig := log.CreateConfig(origin)
-	logsAgent := log.SetupLog(logConfig, tags)
+	logConfig := serverlessInitLog.CreateConfig(origin)
+	logsAgent := serverlessInitLog.SetupLog(logConfig, tags)
 
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
@@ -108,7 +94,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	// panic down the line.
 	_, err := config.LoadWithoutSecret()
 	if err != nil {
-		logger.Debugf("Error loading config: %v\n", err)
+		log.Debugf("Error loading config: %v\n", err)
 	}
 
 	traceAgent := &trace.ServerlessTraceAgent{}
@@ -121,6 +107,26 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 
 	go flushMetricsAgent(metricAgent)
 	return cloudService, logConfig, traceAgent, metricAgent, logsAgent
+}
+
+func setupLogger() {
+	if err := config.SetupLogger(
+		loggerName,
+		"error", // will be re-set later with the value from the env var
+		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",      // syslog URI
+		false,   // syslog_rfc
+		true,    // log_to_console
+		false,   // log_format_json
+	); err != nil {
+		log.Errorf("Unable to setup logger: %s", err)
+	}
+
+	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
+		if err := config.ChangeLogLevel(logLevel); err != nil {
+			log.Errorf("Unable to change the log level: %s", err)
+		}
+	}
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
@@ -146,7 +152,7 @@ func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 
 func setupOtlpAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	if !otlp.IsEnabled() {
-		logger.Debugf("otlp endpoint disabled")
+		log.Debugf("otlp endpoint disabled")
 		return
 	}
 	otlpAgent := otlp.NewServerlessOTLPAgent(metricAgent.Demux.Serializer())
