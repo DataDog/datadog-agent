@@ -371,8 +371,10 @@ func (ns *networkState) GetDelta(
 	cs := slice.NewChain(active, closed)
 	ns.determineConnectionIntraHost(cs)
 
-	// resolve local connections
-	ns.localResolver.Resolve(cs)
+	// resolve local connections if rollups are enabled
+	if ns.enableConnectionRollup {
+		ns.localResolver.Resolve(cs)
+	}
 
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
@@ -1152,12 +1154,16 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 	key.direction = c.Direction
 	if a.processEventConsumerEnabled {
 		key.containers.source = c.ContainerID.Source
-		key.containers.dest = c.ContainerID.Dest
 	}
 
 	if !a.enablePortRollups {
 		return key, false, false
 	}
+
+	// local resolution is done in system-probe if rollups
+	// are enabled, so add the destination container id to
+	// the key as well
+	key.containers.dest = c.ContainerID.Dest
 
 	isShortLived := c.IsClosed && (c.Duration > 0 && c.Duration < shortLivedConnectionThreshold)
 	sportRolledUp = c.Direction == OUTGOING
