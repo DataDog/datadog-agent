@@ -27,7 +27,7 @@ func GetVersionDataFromContainerTags(containerID string, conf *config.AgentConfi
 	}
 	cTags, err := conf.ContainerTags(containerID)
 	if err != nil {
-		if err == config.ErrContainerTagsNotDefined {
+		if err == config.ErrContainerTagsFuncNotDefined {
 			return "", "", nil
 		}
 		return "", "", err
