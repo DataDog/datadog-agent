@@ -895,6 +895,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     // the next prog will start to read from the next valid frame.
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
+        log_debug("uprobe__http2_tls_eos_parser failed to fetch arguments for tail call");
         return false;
     }
     dispatcher_args_copy = *args;
@@ -907,6 +908,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&tls_http2_iterations, &dispatcher_args_copy);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
+        log_debug("uprobe__http2_tls_eos_parser failed to find in http2_iterations the dispatcher_args_copy");
         return 0;
     }
 
@@ -920,6 +922,7 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
+        log_debug("uprobe__http2_tls_eos_parser failed to find the context in heap");
         goto delete_iteration;
     }
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));

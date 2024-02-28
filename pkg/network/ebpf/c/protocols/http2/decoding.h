@@ -918,6 +918,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
     if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        log_debug("socket__http2_eos_parser failed to fetch arguments for tail call");
         return 0;
     }
 
@@ -929,6 +930,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
+        log_debug("socket__http2_eos_parser failed to find in http2_iterations the dispatcher_args_copy");
         return 0;
     }
 
@@ -943,6 +945,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
+        log_debug("socket__http2_eos_parser failed to find the context in heap");
         goto delete_iteration;
     }
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
