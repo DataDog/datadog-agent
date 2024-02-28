@@ -11,10 +11,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -125,14 +125,9 @@ func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Co
 		return err
 	}
 
-	// Platform Architecture
-	c.arch = "32-bit"
-	arch, err := host2.KernelArch()
+	c.arch, err = host2.KernelArch()
 	if err != nil {
 		return err
-	}
-	if strings.HasSuffix(arch, "64") {
-		c.arch = "64-bit"
 	}
 	return err
 }
