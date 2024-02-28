@@ -104,7 +104,7 @@ func newRegistrySerializer(re *model.RegistryEvent, e *model.Event, _ ...uint64)
 		KeyName: re.KeyName,
 		KeyPath: re.KeyPath,
 	}
-	if model.EventType(e.Type) == mode.SetRegistryKeyValueEventType {
+	if model.EventType(e.Type) == model.SetRegistryKeyValueEventType {
 		rs.ValueName = e.SetRegistryKeyValue.ValueName
 	}
 	return rs
