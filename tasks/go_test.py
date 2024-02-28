@@ -122,6 +122,7 @@ class CodecovWorkaround:
             coverage_script = self.coverage_script_template.format(packages=self.packages, **self.args)
             with open(self.cov_test_path, 'w', encoding='utf-8') as f:
                 f.write(coverage_script)
+                print("Coverage Script:\n", coverage_script)
 
             with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
                 f.write(
@@ -396,8 +397,7 @@ exit $LASTEXITCODE"""
         else:
             coverage_script_template = f"""#!/usr/bin/env bash
 set -eu
-packages=$([ $# -eq 0 ] && echo "{{packages}}" || echo "$@")
-go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" $packages
+go test "${{{{@:2}}}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
 """
     else:
         coverage_script_template = ""
