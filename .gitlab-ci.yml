@@ -308,10 +308,10 @@ variables:
 .if_disable_unit_tests: &if_disable_unit_tests
   if: $RUN_UNIT_TESTS == "off"
 
-if_run_all_unit_tests: &if_run_all_unit_tests
+.if_run_all_unit_tests: &if_run_all_unit_tests
   if: $RUN_UNIT_TESTS == "on"
 
-if_auto_unit_tests: &if_auto_unit_tests
+.if_auto_unit_tests: &if_auto_unit_tests
   if: $RUN_UNIT_TESTS == "auto"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
