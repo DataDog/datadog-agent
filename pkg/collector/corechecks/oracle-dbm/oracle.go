@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package oracledbm contains the oracle check. The oracle check was renamed from oracle-dbm
+// to oracle. This package is used to keep the compatibility with the old configuration. It essentially
+// just executes the oracle check.
 package oracledbm
 
 // CheckName is the name of the check that was renamed to `oracle`.
-// This is used to keep the compatibility with the old configuration.
 const CheckName = "oracle-dbm"
