@@ -194,11 +194,27 @@ func GetUserRightsForUser(host *components.RemoteHost, user string) ([]string, e
 		return nil, err
 	}
 	var result []string
+	var sidCache = make(map[string]string)
+	sidCache[user] = sid
 	for right, users := range rights {
 		for _, u := range users {
+			var s string
+			if !strings.HasPrefix(u, "S-") {
+				// not a SID, look up the SID for the username
+				var ok bool
+				s, ok = sidCache[u]
+				if !ok {
+					s, err = GetSIDForUser(host, u)
+					if err != nil {
+						return nil, err
+					}
+					sidCache[u] = s
+				}
+			}
 			// check if SID or username matches
-			if strings.EqualFold(u, sid) || strings.EqualFold(u, user) {
+			if strings.EqualFold(s, sid) || strings.EqualFold(u, user) {
 				result = append(result, right)
+				break
 			}
 		}
 	}
