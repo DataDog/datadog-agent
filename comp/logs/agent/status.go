@@ -17,7 +17,7 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Use for testing onlye
+// Only use for testing
 var logsProvider = logsStatus.Get
 
 type statusProvider struct{}
