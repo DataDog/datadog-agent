@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"testing"
 	"time"
 	"unsafe"
@@ -21,7 +22,6 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
