@@ -10,9 +10,7 @@ package initcontainer
 
 import (
 	"context"
-	"io"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -30,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/spf13/afero"
 )
 
 // Run is the entrypoint of the init process. It will spawn the customer process
@@ -43,40 +40,21 @@ func Run(
 	args []string,
 ) {
 	log.Debugf("Launching subprocess %v\n", args)
-	err := execute(logConfig, args)
-	if err != nil {
-		log.Debugf("Error exiting: %v\n", err)
-	}
+
+	stopCh := make(chan struct{})
+	go handleTerminationSignals(stopCh, signal.Notify)
+	<-stopCh
+
 	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	flush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func execute(logConfig *serverlessLog.Config, args []string) error {
-	commandName, commandArgs := buildCommandParam(args)
-
-	// Add our tracer settings
-	fs := afero.NewOsFs()
-	AutoInstrumentTracer(fs)
-
-	cmd := exec.Command(commandName, commandArgs...)
-
-	cmd.Stdout = io.Writer(os.Stdout)
-	cmd.Stderr = io.Writer(os.Stderr)
-
-	if logConfig.IsEnabled {
-		cmd.Stdout = io.MultiWriter(os.Stdout, serverlessLog.NewChannelWriter(logConfig.Channel, false))
-		cmd.Stderr = io.MultiWriter(os.Stderr, serverlessLog.NewChannelWriter(logConfig.Channel, true))
-	}
-
-	err := cmd.Start()
-	if err != nil {
-		return err
-	}
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs)
-	go forwardSignals(cmd.Process, sigs)
-	err = cmd.Wait()
-	return err
+func handleTerminationSignals(stopCh chan struct{}, notify func(c chan<- os.Signal, sig ...os.Signal)) {
+	signalCh := make(chan os.Signal, 1)
+	notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+	signo := <-signalCh
+	log.Infof("Received signal '%s', shutting down...", signo)
+	stopCh <- struct{}{}
 }
 
 func buildCommandParam(cmdArg []string) (string, []string) {
