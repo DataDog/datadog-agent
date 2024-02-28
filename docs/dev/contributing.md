@@ -292,7 +292,7 @@ labels that can be use:
 - `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
 - `backport/<branch-name>`: Add this label to automatically create a PR against the `<branch-name>` branch with your backported changes. The backport PR creation is triggered:
   - When a PR with the label is merged
-  - When an already merged PR gets the label.
+  - When an already-merged PR gets the label
 
 ## Integrations
 
