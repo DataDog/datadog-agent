@@ -75,7 +75,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		fx.Provide(func() corelogimpl.Params {
 			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		tracelogimpl.TraceModule(),
+		tracelogimpl.Module(),
 		// setup workloadmeta
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.Params{

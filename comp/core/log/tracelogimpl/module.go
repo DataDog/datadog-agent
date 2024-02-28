@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// TraceModule defines the fx options for the log component in its Trace variant.
-func TraceModule() fxutil.Module {
+// Module defines the fx options for the log component in its Trace variant.
+func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newTraceLogger),
 	)
