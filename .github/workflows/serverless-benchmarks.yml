@@ -10,73 +10,124 @@ on:
 env:
   DD_API_KEY: must-be-set
 
+concurrency:
+  group: ${{ github.workflow }}/PR#${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  run:
+  baseline:
+    name: Baseline
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
     steps:
+      - name: Checkout ${{ github.base_ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+
       - name: Install Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: stable
+
+      - name: Prepare working tree
+        id: prepare
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          go get ./...
+
+      - name: Run benchmark
+        run: |
+          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
+              ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
+
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline.log
+          path: ${{runner.temp}}/benchmark.log
+          if-no-files-found: error
+
+
+  current:
+    name: Current
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
+
+    steps:
+      - name: Checkout ${{ github.ref }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Prepare working tree
+        id: prepare
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          go get ./...
+
+      - name: Run benchmark
+        run: |
+          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
+              ./pkg/serverless/... | tee ${{runner.temp}}/benchmark.log
+
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: current.log
+          path: ${{runner.temp}}/benchmark.log
+          if-no-files-found: error
+
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [baseline, current]
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
 
       - name: Install benchstat
         run: |
           go install golang.org/x/perf/cmd/benchstat@latest
 
-      - name: Checkout datadog-agent repository
-        uses: actions/checkout@v4
+      - name: Download baseline artifact
+        uses: actions/download-artifact@v4
         with:
-          path: go/src/github.com/DataDog/datadog-agent
-
-      - name: Checkout datadog-agent base branch
-        id: previous
-        run: |
-          cd go/src/github.com/DataDog/datadog-agent
-          git fetch origin $GITHUB_BASE_REF --depth 1
-          git checkout $GITHUB_BASE_REF
-          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "previous commit: $(git rev-parse HEAD)"
-          go get ./...
-
-      - name: Previous benchmark results
-        run: |
-          cd go/src/github.com/DataDog/datadog-agent
-          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
-              ./pkg/serverless/... | tee previous
-
-      - name: Checkout datadog-agent pr branch
-        id: current
-        run: |
-          cd go/src/github.com/DataDog/datadog-agent
-          git fetch origin $GITHUB_SHA --depth 1
-          git checkout $GITHUB_SHA
-          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "current commit: $(git rev-parse HEAD)"
-          go get ./...
-
-      - name: Current benchmark results
-        run: |
-          cd go/src/github.com/DataDog/datadog-agent
-          go test -tags=test -run='^$' -bench=StartEndInvocation -count=10 -benchtime=500ms -timeout=60m \
-              ./pkg/serverless/... | tee current
+          name: baseline.log
+          path: baseline
+      - name: Download current artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: current.log
+          path: current
 
       - name: Analyze results
         id: analyze
         run: |
-          cd go/src/github.com/DataDog/datadog-agent
-          benchstat -row /event previous current | tee analyze.txt
+          benchstat -row /event baseline/benchmark.log current/benchmark.log | tee analyze.txt
           echo "analyze<<EOF" >> $GITHUB_OUTPUT
           cat analyze.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Post comment
-        uses: marocchino/sticky-pull-request-comment@v2.5.0
+        uses: marocchino/sticky-pull-request-comment@v2.9.0
         with:
           recreate: true
           message: |
             ## Serverless Benchmark Results
 
-            `BenchmarkStartEndInvocation` comparison between ${{ steps.previous.outputs.sha }} and ${{ steps.current.outputs.sha }}.
+            `BenchmarkStartEndInvocation` comparison between ${{ needs.baseline.outputs.sha }} and ${{ needs.current.outputs.sha }}.
 
             <details>
             <summary>tl;dr</summary>

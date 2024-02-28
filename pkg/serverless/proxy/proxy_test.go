@@ -7,6 +7,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -80,7 +81,7 @@ func TestProxyResponseValid(t *testing.T) {
 
 	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
-	go setup("127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})
+	defer startServer(t, "127.0.0.1:5000", "127.0.0.1:5001", &testProcessorResponseValid{})()
 	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:5000/xxx/next")
 	assert.Nil(t, err)
@@ -107,7 +108,7 @@ func TestProxyResponseError(t *testing.T) {
 
 	t.Setenv("DD_EXPERIMENTAL_ENABLE_PROXY", "true")
 
-	go setup("127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})
+	defer startServer(t, "127.0.0.1:6000", "127.0.0.1:6001", &testProcessorResponseError{})()
 	time.Sleep(100 * time.Millisecond)
 	resp, err := http.Get("http://127.0.0.1:6000/xxx/next")
 	assert.Nil(t, err)
@@ -118,4 +119,15 @@ func TestProxyResponseError(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 
 	resp.Body.Close()
+}
+
+func startServer(t *testing.T, proxyHostPort, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) func() {
+	shutdownChan := make(chan func(context.Context) error, 1)
+	go setup(proxyHostPort, originalRuntimeHostPort, processor, shutdownChan)
+	shutdown := <-shutdownChan
+	return func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		assert.NoError(t, shutdown(ctx))
+	}
 }
