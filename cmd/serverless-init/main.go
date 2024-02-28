@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	datadogConfigPath = "/var/task/datadog.yaml"
+	datadogConfigPath = "/datadog.yaml"
 	logLevelEnvVar    = "DD_LOG_LEVEL"
 	loggerName        = "SERVERLESS_INIT"
 )
