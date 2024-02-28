@@ -205,6 +205,7 @@ variables:
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
   RUN_E2E_TESTS: "manual" # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for new-unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
@@ -303,6 +304,15 @@ variables:
 
 .if_disable_e2e: &if_disable_e2e
   if: $RUN_E2E_TESTS == "off"
+
+.if_disable_unit_tests: &if_disable_unit_tests
+  if: $RUN_UNIT_TESTS == "off"
+
+if_run_all_unit_tests: &if_run_all_unit_tests
+  if: $RUN_UNIT_TESTS == "on"
+
+if_auto_unit_tests: &if_auto_unit_tests
+  if: $RUN_UNIT_TESTS == "auto"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -1321,3 +1331,19 @@ workflow:
 .on_fakeintake_changes_on_main:
   - <<: *on_fakeintake_changes
     if: $CI_COMMIT_BRANCH == "main"
+
+.fast_on_dev_branch:
+  - <<: *if_main_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_release_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_triggered_pipeline
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_run_all_unit_tests
+    variables:
+      FAST_TESTS: "false"
+  - variables:
+      FAST_TESTS: "true"
