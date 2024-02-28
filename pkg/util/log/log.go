@@ -109,8 +109,6 @@ func addLogToBuffer(logHandle func()) {
 }
 
 func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
-	sw.l.Lock()
-	defer sw.l.Unlock()
 
 	old := sw.inner
 	sw.inner = l
@@ -847,11 +845,17 @@ func Flush() {
 // ReplaceLogger allows replacing the internal logger, returns old logger
 func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
 	l := logger.Load()
-	if l != nil && l.inner != nil {
-		return l.replaceInnerLogger(li)
+	if l == nil {
+		return nil // Return nil if logger is not initialized
 	}
 
-	return nil
+	l.l.Lock()
+    defer l.l.Unlock()
+	if l.inner == nil {
+		return nil // Return nil if logger.inner is not initialized
+	}
+
+	return l.replaceInnerLogger(li)
 }
 
 // RegisterAdditionalLogger registers an additional logger for logging
@@ -890,20 +894,30 @@ func GetLogLevel() (seelog.LogLevel, error) {
 // an existing one cannot be updated
 func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
 	l := logger.Load()
-	if l != nil && l.inner != nil {
-		err := l.changeLogLevel(level)
-		if err != nil {
-			return err
-		}
-		// See detailed explanation in SetupLogger(...)
-		err = li.SetAdditionalStackDepth(defaultStackDepth)
-		if err != nil {
-			return err
-		}
-
-		l.replaceInnerLogger(li)
-		return nil
+	if l == nil {
+		return errors.New("cannot change loglevel: logger not initialized")
 	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner == nil {
+		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
+	}
+
+	err := l.changeLogLevel(level)
+	if err != nil {
+		return err
+	}
+
+	// See detailed explanation in SetupLogger(...)
+	err = li.SetAdditionalStackDepth(defaultStackDepth)
+	if err != nil {
+		return err
+	}
+
+	l.replaceInnerLogger(li)
+	return nil
+
 	// need to return something, just set to Info (expected default)
-	return errors.New("cannot change loglevel: logger not initialized")
 }
