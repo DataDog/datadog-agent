@@ -10,8 +10,10 @@ package agentsidecar
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
+
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 ////////////////////////////////
@@ -27,10 +29,10 @@ type ProfileOverride struct {
 	ResourceRequirements corev1.ResourceRequirements `json:"resources,omitempty"`
 }
 
-// LoadSidecarProfiles returns the profile overrides provided by the user
+// loadSidecarProfiles returns the profile overrides provided by the user
 // It returns an error in case of miss-configuration or in case more than
 // one profile is configured
-func LoadSidecarProfiles() ([]ProfileOverride, error) {
+func loadSidecarProfiles() ([]ProfileOverride, error) {
 	// Read and parse profiles
 	profilesJSON := config.Datadog.GetString("admission_controller.agent_sidecar.profiles")
 
@@ -53,7 +55,7 @@ func applyProfileOverrides(container *corev1.Container) error {
 		return fmt.Errorf("can't apply profile overrides to nil containers")
 	}
 
-	profiles, err := LoadSidecarProfiles()
+	profiles, err := loadSidecarProfiles()
 
 	if err != nil {
 		return err

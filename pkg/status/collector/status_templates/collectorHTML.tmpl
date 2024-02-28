@@ -16,6 +16,7 @@
               Total Runs: {{humanize .TotalRuns}}<br>
               Metric Samples: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}<br>
               Events: {{humanize .Events}}, Total: {{humanize .TotalEvents}}<br>
+              {{- $instance := . }}
               {{- range $k, $v := .TotalEventPlatformEvents }}
               {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}<br>
               {{- end -}}

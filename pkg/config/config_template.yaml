@@ -571,6 +571,8 @@ api_key:
   ## - database_monitoring.metrics.dd_url
   ## - database_monitoring.activity.dd_url
   ## - database_monitoring.samples.dd_url
+  ## - compliance_config.endpoints.dd_url
+  ## - runtime_security_config.endpoints.dd_url
   ## - network_devices.metadata.dd_url
   #
   ## The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
