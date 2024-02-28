@@ -193,10 +193,12 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 func newServer(deps dependencies) Component {
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer)
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: s.startHook,
-		OnStop:  s.stop,
-	})
+	if config.Datadog.GetBool("use_dogstatsd") {
+		deps.Lc.Append(fx.Hook{
+			OnStart: s.startHook,
+			OnStop:  s.stop,
+		})
+	}
 
 	return s
 
@@ -309,10 +311,6 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 }
 
 func (s *server) startHook(context context.Context) error {
-	if !config.Datadog.GetBool("use_dogstatsd") {
-		s.log.Info("Dogstatsd is not enabled")
-		return nil
-	}
 
 	err := s.start(context)
 	if err != nil {
