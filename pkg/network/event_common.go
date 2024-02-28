@@ -257,7 +257,7 @@ type ConnectionStats struct {
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
-	Duration        uint64
+	Duration        time.Duration
 
 	RTT    uint32 // Stored in µs
 	RTTVar uint32
@@ -412,7 +412,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
 	str += fmt.Sprintf(", protocol: %+v", c.ProtocolStack)
 	str += fmt.Sprintf(", netns: %d", c.NetNS)
-	str += fmt.Sprintf(", duration: %d", c.Duration)
+	str += fmt.Sprintf(", duration: %+v", c.Duration)
 
 	return str
 }

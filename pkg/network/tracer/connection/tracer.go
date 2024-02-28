@@ -662,9 +662,12 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 			RecvPackets: uint64(s.Recv_packets),
 		},
 		LastUpdateEpoch: s.Timestamp,
-		Duration:        s.Duration,
 		IsAssured:       s.IsAssured(),
 		Cookie:          network.StatCookie(s.Cookie),
+	}
+
+	if s.Duration <= uint64(math.MaxInt64) {
+		stats.Duration = time.Duration(s.Duration) * time.Nanosecond
 	}
 
 	stats.ProtocolStack = protocols.Stack{

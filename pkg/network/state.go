@@ -1159,7 +1159,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 		return key, false, false
 	}
 
-	isShortLived := c.IsClosed && c.Duration < uint64(shortLivedConnectionThreshold/time.Nanosecond)
+	isShortLived := c.IsClosed && (c.Duration > 0 && c.Duration < shortLivedConnectionThreshold)
 	sportRolledUp = c.Direction == OUTGOING
 	dportRolledUp = c.Direction == INCOMING
 

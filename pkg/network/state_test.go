@@ -2377,7 +2377,7 @@ func TestConnectionRollup(t *testing.T) {
 			DPort:    53,
 			Type:     UDP,
 			Cookie:   1,
-			Duration: uint64(time.Second),
+			Duration: time.Second,
 			IsClosed: true,
 		},
 		{
@@ -2410,7 +2410,7 @@ func TestConnectionRollup(t *testing.T) {
 			DPort:    53,
 			Type:     UDP,
 			Cookie:   2,
-			Duration: uint64(time.Second),
+			Duration: time.Second,
 			IsClosed: true,
 		},
 		{
@@ -2443,7 +2443,7 @@ func TestConnectionRollup(t *testing.T) {
 			DPort:    53,
 			Type:     UDP,
 			Cookie:   3,
-			Duration: uint64(time.Second),
+			Duration: time.Second,
 			IsClosed: true,
 		},
 		{
@@ -2476,7 +2476,7 @@ func TestConnectionRollup(t *testing.T) {
 			DPort:    53,
 			Type:     UDP,
 			Cookie:   4,
-			Duration: uint64(time.Second),
+			Duration: time.Second,
 			IsClosed: true,
 		},
 		{
@@ -2509,7 +2509,7 @@ func TestConnectionRollup(t *testing.T) {
 			DPort:    53,
 			Type:     UDP,
 			Cookie:   5,
-			Duration: uint64(3 * time.Minute),
+			Duration: 3 * time.Minute,
 			IsClosed: true,
 		},
 	}
