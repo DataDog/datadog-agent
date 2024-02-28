@@ -220,12 +220,10 @@
 /comp @DataDog/agent-shared-components
 /comp/aggregator @DataDog/agent-shared-components
 /comp/api @DataDog/agent-shared-components
-/comp/apm/etwtracer @DataDog/windows-agent
 /comp/checks @DataDog/agent-shared-components
 /comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
-/comp/etw @DataDog/windows-agent
 /comp/forwarder @DataDog/agent-shared-components
 /comp/languagedetection @DataDog/container-integrations
 /comp/logs @DataDog/agent-metrics-logs
@@ -249,6 +247,8 @@
 /comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 /comp/forwarder/orchestrator/orchestratorinterface @DataDog/agent-metrics-logs
 /comp/metadata/packagesigning @DataDog/agent-platform
+/comp/trace/etwtracer @DataDog/windows-agent
+/comp/etw @DataDog/windows-agent
 # END COMPONENTS
 
 # pkg
