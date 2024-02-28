@@ -24,6 +24,8 @@ const (
 	//nolint:revive // TODO(PROC) Fix revive linter
 	ConnectionsCheckDefaultInterval = 30 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
+	ContainerConnectionsCheckDefaultInterval = 10 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
 	discoveryMinInterval = 10 * time.Minute
@@ -38,6 +40,7 @@ const (
 	configContainerInterval   = configIntervals + "container"
 	configRTContainerInterval = configIntervals + "container_realtime"
 	configConnectionsInterval = configIntervals + "connections"
+	configContainerConnectionsInterval = configIntervals + "container_connections"
 )
 
 var (
@@ -49,6 +52,7 @@ var (
 		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
 		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
 		ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
+		ContainerConnectionsCheckName:   ContainerConnectionsCheckDefaultInterval,
 	}
 
 	configKeys = map[string]string{
@@ -57,6 +61,7 @@ var (
 		ContainerCheckName:   configContainerInterval,
 		RTContainerCheckName: configRTContainerInterval,
 		ConnectionsCheckName: configConnectionsInterval,
+		ContainerConnectionsCheckName:   configContainerConnectionsInterval,
 	}
 )
 

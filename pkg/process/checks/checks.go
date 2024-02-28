@@ -23,6 +23,7 @@ const (
 	ConnectionsCheckName   = "connections"
 	DiscoveryCheckName     = "process_discovery"
 	ProcessEventsCheckName = "process_events"
+	ContainerConnectionsCheckName     = "container_connections"
 )
 
 // SysProbeConfig provides access to system probe configuration
@@ -111,6 +112,7 @@ func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.C
 		NewContainerCheck(config, syscfg),
 		NewRTContainerCheck(config),
 		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
+		NewContainerConnectionsCheck(config, syscfg),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),
 	}

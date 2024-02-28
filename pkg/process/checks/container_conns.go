@@ -15,7 +15,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -23,14 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	cacheValidityNoRT = 2 * time.Second
-)
-
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.Reader, syscfg *sysconfigtypes.Config) *ContainerCheck {
+func NewContainerConnectionsCheck(config ddconfig.Reader, syscfg *sysconfigtypes.Config) *ContainerConnectionsCheck {
 	_, npmModuleEnabled := syscfg.EnabledModules[sysconfig.NetworkTracerModule]
-	return &ContainerCheck{
+	return &ContainerConnectionsCheck{
 		config:         config,
 		runInCoreAgent: config.GetBool("process_config.run_in_core_agent.enabled"),
 		npmEnabled:     npmModuleEnabled && syscfg.Enabled,
@@ -38,28 +33,24 @@ func NewContainerCheck(config ddconfig.Reader, syscfg *sysconfigtypes.Config) *C
 }
 
 // ContainerCheck is a check that returns container metadata and stats.
-type ContainerCheck struct {
+type ContainerConnectionsCheck struct {
 	sync.Mutex
 
 	config ddconfig.Reader
 
-	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
 
 	containerFailedLogLimit *util.LogLimit
 
-	maxBatchSize int
-
 	runInCoreAgent bool
 	npmEnabled     bool
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(sysconfig *SysProbeConfig, info *HostInfo, _ bool) error {
+func (c *ContainerConnectionsCheck) Init(sysconfig *SysProbeConfig, info *HostInfo, _ bool) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider()
-	c.hostInfo = info
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
@@ -68,39 +59,36 @@ func (c *ContainerCheck) Init(sysconfig *SysProbeConfig, info *HostInfo, _ bool)
 	c.networkID = networkID
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
-	c.maxBatchSize = getMaxBatchSize(c.config)
 
 	return nil
 }
 
 // IsEnabled returns true if the check is enabled by configuration
-// Keep in mind that ContainerRTCheck.IsEnabled should only be enabled if the `ContainerCheck` is enabled
-func (c *ContainerCheck) IsEnabled() bool {
-	return canEnableContainerChecks(c.config, true)
+func (c *ContainerConnectionsCheck) IsEnabled() bool {
+	return flavor.GetFlavor() == flavor.ProcessAgent && c.runInCoreAgent && c.npmEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
-func (c *ContainerCheck) SupportsRunOptions() bool {
+func (c *ContainerConnectionsCheck) SupportsRunOptions() bool {
 	return false
 }
 
 // Name returns the name of the ProcessCheck.
-func (c *ContainerCheck) Name() string { return ContainerCheckName }
+func (c *ContainerConnectionsCheck) Name() string { return ContainerConnectionsCheckName }
 
 // Realtime indicates if this check only runs in real-time mode.
-func (c *ContainerCheck) Realtime() bool { return false }
+func (c *ContainerConnectionsCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
-func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
+func (c *ContainerConnectionsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
 //
 //nolint:revive // TODO(PROC) Fix revive linter
-func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
+func (c *ContainerConnectionsCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	c.Lock()
 	defer c.Unlock()
-	startTime := time.Now()
 
 	var err error
 	var containers []*model.Container
@@ -121,54 +109,8 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(containers, pidToCid)
 
-	// Skip submission
-	if c.runInCoreAgent && flavor.GetFlavor() == flavor.ProcessAgent {
-		return nil, nil
-	}
-
-	groupSize := len(containers) / c.maxBatchSize
-	if len(containers)%c.maxBatchSize != 0 {
-		groupSize++
-	}
-	chunked := chunkContainers(containers, groupSize)
-	messages := make([]model.MessageBody, 0, groupSize)
-	groupID := nextGroupID()
-	for i := 0; i < groupSize; i++ {
-		messages = append(messages, &model.CollectorContainer{
-			HostName:          c.hostInfo.HostName,
-			NetworkId:         c.networkID,
-			Info:              c.hostInfo.SystemInfo,
-			Containers:        chunked[i],
-			GroupId:           groupID,
-			GroupSize:         int32(groupSize),
-			ContainerHostType: c.hostInfo.ContainerHostType,
-		})
-	}
-
-	numContainers := float64(len(containers))
-	statsd.Client.Gauge("datadog.process.containers.host_count", numContainers, []string{}, 1) //nolint:errcheck
-	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
-	return StandardRunResult(messages), nil
+	return nil, nil
 }
 
 // Cleanup frees any resource held by the ContainerCheck before the agent exits
-func (c *ContainerCheck) Cleanup() {}
-
-// chunkContainers formats and chunks the ctrList into a slice of chunks using a specific number of chunks.
-func chunkContainers(containers []*model.Container, chunks int) [][]*model.Container {
-	perChunk := (len(containers) / chunks) + 1
-	chunked := make([][]*model.Container, 0, chunks)
-	chunk := make([]*model.Container, 0, perChunk)
-
-	for _, ctr := range containers {
-		chunk = append(chunk, ctr)
-		if len(chunk) == perChunk {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.Container, 0, perChunk)
-		}
-	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
-}
+func (c *ContainerConnectionsCheck) Cleanup() {}
