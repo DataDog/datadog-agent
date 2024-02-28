@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logimpl
+// Package tracelogimpl provides a component that implements the log.Component for the trace-agent logger
+package tracelogimpl
 
 import (
 	"context"
