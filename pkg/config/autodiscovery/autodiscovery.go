@@ -32,10 +32,9 @@ func DiscoverComponentsFromConfig() ([]config.ConfigurationProviders, []config.L
 		log.Infof("Prometheus scraping is enabled: Adding the Prometheus config provider '%s'", prometheusProvider.Name)
 		detectedProviders = append(detectedProviders, prometheusProvider)
 	}
-
 	// Add database-monitoring aurora listener if the feature is enabled
 	if config.Datadog.GetBool("database_monitoring.autodiscovery.aurora.enabled") {
-		detectedListeners = append(detectedListeners, config.Listeners{Name: "_dbm_aws_aurora"})
+		detectedListeners = append(detectedListeners, config.Listeners{Name: "database-monitoring-aurora"})
 		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
 	}
 

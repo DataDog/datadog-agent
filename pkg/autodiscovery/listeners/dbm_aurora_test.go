@@ -133,7 +133,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			expectedServices: []*DBMAuroraService{
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "f7fee36c58e3da8a",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -186,7 +186,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			expectedServices: []*DBMAuroraService{
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "f7fee36c58e3da8a",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -199,7 +199,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "509dbfd2cc1ae2be",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -212,7 +212,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "cc92e57c9b7b7531",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -307,7 +307,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			expectedServices: []*DBMAuroraService{
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "f7fee36c58e3da8a",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -320,7 +320,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "509dbfd2cc1ae2be",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -333,7 +333,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "cc92e57c9b7b7531",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -348,7 +348,7 @@ func TestDBMAuroraListener(t *testing.T) {
 			},
 			expectedDelServices: []*DBMAuroraService{
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "f7fee36c58e3da8a",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
@@ -361,7 +361,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					},
 				},
 				{
-					adIdentifier: dbmAdIdentifier,
+					adIdentifier: dbmPostgresADIdentifier,
 					entityID:     "509dbfd2cc1ae2be",
 					checkName:    "postgres",
 					clusterID:    "my-cluster-1",
