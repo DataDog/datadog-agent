@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sort"
 	"time"
 
@@ -110,6 +111,11 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
+	// connection check is not supported on darwin, so we should fail gracefully in this case.
+	if runtime.GOOS == "darwin" {
+		return false
+	}
+
 	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
 	return npmModuleEnabled && c.syscfg.Enabled
 }
