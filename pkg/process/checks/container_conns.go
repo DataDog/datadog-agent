@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewContainerCheck returns an instance of the ContainerCheck.
+// NewContainerConnectionsCheck returns an instance of the ContainerConnectionsCheck.
 func NewContainerConnectionsCheck(config ddconfig.Reader, syscfg *sysconfigtypes.Config) *ContainerConnectionsCheck {
 	_, npmModuleEnabled := syscfg.EnabledModules[sysconfig.NetworkTracerModule]
 	return &ContainerConnectionsCheck{
@@ -32,7 +32,7 @@ func NewContainerConnectionsCheck(config ddconfig.Reader, syscfg *sysconfigtypes
 	}
 }
 
-// ContainerCheck is a check that returns container metadata and stats.
+// ContainerConnectionsCheck is a check that returns container metadata and stats.
 type ContainerConnectionsCheck struct {
 	sync.Mutex
 
@@ -48,8 +48,8 @@ type ContainerConnectionsCheck struct {
 	npmEnabled     bool
 }
 
-// Init initializes a ContainerCheck instance.
-func (c *ContainerConnectionsCheck) Init(sysconfig *SysProbeConfig, info *HostInfo, _ bool) error {
+// Init initializes a ContainerConnectionsCheck instance.
+func (c *ContainerConnectionsCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider()
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
@@ -73,7 +73,7 @@ func (c *ContainerConnectionsCheck) SupportsRunOptions() bool {
 	return false
 }
 
-// Name returns the name of the ProcessCheck.
+// Name returns the name of the ContainerConnectionsCheck.
 func (c *ContainerConnectionsCheck) Name() string { return ContainerConnectionsCheckName }
 
 // Realtime indicates if this check only runs in real-time mode.
@@ -82,7 +82,7 @@ func (c *ContainerConnectionsCheck) Realtime() bool { return false }
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ContainerConnectionsCheck) ShouldSaveLastRun() bool { return true }
 
-// Run runs the ContainerCheck to collect a list of running ctrList and the
+// Run runs the ContainerConnectionsCheck to collect a list of running ctrList and the
 // stats for each container.
 //
 //nolint:revive // TODO(PROC) Fix revive linter

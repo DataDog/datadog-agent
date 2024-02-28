@@ -16,14 +16,14 @@ import (
 
 // Name for check performed by process-agent or system-probe
 const (
-	ProcessCheckName       = "process"
-	RTProcessCheckName     = "rtprocess"
-	ContainerCheckName     = "container"
-	RTContainerCheckName   = "rtcontainer"
-	ConnectionsCheckName   = "connections"
-	DiscoveryCheckName     = "process_discovery"
-	ProcessEventsCheckName = "process_events"
-	ContainerConnectionsCheckName     = "container_connections"
+	ProcessCheckName              = "process"
+	RTProcessCheckName            = "rtprocess"
+	ContainerCheckName            = "container"
+	RTContainerCheckName          = "rtcontainer"
+	ConnectionsCheckName          = "connections"
+	DiscoveryCheckName            = "process_discovery"
+	ProcessEventsCheckName        = "process_events"
+	ContainerConnectionsCheckName = "container_connections"
 )
 
 // SysProbeConfig provides access to system probe configuration

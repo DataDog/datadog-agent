@@ -35,33 +35,33 @@ const (
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
-	configProcessInterval     = configIntervals + "process"
-	configRTProcessInterval   = configIntervals + "process_realtime"
-	configContainerInterval   = configIntervals + "container"
-	configRTContainerInterval = configIntervals + "container_realtime"
-	configConnectionsInterval = configIntervals + "connections"
+	configProcessInterval              = configIntervals + "process"
+	configRTProcessInterval            = configIntervals + "process_realtime"
+	configContainerInterval            = configIntervals + "container"
+	configRTContainerInterval          = configIntervals + "container_realtime"
+	configConnectionsInterval          = configIntervals + "connections"
 	configContainerConnectionsInterval = configIntervals + "container_connections"
 )
 
 var (
 	defaultIntervals = map[string]time.Duration{
-		ProcessCheckName:       ProcessCheckDefaultInterval,
-		RTProcessCheckName:     RTProcessCheckDefaultInterval,
-		ContainerCheckName:     ContainerCheckDefaultInterval,
-		RTContainerCheckName:   RTContainerCheckDefaultInterval,
-		ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
-		DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
-		ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
-		ContainerConnectionsCheckName:   ContainerConnectionsCheckDefaultInterval,
+		ProcessCheckName:              ProcessCheckDefaultInterval,
+		RTProcessCheckName:            RTProcessCheckDefaultInterval,
+		ContainerCheckName:            ContainerCheckDefaultInterval,
+		RTContainerCheckName:          RTContainerCheckDefaultInterval,
+		ConnectionsCheckName:          ConnectionsCheckDefaultInterval,
+		DiscoveryCheckName:            ProcessDiscoveryCheckDefaultInterval,
+		ProcessEventsCheckName:        config.DefaultProcessEventsCheckInterval,
+		ContainerConnectionsCheckName: ContainerConnectionsCheckDefaultInterval,
 	}
 
 	configKeys = map[string]string{
-		ProcessCheckName:     configProcessInterval,
-		RTProcessCheckName:   configRTProcessInterval,
-		ContainerCheckName:   configContainerInterval,
-		RTContainerCheckName: configRTContainerInterval,
-		ConnectionsCheckName: configConnectionsInterval,
-		ContainerConnectionsCheckName:   configContainerConnectionsInterval,
+		ProcessCheckName:              configProcessInterval,
+		RTProcessCheckName:            configRTProcessInterval,
+		ContainerCheckName:            configContainerInterval,
+		RTContainerCheckName:          configRTContainerInterval,
+		ConnectionsCheckName:          configConnectionsInterval,
+		ContainerConnectionsCheckName: configContainerConnectionsInterval,
 	}
 )
 

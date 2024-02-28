@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 var (

@@ -117,8 +117,6 @@ type ProcessCheck struct {
 	workloadMetaServer    *workloadmeta.GRPCServer
 
 	serviceExtractor *parser.ServiceExtractor
-
-	runInCoreAgent bool
 }
 
 // Init initializes the singleton ProcessCheck.
