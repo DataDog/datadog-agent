@@ -54,7 +54,7 @@ func MatchCheckToTemplate(checkname, input string) (*CheckConfigOutput, error) {
 	}, nil
 }
 
-func (v *baseConfigCheckSuite) TestMatchToTemplateHelper() {
+func TestMatchToTemplateHelper(t *testing.T) {
 	sampleCheck := `=== uptime check ===
 Configuration provider: file
 Configuration source: file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default
@@ -64,7 +64,7 @@ path: http://example.com/foo
 ~
 ===
 
-=== npt check ===
+=== ntp check ===
 Configuration provider: file
 Configuration source: file:/etc/datadog-agent/conf.d/npt.d/conf.yaml.default
 Config for instance ID: npt:c72f390abdefdf1a
@@ -81,22 +81,22 @@ Config for instance ID: cpu:e331d61ed1323219
 ===`
 
 	result, err := MatchCheckToTemplate("uptime", sampleCheck)
-	assert.NoError(v.T(), err)
+	assert.NoError(t, err)
 
-	assert.Contains(v.T(), result.CheckName, "uptime")
-	assert.Contains(v.T(), result.Filepath, "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default")
-	assert.Contains(v.T(), result.InstanceID, "uptime:c72f390abdefdf1a")
-	assert.Contains(v.T(), result.Settings, "key: value")
-	assert.Contains(v.T(), result.Settings, "path: http://example.com/foo")
-	assert.NotContains(v.T(), result.Settings, "{}")
+	assert.Contains(t, result.CheckName, "uptime")
+	assert.Contains(t, result.Filepath, "file:/etc/datadog-agent/conf.d/uptime.d/conf.yaml.default")
+	assert.Contains(t, result.InstanceID, "uptime:c72f390abdefdf1a")
+	assert.Contains(t, result.Settings, "key: value")
+	assert.Contains(t, result.Settings, "path: http://example.com/foo")
+	assert.NotContains(t, result.Settings, "{}")
 
 	result, err = MatchCheckToTemplate("cpu", sampleCheck)
-	assert.NoError(v.T(), err)
+	assert.NoError(t, err)
 
-	assert.Contains(v.T(), result.CheckName, "cpu")
-	assert.Contains(v.T(), result.Filepath, "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default")
-	assert.Contains(v.T(), result.InstanceID, "cpu:e331d61ed1323219")
-	assert.Contains(v.T(), result.Settings, "{}")
+	assert.Contains(t, result.CheckName, "cpu")
+	assert.Contains(t, result.Filepath, "file:/etc/datadog-agent/conf.d/cpu.d/conf.yaml.default")
+	assert.Contains(t, result.InstanceID, "cpu:e331d61ed1323219")
+	assert.Contains(t, result.Settings, "{}")
 }
 
 func VerifyDefaultInstalledCheck(t *testing.T, output string, testChecks []CheckConfigOutput) {
