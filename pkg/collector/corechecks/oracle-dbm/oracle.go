@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package oracle_dbm
+package oracledbm
 
 // CheckName is the name of the check that was renamed to `oracle`.
 // This is used to keep the compatibility with the old configuration.
