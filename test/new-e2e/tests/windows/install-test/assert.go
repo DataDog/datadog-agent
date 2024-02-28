@@ -42,3 +42,20 @@ func AssertInstalledUserInRegistry(t *testing.T, host *components.RemoteHost, ex
 
 	return true
 }
+
+// AssertGroupMembership asserts that the expected groups are a subset of the actual groups
+func AssertGroupMembership(t *testing.T, host *components.RemoteHost, expected []string, actual []windows.SecurityIdentifier) bool {
+	expectedSIDs := make([]string, 0, len(expected))
+	for _, g := range expected {
+		sid, err := windows.GetSIDForUser(host, g)
+		if !assert.NoError(t, err, "should get sid for group %s", g) {
+			return false
+		}
+		expectedSIDs = append(expectedSIDs, sid)
+	}
+	actualSIDs := make([]string, 0, len(actual))
+	for _, g := range actual {
+		actualSIDs = append(actualSIDs, g.GetSID())
+	}
+	return assert.Subset(t, actualSIDs, expectedSIDs, "user should be in groups %v", expected)
+}
