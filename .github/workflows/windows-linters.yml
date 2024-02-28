@@ -31,7 +31,7 @@ jobs:
           If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
       - name: Install go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: ".go-version"
 

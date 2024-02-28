@@ -41,7 +41,7 @@ func processUntilRegOpen(t *testing.T, et *etwTester) {
 
 			switch n.(type) {
 			case *createKeyArgs:
-				if strings.HasPrefix(n.(*createKeyArgs).computedFullPath, "\\REGISTRY\\USER\\") {
+				if strings.HasPrefix(n.(*createKeyArgs).computedFullPath, "HKEY_USERS\\") {
 					et.notifications = append(et.notifications, n)
 					if len(et.notifications) >= 2 {
 						return
@@ -145,9 +145,8 @@ func TestETWRegistryNotifications(t *testing.T) {
 	<-et.loopStarted
 
 	keyname := "Software\\Test"
-	expectedBase := "\\REGISTRY\\USER\\" + sidstr
+	expectedBase := "HKEY_USERS\\" + sidstr
 	expected := expectedBase + "\\" + keyname
-	// create the key
 	key, _, err := registry.CreateKey(windows.HKEY_CURRENT_USER, keyname, windows.KEY_READ|windows.KEY_WRITE)
 	assert.NoError(t, err)
 	if err == nil {
@@ -165,7 +164,7 @@ func TestETWRegistryNotifications(t *testing.T) {
 	stopLoop(et, &wg)
 
 	assert.Equal(t, 2, len(et.notifications), "expected 2 notifications, got %d", len(et.notifications))
-	
+
 	if c, ok := et.notifications[0].(*createKeyArgs); ok {
 		assert.Equal(t, expectedBase, c.computedFullPath, "expected %s, got %s", expectedBase, c.computedFullPath)
 	} else {
