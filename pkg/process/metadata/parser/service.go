@@ -344,6 +344,10 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 	return "java"
 }
 
+const (
+	dllSuffix = ".dll"
+)
+
 func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, args []string) string {
 	if !se.useImprovedAlgorithm {
 		return "node"
@@ -392,9 +396,9 @@ func parseCommandContextDotnet(_ *ServiceExtractor, _ *procutil.Process, args []
 		}
 		// when running assembly's dll, the cli must be executed without command
 		// https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-run#description
-		if strings.HasSuffix(strings.ToLower(a), ".dll") {
+		if strings.HasSuffix(strings.ToLower(a), dllSuffix) {
 			_, file := filepath.Split(a)
-			return file[:len(file)-4]
+			return file[:len(file)-len(dllSuffix)]
 		}
 		// dotnet cli syntax is something like `dotnet <cmd> <args> <dll> <prog args>`
 		// if the first non arg (`-v, --something, ...) is not a dll file, exit early since nothing is matching a dll execute case
