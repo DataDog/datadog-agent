@@ -11,12 +11,12 @@ package tests
 import (
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"

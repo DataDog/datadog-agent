@@ -17,13 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -65,22 +60,11 @@ func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
 			LogParams:            logimpl.ForOneShot("UPDATER", "info", true),
 		}),
 		core.Bundle(),
-		fx.Supply(&rcservice.Params{
-			Options: []service.Option{
-				service.WithDatabaseFileName("remote-config-updater.db"),
-			},
-		}),
-		rctelemetryreporterimpl.Module(),
-		rcserviceimpl.Module(),
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, rc optional.Option[rcservice.Component]) error {
-	rcService, ok := rc.Get()
-	if !ok {
-		return fmt.Errorf("remote config service is required for the updater")
-	}
-	err := updater.Install(ctx, rcService, params.Package)
+func bootstrap(ctx context.Context, params *cliParams) error {
+	err := updater.Install(ctx, params.Package)
 	if err != nil {
 		return fmt.Errorf("could not install package: %w", err)
 	}

@@ -291,6 +291,16 @@ labels that can be use:
 - `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.
 - `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
 - `backport/<branch-name>`: Add this label to have your changes automatically backported to `<branch-name>`.
+- `qa/done` or `qa/no-code-change`: used to skip the QA week:
+  - `qa/done` label is recommended in case of code changes **and** manual / automated qa done before merge.
+  - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
+
+> [!NOTE]
+> Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the agent build
+> All of the following do not require QA:
+> - Changing the CI configuration without impacting the Agent packaging.
+> - Changing the documentation.
+> - Changing the developer tooling.
 
 ## Integrations
 
