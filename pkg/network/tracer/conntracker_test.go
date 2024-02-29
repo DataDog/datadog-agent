@@ -44,7 +44,10 @@ func TestConntrackers(t *testing.T) {
 		ps := &ebpf.ProgramSpec{AttachTo: "__nf_conntrack_hash_insert", Type: ebpf.Kprobe}
 		mod, _ := ps.KernelModule()
 		if mod != "" {
-			if _, err := btf.LoadKernelModuleSpec(mod); err == nil {
+			kp, _ := kernel.Platform()
+			if kp == "amazon" && kv.Major() == 4 && kv.Minor() == 14 {
+				modes = append(modes, ebpftest.CORE)
+			} else if _, err := btf.LoadKernelModuleSpec(mod); err == nil {
 				modes = append(modes, ebpftest.CORE)
 			}
 		} else {
