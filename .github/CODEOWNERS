@@ -173,6 +173,7 @@
 /cmd/system-probe/modules/process*      @DataDog/processes
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
+/cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
 /cmd/system-probe/main_windows*.go      @DataDog/windows-kernel-integrations
@@ -431,7 +432,7 @@
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
 /pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
-/pkg/network/protocols/http/etw_*.go            @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/etw*.go             @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/http2/             @DataDog/universal-service-monitoring

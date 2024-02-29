@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -291,7 +290,7 @@ func TestETWFileNotifications(t *testing.T) {
 		var once sync.Once
 		mypid := os.Getpid()
 
-		err := et.p.setupEtw(func(n interface{}, pid uint32, _ model.EventType) {
+		err := et.p.setupEtw(func(n interface{}, pid uint32) {
 			once.Do(func() {
 				close(et.etwStarted)
 			})

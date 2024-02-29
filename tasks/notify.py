@@ -219,7 +219,7 @@ def check_consistent_failures(ctx):
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
-    job_executions = retrieve_job_executions()
+    job_executions = retrieve_job_executions(ctx)
 
     # By-pass if the pipeline chronological order is not respected
     if job_executions.get("pipeline_id", 0) > int(os.getenv("CI_PIPELINE_ID")):
