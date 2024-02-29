@@ -29,6 +29,7 @@ const (
 var (
 	apiKeyEndpointUnreachable  = expvar.String{}
 	apiKeyUnexpectedStatusCode = expvar.String{}
+	apiKeyRemove               = expvar.String{}
 	apiKeyInvalid              = expvar.String{}
 	apiKeyValid                = expvar.String{}
 	apiKeyFake                 = expvar.String{}
@@ -91,6 +92,15 @@ func (fh *forwarderHealth) init() {
 	if apiKeyCount != 0 {
 		fh.timeout /= time.Duration(apiKeyCount)
 	}
+
+	// when the config updates the "api_key", process that change
+	if fh.config != nil {
+		fh.config.OnUpdate(func(key string) {
+			if key == "api_key" {
+				fh.updateAPIKey(fh.config.GetString(key))
+			}
+		})
+	}
 }
 
 func (fh *forwarderHealth) Start() {
@@ -120,7 +130,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	defer validateTicker.Stop()
 	defer close(fh.stopped)
 
-	valid := fh.hasValidAPIKey()
+	valid := fh.checkValidAPIKey()
 	// If no key is valid, no need to keep checking, they won't magically become valid
 	if !valid {
 		fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
@@ -132,7 +142,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 		case <-fh.stop:
 			return
 		case <-validateTicker.C:
-			valid := fh.hasValidAPIKey()
+			valid := fh.checkValidAPIKey()
 			if !valid {
 				fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 				return
@@ -140,6 +150,24 @@ func (fh *forwarderHealth) healthCheckLoop() {
 		case <-fh.health.C:
 		}
 	}
+}
+
+func (fh *forwarderHealth) updateAPIKey(newAPIKey string) {
+	for domain := range fh.domainResolvers {
+		if domainURLRegexp.MatchString(domain) {
+			domain = "https://api." + domainURLRegexp.FindString(domain)
+		}
+		prevKeys := fh.keysPerAPIEndpoint[domain]
+		replaceKeys := make([]string, 0, len(prevKeys))
+		for _, oldKey := range prevKeys {
+			replaceKeys = append(replaceKeys, newAPIKey)
+			// remove both success and failure messages
+			fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
+		}
+		fh.keysPerAPIEndpoint[domain] = replaceKeys
+	}
+	// check apiKey validity and update the messages
+	fh.checkValidAPIKey()
 }
 
 // computeDomainsURL populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
@@ -157,7 +185,10 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expv
 		apiKey = apiKey[len(apiKey)-5:]
 	}
 	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
-	if status == &apiKeyInvalid {
+	if status == &apiKeyRemove {
+		apiKeyStatus.Delete(obfuscatedKey)
+		apiKeyFailure.Delete(obfuscatedKey)
+	} else if status == &apiKeyInvalid {
 		apiKeyFailure.Set(obfuscatedKey, status)
 		apiKeyStatus.Delete(obfuscatedKey)
 	} else {
@@ -206,10 +237,11 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 	}
 
 	fh.setAPIKeyStatus(apiKey, domain, &apiKeyUnexpectedStatusCode)
-	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
+	return false, fmt.Errorf("unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 
-func (fh *forwarderHealth) hasValidAPIKey() bool {
+// check if any of the endpoints have a valid apiKey, updating health state
+func (fh *forwarderHealth) checkValidAPIKey() bool {
 	validKey := false
 	apiError := false
 

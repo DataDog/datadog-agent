@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestHasValidAPIKey(t *testing.T) {
+func TestCheckValidAPIKey(t *testing.T) {
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -39,7 +39,7 @@ func TestHasValidAPIKey(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
-	assert.True(t, fh.hasValidAPIKey())
+	assert.True(t, fh.checkValidAPIKey())
 
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2"))
@@ -88,7 +88,7 @@ func TestComputeDomainsURL(t *testing.T) {
 	assert.Equal(t, expectedMap, fh.keysPerAPIEndpoint)
 }
 
-func TestHasValidAPIKeyErrors(t *testing.T) {
+func TestCheckValidAPIKeyErrors(t *testing.T) {
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		if r.Form.Get("api_key") == "api_key1" {
@@ -121,7 +121,7 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	fh := forwarderHealth{log: log, config: cfg}
 	fh.init()
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
-	assert.True(t, fh.hasValidAPIKey())
+	assert.True(t, fh.checkValidAPIKey())
 
 	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with _key1"))
 	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with _key1"))
