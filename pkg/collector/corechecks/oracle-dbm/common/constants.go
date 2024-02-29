@@ -5,16 +5,16 @@
 
 //go:build oracle
 
-// common package contains common constant definitions.
+// Package common contains common constant definitions.
 package common
 
 // IntegrationName is the name of the integration.
 const IntegrationName = "oracle"
 
-/* We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
- * functionality written in Python. We will change this back to `oracle` once we migrated this functionality
- * here.
- */
+// IntegrationNameScheduler is the name of the integration for the scheduler.
+// We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
+// functionality written in Python. We will change this back to `oracle` once we migrated this functionality
+// here.
 const IntegrationNameScheduler = "oracle-dbm"
 
 // Godror is the name of the godror driver which relies on an external Oracle client.
