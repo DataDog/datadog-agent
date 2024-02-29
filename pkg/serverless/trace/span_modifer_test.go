@@ -105,7 +105,7 @@ func TestSpanModifierAddsOriginToAllSpans(t *testing.T) {
 	testOriginTags := func(withModifier bool) {
 		agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
 		if withModifier {
-			agnt.ModifySpan = (&spanModifier{tags: cfg.GlobalTags}).ModifySpan
+			agnt.ModifySpan = (&spanModifier{tags: cfg.GlobalTags, ddOrigin: getDDOrigin()}).ModifySpan
 		}
 		tc := testutil.RandomTraceChunk(2, 1)
 		tc.Priority = 1 // ensure trace is never sampled out
