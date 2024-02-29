@@ -10,21 +10,28 @@ import (
 	"errors"
 )
 
-type updaterErrorCode uint64
+type UpdaterErrorCode uint64
 
 const (
-	errUnknown updaterErrorCode = iota // This error code is purposefully not exported
+	errUnknown UpdaterErrorCode = iota // This error code is purposefully not exported
+	// ErrInstallFailed is the code for an install failure.
 	ErrInstallFailed
+	// ErrDownloadFailed is the code for a download failure.
 	ErrDownloadFailed
+	// ErrInvalidHash is the code for an invalid hash.
 	ErrInvalidHash
+	// ErrInvalidState is the code for an invalid state.
 	ErrInvalidState
+	// ErrPackageNotFound is the code for a package not found.
 	ErrPackageNotFound
+	// ErrUpdateExperimentFailed is the code for an update experiment failure.
 	ErrUpdateExperimentFailed
 )
 
+// UpdaterError is an error type used by the updater.
 type UpdaterError struct {
 	err  error
-	code updaterErrorCode
+	code UpdaterErrorCode
 }
 
 // Error returns the error message.
@@ -42,14 +49,14 @@ func (e UpdaterError) Is(target error) bool {
 	return ok
 }
 
-func (e UpdaterError) Code() updaterErrorCode {
+func (e UpdaterError) Code() UpdaterErrorCode {
 	return e.code
 }
 
 // Wrap wraps the given error with an updater error.
 // If the given error is already an updater error, it is not wrapped and
 // left as it is. Only the deepest UpdaterError remains.
-func Wrap(errCode updaterErrorCode, err error) error {
+func Wrap(errCode UpdaterErrorCode, err error) error {
 	if errors.Is(err, &UpdaterError{}) {
 		return err
 	}

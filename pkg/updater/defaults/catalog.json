@@ -14,7 +14,7 @@
       "name": "datadog-agent",
       "package": "datadog-agent",
       "version": "7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1",
-      "platform": "linux",
+      "platform": "darwin",
       "arch": "arm64",
       "url": "https://dd-agent-macostesting.s3.amazonaws.com/oci/testing/datadog-agent_7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1_oci_arm64.tar",
       "sha256": "68d9d0971eb35485c411e47c6f18b96be9a083978869f28dc915c942fb24099b",
