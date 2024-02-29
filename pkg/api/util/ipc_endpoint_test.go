@@ -7,6 +7,7 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -81,7 +82,7 @@ func TestNewIPCEndpointWithCloseConnection(t *testing.T) {
 	assert.True(t, end.closeConn)
 }
 
-func TestIPCEndpointGet(t *testing.T) {
+func TestIPCEndpointDoGet(t *testing.T) {
 	gotURL := ""
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotURL = r.URL.String()
@@ -127,9 +128,7 @@ func TestIPCEndpointGetWithValues(t *testing.T) {
 }
 
 func TestIPCEndpointGetWithHostAndPort(t *testing.T) {
-	gotURL := ""
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotURL = r.URL.String()
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
 	}))
@@ -137,22 +136,21 @@ func TestIPCEndpointGetWithHostAndPort(t *testing.T) {
 
 	conf := createConfig(t, ts)
 	// modify the config so that it uses a different setting for the cmd_host
-	conf.Set("process_config.cmd_host", "localhost", pkgconfigmodel.SourceAgentRuntime)
+	conf.Set("process_config.cmd_host", "127.0.0.1", pkgconfigmodel.SourceAgentRuntime)
 
 	// test construction with alternate values for the host and port
 	end, err := NewIPCEndpoint(conf, "test/api", WithHostAndPort(conf.GetString("process_config.cmd_host"), conf.GetInt("cmd_port")))
 	assert.NoError(t, err)
 
+	// test that host provided by WithHostAndPort is used for the endpoint
 	res, err := end.DoGet()
 	assert.NoError(t, err)
 	assert.Equal(t, res, []byte("ok"))
-	assert.Equal(t, gotURL, "/test/api")
+	assert.Equal(t, end.target.Host, fmt.Sprintf("127.0.0.1:%d", conf.GetInt("cmd_port")))
 }
 
 func TestIPCEndpointDeprecatedIPCAddress(t *testing.T) {
-	gotURL := ""
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotURL = r.URL.String()
 		_, _ = io.ReadAll(r.Body)
 		w.Write([]byte("ok"))
 	}))
@@ -161,16 +159,17 @@ func TestIPCEndpointDeprecatedIPCAddress(t *testing.T) {
 	conf := createConfig(t, ts)
 	// Use the deprecated (but still supported) option "ipc_address"
 	conf.UnsetForSource("cmd_host", pkgconfigmodel.SourceAgentRuntime)
-	conf.Set("ipc_address", "localhost", pkgconfigmodel.SourceAgentRuntime)
+	conf.Set("ipc_address", "127.0.0.1", pkgconfigmodel.SourceAgentRuntime)
 
 	// test construction, uses ipc_address instead of cmd_host
 	end, err := NewIPCEndpoint(conf, "test/api")
 	assert.NoError(t, err)
 
+	// test that host provided by "ipc_address" is used for the endpoint
 	res, err := end.DoGet()
 	assert.NoError(t, err)
 	assert.Equal(t, res, []byte("ok"))
-	assert.Equal(t, gotURL, "/test/api")
+	assert.Equal(t, end.target.Host, fmt.Sprintf("127.0.0.1:%d", conf.GetInt("cmd_port")))
 }
 
 func TestIPCEndpointErrorText(t *testing.T) {
