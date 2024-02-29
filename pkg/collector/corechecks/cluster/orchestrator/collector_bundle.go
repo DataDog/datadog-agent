@@ -167,7 +167,7 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 	}
 
 	if err != nil {
-		_ = cb.check.Warnf("Unsupported collector: %s", collectorName)
+		_ = cb.check.Warnf("Unsupported collector: %s: %s", collectorName, err)
 		return
 	}
 
