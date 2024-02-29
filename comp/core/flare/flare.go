@@ -14,14 +14,17 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ProfileData maps (pprof) profile names to the profile data.
@@ -36,6 +39,7 @@ type dependencies struct {
 	InvAgent              inventoryagent.Component // TODO: (components) - Temporary dependencies until the status page is a Component and we don't need to call it in 'CompleteFlare'.
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
+	Collector             optional.Option[collector.Component]
 }
 
 type flare struct {
@@ -45,6 +49,8 @@ type flare struct {
 	invAgent              inventoryagent.Component
 	params                Params
 	providers             []types.FlareCallback
+	collector             optional.Option[collector.Component]
+	secretResolver        secrets.Component
 }
 
 func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
@@ -52,9 +58,17 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		log:                   deps.Log,
 		config:                deps.Config,
 		params:                deps.Params,
-		providers:             deps.Providers,
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
+		collector:             deps.Collector,
+	}
+
+	// We filder nil elements from the providers list. FX doesn't filter nil elements from groups and some
+	// components register a provider conditionally.
+	for _, p := range deps.Providers {
+		if p != nil {
+			f.providers = append(f.providers, p)
+		}
 	}
 
 	rcListener := rcclient.TaskListenerProvider{
@@ -120,7 +134,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent)
+			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.secretResolver)
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,

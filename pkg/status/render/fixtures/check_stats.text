@@ -95,6 +95,8 @@ Collector
       Total Runs: 3
       Metric Samples: Last Run: 1, Total: 3
       Events: Last Run: 0, Total: 0
+      dbm-samples: Last Run: 12, Total: 132
+      unknown-type: Last Run: 34, Total: 342
       Service Checks: Last Run: 1, Total: 3
       Average Execution Time : 172ms
       Last Execution Date : 2023-11-29 12:04:58 UTC (1701259498000)

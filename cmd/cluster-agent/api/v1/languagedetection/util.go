@@ -10,23 +10,26 @@ package languagedetection
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"sync"
 )
 
 // containersLanguageWithDirtyFlag encapsulates containers languages along with a dirty flag
 // The dirty flag is used to know if the containers languages are flushed to workload metadata store or not.
 // The dirty flag is reset when languages are flushed to workload metadata store.
 type containersLanguageWithDirtyFlag struct {
-	languages langUtil.ContainersLanguages
+	languages langUtil.TimedContainersLanguages
 	dirty     bool
 }
 
 func newContainersLanguageWithDirtyFlag() *containersLanguageWithDirtyFlag {
 	return &containersLanguageWithDirtyFlag{
-		languages: make(langUtil.ContainersLanguages),
+		languages: make(langUtil.TimedContainersLanguages),
 		dirty:     true,
 	}
 }
@@ -47,7 +50,8 @@ func newContainersLanguageWithDirtyFlag() *containersLanguageWithDirtyFlag {
 //     during rollout the handler may, depending on the deployment size for example, receive different languages
 //     based on whether the source pod has been rolled out yet or not, which can cause flakiness in the set of detected languages.
 //
-// Components using OwnersLanguages should only invoke the mergeAndFlush method, which is thread-safe.
+// Components using OwnersLanguages should only invoke the thread-safe methods: mergeAndFlush, cleanExpiredLanguages,
+// and cleanRemovedOwners.
 // Other methods are not thread-safe; they are supposed to be invoked only within mergeAndFlush.
 type OwnersLanguages struct {
 	containersLanguages map[langUtil.NamespacedOwnerReference]*containersLanguageWithDirtyFlag
@@ -132,29 +136,114 @@ func (ownersLanguages *OwnersLanguages) mergeAndFlush(other *OwnersLanguages, wl
 	return ownersLanguages.flush(wlm)
 }
 
+// clean removes any expired language and flushes data to workloadmeta store
+// This method is thread-safe.
+func (ownersLanguages *OwnersLanguages) cleanExpiredLanguages(wlm workloadmeta.Component) {
+	ownersLanguages.mutex.Lock()
+	defer ownersLanguages.mutex.Unlock()
+
+	for _, containersLanguages := range ownersLanguages.containersLanguages {
+		if containersLanguages.languages.RemoveExpiredLanguages() {
+			containersLanguages.dirty = true
+		}
+	}
+	ownersLanguages.flush(wlm)
+}
+
+// handleKubeApiServerUnsetEvents handles unset events emitted by the kubeapiserver
+// events with type EventTypeSet are skipped
+// events with type EventTypeUnset are handled by deleted the corresponding owner from OwnersLanguages
+// and by pushing a new event to workloadmeta that unsets detected languages data for the concerned kubernetes resource
+// This method is thread-safe.
+func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []workloadmeta.Event, wlm workloadmeta.Component) {
+	ownersLanguages.mutex.Lock()
+	defer ownersLanguages.mutex.Unlock()
+
+	for _, event := range events {
+		kind := event.Entity.GetID().Kind
+
+		if event.Type != workloadmeta.EventTypeUnset {
+			// only unset events should be handled
+			continue
+		}
+
+		switch kind {
+		case workloadmeta.KindKubernetesDeployment:
+			// extract deployment name and namespace from entity id
+			deployment := event.Entity.(*workloadmeta.KubernetesDeployment)
+			deploymentIds := strings.Split(deployment.GetID().ID, "/")
+			namespace := deploymentIds[0]
+			deploymentName := deploymentIds[1]
+			delete(ownersLanguages.containersLanguages, langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, deploymentName, namespace))
+			_ = wlm.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: deployment,
+			})
+		}
+	}
+}
+
+// cleanRemovedOwners listens to workloadmeta kubeapiserver events and removes
+// languages of owners that are deleted.
+// It also unsets detected languages in workloadmeta store for deleted owners
+// This method is blocking, and should be called within a goroutine
+// This method is thread-safe.
+func (ownersLanguages *OwnersLanguages) cleanRemovedOwners(wlm workloadmeta.Component) {
+	evBundle := wlm.Subscribe("language-detection-handler", workloadmeta.NormalPriority, workloadmeta.NewFilter(
+		&workloadmeta.FilterParams{
+			Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesDeployment},
+			Source:    "kubeapiserver",
+			EventType: workloadmeta.EventTypeUnset,
+		},
+	))
+	defer wlm.Unsubscribe(evBundle)
+
+	for evChan := range evBundle {
+		evChan.Acknowledge()
+		ownersLanguages.handleKubeAPIServerUnsetEvents(evChan.Events, wlm)
+	}
+}
+
 ////////////////////////////////
 //                            //
 //           Utils            //
 //                            //
 ////////////////////////////////
 
-func generatePushEvent(owner langUtil.NamespacedOwnerReference, languages langUtil.ContainersLanguages) *workloadmeta.Event {
+// generatePushEvent generates a workloadmeta push event based on the owner languages
+// if owner has no detected languages, it generates an unset event
+// else it generates a set event
+func generatePushEvent(owner langUtil.NamespacedOwnerReference, languages langUtil.TimedContainersLanguages) *workloadmeta.Event {
 	_, found := langUtil.SupportedBaseOwners[owner.Kind]
 
 	if !found {
 		return nil
 	}
 
+	containerLanguages := make(langUtil.ContainersLanguages)
+
+	for container, langsetWithExpiration := range languages {
+		containerLanguages[container] = make(langUtil.LanguageSet)
+		for lang := range langsetWithExpiration {
+			containerLanguages[container][lang] = struct{}{}
+		}
+	}
+
+	eventType := workloadmeta.EventTypeSet
+	if len(containerLanguages) == 0 {
+		eventType = workloadmeta.EventTypeUnset
+	}
+
 	switch owner.Kind {
 	case langUtil.KindDeployment:
 		return &workloadmeta.Event{
-			Type: workloadmeta.EventTypeSet,
+			Type: eventType,
 			Entity: &workloadmeta.KubernetesDeployment{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindKubernetesDeployment,
 					ID:   fmt.Sprintf("%s/%s", owner.Namespace, owner.Name),
 				},
-				DetectedLanguages: languages.DeepCopy(),
+				DetectedLanguages: containerLanguages,
 			},
 		}
 	default:
@@ -164,15 +253,15 @@ func generatePushEvent(owner langUtil.NamespacedOwnerReference, languages langUt
 
 // getContainersLanguagesFromPodDetail returns containers languages objects for both standard containers
 // and for init container
-func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) *langUtil.ContainersLanguages {
-	containersLanguages := make(langUtil.ContainersLanguages)
+func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails, expirationTime time.Time) *langUtil.TimedContainersLanguages {
+	containersLanguages := make(langUtil.TimedContainersLanguages)
 
 	// handle standard containers
 	for _, containerLanguageDetails := range podDetail.ContainerDetails {
 		containerName := containerLanguageDetails.ContainerName
 		languages := containerLanguageDetails.Languages
 		for _, language := range languages {
-			containersLanguages.GetOrInitialize(*langUtil.NewContainer(containerName)).Add(langUtil.Language(language.Name))
+			containersLanguages.GetOrInitialize(*langUtil.NewContainer(containerName)).Add(langUtil.Language(language.Name), expirationTime)
 		}
 	}
 
@@ -181,7 +270,7 @@ func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) *la
 		containerName := containerLanguageDetails.ContainerName
 		languages := containerLanguageDetails.Languages
 		for _, language := range languages {
-			containersLanguages.GetOrInitialize(*langUtil.NewInitContainer(containerName)).Add(langUtil.Language(language.Name))
+			containersLanguages.GetOrInitialize(*langUtil.NewInitContainer(containerName)).Add(langUtil.Language(language.Name), expirationTime)
 		}
 	}
 
@@ -189,7 +278,7 @@ func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) *la
 }
 
 // getOwnersLanguages constructs OwnersLanguages from owners (i.e. k8s parent resource)
-func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest) *OwnersLanguages {
+func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest, expirationTime time.Time) *OwnersLanguages {
 	ownersContainersLanguages := newOwnersLanguages()
 
 	podDetails := requestData.PodDetails
@@ -198,7 +287,7 @@ func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest) *Owne
 		namespacedOwnerRef := langUtil.GetNamespacedBaseOwnerReference(podDetail)
 
 		if _, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]; found {
-			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail)
+			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)
 			langsWithDirtyFlag := ownersContainersLanguages.getOrInitialize(namespacedOwnerRef)
 			if modified := langsWithDirtyFlag.languages.Merge(containersLanguages); modified {
 				langsWithDirtyFlag.dirty = true

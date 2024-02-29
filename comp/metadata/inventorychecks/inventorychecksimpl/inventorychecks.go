@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // Module defines the fx options for this component.
@@ -50,6 +51,7 @@ type Payload struct {
 	Timestamp    int64                 `json:"timestamp"`
 	Metadata     map[string][]metadata `json:"check_metadata"`
 	LogsMetadata map[string][]metadata `json:"logs_metadata"`
+	UUID         string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -249,5 +251,6 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		Timestamp:    time.Now().UnixNano(),
 		Metadata:     payloadData,
 		LogsMetadata: logsMetadata,
+		UUID:         uuid.GetUUID(),
 	}
 }

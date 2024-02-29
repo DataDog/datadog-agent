@@ -36,7 +36,7 @@ type HTTP2DynamicTableEntry struct {
 	Is_huffman_encoded bool
 	Pad_cgo_0          [2]byte
 }
-type http2StreamKey struct {
+type HTTP2StreamKey struct {
 	Tup       connTuple
 	Id        uint32
 	Pad_cgo_0 [4]byte
@@ -61,7 +61,7 @@ type http2Path struct {
 	Length             uint8
 	Finalized          bool
 }
-type http2Stream struct {
+type HTTP2Stream struct {
 	Response_last_seen    uint64
 	Request_started       uint64
 	Status_code           http2StatusCode
@@ -72,7 +72,7 @@ type http2Stream struct {
 }
 type EbpfTx struct {
 	Tuple  connTuple
-	Stream http2Stream
+	Stream HTTP2Stream
 }
 type HTTP2Telemetry struct {
 	Request_seen                     uint64

@@ -241,6 +241,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
+	_, udpSendPageEnabled := enabledProbes[probes.UDPSendPage]
+	addBoolConst(&mgrOpts, udpSendPageEnabled, "udp_send_page_enabled")
+
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 	if classificationSupported {
 		tailCallsIdentifiersSet = make(map[manager.ProbeIdentificationPair]struct{}, len(protocolClassificationTailCalls))

@@ -31,9 +31,6 @@ const (
 	// subscriber is the workloadmeta subscriber name
 	subscriber = "language_detection_client"
 
-	// periodicalFlushPeriod parametrizes when the current batch needs to be entirely sent
-	periodicalFlushPeriod = 100 * time.Minute
-
 	// defaultProcessWithoutPodTTL defines the TTL before a process event is expired in the ProcessWithoutPod map
 	// if the associated pod is not found
 	defaultProcessWithoutPodTTL = 5 * time.Minute
@@ -126,7 +123,7 @@ func newClient(
 		processesWithoutPodTTL:           defaultProcessWithoutPodTTL,
 		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
 		freshlyUpdatedPods:               make(map[string]struct{}),
-		periodicalFlushPeriod:            periodicalFlushPeriod,
+		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.cleanup.ttl_refresh_period"),
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -354,7 +351,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
 	}
-	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
+	c.telemetry.ProcessedEvents.Inc(pod.Namespace, pod.Name, containerName, string(process.Language.Name))
 }
 
 // handlePodEvent removes delete pods from the current batch

@@ -20,6 +20,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -28,8 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -543,6 +544,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline_batch_size", 2048)
+	// Force the amount of dogstatsd workers (mainly used for benchmarks or some very specific use-case)
+	config.BindEnvAndSetDefault("dogstatsd_workers_count", 0)
 
 	// To enable the following feature, GODEBUG must contain `madvdontneed=1`
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.enabled", false)
@@ -739,6 +742,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// all the metadata for the VM.
 	// Used internally to protect against configurations where metadata endpoints return incorrect values with 200 status codes.
 	config.BindEnvAndSetDefault("metadata_endpoints_max_hostname_size", 255)
+
+	// Duration during which the host tags will be submitted with metrics.
+	config.BindEnvAndSetDefault("expected_tags_duration", time.Duration(0))
 
 	// EC2
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
@@ -1003,6 +1009,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("external_metrics_provider.split_batches_with_backoff", false)  // Splits batches and runs queries with errors individually with an exponential backoff
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
 	// Cluster check Autodiscovery
+	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
 	config.BindEnvAndSetDefault("cluster_checks.node_expiration_timeout", 30) // value in seconds
 	config.BindEnvAndSetDefault("cluster_checks.warmup_duration", 30)         // value in seconds
@@ -1055,7 +1062,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
-	config.BindEnvAndSetDefault("admission_controller.inject_auto_detected_libraries", true)                                                         // allows injecting libraries for languages detected by automatic language detection feature
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
@@ -1074,6 +1081,12 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
 	// Should be able to parse it to a list of webhook selectors
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.selectors", "[]")
+	// Should be able to parse it to a list of env vars and resource limits
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.profiles", "[]")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1275,7 +1288,15 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
+	// client period represents how frequently newly detected languages are reported to the language detection handler
 	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
+	// cleanup period represents how frequently we check for expired languages and remove them
+	config.BindEnvAndSetDefault("language_detection.cleanup.period", "10m")
+	// TTL refresh period represents how frequently we refresh the TTL of detected languages
+	config.BindEnvAndSetDefault("language_detection.cleanup.ttl_refresh_period", "20m")
+	// language TTL represents the TTL that is set for each language when it is detected
+	// it is also used when refreshing the expiration timestamp of the language
+	config.BindEnvAndSetDefault("language_detection.cleanup.language_ttl", "30m")
 
 	setupAPM(config)
 	OTLP(config)

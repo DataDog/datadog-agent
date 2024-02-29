@@ -98,17 +98,6 @@ type secretResolver struct {
 
 var _ secrets.Component = (*secretResolver)(nil)
 
-// TODO: (components) Hack to maintain a singleton reference to the secrets Component
-//
-// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
-// It is very difficult right now to modify diagnose because it would require modifying many
-// function signatures, which would only increase future maintenance. Once diagnose is better
-// integrated with Components, we should be able to remove this hack.
-//
-// Other components should not copy this pattern, it is only meant to be used temporarily.
-var mu sync.Mutex
-var instance *secretResolver
-
 func newEnabledSecretResolver() *secretResolver {
 	return &secretResolver{
 		cache:   make(map[string]string),
@@ -120,29 +109,10 @@ func newEnabledSecretResolver() *secretResolver {
 func newSecretResolverProvider(deps dependencies) provides {
 	resolver := newEnabledSecretResolver()
 	resolver.enabled = deps.Params.Enabled
-
-	mu.Lock()
-	defer mu.Unlock()
-	if instance == nil {
-		instance = resolver
-	}
-
 	return provides{
 		Comp:          resolver,
 		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
 	}
-}
-
-// GetInstance returns the singleton instance of the secret.Component
-func GetInstance() secrets.Component {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance == nil {
-		deps := dependencies{Params: secrets.Params{Enabled: false}}
-		p := newSecretResolverProvider(deps)
-		instance = p.Comp.(*secretResolver)
-	}
-	return instance
 }
 
 // fillFlare add the inventory payload to flares.

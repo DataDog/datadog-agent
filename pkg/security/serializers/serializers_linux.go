@@ -240,8 +240,6 @@ type ProcessSerializer struct {
 	IsExecExec bool `json:"is_exec_child,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -521,8 +519,8 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		GID:                 int64(fe.GID),
 		User:                e.FieldHandlers.ResolveFileFieldsUser(e, &fe.FileFields),
 		Group:               e.FieldHandlers.ResolveFileFieldsGroup(e, &fe.FileFields),
-		Mtime:               getTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
-		Ctime:               getTimeIfNotZero(time.Unix(0, int64(fe.CTime))),
+		Mtime:               utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(fe.MTime))),
+		Ctime:               utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(fe.CTime))),
 		InUpperLayer:        getInUpperLayer(&fe.FileFields),
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
@@ -558,7 +556,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	if ps.IsNotKworker() {
 		argv := e.FieldHandlers.ResolveProcessArgvScrubbed(e, ps)
 		argvTruncated := e.FieldHandlers.ResolveProcessArgsTruncated(e, ps)
@@ -567,9 +565,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *P
 		argv0, _ := sprocess.GetProcessArgv0(ps)
 
 		psSerializer := &ProcessSerializer{
-			ForkTime: getTimeIfNotZero(ps.ForkTime),
-			ExecTime: getTimeIfNotZero(ps.ExecTime),
-			ExitTime: getTimeIfNotZero(ps.ExitTime),
+			ForkTime: utils.NewEasyjsonTimeIfNotZero(ps.ForkTime),
+			ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
+			ExitTime: utils.NewEasyjsonTimeIfNotZero(ps.ExitTime),
 
 			Pid:           ps.Pid,
 			Tid:           ps.Tid,
@@ -586,7 +584,6 @@ func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *P
 			IsKworker:     ps.IsKworker,
 			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
-			Variables:     newVariablesContext(e, opts, "process."),
 		}
 
 		if ps.HasInterpreter() {
@@ -610,7 +607,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, opts *eval.Opts) *P
 		if len(ps.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        ps.ContainerID,
-				CreatedAt: getTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
 			}
 		}
 
@@ -729,7 +726,7 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 	return &PTraceEventSerializer{
 		Request: model.PTraceRequest(e.PTrace.Request).String(),
 		Address: fmt.Sprintf("0x%x", e.PTrace.Address),
-		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e, nil),
+		Tracee:  newProcessContextSerializer(e.PTrace.Tracee, e),
 	}
 }
 
@@ -754,7 +751,7 @@ func newSignalEventSerializer(e *model.Event) *SignalEventSerializer {
 	ses := &SignalEventSerializer{
 		Type:   model.Signal(e.Signal.Type).String(),
 		PID:    e.Signal.PID,
-		Target: newProcessContextSerializer(e.Signal.Target, e, nil),
+		Target: newProcessContextSerializer(e.Signal.Target, e),
 	}
 	return ses
 }
@@ -834,13 +831,13 @@ func serializeOutcome(retval int64) string {
 	}
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts *eval.Opts) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
 
 	ps := ProcessContextSerializer{
-		ProcessSerializer: newProcessSerializer(&pc.Process, e, opts),
+		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
 	ctx := eval.NewContext(e)
@@ -856,7 +853,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, opts 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessSerializer(&pce.Process, e, opts)
+		s := newProcessSerializer(&pce.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -971,7 +968,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        ctx.ID,
-			CreatedAt: getTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
 			Variables: newVariablesContext(event, opts, "container."),
 		}
 	}
@@ -1070,8 +1067,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Utimes.File, event),
 			Destination: &FileSerializer{
-				Atime: getTimeIfNotZero(event.Utimes.Atime),
-				Mtime: getTimeIfNotZero(event.Utimes.Mtime),
+				Atime: utils.NewEasyjsonTimeIfNotZero(event.Utimes.Atime),
+				Mtime: utils.NewEasyjsonTimeIfNotZero(event.Utimes.Mtime),
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Utimes.Retval)

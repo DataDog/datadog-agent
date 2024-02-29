@@ -915,6 +915,18 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
+		case "GitCommitSha":
+			z.GitCommitSha, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "GitCommitSha")
+				return
+			}
+		case "ImageTag":
+			z.ImageTag, err = dc.ReadString()
+			if err != nil {
+				err = msgp.WrapError(err, "ImageTag")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -929,8 +941,8 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(12)
-	var zb0001Mask uint16 /* 12 bits */
+	zb0001Len := uint32(14)
+	var zb0001Mask uint16 /* 14 bits */
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
@@ -1086,6 +1098,26 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	// write "GitCommitSha"
+	err = en.Append(0xac, 0x47, 0x69, 0x74, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x53, 0x68, 0x61)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.GitCommitSha)
+	if err != nil {
+		err = msgp.WrapError(err, "GitCommitSha")
+		return
+	}
+	// write "ImageTag"
+	err = en.Append(0xa8, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x54, 0x61, 0x67)
+	if err != nil {
+		return
+	}
+	err = en.WriteString(z.ImageTag)
+	if err != nil {
+		err = msgp.WrapError(err, "ImageTag")
+		return
+	}
 	return
 }
 
@@ -1093,8 +1125,8 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(12)
-	var zb0001Mask uint16 /* 12 bits */
+	zb0001Len := uint32(14)
+	var zb0001Mask uint16 /* 14 bits */
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
@@ -1156,6 +1188,12 @@ func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0002 := range z.Tags {
 		o = msgp.AppendString(o, z.Tags[za0002])
 	}
+	// string "GitCommitSha"
+	o = append(o, 0xac, 0x47, 0x69, 0x74, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x53, 0x68, 0x61)
+	o = msgp.AppendString(o, z.GitCommitSha)
+	// string "ImageTag"
+	o = append(o, 0xa8, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x54, 0x61, 0x67)
+	o = msgp.AppendString(o, z.ImageTag)
 	return
 }
 
@@ -1286,6 +1324,18 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "GitCommitSha":
+			z.GitCommitSha, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "GitCommitSha")
+				return
+			}
+		case "ImageTag":
+			z.ImageTag, bts, err = msgp.ReadStringBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ImageTag")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1312,6 +1362,7 @@ func (z *ClientStatsPayload) Msgsize() (s int) {
 	for za0002 := range z.Tags {
 		s += msgp.StringPrefixSize + len(z.Tags[za0002])
 	}
+	s += 13 + msgp.StringPrefixSize + len(z.GitCommitSha) + 9 + msgp.StringPrefixSize + len(z.ImageTag)
 	return
 }
 

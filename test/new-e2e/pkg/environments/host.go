@@ -19,6 +19,7 @@ type Host struct {
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
 	Agent      *components.RemoteHostAgent
+	Updater    *components.RemoteHostUpdater
 }
 
 var _ e2e.Initializable = &Host{}

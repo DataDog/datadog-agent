@@ -49,6 +49,7 @@ from tasks.go import (
     generate_protobuf,
     go_fix,
     golangci_lint,
+    internal_deps_checker,
     lint_licenses,
     reset,
     tidy_all,
@@ -63,7 +64,7 @@ from tasks.go_test import (
     test,
 )
 from tasks.install_tasks import download_tools, install_shellcheck, install_tools
-from tasks.junit_tasks import junit_macos_repack, junit_upload
+from tasks.junit_tasks import junit_upload
 from tasks.libs.go_workspaces import handle_go_work
 from tasks.linter_tasks import lint_copyrights, lint_filenames, lint_go, lint_python
 from tasks.pr_checks import lint_releasenote
@@ -105,9 +106,9 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(tidy_all)
+ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
 ns.add_task(junit_upload)
-ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
