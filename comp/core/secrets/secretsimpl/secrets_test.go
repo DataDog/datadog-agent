@@ -6,7 +6,6 @@
 package secretsimpl
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -794,22 +793,88 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 			"handle": "fourth_value",
 		}, nil
 	}
-
-	// Limit the max size of the audit file so that it's too small to load
-	resolver.auditFileMaxSize = 10
-
-	// Try to Refresh, but the audit file can't be loaded due to its size
-	_, err = resolver.Refresh()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot be loaded, file size is too large")
-	// the number of rows in the audit file has not increased
-	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
 }
 
 // helper to read number of rows in the audit file
 func auditFileNumRows(filename string) int {
 	data, _ := os.ReadFile(filename)
-	var rows []interface{}
-	_ = json.Unmarshal(data, &rows)
-	return len(rows)
+	return len(strings.Split(strings.Trim(string(data), "\n"), "\n"))
+}
+
+func TestIsLikelyAPIOrAppKey(t *testing.T) {
+	type testCase struct {
+		name        string
+		handle      string
+		secretValue string
+		origin      handleToContext
+		expect      bool
+	}
+
+	currentTest := t
+	testCases := []testCase{
+		{
+			name:        "looks like an api_key",
+			handle:      "vault://userToken",
+			secretValue: "0123456789abcdef0123456789abcdef",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "apiKey"},
+					},
+				},
+			},
+			expect: true,
+		},
+		{
+			name:        "wrong length",
+			handle:      "vault://userToken",
+			secretValue: "0123456789abcdef0123456789abc",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "apiKey"},
+					},
+				},
+			},
+			expect: false,
+		},
+		{
+			name:        "not hex",
+			handle:      "vault://userToken",
+			secretValue: "0123456789stuvwx0123456789stuvwx",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "apiKey"},
+					},
+				},
+			},
+			expect: false,
+		},
+		{
+			name:        "likely password",
+			handle:      "vault://secretPassword",
+			secretValue: "0123456789abcdef0123456789abcdef",
+			origin: map[string][]secretContext{
+				"vault://userToken": {
+					{
+						origin: "conf.yaml",
+						path:   []string{"provider", "credentials", "password"},
+					},
+				},
+			},
+			expect: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			currentTest = t
+			result := isLikelyAPIOrAppKey(tc.handle, tc.secretValue, tc.origin)
+			assert.Equal(currentTest, tc.expect, result)
+		})
+	}
 }

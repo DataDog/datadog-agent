@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -27,7 +28,6 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -86,6 +86,7 @@ type secretResolver struct {
 	// filename to write audit records to
 	auditFilename    string
 	auditFileMaxSize int
+	auditRotRecs     *rotatingNDRecords
 	// subscriptions want to be notified about changes to the secrets
 	subscriptions []secrets.SecretChangeCallback
 
@@ -151,11 +152,7 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	r.GetDebugInfo(writer)
 	writer.Flush()
 	fb.AddFile("secrets.log", buffer.Bytes())
-
-	content, err := filesystem.ReadFileWithSizeLimit(r.auditFilename, int64(r.auditFileMaxSize))
-	if err == nil {
-		fb.AddFile(auditFileBasename, content)
-	}
+	fb.CopyFile(r.auditFilename)
 	return nil
 }
 
@@ -468,7 +465,7 @@ func (r *secretResolver) Refresh() (string, error) {
 	refreshResult := r.processSecretResponse(secretResponse, true)
 	if len(refreshResult.Handles) > 0 {
 		// add the results to the audit file, if any secrets have new values
-		if err := addToAuditFile(r.auditFilename, secretResponse, r.origin, r.auditFileMaxSize); err != nil {
+		if err := r.addToAuditFile(secretResponse); err != nil {
 			log.Error(err)
 			auditRecordErr = err
 		}
@@ -485,6 +482,58 @@ func (r *secretResolver) Refresh() (string, error) {
 		return "", err
 	}
 	return b.String(), auditRecordErr
+}
+
+type auditRecord struct {
+	Handle string `json:"handle"`
+	Value  string `json:"value,omitempty"`
+}
+
+// addToAuditFile adds records to the audit file based upon newly refreshed secrets
+func (r *secretResolver) addToAuditFile(secretResponse map[string]string) error {
+	if r.auditFilename == "" {
+		return nil
+	}
+	if r.auditRotRecs == nil {
+		r.auditRotRecs = newRotatingNDRecords(r.auditFilename, config{})
+	}
+
+	// iterate keys in deterministic order by sorting
+	handles := make([]string, 0, len(secretResponse))
+	for handle := range secretResponse {
+		handles = append(handles, handle)
+	}
+	sort.Strings(handles)
+
+	var newRows []auditRecord
+	// add the newly refreshed secrets to the list of rows
+	for _, handle := range handles {
+		secretValue := secretResponse[handle]
+		scrubbedValue := ""
+		if isLikelyAPIOrAppKey(handle, secretValue, r.origin) {
+			scrubbedValue = scrubber.HideKeyExceptLastFiveChars(secretValue)
+		}
+		newRows = append(newRows, auditRecord{Handle: handle, Value: scrubbedValue})
+	}
+
+	return r.auditRotRecs.Add(time.Now().UTC(), newRows)
+}
+
+var apiKeyStringRegex = regexp.MustCompile(`^[[:xdigit:]]{32}(?:[[:xdigit]]{8})?$`)
+
+// return whether the secret is likely an API key or App key based whether it is 32 or 40 hex
+// characters, as well as the setting name where it is found in the config
+func isLikelyAPIOrAppKey(handle, secretValue string, origin handleToContext) bool {
+	if !apiKeyStringRegex.MatchString(secretValue) {
+		return false
+	}
+	for _, secretCtx := range origin[handle] {
+		lastElem := secretCtx.path[len(secretCtx.path)-1]
+		if strings.HasSuffix(strings.ToLower(lastElem), "key") {
+			return true
+		}
+	}
+	return false
 }
 
 type secretInfo struct {
