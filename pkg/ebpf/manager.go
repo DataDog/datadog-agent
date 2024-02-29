@@ -12,8 +12,6 @@ import (
 	"io"
 	"sync"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,7 +44,7 @@ func NewManager(mgr *manager.Manager, modifiers ...Modifier) *Manager {
 // NewManagerWithDefault creates a manager wrapper with default modifiers.
 func NewManagerWithDefault(mgr *manager.Manager, modifiers ...Modifier) *Manager {
 	modifiersSync.Do(func() {
-		defaultModifiers = []Modifier{&PrintkPatcherModifier{}, &ebpftelemetry.ErrorsTelemetryModifier{}}
+		defaultModifiers = []Modifier{&PrintkPatcherModifier{}}
 	})
 	return NewManager(mgr, append(defaultModifiers, modifiers...)...)
 }
