@@ -22,4 +22,8 @@ func platformCWSConfig(cfg pkgconfigmodel.Config) {
 		cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", "c:\\programdata\\datadog\\runtime-security.d")
 	}
 	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+
+	cfg.BindEnvAndSetDefault("runtime_security_config.windows.process_buffer_count", 50)
+	cfg.BindEnvAndSetDefault("runtime_security_config.windows.process_buffer_size", 16384)
+
 }
