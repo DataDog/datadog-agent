@@ -321,6 +321,10 @@ Package connectionscheck implements a component to handle Connections data colle
 
 Package containercheck implements a component to handle Container data collection in the Process Agent.
 
+### [comp/process/containerconnectionscheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/containerconnectionscheck)
+
+Package containerconnectionscheck implements a component to handle Container data collection in the Process Agent.
+
 ### [comp/process/expvars](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/expvars)
 
 Package expvars initializes the expvar server of the process agent.
