@@ -20,13 +20,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/tools"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	archiveName                = "package.tar.gz"
-	maxArchiveSize             = 5 << 30  // 5GiB
-	maxArchiveDecompressedSize = 10 << 30 // 10GiB
+	maxArchiveSize             = 1 << 30 // 1GiB
+	maxArchiveDecompressedSize = 3 << 30 // 3GiB
 )
 
 // downloader is the downloader used by the updater to download packages.
@@ -80,6 +81,16 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		hashWriter,
 	)
 	archivePath := filepath.Join(tmpDir, archiveName)
+
+	// Check there is enough space to write the compressed archive
+	enoughSpace, err := tools.CheckAvailableDiskSpace(filepath.Dir(archivePath), uint64(pkg.Size))
+	if err != nil {
+		return fmt.Errorf("could not check available disk space: %w", err)
+	}
+	if !enoughSpace {
+		return fmt.Errorf("not enough disk space to download package %s version %s", pkg.Name, pkg.Version)
+	}
+
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
 		return fmt.Errorf("could not create archive file: %w", err)
@@ -107,6 +118,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
 		return fmt.Errorf("could not create OCI extraction directory: %w", err)
 	}
+
 	err = extractTarArchive(archivePath, extractedArchivePath, compressionNone)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
@@ -142,6 +154,17 @@ const (
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
 func extractTarArchive(archivePath string, destinationPath string, compression compression) error {
+	// Check there is enough space to write the decompressed archive
+	// As we don't know the decompressed size of the archive, we use the maximum decompressed size
+	// as the minimum
+	enoughSpace, err := tools.CheckAvailableDiskSpace(destinationPath, uint64(maxArchiveDecompressedSize))
+	if err != nil {
+		return fmt.Errorf("could not check available disk space for: %w", err)
+	}
+	if !enoughSpace {
+		return fmt.Errorf("not enough disk space to extract archive %s to %s", archivePath, destinationPath)
+	}
+
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
 
 	f, err := os.Open(archivePath)
