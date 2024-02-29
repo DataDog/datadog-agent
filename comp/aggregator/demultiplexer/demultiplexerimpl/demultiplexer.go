@@ -59,6 +59,7 @@ type provides struct {
 	DiagnosticSenderManager diagnosesendermanager.Component
 	SenderManager           sender.SenderManager
 	StatusProvider          status.InformationProvider
+	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
@@ -94,6 +95,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
 			Log: deps.Log,
 		}),
+		AggregatorDemultiplexer: demultiplexer,
 	}, nil
 }
 

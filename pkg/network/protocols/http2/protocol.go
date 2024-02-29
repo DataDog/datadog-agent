@@ -211,8 +211,7 @@ func (p *Protocol) Name() string {
 }
 
 const (
-	mapSizeValue        = 1024
-	dynamicMapSizeValue = 10240
+	mapSizeValue = 1024
 )
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
@@ -227,11 +226,11 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
-		MaxEntries: dynamicMapSizeValue,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
-		MaxEntries: dynamicMapSizeValue,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
