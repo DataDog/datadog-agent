@@ -13,10 +13,10 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
-	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
@@ -112,7 +112,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			collector collector.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, agentAPI)
+			defer StopAgentWithDefaults(agentAPI)
 
 			err := startAgent(
 				&cliParams{GlobalParams: &command.GlobalParams{}},
@@ -184,7 +184,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module(),
-		apmetwtracerimpl.Module,
+		etwtracerimpl.Module,
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
@@ -193,7 +193,7 @@ func getPlatformModules() fx.Option {
 		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
-		fx.Invoke(func(_ apmetwtracer.Component) {}),
+		fx.Invoke(func(_ etwtracer.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

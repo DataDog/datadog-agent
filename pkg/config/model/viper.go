@@ -147,18 +147,20 @@ func (c *safeConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is known
 func (c *safeConfig) IsKnown(key string) bool {
-	keys := c.GetKnownKeys()
+	keys := c.GetKnownKeysLowercased()
+	key = strings.ToLower(key)
 	_, ok := keys[key]
 	return ok
 }
 
-// GetKnownKeys returns all the keys that meet at least one of these criteria:
+// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
-func (c *safeConfig) GetKnownKeys() map[string]interface{} {
+// Note that it returns the keys lowercased.
+func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// GetKnownKeys returns a fresh map, so the caller may do with it
+	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
 }
@@ -205,7 +207,7 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	// if "section_key" is set.
 	sectionPrefix := section + "."
 
-	for _, key := range c.AllKeys() {
+	for _, key := range c.AllKeysLowercased() {
 		if strings.HasPrefix(key, sectionPrefix) && c.IsSet(key) {
 			return true
 		}
@@ -216,7 +218,7 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	return c.IsSet(section)
 }
 
-func (c *safeConfig) AllKeys() []string {
+func (c *safeConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.AllKeys()

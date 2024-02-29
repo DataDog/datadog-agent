@@ -66,7 +66,9 @@ func newStatus(deps dependencies) (status.Component, error) {
 	sortedSectionNames := []string{}
 	collectorSectionPresent := false
 
-	for _, provider := range deps.Providers {
+	providers := fxutil.GetAndFilterGroup(deps.Providers)
+
+	for _, provider := range providers {
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
 			collectorSectionPresent = true
 		}
@@ -84,7 +86,7 @@ func newStatus(deps dependencies) (status.Component, error) {
 
 	// Providers of each section are sort alphabetically by name
 	sortedProvidersBySection := map[string][]status.Provider{}
-	for _, provider := range deps.Providers {
+	for _, provider := range providers {
 		providers := sortedProvidersBySection[provider.Section()]
 		sortedProvidersBySection[provider.Section()] = append(providers, provider)
 	}
@@ -95,7 +97,7 @@ func newStatus(deps dependencies) (status.Component, error) {
 	// Header providers are sorted by index
 	// We manually insert the common header provider in the first place after sorting is done
 	sortedHeaderProviders := []status.HeaderProvider{}
-	sortedHeaderProviders = append(sortedHeaderProviders, deps.HeaderProviders...)
+	sortedHeaderProviders = append(sortedHeaderProviders, fxutil.GetAndFilterGroup(deps.HeaderProviders)...)
 
 	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
 		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()

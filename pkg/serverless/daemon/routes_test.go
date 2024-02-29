@@ -12,13 +12,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"

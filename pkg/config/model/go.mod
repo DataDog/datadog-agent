@@ -14,7 +14,7 @@ require (
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.8.1
-	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 )
 
 require (
