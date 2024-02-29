@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.51.1:
+
+7.51.1 / 6.51.1
+======
+
+.. _Release Notes_7.51.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-02-29
+
+- Please refer to the `7.51.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7511>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.51.1_New Features:
+
+New Features
+------------
+
+- Add the chdir event type to CWS.
+
+
+.. _Release Notes_7.51.1_Security Notes:
+
+Security Notes
+--------------
+
+- Bump embedded Python version to 3.11.8 to address CVE-2023-5678 on Windows.
+
+
+.. _Release Notes_7.51.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a crash in the ``win32_event_log`` check that occurs when processing an event that has
+  a missing publisher and no ``EventData``.
+
+
 .. _Release Notes_7.51.0:
 
 7.51.0 / 6.51.0
