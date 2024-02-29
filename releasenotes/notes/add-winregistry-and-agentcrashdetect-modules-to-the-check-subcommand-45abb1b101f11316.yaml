@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The `winregistry` and `agentcrashdetect` checks can be run with the `check` command.
