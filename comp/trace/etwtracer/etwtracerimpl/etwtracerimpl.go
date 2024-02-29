@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 // Module defines the fx options for this component.
@@ -405,7 +404,7 @@ func (a *etwtracerimpl) doTrace() {
 		if err != nil {
 			return
 		}
-		_, err = binWriter.Write(etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength)))
+		_, err = binWriter.Write(unsafe.Slice(e.UserData, int(e.UserDataLength)))
 		if err != nil {
 			return
 		}

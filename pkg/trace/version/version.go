@@ -7,9 +7,11 @@
 package version
 
 import (
+	"errors"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"strings"
 )
 
 const (
@@ -26,6 +28,9 @@ func GetVersionDataFromContainerTags(containerID string, conf *config.AgentConfi
 	}
 	cTags, err := conf.ContainerTags(containerID)
 	if err != nil {
+		if errors.Is(err, config.ErrContainerTagsFuncNotDefined) {
+			return "", "", nil
+		}
 		return "", "", err
 	}
 	for _, t := range cTags {
