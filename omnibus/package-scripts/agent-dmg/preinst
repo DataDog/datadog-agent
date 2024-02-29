@@ -116,11 +116,11 @@ if sudo -u "$INSTALL_USER" launchctl print "gui/$user_uid/com.datadoghq.agent" 1
   else
     # version is at least 7.52.0
     sudo -u "$INSTALL_USER" launchctl stop "com.datadoghq.gui"
-    sudo -u "$INSTALL_USER" launchctl unload "$gui_user_plist_file"
+    sudo -u "$INSTALL_USER" launchctl unload -w "$gui_user_plist_file"
   fi
 
   sudo -u "$INSTALL_USER" launchctl stop "com.datadoghq.agent"
-  sudo -u "$INSTALL_USER" launchctl unload "$user_plist_file"
+  sudo -u "$INSTALL_USER" launchctl unload -w "$user_plist_file"
 fi
 # Debriefing time
 echo "# State at the end"
