@@ -83,7 +83,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionTraces() {
 	service := fmt.Sprintf("tracegen-auto-version-%s", s.transport)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testAutoVersionTraces(s.T(), c, service, s.Env().FakeIntake)
+		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
 }
 
@@ -94,7 +94,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
 	service := fmt.Sprintf("tracegen-auto-version-%s", s.transport)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
-		testAutoVersionStats(s.T(), c, service, s.Env().FakeIntake)
+		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
 		s.T().Log(s.Env().RemoteHost.MustExecute("docker ps -a"))
 		s.T().Log(s.Env().RemoteHost.MustExecute("docker logs datadog-agent | grep TRACE"))
 
