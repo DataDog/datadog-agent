@@ -431,18 +431,6 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
         if only_impacted_packages:
             modules = get_impacted_packages(ctx, build_tags=build_tags)
 
-        try:  # Update the test result comment on the PR to indicate when no tests run, should not fail job if it does not work
-            update_test_result_comment_on_pr(
-                pipeline_id=os.environ.get("CI_PIPELINE_ID", ""),
-                pipeline_url=os.environ.get("CI_PIPELINE_URL", ""),
-                branch_name=os.environ.get('CI_COMMIT_REF_NAME', ""),
-                job_name=os.environ.get('CI_JOB_NAME', ""),
-                job_url=os.environ.get("CI_JOB_URL", ""),
-                executed_test=len(modules) > 0,
-            )
-        except Exception as e:
-            print("Failed to update the test result comment on the PR, ignoring: ", e)
-
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -917,55 +905,35 @@ def normpath(path):  # Normpath with forward slashes to avoid issues on Windows
     return os.path.normpath(path).replace("\\", "/")
 
 
-def update_test_result_comment_on_pr(pipeline_id, pipeline_url, branch_name, job_name, job_url, executed_test):
-    if branch_name == "" or job_name == "" or pipeline_id == "" or pipeline_url == "" or job_url == "":
-        return
-
+@task
+def notify_unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
     from .libs.common.github_api import GithubAPI
 
-    jobs_regex = re.compile(r"  - ([a-z-A-Z_0-9]*)")
     pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
 
+    no_tests_executed_jobs = process_unit_tests_tarballs(ctx)
     gh = GithubAPI("DataDog/datadog-agent")
-
     pr = gh.get_pr_for_branch(branch_name)[0]
     # If the branch is not linked to any PR we stop here
     if pr is None:
         return
 
     comment = gh.find_comment(pr.number, "[Fast Unit Tests Report]")
-    if comment is None:
-        if executed_test:
-            return
-        msg = create_msg(pipeline_id, pipeline_url, [job_name])
+    if comment is None and len(no_tests_executed_jobs) > 0:
+        msg = create_msg(pipeline_id, pipeline_url, no_tests_executed_jobs)
         gh.publish_comment(pr.number, msg)
         return
 
     previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)[0]
-    # An older pipeline should edit a message corresponding to a newer pipeline
+    # An older pipeline should not edit a message corresponding to a newer pipeline
     if previous_comment_pipeline_id > pipeline_id:
         return
 
-    previous_comment_jobs = []
-    if previous_comment_pipeline_id == pipeline_id:
-        previous_comment_jobs = jobs_regex.findall(comment.body)
-
-    if executed_test:
-        if job_name in previous_comment_jobs:
-            previous_comment_jobs.remove(job_name)
-        msg = create_msg(pipeline_id, pipeline_url, previous_comment_jobs)
-        if len(previous_comment_jobs) == 0:
-            gh.delete_comment(pr.number, comment.id)
-        else:
-            gh.update_comment(pr.number, comment.id, msg)
-        return
-
-    if not executed_test:
-        if job_name not in previous_comment_jobs:
-            previous_comment_jobs.append(job_name)
-            msg = create_msg(pipeline_id, pipeline_url, previous_comment_jobs)
-            gh.update_comment(pr.number, comment.id, msg)
-
+    if len(no_tests_executed_jobs) > 0:
+        msg = create_msg(pipeline_id, pipeline_url, no_tests_executed_jobs)
+        comment.edit(msg)
+    else:
+        comment.delete()
     return
 
 
@@ -983,3 +951,20 @@ Warning: On pipeline [{pipeline_id}]({pipeline_url}). At least the following job
     return msg
 
     # If we are not in the CI we do not update the comment
+
+
+def process_unit_tests_tarballs(ctx):
+    tarballs = ctx.run("ls junit-tests_*.tgz", hide=True).stdout.split()
+    no_tests_executed_jobs = []
+    for tarball in tarballs:
+        ctx.run("mkdir -p extract_folder")
+        ctx.run(f"tar -xzf {tarball} -C extract_folder")
+
+        # We check if the folder contains at least one junit.xml file if not we consider no tests were executed
+        junit_files = ctx.run("ls extract_folder/*.xml", hide=True, warn=True)
+        if junit_files.exited != 0:
+            no_tests_executed_jobs.append(tarball.replace("junit-", "").replace(".tgz", ""))
+
+        ctx.run("rm -rf extract_folder")
+
+    return no_tests_executed_jobs
