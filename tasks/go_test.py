@@ -391,7 +391,7 @@ def test(
         if platform.system() == 'Windows':
             # The '{{{{' is necessary to escape the f-string first and the .format() second. It's needed for the Powershell 'If' loop.
             coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test "$($args | select -skip 1)" -json -coverprofile="$tempFile" {{packages}}
+go test $($args | select -skip 1) -json -coverprofile="$tempFile" {{packages}}
 exit $LASTEXITCODE"""
         else:
             coverage_script_template = f"""#!/usr/bin/env bash
