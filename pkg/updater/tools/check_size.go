@@ -11,7 +11,13 @@ import (
 )
 
 // CheckAvailableDiskSpace checks if the given path has enough free space to store the required bytes
-// This will check the underlying partition of the given path.
+// This will check the underlying partition of the given path. Note that the path must be an existing dir.
+//
+// s.Free is used to check the available disk space
+// On Unix, it is computed using `statfs` and is the number of free blocks available to an unprivileged used * block size
+// See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
+// On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
+// See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
 func CheckAvailableDiskSpace(path string, requiredBytes uint64) (bool, error) {
 	s, err := disk.Usage(path)
 	if err != nil {
