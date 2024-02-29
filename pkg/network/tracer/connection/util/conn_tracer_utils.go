@@ -28,10 +28,10 @@ import (
 // Must be a power of 2 and a multiple of the page size
 func ComputeDefaultClosedConnRingBufferSize() int {
 	numCPUs, err := utils.NumCPU()
-	pageSize := os.Getpagesize()
 	if err != nil {
 		numCPUs = 1
 	}
+	pageSize := os.Getpagesize()
 	if numCPUs <= 16 {
 		return 8 * 8 * pageSize
 	}
