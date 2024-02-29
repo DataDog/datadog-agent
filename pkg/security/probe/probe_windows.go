@@ -340,7 +340,7 @@ func (p *WindowsProbe) Start() error {
 						},
 					}
 				case model.OpenRegistryKeyEventType:
-					cka := n.(*createKeyArgs)
+					cka := n.(*openKeyArgs)
 					ev.Type = uint32(model.OpenRegistryKeyEventType)
 					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
 						Registry: model.RegistryEvent{
