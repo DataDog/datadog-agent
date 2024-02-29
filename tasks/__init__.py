@@ -14,6 +14,7 @@ from tasks import (
     cws_instrumentation,
     diff,
     docker_tasks,
+    docs,
     dogstatsd,
     ebpf,
     emacs,
@@ -124,6 +125,7 @@ ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
