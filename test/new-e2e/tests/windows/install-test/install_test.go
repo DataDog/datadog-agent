@@ -134,7 +134,7 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	if !is.Run(fmt.Sprintf("upgrade to %s with rollback", is.AgentPackage.AgentVersion()), func() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(is.AgentPackage),
-			windowsAgent.WithWIXFailWhenDeferred(),
+			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "upgrade.log")),
 		)
 		is.Require().Error(err, "should fail to install agent %s", is.AgentPackage.AgentVersion())

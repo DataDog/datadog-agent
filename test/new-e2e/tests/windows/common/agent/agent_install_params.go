@@ -21,7 +21,7 @@ type InstallAgentParams struct {
 	Site                string `installer_arg:"SITE"`
 	DdURL               string `installer_arg:"DD_URL"`
 	APIKey              string `installer_arg:"APIKEY"`
-	WIXFAILWHENDEFERRED string `installer_arg:"WIXFAILWHENDEFERRED"`
+	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
 	InstallLogFile      string
 	Package             *Package
 }
@@ -133,10 +133,10 @@ func WithFakeIntake(fakeIntake *components.FakeIntake) InstallAgentOption {
 	}
 }
 
-// WithWIXFailWhenDeferred specifies the WIXFAILWHENDEFERRED parameter.
-func WithWIXFailWhenDeferred() InstallAgentOption {
+// WithWixFailWhenDeferred sets the WixFailWhenDeferred parameter.
+func WithWixFailWhenDeferred() InstallAgentOption {
 	return func(i *InstallAgentParams) error {
-		i.WIXFAILWHENDEFERRED = "1"
+		i.WixFailWhenDeferred = "1"
 		return nil
 	}
 }
