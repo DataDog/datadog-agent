@@ -10,9 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -68,6 +70,57 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)))
 }
 
+func testAutoVersionTraces(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+	t.Helper()
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	t.Log("Got traces", traces)
+	for _, tr := range traces {
+		for _, tp := range tr.TracerPayloads {
+			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
+			ctags, ok := getContainerTags(t, tp)
+			imageID, ok := ctags["image_id"]
+			assert.True(t, ok)
+			t.Logf("Got image ID: %v", imageID)
+			assert.Equal(t, "sha256:76909dd636e2ac542b2ff22b134e55861807ec3b88117d3d8573da5adb5b22d0", imageID)
+		}
+	}
+	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)))
+}
+
+func testAutoVersionStats(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+	t.Helper()
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	t.Log("Got apm stats:", spew.Sdump(stats))
+	for _, p := range stats {
+		for _, s := range p.StatsPayload.Stats {
+			t.Log("Client Payload:", spew.Sdump(s))
+			t.Logf("Got image ID: %v", s.GetImageTag())
+			assert.Equal(t, "sha256:76909dd636e2ac542b2ff22b134e55861807ec3b88117d3d8573da5adb5b22d0", s.GetImageTag())
+		}
+	}
+}
+
+func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
+	ctags, ok := tp.Tags["_dd.tags.container"]
+	if !ok {
+		return nil, false
+	}
+	splits := strings.Split(ctags, ",")
+	m := make(map[string]string)
+	for _, s := range splits {
+		kv := strings.SplitN(s, ":", 2)
+		if !assert.Len(t, kv, 2, "malformed container tag: %v", s) {
+			continue
+		}
+		m[kv[0]] = kv[1]
+	}
+	return m, true
+}
+
 func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) bool {
 	for _, p := range payloads {
 		for _, s := range p.StatsPayload.Stats {
@@ -87,6 +140,21 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	for _, p := range payloads {
 		for _, t := range p.AgentPayload.TracerPayloads {
 			tags, ok := t.Tags["_dd.tags.container"]
+			if ok && strings.Count(tags, tag) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func getContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
+	for _, p := range payloads {
+		for _, t := range p.AgentPayload.TracerPayloads {
+			tags, ok := t.Tags["_dd.tags.container"]
+			if !ok {
+
+			}
 			if ok && strings.Count(tags, tag) > 0 {
 				return true
 			}
