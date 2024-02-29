@@ -70,7 +70,7 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)))
 }
 
-func testAutoVersionTraces(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
@@ -80,16 +80,16 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, service string, int
 		for _, tp := range tr.TracerPayloads {
 			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
 			ctags, ok := getContainerTags(t, tp)
+			assert.True(t, ok)
 			imageID, ok := ctags["image_id"]
 			assert.True(t, ok)
 			t.Logf("Got image ID: %v", imageID)
 			assert.Equal(t, "sha256:76909dd636e2ac542b2ff22b134e55861807ec3b88117d3d8573da5adb5b22d0", imageID)
 		}
 	}
-	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)))
 }
 
-func testAutoVersionStats(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(c, err)
