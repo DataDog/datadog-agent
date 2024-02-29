@@ -124,7 +124,7 @@ func (sw *DatadogLogger) changeLogLevel(level string) error {
 	if !ok {
 		return errors.New("bad log level")
 	}
-	logger.Load().level = lvl
+	logger.Load().level = lvl //// TODO: Check if logger load well
 	return nil
 }
 
@@ -137,9 +137,6 @@ func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
 }
 
 func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
-	sw.l.Lock()
-	defer sw.l.Unlock()
-
 	if sw.extra == nil {
 		return errors.New("logger not fully initialized, additional logging unavailable")
 	}
@@ -390,9 +387,6 @@ func (sw *loggerPointer) criticalf(format string, params ...interface{}) error {
 
 // getLogLevel returns the current log level
 func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
-	sw.l.RLock()
-	defer sw.l.RUnlock()
-
 	return sw.level
 }
 
@@ -462,21 +456,33 @@ func log(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 
 func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, fallbackStderr bool, v ...interface{}) error {
 	l := logger.Load()
-	if l != nil && l.inner != nil && l.shouldLog(logLevel) {
+
+	err := formatError(v...)
+
+	if l == nil {
+		addLogToBuffer(bufferFunc)
+		if fallbackStderr && (l == nil) {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
+		}
+		return err
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner != nil && l.shouldLog(logLevel) {
 		s := BuildLogEntry(v...)
-		l.l.Lock()
-		defer l.l.Unlock()
 		return scrubAndLogFunc(s)
-	} else if l == nil || l.inner == nil {
+	} else if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	}
-	err := formatError(v...)
+
 
 	// Originally (PR 6436) fallbackStderr check had been added to handle a small window
 	// where error messages had been lost before Logger had been initialized. Adjusting
 	// just for that case because if the error log should not be logged - because it has
 	// been suppressed then it should be taken into account.
-	if fallbackStderr && (l == nil || l.inner == nil) {
+	if fallbackStderr && (l.inner == nil) {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
@@ -484,31 +490,50 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 
 func logFormat(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string, ...interface{}), format string, params ...interface{}) {
 	l := logger.Load()
-	if l != nil && l.inner != nil && l.shouldLog(logLevel) {
-		l.l.Lock()
-		defer l.l.Unlock()
+
+	if l == nil {
+		addLogToBuffer(bufferFunc)
+		return
+	}
+
+	l.l.Lock() //// If we change the logic here we will want to change in addLogToBuffer too
+	defer l.l.Unlock()
+
+	if l.inner != nil && l.shouldLog(logLevel) {
 		scrubAndLogFunc(format, params...)
-	} else if l == nil || l.inner == nil {
+	} else if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	}
 }
 
 func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string, ...interface{}) error, format string, fallbackStderr bool, params ...interface{}) error {
 	l := logger.Load()
-	if l != nil && l.inner != nil && l.shouldLog(logLevel) {
-		l.l.Lock()
-		defer l.l.Unlock()
+
+	err := formatErrorf(format, params...)
+
+	if l == nil {
+		addLogToBuffer(bufferFunc)
+		if fallbackStderr {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
+		}
+		return err
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner != nil && l.shouldLog(logLevel) {
 		return scrubAndLogFunc(format, params...)
-	} else if l == nil || l.inner == nil {
+	} else if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	}
-	err := formatErrorf(format, params...)
+
 
 	// Originally (PR 6436) fallbackStderr check had been added to handle a small window
 	// where error messages had been lost before Logger had been initialized. Adjusting
 	// just for that case because if the error log should not be logged - because it has
 	// been suppressed then it should be taken into account.
-	if fallbackStderr && (l == nil || l.inner == nil) {
+	if fallbackStderr && (l.inner == nil) {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
@@ -516,34 +541,52 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 
 func logContext(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string), message string, depth int, context ...interface{}) {
 	l := logger.Load()
-	if l != nil && l.inner != nil && l.shouldLog(logLevel) {
-		l.l.Lock()
-		defer l.l.Unlock()
+
+	if l == nil {
+		addLogToBuffer(bufferFunc)
+		return
+	}
+
+	l.l.Lock() //// If we change the logic here we will want to change in addLogToBuffer too
+	defer l.l.Unlock()
+	if l.inner != nil && l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
 		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 		scrubAndLogFunc(message)
 		l.inner.SetContext(nil)
 		l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
-	} else if l == nil || l.inner == nil {
+	} else if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	}
 }
 
 func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
 	l := logger.Load()
-	if l != nil && l.inner != nil && l.shouldLog(logLevel) {
-		l.l.Lock()
-		defer l.l.Unlock()
+
+	err := formatErrorc(message, context...)
+
+	if l == nil {
+		addLogToBuffer(bufferFunc)
+		if fallbackStderr {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
+		}
+		return err
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner != nil && l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
 		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 		err := scrubAndLogFunc(message)
 		l.inner.SetContext(nil)
 		l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 		return err
-	} else if l == nil || l.inner == nil {
+	} else if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	}
-	err := formatErrorc(message, context...)
+
 	if fallbackStderr {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
@@ -861,7 +904,14 @@ func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
 // RegisterAdditionalLogger registers an additional logger for logging
 func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
 	l := logger.Load()
-	if l != nil && l.inner != nil {
+	if l == nil {
+		return errors.New("cannot register: logger not initialized")
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner != nil {
 		return l.registerAdditionalLogger(n, li)
 	}
 
@@ -881,7 +931,15 @@ func ShouldLog(lvl seelog.LogLevel) bool {
 // log level
 func GetLogLevel() (seelog.LogLevel, error) {
 	l := logger.Load()
-	if l != nil && l.inner != nil {
+
+	if l == nil {
+		return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
+	}
+
+	l.l.RLock()
+	defer l.l.RUnlock()
+
+	if l.inner != nil {
 		return l.getLogLevel(), nil
 	}
 
