@@ -890,7 +890,6 @@ next:
     return 0;
 }
 
-
 // The program is responsible for parsing all frames that mark the end of a stream.
 // We consider a frame as marking the end of a stream if it is either:
 //  - An headers or data frame with END_STREAM flag set.
