@@ -297,6 +297,7 @@ github.com/openvex/go-vex: Copyright 2023 The OpenVEX Authors
 # Copyright information is in the LICENSE
 github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Security
 github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
+github.com/moby/sys/user: Copyright 2014-2018 Docker, Inc.
 github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
 
 # Copyright information is in the source headers
