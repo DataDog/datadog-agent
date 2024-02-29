@@ -211,7 +211,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
-	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
+	github.com/zorkian/go-datadog-api v2.30.0+incompatible
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
