@@ -47,7 +47,7 @@ type symbolKey struct {
 	value uint64 // offset into section
 }
 
-// This function finds all the symbols matching the program names, and indexes them by
+// findFunctionSymbols finds all the symbols matching the program names, and indexes them by
 // their section index, and offset into section. The offset into the section is needed to
 // deduplicate programs in the same section. This may happen for example when there are multiple
 // kprobes on the same function.
@@ -67,7 +67,7 @@ func findFunctionSymbols(elfFile *elf.File, programSpecs map[string]*ebpf.Progra
 	return symbols, nil
 }
 
-// This function parses the '.stack_sizes' section and records the stack usage of each function.
+// parseStackSizesSections parses the '.stack_sizes' section and records the stack usage of each function.
 // It assumes that each function will have a corresponding '.stack_sizes' section. It returns an error otherwise.
 // The '.stack_sizes' section contains an unsigned 64 bit integer and an ULEB128 integer.
 // The unsigned 64 bit integer corresponds to the 'st_value' field of the symbol. For functions this is the offset

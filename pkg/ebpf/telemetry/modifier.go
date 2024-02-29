@@ -32,7 +32,7 @@ func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 // Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
-	if err := setupForTelemetry(m.Manager, &opts, m.bpfTelemetry, bytecode); err != nil {
+	if err := setupForTelemetry(m.Manager, &opts, m.bpfTelemetry, bytecode, nil); err != nil {
 		return err
 	}
 

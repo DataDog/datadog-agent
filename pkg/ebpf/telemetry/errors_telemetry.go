@@ -90,6 +90,8 @@ func countRawBPFIns(ins *asm.Instruction) int {
 	return 1
 }
 
+// initializeProbeKeys assignes a integer key to each probe in the manager.
+// This key is the index at which telemetry for this probe is kept
 func initializeProbeKeys(m *manager.Manager, bpfTelemetry *EBPFTelemetry) error {
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
@@ -138,18 +140,20 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 		return fmt.Errorf("failed to parse '.stack_sizes' section in file: %w", err)
 	}
 
+	nilCheckSkip := func() func(string) bool {
+		if shouldSkip == nil {
+			return func(_ string) bool { return false }
+		}
+
+		return shouldSkip
+	}()
+
 	for fn, p := range progs {
 		space := sizes.stackHas8BytesFree(fn)
 		// return error if there is not enough stack space to cache the pointer to the telemetry array
-		// if the program is intended to be skipped then we continue since we still need to patch
-		if !space && !shouldSkip(p.Name) {
+		// if the program is intended to be skipped then we continue since we still need to patch a nop
+		if !space && !nilCheckSkip(p.Name) {
 			return fmt.Errorf("Function %s does not have enough free stack space for instrumentation", fn)
-		}
-
-		// patch constant 'telemetry_program_id_key'
-		// This will be patched with the intended index into the helper errors array for this probe.
-		if err := patchConstant(p.Instructions, "telemetry_program_id_key", int64(bpfTelemetry.probeKeys[p.Name])); err != nil {
-			return fmt.Errorf("failed to patch constant 'telemetry_program_id_key' for program %s: %w", p.Name, err)
 		}
 
 		// when building ebpf programs with instrumentation, we specify the `-pg` compiler flag. This isntruments
@@ -164,8 +168,8 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 		// has to set rX=r1 before the trampoline call.
 		const maxTrampolineOffset = 2
 		iter := p.Instructions.Iterate()
-		var telemetryPatchSite *asm.Instruction
-		var insCount, telemetryPatchIndex int
+		var trampolinePatchSite *asm.Instruction
+		var insCount, trampolinePatchIndex int
 
 		for iter.Next() {
 			ins := iter.Ins
@@ -181,33 +185,42 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			// For reference IsBuiltinCall() => ins.OpCode.JumpOp() == Call && ins.Src == R0 && ins.Dst == R0
 			// We keep the first condition and augment it by checking the constant of the call.
 			if ins.OpCode.JumpOp() == asm.Call && ins.Constant == ebpfEntryTrampolinePatchCall && iter.Offset <= maxTrampolineOffset {
-				telemetryPatchSite = iter.Ins
-				telemetryPatchIndex = int(iter.Offset)
+				trampolinePatchSite = iter.Ins
+				trampolinePatchIndex = int(iter.Offset)
+
+				break
 			}
 		}
 
 		// The patcher expects a trampoline call in all programs associated with this manager.
 		// No trampoline call is therefore an error condition. If this program is built without
 		// instrumentation we should never have come this far.
-		if telemetryPatchSite == nil {
+		if trampolinePatchSite == nil {
 			return fmt.Errorf("No compiler instrumented patch site found for program %s\n", p.Name)
 		}
 
 		// if a specific program in a manager should not be instrumented,
 		// instrument patch point with a NOP (r1=r1)
-		if shouldSkip(p.Name) {
-			*telemetryPatchSite = asm.Mov.Reg(asm.R1, asm.R1).WithMetadata(telemetryPatchSite.Metadata)
+		if nilCheckSkip(p.Name) {
+			*trampolinePatchSite = asm.Mov.Reg(asm.R1, asm.R1).WithMetadata(trampolinePatchSite.Metadata)
 			return nil
 		}
 
-		trampoline := asm.Instruction{
+		trampolineInstruction := asm.Instruction{
 			OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
-			Offset: int16(insCount - telemetryPatchIndex - 1),
-		}.WithMetadata(telemetryPatchSite.Metadata)
-		*telemetryPatchSite = trampoline
+			Offset: int16(insCount - trampolinePatchIndex - 1),
+		}.WithMetadata(trampolinePatchSite.Metadata)
+		*trampolinePatchSite = trampolineInstruction
+
+		// patch constant 'telemetry_program_id_key'
+		// This will be patched with the intended index into the helper errors array for this probe.
+		// This is done after patching the trampoline call, so that programs which should be skipped do
+		// not get this constant set. This would allow deadcode elimination to remove the telemetry block.
+		if err := patchConstant(p.Instructions, "telemetry_program_id_key", int64(bpfTelemetry.probeKeys[p.Name])); err != nil {
+			return fmt.Errorf("failed to patch constant 'telemetry_program_id_key' for program %s: %w", p.Name, err)
+		}
 
 		// Append instrumentation blocks to the bytecode
-
 		var instrumentationBlock []*asm.Instruction
 		var instrumentationBlockCount int
 
@@ -261,7 +274,7 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			}
 		}
 
-		retJumpOffset := telemetryPatchIndex - (insCount + instrumentationBlockCount)
+		retJumpOffset := trampolinePatchIndex - (insCount + instrumentationBlockCount)
 
 		// absolute jump back to the telemetry patch point to continue normal execution
 		newIns := asm.Instruction{
