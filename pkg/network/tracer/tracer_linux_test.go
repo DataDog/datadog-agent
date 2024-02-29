@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
@@ -2051,20 +2050,12 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	skipEbpfConntrackerTestOnUnsupportedKernel(t)
 	ebpftest.LogLevel(t, "trace")
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
-	coreValues := []bool{false}
-	ps := &ebpf.ProgramSpec{AttachTo: "__nf_conntrack_hash_insert", Type: ebpf.Kprobe}
-	mod, _ := ps.KernelModule()
-	if mod != "" {
-		if _, err := btf.LoadKernelModuleSpec(mod); err == nil {
-			coreValues = append(coreValues, true)
-		}
-	} else {
-		coreValues = append(coreValues, true)
+	prebuiltErrorValues := []bool{true}
+	if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+		prebuiltErrorValues = []bool{false, true}
 	}
 
 	type testCase struct {
@@ -2081,13 +2072,13 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 
 	var dtests []testCase
-	for _, enableCORE := range coreValues {
+	for _, enableCORE := range []bool{false, true} {
 		for _, allowRuntimeFallback := range []bool{false, true} {
 			for _, enableRuntimeCompiler := range []bool{false, true} {
 				for _, allowPrecompiledFallback := range []bool{false, true} {
 					for _, coreError := range []bool{false, true} {
 						for _, rcError := range []bool{false, true} {
-							for _, prebuiltError := range []bool{false, true} {
+							for _, prebuiltError := range prebuiltErrorValues {
 								tc := testCase{
 									enableCORE:               enableCORE,
 									allowRuntimeFallback:     allowRuntimeFallback,
