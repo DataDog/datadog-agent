@@ -180,7 +180,7 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 				trampolinePatchSite = iter.Ins
 				trampolinePatchIndex = int(iter.Offset)
 
-				break
+				// do not break. We continue looping to get correct 'insCount'
 			}
 		}
 
