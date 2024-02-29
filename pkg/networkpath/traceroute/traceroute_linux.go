@@ -19,16 +19,22 @@ const (
 	clientID = "traceroute-agent-linux"
 )
 
+// LinuxTraceroute defines a structure for
+// running traceroute from an agent running
+// on Linux
 type LinuxTraceroute struct {
 	cfg Config
 }
 
+// New creates a new instance of LinuxTraceroute
+// based on an input configuration
 func New(cfg Config) *LinuxTraceroute {
 	return &LinuxTraceroute{
 		cfg: cfg,
 	}
 }
 
+// Run executes a traceroute
 func (l *LinuxTraceroute) Run() (NetworkPath, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(
 		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))

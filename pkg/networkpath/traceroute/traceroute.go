@@ -7,35 +7,47 @@
 package traceroute
 
 type (
+	// Config specifies the configuration of an instance
+	// of Traceroute
 	Config struct {
 		// TODO: add common configuration
 		DestHostname string
 	}
 
+	// Traceroute defines an interface for running
+	// traceroutes for the Network Path integration
 	Traceroute interface {
 		Run() (NetworkPath, error)
 	}
 
+	// NetworkPathHop encapsulates the data for a single
+	// hop within a path
 	NetworkPathHop struct {
 		TTL       int     `json:"ttl"`
-		IpAddress string  `json:"ip_address"`
+		IPAddress string  `json:"ip_address"`
 		Hostname  string  `json:"hostname"`
 		RTT       float64 `json:"rtt"`
 		Success   bool    `json:"success"`
 	}
 
+	// NetworkPathSource encapsulates information
+	// about the source of a path
 	NetworkPathSource struct {
 		Hostname string `json:"hostname"`
 	}
 
+	// NetworkPathDestination encapsulates information
+	// about the destination of a path
 	NetworkPathDestination struct {
 		Hostname  string `json:"hostname"`
-		IpAddress string `json:"ip_address"`
+		IPAddress string `json:"ip_address"`
 	}
 
+	// NetworkPath encapsulates data that defines a
+	// path between two hosts as mapped by the agent
 	NetworkPath struct {
 		Timestamp   int64                  `json:"timestamp"`
-		PathId      string                 `json:"path_id"`
+		PathID      string                 `json:"path_id"`
 		Source      NetworkPathSource      `json:"source"`
 		Destination NetworkPathDestination `json:"destination"`
 		Hops        []NetworkPathHop       `json:"hops"`

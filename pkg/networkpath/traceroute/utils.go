@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 package traceroute
 
 import (
@@ -31,6 +32,8 @@ const (
 	DefaultOutputFormat = "json"
 )
 
+// RunTraceroute wraps the implementation of traceroute
+// so it can be called from the different OS implementations
 func RunTraceroute(cfg Config) (NetworkPath, error) {
 	rawDest := cfg.DestHostname
 	dests, err := net.LookupIP(rawDest)
@@ -89,17 +92,17 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		probe *results.Probe
 	}
 
-	pathId := uuid.New().String()
+	pathID := uuid.New().String()
 
 	traceroutePath := NetworkPath{
-		PathId:    pathId,
+		PathID:    pathID,
 		Timestamp: time.Now().UnixMilli(),
 		Source: NetworkPathSource{
 			Hostname: hname,
 		},
 		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
-			IpAddress: destinationIP.String(),
+			IPAddress: destinationIP.String(),
 		},
 	}
 
@@ -206,7 +209,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 
 			hop := NetworkPathHop{
 				TTL:       idx,
-				IpAddress: ip,
+				IPAddress: ip,
 				Hostname:  getHostname(cur.node),
 				RTT:       durationMs,
 				Success:   isSuccess,

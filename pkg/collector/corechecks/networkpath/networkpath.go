@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package networkpath defines the agent corecheck for
+// the Network Path integration
 package networkpath
 
 import (
@@ -14,9 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/pkg/errors"
 )
 
+// CheckName defines the name of the
+// Network Path check
 const CheckName = "networkpath"
 
 // Check doesn't need additional fields
@@ -53,13 +61,14 @@ func (c *Check) Run() error {
 	trcrt := traceroute.New(cfg)
 	path, err := trcrt.Run()
 	if err != nil {
-		return errors.Errorf("failed to trace path: %w", err)
+		return fmt.Errorf("failed to trace path: %w", err)
 	}
 
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
 	if err != nil {
-		log.Errorf("failed to send network path metadata: %w", err)
+		log.Errorf("failed to send network path metadata: %s", err.Error())
+		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
 	tags := []string{
@@ -86,6 +95,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
+// SendNetPathMDToEP sends a traced network path to EP
 func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {

@@ -7,16 +7,22 @@
 
 package traceroute
 
+// MacTraceroute defines a structure for
+// running traceroute from an agent running
+// on macOS
 type MacTraceroute struct {
 	cfg Config
 }
 
+// New creates a new instance of MacTraceroute
+// based on an input configuration
 func New(cfg Config) *MacTraceroute {
 	return &MacTraceroute{
 		cfg: cfg,
 	}
 }
 
+// Run executes a traceroute
 func (m *MacTraceroute) Run() (NetworkPath, error) {
 	// TODO: mac implementation, can we get this no system-probe or root access?
 	// To test: we probably can, but maybe without modifying

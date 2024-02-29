@@ -9,16 +9,22 @@ package traceroute
 
 import "errors"
 
+// WindowsTraceroute defines a structure for
+// running traceroute from an agent running
+// on Windows
 type WindowsTraceroute struct {
 	cfg Config
 }
 
+// New creates a new instance of WindowsTraceroute
+// based on an input configuration
 func New(cfg Config) *WindowsTraceroute {
 	return &WindowsTraceroute{
 		cfg: cfg,
 	}
 }
 
+// Run executes a traceroute
 func (w *WindowsTraceroute) Run() (NetworkPath, error) {
 	// TODO: windows implementation
 	return NetworkPath{}, errors.New("Not implemented")

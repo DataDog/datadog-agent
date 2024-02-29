@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package networkpath
 
 import (
@@ -12,6 +17,8 @@ type InstanceConfig struct {
 	FakeEventMultiplier int    `yaml:"fake_event_multiplier"`
 }
 
+// CheckConfig defines the configuration of the
+// Network Path integration
 type CheckConfig struct {
 	DestHostname        string
 	DestName            string
@@ -19,7 +26,7 @@ type CheckConfig struct {
 }
 
 // NewCheckConfig builds a new check config
-func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
+func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
 
 	err := yaml.Unmarshal(rawInstance, &instance)
