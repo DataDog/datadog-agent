@@ -9,10 +9,11 @@
 package util
 
 import (
+	"slices"
+
 	"github.com/CycloneDX/cyclonedx-go"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 )

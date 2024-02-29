@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -102,8 +103,8 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 	}
 
 	rc := rcClient{
-		listeners:     deps.Listeners,
-		taskListeners: deps.TaskListeners,
+		listeners:     fxutil.GetAndFilterGroup(deps.Listeners),
+		taskListeners: fxutil.GetAndFilterGroup(deps.TaskListeners),
 		m:             &sync.Mutex{},
 		client:        c,
 		clientHA:      clientHA,
