@@ -105,3 +105,47 @@ func TestInstallExperiment(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.ExperimentFS())
 }
+
+func TestPromoteExperiment(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.s.Close()
+	r := repository.Repository{
+		RootPath:  t.TempDir(),
+		LocksPath: t.TempDir(),
+	}
+	installer := newInstaller(&r)
+
+	err := installer.installStable(fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	assert.NoError(t, err)
+	err = installer.installExperiment(fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	assert.NoError(t, err)
+	err = installer.promoteExperiment()
+	assert.NoError(t, err)
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
+}
+
+func TestUninstallExperiment(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.s.Close()
+	r := repository.Repository{
+		RootPath:  t.TempDir(),
+		LocksPath: t.TempDir(),
+	}
+	installer := newInstaller(&r)
+
+	err := installer.installStable(fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	assert.NoError(t, err)
+	err = installer.installExperiment(fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	assert.NoError(t, err)
+	err = installer.uninstallExperiment()
+	assert.NoError(t, err)
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+}

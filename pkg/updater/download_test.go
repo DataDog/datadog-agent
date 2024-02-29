@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	oci "github.com/google/go-containerregistry/pkg/v1"
@@ -107,8 +108,12 @@ func TestDownload(t *testing.T) {
 	defer s.Close()
 	d := s.Downloader()
 
-	_, err := d.Download(context.Background(), t.TempDir(), s.Package(fixtureSimpleV1))
+	image, err := d.Download(context.Background(), t.TempDir(), s.Package(fixtureSimpleV1))
 	assert.NoError(t, err)
+	tmpDir := t.TempDir()
+	err = extractPackageLayers(image, tmpDir)
+	assert.NoError(t, err)
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
 }
 
 func TestDownloadInvalidHash(t *testing.T) {
