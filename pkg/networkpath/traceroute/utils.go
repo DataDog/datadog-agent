@@ -13,9 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
+	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
+
 	"github.com/google/uuid"
-	"github.com/ken-schneider/dublin-traceroute/go/dublintraceroute/probes/probev4"
-	"github.com/ken-schneider/dublin-traceroute/go/dublintraceroute/results"
 )
 
 // TODO: are these good defaults?
