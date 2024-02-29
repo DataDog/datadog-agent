@@ -63,3 +63,9 @@ func (r *RemoteSysProbeUtil) Register(clientID string) error {
 func (r *RemoteSysProbeUtil) DetectLanguage([]int32) ([]languagemodels.Language, error) {
 	return nil, ErrNotImplemented
 }
+
+
+
+func dialFunc(path string) (net.Conn, error) {
+	nil, ErrNotImplemented
+}

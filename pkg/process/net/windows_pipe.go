@@ -9,6 +9,8 @@ package net
 
 import (
 	"net"
+
+	"github.com/Microsoft/go-winio"
 )
 
 // WindowsPipeListener for communicating with Probe
@@ -17,9 +19,15 @@ type WindowsPipeListener struct {
 	pipePath string
 }
 
+const maxGRPCServerMessage = 100 * 1024 * 1024
+
 // NewListener sets up a TCP listener for now, will eventually be a named pipe
-func NewListener(socketAddr string) (*WindowsPipeListener, error) {
-	l, err := net.Listen("tcp", socketAddr)
+func NewListener(_ string) (*WindowsPipeListener, error) {
+	pc := winio.PipeConfig{
+		InputBufferSize:  int32(maxGRPCServerMessage),
+		OutputBufferSize: int32(maxGRPCServerMessage),
+	}
+	l, err := winio.ListenPipe(`\\.\pipe\datadog-system-probe`, &pc)
 	return &WindowsPipeListener{l, "path"}, err
 }
 

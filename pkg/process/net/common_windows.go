@@ -9,8 +9,10 @@ package net
 
 import (
 	"fmt"
+	"net"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/Microsoft/go-winio"
 )
 
 const (
@@ -32,4 +34,8 @@ func CheckPath(path string) error {
 		return fmt.Errorf("socket path is empty")
 	}
 	return nil
+}
+
+func dialFunc(_ string) (net.Conn, error) {
+	return winio.DialPipe(`\\.\pipe\datadog-system-probe`, nil)
 }
