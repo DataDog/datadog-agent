@@ -18,7 +18,7 @@ import (
 )
 
 // AssertInstalledUserInRegistry checks the registry for the installed user and domain
-func AssertInstalledUserInRegistry(t *testing.T, host *components.RemoteHost, expectedusername string, expecteddomain string) bool {
+func AssertInstalledUserInRegistry(t *testing.T, host *components.RemoteHost, expecteddomain string, expectedusername string) bool {
 	// check registry keys
 	domain, username, err := windowsAgent.GetAgentUserFromRegistry(host)
 	if !assert.NoError(t, err) {
@@ -41,29 +41,4 @@ func AssertInstalledUserInRegistry(t *testing.T, host *components.RemoteHost, ex
 	}
 
 	return true
-}
-
-// iterServiceConfigMaps iterates over the expected and actual service config maps and calls the provided function for each element.
-// If the function returns false, the iteration stops and the function returns false.
-// If an expected service is not found in the actual map, the function returns false.
-func iterServiceConfigMaps(t *testing.T, expected windows.ServiceConfigMap, actual windows.ServiceConfigMap, f func(*windows.ServiceConfig, *windows.ServiceConfig) bool) bool {
-	for name, e := range expected {
-		a, ok := actual[name]
-		if !assert.True(t, ok, "service %s not found", name) {
-			return false
-		}
-		if !f(e, a) {
-			return false
-		}
-	}
-	return true
-}
-
-// AssertServiceUsers asserts that the service users from the expected map match the actual map
-//
-// Compares UserSIDs rather than UserNames to avoid needing to handle name formatting differences
-func AssertServiceUsers(t *testing.T, expected windows.ServiceConfigMap, actual windows.ServiceConfigMap) bool {
-	return iterServiceConfigMaps(t, expected, actual, func(expected *windows.ServiceConfig, actual *windows.ServiceConfig) bool {
-		return assert.Equal(t, expected.UserSID, actual.UserSID, "service %s user should be (%s,%s)", actual.ServiceName, expected.UserName, expected.UserSID)
-	})
 }

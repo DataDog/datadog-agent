@@ -193,21 +193,19 @@ func (is *agentMSISuite) TestAgentUser() {
 	is.Require().NoError(err)
 
 	domainPart := windowsCommon.NameToNetBIOSName(hostinfo.Hostname)
-	serviceDomainPart := "."
 
 	tcs := []struct {
-		testname            string
-		builtinaccount      bool
-		username            string
-		expectedDomain      string
-		expectedUser        string
-		expectedServiceUser string
+		testname       string
+		builtinaccount bool
+		username       string
+		expectedDomain string
+		expectedUser   string
 	}{
-		{"user_only", false, "testuser", domainPart, "testuser", fmt.Sprintf("%s\\testuser", serviceDomainPart)},
-		{"dotslash_user", false, ".\\testuser", domainPart, "testuser", fmt.Sprintf("%s\\testuser", serviceDomainPart)},
-		{"domain_user", false, fmt.Sprintf("%s\\testuser", domainPart), domainPart, "testuser", fmt.Sprintf("%s\\testuser", serviceDomainPart)},
-		{"LocalSystem", true, "LocalSystem", "NT AUTHORITY", "SYSTEM", "LocalSystem"},
-		{"SYSTEM", true, "SYSTEM", "NT AUTHORITY", "SYSTEM", "LocalSystem"},
+		{"user_only", false, "testuser", domainPart, "testuser"},
+		{"dotslash_user", false, ".\\testuser", domainPart, "testuser"},
+		{"domain_user", false, fmt.Sprintf("%s\\testuser", domainPart), domainPart, "testuser"},
+		{"LocalSystem", true, "LocalSystem", "NT AUTHORITY", "SYSTEM"},
+		{"SYSTEM", true, "SYSTEM", "NT AUTHORITY", "SYSTEM"},
 	}
 	for _, tc := range tcs {
 		if !is.Run(tc.testname, func() {
@@ -217,7 +215,7 @@ func (is *agentMSISuite) TestAgentUser() {
 
 			t := is.installAgent(vm, nil,
 				WithInstallUser(tc.username),
-				WithExpectedAgentUser(tc.expectedDomain, tc.expectedUser, tc.expectedServiceUser),
+				WithExpectedAgentUser(tc.expectedDomain, tc.expectedUser),
 			)
 
 			if !t.TestExpectations(is.T()) {

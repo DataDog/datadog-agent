@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
 	"testing"
 
@@ -34,9 +35,8 @@ type Tester struct {
 	// Path to the MSI on the remote host, only available after install is run
 	remoteMSIPath string
 
-	expectedUsername    string
-	expectedUserDomain  string
-	expectedServiceuser string
+	expectedUserName   string
+	expectedUserDomain string
 
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
@@ -60,9 +60,8 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	if err != nil {
 		return nil, err
 	}
-	t.expectedUsername = "ddagentuser"
+	t.expectedUserName = "ddagentuser"
 	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
-	t.expectedServiceuser = ".\\ddagentuser"
 
 	t.beforeInstallSystemDirListPath = `C:\system-files-before-install.log`
 	t.afterUninstallSystemDirListPath = `C:\system-files-after-uninstall.log`
@@ -126,11 +125,10 @@ func WithInstallUser(user string) TesterOption {
 }
 
 // WithExpectedAgentUser sets the expected user the agent should run as
-func WithExpectedAgentUser(domain string, user string, serviceUser string) TesterOption {
+func WithExpectedAgentUser(domain string, user string) TesterOption {
 	return func(t *Tester) {
 		t.expectedUserDomain = domain
-		t.expectedUsername = user
-		t.expectedServiceuser = serviceUser
+		t.expectedUserName = user
 	}
 }
 
@@ -354,30 +352,6 @@ func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 	common.CheckAgentBehaviour(tt, t.InstallTestClient)
 }
 
-func (t *Tester) expectedServiceUsers() (windows.ServiceConfigMap, error) {
-	m := windows.GetEmptyServiceConfigMap(t.expectedInstalledServices())
-	m["DatadogAgent"].UserName = t.expectedServiceuser
-	m["datadog-trace-agent"].UserName = t.expectedServiceuser
-	m["datadog-process-agent"].UserName = "LocalSystem"
-	m["datadog-system-probe"].UserName = "LocalSystem"
-	for _, s := range m {
-		err := s.FetchUserSID(t.host)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return m, nil
-}
-
-func (t *Tester) expectedInstalledServices() []string {
-	return []string{
-		"DatadogAgent",
-		"datadog-trace-agent",
-		"datadog-process-agent",
-		"datadog-system-probe",
-	}
-}
-
 // More in depth checks on current version
 func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	if t.remoteMSIPath != "" {
@@ -385,15 +359,15 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	}
 	common.CheckInstallation(tt, t.InstallTestClient)
 	tt.Run("user in registry", func(tt *testing.T) {
-		AssertInstalledUserInRegistry(tt, t.host, t.expectedUsername, t.expectedUserDomain)
+		AssertInstalledUserInRegistry(tt, t.host, t.expectedUserDomain, t.expectedUserName)
 	})
-	tt.Run("service config", func(tt *testing.T) {
-		actual, err := windows.GetServiceConfigMap(t.host, t.expectedInstalledServices())
-		require.NoError(tt, err)
-		expectedServiceUsers, err := t.expectedServiceUsers()
-		require.NoError(tt, err)
-		AssertServiceUsers(tt, expectedServiceUsers, actual)
-	})
+
+	serviceTester, err := servicetest.NewTester(t.host,
+		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
+	)
+	require.NoError(tt, err)
+	serviceTester.TestInstall(tt)
+
 	t.testAgentCodeSignature(tt)
 	t.TestRuntimeExpectations(tt)
 }
