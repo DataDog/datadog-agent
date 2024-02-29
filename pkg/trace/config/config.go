@@ -538,7 +538,8 @@ func computeGlobalTags() map[string]string {
 	return make(map[string]string)
 }
 
-var ErrContainerTagsFuncNotDefined = errors.New("ContainerTags function not defined")
+// ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
+var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defined")
 
 func noopContainerTagsFunc(_ string) ([]string, error) {
 	return nil, ErrContainerTagsFuncNotDefined
