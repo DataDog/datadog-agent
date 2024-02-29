@@ -109,7 +109,7 @@ func (p CombinedRunResult) RealtimePayloads() []model.MessageBody {
 func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.Config) []Check {
 	return []Check{
 		NewProcessCheck(config, sysprobeYamlCfg),
-		NewContainerCheck(config, syscfg),
+		NewContainerCheck(config),
 		NewRTContainerCheck(config),
 		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
 		NewContainerConnectionsCheck(config, syscfg),
