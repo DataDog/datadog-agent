@@ -186,7 +186,8 @@ func TestEtwTransactions(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 
-	etw := NewEtwInterface(cfg)
+	etw, err := NewEtwInterface(cfg)
+	require.NoError(t, err)
 	etw.SetCapturedProtocols(true, true)
 
 	etw.StartReadingHttpFlows()
