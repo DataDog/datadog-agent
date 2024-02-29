@@ -6,8 +6,9 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -68,7 +69,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayloa
 		agentEnv:            conf.DefaultEnv,
 		agentHostname:       conf.Hostname,
 		agentVersion:        conf.AgentVersion,
-		peerTagsAggregation: conf.PeerServiceAggregation || conf.PeerTagsAggregation,
+		peerTagsAggregation: conf.PeerTagsAggregation,
 		oldestTs:            alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:                make(chan struct{}),
 		done:                make(chan struct{}),

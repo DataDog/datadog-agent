@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    APM: beta parameters ``apm_config.peer_service_aggregation`` and ``DD_APM_PEER_SERVICE_AGGREGATION`` are deprecated.
+    Use ``apm_config.peer_tags_aggregation`` or ``DD_APM_PEER_TAGS_AGGREGATION`` instead.
