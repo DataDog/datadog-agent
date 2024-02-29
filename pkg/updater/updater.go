@@ -54,6 +54,7 @@ type updaterImpl struct {
 	repositoryPath string
 	repository     *repository.Repository
 	downloader     *downloader
+	installer      *installer
 
 	rc                *remoteConfig
 	catalog           catalog
@@ -72,6 +73,7 @@ func Install(ctx context.Context, pkg string) error {
 		repositoryPath:    defaultRepositoryPath,
 		repository:        repository,
 		downloader:        newDownloader(http.DefaultClient),
+		installer:         newInstaller(repository),
 		catalog:           defaultCatalog,
 		bootstrapVersions: defaultBootstrapVersions,
 	}
@@ -163,14 +165,13 @@ func (u *updaterImpl) bootstrapStable(ctx context.Context) error {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	pkgDir := path.Join(tmpDir, "pkg")
-	err = u.downloader.Download(ctx, stablePackage, pkgDir)
+	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.repository.Create(stablePackage.Version, pkgDir)
+	err = u.installer.installStable(stablePackage.Version, image)
 	if err != nil {
-		return fmt.Errorf("could not create package: %w", err)
+		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, u.pkg)
 	return nil
@@ -190,14 +191,13 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	pkgDir := path.Join(tmpDir, "pkg")
-	err = u.downloader.Download(ctx, experimentPackage, pkgDir)
+	image, err := u.downloader.Download(ctx, tmpDir, experimentPackage)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.repository.SetExperiment(experimentPackage.Version, pkgDir)
+	err = u.installer.installExperiment(version, image)
 	if err != nil {
-		return fmt.Errorf("could not set experiment: %w", err)
+		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
 	u.updatePackagesState()
@@ -209,7 +209,7 @@ func (u *updaterImpl) PromoteExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Promoting experiment for package %s", u.pkg)
-	err := u.repository.PromoteExperiment()
+	err := u.installer.promoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -223,9 +223,9 @@ func (u *updaterImpl) StopExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Stopping experiment for package %s", u.pkg)
-	err := u.repository.DeleteExperiment()
+	err := u.installer.uninstallExperiment()
 	if err != nil {
-		return fmt.Errorf("could not set stable: %w", err)
+		return fmt.Errorf("could not stop experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
 	u.updatePackagesState()
