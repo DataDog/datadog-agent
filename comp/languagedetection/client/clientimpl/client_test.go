@@ -97,7 +97,8 @@ func TestClientEnabled(t *testing.T) {
 			))
 
 			optionalCl := newClient(deps).(optional.Option[clientComp.Component])
-			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
+			_, ok := optionalCl.Get()
+			assert.Equal(t, testCase.isSet, ok)
 		})
 	}
 }

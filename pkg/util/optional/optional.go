@@ -38,11 +38,6 @@ func NewNoneOptionPtr[T any]() *Option[T] {
 	return &option
 }
 
-// IsSet returns true if a value is set.
-func (o *Option[T]) IsSet() bool {
-	return o.set
-}
-
 // Get returns the value and true if a value is set, otherwise it returns (undefined, false).
 func (o *Option[T]) Get() (T, bool) {
 	return o.value, o.set
