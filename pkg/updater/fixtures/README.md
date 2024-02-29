@@ -5,10 +5,10 @@ updater tests.
 
 *simple-v1*
 ```bash
-datadog-package create --archive --version "v1" --archive-path "pkg/updater/fixtures/oci-layout-simple-v1.tar" --package "simple-v1" pkg/updater/fixtures/simple-v1
+datadog-package create --archive --version "v1" --archive-path "pkg/updater/fixtures/oci-layout-simple-v1.tar" --package "simple" pkg/updater/fixtures/simple-v1
 ```
 
 *simple-v2*
 ```bash
-datadog-package create --archive --version "v2" --archive-path "pkg/updater/fixtures/oci-layout-simple-v2.tar" --package "simple-v2" pkg/updater/fixtures/simple-v2
+datadog-package create --archive --version "v2" --archive-path "pkg/updater/fixtures/oci-layout-simple-v2.tar" --package "simple" pkg/updater/fixtures/simple-v2
 ```

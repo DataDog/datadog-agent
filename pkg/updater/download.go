@@ -27,10 +27,10 @@ import (
 )
 
 const (
-	ociLayoutArchiveName    = "oci-layout.tar"
-	ociLayoutName           = "oci-layout"
-	ociLayoutArchiveMaxSize = 1 << 30 // 1GiB
-	ociLayoutMaxSize        = 2 << 30 // 2GiB
+	ociLayoutArchiveName          = "oci-layout.tar"
+	ociLayoutName                 = "oci-layout"
+	ociLayoutArchiveMaxSize int64 = 1 << 30 // 1GiB
+	ociLayoutMaxSize        int64 = 1 << 30 // 1GiB
 )
 
 // downloader is the downloader used by the updater to download packages.

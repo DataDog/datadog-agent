@@ -16,8 +16,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type remoteConfigClient interface {
+	Start()
+	Close()
+	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	SetUpdaterPackagesState(packages []*pbgo.PackageState)
+}
+
+type noopRemoteConfigClient struct {
+}
+
+func (c *noopRemoteConfigClient) Start() {
+}
+
+func (c *noopRemoteConfigClient) Close() {
+}
+
+func (c *noopRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+}
+
+func (c *noopRemoteConfigClient) SetUpdaterPackagesState(packages []*pbgo.PackageState) {
+}
+
 type remoteConfig struct {
-	client *client.Client
+	client remoteConfigClient
 }
 
 func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
@@ -31,6 +53,10 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 		return nil, fmt.Errorf("unable to create rc client: %w", err)
 	}
 	return &remoteConfig{client: client}, nil
+}
+
+func newNoopRemoteConfig() *remoteConfig {
+	return &remoteConfig{client: &noopRemoteConfigClient{}}
 }
 
 // Start starts the remote config client.

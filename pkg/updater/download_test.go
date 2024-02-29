@@ -30,13 +30,13 @@ type fixture struct {
 
 var (
 	fixtureSimpleV1 = fixture{
-		pkg:         "simple-v1",
+		pkg:         "simple",
 		version:     "v1",
 		layoutPath:  "fixtures/oci-layout-simple-v1.tar",
 		contentPath: "fixtures/simple-v1",
 	}
 	fixtureSimpleV2 = fixture{
-		pkg:         "simple-v2",
+		pkg:         "simple",
 		version:     "v2",
 		layoutPath:  "fixtures/oci-layout-simple-v2.tar",
 		contentPath: "fixtures/simple-v2",
@@ -97,6 +97,15 @@ func (s *testFixturesServer) Image(f fixture) oci.Image {
 		panic(err)
 	}
 	return image
+}
+
+func (s *testFixturesServer) Catalog() catalog {
+	return catalog{
+		Packages: []Package{
+			s.Package(fixtureSimpleV1),
+			s.Package(fixtureSimpleV2),
+		},
+	}
 }
 
 func (s *testFixturesServer) Close() {

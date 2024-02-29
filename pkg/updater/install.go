@@ -17,8 +17,7 @@ import (
 
 const (
 	datadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
-
-	datadogPackageMaxSize = 5 << 30 // 5GiB
+	datadogPackageMaxSize                        = 3 << 30 // 3GiB
 )
 
 type installer struct {
