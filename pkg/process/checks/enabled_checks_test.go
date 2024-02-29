@@ -82,6 +82,17 @@ func TestProcessCheck(t *testing.T) {
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
+
+	// Make sure the process check is disabled on the process agent
+	// when core-agent mode is on
+	t.Run("core agent mode", func(t *testing.T) {
+		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
+		flavor.SetFlavor("process_agent")
+		enabledChecks := getEnabledChecks(t, cfg, scfg)
+		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
+	})
 }
 
 func TestConnectionsCheck(t *testing.T) {
@@ -103,6 +114,17 @@ func TestConnectionsCheck(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", false)
 
+		enabledChecks := getEnabledChecks(t, cfg, scfg)
+		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
+	})
+
+	// Make sure the connections check is disabled on the core agent
+	// when core-agent mode is on
+	t.Run("core agent mode", func(t *testing.T) {
+		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
+		flavor.SetFlavor("agent")
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
