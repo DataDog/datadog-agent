@@ -31,65 +31,57 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
-var initialContentEncoding = compression.ContentEncoding
-
-func resetContentEncoding() {
-	compression.ContentEncoding = initialContentEncoding
-	initExtraHeaders()
-}
-
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
-	compression.ContentEncoding = ""
-	defer resetContentEncoding()
-
-	initExtraHeaders()
+	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("serializer_compressor_kind", "blah")
+	s := NewSerializer(nil, nil, mockConfig, "testhost")
+	initExtraHeaders(s)
 
 	expected := make(http.Header)
 	expected.Set("Content-Type", jsonContentType)
-	assert.Equal(t, expected, jsonExtraHeaders)
+	assert.Equal(t, expected, s.jsonExtraHeaders)
 
 	expected = make(http.Header)
 	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 	expected.Set("Content-Type", protobufContentType)
-	assert.Equal(t, expected, protobufExtraHeaders)
+	assert.Equal(t, expected, s.protobufExtraHeaders)
 
 	// No "Content-Encoding" header
 	expected = make(http.Header)
 	expected.Set("Content-Type", jsonContentType)
-	assert.Equal(t, expected, jsonExtraHeadersWithCompression)
+	assert.Equal(t, expected, s.jsonExtraHeadersWithCompression)
 
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
 	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
-	assert.Equal(t, expected, protobufExtraHeadersWithCompression)
+	assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 }
 
 func TestInitExtraHeadersWithCompression(t *testing.T) {
-	compression.ContentEncoding = "zstd"
-	defer resetContentEncoding()
-
-	initExtraHeaders()
+	mockConfig := pkgconfigsetup.Conf()
+	s := NewSerializer(nil, nil, mockConfig, "testhost")
+	initExtraHeaders(s)
 
 	expected := make(http.Header)
 	expected.Set("Content-Type", jsonContentType)
-	assert.Equal(t, expected, jsonExtraHeaders)
+	assert.Equal(t, expected, s.jsonExtraHeaders)
 
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
 	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
-	assert.Equal(t, expected, protobufExtraHeaders)
+	assert.Equal(t, expected, s.protobufExtraHeaders)
 
 	// "Content-Encoding" header present with correct value
 	expected = make(http.Header)
 	expected.Set("Content-Type", jsonContentType)
 	expected.Set("Content-Encoding", compression.ContentEncoding)
-	assert.Equal(t, expected, jsonExtraHeadersWithCompression)
+	assert.Equal(t, expected, s.jsonExtraHeadersWithCompression)
 
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
 	expected.Set("Content-Encoding", compression.ContentEncoding)
 	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
-	assert.Equal(t, expected, protobufExtraHeadersWithCompression)
+	assert.Equal(t, expected, s.protobufExtraHeadersWithCompression)
 }
 
 func TestAgentPayloadVersion(t *testing.T) {
@@ -256,10 +248,10 @@ func TestSendV1Events(t *testing.T) {
 
 	f := &forwarder.MockedForwarder{}
 
-	matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`)
-	f.On("SubmitV1Intake", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
-
 	s := NewSerializer(f, nil, mockConfig, "testhost")
+	matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`)
+	f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+
 	err := s.SendEvents([]*event.Event{})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -279,14 +271,14 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 		})
 	}
 
-	f.On("SubmitV1Intake", payloadsCountMatcher(1), jsonExtraHeadersWithCompression).Return(nil)
+	f.On("SubmitV1Intake", payloadsCountMatcher(1), s.jsonExtraHeadersWithCompression).Return(nil)
 	err := s.SendEvents(events)
 	assert.NoError(t, err)
 	f.AssertExpectations(t)
 
 	mockConfig.SetWithoutSource("serializer_max_payload_size", 20)
 
-	f.On("SubmitV1Intake", payloadsCountMatcher(3), jsonExtraHeadersWithCompression).Return(nil)
+	f.On("SubmitV1Intake", payloadsCountMatcher(3), s.jsonExtraHeadersWithCompression).Return(nil)
 	err = s.SendEvents(events)
 	assert.NoError(t, err)
 	f.AssertExpectations(t)
@@ -295,11 +287,11 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	matcher := createJSONPayloadMatcher(`[{"check":"","host_name":"","timestamp":0,"status":0,"message":"","tags":null}]`)
-	f.On("SubmitV1CheckRuns", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("enable_service_checks_stream_payload_serialization", false)
-
 	s := NewSerializer(f, nil, mockConfig, "testhost")
+	f.On("SubmitV1CheckRuns", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
+
 	err := s.SendServiceChecks(servicecheck.ServiceChecks{&servicecheck.ServiceCheck{}})
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -309,12 +301,11 @@ func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	matcher := createJSONBytesPayloadMatcher(`{"series":[]}`)
 
-	f.On("SubmitV1Series", matcher, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("enable_stream_payload_serialization", false)
 	mockConfig.SetWithoutSource("use_v2_api.series", false)
-
 	s := NewSerializer(f, nil, mockConfig, "testhost")
+	f.On("SubmitV1Series", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{}))
 	require.Nil(t, err)
@@ -328,11 +319,10 @@ func TestSendSeries(t *testing.T) {
 		5: 3
 		9: { 1: { 4: 10 }}
 	  }`)
-	f.On("SubmitSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	mockConfig := pkgconfigsetup.Conf()
 	mockConfig.SetWithoutSource("use_v2_api.series", true) // default value, but just to be sure
-
 	s := NewSerializer(f, nil, mockConfig, "testhost")
+	f.On("SubmitSeries", matcher, s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 	err := s.SendIterableSeries(metricsserializer.CreateSerieSource(metrics.Series{&metrics.Serie{}}))
 	require.Nil(t, err)
@@ -346,9 +336,9 @@ func TestSendSketch(t *testing.T) {
 		1: { 1: {"fakename"} 2: {"fakehost"} 8: { 1: { 4: 10 }}}
 		2: {}
 		`)
-	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-
 	s := NewSerializer(f, nil, pkgconfigsetup.Conf(), "testhost")
+	f.On("SubmitSketchSeries", matcher, s.protobufExtraHeadersWithCompression).Return(nil).Times(1)
+
 	err := s.SendSketch(metrics.NewSketchesSourceTestWithSketch())
 	require.Nil(t, err)
 	f.AssertExpectations(t)
@@ -356,16 +346,15 @@ func TestSendSketch(t *testing.T) {
 
 func TestSendMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
-
 	s := NewSerializer(f, nil, pkgconfigsetup.Conf(), "testhost")
+	f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	payload := &testPayload{}
 	err := s.SendMetadata(payload)
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 
-	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
+	f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
 	err = s.SendMetadata(payload)
 	require.NotNil(t, err)
 	f.AssertExpectations(t)
@@ -379,15 +368,14 @@ func TestSendProcessesMetadata(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payload := []byte("\"test\"")
 	payloads, _ := mkPayloads(payload, true)
-	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
-
 	s := NewSerializer(f, nil, pkgconfigsetup.Conf(), "testhost")
+	f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	err := s.SendProcessesMetadata("test")
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 
-	f.On("SubmitV1Intake", payloads, jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
+	f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
 	err = s.SendProcessesMetadata("test")
 	require.NotNil(t, err)
 	f.AssertExpectations(t)
@@ -423,7 +411,7 @@ func TestSendWithDisabledKind(t *testing.T) {
 	f.AssertNotCalled(t, "SubmitSketchSeries")
 
 	// We never disable metadata
-	f.On("SubmitMetadata", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
+	f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 	s.SendMetadata(payload)
 	f.AssertNumberOfCalls(t, "SubmitMetadata", 1) // called once for the metadata
 }
