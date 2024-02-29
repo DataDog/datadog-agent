@@ -291,6 +291,11 @@ func testOffsetGuess(t *testing.T) {
 			if kv >= kernel.VersionCode(5, 18, 0) {
 				continue
 			}
+		case offsetCtOrigin, offsetCtIno, offsetCtNetns, offsetCtReply:
+			// offset guessing for conntrack fields is broken on pre-4.14 kernels
+			if kv < kernel.VersionCode(4, 14, 0) {
+				continue
+			}
 		}
 
 		var offset uint64

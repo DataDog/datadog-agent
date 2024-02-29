@@ -470,6 +470,11 @@ func getManager(cfg *config.Config, buf io.ReaderAt, constants []manager.Constan
 }
 
 func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+	kv414 := kernel.VersionCode(4, 14, 0)
+	if kv, err := kernel.HostVersion(); err != nil || kv < kv414 {
+		return nil, nil, fmt.Errorf("ebpf conntracker requires kernel version %s or higher", kv414)
+	}
+
 	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %s", err)
