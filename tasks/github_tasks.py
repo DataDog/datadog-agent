@@ -181,3 +181,84 @@ def send_rate_limit_info_datadog(_, pipeline_id):
         tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
     )
     send_metrics([metric])
+
+
+@task
+def publish_comment_on_pr(_, branch_name, pipeline_id, job_name, executed_test: bool):
+    from .libs.common.github_api import GithubAPI
+
+    jobs_regex = re.compile(r"  - ([a-z-A-Z_0-9]*)")
+    pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
+    if branch_name == "" or job_name == "":
+        return
+    print("Branch name: ", branch_name)
+    print("Pipeline id: ", pipeline_id)
+    print("Job name: ", job_name)
+    print("Executed test: ", executed_test)
+
+    executed_test = True if executed_test == "true" else False
+
+    gh = GithubAPI("DataDog/datadog-agent")
+
+    pr = gh.get_pr_for_branch(branch_name)[0]
+    print(pr)
+    # If the branch is not linked to any PR we stop here
+    if pr is None:
+        return
+
+    comment = gh.find_comment(pr.number, "[Fast Unit Tests Report]")
+    print(comment)
+    if comment is None:
+        print("Here")
+        if executed_test:
+            print("Here 2")
+            return
+        msg = create_msg(pipeline_id, [job_name])
+        print("Message: ", msg)
+        gh.publish_comment(pr.number, msg)
+        return
+
+    print("body: ", comment.body)
+    previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)[0]
+    print("match: ", previous_comment_pipeline_id)
+    print(previous_comment_pipeline_id)
+    # An older pipeline should edit a message corresponding to a newer pipeline
+    if previous_comment_pipeline_id > pipeline_id:
+        return
+
+    previous_comment_jobs = []
+    if previous_comment_pipeline_id == pipeline_id:
+        previous_comment_jobs = jobs_regex.findall(comment.body)
+    print("previous_comment_jobs: ", previous_comment_jobs)
+
+    if executed_test:
+        if job_name in previous_comment_jobs:
+            previous_comment_jobs.remove(job_name)
+        msg = create_msg(pipeline_id, previous_comment_jobs)
+        if len(previous_comment_jobs) == 0:
+            gh.delete_comment(pr.number, comment.id)
+        else:
+            gh.update_comment(pr.number, comment.id, msg)
+        return
+
+    if not executed_test:
+        if job_name not in previous_comment_jobs:
+            previous_comment_jobs.append(job_name)
+            msg = create_msg(pipeline_id, previous_comment_jobs)
+            gh.update_comment(pr.number, comment.id, msg)
+
+    return
+
+
+def create_msg(pipeline_id, job_list):
+    msg = f'''
+[Fast Unit Tests Report]
+
+Warning: On pipeline {pipeline_id} the following jobs did not run any unit tests:
+'''
+    for job in job_list:
+        msg += f"  - {job}\n"
+    msg += "\n"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs, if you think tests should have been executed reach out #agent-platform"
+
+    return msg

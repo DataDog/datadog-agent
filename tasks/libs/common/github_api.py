@@ -111,6 +111,9 @@ class GithubAPI:
         issues = self._repository.get_issues(milestone=m, state='all', labels=labels)
         return [i.as_pull_request() for i in issues if i.pull_request is not None]
 
+    def get_pr_for_branch(self, branch_name):
+        return self._repository.get_pulls(state="draft", head=f'DataDog:{branch_name}')
+
     def get_tags(self, pattern=""):
         """
         List all tags starting with the provided pattern.
@@ -190,6 +193,40 @@ class GithubAPI:
         Gets the current rate limit info.
         """
         return self._github.rate_limiting
+
+    def publish_comment(self, pull_number, comment):
+        """
+        Publish a comment on a given PR.
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        pr.create_issue_comment(comment)
+
+    def find_comment(self, pull_number, content):
+        """
+        Get a comment that contains content on a given PR.
+        """
+        pr = self._repository.get_pull(int(pull_number))
+
+        comments = pr.get_issue_comments()
+        for comment in comments:
+            if content in comment.body:
+                return comment
+
+    def update_comment(self, pull_number, comment_id, new_comment):
+        """
+        Update a comment on a given PR.
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        comment = pr.get_issue_comment(comment_id)
+        comment.edit(new_comment)
+
+    def delete_comment(self, pull_number, comment_id):
+        """
+        Delete a comment on a given PR.
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        comment = pr.get_issue_comment(comment_id)
+        comment.delete()
 
     def _chose_auth(self, public_repo):
         """
