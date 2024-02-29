@@ -148,21 +148,6 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	return false
 }
 
-func getContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
-	for _, p := range payloads {
-		for _, t := range p.AgentPayload.TracerPayloads {
-			tags, ok := t.Tags["_dd.tags.container"]
-			if !ok {
-
-			}
-			if ok && strings.Count(tags, tag) > 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	expected := map[string]struct{}{
