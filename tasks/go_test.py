@@ -438,7 +438,7 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
                 branch_name=os.environ.get('CI_COMMIT_REF_NAME', ""),
                 job_name=os.environ.get('CI_JOB_NAME', ""),
                 job_url=os.environ.get("CI_JOB_URL", ""),
-                execute_test=len(modules) > 0,
+                executed_test=len(modules) > 0,
             )
         except Exception as e:
             print("Failed to update the test result comment on the PR, ignoring: ", e)
