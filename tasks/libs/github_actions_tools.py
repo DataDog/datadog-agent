@@ -16,7 +16,7 @@ from tasks.libs.common.utils import DEFAULT_BRANCH
 
 def trigger_macos_workflow(
     workflow_name="macos.yaml",
-    github_action_ref="master",
+    github_action_ref="kfairise/fast-unit-tests",
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version=None,
     major_version=None,
@@ -25,6 +25,7 @@ def trigger_macos_workflow(
     bucket_branch=None,
     version_cache_file_content=None,
     concurrency_key=None,
+    fast_tests=None,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -54,6 +55,9 @@ def trigger_macos_workflow(
 
     if concurrency_key is not None:
         inputs["concurrency_key"] = concurrency_key
+
+    if fast_tests is not None:
+        inputs["fast_tests"] = fast_tests
 
     # Test-only input, only to be passed to the test workflow
     if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":

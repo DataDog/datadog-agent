@@ -969,11 +969,11 @@ def update_test_result_comment_on_pr(pipeline_id, pipeline_url, branch_name, job
     return
 
 
-def create_msg(pipeline_id, job_list):
+def create_msg(pipeline_id, pipeline_url, job_list):
     msg = f'''
 [Fast Unit Tests Report]
 
-Warning: On pipeline {pipeline_id} the following jobs did not run any unit tests:
+Warning: On pipeline [{pipeline_id}]({pipeline_url}) the following jobs did not run any unit tests:
 '''
     for job in job_list:
         msg += f"  - {job}\n"

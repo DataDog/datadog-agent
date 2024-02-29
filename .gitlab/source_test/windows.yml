@@ -3,7 +3,8 @@
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
-    - when: on_success
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch]
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:

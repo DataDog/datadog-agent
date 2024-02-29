@@ -64,6 +64,7 @@ def trigger_macos(
     version_cache=None,
     retry_download=3,
     retry_interval=10,
+    fast_tests=None,
 ):
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
@@ -95,6 +96,7 @@ def trigger_macos(
             datadog_agent_ref=datadog_agent_ref,
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
+            fast_tests=fast_tests,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
