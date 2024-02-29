@@ -7,12 +7,11 @@
 package probe
 
 import (
-	"encoding/binary"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 )
 
 const (
@@ -116,21 +115,21 @@ func parseCreateRegistryKey(e *etw.DDEventRecord) (*createKeyArgs, error) {
 	crc := &createKeyArgs{
 		DDEventHeader: e.EventHeader,
 	}
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
+	data := etwimpl.GetUserData(e)
 
-	crc.baseObject = regObjectPointer(binary.LittleEndian.Uint64(data[0:8]))
-	crc.keyObject = regObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-	crc.status = binary.LittleEndian.Uint32(data[16:20])
-	crc.disposition = binary.LittleEndian.Uint32(data[20:24])
+	crc.baseObject = regObjectPointer(data.GetUint64(0))
+	crc.keyObject = regObjectPointer(data.GetUint64(8))
+	crc.status = data.GetUint32(16)
+	crc.disposition = data.GetUint32(20)
 
 	//var nextOffset int
 	//var nulltermidx int
 	var nextOffset int
-	crc.baseName, nextOffset, _, _ = parseUnicodeString(data, 24)
+	crc.baseName, nextOffset, _, _ = data.ParseUnicodeString(24)
 	if nextOffset == -1 {
 		nextOffset = 26
 	}
-	crc.relativeName, _, _, _ = parseUnicodeString(data, nextOffset)
+	crc.relativeName, _, _, _ = data.ParseUnicodeString(nextOffset)
 
 	crc.computeFullPath()
 	return crc, nil
@@ -213,11 +212,11 @@ func parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
 		DDEventHeader: e.EventHeader,
 	}
 
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
+	data := etwimpl.GetUserData(e)
 
-	dka.keyObject = regObjectPointer(binary.LittleEndian.Uint64(data[0:8]))
-	dka.status = binary.LittleEndian.Uint32(data[8:12])
-	dka.keyName, _, _, _ = parseUnicodeString(data, 12) // KeyName is always empty
+	dka.keyObject = regObjectPointer(data.GetUint64(0))
+	dka.status = data.GetUint32(8)
+	dka.keyName, _, _, _ = data.ParseUnicodeString(12)
 	if s, ok := regPathResolver[dka.keyObject]; ok {
 		dka.computedFullPath = s
 	}
@@ -291,8 +290,7 @@ func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
 		DDEventHeader: e.EventHeader,
 	}
 
-	ds := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
-	data := ds
+	data := etwimpl.GetUserData(e)
 
 	/*
 		for i := 0; i < int(e.UserDataLength); i++ {
@@ -303,37 +301,37 @@ func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
 		}
 		fmt.Printf("\n")
 	*/
-	sv.keyObject = regObjectPointer(binary.LittleEndian.Uint64(data[0:8]))
-	sv.status = binary.LittleEndian.Uint32(data[8:12])
-	sv.dataType = binary.LittleEndian.Uint32(data[12:16])
-	sv.dataSize = binary.LittleEndian.Uint32(data[16:20])
+	sv.keyObject = regObjectPointer(data.GetUint64(0))
+	sv.status = data.GetUint32(8)
+	sv.dataType = data.GetUint32(12)
+	sv.dataSize = data.GetUint32(16)
 	var nextOffset int
 	var thisNextOffset int
-	sv.keyName, nextOffset, _, _ = parseUnicodeString(data, 20)
+	sv.keyName, nextOffset, _, _ = data.ParseUnicodeString(20)
 	if nextOffset == -1 {
 		nextOffset = 22
 	}
-	sv.valueName, thisNextOffset, _, _ = parseUnicodeString(data, nextOffset)
+	sv.valueName, thisNextOffset, _, _ = data.ParseUnicodeString(nextOffset)
 	if thisNextOffset == -1 {
 		nextOffset += 2
 	} else {
 		nextOffset = thisNextOffset
 	}
 
-	sv.capturedDataSize = binary.LittleEndian.Uint16(data[nextOffset : nextOffset+2])
+	sv.capturedDataSize = data.GetUint16(nextOffset)
 	nextOffset += 2
 
 	// make a copy of the data because the underlying buffer here belongs to etw
-	sv.capturedData = data[nextOffset : nextOffset+int(sv.capturedDataSize)]
+	sv.capturedData = data.Bytes(nextOffset, int(sv.capturedDataSize))
 	nextOffset += int(sv.capturedDataSize)
 
-	sv.previousDataType = binary.LittleEndian.Uint32(data[nextOffset : nextOffset+4])
+	sv.previousDataType = data.GetUint32(nextOffset)
 	nextOffset += 4
 
-	sv.previousDataSize = binary.LittleEndian.Uint32(data[nextOffset : nextOffset+4])
+	sv.previousDataSize = data.GetUint32(nextOffset)
 	nextOffset += 4
 
-	sv.previousData = data[nextOffset : nextOffset+int(sv.previousDataSize)]
+	sv.previousData = data.Bytes(nextOffset, int(sv.previousDataSize))
 
 	if s, ok := regPathResolver[sv.keyObject]; ok {
 		sv.computedFullPath = s

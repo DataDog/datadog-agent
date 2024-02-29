@@ -25,15 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cenkalti/backoff"
 
 	"golang.org/x/sys/windows"
 )
-
-var parseUnicodeString = etwutil.ParseUnicodeString
 
 // WindowsProbe defines a Windows probe
 type WindowsProbe struct {
