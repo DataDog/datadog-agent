@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
@@ -391,7 +393,7 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 }
 
 func getManager(cfg *config.Config, buf io.ReaderAt, constants []manager.ConstantEditor) (*manager.Manager, error) {
-	mgr := ddebpf.NewManager(&manager.Manager{
+	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
 			{Name: probes.ConntrackTelemetryMap},
@@ -412,7 +414,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, constants []manager.Constan
 				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
-	})
+	}, &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
