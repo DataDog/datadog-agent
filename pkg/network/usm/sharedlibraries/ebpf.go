@@ -74,7 +74,7 @@ func newEBPFProgram(c *config.Config) *ebpfProgram {
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     ddebpf.NewManager(mgr),
+		Manager:     ddebpf.NewManagerWithDefault(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
 	}
 }

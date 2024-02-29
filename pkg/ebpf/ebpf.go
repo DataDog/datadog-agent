@@ -14,7 +14,6 @@ import (
 
 	"github.com/cilium/ebpf/rlimit"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
