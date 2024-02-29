@@ -678,6 +678,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("snmp_listener.min_collection_interval")
 	config.SetKnown("snmp_listener.namespace")
 	config.SetKnown("snmp_listener.use_device_id_as_hostname")
+	config.SetKnown("snmp_listener.ping")
+	config.SetKnown("snmp_listener.ping.enabled")
+	config.SetKnown("snmp_listener.ping.count")
+	config.SetKnown("snmp_listener.ping.interval")
+	config.SetKnown("snmp_listener.ping.timeout")
+	config.SetKnown("snmp_listener.ping.linux")
+	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
