@@ -36,8 +36,13 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 
 	elapsedTelemetry = telemetry.NewHistogramWithOpts("external_metrics", "api_elapsed",
-		[]string{"namespace", "handler", "in_error"}, "Count of API Requests received",
+		[]string{"namespace", "handler", "in_error"}, "Wall time spent on API request (seconds)",
 		prometheus.DefBuckets,
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+
+	retrieverElapsed = telemetry.NewHistogramWithOpts("external_metrics", "retriever_elapsed",
+		[]string{}, "Wall time spent to retrieve metrics (seconds)",
+		[]float64{0.5, 1, 5, 10, 20, 30, 60, 120, 300},
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
@@ -87,5 +92,5 @@ func setQueryTelemtry(handler, namespace string, startTime time.Time, err error)
 	}
 
 	requestsTelemetry.Inc(namespace, handler, inErrror)
-	elapsedTelemetry.Observe(float64(time.Since(startTime)), namespace, handler, inErrror)
+	elapsedTelemetry.Observe(time.Since(startTime).Seconds(), namespace, handler, inErrror)
 }

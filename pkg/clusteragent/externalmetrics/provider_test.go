@@ -204,69 +204,11 @@ func TestGetExternalMetrics(t *testing.T) {
 }
 
 func TestListAllExternalMetrics(t *testing.T) {
-	defaultUpdateTime := time.Now().UTC()
-
 	fixtures := []providerFixture{
 		{
-			desc:         "Test no metrics in store (send fake metric back)",
-			storeContent: []ddmWithQuery{},
-			expectedExternalMetricInfo: []provider.ExternalMetricInfo{
-				fakeExternalMetric,
-			},
-		},
-		{
-			desc: "Test with metrics in store",
-			storeContent: []ddmWithQuery{
-				{
-					ddm: model.DatadogMetricInternal{
-						ID:       "ns/metric0",
-						DataTime: defaultUpdateTime,
-						Valid:    true,
-						Error:    nil,
-						Value:    42.0,
-					},
-					query: "query-metric0",
-				},
-				{
-					ddm: model.DatadogMetricInternal{
-						ID:       "ns/metric1",
-						DataTime: defaultUpdateTime,
-						Valid:    false,
-						Error:    nil,
-						Value:    42.0,
-					},
-					query: "query-metric1",
-				},
-				{
-					ddm: model.DatadogMetricInternal{
-						ID:                 "autogen-foo",
-						DataTime:           defaultUpdateTime,
-						ExternalMetricName: "metric2",
-						Autogen:            true,
-						Valid:              false,
-						Error:              nil,
-						Value:              42.0,
-					},
-					query: "query-metric2",
-				},
-				{
-					ddm: model.DatadogMetricInternal{
-						ID:                 "autogen-bar",
-						DataTime:           defaultUpdateTime,
-						ExternalMetricName: "metric2",
-						Autogen:            true,
-						Valid:              false,
-						Error:              nil,
-						Value:              42.0,
-					},
-					query: "query-metric3",
-				},
-			},
-			expectedExternalMetricInfo: []provider.ExternalMetricInfo{
-				{Metric: "datadogmetric@ns:metric0"},
-				{Metric: "datadogmetric@ns:metric1"},
-				{Metric: "metric2"},
-			},
+			desc:                       "Test no metrics in store (send fake metric back)",
+			storeContent:               []ddmWithQuery{},
+			expectedExternalMetricInfo: []provider.ExternalMetricInfo{{Metric: "externalmetrics"}},
 		},
 	}
 

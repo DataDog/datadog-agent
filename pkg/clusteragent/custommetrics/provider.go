@@ -18,11 +18,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/metrics/pkg/apis/custom_metrics"
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
+	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -33,16 +32,15 @@ const (
 	externalMetricsBaseBackoff = 1 * time.Second
 )
 
-var fakeExternalMetric = provider.ExternalMetricInfo{
-	Metric: "noexternalmetric",
-}
-
 type externalMetric struct {
 	info  provider.ExternalMetricInfo
 	value external_metrics.ExternalMetricValue
 }
 
 type datadogProvider struct {
+	// Default implementation recommended for ListAllExternalMetrics
+	defaults.DefaultExternalMetricsProvider
+
 	client dynamic.Interface
 	mapper apimeta.RESTMapper
 
@@ -54,7 +52,7 @@ type datadogProvider struct {
 }
 
 // NewDatadogProvider creates a Custom Metrics and External Metrics Provider.
-func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.MetricsProvider {
+func NewDatadogProvider(ctx context.Context, client dynamic.Interface, mapper apimeta.RESTMapper, store Store) provider.ExternalMetricsProvider {
 	maxAge := config.Datadog.GetInt64("external_metrics_provider.local_copy_refresh_rate")
 	d := &datadogProvider{
 		client: client,
@@ -128,40 +126,6 @@ func (p *datadogProvider) externalMetricsSetter(ctx context.Context) {
 			continue
 		}
 	}
-}
-
-// GetMetricByName - Not implemented
-func (p *datadogProvider) GetMetricByName(_ context.Context, name types.NamespacedName, info provider.CustomMetricInfo, labels labels.Selector) (*custom_metrics.MetricValue, error) { //nolint:revive // TODO fix revive unused-parameter
-	return nil, fmt.Errorf("not Implemented - GetMetricByName")
-}
-
-// GetMetricBySelector - Not implemented
-func (p *datadogProvider) GetMetricBySelector(_ context.Context, namespace string, selector labels.Selector, info provider.CustomMetricInfo, label labels.Selector) (*custom_metrics.MetricValueList, error) { //nolint:revive // TODO fix revive unused-parameter
-	return nil, fmt.Errorf("not Implemented - GetMetricBySelector")
-}
-
-// ListAllMetrics reads from a ConfigMap, similarly to ListExternalMetrics
-// TODO implement the in cluster Custom Metrics Provider to use the ListAllMetrics
-func (p *datadogProvider) ListAllMetrics() []provider.CustomMetricInfo {
-	return nil
-}
-
-// ListAllExternalMetrics lists the available External Metrics at the time.
-func (p *datadogProvider) ListAllExternalMetrics() []provider.ExternalMetricInfo {
-	if !p.isServing {
-		return nil
-	}
-	var externalMetricsInfoList []provider.ExternalMetricInfo
-	log.Tracef("Listing available metrics as of %s", time.Unix(p.timestamp, 0).Format(time.RFC850))
-	for _, metric := range p.externalMetrics {
-		externalMetricsInfoList = append(externalMetricsInfoList, metric.info)
-	}
-	// Workaround for https://github.com/kubernetes-sigs/custom-metrics-apiserver/issues/146
-	// In any, HPA does not use `List` endpoint
-	if len(externalMetricsInfoList) == 0 {
-		externalMetricsInfoList = append(externalMetricsInfoList, fakeExternalMetric)
-	}
-	return externalMetricsInfoList
 }
 
 // GetExternalMetric is called by the Autoscaler Controller to get the value of the external metric it is currently evaluating.

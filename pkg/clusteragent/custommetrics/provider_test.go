@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
@@ -26,81 +27,9 @@ type metricCompare struct {
 }
 
 func TestListAllExternalMetrics(t *testing.T) {
-	metricName := "m1"
-	metric2Name := "m2"
-	metric3Name := "m3"
-	tests := []struct {
-		name      string
-		res       []provider.ExternalMetricInfo
-		cached    []externalMetric
-		timestamp int64
-	}{
-		{
-			name: "no metrics stored",
-			res: []provider.ExternalMetricInfo{
-				fakeExternalMetric,
-			},
-			cached: []externalMetric{
-				{
-					info: fakeExternalMetric,
-				},
-			},
-		},
-		{
-			name: "one nano metric stored",
-			res: []provider.ExternalMetricInfo{
-				{
-					Metric: metricName,
-				},
-			},
-			cached: []externalMetric{
-				{
-					info: provider.ExternalMetricInfo{
-						Metric: metricName,
-					},
-				},
-			},
-		},
-		{
-			name: "multiple types",
-			cached: []externalMetric{
-				{
-					info: provider.ExternalMetricInfo{
-						Metric: metricName,
-					},
-				}, {
-					info: provider.ExternalMetricInfo{
-						Metric: metric2Name,
-					},
-				}, {
-					info: provider.ExternalMetricInfo{
-						Metric: metric3Name,
-					},
-				},
-			},
-			res: []provider.ExternalMetricInfo{
-				{
-					Metric: metricName,
-				},
-				{
-					Metric: metric2Name,
-				},
-				{
-					Metric: metric3Name,
-				},
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			dp := datadogProvider{
-				externalMetrics: test.cached,
-				isServing:       true,
-			}
-			output := dp.ListAllExternalMetrics()
-			require.Equal(t, len(test.cached), len(output))
-		})
-	}
+	dp := datadogProvider{}
+	metrics := dp.ListAllExternalMetrics()
+	assert.ElementsMatch(t, []provider.ExternalMetricInfo{{Metric: "externalmetrics"}}, metrics)
 }
 
 func TestGetExternalMetric(t *testing.T) {
