@@ -2024,7 +2024,7 @@ echo "Executing echo insIDe a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print insIDe a python (%s) script insIDe a bash script')
+print('Executing print insIDe a python (%s) script inside a bash script')
 
 EOF
 
