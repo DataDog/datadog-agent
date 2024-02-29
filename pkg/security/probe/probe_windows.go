@@ -74,7 +74,7 @@ type WindowsProbe struct {
  * pid is provided for testing purposes, to allow filtering on pid.  it is
  * not expected to be used at runtime
  */
-type etwCallback func(n interface{}, pid uint32, eventType model.EventType)
+type etwCallback func(n interface{}, pid uint32)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
@@ -212,29 +212,29 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idCreate:
 				if ca, err := parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
+					ecb(ca, e.EventHeader.ProcessID)
 				}
 
 			case idCreateNewFile:
 				if ca, err := parseCreateNewFileArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID, model.CreateNewFileEventType)
+					ecb(ca, e.EventHeader.ProcessID)
 				}
 			case idCleanup:
 				if ca, err := parseCleanupArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
+					ecb(ca, e.EventHeader.ProcessID)
 				}
 
 			case idClose:
 				if ca, err := parseCloseArgs(e); err == nil {
 					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
-					ecb(ca, e.EventHeader.ProcessID, model.UnknownEventType)
+					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						delete(filePathResolver, ca.fileObject)
 					}
 				}
 			case idFlush:
 				if fa, err := parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID, model.UnknownEventType)
+					ecb(fa, e.EventHeader.ProcessID)
 				}
 			case idSetInformation:
 				fallthrough
@@ -257,18 +257,18 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idRegCreateKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
 					log.Tracef("Got idRegCreateKey %s", cka.string())
-					ecb(cka, e.EventHeader.ProcessID, model.CreateRegistryKeyEventType)
+					ecb(cka, e.EventHeader.ProcessID)
 				}
 			case idRegOpenKey:
 				if cka, err := parseOpenRegistryKey(e); err == nil {
 					log.Debugf("Got idRegOpenKey %s", cka.string())
-					ecb(cka, e.EventHeader.ProcessID, model.OpenRegistryKeyEventType)
+					ecb(cka, e.EventHeader.ProcessID)
 				}
 
 			case idRegDeleteKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
 					log.Tracef("Got idRegDeleteKey %v", dka.string())
-					ecb(dka, e.EventHeader.ProcessID, model.DeleteRegistryKeyEventType)
+					ecb(dka, e.EventHeader.ProcessID)
 
 				}
 			case idRegFlushKey:
@@ -291,7 +291,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idRegSetValueKey:
 				if svk, err := parseSetValueKey(e); err == nil {
 					log.Tracef("Got idRegSetValueKey %s", svk.string())
-					ecb(svk, e.EventHeader.ProcessID, model.SetRegistryKeyValueEventType)
+					ecb(svk, e.EventHeader.ProcessID)
 
 				}
 
@@ -313,15 +313,15 @@ func (p *WindowsProbe) Start() error {
 
 		go func() {
 			defer p.fimwg.Done()
-			err := p.setupEtw(func(n interface{}, pid uint32, eventType model.EventType) {
+			err := p.setupEtw(func(n interface{}, pid uint32) {
 				// resolve process context
 				ev := p.zeroFIMEvent()
 
 				// handle incoming events here
 				// each event will come in as a different type
 				// parse it with
-				switch eventType {
-				case model.CreateNewFileEventType:
+				switch n.(type) {
+				case *createNewFileArgs:
 					cnfa := n.(*createNewFileArgs)
 					ev.Type = uint32(model.CreateNewFileEventType)
 					ev.CreateNewFile = model.CreateNewFileEvent{
@@ -330,7 +330,7 @@ func (p *WindowsProbe) Start() error {
 							BasenameStr: filepath.Base(cnfa.fileName),
 						},
 					}
-				case model.CreateRegistryKeyEventType:
+				case *createKeyArgs:
 					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.CreateRegistryKeyEventType)
 					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
@@ -339,7 +339,7 @@ func (p *WindowsProbe) Start() error {
 							KeyName: filepath.Base(cka.computedFullPath),
 						},
 					}
-				case model.OpenRegistryKeyEventType:
+				case *openKeyArgs:
 					cka := n.(*openKeyArgs)
 					ev.Type = uint32(model.OpenRegistryKeyEventType)
 					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
@@ -348,7 +348,7 @@ func (p *WindowsProbe) Start() error {
 							KeyName: filepath.Base(cka.computedFullPath),
 						},
 					}
-				case model.DeleteRegistryKeyEventType:
+				case *deleteKeyArgs:
 					dka := n.(*deleteKeyArgs)
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
@@ -357,7 +357,7 @@ func (p *WindowsProbe) Start() error {
 							KeyPath: dka.computedFullPath,
 						},
 					}
-				case model.SetRegistryKeyValueEventType:
+				case *setValueKeyArgs:
 					svka := n.(*setValueKeyArgs)
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
