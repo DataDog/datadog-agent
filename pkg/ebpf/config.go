@@ -78,6 +78,9 @@ type Config struct {
 
 	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
 	AttachKprobesWithKprobeEventsABI bool
+
+	// EBPFInstrumentationEnabled enables instrumenting eBPF programs via a trampoline instruction in the beginning of the bytecode sequence.
+	EBPFInstrumentationEnabled bool
 }
 
 func key(pieces ...string) string {
@@ -113,6 +116,7 @@ func NewConfig() *Config {
 		AllowRuntimeCompiledFallback: cfg.GetBool(key(spNS, "allow_runtime_compiled_fallback")),
 
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(key(spNS, "attach_kprobes_with_kprobe_events_abi")),
+		EBPFInstrumentationEnabled:       cfg.GetBool(key(spNS, "ebpf_instrumentation", "enabled")),
 	}
 
 	return c

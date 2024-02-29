@@ -86,8 +86,7 @@ func newResourcesProvider(deps dependencies) provides {
 		serializer:      deps.Serializer,
 	}
 	res := provides{
-		Comp:     &r,
-		Provider: runnerimpl.NewEmptyProvider(),
+		Comp: &r,
 	}
 
 	if deps.Params != nil && deps.Params.Disabled {
