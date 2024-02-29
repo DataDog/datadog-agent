@@ -118,9 +118,8 @@ func TestConnectionsCheck(t *testing.T) {
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 
-	// Make sure the connections check is disabled on the core agent 
-	// and enabled in the process agent
-	// when process checks run in core agent
+	// Make sure the connections check is disabled on the core agent
+	// and enabled in the process agent when process checks run in core agent
 	t.Run("core agent mode", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
