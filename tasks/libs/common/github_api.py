@@ -112,7 +112,7 @@ class GithubAPI:
         return [i.as_pull_request() for i in issues if i.pull_request is not None]
 
     def get_pr_for_branch(self, branch_name):
-        return self._repository.get_pulls(state="draft", head=f'DataDog:{branch_name}')
+        return self._repository.get_pulls(state="open", head=f'DataDog:{branch_name}')
 
     def get_tags(self, pattern=""):
         """
