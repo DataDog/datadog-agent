@@ -320,52 +320,47 @@ func (p *WindowsProbe) Start() error {
 				// handle incoming events here
 				// each event will come in as a different type
 				// parse it with
-				switch n.(type) {
+				switch arg := n.(type) {
 				case *createNewFileArgs:
-					cnfa := n.(*createNewFileArgs)
 					ev.Type = uint32(model.CreateNewFileEventType)
 					ev.CreateNewFile = model.CreateNewFileEvent{
 						File: model.FileEvent{
-							PathnameStr: cnfa.fileName,
-							BasenameStr: filepath.Base(cnfa.fileName),
+							PathnameStr: arg.fileName,
+							BasenameStr: filepath.Base(arg.fileName),
 						},
 					}
 				case *createKeyArgs:
-					cka := n.(*createKeyArgs)
 					ev.Type = uint32(model.CreateRegistryKeyEventType)
 					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
-							KeyName: filepath.Base(cka.computedFullPath),
+							KeyPath: arg.computedFullPath,
+							KeyName: filepath.Base(arg.computedFullPath),
 						},
 					}
 				case *openKeyArgs:
-					cka := n.(*openKeyArgs)
 					ev.Type = uint32(model.OpenRegistryKeyEventType)
 					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyPath: cka.computedFullPath,
-							KeyName: filepath.Base(cka.computedFullPath),
+							KeyPath: arg.computedFullPath,
+							KeyName: filepath.Base(arg.computedFullPath),
 						},
 					}
 				case *deleteKeyArgs:
-					dka := n.(*deleteKeyArgs)
 					ev.Type = uint32(model.DeleteRegistryKeyEventType)
 					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
 						Registry: model.RegistryEvent{
-							KeyName: filepath.Base(dka.computedFullPath),
-							KeyPath: dka.computedFullPath,
+							KeyName: filepath.Base(arg.computedFullPath),
+							KeyPath: arg.computedFullPath,
 						},
 					}
 				case *setValueKeyArgs:
-					svka := n.(*setValueKeyArgs)
 					ev.Type = uint32(model.SetRegistryKeyValueEventType)
 					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
 						Registry: model.RegistryEvent{
-							KeyName: filepath.Base(svka.computedFullPath),
-							KeyPath: svka.computedFullPath,
+							KeyName: filepath.Base(arg.computedFullPath),
+							KeyPath: arg.computedFullPath,
 						},
-						ValueName: svka.valueName,
+						ValueName: arg.valueName,
 					}
 				}
 				if ev.Type != uint32(model.UnknownEventType) {
