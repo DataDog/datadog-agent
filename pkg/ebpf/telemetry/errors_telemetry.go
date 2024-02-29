@@ -318,10 +318,6 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		if err := collectionSpec.LoadAndAssign(bpfTelemetry, nil); err != nil {
 			return fmt.Errorf("failed to load instrumentation maps: %w", err)
 		}
-
-		if err := initializeInstrumentationMap(bpfTelemetry); err != nil {
-			return fmt.Errorf("failed to initialize ebpf instrumentation map: %w", err)
-		}
 	}
 
 	supported, err := ebpfTelemetrySupported()
@@ -369,17 +365,6 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	}
 	// we cannot exclude the telemetry maps because on some kernels, deadcode elimination hasn't removed references
 	// if telemetry not enabled: leave key constants as zero, and deadcode elimination should reduce number of instructions
-
-	return nil
-}
-
-func initializeInstrumentationMap(b *EBPFTelemetry) error {
-	key := 0
-	z := new(InstrumentationBlob)
-	err := b.EBPFInstrumentationMap.Update(unsafe.Pointer(&key), z, ebpf.UpdateNoExist)
-	if err != nil {
-		return fmt.Errorf("failed to initialize telemetry struct: %w", err)
-	}
 
 	return nil
 }
