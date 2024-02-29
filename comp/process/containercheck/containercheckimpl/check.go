@@ -10,11 +10,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 )
 
 // Module defines the fx options for this component.
@@ -32,7 +32,7 @@ type check struct {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
+	Config    config.Component
 	Sysconfig sysprobeconfig.Component
 }
 
