@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package serviceTester provides tests for the services installed by the Windows Agent
-package serviceTester
+// Package servicetest provides tests for the services installed by the Windows Agent
+package servicetest
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -37,11 +37,14 @@ func WithExpectedAgentUser(domain string, username string) Option {
 	}
 }
 
-// New creates a new Tester
-func New(host *components.RemoteHost, opts ...Option) *Tester {
+// NewTester creates a new Tester
+func NewTester(host *components.RemoteHost, opts ...Option) (*Tester, error) {
 	t := &Tester{host: host}
-	infraCommon.ApplyOption(t, opts)
-	return t
+	_, err := infraCommon.ApplyOption(t, opts)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func (t *Tester) expectedServiceUsers() (windowsCommon.ServiceConfigMap, error) {
