@@ -51,8 +51,8 @@ var ownersLanguagesOnce sync.Once
 func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 	ownersLanguagesOnce.Do(func() {
 		ownersLanguages = *newOwnersLanguages()
-		languageTTL = config.Datadog.GetDuration("language_detection.cleanup.language_ttl")
-		cleanupPeriod := config.Datadog.GetDuration("language_detection.cleanup.period")
+		languageTTL = config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.language_ttl")
+		cleanupPeriod := config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.period")
 
 		// Launch periodic cleanup mechanism
 		go func() {
