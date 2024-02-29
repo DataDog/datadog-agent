@@ -937,7 +937,7 @@ def update_test_result_comment_on_pr(pipeline_id, pipeline_url, branch_name, job
     if comment is None:
         if executed_test:
             return
-        msg = create_msg(pipeline_id, [job_name])
+        msg = create_msg(pipeline_id, pipeline_url, [job_name])
         gh.publish_comment(pr.number, msg)
         return
 
@@ -953,7 +953,7 @@ def update_test_result_comment_on_pr(pipeline_id, pipeline_url, branch_name, job
     if executed_test:
         if job_name in previous_comment_jobs:
             previous_comment_jobs.remove(job_name)
-        msg = create_msg(pipeline_id, previous_comment_jobs)
+        msg = create_msg(pipeline_id, pipeline_url, previous_comment_jobs)
         if len(previous_comment_jobs) == 0:
             gh.delete_comment(pr.number, comment.id)
         else:
@@ -963,7 +963,7 @@ def update_test_result_comment_on_pr(pipeline_id, pipeline_url, branch_name, job
     if not executed_test:
         if job_name not in previous_comment_jobs:
             previous_comment_jobs.append(job_name)
-            msg = create_msg(pipeline_id, previous_comment_jobs)
+            msg = create_msg(pipeline_id, pipeline_url, previous_comment_jobs)
             gh.update_comment(pr.number, comment.id, msg)
 
     return
@@ -973,7 +973,7 @@ def create_msg(pipeline_id, pipeline_url, job_list):
     msg = f'''
 [Fast Unit Tests Report]
 
-Warning: On pipeline [{pipeline_id}]({pipeline_url}) the following jobs did not run any unit tests:
+Warning: On pipeline [{pipeline_id}]({pipeline_url}). At least the following jobs did not run any unit tests:
 '''
     for job in job_list:
         msg += f"  - {job}\n"
