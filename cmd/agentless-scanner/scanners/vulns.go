@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,9 +38,11 @@ import (
 )
 
 const (
-	cacheDir                = "/tmp/trivy"
-	defaultJavaDBRepository = "ghcr.io/aquasecurity/trivy-java-db"
+	tyivyCacheDir                = "/tmp/trivy"
+	trivyDefaultJavaDBRepository = "ghcr.io/aquasecurity/trivy-java-db"
 )
+
+var trivyDefaultJavaInitOnce sync.Once
 
 func init() {
 	trivyhandler.DeregisterPostHandler(ftypes.UnpackagedPostHandler)
@@ -93,12 +96,14 @@ func LaunchTrivyHost(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, 
 
 // LaunchTrivyApp launches a trivy scan on a directory for application SBOMs.
 func LaunchTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
+	trivyDefaultJavaInitOnce.Do(func() {
+		javadb.Init(tyivyCacheDir, trivyDefaultJavaDBRepository, false, false, ftypes.RegistryOptions{})
+	})
 	var allowedAnalyzers []analyzer.Type
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLanguages...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeIndividualPkgs...)
 	trivyCache := newMemoryCache()
-	javadb.Init(cacheDir, defaultJavaDBRepository, false, false, ftypes.RegistryOptions{})
 	trivyArtifact, err := trivyartifactlocal.NewArtifact(opts.Root, trivyCache, artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
