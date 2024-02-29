@@ -1241,7 +1241,7 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 			assert.Eventually(t, func() bool {
 				telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
 				require.NoError(t, err, "could not get http2 telemetry")
-				require.Greater(t, telemetry.Fragmented_frame_count, uint64(0), "expected to see frames split count > 0")
+				require.Greater(t, telemetry.Fragmented_frame_count_headers, uint64(0), "expected to see frames split count > 0")
 				return true
 
 			}, time.Second*5, time.Millisecond*100)
