@@ -7,11 +7,12 @@ package version
 
 import (
 	"fmt"
+	"testing"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestGetVersionDataFromContainerTags(t *testing.T) {
@@ -39,6 +40,13 @@ func TestGetVersionDataFromContainerTags(t *testing.T) {
 		}
 		gitCommitSha, imageTag, err := GetVersionDataFromContainerTags("1", cfg)
 		assert.Error(t, err)
+		assert.Equal(t, "", imageTag)
+		assert.Equal(t, "", gitCommitSha)
+	})
+	t.Run("undefined", func(t *testing.T) {
+		cfg := config.New()
+		gitCommitSha, imageTag, err := GetVersionDataFromContainerTags("1", cfg)
+		assert.NoError(t, err)
 		assert.Equal(t, "", imageTag)
 		assert.Equal(t, "", gitCommitSha)
 	})
