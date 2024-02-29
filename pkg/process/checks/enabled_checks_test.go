@@ -14,6 +14,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func assertContainsCheck(t *testing.T, checks []string, name string) {
@@ -88,6 +89,7 @@ func TestConnectionsCheck(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", true)
 		scfg.SetWithoutSource("system_probe_config.enabled", true)
+		flavor.SetFlavor("process_agent")
 
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		if runtime.GOOS == "darwin" {
