@@ -1552,12 +1552,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
 
 
 @task(iterable=['bpf_programs'])
-def generate_minimized_btfs(
-    ctx,
-    source_dir: str,
-    output_dir: str,
-    bpf_programs: list[str],
-):
+def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
     """
     Given an input directory containing compressed full-sized BTFs, generates an identically-structured
     output directory containing compressed minimized versions of those BTFs, tailored to the given
