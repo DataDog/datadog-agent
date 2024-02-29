@@ -140,19 +140,11 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 		return fmt.Errorf("failed to parse '.stack_sizes' section in file: %w", err)
 	}
 
-	nilCheckSkip := func() func(string) bool {
-		if shouldSkip == nil {
-			return func(_ string) bool { return false }
-		}
-
-		return shouldSkip
-	}()
-
 	for fn, p := range progs {
 		space := sizes.stackHas8BytesFree(fn)
 		// return error if there is not enough stack space to cache the pointer to the telemetry array
 		// if the program is intended to be skipped then we continue since we still need to patch a nop
-		if !space && !nilCheckSkip(p.Name) {
+		if !space && !shouldSkip(p.Name) {
 			return fmt.Errorf("Function %s does not have enough free stack space for instrumentation", fn)
 		}
 
@@ -201,7 +193,7 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 
 		// if a specific program in a manager should not be instrumented,
 		// instrument patch point with a NOP (r1=r1)
-		if nilCheckSkip(p.Name) {
+		if shouldSkip(p.Name) {
 			*trampolinePatchSite = asm.Mov.Reg(asm.R1, asm.R1).WithMetadata(trampolinePatchSite.Metadata)
 			return nil
 		}
@@ -299,10 +291,6 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
 
-	//	supported, err := ebpfTelemetrySupported()
-	//	if err != nil {
-	//		return err
-	//	}
 	instrumented, err := elfBuiltWithInstrumentation(bytecode)
 	if err != nil {
 		return fmt.Errorf("error determing if instrumentation is enabled: %w", err)
@@ -335,8 +323,25 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		}
 	}
 
+	supported, err := ebpfTelemetrySupported()
+	if err != nil {
+		return err
+	}
+
+	// this function will return true if an ebpf program
+	// should be skipped or if instrumentation is not supported
+	skipFunctionWithSupported := func() func(string) bool {
+		if shouldSkip == nil {
+			return func(_ string) bool { return !supported }
+		}
+
+		return func(name string) bool {
+			return shouldSkip(name) || !supported
+		}
+	}
+
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
-		return patchEBPFInstrumentation(m, bpfTelemetry, bytecode, shouldSkip)
+		return patchEBPFInstrumentation(m, bpfTelemetry, bytecode, skipFunctionWithSupported)
 	})
 
 	// add telemetry maps to list of maps, if not present
