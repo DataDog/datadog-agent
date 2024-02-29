@@ -58,7 +58,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		// Run traceroute
 		path, err := tracerouteutil.RunTraceroute(cfg)
 		if err != nil {
-			log.Errorf("unable to run traceroute for host: %s: %w", cfg.DestHostname, err)
+			log.Errorf("unable to run traceroute for host: %s: %s", cfg.DestHostname, err.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
