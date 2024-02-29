@@ -12,14 +12,11 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,12 +25,9 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.Reader, syscfg *sysconfigtypes.Config) *ContainerCheck {
-	_, npmModuleEnabled := syscfg.EnabledModules[sysconfig.NetworkTracerModule]
+func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
 	return &ContainerCheck{
-		config:         config,
-		runInCoreAgent: config.GetBool("process_config.run_in_core_agent.enabled"),
-		npmEnabled:     npmModuleEnabled && syscfg.Enabled,
+		config: config,
 	}
 }
 
@@ -51,9 +45,6 @@ type ContainerCheck struct {
 	containerFailedLogLimit *util.LogLimit
 
 	maxBatchSize int
-
-	runInCoreAgent bool
-	npmEnabled     bool
 }
 
 // Init initializes a ContainerCheck instance.
@@ -69,7 +60,6 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize(c.config)
-
 	return nil
 }
 
@@ -120,11 +110,6 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	// Keep track of containers addresses
 	LocalResolver.LoadAddrs(containers, pidToCid)
-
-	// Skip submission
-	if c.runInCoreAgent && flavor.GetFlavor() == flavor.ProcessAgent {
-		return nil, nil
-	}
 
 	groupSize := len(containers) / c.maxBatchSize
 	if len(containers)%c.maxBatchSize != 0 {
