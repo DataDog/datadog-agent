@@ -338,7 +338,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		return func(name string) bool {
 			return shouldSkip(name) || !supported
 		}
-	}
+	}()
 
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
 		return patchEBPFInstrumentation(m, bpfTelemetry, bytecode, skipFunctionWithSupported)
