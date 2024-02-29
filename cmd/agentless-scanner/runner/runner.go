@@ -898,16 +898,13 @@ func (s *Runner) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *t
 		assert(action == types.ScanActionVulnsContainersApp || action == types.ScanActionVulnsContainersOS)
 
 		var sourceType sbommodel.SBOMSourceType
-		var sbomID string
 		var tags []string
 		switch action {
 		case types.ScanActionVulnsContainersOS:
 			sourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
-			sbomID = imageRefCanonical.String()
 			tags = imageTags
 		case types.ScanActionVulnsContainersApp:
 			sourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: sbommodel.SBOMSourceType_CONTAINER_APP
-			sbomID = imageRefCanonical.Name()
 			tags = append([]string{
 				fmt.Sprintf("runtime_id:%s", imageRefTagged.Name()),
 				fmt.Sprintf("service_version:%s", imageRefTagged.Tag()),
@@ -916,6 +913,7 @@ func (s *Runner) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *t
 			panic("unreachable")
 		}
 
+		sbomID := imageRefCanonical.String()
 		result := pool.launchScannerVulns(ctx,
 			sourceType,
 			sbomID,
