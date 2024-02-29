@@ -5,7 +5,7 @@
 
 //go:build windows && npm
 
-package etw
+package http
 
 //revive:disable:var-naming Name is intended to match the Windows const name
 

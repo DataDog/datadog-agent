@@ -24,6 +24,7 @@ from tasks import (
     modules,
     msi,
     new_e2e_tests,
+    notify,
     package,
     pipeline,
     process_agent,
@@ -135,6 +136,7 @@ ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
+ns.add_collection(notify)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)

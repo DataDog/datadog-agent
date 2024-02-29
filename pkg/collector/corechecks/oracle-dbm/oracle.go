@@ -10,6 +10,7 @@ package oracle
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -53,6 +54,8 @@ const (
 	// it contains only the first 1000 characters
 	MaxSQLFullTextVSQLStats = 1000
 )
+
+const serviceCheckName = "oracle.can_query"
 
 type hostingCode string
 
@@ -143,6 +146,7 @@ func checkIntervalExpired(lastRun *time.Time, collectionInterval int64) bool {
 
 // Run executes the check.
 func (c *Check) Run() error {
+	var allErrors error
 	if c.db == nil {
 		db, err := c.Connect()
 		if err != nil {
@@ -178,7 +182,7 @@ func (c *Check) Run() error {
 	if dbInstanceIntervalExpired {
 		err := sendDbInstanceMetadata(c)
 		if err != nil {
-			return fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err)
+			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err))
 		}
 	}
 
@@ -187,7 +191,7 @@ func (c *Check) Run() error {
 		if c.dbmEnabled {
 			err := c.dataGuard()
 			if err != nil {
-				return err
+				allErrors = errors.Join(allErrors, err)
 			}
 		}
 		fixTags(c)
@@ -203,7 +207,7 @@ func (c *Check) Run() error {
 				handleServiceCheck(c, nil)
 			}
 			closeDatabase(c, db)
-			return fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err)
+			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err))
 		} else { //nolint:revive // TODO(DBM) Fix revive linter
 			handleServiceCheck(c, nil)
 		}
@@ -212,25 +216,25 @@ func (c *Check) Run() error {
 			log.Debugf("%s Entered sysmetrics", c.logPrompt)
 			_, err := c.sysMetrics()
 			if err != nil {
-				return fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err)
+				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err))
 			}
 		}
 		if c.config.Tablespaces.Enabled {
 			err := c.Tablespaces()
 			if err != nil {
-				return fmt.Errorf("%s %w", c.logPrompt, err)
+				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect tablespaces %w", c.logPrompt, err))
 			}
 		}
 		if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
 			err := c.ProcessMemory()
 			if err != nil {
-				return fmt.Errorf("%s %w", c.logPrompt, err)
+				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect process memory %w", c.logPrompt, err))
 			}
 		}
 		if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
 			err := c.CustomQueries()
 			if err != nil {
-				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
+				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
 			}
 		}
 	}
@@ -239,12 +243,12 @@ func (c *Check) Run() error {
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
-				return fmt.Errorf("%s %w", c.logPrompt, err)
+				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect session samples %w", c.logPrompt, err))
 			}
 			if c.config.QueryMetrics.Enabled {
 				_, err = c.StatementMetrics()
 				if err != nil {
-					return fmt.Errorf("%s %w", c.logPrompt, err)
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect statement metrics %w", c.logPrompt, err))
 				}
 			}
 		}
@@ -252,7 +256,7 @@ func (c *Check) Run() error {
 			if c.config.SharedMemory.Enabled {
 				err := c.SharedMemory()
 				if err != nil {
-					return fmt.Errorf("%s %w", c.logPrompt, err)
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect shared memory %w", c.logPrompt, err))
 				}
 			}
 		}
@@ -261,7 +265,7 @@ func (c *Check) Run() error {
 			if c.config.Asm.Enabled {
 				err := c.asmDiskgroups()
 				if err != nil {
-					return fmt.Errorf("%s %w", c.logPrompt, err)
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect asm diskgroups %w", c.logPrompt, err))
 				}
 			}
 		}
@@ -270,13 +274,13 @@ func (c *Check) Run() error {
 			if c.config.ResourceManager.Enabled {
 				err := c.resourceManager()
 				if err != nil {
-					return fmt.Errorf("%s %w", c.logPrompt, err)
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect resource manager %w", c.logPrompt, err))
 				}
 			}
 			if c.config.Locks.Enabled {
 				err := c.locks()
 				if err != nil {
-					return fmt.Errorf("%s %w", c.logPrompt, err)
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect locks %w", c.logPrompt, err))
 				}
 			}
 		}
@@ -294,7 +298,18 @@ func (c *Check) Run() error {
 			c.db.SetMaxOpenConns(MAX_OPEN_CONNECTIONS)
 		}
 	}
-	return nil
+
+	var message string
+	var status servicecheck.ServiceCheckStatus
+	if allErrors == nil {
+		status = servicecheck.ServiceCheckOK
+	} else {
+		status = servicecheck.ServiceCheckCritical
+		message = allErrors.Error()
+	}
+	sendServiceCheck(c, serviceCheckName, status, message)
+	commit(c)
+	return allErrors
 }
 
 func assertBool(val bool) bool {

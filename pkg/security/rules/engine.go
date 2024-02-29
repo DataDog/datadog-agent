@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -107,16 +108,6 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	return engine, nil
 }
 
-func getOrigin(cfg *config.RuntimeSecurityConfig) string {
-	if runtime.GOOS == "linux" {
-		if cfg.EBPFLessEnabled {
-			return "ebpfless"
-		}
-		return "ebpf"
-	}
-	return ""
-}
-
 // Start the rule engine
 func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *sync.WaitGroup) error {
 	// monitor policies
@@ -141,7 +132,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel(getOrigin(e.config))
+	ruleFilterModel, err := NewRuleFilterModel(e.probe.Origin())
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -197,7 +188,18 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
-				tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+				tags := []string{
+					fmt.Sprintf("version:%s", version.AgentVersion),
+					fmt.Sprintf("os:%s", runtime.GOOS),
+				}
+
+				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_ecs")
+				} else if os.Getenv("DD_EKS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_eks")
+				} else {
+					tags = append(tags, "mode:default")
+				}
 
 				e.RLock()
 				for _, version := range e.policiesVersions {

@@ -189,7 +189,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(spanValid)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        want,
 		})
 		assert.EqualValues(0, want.TracesFiltered.Load())
 		assert.EqualValues(0, want.SpansFiltered.Load())
@@ -203,6 +203,50 @@ func TestProcess(t *testing.T) {
 		})
 		assert.EqualValues(1, want.TracesFiltered.Load())
 		assert.EqualValues(2, want.SpansFiltered.Load())
+	})
+
+	t.Run("Block-all", func(t *testing.T) {
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.Ignore["resource"] = []string{".*"}
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		span1 := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+		span2 := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "INSERT INTO db VALUES (1, 2, 3)",
+			Type:     "sql",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+		}
+
+		want := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+		assert := assert.New(t)
+
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span1)),
+			Source:        want,
+		})
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpans([]*pb.Span{
+				span2,
+				span2,
+			})),
+			Source: want,
+		})
+		assert.EqualValues(2, want.TracesFiltered.Load())
+		assert.EqualValues(3, want.SpansFiltered.Load())
 	})
 
 	t.Run("BlacklistPayload", func(t *testing.T) {
