@@ -22,6 +22,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -76,8 +77,9 @@ type AutoConfig struct {
 type provides struct {
 	fx.Out
 
-	Comp         Component
-	OptionalComp optional.Option[Component]
+	Comp           Component
+	OptionalComp   optional.Option[Component]
+	StatusProvider status.InformationProvider
 }
 
 // Module defines the fx options for this component.
@@ -91,8 +93,9 @@ func Module() fxutil.Module {
 func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
 	return provides{
-		Comp:         c,
-		OptionalComp: optional.NewOption[Component](c),
+		Comp:           c,
+		OptionalComp:   optional.NewOption[Component](c),
+		StatusProvider: status.NewInformationProvider(StatusProvider{ac: c}),
 	}
 }
 
