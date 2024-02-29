@@ -5,7 +5,7 @@
 
 //go:build oracle
 
-//nolint:revive // TODO(DBM) Fix revive linter
+// common package contains common constant definitions.
 package common
 
 // IntegrationName is the name of the integration.
@@ -17,8 +17,8 @@ const IntegrationName = "oracle"
  */
 const IntegrationNameScheduler = "oracle-dbm"
 
-//nolint:revive // TODO(DBM) Fix revive linter
+// Godror is the name of the godror driver which relies on an external Oracle client.
 const Godror = "godror"
 
-//nolint:revive // TODO(DBM) Fix revive linter
+// GoOra is the name of the go-ora driver which is a pure Go implementation.
 const GoOra = "oracle"
