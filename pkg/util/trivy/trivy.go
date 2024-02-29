@@ -92,7 +92,14 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
-		option.OnlyDirs = []string{"/etc/**", "/var/lib/dpkg/**", "/var/lib/rpm/**", "/usr/lib/sysimage/**", "/lib/apk/**"}
+		option.OnlyDirs = []string{
+			"/etc/*",
+			"/lib/apk/*",
+			"/usr/lib/*",
+			"/usr/lib/sysimage/*",
+			"/var/lib/dpkg/*",
+			"/var/lib/rpm/*",
+		}
 		if root != "" {
 			// OnlyDirs is handled differently for image than for filesystem.
 			// This needs to be fixed properly but in the meantime, use absolute
