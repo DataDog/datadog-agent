@@ -10,10 +10,12 @@ package ebpf
 import (
 	"fmt"
 	"io"
+	"sync"
+
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,9 +26,11 @@ type Manager struct {
 	EnabledModifiers []Modifier // List of enabled modifiers
 }
 
-// defaultModifiers is a list of stateless (important!) modifiers that are enabled by default when the manager wrapper is initialized using the relevant ctor (see NewManagerWithDefault).
-// This is a static list, hence the modifiers in this list must be stateless.
-var defaultModifiers = []Modifier{&PrintkPatcherModifier{}, &ebpftelemetry.ErrorsTelemetryModifier{}}
+var modifiersSync sync.Once
+
+// defaultModifiers is a list of modifiers that are enabled by default when the manager wrapper is initialized using the relevant ctor (see NewManagerWithDefault).
+// This is a static list lazy-initialized once during the lifetime of the program, hence the modifiers in this list must be stateless.
+var defaultModifiers []Modifier
 
 // NewManager creates a manager wrapper.
 // Optionally one can provide a list of modifiers to attach to the manager
@@ -41,6 +45,9 @@ func NewManager(mgr *manager.Manager, modifiers ...Modifier) *Manager {
 
 // NewManagerWithDefault creates a manager wrapper with default modifiers.
 func NewManagerWithDefault(mgr *manager.Manager, modifiers ...Modifier) *Manager {
+	modifiersSync.Do(func() {
+		defaultModifiers = []Modifier{&PrintkPatcherModifier{}, &ebpftelemetry.ErrorsTelemetryModifier{}}
+	})
 	return NewManager(mgr, append(defaultModifiers, modifiers...)...)
 }
 

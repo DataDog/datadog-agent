@@ -36,6 +36,8 @@ func TestNewManagerWithDefault(t *testing.T) {
 		mgr       *manager.Manager
 		modifiers []Modifier
 	}
+	// ensuring the lazy init of the defaultModifiers list
+	_ = NewManagerWithDefault(nil, nil)
 	tests := []struct {
 		name                  string
 		args                  args
