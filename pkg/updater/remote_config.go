@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/updater/errors"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,12 +47,20 @@ func (rc *remoteConfig) Close() {
 }
 
 // SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(pkg string, state *repository.State) {
+func (rc *remoteConfig) SetState(pkg string, state *repository.State, taskID string, taskState pbgo.TaskState, err *errors.UpdaterError) {
 	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
 		{
 			Package:           pkg,
 			StableVersion:     state.Stable,
 			ExperimentVersion: state.Experiment,
+			Task: &pbgo.PackageStateTask{
+				Id:    taskID,
+				State: taskState,
+				Error: &pbgo.TaskError{
+					Code:    uint64(err.Code()),
+					Message: err.Error(),
+				},
+			},
 		},
 	})
 }

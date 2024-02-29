@@ -19,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/updater/errors"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -102,7 +104,7 @@ func newUpdater(rcFetcher client.ConfigFetcher, pkg string) (*updaterImpl, error
 		bootstrapVersions: defaultBootstrapVersions,
 		stopChan:          make(chan struct{}),
 	}
-	u.updatePackagesState()
+	u.initPackagesState()
 	return u, nil
 }
 
@@ -200,7 +202,6 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 		return fmt.Errorf("could not set experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
-	u.updatePackagesState()
 	return nil
 }
 
@@ -214,7 +215,6 @@ func (u *updaterImpl) PromoteExperiment() error {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully promoted experiment for package %s", u.pkg)
-	u.updatePackagesState()
 	return nil
 }
 
@@ -228,7 +228,6 @@ func (u *updaterImpl) StopExperiment() error {
 		return fmt.Errorf("could not set stable: %w", err)
 	}
 	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
-	u.updatePackagesState()
 	return nil
 }
 
@@ -246,9 +245,11 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 		return fmt.Errorf("could not get updater state: %w", err)
 	}
 	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
+		u.setPackagesStateInvalid(request.ID)
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		return nil
 	}
+
 	switch request.Method {
 	case methodStartExperiment:
 		log.Infof("Updater: Received remote request %s to start experiment for package %s version %s", request.ID, u.pkg, request.Params)
@@ -257,23 +258,85 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		return u.StartExperiment(context.Background(), params.Version)
+
+		u.setPackagesStateTaskRunning(request.ID)
+		var taskErr error
+		defer func() {
+			u.setPackagesStateTaskFinished(request.ID, taskErr)
+		}()
+
+		taskErr = u.StartExperiment(context.Background(), params.Version)
+		return taskErr
+
 	case methodStopExperiment:
 		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, u.pkg)
-		return u.StopExperiment()
+		u.setPackagesStateTaskRunning(request.ID)
+		var taskErr error
+		defer func() {
+			u.setPackagesStateTaskFinished(request.ID, taskErr)
+		}()
+		taskErr = u.StopExperiment()
+		return taskErr
+
 	case methodPromoteExperiment:
 		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, u.pkg)
-		return u.PromoteExperiment()
+		u.setPackagesStateTaskRunning(request.ID)
+		var taskErr error
+		defer func() {
+			u.setPackagesStateTaskFinished(request.ID, taskErr)
+		}()
+		taskErr = u.PromoteExperiment()
+		return taskErr
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
 }
 
-func (u *updaterImpl) updatePackagesState() {
+// initPackagesState sets the first value of the packages state.
+// IDLE is the default state between the updater start and the first task.
+func (u *updaterImpl) initPackagesState() {
+	state, err := u.repository.GetState()
+	if err != nil {
+		log.Warnf("could not initialize packages state: %s", err)
+		return
+	}
+	u.rc.SetState(u.pkg, state, "", pbgo.TaskState_IDLE, nil)
+}
+
+// setPackagesStateTaskRunning sets the packages state to RUNNING.
+// and is called before a task starts
+func (u *updaterImpl) setPackagesStateTaskRunning(taskID string) {
 	state, err := u.repository.GetState()
 	if err != nil {
 		log.Warnf("could not update packages state: %s", err)
 		return
 	}
-	u.rc.SetState(u.pkg, state)
+	u.rc.SetState(u.pkg, state, taskID, pbgo.TaskState_RUNNING, nil)
+}
+
+// setPackagesStateTaskFinished sets the packages state once a task is done
+// depending on the taskErr, the state will be set to DONE or ERROR
+func (u *updaterImpl) setPackagesStateTaskFinished(taskID string, taskErr error) {
+	state, err := u.repository.GetState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+		return
+	}
+	taskState := pbgo.TaskState_DONE
+	if taskErr != nil {
+		taskState = pbgo.TaskState_ERROR
+	}
+
+	u.rc.SetState(u.pkg, state, taskID, taskState, errors.From(taskErr))
+}
+
+// setPackagesStateInvalid sets the packages state to INVALID,
+// if the stable or experiment version does not match the expected state
+func (u *updaterImpl) setPackagesStateInvalid(taskID string) {
+	state, err := u.repository.GetState()
+	if err != nil {
+		log.Warnf("could not update packages state: %s", err)
+		return
+	}
+	u.rc.SetState(u.pkg, state, taskID, pbgo.TaskState_INVALID_STATE, nil)
 }
