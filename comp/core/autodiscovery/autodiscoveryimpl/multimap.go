@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package autodiscovery
+package autodiscoveryimpl
 
 // a multimap is a string/string map that can contain multiple values for a
 // single key.  Duplicate values are allowed (but not used in this package).

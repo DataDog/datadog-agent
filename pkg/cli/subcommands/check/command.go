@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -164,7 +165,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(context.Background()),
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 				tagger.Module(),
-				autodiscovery.Module(),
+				autodiscoveryimpl.Module(),
 				forwarder.Bundle(),
 				inventorychecksimpl.Module(),
 				// inventorychecksimpl depends on a collector and serializer when created to send payload.
@@ -431,7 +432,7 @@ func run(
 
 	// something happened while getting the check(s), display some info.
 	if len(cs) == 0 {
-		for check, error := range autodiscovery.GetConfigErrors() {
+		for check, error := range autodiscoveryimpl.GetConfigErrors() {
 			if cliParams.checkName == check {
 				fmt.Fprintf(color.Output, "\n%s: invalid config for %s: %s\n", color.RedString("Error"), color.YellowString(check), error)
 			}
@@ -444,7 +445,7 @@ func run(
 				}
 			}
 		}
-		for check, warnings := range autodiscovery.GetResolveWarnings() {
+		for check, warnings := range autodiscoveryimpl.GetResolveWarnings() {
 			if cliParams.checkName == check {
 				fmt.Fprintf(color.Output, "\n%s: could not resolve %s config:\n", color.YellowString("Warning"), color.YellowString(check))
 				for _, warning := range warnings {

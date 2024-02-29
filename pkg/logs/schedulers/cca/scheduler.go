@@ -9,7 +9,7 @@ package cca
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
@@ -20,7 +20,7 @@ import (
 // Scheduler creates a single source to represent all containers collected due to
 // the `logs_config.container_collect_all` configuration.
 type Scheduler struct {
-	ac *autodiscovery.AutoConfig
+	ac *autodiscoveryimpl.AutoConfig
 	// added is closed when the source is added (for testing)
 	added chan struct{}
 }
@@ -28,7 +28,7 @@ type Scheduler struct {
 var _ schedulers.Scheduler = &Scheduler{}
 
 // New creates a new scheduler.
-func New(ac *autodiscovery.AutoConfig) schedulers.Scheduler {
+func New(ac *autodiscoveryimpl.AutoConfig) schedulers.Scheduler {
 	return &Scheduler{
 		ac:    ac,
 		added: make(chan struct{}),

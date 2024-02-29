@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -178,8 +179,8 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Com
 		return configSlice[i].Name < configSlice[j].Name
 	})
 	response.Configs = configSlice
-	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
-	response.ConfigErrors = autodiscovery.GetConfigErrors()
+	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
+	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
 	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	jsonConfig, err := json.Marshal(response)

@@ -8,7 +8,7 @@ package adlistener
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 )
@@ -16,7 +16,7 @@ import (
 //nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
 	adsched := scheduler.NewMetaScheduler()
-	ac := autodiscovery.NewAutoConfigNoStart(adsched, nil)
+	ac := autodiscoveryimpl.NewAutoConfigNoStart(adsched, nil)
 
 	got1 := make(chan struct{}, 1)
 	l1 := NewADListener("l1", ac, func(configs []integration.Config) {

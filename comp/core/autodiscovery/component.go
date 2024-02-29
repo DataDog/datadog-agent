@@ -39,6 +39,7 @@ type Component interface {
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet
 	GetProviderCatalog() map[string]providers.ConfigProviderFactory
+	// TODO (component): deprecate start/stop methods
 	Start()
 	Stop()
 	IsStarted() bool

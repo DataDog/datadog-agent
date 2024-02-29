@@ -4,7 +4,7 @@ This package manages configuration for dynamic entities like pods and containers
 
 ## Architecture
 
-The high-level architecture of this package is implemented by the autoconfig type, and looks like this:
+The high-level architecture of this package is implemented by the AutoConfig type, and looks like this:
 
 ```
 Kubernetes

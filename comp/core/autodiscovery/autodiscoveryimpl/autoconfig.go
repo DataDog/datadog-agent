@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package autodiscovery implements the agent's autodiscovery mechanism.
-package autodiscovery
+// Package autodiscoveryimpl implements the agent's autodiscovery mechanism.
+package autodiscoveryimpl
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -76,8 +77,8 @@ type AutoConfig struct {
 type provides struct {
 	fx.Out
 
-	Comp         Component
-	OptionalComp optional.Option[Component]
+	Comp         autodiscovery.Component
+	OptionalComp optional.Option[autodiscovery.Component]
 }
 
 // Module defines the fx options for this component.
@@ -92,11 +93,11 @@ func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
 	return provides{
 		Comp:         c,
-		OptionalComp: optional.NewOption[Component](c),
+		OptionalComp: optional.NewOption[autodiscovery.Component](c),
 	}
 }
 
-var _ Component = (*AutoConfig)(nil)
+var _ autodiscovery.Component = (*AutoConfig)(nil)
 
 type listenerCandidate struct {
 	factory listeners.ServiceListenerFactory
@@ -108,7 +109,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 }
 
 // newAutoConfig creates an AutoConfig instance and starts it.
-func newAutoConfig(deps dependencies) Component {
+func newAutoConfig(deps dependencies) autodiscovery.Component {
 	ac := NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
@@ -612,11 +613,11 @@ func OptionalModule() fxutil.Module {
 }
 
 // newOptionalAutoConfig creates an optional AutoConfig instance if tagger is available
-func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[Component] {
+func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscovery.Component] {
 	_, ok := deps.TaggerComp.Get()
 	if !ok {
-		return optional.NewNoneOption[Component]()
+		return optional.NewNoneOption[autodiscovery.Component]()
 	}
-	return optional.NewOption[Component](
+	return optional.NewOption[autodiscovery.Component](
 		NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets))
 }
