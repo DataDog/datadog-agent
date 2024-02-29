@@ -1953,6 +1953,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 
 	t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", "true")
 	cfg := testConfig()
+	cfg.EBPFInstrumentationEnabled = true
 	tr := setupTracer(t, cfg)
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
@@ -1994,6 +1995,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	cfg := testConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
+	cfg.EBPFInstrumentationEnabled = true
 	tr := setupTracer(t, cfg)
 
 	expectedErrorTP := "tracepoint__syscalls__sys_enter_openat"

@@ -33,7 +33,7 @@ func getCFlags(config *config.Config) []string {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
 	if config.EBPFInstrumentationEnabled {
-		cflags = append(cflags, "-pg")
+		cflags = append(cflags, "-pg", "-DINSTRUMENTATION_ENABLED")
 	}
 	return cflags
 }

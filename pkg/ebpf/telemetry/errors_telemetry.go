@@ -10,7 +10,6 @@ package telemetry
 import (
 	"bytes"
 	"debug/elf"
-	"errors"
 	"fmt"
 	"io"
 	"sync"
