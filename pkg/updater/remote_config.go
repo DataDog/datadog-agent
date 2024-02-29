@@ -48,6 +48,13 @@ func (rc *remoteConfig) Close() {
 
 // SetState sets the state of the given package.
 func (rc *remoteConfig) SetState(pkg string, state *repository.State, taskID string, taskState pbgo.TaskState, err *errors.UpdaterError) {
+	var taskErr *pbgo.TaskError
+	if err != nil {
+		taskErr = &pbgo.TaskError{
+			Code:    uint64(err.Code()),
+			Message: err.Error(),
+		}
+	}
 	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
 		{
 			Package:           pkg,
@@ -56,10 +63,7 @@ func (rc *remoteConfig) SetState(pkg string, state *repository.State, taskID str
 			Task: &pbgo.PackageStateTask{
 				Id:    taskID,
 				State: taskState,
-				Error: &pbgo.TaskError{
-					Code:    uint64(err.Code()),
-					Message: err.Error(),
-				},
+				Error: taskErr,
 			},
 		},
 	})
