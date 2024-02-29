@@ -46,6 +46,9 @@ const instrumentationMap string = "bpf_instrumentation_map"
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
+	// pointer to the ebpf instrumentation map. This has to be
+	// exported because the loader library uses reflection to
+	// set the value of this field.
 	EBPFInstrumentationMap *ebpf.Map `ebpf:"bpf_instrumentation_map"`
 	mtx                    sync.Mutex
 	mapKeys                map[string]uint32
@@ -90,8 +93,9 @@ func countRawBPFIns(ins *asm.Instruction) int {
 	return 1
 }
 
-// initializeProbeKeys assignes a integer key to each probe in the manager.
-// This key is the index at which telemetry for this probe is kept
+// initializeProbeKeys assignes an integer key to each probe in the manager.
+// This key is the index in the array at which telemetry for this probe is kept
+// See pkg/ebpf/c/telemetry_types.h for the definition of the struct holding telemetry
 func initializeProbeKeys(m *manager.Manager, bpfTelemetry *EBPFTelemetry) error {
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
@@ -112,7 +116,6 @@ func initializeProbeKeys(m *manager.Manager, bpfTelemetry *EBPFTelemetry) error 
 func patchConstant(ins asm.Instructions, symbol string, constant int64) error {
 	indices := ins.ReferenceOffsets()[symbol]
 
-	// patch telemetry program id key if required for this instrumentation
 	ldDWImm := asm.LoadImmOp(asm.DWord)
 	for _, index := range indices {
 		load := &ins[index]
@@ -266,9 +269,8 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			}
 		}
 
-		retJumpOffset := trampolinePatchIndex - (insCount + instrumentationBlockCount)
-
 		// absolute jump back to the telemetry patch point to continue normal execution
+		retJumpOffset := trampolinePatchIndex - (insCount + instrumentationBlockCount)
 		newIns := asm.Instruction{
 			OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
 			Offset: int16(retJumpOffset),
@@ -376,7 +378,7 @@ func initializeInstrumentationMap(b *EBPFTelemetry) error {
 	key := 0
 	z := new(InstrumentationBlob)
 	err := b.EBPFInstrumentationMap.Update(unsafe.Pointer(&key), z, ebpf.UpdateNoExist)
-	if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
+	if err != nil {
 		return fmt.Errorf("failed to initialize telemetry struct: %w", err)
 	}
 

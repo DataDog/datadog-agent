@@ -8,8 +8,8 @@
 #ifdef INSTRUMENTATION_ENABLED
 BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 
-// this macro reads the stack slot at offset 512
-// if everything went okay, then it should have the pointer
+// this macro reads the stack slot at offset 504 (512-8)
+// If everything went okay, then it should have the pointer
 // to the telemetry map.
 #define FETCH_TELEMETRY_BLOB() ({                   \
     instrumentation_blob_t *__tb;                   \
@@ -74,6 +74,7 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
         }                                                                                       \
         errno_ret;                                                                              \
     })
+// If instrumentation is not enabled do not waste instructions
 #else
 #define map_update_with_telemetry(fn, map, args...) \
     ({                                              \
