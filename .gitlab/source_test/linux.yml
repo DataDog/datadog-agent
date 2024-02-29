@@ -21,6 +21,9 @@
     TEST_OUTPUT_FILE: test_output.json
   script:
     - !reference [.retrieve_linux_go_tools_deps]
+    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
+    - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-id)
+    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-installation-id)
     - inv -e install-tools
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - inv -e invoke-unit-tests
