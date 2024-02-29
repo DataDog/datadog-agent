@@ -157,7 +157,6 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 			l.createService(entityID, id, instance)
 		}
 	}
-	// TODO: should we wait a certain number of run iterations before we remove instances?
 	deletedServices := findDeletedServices(l.services, discoveredServices)
 	l.deleteServices(deletedServices)
 }
