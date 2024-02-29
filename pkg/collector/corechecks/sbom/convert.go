@@ -606,7 +606,7 @@ func convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
 
 	return &cyclonedx_v1_4.Metadata{
 		Timestamp:   convertTimestamp(in.Timestamp),
-		Tools:       convertArray(in.Tools, convertTool),
+		Tools:       convertArray(in.Tools.Tools, convertTool),
 		Authors:     convertArray(in.Authors, convertOrganizationalContact),
 		Component:   convertComponent(in.Component),
 		Manufacture: convertOrganizationalEntity(in.Manufacture),
@@ -898,7 +898,7 @@ func convertVulnerability(in *cyclonedx.Vulnerability) *cyclonedx_v1_4.Vulnerabi
 		Published:      convertTimestamp(in.Published),
 		Updated:        convertTimestamp(in.Updated),
 		Credits:        convertVulnerabilityCredits(in.Credits),
-		Tools:          convertArray(in.Tools, convertTool),
+		Tools:          convertArray(in.Tools.Tools, convertTool),
 		Analysis:       convertVulnerabilityAnalysis(in.Analysis),
 		Affects:        convertArray(in.Affects, convertVulnerabilityAffects),
 		Properties:     convertArray(in.Properties, convertProperty),

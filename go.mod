@@ -692,6 +692,7 @@ require (
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/log v0.1.0 // indirect
+	github.com/containerd/typeurl v1.0.2 // indirect
 	github.com/csaf-poc/csaf_distribution/v3 v3.0.0 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/ebitengine/purego v0.5.0 // indirect
@@ -786,8 +787,15 @@ replace (
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 	// oras 1.2.2 is incompatible with github.com/docker/docker v24.0.2
 	// cf. https://github.com/oras-project/oras-go/pull/527
-	oras.land/oras-go => oras.land/oras-go v1.2.4-0.20230801060855-932dd06d38af
+	oras.land/oras-go => oras.land/oras-go v1.2.5
 )
+
+// Temporarely use forks of trivy libraries to use lazy initialization of zap loggers.
+// Patch was pushed upstream but maintainers would prefer moving to slog once 1.22 is out
+replace github.com/aquasecurity/trivy-db => github.com/lebauce/trivy-db v0.0.0-20240228172000-42caffdaee3f
+
+// Use a version of cel-go compatible with k8s.io/kubeapiserver 0.27.6
+replace github.com/google/cel-go v0.17.7 => github.com/google/cel-go v0.16.1
 
 // Waiting for datadog-operator kube version bump
 replace sigs.k8s.io/controller-runtime v0.11.2 => sigs.k8s.io/controller-runtime v0.15.0
@@ -821,3 +829,8 @@ replace (
 	k8s.io/kubectl => k8s.io/kubectl v0.27.6
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230526173653-cf3e81b590ab
 )
+
+// Stick to Docker v24 so pkg/util/docker continues to build on 7.51 branch
+replace github.com/docker/docker v25.0.2+incompatible => github.com/docker/docker v24.0.7+incompatible
+
+replace github.com/moby/buildkit v0.12.5 => github.com/moby/buildkit v0.11.6
