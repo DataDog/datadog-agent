@@ -20,7 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
+
+	// "github.com/DataDog/datadog-agent/pkg/util/compression"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
@@ -73,7 +77,10 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		testSeries = append(testSeries, &point)
 	}
 
-	payloads, err := Payloads(testSeries, compress, JSONMarshalFct)
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
+
+	payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy)
 	require.Nil(t, err)
 
 	originalLength := len(testSeries)
@@ -83,7 +90,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 		localPayload := payload.GetContent()
 
 		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			localPayload, err = strategy.Decompress(localPayload)
 			require.Nil(t, err)
 		}
 
@@ -118,11 +125,13 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 		testSeries = append(testSeries, &point)
 	}
 
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	var r transaction.BytesPayloads
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries, true, JSONMarshalFct)
+		r, _ = Payloads(testSeries, true, JSONMarshalFct, strategy)
 
 	}
 	// ensure we actually had to split
@@ -184,7 +193,9 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		testEvent.EventsArr = append(testEvent.EventsArr, &event)
 	}
 
-	payloads, err := Payloads(testEvent, compress, JSONMarshalFct)
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
+	payloads, err := Payloads(testEvent, compress, JSONMarshalFct, strategy)
 	require.Nil(t, err)
 
 	originalLength := len(testEvent.EventsArr)
@@ -193,7 +204,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 		var s map[string]interface{}
 		localPayload := payload.GetContent()
 		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			localPayload, err = strategy.Decompress(localPayload)
 			require.Nil(t, err)
 		}
 
@@ -249,7 +260,9 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 		testServiceChecks = append(testServiceChecks, &sc)
 	}
 
-	payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct)
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
+	payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, strategy)
 	require.Nil(t, err)
 
 	originalLength := len(testServiceChecks)
@@ -258,7 +271,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 		var s []interface{}
 		localPayload := payload.GetContent()
 		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			localPayload, err = strategy.Decompress(localPayload)
 			require.Nil(t, err)
 		}
 

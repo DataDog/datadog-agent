@@ -6,8 +6,12 @@
 package compression
 
 import (
+	"bytes"
+
 	"github.com/DataDog/zstd"
 )
+
+const ZstdEncoding = "zstd"
 
 type ZstdStrategy struct {
 }
@@ -29,5 +33,9 @@ func (s *ZstdStrategy) CompressBound(sourceLen int) int {
 }
 
 func (s *ZstdStrategy) ContentEncoding() string {
-	return "zstd"
+	return ZstdEncoding
+}
+
+func NewZstdZipper(output *bytes.Buffer) *zstd.Writer {
+	return zstd.NewWriter(output)
 }

@@ -5,6 +5,10 @@
 
 package compression
 
+import (
+	"bytes"
+)
+
 type NoopStrategy struct {
 }
 
@@ -26,4 +30,22 @@ func (s *NoopStrategy) CompressBound(sourceLen int) int {
 
 func (s *NoopStrategy) ContentEncoding() string {
 	return ""
+}
+
+type NoopZipper struct{}
+
+func (s NoopZipper) Write([]byte) (int, error) {
+	return 0, nil
+}
+
+func (s NoopZipper) Flush() error {
+	return nil
+}
+
+func (s NoopZipper) Close() error {
+	return nil
+}
+
+func NewNoopZipper(output *bytes.Buffer) NoopZipper {
+	return NoopZipper{}
 }

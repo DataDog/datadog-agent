@@ -6,6 +6,10 @@
 package compression
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compression "github.com/DataDog/datadog-agent/pkg/serializer/compression/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -13,6 +17,8 @@ import (
 
 const ZlibKind = "zlib"
 const ZstdKind = "zstd"
+const ZlibEncoding = compression.ZlibEncoding
+const ZstdEncoding = compression.ZstdEncoding
 
 type Compressor interface {
 	Compress(src []byte) ([]byte, error)
@@ -25,11 +31,39 @@ func NewCompressorStrategy(cfg config.Component) Compressor {
 	kind := cfg.GetString("serializer_compressor_kind")
 	switch kind {
 	case ZlibKind:
+		fmt.Println("rz creating zlibkind")
 		return compression.NewZlibStrategy()
 	case ZstdKind:
+		fmt.Println("rz creating zstdkind")
 		return compression.NewZstdStrategy()
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
 		return compression.NewNoopStrategy()
+	}
+}
+
+// Flusher is the interface that requires the Flush function
+type flusher interface {
+	Flush() error
+}
+
+// zipper is the interface that zlib and zstd should implement
+type Zipper interface {
+	io.WriteCloser
+	flusher
+}
+
+func NewZipper(output *bytes.Buffer, cfg config.Component) Zipper {
+	kind := cfg.GetString("serializer_compressor_kind")
+	switch kind {
+	case ZlibKind:
+		fmt.Println("rz creating zlibkind zipper")
+		return compression.NewZlibZipper(output)
+	case ZstdKind:
+		fmt.Println("rz creating zstdkind zipper")
+		return compression.NewZstdZipper(output)
+	default:
+		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
+		return compression.NewNoopZipper(output)
 	}
 }

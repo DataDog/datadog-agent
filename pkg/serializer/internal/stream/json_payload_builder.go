@@ -157,7 +157,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	compressor, err := NewCompressor(
 		input, output,
 		maxPayloadSize, maxUncompressedSize,
-		header.Bytes(), footer.Bytes(), []byte(","))
+		header.Bytes(), footer.Bytes(), []byte(","), b.config)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			compressor, err = NewCompressor(
 				input, output,
 				maxPayloadSize, maxUncompressedSize,
-				header.Bytes(), footer.Bytes(), []byte(","))
+				header.Bytes(), footer.Bytes(), []byte(","), b.config)
 			if err != nil {
 				return nil, err
 			}

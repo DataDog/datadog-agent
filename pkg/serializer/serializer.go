@@ -78,12 +78,15 @@ func initExtraHeaders(s *Serializer) {
 		s.protobufExtraHeadersWithCompression.Set(k, s.protobufExtraHeaders.Get(k))
 	}
 
-	encoding := s.strategy.ContentEncoding()
+	encoding := s.Strategy.ContentEncoding()
 
 	if encoding != "" {
 		s.jsonExtraHeadersWithCompression.Set("Content-Encoding", encoding)
 		s.protobufExtraHeadersWithCompression.Set("Content-Encoding", encoding)
 	}
+
+	fmt.Println("rz initExtraHeaders json", s.jsonExtraHeadersWithCompression)
+	fmt.Println("rz initExtraHeaders proto", s.jsonExtraHeadersWithCompression)
 }
 
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
@@ -110,7 +113,7 @@ type Serializer struct {
 	orchestratorForwarder orchestratorForwarder.Component
 	config                config.Component
 
-	strategy                            compression.Compressor
+	Strategy                            compression.Compressor
 	seriesJSONPayloadBuilder            *stream.JSONPayloadBuilder
 	jsonExtraHeaders                    http.Header
 	protobufExtraHeaders                http.Header
@@ -153,7 +156,7 @@ func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestr
 		enableEventsJSONStream:              stream.Available && config.GetBool("enable_events_stream_payload_serialization"),
 		enableSketchProtobufStream:          stream.Available && config.GetBool("enable_sketch_stream_payload_serialization"),
 		hostname:                            hostName,
-		strategy:                            compression.NewCompressorStrategy(config),
+		Strategy:                            compression.NewCompressorStrategy(config),
 		jsonExtraHeaders:                    make(http.Header),
 		protobufExtraHeaders:                make(http.Header),
 		jsonExtraHeadersWithCompression:     make(http.Header),
@@ -220,7 +223,7 @@ func (s Serializer) serializePayloadProto(payload marshaler.ProtoMarshaler, comp
 }
 
 func (s Serializer) serializePayloadInternal(payload marshaler.AbstractMarshaler, compress bool, extraHeaders http.Header, marshalFct split.MarshalFct) (transaction.BytesPayloads, http.Header, error) {
-	payloads, err := split.Payloads(payload, compress, marshalFct)
+	payloads, err := split.Payloads(payload, compress, marshalFct, s.Strategy)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
 	}
@@ -412,7 +415,7 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 }
 
 func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
-	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.JSONMarshalFct)
+	mustSplit, compressedPayload, payload, err := split.CheckSizeAndSerialize(m, true, split.JSONMarshalFct, s.Strategy)
 	if err != nil {
 		return fmt.Errorf("could not determine size of metadata payload: %s", err)
 	}
@@ -443,7 +446,7 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize processes metadata payload: %s", err)
 	}
-	compressedPayload, err := s.strategy.Compress(payload)
+	compressedPayload, err := s.Strategy.Compress(payload)
 	if err != nil {
 		return fmt.Errorf("could not compress processes metadata payload: %s", err)
 	}

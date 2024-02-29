@@ -51,7 +51,7 @@ func TestCompressorSimple(t *testing.T) {
 	c, err := NewCompressor(
 		&bytes.Buffer{}, &bytes.Buffer{},
 		maxPayloadSize, maxUncompressedSize,
-		[]byte("{["), []byte("]}"), []byte(","))
+		[]byte("{["), []byte("]}"), []byte(","), mockConfig)
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
@@ -67,11 +67,12 @@ func TestCompressorSimple(t *testing.T) {
 // ErrItemTooBig is a more appropriate error code if the item cannot
 // be added to an empty compressor
 func TestCompressorAddItemErrCodeWithEmptyCompressor(t *testing.T) {
+	mockConfig := pkgconfigsetup.Conf()
 	checkAddItemErrCode := func(maxPayloadSize, maxUncompressedSize, dataLen int) {
 		c, err := NewCompressor(
 			&bytes.Buffer{}, &bytes.Buffer{},
 			maxPayloadSize, maxUncompressedSize,
-			[]byte("{["), []byte("]}"), []byte(","))
+			[]byte("{["), []byte("]}"), []byte(","), mockConfig)
 		require.NoError(t, err)
 
 		payload := strings.Repeat("A", dataLen)

@@ -21,6 +21,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -208,8 +209,10 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 
 	b.ResetTimer()
 
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.JSONMarshalFct)
+		split.Payloads(serviceChecks, true, split.JSONMarshalFct, strategy)
 	}
 }
 

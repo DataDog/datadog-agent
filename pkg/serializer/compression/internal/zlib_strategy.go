@@ -11,6 +11,8 @@ import (
 	"io"
 )
 
+const ZlibEncoding = "deflate"
+
 type ZlibStrategy struct {
 }
 
@@ -58,5 +60,9 @@ func (s *ZlibStrategy) CompressBound(sourceLen int) int {
 }
 
 func (s *ZlibStrategy) ContentEncoding() string {
-	return "deflate"
+	return ZlibEncoding
+}
+
+func NewZlibZipper(output *bytes.Buffer) *zlib.Writer {
+	return zlib.NewWriter(output)
 }
