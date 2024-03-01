@@ -544,7 +544,7 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
-    instrument_trampoline=False,
+    instrument_trampoline=True,
 ):
     """
     Build the system-probe
