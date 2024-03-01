@@ -55,20 +55,27 @@ func TestUDSDatagramReceive(t *testing.T) {
 	assert.Nil(t, err)
 	defer conn.Close()
 
+	conn.Write([]byte{})
 	conn.Write(contents0)
 	conn.Write(contents1)
 
 	select {
 	case pkts := <-packetsChannel:
-		assert.Equal(t, 2, len(pkts))
+		assert.Equal(t, 3, len(pkts))
 
 		packet := pkts[0]
+		assert.NotNil(t, packet)
+		assert.Equal(t, packet.Contents, []byte{})
+		assert.Equal(t, packet.Origin, "")
+		assert.Equal(t, packet.Source, packets.UDS)
+
+		packet = pkts[1]
 		assert.NotNil(t, packet)
 		assert.Equal(t, packet.Contents, contents0)
 		assert.Equal(t, packet.Origin, "")
 		assert.Equal(t, packet.Source, packets.UDS)
 
-		packet = pkts[1]
+		packet = pkts[2]
 		assert.NotNil(t, packet)
 		assert.Equal(t, packet.Contents, contents1)
 		assert.Equal(t, packet.Origin, "")
