@@ -9,8 +9,10 @@ package agentsidecar
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
+
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 ////////////////////////////////
@@ -19,8 +21,8 @@ import (
 //                            //
 ////////////////////////////////
 
-// ProviderIsSupported indicates whether the provider is supported by agent sidecar injection
-func ProviderIsSupported(provider string) bool {
+// providerIsSupported indicates whether the provider is supported by agent sidecar injection
+func providerIsSupported(provider string) bool {
 	switch provider {
 	case providerFargate:
 		return true
@@ -35,7 +37,7 @@ func ProviderIsSupported(provider string) bool {
 func applyProviderOverrides(container *corev1.Container) error {
 	provider := config.Datadog.GetString("admission_controller.agent_sidecar.provider")
 
-	if !ProviderIsSupported(provider) {
+	if !providerIsSupported(provider) {
 		return fmt.Errorf("unsupported provider: %v", provider)
 	}
 

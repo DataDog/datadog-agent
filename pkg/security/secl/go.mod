@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/security/secl
 
-go 1.21
+go 1.21.7
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.1
@@ -15,7 +15,6 @@ require (
 	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/spf13/cast v1.6.0
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/sys v0.17.0
 	golang.org/x/text v0.14.0
 	golang.org/x/tools v0.17.0

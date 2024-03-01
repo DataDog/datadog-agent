@@ -19,10 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -49,6 +51,7 @@ type flare struct {
 	params                Params
 	providers             []types.FlareCallback
 	collector             optional.Option[collector.Component]
+	secretResolver        secrets.Component
 }
 
 func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
@@ -56,7 +59,7 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		log:                   deps.Log,
 		config:                deps.Config,
 		params:                deps.Params,
-		providers:             deps.Providers,
+		providers:             fxutil.GetAndFilterGroup(deps.Providers),
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
 		collector:             deps.Collector,
@@ -125,7 +128,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector)
+			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.secretResolver)
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,

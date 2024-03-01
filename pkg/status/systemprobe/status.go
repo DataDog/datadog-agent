@@ -44,7 +44,7 @@ type Provider struct {
 	SocketPath string
 }
 
-// GetProvider if system probe is enabled returns status.Provider otherwise returns NoopProvider
+// GetProvider if system probe is enabled returns status.Provider otherwise returns nil
 func GetProvider(conf config.Component) status.Provider {
 	if conf.GetBool("system_probe_config.enabled") {
 		return Provider{
@@ -52,7 +52,7 @@ func GetProvider(conf config.Component) status.Provider {
 		}
 	}
 
-	return status.NoopProvider{}
+	return nil
 }
 
 //go:embed status_templates

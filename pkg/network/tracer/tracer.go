@@ -168,7 +168,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
 		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
 			tr.bpfErrorsCollector = errorsCollector
-			bpfTelemetry = tr.bpfErrorsCollector.EBPFTelemetry
+			bpfTelemetry = tr.bpfErrorsCollector.T
 		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
@@ -180,7 +180,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 	coretelemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
-	tr.conntracker, err = newConntracker(cfg, bpfTelemetry)
+	tr.conntracker, err = newConntracker(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +242,7 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -260,7 +260,7 @@ func newConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetr
 		}
 	}
 
-	if c, err = NewEBPFConntracker(cfg, bpfTelemetry); err == nil {
+	if c, err = NewEBPFConntracker(cfg); err == nil {
 		return c, nil
 	}
 

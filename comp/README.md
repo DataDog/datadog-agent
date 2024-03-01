@@ -28,15 +28,11 @@ Package api implements the "api" bundle,
 
 Package api implements the internal Agent API which exposes endpoints such as config, flare or status
 
-## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer) (Component Bundle)
+### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
 
-*Datadog Team*: windows-agent
-
-
-
-### [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer)
-
-Package apmetwtracer provides ETW events to the .Net tracer
+Package authtoken implements the creation and access to the auth_token used to communicate between Agent processes.
+This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
+auth_token file but can fetch it it's available.
 
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
@@ -150,16 +146,6 @@ Package statsd implements a component to get a statsd client.
 ### [comp/dogstatsd/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/status)
 
 Package status implements the core status component information provider interface
-
-## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
-
-*Datadog Team*: windows-agent
-
-
-
-### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
-
-Package etw provides an ETW tracing interface
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
@@ -448,6 +434,32 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
 
+### [comp/trace/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/etwtracer)
+
+*Datadog Team*: windows-agent
+
+Package etwtracer provides ETW events to the .Net tracer
+
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
 Package status implements the core status component information provider interface
+
+## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
+
+*Datadog Team*: fleet
+
+Package updater implements the updater component.
+
+### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
+
+Package localapi is the updater local api component.
+
+### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
+
+Package updater is the updater component.
+
+### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
+
+*Datadog Team*: windows-agent
+
+Package etw provides an ETW tracing interface

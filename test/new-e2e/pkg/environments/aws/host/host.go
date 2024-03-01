@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/updater"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -39,6 +40,7 @@ type ProvisionerParams struct {
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
 	installDocker     bool
+	installUpdater    bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -117,6 +119,14 @@ func WithoutFakeIntake() ProvisionerOption {
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
+		return nil
+	}
+}
+
+// WithUpdater installs the agent through the updater.
+func WithUpdater() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.installUpdater = true
 		return nil
 	}
 }
@@ -206,9 +216,25 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.FakeIntake = nil
 	}
+	if !params.installUpdater {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.Updater = nil
+	}
 
 	// Create Agent if required
-	if params.agentOptions != nil {
+	if params.installUpdater && params.agentOptions != nil {
+		updater, err := updater.NewHostUpdater(awsEnv.CommonEnvironment, host, params.agentOptions...)
+		if err != nil {
+			return err
+		}
+
+		err = updater.Export(ctx, &env.Updater.HostUpdaterOutput)
+		if err != nil {
+			return err
+		}
+		// todo: add agent once updater installs agent on bootstrap
+		env.Agent = nil
+	} else if params.agentOptions != nil {
 		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
 		if err != nil {
 			return err

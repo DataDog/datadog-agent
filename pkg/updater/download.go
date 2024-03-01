@@ -14,15 +14,20 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/tools"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	agentArchiveFileName = "agent.tar.gz"
+	archiveName                = "package.tar.gz"
+	maxArchiveSize             = 1 << 30 // 1GiB
+	maxArchiveDecompressedSize = 3 << 30 // 3GiB
 )
 
 // downloader is the downloader used by the updater to download packages.
@@ -42,6 +47,8 @@ func newDownloader(client *http.Client) *downloader {
 // It currently assumes the package is a tar.gz archive.
 func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
+
+	// Create temporary directory to download the archive
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -52,6 +59,8 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 			log.Errorf("could not cleanup temporary directory: %v", err)
 		}
 	}()
+
+	// Download archive
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pkg.URL, nil)
 	if err != nil {
 		return fmt.Errorf("could not create download request: %w", err)
@@ -61,9 +70,27 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		return fmt.Errorf("could not download package: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.ContentLength != pkg.Size {
+		return fmt.Errorf("invalid size for %s: expected %d, got %d", pkg.URL, pkg.Size, resp.ContentLength)
+	}
+
+	// Write archive on disk & check its hash while doing so
 	hashWriter := sha256.New()
-	reader := io.TeeReader(resp.Body, hashWriter)
-	archivePath := filepath.Join(tmpDir, agentArchiveFileName)
+	reader := io.TeeReader(
+		io.LimitReader(resp.Body, maxArchiveSize),
+		hashWriter,
+	)
+	archivePath := filepath.Join(tmpDir, archiveName)
+
+	// Check there is enough space to write the compressed archive
+	enoughSpace, err := tools.CheckAvailableDiskSpace(filepath.Dir(archivePath), uint64(pkg.Size))
+	if err != nil {
+		return fmt.Errorf("could not check available disk space: %w", err)
+	}
+	if !enoughSpace {
+		return fmt.Errorf("not enough disk space to download package %s version %s", pkg.Name, pkg.Version)
+	}
+
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
 		return fmt.Errorf("could not create archive file: %w", err)
@@ -79,35 +106,85 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 		return fmt.Errorf("could not decode hash: %w", err)
 	}
 	if !bytes.Equal(expectedHash, sha256) {
-		return fmt.Errorf("invalid hash for %s: expected %x, got %x", pkg.URL, pkg.SHA256, sha256)
+		return fmt.Errorf("invalid hash for %s: expected %s, got %x", pkg.URL, pkg.SHA256, sha256)
 	}
-	err = extractTarGz(archivePath, destinationPath)
+
+	// Extract the OCI archive
+	extractedArchivePath := filepath.Join(tmpDir, "archive")
+	if err := os.Mkdir(extractedArchivePath, 0755); err != nil {
+		return fmt.Errorf("could not create archive extraction directory: %w", err)
+	}
+	extractedOCIPath := filepath.Join(tmpDir, "oci")
+	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
+		return fmt.Errorf("could not create OCI extraction directory: %w", err)
+	}
+
+	err = extractTarArchive(archivePath, extractedArchivePath, compressionNone)
 	if err != nil {
 		return fmt.Errorf("could not extract archive: %w", err)
 	}
+	err = extractOCI(extractedArchivePath, extractedOCIPath)
+	if err != nil {
+		return fmt.Errorf("could not extract OCI archive: %w", err)
+	}
+
+	// Only keep the package directory /opt/datadog-packages/<package-name>/<package-version>
+	// Other files and directory in the archive are ignored
+	packageDir := filepath.Join(extractedOCIPath, defaultRepositoryPath, pkg.Name, pkg.Version)
+	err = os.Rename(packageDir, destinationPath)
+	if err != nil {
+		return fmt.Errorf("could not move package directory: %w", err)
+	}
+
 	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
 	return nil
 }
 
-// extractTarGz extracts a tar.gz archive to the given destination path.
+type compression int
+
+const (
+	compressionNone compression = iota
+	compressionGzip
+)
+
+// extractTarArchive extracts a tar archive to the given destination path
 //
-// Note on security: This function does not currently attempt to mitigate zip-slip attacks.
+// Note on security: This function does not currently attempt to fully mitigate zip-slip attacks.
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
-func extractTarGz(archivePath string, destinationPath string) error {
+func extractTarArchive(archivePath string, destinationPath string, compression compression) error {
+	// Check there is enough space to write the decompressed archive
+	// As we don't know the decompressed size of the archive, we use the maximum decompressed size
+	// as the minimum
+	enoughSpace, err := tools.CheckAvailableDiskSpace(destinationPath, uint64(maxArchiveDecompressedSize))
+	if err != nil {
+		return fmt.Errorf("could not check available disk space for: %w", err)
+	}
+	if !enoughSpace {
+		return fmt.Errorf("not enough disk space to extract archive %s to %s", archivePath, destinationPath)
+	}
+
 	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
+
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("could not open archive: %w", err)
 	}
 	defer f.Close()
-	gzr, err := gzip.NewReader(f)
-	if err != nil {
-		return fmt.Errorf("could not create gzip reader: %w", err)
+
+	var r io.Reader = f
+	switch compression {
+	case compressionGzip:
+		gzr, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("could not create gzip reader: %w", err)
+		}
+		defer gzr.Close()
+		r = gzr
 	}
-	defer gzr.Close()
-	tr := tar.NewReader(gzr)
+
+	tr := tar.NewReader(io.LimitReader(r, maxArchiveDecompressedSize))
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -116,7 +193,18 @@ func extractTarGz(archivePath string, destinationPath string) error {
 		if err != nil {
 			return fmt.Errorf("could not read tar header: %w", err)
 		}
+		if header.Name == "./" {
+			continue
+		}
+
 		target := filepath.Join(destinationPath, header.Name)
+
+		// Check for directory traversal. Note that this is more of a sanity check than a security measure.
+		if !strings.HasPrefix(target, filepath.Clean(destinationPath)+string(os.PathSeparator)) {
+			return fmt.Errorf("tar entry %s is trying to escape the destination directory", header.Name)
+		}
+
+		// Extract element depending on its type
 		switch header.Typeflag {
 		case tar.TypeDir:
 			err = os.MkdirAll(target, 0755)
@@ -124,30 +212,39 @@ func extractTarGz(archivePath string, destinationPath string) error {
 				return fmt.Errorf("could not create directory: %w", err)
 			}
 		case tar.TypeReg:
-			err = extractTarGzFile(target, tr)
+			err = extractTarFile(target, tr, os.FileMode(header.Mode))
 			if err != nil {
 				return err // already wrapped
 			}
+		case tar.TypeSymlink:
+			err = os.Symlink(header.Linkname, target)
+			if err != nil {
+				return fmt.Errorf("could not create symlink: %w", err)
+			}
+		case tar.TypeLink:
+			// we currently don't support hard links in the updater
 		default:
 			log.Warnf("Unsupported tar entry type %d for %s", header.Typeflag, header.Name)
 		}
 	}
+
 	log.Debugf("Successfully extracted archive %s to %s", archivePath, destinationPath)
 	return nil
 }
 
-// extractTarGzFile extracts a file from a tar.gz archive.
+// extractTarFile extracts a file from a tar archive.
 // It is separated from extractTarGz to ensure `defer f.Close()` is called right after the file is written.
-func extractTarGzFile(targetPath string, reader io.Reader) error {
+func extractTarFile(targetPath string, reader io.Reader, mode fs.FileMode) error {
 	err := os.MkdirAll(filepath.Dir(targetPath), 0755)
 	if err != nil {
 		return fmt.Errorf("could not create directory: %w", err)
 	}
-	f, err := os.Create(targetPath)
+	f, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(mode))
 	if err != nil {
 		return fmt.Errorf("could not create file: %w", err)
 	}
 	defer f.Close()
+
 	_, err = io.Copy(f, reader)
 	if err != nil {
 		return fmt.Errorf("could not write file: %w", err)

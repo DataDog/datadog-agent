@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/remote
 
-go 1.21
+go 1.21.7
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
@@ -19,14 +19,14 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/grpc v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/http v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/uuid v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/grpc v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/http v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/uuid v0.52.0-rc.3
 	github.com/Masterminds/semver v1.5.0
 	github.com/benbjohnson/clock v1.3.0
 	github.com/pkg/errors v0.9.1
@@ -37,7 +37,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/cache v0.52.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.52.0-rc.3 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
@@ -50,10 +50,11 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3 // indirect
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect

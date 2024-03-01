@@ -60,7 +60,7 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(p.Checks))
-	for _, c := range p.Checks {
+	for _, c := range fxutil.GetAndFilterGroup(p.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)

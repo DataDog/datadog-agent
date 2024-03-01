@@ -37,8 +37,7 @@ func newForwarder(dep dependencies) provides {
 func NewForwarder(config config.Component, log log.Component, params Params) provides {
 	if params.UseNoopForwarder {
 		return provides{
-			Comp:           NoopForwarder{},
-			StatusProvider: status.NoopInformationProvider(),
+			Comp: NoopForwarder{},
 		}
 	}
 	return provides{
@@ -49,7 +48,6 @@ func NewForwarder(config config.Component, log log.Component, params Params) pro
 
 func newMockForwarder(config config.Component, log log.Component) provides {
 	return provides{
-		Comp:           NewDefaultForwarder(config, log, NewOptions(config, log, nil)),
-		StatusProvider: status.NoopInformationProvider(),
+		Comp: NewDefaultForwarder(config, log, NewOptions(config, log, nil)),
 	}
 }
