@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	saconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -158,24 +157,6 @@ func (s *service) Run(svcctx context.Context) error {
 			}
 
 			return status.NewInformationProvider(runtimeAgent.StatusProvider()), nil
-		}),
-		fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component) (status.InformationProvider, error) {
-			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
-			if err != nil {
-				return status.NoopInformationProvider(), err
-			}
-
-			// start compliance security agent
-			complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
-			if err != nil {
-				return status.NoopInformationProvider(), err
-			}
-
-			if complianceAgent == nil {
-				return status.NoopInformationProvider(), nil
-			}
-
-			return status.NewInformationProvider(complianceAgent.StatusProvider()), nil
 		}),
 		fx.Supply(
 			status.Params{
