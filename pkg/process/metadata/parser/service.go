@@ -31,6 +31,7 @@ const (
 	javaModuleFlagShort = "-m"
 	javaSnapshotSuffix  = "-SNAPSHOT"
 	javaApachePrefix    = "org.apache."
+	dllSuffix           = ".dll"
 )
 
 var (
@@ -344,10 +345,6 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 	return "java"
 }
 
-const (
-	dllSuffix = ".dll"
-)
-
 func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, args []string) string {
 	if !se.useImprovedAlgorithm {
 		return "node"
@@ -389,7 +386,10 @@ func abs(path string, cwd string) string {
 }
 
 // parseCommandContextDotnet extracts metadata from a dotnet launcher command line
-func parseCommandContextDotnet(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
+func parseCommandContextDotnet(se *ServiceExtractor, _ *procutil.Process, args []string) string {
+	if !se.useImprovedAlgorithm {
+		return "dotnet"
+	}
 	for _, a := range args {
 		if strings.HasPrefix(a, "-") {
 			continue
