@@ -941,7 +941,7 @@ def create_msg(pipeline_id, pipeline_url, job_list):
     msg = f'''
 [Fast Unit Tests Report]
 
-Warning: On pipeline [{pipeline_id}]({pipeline_url}). At least the following jobs did not run any unit tests:
+Warning: On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not run any unit tests:
 '''
     for job in job_list:
         msg += f"  - {job}\n"
@@ -963,7 +963,9 @@ def process_unit_tests_tarballs(ctx):
         # We check if the folder contains at least one junit.xml file if not we consider no tests were executed
         junit_files = ctx.run("ls extract_folder/*.xml", hide=True, warn=True)
         if junit_files.exited != 0:
-            no_tests_executed_jobs.append(tarball.replace("junit-", "").replace(".tgz", ""))
+            no_tests_executed_jobs.append(
+                tarball.replace("junit-", "").replace(".tgz", "").replace("-repacked", "")
+            )  # We remove -repacked to have a correct job name macos
 
         ctx.run("rm -rf extract_folder")
 
