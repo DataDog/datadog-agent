@@ -16,6 +16,8 @@
 
 /* https://www.rfc-editor.org/rfc/rfc5246#page-19 6.2. Record Layer */
 
+#define TLS_MAX_PAYLOAD_LENGTH (1 << 14)
+
 // TLS record layer header structure
 typedef struct {
     __u8 content_type;
@@ -46,6 +48,19 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
     return false;
 }
 
+static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 buf_size) {
+    if (!is_valid_tls_version(hdr->version)) {
+        return false;
+    }
+
+    __u16 payload_len = bpf_ntohs(hdr->length);
+    if (payload_len > TLS_MAX_PAYLOAD_LENGTH) {
+        return false;
+    }
+
+    return true;
+}
+
 static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
     switch (msg->handshake_type) {
     case TLS_HANDSHAKE_CLIENT_HELLO:
@@ -66,7 +81,7 @@ static __always_inline bool is_tls(const char *buf, __u32 buf_size) {
     case TLS_HANDSHAKE:
         return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)));
     case TLS_APPLICATION_DATA:
-        return is_valid_tls_version(tls_record_header->version);
+        return is_valid_tls_app_data(tls_record_header, buf_size);
     }
 
     return false;
