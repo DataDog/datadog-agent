@@ -2,11 +2,6 @@
   stage: packaging
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs:
-    [
-      "agent_remote_updater-x64-a7",
-      "agent_remote_updater-arm64-a7",
-    ]
   variables:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
@@ -36,10 +31,12 @@
 
 packaging_oci_amd64:
   extends: .packaging_oci
+  needs: ["agent_remote_updater-x64-a7"]
   variables:
     PACKAGE_ARCH: amd64
 
 packaging_oci_arm64:
   extends: .packaging_oci
+  needs: ["agent_remote_updater-arm64-a7"]
   variables:
     PACKAGE_ARCH: arm64
