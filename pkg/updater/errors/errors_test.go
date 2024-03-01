@@ -22,6 +22,8 @@ func TestFrom(t *testing.T) {
 		err:  fmt.Errorf("test: test"),
 		code: ErrDownloadFailed,
 	})
+
+	assert.Nil(t, From(nil))
 }
 
 func TestWrap(t *testing.T) {

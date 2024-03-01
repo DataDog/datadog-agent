@@ -71,6 +71,10 @@ func Wrap(errCode UpdaterErrorCode, err error) error {
 
 // From returns a new UpdaterError from the given error.
 func From(err error) *UpdaterError {
+	if err == nil {
+		return nil
+	}
+
 	e, ok := err.(*UpdaterError)
 	if !ok {
 		return &UpdaterError{

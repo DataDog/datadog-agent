@@ -45,7 +45,7 @@ type Updater interface {
 
 	GetRepositoryPath() string
 	GetPackage() string
-	GetState() (*repository.State, error)
+	GetState() (*State, error)
 }
 
 type updaterImpl struct {
@@ -60,6 +60,19 @@ type updaterImpl struct {
 	rc                *remoteConfig
 	catalog           catalog
 	bootstrapVersions bootstrapVersions
+
+	taskState *TaskState
+}
+
+type State struct {
+	RepositoryState *repository.State
+	TaskState       *TaskState
+}
+
+type TaskState struct {
+	ID    string
+	State pbgo.TaskState
+	Err   *errors.UpdaterError
 }
 
 // Install installs the default version for the given package.
@@ -119,8 +132,15 @@ func (u *updaterImpl) GetPackage() string {
 }
 
 // GetState returns the state.
-func (u *updaterImpl) GetState() (*repository.State, error) {
-	return u.repository.GetState()
+func (u *updaterImpl) GetState() (*State, error) {
+	repositoryState, err := u.repository.GetState()
+	if err != nil {
+		return nil, err
+	}
+	return &State{
+		RepositoryState: repositoryState,
+		TaskState:       u.taskState,
+	}, nil
 }
 
 // Start starts remote config and the garbage collector.
@@ -244,7 +264,7 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 	if err != nil {
 		return fmt.Errorf("could not get updater state: %w", err)
 	}
-	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
+	if s.RepositoryState.Stable != request.ExpectedState.Stable || s.RepositoryState.Experiment != request.ExpectedState.Experiment {
 		u.setPackagesStateInvalid(request.ID)
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		return nil
@@ -285,48 +305,68 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 // initPackagesState sets the first value of the packages state.
 // IDLE is the default state between the updater start and the first task.
 func (u *updaterImpl) initPackagesState() {
-	state, err := u.repository.GetState()
+	u.taskState = &TaskState{
+		State: pbgo.TaskState_IDLE,
+	}
+
+	repoState, err := u.repository.GetState()
 	if err != nil {
 		log.Warnf("could not initialize packages state: %s", err)
 		return
 	}
-	u.rc.SetState(u.pkg, state, "", pbgo.TaskState_IDLE, nil)
+	u.rc.SetState(u.pkg, repoState, u.taskState)
 }
 
 // setPackagesStateTaskRunning sets the packages state to RUNNING.
 // and is called before a task starts
 func (u *updaterImpl) setPackagesStateTaskRunning(taskID string) {
-	state, err := u.repository.GetState()
+	u.taskState = &TaskState{
+		ID:    taskID,
+		State: pbgo.TaskState_RUNNING,
+	}
+
+	repoState, err := u.repository.GetState()
 	if err != nil {
 		log.Warnf("could not update packages state: %s", err)
 		return
 	}
-	u.rc.SetState(u.pkg, state, taskID, pbgo.TaskState_RUNNING, nil)
+
+	u.rc.SetState(u.pkg, repoState, u.taskState)
 }
 
 // setPackagesStateTaskFinished sets the packages state once a task is done
 // depending on the taskErr, the state will be set to DONE or ERROR
 func (u *updaterImpl) setPackagesStateTaskFinished(taskID string, taskErr error) {
-	state, err := u.repository.GetState()
+	u.taskState = &TaskState{
+		ID:    taskID,
+		State: pbgo.TaskState_DONE,
+		Err:   errors.From(taskErr),
+	}
+	if taskErr != nil {
+		u.taskState.State = pbgo.TaskState_ERROR
+	}
+
+	repoState, err := u.repository.GetState()
 	if err != nil {
 		log.Warnf("could not update packages state: %s", err)
 		return
 	}
-	taskState := pbgo.TaskState_DONE
-	if taskErr != nil {
-		taskState = pbgo.TaskState_ERROR
-	}
 
-	u.rc.SetState(u.pkg, state, taskID, taskState, errors.From(taskErr))
+	u.rc.SetState(u.pkg, repoState, u.taskState)
 }
 
 // setPackagesStateInvalid sets the packages state to INVALID,
 // if the stable or experiment version does not match the expected state
 func (u *updaterImpl) setPackagesStateInvalid(taskID string) {
+	u.taskState = &TaskState{
+		ID:    taskID,
+		State: pbgo.TaskState_INVALID_STATE,
+	}
+
 	state, err := u.repository.GetState()
 	if err != nil {
 		log.Warnf("could not update packages state: %s", err)
 		return
 	}
-	u.rc.SetState(u.pkg, state, taskID, pbgo.TaskState_INVALID_STATE, nil)
+	u.rc.SetState(u.pkg, state, u.taskState)
 }
