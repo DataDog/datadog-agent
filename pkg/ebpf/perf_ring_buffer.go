@@ -21,6 +21,8 @@ var ringPool = sync.Pool{
 	},
 }
 
+// RingBufferHandler implements EventHandler
+// this line is just a static check of the interface
 var _ EventHandler = new(RingBufferHandler)
 
 // RingBufferHandler wraps an eBPF ring buffer
