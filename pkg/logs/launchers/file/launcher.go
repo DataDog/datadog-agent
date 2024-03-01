@@ -121,6 +121,7 @@ func (s *Launcher) run() {
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	stopper := startstop.NewParallelStopper()
+	s.cleanUpRotatedTailers()
 	for _, tailer := range s.rotatedTailers {
 		stopper.Add(tailer)
 	}
