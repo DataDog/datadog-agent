@@ -123,6 +123,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			KeepSQLAlias:     conf.HasFeature("keep_sql_alias"),
 			DollarQuotedFunc: conf.HasFeature("dollar_quoted_func"),
 			Cache:            conf.HasFeature("sql_cache"),
+			ObfuscationMode:  initSqlObfuscationMode(conf),
 		},
 		ES:                   o.ES,
 		Mongo:                o.Mongo,
@@ -604,4 +605,18 @@ func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
+}
+
+func initSqlObfuscationMode(conf *AgentConfig) obfuscate.ObfuscationMode {
+	var sqlObfuscationMode obfuscate.ObfuscationMode
+	// if sql obfuscation mode is set to "obfuscate_and_normalize" or "obfuscate_only"
+	// SQL statements will be obfuscated using go-sqllexer
+	if conf.HasFeature("sql_obfuscate_and_normalize") {
+		sqlObfuscationMode = obfuscate.ObfuscateAndNormalize
+	} else if conf.HasFeature("sql_obfuscate_only") {
+		sqlObfuscationMode = obfuscate.ObfuscateOnly
+	} else {
+		sqlObfuscationMode = ""
+	}
+	return sqlObfuscationMode
 }

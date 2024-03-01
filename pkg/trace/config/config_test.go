@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,4 +32,40 @@ func TestInAzureAppServices(t *testing.T) {
 	assert.True(t, isLinuxAzure)
 	assert.True(t, isWindowsAzure)
 	assert.False(t, isNotAzure)
+}
+
+func TestInitSqlObfuscationMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		conf     *AgentConfig
+		expected obfuscate.ObfuscationMode
+	}{
+		{
+			name: "obfuscate_and_normalize",
+			conf: &AgentConfig{
+				Features: map[string]struct{}{"sql_obfuscate_and_normalize": {}},
+			},
+			expected: obfuscate.ObfuscateAndNormalize,
+		},
+		{
+			name: "obfuscate_only",
+			conf: &AgentConfig{
+				Features: map[string]struct{}{"sql_obfuscate_only": {}},
+			},
+			expected: obfuscate.ObfuscateOnly,
+		},
+		{
+			name: "default",
+			conf: &AgentConfig{
+				Features: map[string]struct{}{},
+			},
+			expected: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sqlObfuscateMode := initSqlObfuscationMode(tt.conf)
+			assert.Equal(t, tt.expected, sqlObfuscateMode)
+		})
+	}
 }
