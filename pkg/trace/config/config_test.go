@@ -34,7 +34,7 @@ func TestInAzureAppServices(t *testing.T) {
 	assert.False(t, isNotAzure)
 }
 
-func TestInitSqlObfuscationMode(t *testing.T) {
+func TestInitSQLObfuscationMode(t *testing.T) {
 	tests := []struct {
 		name     string
 		conf     *AgentConfig
@@ -64,7 +64,7 @@ func TestInitSqlObfuscationMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sqlObfuscateMode := initSqlObfuscationMode(tt.conf)
+			sqlObfuscateMode := initSQLObfuscationMode(tt.conf)
 			assert.Equal(t, tt.expected, sqlObfuscateMode)
 		})
 	}
