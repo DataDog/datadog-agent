@@ -288,8 +288,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 
 	cfg := testConfig()
 	cfg.ProtocolClassificationEnabled = true
-	cfg.CollectTCPv4Conns = true
-	cfg.CollectTCPv6Conns = true
+	cfg.BPFDebug = true
+
 	if !classificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
 	}
