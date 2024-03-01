@@ -67,7 +67,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		}
 		tmpDir = dir
 		selfTests = []SelfTest{
-			&WindowsCreateSelfTest{filename: name},
+			&WindowsCreateFileSelfTest{filename: name},
 		}
 	}
 

@@ -18,15 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WindowsCreateSelfTest defines a windows create file self test
-type WindowsCreateSelfTest struct {
+// WindowsCreateFileSelfTest defines a windows create file self test
+type WindowsCreateFileSelfTest struct {
 	ruleID    eval.RuleID
 	isSuccess bool
 	filename  string
 }
 
 // GetRuleDefinition returns the rule
-func (o *WindowsCreateSelfTest) GetRuleDefinition() *rules.RuleDefinition {
+func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
 
 	return &rules.RuleDefinition{
@@ -36,7 +36,7 @@ func (o *WindowsCreateSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *WindowsCreateSelfTest) GenerateEvent() error {
+func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 	o.isSuccess = false
 	psCommand := fmt.Sprint(`New-Item -Path "%s" -ItemType File`, o.filename)
 
@@ -49,11 +49,11 @@ func (o *WindowsCreateSelfTest) GenerateEvent() error {
 }
 
 // HandleEvent handles self test events
-func (o *WindowsCreateSelfTest) HandleEvent(event selfTestEvent) {
+func (o *WindowsCreateFileSelfTest) HandleEvent(event selfTestEvent) {
 	o.isSuccess = event.RuleID == o.ruleID
 }
 
 // IsSuccess return the state of the test
-func (o *WindowsCreateSelfTest) IsSuccess() bool {
+func (o *WindowsCreateFileSelfTest) IsSuccess() bool {
 	return o.isSuccess
 }
