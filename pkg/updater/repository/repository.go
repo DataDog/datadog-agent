@@ -9,12 +9,14 @@ package repository
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -71,6 +73,16 @@ func (s *State) HasStable() bool {
 // HasExperiment returns true if the repository has an experiment package.
 func (s *State) HasExperiment() bool {
 	return s.Experiment != ""
+}
+
+// StableFS returns the stable package fs.
+func (r *Repository) StableFS() fs.FS {
+	return os.DirFS(filepath.Join(r.RootPath, stableVersionLink))
+}
+
+// ExperimentFS returns the experiment package fs.
+func (r *Repository) ExperimentFS() fs.FS {
+	return os.DirFS(filepath.Join(r.RootPath, experimentVersionLink))
 }
 
 // GetState returns the state of the repository.

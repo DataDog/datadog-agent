@@ -64,7 +64,7 @@ func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
 }
 
 func bootstrap(ctx context.Context, params *cliParams) error {
-	err := updater.Install(ctx, params.Package)
+	err := updater.Bootstrap(ctx, params.Package)
 	if err != nil {
 		return fmt.Errorf("could not install package: %w", err)
 	}
