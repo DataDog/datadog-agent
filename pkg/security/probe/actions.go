@@ -12,7 +12,6 @@ package probe
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -74,11 +73,4 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 	}
 
 	return utils.MarshalEasyJSON(jk)
-}
-
-// Type returns the type of the action report
-func (k *KillActionReport) Type() string {
-	k.RLock()
-	defer k.RUnlock()
-	return fmt.Sprintf("%s_%s", rules.KillAction, k.Scope)
 }

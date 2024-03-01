@@ -3,9 +3,6 @@ on:
   pull_request:
     types:
       - labeled
-  push:
-    branches:
-      - mq-working-branch-*
   workflow_dispatch:
     inputs:
       pr_number:
@@ -29,11 +26,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: ".go-version"
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.9.12"
           cache: "pip"

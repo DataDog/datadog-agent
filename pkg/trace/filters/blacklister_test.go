@@ -34,6 +34,7 @@ func TestBlacklister(t *testing.T) {
 		{[]string{"\\[123"}, "[123", false},
 		{[]string{"ABC+", "W+"}, "ABCCCC", false},
 		{[]string{"ABC+", "W+"}, "WWW", false},
+		{[]string{".*"}, "foo", false},
 	}
 
 	for _, test := range tests {
