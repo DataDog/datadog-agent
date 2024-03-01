@@ -60,7 +60,7 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 		SelfTests: a.selfTester.GetStatus(),
 	}
 
-	apiStatus.RuleSetStatus = &a.ruleSetStatus
+	apiStatus.PoliciesStatus = a.policiesStatus
 
 	return apiStatus, nil
 }
