@@ -208,9 +208,9 @@ github.com/google/flatbuffers: Copyright (c) 2014 Google
 github.com/gocomply/scap: "CC0 1.0 Universal"
 github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
 github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
-github.com/jinroh/go-nbd: Copyright (c) 2023-2024 Felicitas Pojtinger
 github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
 github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
+github.com/jinroh/go-nbd: Copyright (c) 2023-2024 Felicitas Pojtinger
 
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
