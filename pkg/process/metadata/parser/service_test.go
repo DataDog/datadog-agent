@@ -17,6 +17,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
 		name               string
 		cmdline            []string
+		useImprovedAlgos   bool
 		expectedServiceTag string
 	}{
 		{
@@ -213,6 +214,40 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:myservice-core",
 		},
+		{
+			name: "node js with advanced guess disabled",
+			cmdline: []string{
+				"/usr/bin/node",
+				"--require",
+				"/private/node-patches_legacy/register.js",
+				"--preserve-symlinks-main",
+				"--",
+				"/somewhere/index.js",
+			},
+			expectedServiceTag: "process_context:node",
+		},
+		{
+			name:             "node js with advanced guess enabled with a broken package.json",
+			useImprovedAlgos: true,
+			cmdline: []string{
+				"/usr/bin/node",
+				"./nodejs/testData/inner/index.js",
+			},
+			expectedServiceTag: "process_context:node",
+		},
+		{
+			name:             "node js with advanced guess enabled and found a valid package.json",
+			useImprovedAlgos: true,
+			cmdline: []string{
+				"/usr/bin/node",
+				"--require",
+				"/private/node-patches_legacy/register.js",
+				"--preserve-symlinks-main",
+				"--",
+				"./nodejs/testData/index.js",
+			},
+			expectedServiceTag: "process_context:my-awesome-package",
+		},
 	}
 
 	for _, tt := range tests {
@@ -224,7 +259,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 			serviceExtractorEnabled := true
 			useWindowsServiceName := true
-			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+			useImprovedAlgorithm := true
+			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -239,7 +275,8 @@ func TestExtractServiceMetadataDisabled(t *testing.T) {
 	procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 	serviceExtractorEnabled := false
 	useWindowsServiceName := false
-	se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := false
+	se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	se.Extract(procsByPid)
 	assert.Empty(t, se.GetServiceContext(proc.Pid))
 }
