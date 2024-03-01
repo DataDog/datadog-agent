@@ -21,11 +21,11 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/asm"
 )
 
 // stats holds the value of a verifier statistics and a regular expression
@@ -117,21 +117,14 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 			}
 		}
 
-		// replace telemetry patch points with nops
-		// r1 = r1
-		newIns := asm.Mov.Reg(asm.R1, asm.R1)
-		for _, p := range collectionSpec.Programs {
-			ins := p.Instructions
-
-			// patch telemetry helper calls
-			const ebpfTelemetryPatchCall = -1
-			iter := ins.Iterate()
-			for iter.Next() {
-				ins := iter.Ins
-				if !ins.IsBuiltinCall() || ins.Constant != ebpfTelemetryPatchCall {
-					continue
-				}
-				*ins = newIns.WithMetadata(ins.Metadata)
+		instrumented, err := telemetry.ELFBuiltWithInstrumentation(bc)
+		if err != nil {
+			return fmt.Errorf("unable to determine if instrumentation enabled: %w", err)
+		}
+		if instrumented {
+			log.Printf("File %s is instrumented\n", file)
+			if err := telemetry.PatchEBPFInstrumentation(collectionSpec.Programs, telemetry.NewEBPFTelemetry(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")), bc, func(_ string) bool { return kversion < kernel.VersionCode(4, 14, 0) }); err != nil {
+				return err
 			}
 		}
 

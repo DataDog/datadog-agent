@@ -74,13 +74,21 @@ var errorsTelemetry *EBPFTelemetry
 
 // newEBPFTelemetry initializes a new EBPFTelemetry object
 func newEBPFTelemetry(bpfDir string) *EBPFTelemetry {
-	errorsTelemetry := &EBPFTelemetry{
+	errorsTelemetry = &EBPFTelemetry{
 		mapKeys:   make(map[string]uint32),
 		probeKeys: make(map[string]uint32),
 		bpfDir:    bpfDir,
 	}
 
 	return errorsTelemetry
+}
+
+func NewEBPFTelemetry(bpfDir string) *EBPFTelemetry {
+	return &EBPFTelemetry{
+		mapKeys:   make(map[string]uint32),
+		probeKeys: make(map[string]uint32),
+		bpfDir:    bpfDir,
+	}
 }
 
 // taken from: https://github.com/cilium/ebpf/blob/main/asm/opcode.go#L109
@@ -95,21 +103,14 @@ func countRawBPFIns(ins *asm.Instruction) int {
 // initializeProbeKeys assignes an integer key to each probe in the manager.
 // This key is the index in the array at which telemetry for this probe is kept
 // See pkg/ebpf/c/telemetry_types.h for the definition of the struct holding telemetry
-func initializeProbeKeys(m *manager.Manager, bpfTelemetry *EBPFTelemetry) error {
+func initializeProbeKeys(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry) {
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
 
-	progs, err := m.GetProgramSpecs()
-	if err != nil {
-		return fmt.Errorf("failed to get program specs: %w", err)
-	}
-
-	for fn, _ := range progs {
+	for fn, _ := range programs {
 		bpfTelemetry.probeKeys[fn] = bpfTelemetry.probeIndex
 		bpfTelemetry.probeIndex++
 	}
-
-	return nil
 }
 
 func patchConstant(ins asm.Instructions, symbol string, constant int64) error {
@@ -128,21 +129,23 @@ func patchConstant(ins asm.Instructions, symbol string, constant int64) error {
 }
 
 func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
-	if err := initializeProbeKeys(m, bpfTelemetry); err != nil {
-		return err
-	}
-
-	progs, err := m.GetProgramSpecs()
+	programs, err := m.GetProgramSpecs()
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to get program specs: %w", err)
 	}
 
-	sizes, err := parseStackSizesSections(bytecode, progs)
+	return PatchEBPFInstrumentation(programs, bpfTelemetry, bytecode, shouldSkip)
+}
+
+func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
+	initializeProbeKeys(programs, bpfTelemetry)
+
+	sizes, err := parseStackSizesSections(bytecode, programs)
 	if err != nil {
 		return fmt.Errorf("failed to parse '.stack_sizes' section in file: %w", err)
 	}
 
-	for fn, p := range progs {
+	for fn, p := range programs {
 		space := sizes.stackHas8BytesFree(fn)
 		// return error if there is not enough stack space to cache the pointer to the telemetry array
 		// if the program is intended to be skipped then we continue since we still need to patch a nop
@@ -150,7 +153,7 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			return fmt.Errorf("Function %s does not have enough free stack space for instrumentation", fn)
 		}
 
-		// when building ebpf programs with instrumentation, we specify the `-pg` compiler flag. This isntruments
+		// when building ebpf programs with instrumentation, we specify the `-pg` compiler flag. This instruments
 		// a call -1 in the beginning of the bytecode sequence. This 'call -1' is referred to as the
 		// trampoline call or patch point.
 		const ebpfEntryTrampolinePatchCall = -1
@@ -305,7 +308,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
 
-	instrumented, err := elfBuiltWithInstrumentation(bytecode)
+	instrumented, err := ELFBuiltWithInstrumentation(bytecode)
 	if err != nil {
 		return fmt.Errorf("error determing if instrumentation is enabled: %w", err)
 	}
@@ -391,7 +394,7 @@ func ebpfTelemetrySupported() (bool, error) {
 	return kversion >= kernel.VersionCode(4, 14, 0), nil
 }
 
-func elfBuiltWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
+func ELFBuiltWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
 	objFile, err := elf.NewFile(bytecode)
 	if err != nil {
 		return false, fmt.Errorf("failed to open elf file: %w", err)

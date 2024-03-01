@@ -15,7 +15,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_cws_object_files, build_object_files, is_root
+from .system_probe import build_cws_object_files, build_object_files, is_root, EMBEDDED_SHARE_DIR
 
 headers = [
     "Filename/Program",
@@ -107,16 +107,16 @@ def print_verification_stats(
     debug_build=False,
     filter_file=None,
     grep=None,
+    instrument_trampoline=True,
 ):
     sudo = "sudo -E" if not is_root() else ""
     if not skip_object_files:
-        build_object_files(ctx)
+        build_object_files(ctx, instrument_trampoline=instrument_trampoline)
         build_cws_object_files(ctx)
 
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
-    env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
-
+    env = {"DD_SYSTEM_PROBE_BPF_DIR": EMBEDDED_SHARE_DIR}
     # ensure all files are object files
     for f in filter_file:
         _, ext = os.path.splitext(f)
