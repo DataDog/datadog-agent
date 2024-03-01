@@ -127,7 +127,7 @@ exit $LASTEXITCODE
             else:
                 coverage_script = f"""#!/usr/bin/env bash
 set -eu
-go test "${{{{@:2}}}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {self.packages}
+go test "${{@:2}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {self.packages}
 """
             with open(self.cov_test_path, 'w', encoding='utf-8') as f:
                 f.write(coverage_script)
