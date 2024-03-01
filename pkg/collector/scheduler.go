@@ -206,10 +206,9 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 				checks = append(checks, c)
 				break
-			} else {
-				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-				errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
 			}
+			errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+			errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
 		}
 
 		if len(errors) == numLoaders {
