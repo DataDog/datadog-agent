@@ -185,24 +185,29 @@ kernel_matrix_testing_run_security_agent_tests_arm64:
           - "centos_79"
         TEST_SET: ["all_tests"]
 
-kernel_matrix_testing_security_agent_cleanup_arm64:
+.kernel_matrix_testing_security_agent_cleanup:
   extends:
     - .kernel_matrix_testing_cleanup
+  rules: !reference [.on_security_agent_changes_or_manual]
+  variables:
+    TEST_COMPONENT: security-agent
+
+kernel_matrix_testing_security_agent_cleanup_arm64:
+  extends:
+    - .kernel_matrix_testing_security_agent_cleanup
   needs:
     - kernel_matrix_testing_setup_env_security_agent_arm64
     - kernel_matrix_testing_run_security_agent_tests_arm64
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
-    TEST_COMPONENT: security-agent
 
 kernel_matrix_testing_security_agent_cleanup_x64:
   extends:
-    - .kernel_matrix_testing_cleanup
+    - .kernel_matrix_testing_security_agent_cleanup
   needs:
     - kernel_matrix_testing_setup_env_security_agent_x64
     - kernel_matrix_testing_run_security_agent_tests_x64
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
-    TEST_COMPONENT: security-agent
