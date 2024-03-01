@@ -185,31 +185,21 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 	log.Infof("Updater: Starting experiment for package %s version %s", u.pkg, version)
 	experimentPackage, ok := u.catalog.getPackage(u.pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return errors.Wrap(
-			errors.ErrPackageNotFound,
-			fmt.Errorf("could not get package %s, %s for %s, %s", u.pkg, version, runtime.GOARCH, runtime.GOOS),
-		)
+		return fmt.Errorf("could not get package %s, %s for %s, %s", u.pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
-		// Purposefully not wrapped, this will be refactored
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 	pkgDir := path.Join(tmpDir, "pkg")
 	err = u.downloader.Download(ctx, experimentPackage, pkgDir)
 	if err != nil {
-		return errors.Wrap(
-			errors.ErrDownloadFailed,
-			fmt.Errorf("could not download package: %w", err),
-		)
+		return fmt.Errorf("could not download package: %w", err)
 	}
 	err = u.repository.SetExperiment(experimentPackage.Version, pkgDir)
 	if err != nil {
-		return errors.Wrap(
-			errors.ErrUpdateExperimentFailed,
-			fmt.Errorf("could not set experiment: %w", err),
-		)
+		return fmt.Errorf("could not set experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
 	return nil
@@ -222,10 +212,7 @@ func (u *updaterImpl) PromoteExperiment() error {
 	log.Infof("Updater: Promoting experiment for package %s", u.pkg)
 	err := u.repository.PromoteExperiment()
 	if err != nil {
-		return errors.Wrap(
-			errors.ErrUpdateExperimentFailed,
-			fmt.Errorf("could not promote experiment: %w", err),
-		)
+		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully promoted experiment for package %s", u.pkg)
 	return nil
@@ -238,10 +225,7 @@ func (u *updaterImpl) StopExperiment() error {
 	log.Infof("Updater: Stopping experiment for package %s", u.pkg)
 	err := u.repository.DeleteExperiment()
 	if err != nil {
-		return errors.Wrap(
-			errors.ErrUpdateExperimentFailed,
-			fmt.Errorf("could not set stable: %w", err),
-		)
+		return fmt.Errorf("could not set stable: %w", err)
 	}
 	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
 	return nil
