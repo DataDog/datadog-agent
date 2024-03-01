@@ -23,21 +23,6 @@ type remoteConfigClient interface {
 	SetUpdaterPackagesState(packages []*pbgo.PackageState)
 }
 
-type noopRemoteConfigClient struct {
-}
-
-func (c *noopRemoteConfigClient) Start() {
-}
-
-func (c *noopRemoteConfigClient) Close() {
-}
-
-func (c *noopRemoteConfigClient) Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
-}
-
-func (c *noopRemoteConfigClient) SetUpdaterPackagesState(packages []*pbgo.PackageState) {
-}
-
 type remoteConfig struct {
 	client remoteConfigClient
 }
@@ -56,11 +41,14 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 }
 
 func newNoopRemoteConfig() *remoteConfig {
-	return &remoteConfig{client: &noopRemoteConfigClient{}}
+	return &remoteConfig{}
 }
 
 // Start starts the remote config client.
 func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate))
 	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	rc.client.Start()
@@ -68,11 +56,17 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 
 // Close closes the remote config client.
 func (rc *remoteConfig) Close() {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Close()
 }
 
 // SetState sets the state of the given package.
 func (rc *remoteConfig) SetState(pkg string, state *repository.State) {
+	if rc.client == nil {
+		return
+	}
 	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
 		{
 			Package:           pkg,

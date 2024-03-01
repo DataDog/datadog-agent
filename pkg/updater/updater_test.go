@@ -10,12 +10,13 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 )
 
 type testRemoteConfigClient struct {
@@ -38,7 +39,7 @@ func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[st
 	c.listeners[product] = append(c.listeners[product], client.Handler(fn))
 }
 
-func (c *testRemoteConfigClient) SetUpdaterPackagesState(packages []*pbgo.PackageState) {
+func (c *testRemoteConfigClient) SetUpdaterPackagesState(_ []*pbgo.PackageState) {
 }
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
