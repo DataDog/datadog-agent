@@ -570,9 +570,7 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         }
 
         // We are not checking for frame splits in the previous condition due to a verifier issue.
-        if (is_headers_or_rst_frame || is_data_end_of_stream) {
-            check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame);
-        }
+        check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame);
 
         skb_info->data_off += current_frame.length;
 
@@ -658,8 +656,8 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
 
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
+    check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
-        check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame);
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = dispatcher_args_copy.skb_info.data_off;
         iteration_value->frames_count = 1;
@@ -971,6 +969,12 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             continue;
         }
 
+        if (is_rst) {
+            __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
+        } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+            __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
+        }
+
         http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
         // A new stream must start with a request, so if it does not exist, we should not process it.
         current_stream = bpf_map_lookup_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
@@ -986,11 +990,6 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             continue;
         }
 
-        if (is_rst) {
-            __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
-        } else if ((current_frame.frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-            __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
-        }
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
 
         // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
