@@ -131,7 +131,6 @@ go test "${{@:2}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXX
 """
             with open(self.cov_test_path, 'w', encoding='utf-8') as f:
                 f.write(coverage_script)
-                print("Coverage Script:\n", coverage_script)
 
             with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
                 f.write(

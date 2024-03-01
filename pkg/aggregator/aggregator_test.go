@@ -696,7 +696,3 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		Demultiplexer: InitAndStartAgentDemultiplexerForTest(deps, opts, ""),
 	}
 }
-
-func TestCodecovFail3(t *testing.T) {
-	assert.True(t, false)
-}
