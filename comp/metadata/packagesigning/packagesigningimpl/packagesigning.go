@@ -110,7 +110,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
 	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)
-	provider := runnerimpl.NewEmptyProvider()
+	var provider runnerimpl.Provider
 	if runtime.GOOS == "linux" {
 		if getPkgManager() != "" {
 			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)

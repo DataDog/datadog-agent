@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -60,16 +61,9 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		log:          deps.Log,
 		config:       deps.Config,
 		params:       deps.Params,
+		providers:    fxutil.GetAndFilterGroup(deps.Providers),
 		invAgent:     deps.InvAgent,
 		diagnoseDeps: diagnoseDeps,
-	}
-
-	// We filder nil elements from the providers list. FX doesn't filter nil elements from groups and some
-	// components register a provider conditionally.
-	for _, p := range deps.Providers {
-		if p != nil {
-			f.providers = append(f.providers, p)
-		}
 	}
 
 	rcListener := rcclient.TaskListenerProvider{
