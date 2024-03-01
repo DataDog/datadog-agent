@@ -132,7 +132,6 @@ func sendResult(requestID string, result *sbom.ScanResult, collector collectors.
 }
 
 // startCacheCleaner periodically cleans the SBOM cache of all collectors
-// On shutdown, it also shutdowns the scanQueue.
 func (s *Scanner) startCacheCleaner(ctx context.Context) {
 	cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache.clean_interval"))
 	defer func() {
@@ -143,7 +142,6 @@ func (s *Scanner) startCacheCleaner(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				s.scanQueue.ShutDown()
 				return
 			case <-cleanTicker.C:
 				s.cacheMutex.Lock()
@@ -169,6 +167,10 @@ func (s *Scanner) start(ctx context.Context) {
 }
 
 func (s *Scanner) startScanRequestHandler(ctx context.Context) {
+	go func() {
+		<-ctx.Done()
+		s.scanQueue.ShutDown()
+	}()
 	go func() {
 		for {
 			r, shutdown := s.scanQueue.Get()
