@@ -39,10 +39,10 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 	o.isSuccess = false
 	psCommand := fmt.Sprint(`New-Item -Path "%s" -ItemType File`, o.filename)
-
+	fmt.Println("------------Command--------", psCommand)
 	cmd := exec.Command("powershell", "-Command", psCommand)
 	if err := cmd.Run(); err != nil {
-		log.Debugf("error running touch: %v", err)
+		log.Debugf("error running command: %v", err)
 		return err
 	}
 	return nil
@@ -50,6 +50,7 @@ func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 
 // HandleEvent handles self test events
 func (o *WindowsCreateFileSelfTest) HandleEvent(event selfTestEvent) {
+	fmt.Println("---------event.RuleID == o.ruleID---------", event.RuleID, o.ruleID)
 	o.isSuccess = event.RuleID == o.ruleID
 }
 
