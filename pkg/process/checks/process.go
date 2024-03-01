@@ -44,11 +44,12 @@ const (
 func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
 		config:           config,
 		scrubber:         procutil.NewDefaultDataScrubber(),
 		lookupIdProbe:    NewLookupIDProbe(config),
-		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName),
+		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 	}
 
 	return check
