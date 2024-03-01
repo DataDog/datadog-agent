@@ -246,8 +246,7 @@ func createProtoscopeMatcher(protoscopeDef string, s *Serializer) interface{} {
 
 func TestSendV1Events(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -273,8 +272,7 @@ func TestSendV1Events(t *testing.T) {
 func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -313,8 +311,7 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 
 func TestSendV1ServiceChecks(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -339,8 +336,7 @@ func TestSendV1ServiceChecks(t *testing.T) {
 
 func TestSendV1Series(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -367,8 +363,7 @@ func TestSendV1Series(t *testing.T) {
 
 func TestSendSeries(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -397,8 +392,7 @@ func TestSendSeries(t *testing.T) {
 
 func TestSendSketch(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -428,8 +422,7 @@ func TestSendSketch(t *testing.T) {
 func TestSendMetadata(t *testing.T) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -463,8 +456,7 @@ func TestSendMetadata(t *testing.T) {
 
 func TestSendProcessesMetadata(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},
@@ -498,8 +490,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 
 func TestSendWithDisabledKind(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: strategy.ZlibKind},
 		"zstd": {kind: strategy.ZstdKind},

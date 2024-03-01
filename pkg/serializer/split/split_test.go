@@ -52,8 +52,7 @@ func TestSplitPayloadsSeries(t *testing.T) {
 func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
@@ -192,8 +191,7 @@ func TestSplitPayloadsEvents(t *testing.T) {
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
@@ -274,8 +272,7 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},

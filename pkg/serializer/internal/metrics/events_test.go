@@ -167,8 +167,7 @@ func TestPayloadsEvents(t *testing.T) {
 
 func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
@@ -192,8 +191,7 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 
 func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
@@ -254,8 +252,7 @@ func createEvents(sourceTypeNames ...string) Events {
 func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},

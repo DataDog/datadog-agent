@@ -373,8 +373,7 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 
 func TestMarshalSplitCompress(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
@@ -407,8 +406,7 @@ func TestMarshalSplitCompress(t *testing.T) {
 
 func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
@@ -431,8 +429,7 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
@@ -456,8 +453,7 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 func TestPayloadsSeries(t *testing.T) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},

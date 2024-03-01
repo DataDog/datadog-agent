@@ -44,8 +44,7 @@ func testMetadata(t *testing.T, d *dogstatsdTest) {
 func TestReceiveAndForward(t *testing.T) {
 
 	tests := map[string]struct {
-		kind             string
-		expectedEncoding string
+		kind string
 	}{
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
