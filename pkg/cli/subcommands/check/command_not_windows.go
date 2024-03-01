@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package run
+package check
 
 import "go.uber.org/fx"
 
