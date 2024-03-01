@@ -34,6 +34,8 @@ typedef struct {
 #define TLS_HANDSHAKE_CLIENT_HELLO 0x01
 #define TLS_HANDSHAKE_SERVER_HELLO 0x02
 
+// is_valid_tls_version checks if the given version is a valid TLS version as
+// defined in the TLS specification.
 static __always_inline bool is_valid_tls_version(__u16 version) {
     switch (version) {
     case SSL_VERSION20:
@@ -48,6 +50,11 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
     return false;
 }
 
+// is_valid_tls_app_data checks if the buffer is a valid TLS Application Data
+// record header. The record header is considered valid if:
+// - the TLS version field is a known SSL/TLS version
+// - the payload length is below the maximum payload length defined in the
+//   standard.
 static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 buf_size) {
     if (!is_valid_tls_version(hdr->version)) {
         return false;
@@ -61,6 +68,10 @@ static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u3
     return true;
 }
 
+// is_tls_handshake checks if the given TLS message header is a valid TLS
+// handshake message. The message is considered valid if:
+// - The type matches CLIENT_HELLO or SERVER_HELLO
+// - The version is a known SSL/TLS version
 static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
     switch (msg->handshake_type) {
     case TLS_HANDSHAKE_CLIENT_HELLO:
@@ -71,6 +82,10 @@ static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
     return false;
 }
 
+// is_tls checks if the given buffer is a valid TLS record header. We are
+// currently checking for two types of record headers:
+// - TLS Handshake record headers
+// - TLS Application Data record headers
 static __always_inline bool is_tls(const char *buf, __u32 buf_size) {
     if (buf_size < (sizeof(tls_record_header_t) + sizeof(tls_hello_message_t))) {
         return false;
