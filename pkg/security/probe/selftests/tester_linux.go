@@ -8,7 +8,6 @@ package selftests
 
 import (
 	"os"
-	"runtime"
 	"sync"
 	"time"
 
@@ -63,15 +62,6 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	if cfg.EBPFLessEnabled {
 		selfTests = []SelfTest{
 			&EBPFLessSelfTest{},
-		}
-	} else if runtime.GOOS == "windows" {
-		name, dir, err := createTargetFile()
-		if err != nil {
-			return nil, err
-		}
-		tmpDir = dir
-		selfTests = []SelfTest{
-			&WindowsCreateSelfTest{filename: name},
 		}
 	} else {
 		name, dir, err := createTargetFile()
