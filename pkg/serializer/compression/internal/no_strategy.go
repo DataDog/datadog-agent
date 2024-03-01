@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package compression provides a set of functions for compressing with zlib / zstd
+// Package compression provides a set of functions for compressing with zlib / zstd
 package compression
 
 import (
@@ -52,12 +52,12 @@ func (s NoopZipper) Flush() error {
 	return nil
 }
 
-// Flush implements the Close method for NoopStrategy to satisfy the Zipper interface
+// Close implements the Close method for NoopStrategy to satisfy the Zipper interface
 func (s NoopZipper) Close() error {
 	return nil
 }
 
 // NewNoopZipper returns a new NoopZipper when serializer_compressor_kind is neither zlib or zstd
-func NewNoopZipper(output *bytes.Buffer) NoopZipper {
+func NewNoopZipper(_ *bytes.Buffer) NoopZipper {
 	return NoopZipper{}
 }

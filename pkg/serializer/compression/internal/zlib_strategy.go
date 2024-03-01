@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package compression provides a set of functions for compressing with zlib / zstd
+// Package compression provides a set of functions for compressing with zlib / zstd
 package compression
 
 import (
@@ -19,7 +19,7 @@ const ZlibEncoding = "deflate"
 type ZlibStrategy struct {
 }
 
-// NewZlibStragey returns a new ZlibStrategy
+// NewZlibStrategy returns a new ZlibStrategy
 func NewZlibStrategy() *ZlibStrategy {
 	return &ZlibStrategy{}
 }
