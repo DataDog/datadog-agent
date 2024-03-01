@@ -13,6 +13,7 @@ package process
 
 import (
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
@@ -46,6 +47,8 @@ func Bundle() fxutil.BundleOptions {
 		processeventscheckimpl.Module(),
 		rtcontainercheckimpl.Module(),
 		processdiscoverycheckimpl.Module(),
+
+		agentimpl.Module(),
 
 		hostinfoimpl.Module(),
 		expvarsimpl.Module(),

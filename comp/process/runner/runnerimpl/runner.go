@@ -36,7 +36,6 @@ type runnerImpl struct {
 
 type dependencies struct {
 	fx.In
-	Lc fx.Lifecycle
 
 	Submitter  submitter.Component
 	RTNotifier <-chan types.RTResponse `optional:"true"`
@@ -55,17 +54,10 @@ func newRunner(deps dependencies) (runner.Component, error) {
 	}
 	c.Submitter = deps.Submitter
 
-	runner := &runnerImpl{
+	return &runnerImpl{
 		checkRunner:    c,
 		providedChecks: checks,
-	}
-
-	deps.Lc.Append(fx.Hook{
-		OnStart: runner.Run,
-		OnStop:  runner.Stop,
-	})
-
-	return runner, nil
+	}, nil
 }
 
 func (r *runnerImpl) Run(context.Context) error {
