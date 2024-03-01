@@ -171,7 +171,7 @@ func TestTwoPayload(t *testing.T) {
 		maxPayloadSize int
 	}{
 		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 22},
-		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 20},
+		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 20}, // zstd more efficient
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
