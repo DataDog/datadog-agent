@@ -63,7 +63,7 @@ fi
 arch=$(/usr/bin/arch)
 if [ "$arch" == "arm64" ]; then
   if ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
-    echo -en "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
+    printf "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
     exit 1
   fi
 fi
