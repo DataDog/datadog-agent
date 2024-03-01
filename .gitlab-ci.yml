@@ -180,7 +180,7 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: "_test_only"
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v29249406-8336e02f
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v29315149-09ec7a92
   DATADOG_CI_UPLOADER_IMAGE: v30094440-66830d2d
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
