@@ -1574,102 +1574,106 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
     check_for_ninja(ctx)
 
-    ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
-    with open(ninja_file_path, 'w') as ninja_file:
-        nw = NinjaWriter(ninja_file, width=180)
+    with ctx.cd(source_dir):
+        ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
+        with open(ninja_file_path, 'w') as ninja_file:
+            nw = NinjaWriter(ninja_file, width=180)
 
-        nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
-        nw.rule(name="move_btf", command="mv $in $out")
-        nw.rule(name="merge_btf", command="bpftool $base_btf btf merge $out $in")
-        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $bpf_programs && rm -rf $in_dir")
-        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
+            nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
 
-        for root, dirs, files in os.walk(source_dir):
-            path_from_root = os.path.relpath(root, source_dir)
+            # these commands operate on relative input paths because of max argument size
+            nw.rule(name="move_btf", command="mv $in $out")
+            nw.rule(name="merge_btf", command="bpftool $base_btf btf merge $out $in")
 
-            for d in dirs:
-                output_subdir = os.path.join(output_dir, path_from_root, d)
-                os.makedirs(output_subdir, exist_ok=True)
+            nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $bpf_programs && rm -rf $in_dir")
+            nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
 
-            for file in files:
-                if not file.endswith(".btf.tar.xz"):
-                    continue
+            for root, dirs, files in os.walk(source_dir):
+                path_from_root = os.path.relpath(root, source_dir)
 
-                # create directory named with kernel release version
-                minimized_btf_path = os.path.normpath(
-                    os.path.join(output_dir, path_from_root, file.removesuffix(".tar.xz"))
-                )
-                btf_filename = os.path.basename(minimized_btf_path)
+                for d in dirs:
+                    output_subdir = os.path.join(output_dir, path_from_root, d)
+                    os.makedirs(output_subdir, exist_ok=True)
 
-                btf_dir = os.path.normpath(os.path.join(root, file.removesuffix(".btf.tar.xz")))
-                os.makedirs(btf_dir, exist_ok=True)
+                for file in files:
+                    if not file.endswith(".btf.tar.xz"):
+                        continue
 
-                # collect list of files in BTF archive, should be vmlinux and kernel module BTFs
-                vmlinux_file = None
-                tar_files = list()
-                with tarfile.open(os.path.join(root, file)) as txz:
-                    for m in txz.getmembers():
-                        if m.isfile():
-                            tf = os.path.normpath(os.path.join(btf_dir, m.name))
-                            tar_files.append(tf)
-                            if os.path.basename(tf) == "vmlinux":
-                                vmlinux_file = tf
+                    # create directory named with kernel release version
+                    minimized_btf_path = os.path.normpath(
+                        os.path.join(output_dir, path_from_root, file.removesuffix(".tar.xz"))
+                    )
+                    btf_filename = os.path.basename(minimized_btf_path)
 
-                if len(tar_files) == 0:
-                    print(f"tarball {file} has no files")
-                    continue
+                    btf_dir = os.path.normpath(os.path.join(path_from_root, file.removesuffix(".btf.tar.xz")))
+                    os.makedirs(os.path.abspath(btf_dir), exist_ok=True)
 
-                # extract source tarball to unique directory
-                nw.build(
-                    rule="decompress_btf",
-                    inputs=[os.path.join(root, file)],
-                    outputs=tar_files,
-                    variables={
-                        "target_directory": btf_dir,
-                    },
-                )
+                    # collect list of files in BTF archive, should be vmlinux and kernel module BTFs
+                    vmlinux_file = None
+                    tar_files = list()
+                    with tarfile.open(os.path.join(root, file)) as txz:
+                        for m in txz.getmembers():
+                            if m.isfile():
+                                tf = os.path.normpath(os.path.join(btf_dir, m.name))
+                                tar_files.append(tf)
+                                if os.path.basename(tf) == "vmlinux":
+                                    vmlinux_file = tf
 
-                # merge BTF for all files in source tarball
-                merged_btf = os.path.join(btf_dir, "merged_btf")
-                merge_rule = "merge_btf"
-                if len(tar_files) == 1:
-                    merge_rule = "move_btf"
-                else:
-                    if vmlinux_file:
-                        tar_files.remove(vmlinux_file)
+                    if len(tar_files) == 0:
+                        print(f"tarball {file} has no files")
+                        continue
 
-                nw.build(
-                    rule=merge_rule,
-                    inputs=tar_files,
-                    outputs=[merged_btf],
-                    variables={
-                        "base_btf": f"-B {vmlinux_file}" if vmlinux_file else "",
-                    },
-                )
+                    # extract source tarball to unique directory
+                    nw.build(
+                        rule="decompress_btf",
+                        inputs=[os.path.join(root, file)],
+                        outputs=tar_files,
+                        variables={
+                            "target_directory": btf_dir,
+                        },
+                    )
 
-                # minimize BTF
-                nw.build(
-                    rule="minimize_btf",
-                    inputs=[merged_btf],
-                    outputs=[minimized_btf_path],
-                    variables={
-                        "bpf_programs": bpf_programs,
-                        "in_dir": btf_dir,
-                    },
-                )
+                    # merge BTF for all files in source tarball
+                    merged_btf = os.path.join(btf_dir, "merged_btf")
+                    merge_rule = "merge_btf"
+                    if len(tar_files) == 1:
+                        merge_rule = "move_btf"
+                    else:
+                        if vmlinux_file:
+                            tar_files.remove(vmlinux_file)
 
-                # compress BTF
-                nw.build(
-                    rule="compress_minimized_btf",
-                    inputs=[minimized_btf_path],
-                    outputs=[f"{minimized_btf_path}.tar.xz"],
-                    variables={
-                        "tar_working_directory": os.path.join(output_dir, path_from_root),
-                        "rel_in": btf_filename,
-                    },
-                )
+                    nw.build(
+                        rule=merge_rule,
+                        inputs=tar_files,
+                        outputs=[merged_btf],
+                        variables={
+                            "base_btf": f"-B {vmlinux_file}" if vmlinux_file else "",
+                        },
+                    )
 
-    ctx.run(f"ninja -f {ninja_file_path}")
+                    # minimize BTF
+                    nw.build(
+                        rule="minimize_btf",
+                        inputs=[merged_btf],
+                        outputs=[minimized_btf_path],
+                        variables={
+                            "bpf_programs": bpf_programs,
+                            "in_dir": btf_dir,
+                        },
+                    )
+
+                    # compress BTF
+                    nw.build(
+                        rule="compress_minimized_btf",
+                        inputs=[minimized_btf_path],
+                        outputs=[f"{minimized_btf_path}.tar.xz"],
+                        variables={
+                            "tar_working_directory": os.path.join(output_dir, path_from_root),
+                            "rel_in": btf_filename,
+                        },
+                    )
+
+        ctx.run(f"ninja -f {ninja_file_path}")
 
 
 @task
