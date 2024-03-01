@@ -260,9 +260,7 @@ func TestSendV1Events(t *testing.T) {
 			f := &forwarder.MockedForwarder{}
 
 			s := NewSerializer(f, nil, mockConfig, "testhost")
-			fmt.Println("rz", mockConfig.GetString("serializer_compressor_kind"))
 			matcher := createJSONPayloadMatcher(`{"apiKey":"","events":{},"internalHostname"`, s)
-			fmt.Println(s.jsonExtraHeadersWithCompression)
 			f.On("SubmitV1Intake", matcher, s.jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 			err := s.SendEvents([]*event.Event{})
