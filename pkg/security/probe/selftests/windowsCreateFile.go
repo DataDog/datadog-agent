@@ -38,7 +38,7 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 // GenerateEvent generate an event
 func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 	o.isSuccess = false
-	psCommand := fmt.Sprint(`New-Item -Path "%s" -ItemType File`, o.filename)
+	psCommand := fmt.Sprintf(`New-Item -Path "%s" -ItemType File`, o.filename)
 	fmt.Println("------------Command--------", psCommand)
 	cmd := exec.Command("powershell", "-Command", psCommand)
 	if err := cmd.Run(); err != nil {
