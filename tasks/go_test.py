@@ -946,7 +946,7 @@ Warning: On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not
     for job in job_list:
         msg += f"  - {job}\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs, if you think tests should have been executed reach out #agent-platform"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-platform"
 
     return msg
 
