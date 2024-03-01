@@ -26,9 +26,13 @@ type ServerlessDogstatsd interface {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer(demux aggregator.Demultiplexer) (ServerlessDogstatsd, error) {
-	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true, demux)
+	tc, err := replay.NewServerlessTrafficCapture()
+	if err != nil {
+		return nil, err
+	}
+	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), tc, serverdebugimpl.NewServerlessServerDebug(), true, demux)
 
-	err := s.start(context.TODO())
+	err = s.start(context.TODO())
 	if err != nil {
 		return nil, err
 	}
