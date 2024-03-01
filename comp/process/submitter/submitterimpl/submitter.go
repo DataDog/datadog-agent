@@ -8,7 +8,6 @@
 package submitterimpl
 
 import (
-	"context"
 	"time"
 
 	"go.uber.org/fx"

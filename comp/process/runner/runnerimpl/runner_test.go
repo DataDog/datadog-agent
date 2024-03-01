@@ -6,6 +6,7 @@
 package runnerimpl
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -95,7 +96,12 @@ func TestRunnerRealtime(t *testing.T) {
 			processcheckimpl.Module(),
 			hostinfoimpl.MockModule(),
 			core.MockBundle(),
-		))
+
+			// starts the check runner
+			fx.Invoke(func(r runner.Component) error {
+				return r.Run(context.Background())
+			},
+			)))
 
 		rtChan <- types.RTResponse{
 			&model.CollectorStatus{
