@@ -117,19 +117,18 @@ class CodecovWorkaround:
         self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
 
     def __enter__(self):
-        coverage_script_template = ""
+        coverage_script = ""
         if self.coverage:
             if platform.system() == 'Windows':
-                coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test $($args | select -skip 1) -json -coverprofile="$tempFile" {{packages}}
+                coverage_script = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
+go test $($args | select -skip 1) -json -coverprofile="$tempFile" {self.packages}
 exit $LASTEXITCODE
 """
             else:
-                coverage_script_template = f"""#!/usr/bin/env bash
+                coverage_script = f"""#!/usr/bin/env bash
 set -eu
-go test "${{{{@:2}}}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
+go test "${{{{@:2}}}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {self.packages}
 """
-            coverage_script = coverage_script_template.format(packages=self.packages)
             with open(self.cov_test_path, 'w', encoding='utf-8') as f:
                 f.write(coverage_script)
                 print("Coverage Script:\n", coverage_script)
