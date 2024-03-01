@@ -18,9 +18,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/shirou/gopsutil/v3/disk"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,6 +37,7 @@ var (
 	// requiredDiskSpace is the required disk space to download and extract a package
 	// It is the sum of the maximum size of the extracted oci-layout and the maximum size of the datadog package
 	requiredDiskSpace = ociLayoutMaxSize + datadogPackageMaxSize
+	fsDisk            = filesystem.NewDisk()
 )
 
 // Updater is the updater used to update packages.
@@ -66,6 +67,10 @@ type updaterImpl struct {
 	rc                *remoteConfig
 	catalog           catalog
 	bootstrapVersions bootstrapVersions
+}
+
+type disk interface {
+	GetUsage(path string) (*filesystem.DiskUsage, error)
 }
 
 // Bootstrap bootstraps the default version for the given package.
@@ -157,7 +162,7 @@ func (u *updaterImpl) bootstrapStable(ctx context.Context) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(u.repository.RootPath, os.TempDir())
+	err := checkAvailableDiskSpace(fsDisk, u.repository.RootPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
@@ -189,7 +194,7 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 	defer u.m.Unlock()
 	log.Infof("Updater: Starting experiment for package %s version %s", u.pkg, version)
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(u.repository.RootPath, os.TempDir())
+	err := checkAvailableDiskSpace(fsDisk, u.repository.RootPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
@@ -296,14 +301,14 @@ func (u *updaterImpl) updatePackagesState() {
 // See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
 // On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
 // See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
-func checkAvailableDiskSpace(paths ...string) error {
+func checkAvailableDiskSpace(fsDisk disk, paths ...string) error {
 	for _, path := range paths {
-		s, err := disk.Usage(path)
+		s, err := fsDisk.GetUsage(path)
 		if err != nil {
 			return err
 		}
-		if s.Free < uint64(requiredDiskSpace) {
-			return fmt.Errorf("not enough disk space to download package: %d bytes available at %s, %d required", s.Free, path, requiredDiskSpace)
+		if s.Available < uint64(requiredDiskSpace) {
+			return fmt.Errorf("not enough disk space to download package: %d bytes available at %s, %d required", s.Available, path, requiredDiskSpace)
 		}
 	}
 	return nil
