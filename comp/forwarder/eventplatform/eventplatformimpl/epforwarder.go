@@ -155,7 +155,7 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		eventType:                     eventplatform.EventTypeNetworkPath,
 		category:                      "Network Path",
 		contentType:                   logshttp.JSONContentType,
-		endpointsConfigPrefix:         "netpath.forwarder.",
+		endpointsConfigPrefix:         "network_path.forwarder.",
 		hostnameEndpointPrefix:        "netpath-intake.",
 		intakeTrackType:               "netpath",
 		defaultBatchMaxConcurrentSend: 10,
