@@ -12,7 +12,9 @@ import (
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -49,6 +51,11 @@ func init() {
 }
 
 func TestVMSuite(t *testing.T) {
+	_, srcfile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	exPath := filepath.Dir(srcfile)
+	srcDir := path.Join(exPath, "assets")
+
 	provisioner := e2e.NewTypedPulumiProvisioner("aws-ec2-sysprobe", func(ctx *pulumi.Context, env *sysprobeEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -64,11 +71,13 @@ func TestVMSuite(t *testing.T) {
 		}
 		iisServer, err := iis.NewIISServer(ctx, awsEnv.CommonEnvironment, vm,
 			iis.WithSite(iis.IISSiteDefinition{
-				Name:        "TestSite1",
-				BindingPort: "*:8081:",
+				Name:            "TestSite1",
+				BindingPort:     "*:8081:",
+				SourceAssetsDir: srcDir,
 			}), iis.WithSite(iis.IISSiteDefinition{
-				Name:        "TestSite2",
-				BindingPort: "*:8081:",
+				Name:            "TestSite2",
+				BindingPort:     "*:8081:",
+				SourceAssetsDir: srcDir,
 			}),
 		)
 		if err != nil {

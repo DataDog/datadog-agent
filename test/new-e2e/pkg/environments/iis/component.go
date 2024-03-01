@@ -6,6 +6,7 @@
 package iis
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/config"
@@ -86,8 +87,12 @@ func NewIISServer(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote
 					ensureIISStarted,
 				}
 
-				if site.AssetsDir != "" {
-					copyAssets, err := host.OS.FileManager().CopyAbsoluteFolder(site.AssetsDir, site.AssetsDir)
+				if site.TargetAssetsDir == "" {
+					site.TargetAssetsDir = fmt.Sprintf("C:\\inetput\\%s", site.Name)
+				}
+
+				if site.SourceAssetsDir != "" {
+					copyAssets, err := host.OS.FileManager().CopyAbsoluteFolder(site.SourceAssetsDir, site.TargetAssetsDir)
 					if err != nil {
 						return err
 					}
@@ -96,7 +101,7 @@ func NewIISServer(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote
 
 				_, err = host.OS.Runner().Command(comp.namer.ResourceName("create-iis-site"), &command.Args{
 					Create: pulumi.String(powershell.PsHost().
-						NewIISSite(site.Name, site.BindingPort, site.AssetsDir).
+						NewIISSite(site.Name, site.BindingPort, site.TargetAssetsDir).
 						Compile()),
 				}, pulumi.DependsOn(dependencies))
 				if err != nil {

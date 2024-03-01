@@ -7,9 +7,10 @@ package iis
 
 // IISSiteDefinition represents an IIS site definition
 type IISSiteDefinition struct {
-	Name        string //  name of the site
-	BindingPort string // port to bind to, of the form '*:8081'
-	AssetsDir   string // directory to copy for assets
+	Name            string //  name of the site
+	BindingPort     string // port to bind to, of the form '*:8081'
+	SourceAssetsDir string // directory to copy the assets from on the local host
+	TargetAssetsDir string // directory to copy the assets to on the remote host
 }
 
 // Configuration represents the Active Directory configuration (domain name, password, users etc...)
