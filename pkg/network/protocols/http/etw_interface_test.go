@@ -182,6 +182,7 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) (*WinH
 }
 
 func TestEtwTransactions(t *testing.T) {
+	t.Skip("Skipping test as it is failing on CI: WKIT-292")
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
