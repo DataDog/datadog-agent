@@ -329,6 +329,18 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.IsParentRoot {
+		i--
+		if m.IsParentRoot {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x88
+	}
 	if len(m.PeerTags) > 0 {
 		for iNdEx := len(m.PeerTags) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.PeerTags[iNdEx])
@@ -623,6 +635,9 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 			l = len(s)
 			n += 2 + l + sov(uint64(l))
 		}
+	}
+	if m.IsParentRoot {
+		n += 3
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1915,6 +1930,26 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 			}
 			m.PeerTags = append(m.PeerTags, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
+		case 17:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field IsParentRoot", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.IsParentRoot = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
