@@ -132,15 +132,28 @@ func (s *Scanner) start(ctx context.Context) {
 				_ = log.Errorf("invalid collector '%s'", request.Collector())
 			}
 
-			if err := s.enoughDiskSpace(collector.Options()); err != nil {
-				var imgMeta *workloadmeta.ContainerImageMetadata
-				if store := workloadmeta.GetGlobalStore(); store != nil {
-					img, err := store.GetImage(request.ID())
-					if err != nil {
-						imgMeta = img
-					}
+			var imgMeta *workloadmeta.ContainerImageMetadata
+			if collector.Type() == collectors.ContainerImageScanType {
+				store := workloadmeta.GetGlobalStore()
+				// The store should never be nil as workloadmeta is emitting the scan request
+				if store == nil {
+					log.Errorf("workloadmeta store is not initialized")
+					s.scanQueue.AddRateLimited(request)
+					s.scanQueue.Done(request)
+					continue
 				}
+				img, err := store.GetImage(request.ID())
+				if err != nil || img == nil {
+					// It can happen if the image is deleted between the time it was enqueued and the time it was processed
+					log.Debugf("failed to get image metadata for image id %s: %s", request.ID(), err)
+					s.scanQueue.Forget(request)
+					s.scanQueue.Done(request)
+					continue
+				}
+				imgMeta = img
+			}
 
+			if err := s.enoughDiskSpace(collector.Options()); err != nil {
 				result := sbom.ScanResult{
 					ImgMeta: imgMeta,
 					Error:   fmt.Errorf("failed to check current disk usage: %w", err),
