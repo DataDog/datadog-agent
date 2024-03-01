@@ -1,6 +1,7 @@
 module github.com/DataDog/datadog-agent/internal/tools
 
-go 1.21.7
+go 1.22
+
 toolchain go1.22.0
 
 require (
