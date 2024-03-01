@@ -4,7 +4,7 @@
 #include "compiler.h"
 
 // ebpf_instrumentation__trampoline_handler is the target for the trampoline jump
-// This program caches a pointer to the telemetry map on the stack at offset 504 (512-8)
+// This program caches a pointer to the telemetry map on the stack at offset 512
 SEC("ebpf_instrumentation/trampoline_handler")
 int ebpf_instrumentation__trampoline_handler() {
     u64 key = 0;
