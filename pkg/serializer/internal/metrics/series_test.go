@@ -18,9 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -376,8 +378,10 @@ func TestMarshalSplitCompress(t *testing.T) {
 	require.NoError(t, err)
 	// check that we got multiple payloads, so splitting occurred
 	require.Greater(t, len(payloads), 1)
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(compressedPayload.GetContent())
+		payload, err := strategy.Decompress(compressedPayload.GetContent())
 		require.NoError(t, err)
 
 		pl := new(gogen.MetricPayload)
@@ -440,14 +444,16 @@ func TestPayloadsSeries(t *testing.T) {
 		testSeries = append(testSeries, &point)
 	}
 
+	mockConfig := pkgconfigsetup.Conf()
 	originalLength := len(testSeries)
-	builder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
+	builder := stream.NewJSONPayloadBuilder(true, mockConfig)
 	iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
 	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	require.Nil(t, err)
 	var splitSeries = []Series{}
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(compressedPayload.GetContent())
+		payload, err := strategy.Decompress(compressedPayload.GetContent())
 		require.NoError(t, err)
 
 		var s = map[string]Series{}
