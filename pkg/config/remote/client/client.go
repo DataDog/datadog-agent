@@ -74,8 +74,8 @@ type Client struct {
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
 	// when in use
-	updaterPackagesState atomic.Value // []*pbgo.PackageState
-	cwsWorkloads         atomic.Value // []string
+	updaterPackagesState *atomic.Value // []*pbgo.PackageState
+	cwsWorkloads         *atomic.Value // []string
 }
 
 // Options describes the client options
@@ -269,10 +269,10 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 
 	ctx, cloneFn := context.WithCancel(context.Background())
 
-	cwsWorkloads := atomic.Value{}
+	cwsWorkloads := &atomic.Value{}
 	cwsWorkloads.Store([]string{})
 
-	updaterPackagesState := atomic.Value{}
+	updaterPackagesState := &atomic.Value{}
 	updaterPackagesState.Store([]*pbgo.PackageState{})
 
 	return &Client{
