@@ -162,7 +162,7 @@ func (u *updaterImpl) bootstrapStable(ctx context.Context) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(fsDisk, u.repository.RootPath, os.TempDir())
+	err := checkAvailableDiskSpace(fsDisk, defaultRepositoryPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
