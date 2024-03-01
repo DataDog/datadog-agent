@@ -7,6 +7,8 @@
 package windows
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
@@ -56,9 +58,24 @@ func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
 	b.BaseSuite.SetupSuite()
 
 	var err error
-	b.AgentPackage, err = windowsAgent.GetPackageFromEnv()
+	b.AgentPackage, err = b.GetAgentPackage()
 	if err != nil {
-		b.T().Fatalf("failed to get MSI URL from env: %v", err)
+		b.T().Fatal(err)
 	}
 	b.T().Logf("Using Agent: %#v", b.AgentPackage)
+}
+
+// GetAgentPackage returns the Agent package to install.
+// This method is called automatically by SetupSuite, and only needs to be called explicitly
+// if you need to get the package before SetupSuite is called.
+func (b *BaseAgentInstallerSuite[Env]) GetAgentPackage() (*windowsAgent.Package, error) {
+	if b.AgentPackage == nil {
+		var err error
+		b.AgentPackage, err = windowsAgent.GetPackageFromEnv()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get MSI URL from env: %w", err)
+		}
+	}
+
+	return b.AgentPackage, nil
 }
