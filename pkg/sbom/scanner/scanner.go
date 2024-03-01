@@ -128,35 +128,40 @@ func sendResult(requestID string, result *sbom.ScanResult, collector collectors.
 	}
 }
 
+// startCacheCleaner periodically cleans the SBOM cache of all collectors
+// On shutdown, it also shutdowns the scanQueue.
+func (s *Scanner) startCacheCleaner(ctx context.Context) {
+	cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache.clean_interval"))
+	defer func() {
+		cleanTicker.Stop()
+		s.running = false
+	}()
+	for {
+		select {
+		case <-ctx.Done():
+			s.scanQueue.ShutDown()
+			return
+		case <-cleanTicker.C:
+			s.cacheMutex.Lock()
+			log.Debug("cleaning SBOM cache")
+			for _, collector := range collectors.Collectors {
+				if err := collector.CleanCache(); err != nil {
+					_ = log.Warnf("could not clean SBOM cache: %v", err)
+				}
+			}
+			s.cacheMutex.Unlock()
+		}
+	}
+}
+
 func (s *Scanner) start(ctx context.Context) {
 	if s.running {
 		return
 	}
-	go func() {
-		cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache.clean_interval"))
-		defer cleanTicker.Stop()
-		s.running = true
-		defer func() { s.running = false }()
-		go func() {
-			for {
-				select {
-				// We don't want to keep scanning if image channel is not empty but context is expired
-				case <-ctx.Done():
-					s.scanQueue.ShutDown()
-					return
-				case <-cleanTicker.C:
-					s.cacheMutex.Lock()
-					log.Debug("cleaning SBOM cache")
-					for _, collector := range collectors.Collectors {
-						if err := collector.CleanCache(); err != nil {
-							_ = log.Warnf("could not clean SBOM cache: %v", err)
-						}
-					}
-					s.cacheMutex.Unlock()
-				}
-			}
-		}()
+	s.running = true
+	go s.startCacheCleaner(ctx)
 
+	go func() {
 		for {
 			r, shutdown := s.scanQueue.Get()
 			if shutdown {
