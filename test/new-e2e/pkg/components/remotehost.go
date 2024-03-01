@@ -85,49 +85,58 @@ func (h *RemoteHost) MustExecute(command string, options ...ExecuteOption) strin
 
 // CopyFile copy file to the remote host
 func (h *RemoteHost) CopyFile(src string, dst string) {
+	dst = h.convertToForwardSlashOnWindows(dst)
 	err := clients.CopyFile(h.client, src, dst)
 	require.NoError(h.context.T(), err)
 }
 
 // CopyFolder copy a folder to the remote host
 func (h *RemoteHost) CopyFolder(srcFolder string, dstFolder string) {
+	dstFolder = h.convertToForwardSlashOnWindows(dstFolder)
 	err := clients.CopyFolder(h.client, srcFolder, dstFolder)
 	require.NoError(h.context.T(), err)
 }
 
 // GetFile copy file from the remote host
 func (h *RemoteHost) GetFile(src string, dst string) error {
+	src = h.convertToForwardSlashOnWindows(src)
 	return clients.GetFile(h.client, src, dst)
 }
 
 // FileExists returns true if the file exists and is a regular file and returns an error if any
 func (h *RemoteHost) FileExists(path string) (bool, error) {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.FileExists(h.client, path)
 }
 
 // ReadFile reads the content of the file, return bytes read and error if any
 func (h *RemoteHost) ReadFile(path string) ([]byte, error) {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.ReadFile(h.client, path)
 }
 
 // WriteFile write content to the file and returns the number of bytes written and error if any
 func (h *RemoteHost) WriteFile(path string, content []byte) (int64, error) {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.WriteFile(h.client, path, content)
 }
 
 // AppendFile append content to the file and returns the number of bytes written and error if any
 func (h *RemoteHost) AppendFile(os, path string, content []byte) (int64, error) {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.AppendFile(h.client, os, path, content)
 }
 
 // ReadDir returns list of directory entries in path
 func (h *RemoteHost) ReadDir(path string) ([]fs.DirEntry, error) {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.ReadDir(h.client, path)
 }
 
 // Lstat returns a FileInfo structure describing path.
 // if path is a symbolic link, the FileInfo structure describes the symbolic link.
 func (h *RemoteHost) Lstat(path string) (fs.FileInfo, error) {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.Lstat(h.client, path)
 }
 
@@ -135,18 +144,21 @@ func (h *RemoteHost) Lstat(path string) (fs.FileInfo, error) {
 // If the path is already a directory, does nothing and returns nil.
 // Otherwise returns an error if any.
 func (h *RemoteHost) MkdirAll(path string) error {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.MkdirAll(h.client, path)
 }
 
 // Remove removes the specified file or directory.
 // Returns an error if file or directory does not exist, or if the directory is not empty.
 func (h *RemoteHost) Remove(path string) error {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.Remove(h.client, path)
 }
 
 // RemoveAll recursively removes all files/folders in the specified directory.
 // Returns an error if the directory does not exist.
 func (h *RemoteHost) RemoveAll(path string) error {
+	path = h.convertToForwardSlashOnWindows(path)
 	return clients.RemoveAll(h.client, path)
 }
 
@@ -220,4 +232,17 @@ func (h *RemoteHost) buildEnvVariables(command string, envVar EnvVar) string {
 		cmd += command
 	}
 	return cmd
+}
+
+// convertToForwardSlashOnWindows replaces backslashes in the path with forward slashes for Windows remote hosts.
+// The path is unchanged for non-Windows remote hosts.
+//
+// This is necessary for remote paths because the sftp package only supports forward slashes, regardless of the local OS.
+// The Windows SSH implementation does this conversion, too. Though we have an advantage in that we can check the OSFamily.
+// https://github.com/PowerShell/openssh-portable/blob/59aba65cf2e2f423c09d12ad825c3b32a11f408f/scp.c#L636-L650
+func (h *RemoteHost) convertToForwardSlashOnWindows(path string) string {
+	if h.OSFamily == osComp.WindowsFamily {
+		return strings.ReplaceAll(path, "\\", "/")
+	}
+	return path
 }

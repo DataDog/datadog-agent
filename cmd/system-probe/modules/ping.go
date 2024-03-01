@@ -125,7 +125,7 @@ func logPingRequests(host string, client string, count int, interval int, timeou
 	args := []interface{}{host, client, count, interval, timeout, runCount, time.Since(start)}
 	msg := "Got request on /ping/%s?client_id=%s&count=%d&interval=%d&timeout=%d (count: %d): retrieved ping in %s"
 	switch {
-	case count <= 5, count%20 == 0:
+	case runCount <= 5, runCount%20 == 0:
 		log.Infof(msg, args...)
 	default:
 		log.Debugf(msg, args...)

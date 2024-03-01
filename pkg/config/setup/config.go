@@ -16,11 +16,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -678,6 +678,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("snmp_listener.min_collection_interval")
 	config.SetKnown("snmp_listener.namespace")
 	config.SetKnown("snmp_listener.use_device_id_as_hostname")
+	config.SetKnown("snmp_listener.ping")
+	config.SetKnown("snmp_listener.ping.enabled")
+	config.SetKnown("snmp_listener.ping.count")
+	config.SetKnown("snmp_listener.ping.interval")
+	config.SetKnown("snmp_listener.ping.timeout")
+	config.SetKnown("snmp_listener.ping.linux")
+	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -922,6 +929,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1426,8 +1437,8 @@ func Merge(configPaths []string, config pkgconfigmodel.Config) error {
 
 func findUnknownKeys(config pkgconfigmodel.Config) []string {
 	var unknownKeys []string
-	knownKeys := config.GetKnownKeys()
-	loadedKeys := config.AllKeys()
+	knownKeys := config.GetKnownKeysLowercased()
+	loadedKeys := config.AllKeysLowercased()
 	for _, key := range loadedKeys {
 		if _, found := knownKeys[key]; !found {
 			// Check if any subkey terminated with a '.*' wildcard is marked as known
@@ -1474,7 +1485,7 @@ func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
 		}
 	}
 
-	allKeys := config.AllKeys()
+	allKeys := config.AllKeysLowercased()
 	for _, key := range allKeys {
 		checkAndRecordString(key, fmt.Sprintf("Configuration key string '%s'", key))
 		if unknownValue := config.Get(key); unknownValue != nil {
