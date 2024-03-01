@@ -48,7 +48,7 @@ func NewIISServer(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote
 		comp.namer = e.CommonNamer.WithPrefix(comp.Name())
 		comp.host = host
 
-		installIISCommand, err := host.OS.Runner().Command(comp.namer.ResourceName("install-forest"), &command.Args{
+		installIISCommand, err := host.OS.Runner().Command(comp.namer.ResourceName("install-iis"), &command.Args{
 			Create: pulumi.String(powershell.PsHost().
 				InstallIIS().
 				Compile()),
