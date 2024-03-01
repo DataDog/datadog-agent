@@ -68,7 +68,6 @@ if [ "$arch" == "arm64" ]; then
   fi
 fi
 
-
 # Cleanup tmp files used for installation
 rm -f /tmp/install-ddagent/system-wide
 
