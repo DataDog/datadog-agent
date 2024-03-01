@@ -20,10 +20,11 @@
     - cd datadog-packages/cmd/datadog-package
     - go build .
     - mkdir -p /tmp/input
+    - export OUTPUT_FILE=$(basename -a -s .xz $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1)
     - tar xJf $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-*.tar.xz -C /tmp/input/
     - rm -f $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-*.tar.xz*
-    - ./datadog-package create --version ${PACKAGE_VERSION} --package datadog-agent --os linux --arch ${PACKAGE_ARCH} --archive --archive-path "${OMNIBUS_PACKAGE_DIR}/datadog-agent-oci-${PACKAGE_ARCH}.tar" /tmp/input/opt/datadog-packages/datadog-agent/${SIMPLE_VERSION}*/
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-oci-${PACKAGE_ARCH}.tar $S3_ARTIFACTS_URI/
+    - ./datadog-package create --version ${PACKAGE_VERSION} --package datadog-agent --os linux --arch ${PACKAGE_ARCH} --archive --archive-path "${OMNIBUS_PACKAGE_DIR}/${OUTPUT_FILE}" /tmp/input/opt/datadog-packages/datadog-agent/${SIMPLE_VERSION}*/
+    - $S3_CP_CMD ${OMNIBUS_PACKAGE_DIR}/${OUTPUT_FILE} ${S3_ARTIFACTS_URI}/
   before_script:
     - source /root/.bashrc
   artifacts:
