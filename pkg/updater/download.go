@@ -80,8 +80,7 @@ func (d *downloader) downloadFromURL(ctx context.Context, url string, sha256hash
 		io.LimitReader(resp.Body, ociLayoutArchiveMaxSize),
 		hashWriter,
 	)
-	ociLayoutArchivePath := filepath.Join(tmpDir, ociLayoutArchiveName)
-	ociLayoutArchiveFile, err := os.Create(ociLayoutArchivePath)
+	ociLayoutArchiveFile, err := os.Create(filepath.Join(tmpDir, ociLayoutArchiveName))
 	if err != nil {
 		return nil, fmt.Errorf("could not create oci layout archive: %w", err)
 	}
