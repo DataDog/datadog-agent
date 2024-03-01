@@ -13,6 +13,9 @@
 
 .linux_tests:
   stage: source_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     FLAVORS: '--flavors base'
     KUBERNETES_CPU_REQUEST: 16
@@ -155,9 +158,6 @@ lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors heroku'
