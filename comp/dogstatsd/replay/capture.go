@@ -6,6 +6,7 @@
 package replay
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"sync"
@@ -30,6 +31,7 @@ const (
 type dependencies struct {
 	fx.In
 
+	Lc     fx.Lifecycle
 	Config configComponent.Component
 }
 
@@ -50,16 +52,21 @@ func NewServerlessTrafficCapture() Component {
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
 func newTrafficCapture(deps dependencies) Component {
-	return newTrafficCaptureCompat(deps.Config)
+	tc := newTrafficCaptureCompat(deps.Config)
+	deps.Lc.Append(fx.Hook{
+		OnStart: tc.start,
+	})
+
+	return tc
 }
 
-func newTrafficCaptureCompat(cfg config.Reader) Component {
+func newTrafficCaptureCompat(cfg config.Reader) *trafficCapture {
 	return &trafficCapture{
 		config: cfg,
 	}
 }
 
-func (tc *trafficCapture) Configure() error {
+func (tc *trafficCapture) start(_ context.Context) error {
 	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
 		return fmt.Errorf("unable to instantiate capture writer")
