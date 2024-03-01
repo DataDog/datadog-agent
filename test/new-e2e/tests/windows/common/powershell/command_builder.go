@@ -65,7 +65,7 @@ func (ps *powerShellCommandBuilder) ConvertPasswordToSecureString(password strin
 
 // AddActiveDirectoryDomainServicesWindowsFeature creates a command that installs the Active Directory Domain Services feature.
 func (ps *powerShellCommandBuilder) AddActiveDirectoryDomainServicesWindowsFeature() *powerShellCommandBuilder {
-	ps.cmds = append(ps.cmds, "Add-WindowsFeature -name ad-domain-services -IncludeManagementTools")
+	ps.cmds = append(ps.cmds, "Install-WindowsFeature -Name ad-domain-services -IncludeManagementTools -Restart")
 	return ps
 }
 
@@ -147,6 +147,20 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 	ps.cmds = append(ps.cmds, fmt.Sprintf(`
 (Get-Service %s).WaitForStatus('%s', '00:01:00')
 `, serviceName, status))
+	return ps
+}
+
+// InstallIIS creates a command that installs IIS on the target machine.
+func (ps *powerShellCommandBuilder) InstallIIS() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, "Install-WindowsFeature -name Web-Server -IncludeManagementTools -Restart")
+	return ps
+}
+
+// NewIISSite creates a command that creates a new IISSite.
+func (ps *powerShellCommandBuilder) NewIISSite(siteName, bindingPort, path string) *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, fmt.Sprintf(`
+New-IISSite -Name %s -BindingInformation '%s' -PhysicalPath %s
+`, siteName, bindingPort, path))
 	return ps
 }
 
