@@ -34,16 +34,6 @@ var (
 	globalScanner *Scanner
 )
 
-// sendResult sends a ScanResult to the channel associated with the scan request.
-// This function should not be blocking
-func sendResult(id string, result *sbom.ScanResult, collector collectors.Collector) {
-	select {
-	case collector.Channel() <- *result:
-	default:
-		_ = log.Errorf("Failed to push scanner result for '%s' into channel", id)
-	}
-}
-
 // Scanner defines the scanner
 type Scanner struct {
 	startOnce sync.Once
@@ -57,12 +47,56 @@ type Scanner struct {
 	cacheMutex sync.Mutex
 }
 
+// NewScanner creates a new SBOM scanner. Call Start to start the store and its
+// collectors.
+func NewScanner() *Scanner {
+	return &Scanner{
+		scanQueue: workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseBackoff, maxBackoff)),
+		disk:      filesystem.NewDisk(),
+	}
+}
+
+// CreateGlobalScanner creates a SBOM scanner, sets it as the default
+// global one, and returns it. Start() needs to be called before any data
+// collection happens.
+func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
+	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
+		return nil, nil
+	}
+
+	if globalScanner != nil {
+		return nil, errors.New("global SBOM scanner already set, should only happen once")
+	}
+
+	for name, collector := range collectors.Collectors {
+		if err := collector.Init(cfg); err != nil {
+			return nil, fmt.Errorf("failed to initialize SBOM collector '%s': %w", name, err)
+		}
+	}
+
+	globalScanner = NewScanner()
+	return globalScanner, nil
+}
+
+// GetGlobalScanner returns a global instance of the SBOM scanner. It does
+// not create one if it's not already set (see CreateGlobalScanner) and returns
+// nil in that case.
+func GetGlobalScanner() *Scanner {
+	return globalScanner
+}
+
+// Start starts the scanner
+func (s *Scanner) Start(ctx context.Context) {
+	s.startOnce.Do(func() {
+		s.start(ctx)
+	})
+}
+
 // Scan enqueues a scan request to the scanner
 func (s *Scanner) Scan(request sbom.ScanRequest) error {
 	if s.scanQueue == nil {
 		return errors.New("scanner not started")
 	}
-	// TODO: For now the workqueue takes scan requests as
 	s.scanQueue.Add(request)
 	return nil
 }
@@ -82,6 +116,16 @@ func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 	}
 
 	return nil
+}
+
+// sendResult sends a ScanResult to the channel associated with the scan request.
+// This function should not be blocking
+func sendResult(requestID string, result *sbom.ScanResult, collector collectors.Collector) {
+	select {
+	case collector.Channel() <- *result:
+	default:
+		_ = log.Errorf("Failed to push scanner result for '%s' into channel", requestID)
+	}
 }
 
 func (s *Scanner) start(ctx context.Context) {
@@ -202,49 +246,4 @@ func (s *Scanner) start(ctx context.Context) {
 			collector.Shutdown()
 		}
 	}()
-}
-
-// Start starts the scanner
-func (s *Scanner) Start(ctx context.Context) {
-	s.startOnce.Do(func() {
-		s.start(ctx)
-	})
-}
-
-// NewScanner creates a new SBOM scanner. Call Start to start the store and its
-// collectors.
-func NewScanner() *Scanner {
-	return &Scanner{
-		scanQueue: workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseBackoff, maxBackoff)),
-		disk:      filesystem.NewDisk(),
-	}
-}
-
-// CreateGlobalScanner creates a SBOM scanner, sets it as the default
-// global one, and returns it. Start() needs to be called before any data
-// collection happens.
-func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
-	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
-		return nil, nil
-	}
-
-	if globalScanner != nil {
-		return nil, errors.New("global SBOM scanner already set, should only happen once")
-	}
-
-	for name, collector := range collectors.Collectors {
-		if err := collector.Init(cfg); err != nil {
-			return nil, fmt.Errorf("failed to initialize SBOM collector '%s': %w", name, err)
-		}
-	}
-
-	globalScanner = NewScanner()
-	return globalScanner, nil
-}
-
-// GetGlobalScanner returns a global instance of the SBOM scanner. It does
-// not create one if it's not already set (see CreateGlobalScanner) and returns
-// nil in that case.
-func GetGlobalScanner() *Scanner {
-	return globalScanner
 }
