@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	saconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -28,6 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -41,10 +45,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type service struct {
@@ -79,11 +87,11 @@ func (s *service) Run(svcctx context.Context) error {
 	params := &cliParams{}
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
+			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, demultiplexer demultiplexer.Component, statusComponent status.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, "", demultiplexer)
+			err := start.RunAgent(ctx, log, config, telemetry, "", demultiplexer, statusComponent)
 			if err != nil {
 				return err
 			}
@@ -128,6 +136,54 @@ func (s *service) Run(svcctx context.Context) error {
 				AgentType: catalog,
 			}
 		}),
+		fx.Provide(func() startstop.Stopper {
+			return startstop.NewSerialStopper()
+		}),
+		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
+			return statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
+		}),
+		fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
+			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+			if err != nil {
+				return status.NoopInformationProvider(), err
+			}
+
+			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
+			if err != nil {
+				return status.NoopInformationProvider(), err
+			}
+
+			if runtimeAgent == nil {
+				return status.NoopInformationProvider(), nil
+			}
+
+			return status.NewInformationProvider(runtimeAgent.StatusProvider()), nil
+		}),
+		fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component) (status.InformationProvider, error) {
+			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+			if err != nil {
+				return status.NoopInformationProvider(), err
+			}
+
+			// start compliance security agent
+			complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
+			if err != nil {
+				return status.NoopInformationProvider(), err
+			}
+
+			if complianceAgent == nil {
+				return status.NoopInformationProvider(), nil
+			}
+
+			return status.NewInformationProvider(complianceAgent.StatusProvider()), nil
+		}),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+			},
+		),
+
+		statusimpl.Module(),
 	)
 
 	return err
