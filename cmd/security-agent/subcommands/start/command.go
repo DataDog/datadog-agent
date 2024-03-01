@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type cliParams struct {
@@ -126,6 +127,47 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 					return tagger.NewTaggerParams()
 				}),
+				fx.Provide(func() startstop.Stopper {
+					return startstop.NewSerialStopper()
+				}),
+				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
+					return statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
+				}),
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
+					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+					if err != nil {
+						return status.NoopInformationProvider(), err
+					}
+
+					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
+					if err != nil {
+						return status.NoopInformationProvider(), err
+					}
+
+					if runtimeAgent == nil {
+						return status.NoopInformationProvider(), nil
+					}
+
+					return status.NewInformationProvider(runtimeAgent.StatusProvider()), nil
+				}),
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component) (status.InformationProvider, error) {
+					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+					if err != nil {
+						return status.NoopInformationProvider(), err
+					}
+
+					// start compliance security agent
+					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
+					if err != nil {
+						return status.NoopInformationProvider(), err
+					}
+
+					if complianceAgent == nil {
+						return status.NoopInformationProvider(), nil
+					}
+
+					return status.NewInformationProvider(complianceAgent.StatusProvider()), nil
+				}),
 				fx.Supply(
 					status.Params{
 						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
@@ -147,11 +189,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams, statusComponent status.Component) error {
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams, statusComponent status.Component) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, params.pidfilePath, demultiplexer, statusComponent)
+	err := RunAgent(ctx, log, config, telemetry, params.pidfilePath, demultiplexer, statusComponent)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -202,7 +244,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
+func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -260,36 +302,11 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		}
 	}()
 
-	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(ctx)
-	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
-	}
 	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
-
-	stopper = startstop.NewSerialStopper()
-
-	statsdClient, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
-	if err != nil {
-		return log.Criticalf("Error creating statsd Client: %s", err)
-	}
-
-	complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
-	if err != nil {
-		return err
-	}
 
 	if err = initRuntimeSettings(); err != nil {
 		return err
 	}
-
-	// start runtime security agent
-	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
-	if err != nil {
-		return err
-	}
-
-	statusComponent.LoadProvider(complianceAgent.StatusProvider())
-	statusComponent.LoadProvider(runtimeAgent.StatusProvider())
 
 	srv, err = api.NewServer(statusComponent)
 	if err != nil {
