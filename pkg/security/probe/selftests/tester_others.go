@@ -9,6 +9,7 @@
 package selftests
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"sync"
@@ -148,7 +149,9 @@ func (t *SelfTester) WaitForResult(timeout time.Duration, cb func(success []eval
 				return
 			case event := <-t.eventChan:
 				t.Lock()
+				fmt.Println("--------SELFTESTS----------", t.selfTests)
 				for _, selfTest := range t.selfTests {
+					fmt.Println("--------SELFTESTS STATUS----------", selfTest.IsSuccess())
 					if !selfTest.IsSuccess() {
 						selfTest.HandleEvent(event)
 					}
