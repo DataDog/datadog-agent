@@ -792,7 +792,7 @@ replace (
 
 // Temporarely use forks of trivy libraries to use lazy initialization of zap loggers.
 // Patch was pushed upstream but maintainers would prefer moving to slog once 1.22 is out
-replace github.com/aquasecurity/trivy-db => github.com/lebauce/trivy-db v0.0.0-20240228172000-42caffdaee3f
+replace github.com/aquasecurity/trivy-db => github.com/datadog/trivy-db v0.0.0-20240228172000-42caffdaee3f
 
 // Use a version of cel-go compatible with k8s.io/kubeapiserver 0.27.6
 replace github.com/google/cel-go v0.17.7 => github.com/google/cel-go v0.16.1
@@ -825,7 +825,7 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.27.6
 	k8s.io/component-base => k8s.io/component-base v0.27.6
 	// Small compilation fixes so that k8s.io/apiserver can compile against kube-openapi
-	k8s.io/kube-openapi => github.com/lebauce/kube-openapi v0.0.0-20231101162351-39b249f0ed92
+	k8s.io/kube-openapi => github.com/datadog/kube-openapi v0.0.0-20231101162351-39b249f0ed92
 	k8s.io/kubectl => k8s.io/kubectl v0.27.6
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230526173653-cf3e81b590ab
 )

@@ -97,7 +97,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 			"/lib/apk/*",
 			"/usr/lib/*",
 			"/usr/lib/sysimage/*",
-			"/var/lib/dpkg/*",
+			"/var/lib/dpkg/**",
 			"/var/lib/rpm/*",
 		}
 		if root != "" {
