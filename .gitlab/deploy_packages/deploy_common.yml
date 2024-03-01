@@ -83,7 +83,7 @@
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent*_${MAJOR_VERSION}.*${PACKAGE_ARCH}.tar" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/oci/${PACKAGE_ARCH}/"
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-oci-*${PACKAGE_ARCH}.tar" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/oci/${PACKAGE_ARCH}/"
   variables:
     MAJOR_VERSION: 7
 

@@ -26,14 +26,13 @@
     - go build .
     - mkdir -p /tmp/input
     - tar xJf $OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-*.tar.xz -C /tmp/input/
-    - mkdir -p ${CI_PROJECT_DIR}/packages_output
-    - ./datadog-package create --version ${PACKAGE_VERSION} --package datadog-agent --os linux --arch ${PACKAGE_ARCH} --archive --archive-path "${CI_PROJECT_DIR}/packages_output/datadog-agent-oci-${PACKAGE_ARCH}.tar" /tmp/input/opt/datadog-packages/datadog-agent/${SIMPLE_VESRION}*/
+    - ./datadog-package create --version ${PACKAGE_VERSION} --package datadog-agent --os linux --arch ${PACKAGE_ARCH} --archive --archive-path "${OMNIBUS_PACKAGE_DIR}/datadog-agent-oci-${PACKAGE_ARCH}.tar" /tmp/input/opt/datadog-packages/datadog-agent/${SIMPLE_VERSION}*/
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent-oci-${PACKAGE_ARCH}.tar $S3_ARTIFACTS_URI/
   before_script:
     - source /root/.bashrc
   artifacts:
     paths:
-      - ${CI_PROJECT_DIR}/packages_output/datadog-agent-oci-${PACKAGE_ARCH}.tar
-
+      - ${OMNIBUS_PACKAGE_DIR}
 
 packaging_oci_amd64:
   extends: .packaging_oci
