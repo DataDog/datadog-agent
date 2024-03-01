@@ -1,0 +1,59 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build windows
+
+// Package selftests holds selftests related files
+package selftests
+
+import (
+	"fmt"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// WindowsCreateSelfTest defines a windows create file self test
+type WindowsCreateSelfTest struct {
+	ruleID    eval.RuleID
+	isSuccess bool
+	filename  string
+}
+
+// GetRuleDefinition returns the rule
+func (o *WindowsCreateSelfTest) GetRuleDefinition() *rules.RuleDefinition {
+	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
+
+	return &rules.RuleDefinition{
+		ID:         o.ruleID,
+		Expression: fmt.Sprintf(`create.file.name == "%s"`, filepath.Base(o.filename)),
+	}
+}
+
+// GenerateEvent generate an event
+func (o *WindowsCreateSelfTest) GenerateEvent() error {
+	o.isSuccess = false
+	psCommand := fmt.Sprint(`New-Item -Path "%s" -ItemType File`, o.filename)
+
+	cmd := exec.Command("powershell", "-Command", psCommand)
+	if err := cmd.Run(); err != nil {
+		log.Debugf("error running touch: %v", err)
+		return err
+	}
+	return nil
+}
+
+// HandleEvent handles self test events
+func (o *WindowsCreateSelfTest) HandleEvent(event selfTestEvent) {
+	o.isSuccess = event.RuleID == o.ruleID
+}
+
+// IsSuccess return the state of the test
+func (o *WindowsCreateSelfTest) IsSuccess() bool {
+	return o.isSuccess
+}
