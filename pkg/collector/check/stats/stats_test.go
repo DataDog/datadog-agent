@@ -157,3 +157,7 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 func TestCodecovFail(t *testing.T) {
 	assert.True(t, false)
 }
+
+func TestCodecovFail2(t *testing.T) {
+	assert.True(t, false)
+}
