@@ -198,9 +198,8 @@ def destroy_ec2_instances(ctx, stack):
 
     infra = build_infrastructure(stack, remote_ssh_key="")
     ips = list()
-    for arch in infra:
-        instance = infra[arch]
-        if instance.arch != "local":
+    for arch, instance in infra.items():
+        if arch != "local":
             ips.append(instance.ip)
 
     if len(ips) == 0:
