@@ -275,7 +275,7 @@ inv -e kmt.stack [--stack=<name>]
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
 
 ### Testing system-probe
-KMT is inteded to easily run the testsuite across a kernel/distribuion matrix.
+KMT is intended to easily run the testsuite across a kernel/distribution matrix.
 Developers can easily run tests against VMs transparently using the provided invoke tasks.
 ```bash
 inv -e kmt.test --vms=<vms-list>

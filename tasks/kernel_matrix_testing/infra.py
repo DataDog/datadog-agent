@@ -156,7 +156,7 @@ def ssh_key_to_path(ssh_key):
 def ask_for_ssh():
     return (
         ask(
-            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]"
+            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue without a ssh key?[Y/n]"
         )
         != "y"
     )
