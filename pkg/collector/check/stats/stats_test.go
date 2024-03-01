@@ -153,3 +153,7 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	assert.True(t, assert.ObjectsAreEqual(expected, result))
 	assert.EqualValues(t, expected, result)
 }
+
+func TestCodecovFail(t *testing.T) {
+	assert.True(t, false)
+}
