@@ -41,6 +41,7 @@ type Launcher struct {
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
+	rotatedTailers      []*tailer.Tailer
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
@@ -70,6 +71,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		tailingLimit:           tailingLimit,
 		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
 		tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
+		rotatedTailers:         []*tailer.Tailer{},
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
@@ -106,6 +108,7 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
+			s.cleanUpRotatedTailers()
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
 		case <-s.stop:
@@ -118,6 +121,11 @@ func (s *Launcher) run() {
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	stopper := startstop.NewParallelStopper()
+	for _, tailer := range s.rotatedTailers {
+		stopper.Add(tailer)
+	}
+	s.rotatedTailers = []*tailer.Tailer{}
+
 	for _, tailer := range s.tailers.All() {
 		stopper.Add(tailer)
 		s.tailers.Remove(tailer)
@@ -216,6 +224,17 @@ func (s *Launcher) scan() {
 	if err == nil {
 		CheckProcessTelemetry(fileStats)
 	}
+}
+
+// cleanUpRotatedTailers removes any rotated tailers that have stopped from the list
+func (s *Launcher) cleanUpRotatedTailers() {
+	pendingTailers := []*tailer.Tailer{}
+	for _, tailer := range s.rotatedTailers {
+		if !tailer.IsFinished() {
+			pendingTailers = append(pendingTailers, tailer)
+		}
+	}
+	s.rotatedTailers = pendingTailers
 }
 
 // addSource keeps track of the new source and launch new tailers for this source.
@@ -331,17 +350,22 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
-func (s *Launcher) restartTailerAfterFileRotation(tailer *tailer.Tailer, file *tailer.File) bool {
+func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
-	tailer.StopAfterFileRotation()
-	tailer = s.createRotatedTailer(tailer, file, tailer.GetDetectedPattern())
+	oldTailer.StopAfterFileRotation()
+
+	newTailer := s.createRotatedTailer(oldTailer, file, oldTailer.GetDetectedPattern())
 	// force reading file from beginning since it has been log-rotated
-	err := tailer.StartFromBeginning()
+	err := newTailer.StartFromBeginning()
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
-	s.tailers.Add(tailer)
+
+	// Since newTailer and oldTailer share the same ID, tailers.Add will replace the old tailer.
+	// We will keep track of the rotated tailer until it is finished.
+	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+	s.tailers.Add(newTailer)
 	return true
 }
 
