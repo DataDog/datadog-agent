@@ -635,7 +635,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/common v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/compression v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.52.0-rc.3

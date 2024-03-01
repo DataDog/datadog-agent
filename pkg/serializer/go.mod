@@ -63,7 +63,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/compression v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/json v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
