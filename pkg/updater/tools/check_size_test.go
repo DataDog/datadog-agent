@@ -9,39 +9,44 @@ package tools
 import (
 	"testing"
 
-	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/stretchr/testify/assert"
 )
 
+type mockDisk struct {
+	total     uint64
+	available uint64
+}
+
+func (d mockDisk) GetUsage(path string) (*filesystem.DiskUsage, error) {
+	return &filesystem.DiskUsage{
+		Total:     d.total,
+		Available: d.available,
+	}, nil
+}
+
 func TestCheckAvailableDiskSpace(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Get the tmpDir partition size
-	s, err := disk.Usage(tmpDir)
-	assert.NoError(t, err)
-
-	// Check if the tmpDir partition has enough space to store 0 bytes
-	enough, err := CheckAvailableDiskSpace(tmpDir, 0)
+	fakeDisk := mockDisk{
+		total:     100,
+		available: 50,
+	}
+	// Check if the partition has enough space to store 0 bytes
+	enough, err := CheckAvailableDiskSpace(fakeDisk, "/", 0)
 	assert.NoError(t, err)
 	assert.True(t, enough)
 
-	// Check if the tmpDir partition has enough space to store 1 byte
-	enough, err = CheckAvailableDiskSpace(tmpDir, 1)
+	// Check if the partition has enough space to store 1 byte
+	enough, err = CheckAvailableDiskSpace(fakeDisk, "/", 1)
 	assert.NoError(t, err)
 	assert.True(t, enough)
 
-	// Check if the tmpDir partition has enough space to store the entire partition
-	enough, err = CheckAvailableDiskSpace(tmpDir, s.Free)
+	// Check if the partition has enough space to store the entire partition
+	enough, err = CheckAvailableDiskSpace(fakeDisk, "/", 50)
 	assert.NoError(t, err)
 	assert.True(t, enough)
 
-	// Check if the tmpDir partition has enough space to store the entire partition + 1 byte
-	enough, err = CheckAvailableDiskSpace(tmpDir, s.Free+1)
+	// Check if the partition has enough space to store the entire partition + 1 byte
+	enough, err = CheckAvailableDiskSpace(fakeDisk, "/", 51)
 	assert.NoError(t, err)
-	assert.False(t, enough)
-
-	// Check that a non existing dir can't be tested
-	enough, err = CheckAvailableDiskSpace("/non-existing-dir", 1)
-	assert.Error(t, err)
 	assert.False(t, enough)
 }

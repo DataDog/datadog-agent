@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/tools"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,6 +29,10 @@ const (
 	archiveName                = "package.tar.gz"
 	maxArchiveSize             = 1 << 30 // 1GiB
 	maxArchiveDecompressedSize = 3 << 30 // 3GiB
+)
+
+var (
+	fsDisk = filesystem.NewDisk()
 )
 
 // downloader is the downloader used by the updater to download packages.
@@ -83,7 +88,7 @@ func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath 
 	archivePath := filepath.Join(tmpDir, archiveName)
 
 	// Check there is enough space to write the compressed archive
-	enoughSpace, err := tools.CheckAvailableDiskSpace(filepath.Dir(archivePath), uint64(pkg.Size))
+	enoughSpace, err := tools.CheckAvailableDiskSpace(fsDisk, filepath.Dir(archivePath), uint64(pkg.Size))
 	if err != nil {
 		return fmt.Errorf("could not check available disk space: %w", err)
 	}
@@ -157,7 +162,7 @@ func extractTarArchive(archivePath string, destinationPath string, compression c
 	// Check there is enough space to write the decompressed archive
 	// As we don't know the decompressed size of the archive, we use the maximum decompressed size
 	// as the minimum
-	enoughSpace, err := tools.CheckAvailableDiskSpace(destinationPath, uint64(maxArchiveDecompressedSize))
+	enoughSpace, err := tools.CheckAvailableDiskSpace(fsDisk, destinationPath, uint64(maxArchiveDecompressedSize))
 	if err != nil {
 		return fmt.Errorf("could not check available disk space for: %w", err)
 	}
