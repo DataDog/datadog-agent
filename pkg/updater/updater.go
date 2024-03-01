@@ -260,32 +260,22 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 		}
 
 		u.setPackagesStateTaskRunning(request.ID)
-		var taskErr error
-		defer func() {
-			u.setPackagesStateTaskFinished(request.ID, taskErr)
-		}()
-
-		taskErr = u.StartExperiment(context.Background(), params.Version)
+		taskErr := u.StartExperiment(context.Background(), params.Version)
+		u.setPackagesStateTaskFinished(request.ID, taskErr)
 		return taskErr
 
 	case methodStopExperiment:
 		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, u.pkg)
 		u.setPackagesStateTaskRunning(request.ID)
-		var taskErr error
-		defer func() {
-			u.setPackagesStateTaskFinished(request.ID, taskErr)
-		}()
-		taskErr = u.StopExperiment()
+		taskErr := u.StopExperiment()
+		u.setPackagesStateTaskFinished(request.ID, taskErr)
 		return taskErr
 
 	case methodPromoteExperiment:
 		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, u.pkg)
 		u.setPackagesStateTaskRunning(request.ID)
-		var taskErr error
-		defer func() {
-			u.setPackagesStateTaskFinished(request.ID, taskErr)
-		}()
-		taskErr = u.PromoteExperiment()
+		taskErr := u.PromoteExperiment()
+		u.setPackagesStateTaskFinished(request.ID, taskErr)
 		return taskErr
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
