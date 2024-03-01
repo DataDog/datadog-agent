@@ -3,22 +3,12 @@
     {
       "name": "datadog-agent",
       "package": "datadog-agent",
-      "version": "7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1",
+      "version": "7.53.0-devel.git.142.5f0ff76.pipeline.29207608-1",
       "platform": "linux",
       "arch": "amd64",
-      "url": "https://dd-agent-macostesting.s3.amazonaws.com/oci/testing/datadog-agent_7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1_oci_amd64.tar",
-      "sha256": "2da3b539f2d2b21ab82795f4c0720d4cf74e4aa2ce6c3d3087248cdd29f67fcc",
-      "size": 373616640
-    },
-    {
-      "name": "datadog-agent",
-      "package": "datadog-agent",
-      "version": "7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1",
-      "platform": "linux",
-      "arch": "arm64",
-      "url": "https://dd-agent-macostesting.s3.amazonaws.com/oci/testing/datadog-agent_7.52.0-rc.1.git.15.6c19b17.pipeline.28815219-1_oci_arm64.tar",
-      "sha256": "68d9d0971eb35485c411e47c6f18b96be9a083978869f28dc915c942fb24099b",
-      "size": 321064960
+      "url": "https://storage.googleapis.com/updater-dev/7.53.0-devel.git.142.5f0ff76.pipeline.29207608.tar",
+      "sha256": "1648cec536615e88dd9ea13a422c735bee775c20e40a667a019c4dd0baa0dcd5",
+      "size": 231945216
     }
   ]
 }

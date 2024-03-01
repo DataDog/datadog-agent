@@ -108,7 +108,7 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
-$INSTALL_DIR/updater/bin/updater/updater bootstrap -P datadog-agent || true
+$INSTALL_DIR/updater/bin/updater/updater bootstrap -P datadog-agent
 # Bootstrap installs first agent with root ownership, overriding to dd-agent
 chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 
