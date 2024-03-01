@@ -80,7 +80,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionTraces() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-auto-version-%s", s.transport)
+	service := fmt.Sprintf("tracegen-auto-version-traces-%s", s.transport)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
@@ -91,7 +91,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
-	service := fmt.Sprintf("tracegen-auto-version-%s", s.transport)
+	service := fmt.Sprintf("tracegen-auto-version-stats-%s", s.transport)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
