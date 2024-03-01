@@ -45,7 +45,7 @@ func (w *ResourceWaiter) Wait(ctx context.Context, resourceID types.CloudID, pol
 		w.subs = make(map[types.CloudID][]waitSub)
 	}
 	w.subs[resourceID] = append(w.subs[resourceID], ch)
-	if len(w.subs) == 1 {
+	if len(w.subs[resourceID]) == 1 {
 		go func() {
 			resp, err := poller.PollUntilDone(ctx, nil)
 			if err != nil {
