@@ -191,7 +191,7 @@ def stack(_, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    infrastructure = build_infrastructure(stack)
+    infrastructure = build_infrastructure(stack, remote_ssh_key="")
     for instance in infrastructure.values():
         print(instance)
         for vm in instance.microvms:
