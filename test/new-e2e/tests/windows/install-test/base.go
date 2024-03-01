@@ -8,9 +8,7 @@ package installtest
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -27,44 +25,8 @@ import (
 	"testing"
 )
 
-type agentInstallerSuite[Env any] interface {
-	e2e.Suite[Env]
-
-	GetStackName() (string, error)
-	GetAgentMajorVersion() (string, error)
-}
-
 type baseAgentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.Host]
-}
-
-// getStackNamePrefix returns the stack name for the test suite.
-// Set unique stack names to avoid conflicts with other tests.
-func (s *baseAgentMSISuite) GetStackName() (string, error) {
-	agentPackage, err := s.GetAgentPackage()
-	if err != nil {
-		return "", err
-	}
-	majorVersion := strings.Split(agentPackage.Version, ".")[0]
-
-	// E2E auto includes the pipeline ID in the stack name, so we don't need to do that here.
-	stackName := fmt.Sprintf("windows-msi-test-v%s-%s", majorVersion, agentPackage.Arch)
-
-	// If running in CI, append the CI job ID to the stack name to ensure uniqueness between jobs
-	ciJobID := os.Getenv("CI_JOB_ID")
-	if ciJobID != "" {
-		stackName = fmt.Sprintf("%s-%s", stackName, ciJobID)
-	}
-
-	return stackName, nil
-}
-
-func (s *baseAgentMSISuite) GetAgentMajorVersion() (string, error) {
-	agentPackage, err := s.GetAgentPackage()
-	if err != nil {
-		return "", err
-	}
-	return strings.Split(agentPackage.Version, ".")[0], nil
 }
 
 func (s *baseAgentMSISuite) prepareHost() {
@@ -123,30 +85,13 @@ func (s *baseAgentMSISuite) installLastStable(vm *components.RemoteHost, options
 	return t
 }
 
-func run[Env any, T agentInstallerSuite[Env]](t *testing.T, s T, options ...e2e.SuiteOption) {
-	s.SetT(t)
-
+func run[Env any, T windows.AgentInstallerSuite[Env]](t *testing.T, s T, options ...e2e.SuiteOption) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
 	))}
 
-	stackName, err := s.GetStackName()
-	if err != nil {
-		t.Fatalf("failed to get stack name: %v", err)
-	}
-	opts = append(opts, e2e.WithStackName(stackName))
-
 	// give precedence to provided options
 	opts = append(opts, options...)
 
-	// Include the agent major version in the test name so junit reports will differentiate the tests
-	majorVersion, err := s.GetAgentMajorVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	testName := fmt.Sprintf("Windows Agent v%s", majorVersion)
-
-	t.Run(testName, func(t *testing.T) {
-		e2e.Run(t, s, opts...)
-	})
+	windows.Run(t, s, opts...)
 }

@@ -8,14 +8,26 @@ package windows
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"path/filepath"
+
+	"testing"
 )
+
+// AgentInstallerSuite is the interface for the Windows Agent installer suites
+type AgentInstallerSuite[Env any] interface {
+	e2e.Suite[Env]
+
+	GetStackName() (string, error)
+	GetAgentMajorVersion() (string, error)
+}
 
 // BaseAgentInstallerSuite is a base class for the Windows Agent installer suites
 type BaseAgentInstallerSuite[Env any] struct {
@@ -78,4 +90,67 @@ func (b *BaseAgentInstallerSuite[Env]) GetAgentPackage() (*windowsAgent.Package,
 	}
 
 	return b.AgentPackage, nil
+}
+
+// GetStackName returns the stack name for the test suite.
+// Set unique stack names to avoid conflicts with other tests.
+func (b *BaseAgentInstallerSuite[Env]) GetStackName() (string, error) {
+	agentPackage, err := b.GetAgentPackage()
+	if err != nil {
+		return "", err
+	}
+	majorVersion, err := b.GetAgentMajorVersion()
+	if err != nil {
+		return "", err
+	}
+
+	// E2E auto includes the pipeline ID in the stack name, so we don't need to do that here.
+	stackName := fmt.Sprintf("windows-msi-test-v%s-%s", majorVersion, agentPackage.Arch)
+
+	// If running in CI, append the CI job ID to the stack name to ensure uniqueness between jobs
+	ciJobID := os.Getenv("CI_JOB_ID")
+	if ciJobID != "" {
+		stackName = fmt.Sprintf("%s-%s", stackName, ciJobID)
+	}
+
+	return stackName, nil
+}
+
+// GetAgentMajorVersion returns the major version of the Agent package.
+func (b *BaseAgentInstallerSuite[Env]) GetAgentMajorVersion() (string, error) {
+	agentPackage, err := b.GetAgentPackage()
+	if err != nil {
+		return "", err
+	}
+	return strings.Split(agentPackage.Version, ".")[0], nil
+}
+
+// Run runs an AgentInstallerSuite test suite.
+// It extends e2e.Run by setting the stack name and including the Agent major version in the test name.
+// These help to deconflict parallel test resources and differentiate the tests in the junit reports.
+func Run[Env any, T AgentInstallerSuite[Env]](t *testing.T, s T, options ...e2e.SuiteOption) {
+	s.SetT(t)
+
+	opts := []e2e.SuiteOption{}
+
+	stackName, err := s.GetStackName()
+	if err != nil {
+		t.Fatalf("failed to get stack name: %v", err)
+	}
+	opts = append(opts, e2e.WithStackName(stackName))
+
+	// give precedence to provided options
+	opts = append(opts, options...)
+
+	// Include the agent major version in the test name so junit reports will differentiate
+	// Agent 6 and Agent 7 tests run by the CI.
+	majorVersion, err := s.GetAgentMajorVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	testName := fmt.Sprintf("Windows Agent v%s", majorVersion)
+
+	t.Run(testName, func(t *testing.T) {
+		e2e.Run(t, s, opts...)
+	})
 }
