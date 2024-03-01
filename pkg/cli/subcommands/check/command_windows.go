@@ -8,8 +8,6 @@
 package check
 
 import (
-	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
-	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 	"go.uber.org/fx"
@@ -17,9 +15,7 @@ import (
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectimpl.Module(),
 		winregistryimpl.Module(),
-		fx.Invoke(func(_ agentcrashdetect.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }
