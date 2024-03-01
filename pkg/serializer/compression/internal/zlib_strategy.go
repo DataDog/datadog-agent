@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// package compression provides a set of functions for compressing with zlib / zstd
 package compression
 
 import (
@@ -11,11 +12,14 @@ import (
 	"io"
 )
 
+// ZlibEncoding is the content-encoding value for Zlib
 const ZlibEncoding = "deflate"
 
+// ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
 type ZlibStrategy struct {
 }
 
+// NewZlibStragey returns a new ZlibStrategy
 func NewZlibStrategy() *ZlibStrategy {
 	return &ZlibStrategy{}
 }
@@ -59,10 +63,12 @@ func (s *ZlibStrategy) CompressBound(sourceLen int) int {
 	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
 }
 
+// ContentEncoding returns the content encoding value for zlib
 func (s *ZlibStrategy) ContentEncoding() string {
 	return ZlibEncoding
 }
 
+// NewZlibZipper returns a new zlib writer
 func NewZlibZipper(output *bytes.Buffer) *zlib.Writer {
 	return zlib.NewWriter(output)
 }

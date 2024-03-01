@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// package compression provides a set of functions for compressing with zlib / zstd
 package compression
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -15,11 +15,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ZlibKind defines a const value for the zlib compressor
 const ZlibKind = "zlib"
+
+// ZstdKind  defines a const value for the zstd compressor
 const ZstdKind = "zstd"
+
+// ZlibEncoding is the content-encoding value for Zlib
 const ZlibEncoding = compression.ZlibEncoding
+
+// ZstdEncoding is the content-encoding value for Zstd
 const ZstdEncoding = compression.ZstdEncoding
 
+// Compressor is the interface for the compressor used by the Serializer
 type Compressor interface {
 	Compress(src []byte) ([]byte, error)
 	Decompress(src []byte) ([]byte, error)
@@ -27,14 +35,13 @@ type Compressor interface {
 	ContentEncoding() string
 }
 
+// NewCompressorStrategy returns a new Compressor based on serializer_compressor_kind
 func NewCompressorStrategy(cfg config.Component) Compressor {
 	kind := cfg.GetString("serializer_compressor_kind")
 	switch kind {
 	case ZlibKind:
-		fmt.Println("rz creating zlibkind")
 		return compression.NewZlibStrategy()
 	case ZstdKind:
-		fmt.Println("rz creating zstdkind")
 		return compression.NewZstdStrategy()
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
@@ -47,20 +54,19 @@ type flusher interface {
 	Flush() error
 }
 
-// zipper is the interface that zlib and zstd should implement
+// Zipper is the interface that zlib and zstd should implement
 type Zipper interface {
 	io.WriteCloser
 	flusher
 }
 
+// NewZipper returns a Zipper to be used by the stream Compressor
 func NewZipper(output *bytes.Buffer, cfg config.Component) Zipper {
 	kind := cfg.GetString("serializer_compressor_kind")
 	switch kind {
 	case ZlibKind:
-		fmt.Println("rz creating zlibkind zipper")
 		return compression.NewZlibZipper(output)
 	case ZstdKind:
-		fmt.Println("rz creating zstdkind zipper")
 		return compression.NewZstdZipper(output)
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
