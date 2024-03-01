@@ -5,6 +5,7 @@ unit_tests_notify:
   rules:
     - !reference [.except_main_or_release_branch]
     - !reference [.except_disable_unit_tests]
+    - when: always
   script:
     - source /root/.bashrc
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
