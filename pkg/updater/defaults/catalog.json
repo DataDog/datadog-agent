@@ -9,6 +9,16 @@
       "url": "https://storage.googleapis.com/updater-dev/7.53.0-devel.git.142.5f0ff76.pipeline.29207608.tar",
       "sha256": "1648cec536615e88dd9ea13a422c735bee775c20e40a667a019c4dd0baa0dcd5",
       "size": 231945216
+    },
+    {
+      "name": "datadog-agent",
+      "package": "datadog-agent",
+      "version": "7.53.0-devel.git.156.4681fd9.pipeline.29311299-1",
+      "platform": "linux",
+      "arch": "amd64",
+      "url": "https://storage.googleapis.com/updater-dev/datadog-agent-7.53.0-devel.git.156.4681fd9.pipeline.29311299-1-x86_64.tar",
+      "sha256": "7c32c90cbd82b714f96e95cc772b25444b038d4dd45f9f7d80b3acb4aaed8180",
+      "size": 231900160
     }
   ]
 }
