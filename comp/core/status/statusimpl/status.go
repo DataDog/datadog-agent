@@ -353,47 +353,6 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 	}
 }
 
-func (s *statusImplementation) LoadProvider(provider status.Provider) {
-	providers := s.sortedProvidersBySection[provider.Section()]
-	if len(providers) > 0 {
-		providers = append(providers, provider)
-		s.sortedProvidersBySection[provider.Section()] = sortByName(providers)
-	} else {
-		collectorSectionPresent := present(status.CollectorSection, s.sortedSectionNames)
-
-		sections := []string{}
-		if collectorSectionPresent {
-			sections = s.sortedSectionNames[1:]
-			sections = append(sections, provider.Section())
-		} else {
-			sections = append(s.sortedSectionNames, provider.Section())
-		}
-
-		sort.Strings(sections)
-
-		if collectorSectionPresent {
-			sections = append([]string{status.CollectorSection}, sections...)
-		}
-
-		s.sortedSectionNames = sections
-		s.sortedProvidersBySection[provider.Section()] = []status.Provider{provider}
-	}
-}
-
-func (s *statusImplementation) LoadHeaderProvider(provider status.HeaderProvider) {
-	headerProvider := s.sortedHeaderProviders[0]
-	restOfProviders := append(s.sortedHeaderProviders[1:], provider)
-	sortedHeaderProviders := []status.HeaderProvider{}
-	sortedHeaderProviders = append(sortedHeaderProviders, restOfProviders...)
-
-	sort.SliceStable(sortedHeaderProviders, func(i, j int) bool {
-		return sortedHeaderProviders[i].Index() < sortedHeaderProviders[j].Index()
-	})
-
-	sortedHeaderProviders = append([]status.HeaderProvider{headerProvider}, sortedHeaderProviders...)
-	s.sortedHeaderProviders = sortedHeaderProviders
-}
-
 func present(value string, container []string) bool {
 	for _, v := range container {
 		if v == value {

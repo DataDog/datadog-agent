@@ -25,12 +25,6 @@ func (s *statusMock) GetStatusBySection(string, string, bool) ([]byte, error) {
 	return []byte{}, nil
 }
 
-func (s *statusMock) LoadProvider(status.Provider) {
-}
-
-func (s *statusMock) LoadHeaderProvider(status.HeaderProvider) {
-}
-
 // newMock returns a status Mock
 func newMock() status.Mock {
 	return &statusMock{}
