@@ -56,6 +56,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	selfTester, err := selftests.NewSelfTester(cfg, evm.Probe)
+	seclog.Debugf("--------------selfTester initialized---------")
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}
