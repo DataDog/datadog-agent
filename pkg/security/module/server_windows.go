@@ -72,5 +72,26 @@ func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNe
 
 // RunSelfTest runs self test and then reload the current policies
 func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
-	return nil, errors.New("not supported")
+	if a.cwsConsumer == nil {
+		return nil, errors.New("failed to found module in APIServer")
+	}
+
+	if a.selfTester == nil {
+		return &api.SecuritySelfTestResultMessage{
+			Ok:    false,
+			Error: "self-tests are disabled",
+		}, nil
+	}
+
+	if _, err := a.cwsConsumer.RunSelfTest(); err != nil {
+		return &api.SecuritySelfTestResultMessage{
+			Ok:    false,
+			Error: err.Error(),
+		}, nil
+	}
+
+	return &api.SecuritySelfTestResultMessage{
+		Ok:    true,
+		Error: "",
+	}, nil
 }
