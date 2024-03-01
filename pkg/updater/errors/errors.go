@@ -10,6 +10,7 @@ import (
 	"errors"
 )
 
+// UpdaterErrorCode is an error code used by the updater.
 type UpdaterErrorCode uint64
 
 const (
@@ -44,11 +45,13 @@ func (e UpdaterError) Unwrap() error {
 	return e.err
 }
 
+// Is implements the Is method of the errors.Is interface.
 func (e UpdaterError) Is(target error) bool {
 	_, ok := target.(*UpdaterError)
 	return ok
 }
 
+// Code returns the error code of the updater error.
 func (e UpdaterError) Code() UpdaterErrorCode {
 	return e.code
 }
