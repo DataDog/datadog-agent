@@ -5,7 +5,9 @@
 
 //go:build !windows
 
-package check
+package run
+
+import "go.uber.org/fx"
 
 func getPlatformModules() fx.Option {
 	return fx.Options()
