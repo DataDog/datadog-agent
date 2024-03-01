@@ -108,7 +108,7 @@ if [ -f "$CONFIG_DIR/install.json" ]; then
 fi
 
 install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
-# sh -c "echo '$install_signature' > $CONFIG_DIR/install.json"
+echo "$install_signature" > $CONFIG_DIR/install.json || true
 set -e
 
 # Set proper rights to the dd-agent user
