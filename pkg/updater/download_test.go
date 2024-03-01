@@ -41,6 +41,12 @@ var (
 		layoutPath:  "fixtures/oci-layout-simple-v2.tar",
 		contentPath: "fixtures/simple-v2",
 	}
+	fixtureSimpleV1Linux2Amd128 = fixture{
+		pkg:         "simple",
+		version:     "v1",
+		layoutPath:  "fixtures/oci-layout-simple-v1-linux2-amd128.tar",
+		contentPath: "fixtures/simple-v1",
+	}
 )
 
 //go:embed fixtures/*
@@ -132,6 +138,16 @@ func TestDownloadInvalidHash(t *testing.T) {
 
 	pkg := s.Package(fixtureSimpleV1)
 	pkg.SHA256 = "2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
+	assert.Error(t, err)
+}
+
+func TestDownloadPlatformNotAvailable(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
+
+	pkg := s.Package(fixtureSimpleV1Linux2Amd128)
 	_, err := d.Download(context.Background(), t.TempDir(), pkg)
 	assert.Error(t, err)
 }
