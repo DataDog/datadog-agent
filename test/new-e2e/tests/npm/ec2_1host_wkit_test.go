@@ -8,16 +8,10 @@ package npm
 import (
 	"testing"
 
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
@@ -27,53 +21,15 @@ const (
 	TestPassword = "Test1234#"
 )
 
-type hostWindowsHttpbinEnv struct {
-	environments.Host
-	// Extra Components
-	HTTPBinHost *components.RemoteHost
-}
-
 type ec2VMWKitSuite struct {
-	e2e.BaseSuite[hostWindowsHttpbinEnv]
-}
-
-func hostHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.PulumiEnvRunFunc[hostWindowsHttpbinEnv] {
-	return func(ctx *pulumi.Context, env *hostWindowsHttpbinEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-		env.Host.AwsEnvironment = &awsEnv
-
-		opts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
-		}
-		if len(opt) > 0 {
-			opts = append(opts, opt...)
-		}
-		params := awshost.GetProvisionerParams(opts...)
-		awshost.Run(ctx, &env.Host, params)
-
-		vmName := "httpbinvm"
-
-		nginxHost, err := ec2.NewVM(awsEnv, vmName)
-		if err != nil {
-			return err
-		}
-		err = nginxHost.Export(ctx, &env.HTTPBinHost.HostOutput)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
+	e2e.BaseSuite[hostHttpbinEnv]
 }
 
 // TestEC2VMWKitSuite will validate running the agent on a single EC2 VM
 func TestEC2VMWKitSuite(t *testing.T) {
 	s := &ec2VMWKitSuite{}
 
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))), nil))}
 
 	e2e.Run(t, s, e2eParams...)
 }
@@ -105,11 +61,11 @@ func (v *ec2VMWKitSuite) TestFakeIntakeNPM_HostRequests() {
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for n payloads and check if the last 2 have a maximum span of 100ms
 func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
-	//testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
-	v.T().Skip("TODO need to find a way to generate 600 cnx from windows powershell")
+	v.T().Skip("TODO need to find a way to generate 600 cnx from all windows powershell")
 	// generate connections
-	//v.Env().RemoteHost.MustExecute("ab -n 600 -c 600 " + testURL)
+	v.Env().RemoteHost.MustExecute("1..600 | ForEach-Object -Parallel { $result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL + " } -ThrottleLimit 600")
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
