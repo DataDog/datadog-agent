@@ -66,10 +66,9 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType pkgo
 		incCacheMiss(nodeType)
 		KubernetesResourceCache.Set(cacheKey, resourceVersion, 0)
 		return false
-	} else {
-		incCacheHit(nodeType)
-		return true
 	}
+	incCacheHit(nodeType)
+	return true
 }
 
 func incCacheHit(nodeType pkgorchestratormodel.NodeType) {
