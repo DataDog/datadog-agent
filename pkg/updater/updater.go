@@ -9,6 +9,7 @@ package updater
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -303,6 +304,13 @@ func (u *updaterImpl) updatePackagesState() {
 // See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
 func checkAvailableDiskSpace(fsDisk disk, paths ...string) error {
 	for _, path := range paths {
+		_, err := os.Stat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("could not stat path %s: %w", path, err)
+		}
 		s, err := fsDisk.GetUsage(path)
 		if err != nil {
 			return err
