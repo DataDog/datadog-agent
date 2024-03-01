@@ -55,7 +55,7 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 	val := new(InstrumentationBlob)
 	err := b.EBPFInstrumentationMap.Lookup(&key, val)
 	if err != nil {
-		log.Warn("failed to lookup instrumentation blob: %v", err)
+		log.Warnf("failed to lookup instrumentation blob: %v", err)
 		return t
 	}
 

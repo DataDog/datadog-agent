@@ -10,10 +10,10 @@ package telemetry
 import (
 	"bytes"
 	"debug/elf"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
-	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -228,12 +228,25 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 			return fmt.Errorf("failed to load collection spec from reader: %w", err)
 		}
 
+		sizes, err := parseStackSizesSections(bpfAsset, collectionSpec.Programs)
+		if err != nil {
+			return fmt.Errorf("cannot get stack sizes for instrumnetation block: %v", err)
+		}
+
 		// each program in the instrumentation file is a separate instrumentation
 		// all instrumentation run one after the other before returning execution back.
 		for _, program := range instrumentation.functions {
 			if _, ok := collectionSpec.Programs[program]; !ok {
 				return fmt.Errorf("no program %s present in instrumentation file %s.o", program, instrumentation.filename)
 			}
+
+			// the instrumentation code should not access the stack other than to cache the telemetry pointer
+			// writing to the stack will not cause the program to fail but may cause errors related to
+			// accessing uninitialized stack locations to get supressed
+			if sizes[program] > 8 /*bytes*/ {
+				return errors.New("instrumentation block cannot perform any stack reads or writes on more than one stack slot")
+			}
+
 			ins := collectionSpec.Programs[program].Instructions
 
 			iter := ins.Iterate()
