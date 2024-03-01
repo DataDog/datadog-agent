@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/client-go/util/workqueue"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -23,25 +25,22 @@ import (
 )
 
 const (
-	defaultScanTimeout = time.Second * 30
+	defaultScanTimeout = 30 * time.Second
+	baseBackoff        = 30 * time.Second
+	maxBackoff         = 2 * time.Minute
 )
 
 var (
 	globalScanner *Scanner
 )
 
-type scanRequest struct {
-	sbom.ScanRequest
-	collector collectors.Collector
-}
-
 // sendResult sends a ScanResult to the channel associated with the scan request.
 // This function should not be blocking
-func (request *scanRequest) sendResult(result *sbom.ScanResult) {
+func sendResult(id string, result *sbom.ScanResult, collector collectors.Collector) {
 	select {
-	case request.collector.Channel() <- *result:
+	case collector.Channel() <- *result:
 	default:
-		_ = log.Errorf("Failed to push scanner result for '%s' into channel", request.ID())
+		_ = log.Errorf("Failed to push scanner result for '%s' into channel", id)
 	}
 }
 
@@ -49,24 +48,23 @@ func (request *scanRequest) sendResult(result *sbom.ScanResult) {
 type Scanner struct {
 	startOnce sync.Once
 	running   bool
-	scanQueue chan scanRequest
 	disk      filesystem.Disk
+
+	// scanQueue is the workqueue used to process scan requests
+	scanQueue workqueue.RateLimitingInterface
+	// cacheMutex is used to protect the cache from concurrent access
+	// It cannot be cleaned when a scan is running
+	cacheMutex sync.Mutex
 }
 
-// Scan performs a scan
+// Scan enqueues a scan request to the scanner
 func (s *Scanner) Scan(request sbom.ScanRequest) error {
-	collectorName := request.Collector()
-	collector := collectors.Collectors[collectorName]
-	if collector == nil {
-		return fmt.Errorf("invalid collector '%s'", collectorName)
+	if s.scanQueue == nil {
+		return errors.New("scanner not started")
 	}
-
-	select {
-	case s.scanQueue <- scanRequest{ScanRequest: request, collector: collector}:
-		return nil
-	default:
-		return fmt.Errorf("collector queue for '%s' is full", collectorName)
-	}
+	// TODO: For now the workqueue takes scan requests as
+	s.scanQueue.Add(request)
+	return nil
 }
 
 func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
@@ -95,70 +93,95 @@ func (s *Scanner) start(ctx context.Context) {
 		defer cleanTicker.Stop()
 		s.running = true
 		defer func() { s.running = false }()
-	loop:
-		for {
-			select {
-			// We don't want to keep scanning if image channel is not empty but context is expired
-			case <-ctx.Done():
-				break loop
-			case <-cleanTicker.C:
-				for _, collector := range collectors.Collectors {
-					if err := collector.CleanCache(); err != nil {
-						_ = log.Warnf("could not clean SBOM cache: %v", err)
-					}
-				}
-			case request, ok := <-s.scanQueue:
-				// Channel has been closed we should exit
-				if !ok {
-					break loop
-				}
-				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
-
-				collector := request.collector
-				if err := s.enoughDiskSpace(request.collector.Options()); err != nil {
-					var imgMeta *workloadmeta.ContainerImageMetadata
-					if store := workloadmeta.GetGlobalStore(); store != nil {
-						img, err := store.GetImage(request.ID())
-						if err != nil {
-							imgMeta = img
+		go func() {
+			for {
+				select {
+				// We don't want to keep scanning if image channel is not empty but context is expired
+				case <-ctx.Done():
+					s.scanQueue.ShutDown()
+					return
+				case <-cleanTicker.C:
+					s.cacheMutex.Lock()
+					log.Debug("cleaning SBOM cache")
+					for _, collector := range collectors.Collectors {
+						if err := collector.CleanCache(); err != nil {
+							_ = log.Warnf("could not clean SBOM cache: %v", err)
 						}
 					}
+					s.cacheMutex.Unlock()
+				}
+			}
+		}()
 
-					result := sbom.ScanResult{
-						ImgMeta: imgMeta,
-						Error:   fmt.Errorf("failed to check current disk usage: %w", err),
+		for {
+			r, shutdown := s.scanQueue.Get()
+			if shutdown {
+				break
+			}
+			request, ok := r.(sbom.ScanRequest)
+			if !ok {
+				_ = log.Errorf("invalid scan request type '%T'", r)
+				s.scanQueue.Forget(r)
+				s.scanQueue.Done(r)
+				continue
+			}
+			telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
+
+			collector, ok := collectors.Collectors[request.Collector()]
+			if !ok {
+				_ = log.Errorf("invalid collector '%s'", request.Collector())
+			}
+
+			if err := s.enoughDiskSpace(collector.Options()); err != nil {
+				var imgMeta *workloadmeta.ContainerImageMetadata
+				if store := workloadmeta.GetGlobalStore(); store != nil {
+					img, err := store.GetImage(request.ID())
+					if err != nil {
+						imgMeta = img
 					}
-					request.sendResult(&result)
-					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
-					continue
 				}
 
-				scanTimeout := request.collector.Options().Timeout
-				if scanTimeout == 0 {
-					scanTimeout = defaultScanTimeout
+				result := sbom.ScanResult{
+					ImgMeta: imgMeta,
+					Error:   fmt.Errorf("failed to check current disk usage: %w", err),
 				}
+				sendResult(request.ID(), &result, collector)
+				telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
+				continue
+			}
 
-				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
-				createdAt := time.Now()
-				scanResult := collector.Scan(scanContext, request.ScanRequest)
-				generationDuration := time.Since(createdAt)
-				scanResult.CreatedAt = createdAt
-				scanResult.Duration = generationDuration
-				if scanResult.Error != nil {
-					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
-				} else {
-					telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
+			scanTimeout := collector.Options().Timeout
+			if scanTimeout == 0 {
+				scanTimeout = defaultScanTimeout
+			}
+
+			scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
+			createdAt := time.Now()
+			s.cacheMutex.Lock()
+			scanResult := collector.Scan(scanContext, request)
+			s.cacheMutex.Unlock()
+			generationDuration := time.Since(createdAt)
+			scanResult.CreatedAt = createdAt
+			scanResult.Duration = generationDuration
+			if scanResult.Error != nil {
+				telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
+				if collector.Type() == collectors.ContainerImageScanType {
+					s.scanQueue.AddRateLimited(request)
 				}
-				cancel()
-				request.sendResult(&scanResult)
-				if request.collector.Options().WaitAfter != 0 {
-					t := time.NewTimer(request.collector.Options().WaitAfter)
-					select {
-					case <-ctx.Done():
-					case <-t.C:
-					}
-					t.Stop()
+			} else {
+				telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
+				s.scanQueue.Forget(request)
+			}
+			cancel()
+			sendResult(request.ID(), &scanResult, collector)
+			s.scanQueue.Done(request)
+			if collector.Options().WaitAfter != 0 {
+				t := time.NewTimer(collector.Options().WaitAfter)
+				select {
+				case <-ctx.Done():
+				case <-t.C:
 				}
+				t.Stop()
 			}
 		}
 
@@ -179,7 +202,7 @@ func (s *Scanner) Start(ctx context.Context) {
 // collectors.
 func NewScanner() *Scanner {
 	return &Scanner{
-		scanQueue: make(chan scanRequest, 2000),
+		scanQueue: workqueue.NewRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(baseBackoff, maxBackoff)),
 		disk:      filesystem.NewDisk(),
 	}
 }
