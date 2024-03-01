@@ -13,8 +13,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -73,7 +74,7 @@ type Client struct {
 	// Elements that can be changed during the execution of listeners
 	// They are atomics so that they don't have to share the top-level mutex
 	// when in use
-	updaterPackagesState atomic.Value //[]*pbgo.PackageState
+	updaterPackagesState atomic.Value // []*pbgo.PackageState
 	cwsWorkloads         atomic.Value // []string
 }
 
