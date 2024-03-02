@@ -42,7 +42,7 @@ type localAPIImpl struct {
 
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(updater Updater) (LocalAPI, error) {
-	socketPath := path.Join(updater.GetRepositoryPath(), fmt.Sprintf("%s-updater.sock", updater.GetPackage()))
+	socketPath := path.Join(defaultRepositoriesPath, "updater.sock")
 	err := os.RemoveAll(socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)
@@ -80,14 +80,15 @@ func (l *localAPIImpl) Stop(ctx context.Context) error {
 
 func (l *localAPIImpl) handler() http.Handler {
 	r := mux.NewRouter().Headers("Content-Type", "application/json").Subrouter()
-	r.HandleFunc("/experiment/start", l.startExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
-	r.HandleFunc("/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
 	return r
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/go-updater.sock -H 'Content-Type: application/json' http://agent/experiment/start -d '{"version":"1.21.5"}'
+// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
 func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
 	var request startExperimentParams
 	var response apiResponse
@@ -100,8 +101,8 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		response.Error = &apiError{Message: err.Error()}
 		return
 	}
-	log.Infof("Received local request to start experiment for package %s version %s", l.updater.GetPackage(), request.Version)
-	err = l.updater.StartExperiment(r.Context(), request.Version)
+	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
+	err = l.updater.StartExperiment(r.Context(), pkg, request.Version)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &apiError{Message: err.Error()}
@@ -109,15 +110,16 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/go-updater.sock -H 'Content-Type: application/json' http://agent/experiment/stop -d '{}'
-func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, _ *http.Request) {
+// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/experiment/stop -d '{}'
+func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
 	var response apiResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	log.Infof("Received local request to stop experiment for package %s", l.updater.GetPackage())
-	err := l.updater.StopExperiment()
+	log.Infof("Received local request to stop experiment for package %s", pkg)
+	err := l.updater.StopExperiment(pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &apiError{Message: err.Error()}
@@ -125,15 +127,16 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// example: curl -X POST --unix-socket /opt/datadog-packages/go-updater.sock -H 'Content-Type: application/json' http://agent/experiment/promote -d '{}'
-func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, _ *http.Request) {
+// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/experiment/promote -d '{}'
+func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
 	var response apiResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
-	log.Infof("Received local request to promote experiment for package %s", l.updater.GetPackage())
-	err := l.updater.PromoteExperiment()
+	log.Infof("Received local request to promote experiment for package %s", pkg)
+	err := l.updater.PromoteExperiment(pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &apiError{Message: err.Error()}

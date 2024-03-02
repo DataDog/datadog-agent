@@ -70,16 +70,20 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 	})
 }
 
+func newTestInstaller(t *testing.T) *installer {
+	repositories, err := repository.NewRepositories(t.TempDir(), t.TempDir())
+	assert.NoError(t, err)
+	return newInstaller(repositories)
+}
+
 func TestInstallStable(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.s.Close()
-	r := repository.Repository{
-		RootPath:  t.TempDir(),
-		LocksPath: t.TempDir(),
-	}
-	installer := newInstaller(&r)
+	installer := newTestInstaller(t)
 
-	err := installer.installStable(fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	assert.NoError(t, err)
+	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	state, err := r.GetState()
 	assert.NoError(t, err)
@@ -91,15 +95,13 @@ func TestInstallStable(t *testing.T) {
 func TestInstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.s.Close()
-	r := repository.Repository{
-		RootPath:  t.TempDir(),
-		LocksPath: t.TempDir(),
-	}
-	installer := newInstaller(&r)
+	installer := newTestInstaller(t)
 
-	err := installer.installStable(fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	assert.NoError(t, err)
+	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	state, err := r.GetState()
 	assert.NoError(t, err)
@@ -112,17 +114,15 @@ func TestInstallExperiment(t *testing.T) {
 func TestPromoteExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.s.Close()
-	r := repository.Repository{
-		RootPath:  t.TempDir(),
-		LocksPath: t.TempDir(),
-	}
-	installer := newInstaller(&r)
+	installer := newTestInstaller(t)
 
-	err := installer.installStable(fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
 	assert.NoError(t, err)
-	err = installer.promoteExperiment()
+	err = installer.promoteExperiment(fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	state, err := r.GetState()
 	assert.NoError(t, err)
@@ -134,17 +134,15 @@ func TestPromoteExperiment(t *testing.T) {
 func TestUninstallExperiment(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.s.Close()
-	r := repository.Repository{
-		RootPath:  t.TempDir(),
-		LocksPath: t.TempDir(),
-	}
-	installer := newInstaller(&r)
+	installer := newTestInstaller(t)
 
-	err := installer.installStable(fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
+	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
-	err = installer.installExperiment(fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
+	err = installer.installExperiment(fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
 	assert.NoError(t, err)
-	err = installer.uninstallExperiment()
+	err = installer.uninstallExperiment(fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	state, err := r.GetState()
 	assert.NoError(t, err)

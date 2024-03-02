@@ -21,16 +21,16 @@ const (
 )
 
 type installer struct {
-	repository *repository.Repository
+	repositories *repository.Repositories
 }
 
-func newInstaller(repository *repository.Repository) *installer {
+func newInstaller(repositories *repository.Repositories) *installer {
 	return &installer{
-		repository: repository,
+		repositories: repositories,
 	}
 }
 
-func (i *installer) installStable(version string, image oci.Image) error {
+func (i *installer) installStable(pkg string, version string, image oci.Image) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -40,10 +40,10 @@ func (i *installer) installStable(version string, image oci.Image) error {
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	return i.repository.Create(version, tmpDir)
+	return i.repositories.Create(pkg, version, tmpDir)
 }
 
-func (i *installer) installExperiment(version string, image oci.Image) error {
+func (i *installer) installExperiment(pkg string, version string, image oci.Image) error {
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -53,15 +53,27 @@ func (i *installer) installExperiment(version string, image oci.Image) error {
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	return i.repository.SetExperiment(version, tmpDir)
+	repository, err := i.repositories.Get(pkg)
+	if err != nil {
+		return fmt.Errorf("could not get repository: %w", err)
+	}
+	return repository.SetExperiment(version, tmpDir)
 }
 
-func (i *installer) promoteExperiment() error {
-	return i.repository.PromoteExperiment()
+func (i *installer) promoteExperiment(pkg string) error {
+	repository, err := i.repositories.Get(pkg)
+	if err != nil {
+		return fmt.Errorf("could not get repository: %w", err)
+	}
+	return repository.PromoteExperiment()
 }
 
-func (i *installer) uninstallExperiment() error {
-	return i.repository.DeleteExperiment()
+func (i *installer) uninstallExperiment(pkg string) error {
+	repository, err := i.repositories.Get(pkg)
+	if err != nil {
+		return fmt.Errorf("could not get repository: %w", err)
+	}
+	return repository.DeleteExperiment()
 }
 
 func extractPackageLayers(image oci.Image, dir string) error {

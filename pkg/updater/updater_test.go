@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 )
 
 type testRemoteConfigClient struct {
@@ -74,12 +73,9 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 }
 
 func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
-	repository := &repository.Repository{
-		RootPath:  t.TempDir(),
-		LocksPath: t.TempDir(),
-	}
 	rc := &remoteConfig{client: rcc}
-	u := newUpdater(rc, repository, defaultFixture.pkg)
+	u, err := newUpdater(rc, t.TempDir(), t.TempDir())
+	assert.NoError(t, err)
 	u.catalog = s.Catalog()
 	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
 	u.Start(context.Background())
@@ -92,14 +88,16 @@ func TestUpdaterBootstrap(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.bootstrapStable(context.Background())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 
-	state, err := updater.GetState()
+	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), updater.repository.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 }
 
 func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
@@ -109,10 +107,10 @@ func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 	updater.catalog = catalog{}
 
-	err := updater.bootstrapStable(context.Background())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.Error(t, err)
 	rc.SubmitCatalog(s.Catalog())
-	err = updater.bootstrapStable(context.Background())
+	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 }
 
@@ -122,10 +120,11 @@ func TestUpdaterStartExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.bootstrapStable(context.Background())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
-		ID: uuid.NewString(),
+		ID:      uuid.NewString(),
+		Package: fixtureSimpleV1.pkg,
 		ExpectedState: expectedState{
 			Stable: fixtureSimpleV1.version,
 		},
@@ -133,12 +132,14 @@ func TestUpdaterStartExperiment(t *testing.T) {
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
 
-	state, err := updater.GetState()
+	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
 	assert.Equal(t, fixtureSimpleV2.version, state.Experiment)
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), updater.repository.StableFS())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), updater.repository.ExperimentFS())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.ExperimentFS())
 }
 
 func TestUpdaterPromoteExperiment(t *testing.T) {
@@ -147,10 +148,11 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.bootstrapStable(context.Background())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
-		ID: uuid.NewString(),
+		ID:      uuid.NewString(),
+		Package: fixtureSimpleV1.pkg,
 		ExpectedState: expectedState{
 			Stable: fixtureSimpleV1.version,
 		},
@@ -158,7 +160,8 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
 	rc.SubmitRequest(remoteAPIRequest{
-		ID: uuid.NewString(),
+		ID:      uuid.NewString(),
+		Package: fixtureSimpleV1.pkg,
 		ExpectedState: expectedState{
 			Stable:     fixtureSimpleV1.version,
 			Experiment: fixtureSimpleV2.version,
@@ -166,11 +169,13 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 		Method: methodPromoteExperiment,
 	})
 
-	state, err := updater.GetState()
+	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), updater.repository.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
 }
 
 func TestUpdaterStopExperiment(t *testing.T) {
@@ -179,21 +184,25 @@ func TestUpdaterStopExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.bootstrapStable(context.Background())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
-		ID: uuid.NewString(),
+		ID:      uuid.NewString(),
+		Package: fixtureSimpleV1.pkg,
 		ExpectedState: expectedState{
 			Stable: fixtureSimpleV1.version,
 		},
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
-	state, err := updater.GetState()
+	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.True(t, state.HasExperiment())
 	rc.SubmitRequest(remoteAPIRequest{
-		ID: uuid.NewString(),
+		ID:      uuid.NewString(),
+		Package: fixtureSimpleV1.pkg,
 		ExpectedState: expectedState{
 			Stable:     fixtureSimpleV1.version,
 			Experiment: fixtureSimpleV2.version,
@@ -201,9 +210,9 @@ func TestUpdaterStopExperiment(t *testing.T) {
 		Method: methodStopExperiment,
 	})
 
-	state, err = updater.GetState()
+	state, err = r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), updater.repository.StableFS())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 }

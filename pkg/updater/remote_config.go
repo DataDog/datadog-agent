@@ -63,7 +63,7 @@ func (rc *remoteConfig) Close() {
 }
 
 // SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(pkg string, state *repository.State) {
+func (rc *remoteConfig) SetState(pkg string, state repository.State) {
 	if rc.client == nil {
 		return
 	}
@@ -147,6 +147,7 @@ const (
 
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
+	Package       string          `json:"package"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
