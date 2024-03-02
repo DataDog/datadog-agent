@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 
 	"testing"
 )
@@ -102,8 +104,9 @@ func (b *BaseAgentInstallerSuite[Env]) GetStackNamePart() (string, error) {
 }
 
 // Run runs an AgentInstallerSuite test suite.
-// It extends e2e.Run by setting a default stack name and including the Agent major version in the test name.
-// These help deconflict stacks in parallel tests and differentiate tests in the junit reports.
+// It extends e2e.Run by
+//   - setting a default stack name to deconflict stacks in parallel tests
+//   - including the Agent major version in the test name to differentiate tests in the junit reports.
 func Run[Env any, T AgentInstallerSuite[Env]](t *testing.T, s T, options ...e2e.SuiteOption) {
 	s.SetT(t)
 
@@ -155,9 +158,13 @@ func getDefaultStackName[Env any, T AgentInstallerSuite[Env]](s T) (string, erro
 	// E2E auto includes the pipeline ID in the stack name, so we don't need to do that here.
 	stackName := fmt.Sprintf("windows-msi-test%s-v%s-%s", suitePart, majorVersion, agentPackage.Arch)
 
-	// If running in CI, append the CI job ID to the stack name to ensure uniqueness between jobs
 	ciJobID := os.Getenv("CI_JOB_ID")
 	if ciJobID != "" {
+		// include type information in the stack name to differentiate stacks running in a single job.
+		sType := reflect.TypeOf(s).Elem()
+		hash := utils.StrHash(sType.PkgPath())
+		stackName = fmt.Sprintf("%s-%s-%s", stackName, sType.Name(), hash)
+		// include the CI job ID to the stack name to ensure uniqueness between jobs
 		stackName = fmt.Sprintf("%s-%s", stackName, ciJobID)
 	}
 
