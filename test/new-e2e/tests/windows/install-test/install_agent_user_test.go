@@ -64,20 +64,19 @@ type agentUserTestSuite struct {
 	tc agentUserTestCase
 }
 
-func (s *agentUserTestSuite) GetStackName() (string, error) {
-	base, err := s.baseAgentMSISuite.GetStackName()
-	if err != nil {
-		return "", err
+func (s *agentUserTestSuite) GetStackNamePart() (string, error) {
+	if s.mustUseNewStack() {
+		// include the subtest name to differentiate the stacks
+		return s.tc.TC().name, nil
 	}
 
-	// if we're running in parallel, include the test case name in the stack name
-	// so each gets its own stack
-	if s.shouldRunParallel() {
-		return fmt.Sprintf("%s-%s", base, s.tc.TC().name), nil
-	}
+	// otherwise, keep the stack name the same so the same resource is used
+	return "", nil
+}
 
-	// otherwise, just use the base stack name
-	return base, nil
+func (s *agentUserTestSuite) mustUseNewStack() bool {
+	// if we're running in parallel, each test case must use its own stack
+	return !s.shouldRunParallel()
 }
 
 func (s *agentUserTestSuite) shouldRunParallel() bool {

@@ -25,8 +25,12 @@ import (
 type AgentInstallerSuite[Env any] interface {
 	e2e.Suite[Env]
 
-	GetStackName() (string, error)
-	GetAgentMajorVersion() (string, error)
+	// GetStackNamePart returns a string that will be included in the stack name.
+	// Use this to differentiate the stacks when running multiple suites in parallel.
+	GetStackNamePart() (string, error)
+
+	// GetAgentPackage returns the Agent package to install.
+	GetAgentPackage() (*windowsAgent.Package, error)
 }
 
 // BaseAgentInstallerSuite is a base class for the Windows Agent installer suites
@@ -92,20 +96,64 @@ func (b *BaseAgentInstallerSuite[Env]) GetAgentPackage() (*windowsAgent.Package,
 	return b.AgentPackage, nil
 }
 
-// GetStackName returns the stack name for the test suite.
-// Set unique stack names to avoid conflicts with other tests.
-func (b *BaseAgentInstallerSuite[Env]) GetStackName() (string, error) {
-	agentPackage, err := b.GetAgentPackage()
+// GetStackNamePart implements AgentInstallerSuite, returning an empty string by default.
+func (b *BaseAgentInstallerSuite[Env]) GetStackNamePart() (string, error) {
+	return "", nil
+}
+
+// Run runs an AgentInstallerSuite test suite.
+// It extends e2e.Run by setting a default stack name and including the Agent major version in the test name.
+// These help deconflict stacks in parallel tests and differentiate tests in the junit reports.
+func Run[Env any, T AgentInstallerSuite[Env]](t *testing.T, s T, options ...e2e.SuiteOption) {
+	s.SetT(t)
+
+	opts := []e2e.SuiteOption{}
+
+	// default stack name. This will be overridden if the WithStackName option is provided.
+	stackName, err := getDefaultStackName(s)
+	if err != nil {
+		t.Fatalf("failed to get stack name: %v", err)
+	}
+	opts = append(opts, e2e.WithStackName(stackName))
+
+	// give precedence to provided options
+	opts = append(opts, options...)
+
+	// Include the agent major version in the test name so junit reports will differentiate
+	// Agent 6 and Agent 7 tests run by the CI.
+	majorVersion, err := getAgentMajorVersion(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testName := fmt.Sprintf("Windows Agent v%s", majorVersion)
+
+	t.Run(testName, func(t *testing.T) {
+		e2e.Run(t, s, opts...)
+	})
+}
+
+// getdefaultStackName returns the stack name for the given AgentInstallerSuite,
+// including information to differentiate the stacks betweenn jobs.
+func getDefaultStackName[Env any, T AgentInstallerSuite[Env]](s T) (string, error) {
+	agentPackage, err := s.GetAgentPackage()
 	if err != nil {
 		return "", err
 	}
-	majorVersion, err := b.GetAgentMajorVersion()
+	majorVersion, err := getAgentMajorVersion(s)
 	if err != nil {
 		return "", err
 	}
 
+	suitePart, err := s.GetStackNamePart()
+	if err != nil {
+		return "", err
+	}
+	if suitePart != "" {
+		suitePart = fmt.Sprintf("-%s", suitePart)
+	}
+
 	// E2E auto includes the pipeline ID in the stack name, so we don't need to do that here.
-	stackName := fmt.Sprintf("windows-msi-test-v%s-%s", majorVersion, agentPackage.Arch)
+	stackName := fmt.Sprintf("windows-msi-test%s-v%s-%s", suitePart, majorVersion, agentPackage.Arch)
 
 	// If running in CI, append the CI job ID to the stack name to ensure uniqueness between jobs
 	ciJobID := os.Getenv("CI_JOB_ID")
@@ -117,40 +165,10 @@ func (b *BaseAgentInstallerSuite[Env]) GetStackName() (string, error) {
 }
 
 // GetAgentMajorVersion returns the major version of the Agent package.
-func (b *BaseAgentInstallerSuite[Env]) GetAgentMajorVersion() (string, error) {
-	agentPackage, err := b.GetAgentPackage()
+func getAgentMajorVersion[Env any, T AgentInstallerSuite[Env]](s T) (string, error) {
+	agentPackage, err := s.GetAgentPackage()
 	if err != nil {
 		return "", err
 	}
 	return strings.Split(agentPackage.Version, ".")[0], nil
-}
-
-// Run runs an AgentInstallerSuite test suite.
-// It extends e2e.Run by setting the stack name and including the Agent major version in the test name.
-// These help to deconflict parallel test resources and differentiate the tests in the junit reports.
-func Run[Env any, T AgentInstallerSuite[Env]](t *testing.T, s T, options ...e2e.SuiteOption) {
-	s.SetT(t)
-
-	opts := []e2e.SuiteOption{}
-
-	stackName, err := s.GetStackName()
-	if err != nil {
-		t.Fatalf("failed to get stack name: %v", err)
-	}
-	opts = append(opts, e2e.WithStackName(stackName))
-
-	// give precedence to provided options
-	opts = append(opts, options...)
-
-	// Include the agent major version in the test name so junit reports will differentiate
-	// Agent 6 and Agent 7 tests run by the CI.
-	majorVersion, err := s.GetAgentMajorVersion()
-	if err != nil {
-		t.Fatal(err)
-	}
-	testName := fmt.Sprintf("Windows Agent v%s", majorVersion)
-
-	t.Run(testName, func(t *testing.T) {
-		e2e.Run(t, s, opts...)
-	})
 }
