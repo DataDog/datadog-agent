@@ -34,74 +34,99 @@ type testDef struct {
 	code         uint16
 	maxpath      int64
 	pathTrucated bool
+	count        uint64
 }
 
 func setupTests() []testDef {
 
 	td := []testDef{
 		{
-			name: "Test default site ipv4",
+			name: "Test default site ipv4 flood",
 			site: "Default Web Site",
 			addr: "127.0.0.1",
 			port: 80,
 			path: "/",
 			code: 200,
+			/*
+				note: you can really only do one test at this volume. Or, if you want to do more than one test,
+				you need to space them out at two minute intervals.
+				Since we're doing localhost, and the connections drop into TIME_WAIT when the request is complete,
+				then the host runs out of usable tcp 4-tuples to use.  Don't do more than one "flood" test, or
+				if it's necessary, leave a cooldown in between tests.
+			*/
+			count: 10000,
 		},
 		{
-			name: "Test default site ipv4 bad path",
-			site: "Default Web Site",
-			addr: "127.0.0.1",
-			port: 80,
-			path: "/foo",
-			code: 404,
+			name:  "Test default site ipv4",
+			site:  "Default Web Site",
+			addr:  "127.0.0.1",
+			port:  80,
+			path:  "/",
+			code:  200,
+			count: 1,
 		},
 		{
-			name: "Test site1 ipv4",
-			site: "TestSite1",
-			addr: "127.0.0.1",
-			port: 8081,
-			path: "/",
-			code: 200,
+			name:  "Test default site ipv4 bad path",
+			site:  "Default Web Site",
+			addr:  "127.0.0.1",
+			port:  80,
+			path:  "/foo",
+			code:  404,
+			count: 1,
 		},
 		{
-			name: "Test site2 ipv4",
-			site: "TestSite2",
-			addr: "127.0.0.1",
-			port: 8082,
-			path: "/",
-			code: 200,
+			name:  "Test site1 ipv4",
+			site:  "TestSite1",
+			addr:  "127.0.0.1",
+			port:  8081,
+			path:  "/",
+			code:  200,
+			count: 1,
 		},
 		{
-			name: "Test default site ipv6",
-			site: "Default Web Site",
-			addr: "::1",
-			port: 80,
-			path: "/",
-			code: 200,
+			name:  "Test site2 ipv4",
+			site:  "TestSite2",
+			addr:  "127.0.0.1",
+			port:  8082,
+			path:  "/",
+			code:  200,
+			count: 1,
 		},
 		{
-			name: "Test default site ipv6 bad path",
-			site: "Default Web Site",
-			addr: "::1",
-			port: 80,
-			path: "/foo",
-			code: 404,
+			name:  "Test default site ipv6",
+			site:  "Default Web Site",
+			addr:  "::1",
+			port:  80,
+			path:  "/",
+			code:  200,
+			count: 1,
 		},
 		{
-			name: "Test site1 ipv6",
-			site: "TestSite1",
-			addr: "::1",
-			port: 8081,
-			path: "/",
-			code: 200,
+			name:  "Test default site ipv6 bad path",
+			site:  "Default Web Site",
+			addr:  "::1",
+			port:  80,
+			path:  "/foo",
+			code:  404,
+			count: 1,
 		},
 		{
-			name: "Test site2 ipv6",
-			site: "TestSite2",
-			addr: "::1",
-			port: 8082,
-			path: "/",
-			code: 200,
+			name:  "Test site1 ipv6",
+			site:  "TestSite1",
+			addr:  "::1",
+			port:  8081,
+			path:  "/",
+			code:  200,
+			count: 1,
+		},
+		{
+			name:  "Test site2 ipv6",
+			site:  "TestSite2",
+			addr:  "::1",
+			port:  8082,
+			path:  "/",
+			code:  200,
+			count: 1,
 		},
 		{
 			name:    "Test path limit one short",
@@ -111,6 +136,7 @@ func setupTests() []testDef {
 			path:    "/eightch",
 			maxpath: 10,
 			code:    404,
+			count:   1,
 		},
 		{
 			name:         "Test path limit at boundary",
@@ -121,6 +147,7 @@ func setupTests() []testDef {
 			pathTrucated: true,
 			maxpath:      10,
 			code:         404,
+			count:        1,
 		},
 		{
 			name:         "Test path limit one over",
@@ -131,6 +158,7 @@ func setupTests() []testDef {
 			pathTrucated: true,
 			maxpath:      10,
 			code:         404,
+			count:        1,
 		},
 	}
 	return td
@@ -155,7 +183,7 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) (*WinH
 					ok = tok
 				}
 			}
-			if len(txns) > 0 {
+			if uint64(len(txns)) >= test.count {
 				break
 			}
 		}
@@ -169,12 +197,18 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) (*WinH
 	} else {
 		urlstr = fmt.Sprintf("http://[%s]:%d%s", test.addr, test.port, test.path)
 	}
-	resp, err := nethttp.Get(urlstr)
-	require.NoError(t, err)
-	_ = resp.Body.Close()
+	for i := uint64(0); i < test.count; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resp, err := nethttp.Get(urlstr)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+		}()
+	}
 
 	wg.Wait()
-	assert.Equal(t, 1, len(txns))
+	assert.Equal(t, test.count, uint64(len(txns)))
 	assert.Equal(t, true, ok)
 	tx := txns[0]
 	return &tx, nil
@@ -182,7 +216,6 @@ func executeRequestForTest(t *testing.T, etw *EtwInterface, test testDef) (*WinH
 }
 
 func TestEtwTransactions(t *testing.T) {
-	t.Skip("Skipping test as it is failing on CI: WKIT-292")
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
@@ -203,6 +236,11 @@ func TestEtwTransactions(t *testing.T) {
 
 		t.Run(test.name, func(t *testing.T) {
 
+			// this overrides the setting in etw_http_service.go to allow our max unrecovered connections to be
+			// large enough to handle the flood
+			if test.count > completedHttpTxMaxCount {
+				completedHttpTxMaxCount = test.count + 1
+			}
 			var expectedMax uint16
 
 			if test.maxpath == 0 {

@@ -81,6 +81,7 @@
 //	1. HTTP transactions events are always in the scope of
 //		HTTPConnectionTraceTaskConnConn   21 [Local & Remote IP/Ports]
 //		HTTPConnectionTraceTaskConnClose  23
+//      HTTPConnectionTraceTaskConnCleanup 24
 //
 //
 //	2. HTTP Req/Resp (the same ActivityID)
@@ -536,8 +537,8 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEventRecord)
 }
 
 // -------------------------------------------------------------
-// HttpService ETW Event #23 (HTTPConnectionTraceTaskConnClose)
-func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEventRecord) {
+// HttpService ETW Event #24 (HTTPConnectionTraceTaskConnCleanup)
+func httpCallbackOnHTTPConnectionTraceTaskConnCleanup(eventInfo *etw.DDEventRecord) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -1232,9 +1233,17 @@ func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEventRecord) {
 		httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo)
 
 	// #23
-	case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
-		httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo)
+	//case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
+	//	httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo)
 
+	// NOTE originally the cleanup function was done on (23) ConnClose. However it was discovered
+	// (the hard way) that every once in a while ConnCLose comes in out of order (in the test case)
+	// prior to (12) EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend.  This would cause
+	// some connections to be dropped.  Using ConnCleanup (empirically) always comes last.
+	//
+	// #24
+	case EVENT_ID_HttpService_HTTPConnectionTraceTaskConnCleanup:
+		httpCallbackOnHTTPConnectionTraceTaskConnCleanup(eventInfo)
 	// #1
 	case EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq:
 		httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo)
