@@ -6,6 +6,7 @@
 package updater
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -180,6 +181,10 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 // LocalAPIClient is a client to interact with the locally exposed updater API.
 type LocalAPIClient interface {
 	Status() (StatusResponse, error)
+
+	StartExperiment(pkg, version string) error
+	StopExperiment(pkg string) error
+	PromoteExperiment(pkg string) error
 }
 
 // LocalAPIClient is a client to interact with the locally exposed updater API.
@@ -222,4 +227,83 @@ func (c *localAPIClientImpl) Status() (StatusResponse, error) {
 		return response, fmt.Errorf("error getting status: %s", response.Error.Message)
 	}
 	return response, nil
+}
+
+// StartExperiment starts an experiment for a package.
+func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
+	params := startExperimentParams{
+		Version: version,
+	}
+	body, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/start", pkg), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error starting experiment: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// StopExperiment stops an experiment for a package.
+func (c *localAPIClientImpl) StopExperiment(pkg string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/stop", pkg), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error stopping experiment: %s", response.Error.Message)
+	}
+	return nil
+}
+
+// PromoteExperiment promotes an experiment for a package.
+func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/promote", pkg), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error promoting experiment: %s", response.Error.Message)
+	}
+	defer resp.Body.Close()
+	return nil
 }
