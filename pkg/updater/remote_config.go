@@ -16,8 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type remoteConfigClient interface {
+	Start()
+	Close()
+	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	SetUpdaterPackagesState(packages []*pbgo.PackageState)
+}
+
 type remoteConfig struct {
-	client *client.Client
+	client remoteConfigClient
 }
 
 func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
@@ -33,8 +40,15 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 	return &remoteConfig{client: client}, nil
 }
 
+func newNoopRemoteConfig() *remoteConfig {
+	return &remoteConfig{}
+}
+
 // Start starts the remote config client.
 func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate))
 	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	rc.client.Start()
@@ -42,11 +56,17 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 
 // Close closes the remote config client.
 func (rc *remoteConfig) Close() {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Close()
 }
 
 // SetState sets the state of the given package.
 func (rc *remoteConfig) SetState(pkg string, state *repository.State) {
+	if rc.client == nil {
+		return
+	}
 	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
 		{
 			Package:           pkg,

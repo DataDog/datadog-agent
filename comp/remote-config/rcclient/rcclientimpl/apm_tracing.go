@@ -5,7 +5,7 @@
 
 //go:build !linux
 
-package rcclient
+package rcclientimpl
 
 import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"

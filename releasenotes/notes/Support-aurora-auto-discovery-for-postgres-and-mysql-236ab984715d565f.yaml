@@ -6,7 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+features:
   - |
-    Move GitHub teams to Jira projects mapping and GitHub teams to
-    Slack channel mapping out of Python files and into YAML files.
+    Support database-monitoring autodiscovery for Aurora cluster instances. Adds a new configuration listener to poll
+    for a specific set of Aurora cluster IDs and then create a new database-monitoring supported check
+    configuration for each endpoint. This allows for monitoring of endpoints that scale dynamically.
