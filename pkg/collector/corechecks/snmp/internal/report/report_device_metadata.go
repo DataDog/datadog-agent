@@ -61,8 +61,20 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
+	deviceOids := buildDeviceScanMetadata(config.DeviceID, store)
 
-	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
+	metadataPayloads := devicemetadata.BatchPayloads(
+		config.Namespace, config.ResolvedSubnetName,
+		collectTime,
+		devicemetadata.PayloadMetadataBatchSize,
+		devices,
+		interfaces,
+		ipAddresses,
+		topologyLinks,
+		nil,
+		diagnoses,
+		deviceOids,
+	)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -100,6 +112,35 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}
+}
+
+func buildDeviceScanMetadata(deviceId string, oidsValues *valuestore.ResultValueStore) []devicemetadata.DeviceOid {
+	var deviceOids []devicemetadata.DeviceOid
+	if oidsValues == nil {
+		return deviceOids
+	}
+	for _, variablePdu := range oidsValues.DeviceScanValues {
+		_, value, err := valuestore.GetResultValueFromPDU(variablePdu)
+		if err != nil {
+			log.Debugf("GetValueFromPDU error: %s", err)
+			continue
+		}
+
+		// TODO: How to store different types? Use Base64?
+		strValue, err := value.ToString()
+		if err != nil {
+			log.Debugf("ToString error: %s", err)
+			continue
+		}
+
+		deviceOids = append(deviceOids, devicemetadata.DeviceOid{
+			DeviceID:    deviceId,
+			Oid:         strings.TrimLeft(variablePdu.Name, "."),
+			Type:        variablePdu.Type.String(), // TODO: Map to internal types?
+			ValueString: strValue,
+		})
+	}
+	return deviceOids
 }
 
 func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {

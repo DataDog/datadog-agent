@@ -22,17 +22,17 @@ type OIDTrie struct {
 	Children map[int]*OIDTrie
 }
 
-func newOidTrie() *OIDTrie {
+func NewOidTrie() *OIDTrie {
 	return &OIDTrie{}
 }
 
 // BuildOidTrie builds the OIDTrie from a list of OIDs
 func BuildOidTrie(allOIDs []string) *OIDTrie {
-	root := newOidTrie()
+	root := NewOidTrie()
 	for _, oid := range allOIDs {
 		current := root
 
-		numbers, err := oidToNumbers(oid)
+		numbers, err := OidToNumbers(oid)
 		if err != nil {
 			log.Debugf("error processing oid `%s`: %s", oid, err)
 			continue
@@ -43,7 +43,7 @@ func BuildOidTrie(allOIDs []string) *OIDTrie {
 				current.Children = make(map[int]*OIDTrie)
 			}
 			if _, ok := current.Children[num]; !ok {
-				current.Children[num] = newOidTrie()
+				current.Children[num] = NewOidTrie()
 			}
 			current = current.Children[num]
 		}
@@ -51,7 +51,7 @@ func BuildOidTrie(allOIDs []string) *OIDTrie {
 	return root
 }
 
-func oidToNumbers(oid string) ([]int, error) {
+func OidToNumbers(oid string) ([]int, error) {
 	oid = strings.TrimLeft(oid, ".")
 	strNumbers := strings.Split(oid, ".")
 	var numbers []int
@@ -80,6 +80,18 @@ func (o *OIDTrie) getNode(oid string) (*OIDTrie, error) {
 		child, ok := current.Children[num]
 		if !ok {
 			return nil, fmt.Errorf("node `%s` not found in OIDTrie", oid)
+		}
+		current = child
+	}
+	return current, nil
+}
+
+func (o *OIDTrie) GetNodeFromDigits(oidDigits []int) (*OIDTrie, error) {
+	current := o
+	for _, digit := range oidDigits {
+		child, ok := current.Children[digit]
+		if !ok {
+			return nil, fmt.Errorf("node `%v` not found in OIDTrie", oidDigits)
 		}
 		current = child
 	}

@@ -6,8 +6,12 @@
 package session
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/mohae/deepcopy"
 	stdlog "log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +37,7 @@ type Session interface {
 	Get(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
+	Walk(rootOid string, walkFn gosnmp.WalkFunc) error
 	GetVersion() gosnmp.SnmpVersion
 }
 
@@ -64,6 +69,11 @@ func (s *GosnmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (resul
 // GetNext will send a SNMP GETNEXT command
 func (s *GosnmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
 	return s.gosnmpInst.GetNext(oids)
+}
+
+// Walk retrieves a subtree of values using GETNEXT
+func (s *GosnmpSession) Walk(rootOid string, walkFn gosnmp.WalkFunc) error {
+	return s.gosnmpInst.Walk(rootOid, walkFn)
 }
 
 // GetVersion returns the snmp version used
@@ -169,10 +179,19 @@ func FetchSysObjectID(session Session) (string, error) {
 	return strValue, err
 }
 
-// FetchAllOIDsUsingGetNext fetches all available OIDs
+// FetchAllFirstRowOIDs fetches all available OIDs
 // Fetch all scalar OIDs and first row of table OIDs.
-func FetchAllOIDsUsingGetNext(session Session) []string {
-	var savedOIDs []string
+func FetchAllFirstRowOIDs(session Session) []string {
+	var oids []string
+	variables := FetchAllFirstRowOIDsVariables(session, nil)
+	for _, variable := range variables {
+		oids = append(oids, strings.TrimLeft(variable.Name, "."))
+	}
+	return oids
+}
+
+func FetchAllFirstRowOIDsVariables(session Session, oidTrie *common.OIDTrie) []gosnmp.SnmpPDU {
+	var savedPDUs []gosnmp.SnmpPDU
 	curRequestOid := "1.0"
 	alreadySeenOIDs := make(map[string]bool)
 
@@ -192,16 +211,33 @@ func FetchAllOIDsUsingGetNext(session Session) []string {
 			break
 		}
 		oid := strings.TrimLeft(variable.Name, ".")
-		if strings.HasSuffix(oid, ".0") { // check if it's a scalar OID
+
+		digits, err := convertToDigits(oid)
+		if err != nil {
+			log.Debugf("convertToDigits error: %s", err)
+			break
+		}
+
+		//oidTrie.LeafExist(oid)
+		nextOid, errOidTrie := getNextOidUsingTrie(digits, oidTrie)
+		if errOidTrie != nil {
+			log.Debugf("getNextOidUsingTrie error (oid=%s): %s", oid, errOidTrie)
+		}
+		// TODO: better error handling
+		if errOidTrie == nil {
+			log.Debugf("getNextOidUsingTrie nextOid: %s->%s", oid, nextOid)
+			curRequestOid = nextOid
+		} else if strings.HasSuffix(oid, ".0") { // check if it's a scalar OID
 			curRequestOid = oid
 		} else {
-			nextColumn, err := GetNextColumnOidNaive(oid)
-			if err != nil {
-				log.Debugf("Invalid column oid: %s", oid)
-				curRequestOid = oid // fallback on continuing by using the response oid as next oid to request
-			} else {
-				curRequestOid = nextColumn
-			}
+			nextColumn := GetNextColumnOidNaive(oid)
+			curRequestOid = nextColumn
+			//if err != nil {
+			//	log.Debugf("Invalid column oid %s: %s", oid, err)
+			//	curRequestOid = oid // fallback on continuing by using the response oid as next oid to request
+			//} else {
+			//	curRequestOid = nextColumn
+			//}
 		}
 
 		if alreadySeenOIDs[curRequestOid] {
@@ -211,7 +247,125 @@ func FetchAllOIDsUsingGetNext(session Session) []string {
 		}
 		alreadySeenOIDs[curRequestOid] = true
 
-		savedOIDs = append(savedOIDs, oid)
+		savedPDUs = append(savedPDUs, variable)
 	}
-	return savedOIDs
+	return savedPDUs
 }
+
+func convertToDigits(oid string) ([]int, error) {
+	strDigits := strings.Split(oid, ".")
+	var digits []int
+	for _, strDigit := range strDigits {
+		digit, err := strconv.Atoi(strDigit)
+		if err != nil {
+			// TODO: test me
+			return nil, err
+		}
+		digits = append(digits, digit)
+	}
+	return digits, nil
+}
+
+func getNextOidUsingTrie(oidDigits []int, oidTrie *common.OIDTrie) (string, error) {
+	// TODO: remove last oidDigits digit since it's always .0 or index?
+
+	currentDigits := deepcopy.Copy(oidDigits).([]int)
+	// Walk up oid digits
+	for {
+		log.Debugf("[getNextOidUsingTrie] for oidDigits: %v", currentDigits)
+
+		if len(currentDigits) == 0 {
+			return "", fmt.Errorf("no node found")
+		}
+		node, err := oidTrie.GetNodeFromDigits(currentDigits)
+		if err != nil { // node not found
+			currentDigits = currentDigits[:len(currentDigits)-1] // Walk up
+			continue
+		}
+		if len(node.Children) == 0 {
+			// leaf node
+			//log.Debugf("[getNextOidUsingTrie] node found: %v", currentDigits)
+			newDigits := deepcopy.Copy(currentDigits).([]int)
+			newDigits[len(newDigits)-1] = newDigits[len(newDigits)-1] + 1
+			var newDigitsStr []string
+			for _, digit := range newDigits {
+				newDigitsStr = append(newDigitsStr, strconv.Itoa(digit))
+			}
+			nextOid := strings.Join(newDigitsStr, ".")
+			log.Debugf("[getNextOidUsingTrie] nextOid: %v", nextOid)
+			return nextOid, nil
+		} else {
+			// non-leaf node
+			var newDigitsStr []string
+			for _, digit := range oidDigits {
+				newDigitsStr = append(newDigitsStr, strconv.Itoa(digit))
+			}
+			oid := strings.Join(newDigitsStr, ".")
+			nodeJson := []byte{}
+			if strings.HasPrefix(oid, "1.3.6.1.2.1.11") {
+				nodeJson, _ = json.Marshal(node)
+			}
+
+			var curDigitsStr []string
+			for _, digit := range currentDigits {
+				curDigitsStr = append(curDigitsStr, strconv.Itoa(digit))
+			}
+			curOid := strings.Join(curDigitsStr, ".")
+
+			return "", fmt.Errorf("non-leaft node found: oid=%s curOid=%s node=%s", oid, curOid, string(nodeJson))
+		}
+	}
+}
+
+//// FetchAllOIDsUsingGetNext fetches all available OIDs
+//func FetchAllOIDsUsingGetNext(session Session, rootOid string, maxOidsToFetch int) ([]gosnmp.SnmpPDU, string, error) {
+//	var results []gosnmp.SnmpPDU
+//	alreadySeenOIDs := make(map[string]bool)
+//
+//	curOid := rootOid
+//	// TODO: WHY gosnmp Walk does not work?
+//
+//	//err := session.Walk(rootOid, func(dataUnit gosnmp.SnmpPDU) error {
+//	//	results = append(results, dataUnit)
+//	//	return nil
+//	//})
+//	//if err != nil {
+//	//	log.Debugf("GetNext error: %s", err)
+//	//	return nil, err
+//	//}
+//
+//	oidsFetched := 0
+//	for {
+//		curResults, err := session.GetNext([]string{curOid})
+//		if err != nil {
+//			log.Debugf("GetNext error: %s", err)
+//			break
+//		}
+//
+//		if len(curResults.Variables) != 1 {
+//			log.Debugf("Expect 1 variable, but got %d: %+v", len(curResults.Variables), curResults.Variables)
+//			break
+//		}
+//		variable := curResults.Variables[0]
+//		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
+//			log.Debug("No more OIDs to fetch")
+//			break
+//		}
+//		if alreadySeenOIDs[curOid] {
+//			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT
+//			log.Debug("error: received non sequential OIDs")
+//			break
+//		}
+//		alreadySeenOIDs[curOid] = true
+//
+//		oid := strings.TrimLeft(variable.Name, ".")
+//		curOid = oid
+//
+//		results = append(results, variable)
+//		oidsFetched += 1
+//		if oidsFetched >= maxOidsToFetch {
+//			break
+//		}
+//	}
+//	return results, curOid, nil
+//}
