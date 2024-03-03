@@ -126,7 +126,7 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // See RFC 7540 section 5.1: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1
 static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
     // We want to see the EOS twice for a given stream: one for the client, one for the server.
-    if (!current_stream->request_end_of_stream) {
+    if ((current_stream->response_last_seen == 0) && (!current_stream->request_end_of_stream)) {
         current_stream->request_end_of_stream = true;
         return;
     }
