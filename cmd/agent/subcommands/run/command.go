@@ -112,7 +112,6 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -331,9 +330,6 @@ func getSharedFxOption() fx.Option {
 		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
-		}),
-		fx.Provide(func(config config.Component, ac autodiscovery.Component) status.InformationProvider {
-			return status.NewInformationProvider(autodiscoveryStatus.GetProvider(ac))
 		}),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),

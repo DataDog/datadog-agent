@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package autodiscovery fetch information needed to render the 'autodiscovery' section of the status page.
-package autodiscovery
+// Package status fetch information needed to render the 'autodiscovery' section of the status page.
+package status
 
 import (
 	"embed"
@@ -14,20 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // PopulateStatus populates the status stats
-func PopulateStatus(ac autodiscovery.Component, stats map[string]interface{}) {
+func PopulateStatus(acComp optional.Option[autodiscovery.Component], stats map[string]interface{}) {
 	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
-	if ac.IsStarted() {
+	if ac, ok := acComp.Get(); ok && ac.IsStarted() {
 		stats["adConfigErrors"] = ac.GetAutodiscoveryErrors()
 	}
-	stats["filterErrors"] = containers.GetFilterErrors()
-}
-
-// PopulateStatusWithoutAD populates the status stats without autodicsovery component
-func PopulateStatusWithoutAD(stats map[string]interface{}) {
-	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
 	stats["filterErrors"] = containers.GetFilterErrors()
 }
 
@@ -36,11 +31,11 @@ var templatesFS embed.FS
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
-	ac autodiscovery.Component
+	ac optional.Option[autodiscovery.Component]
 }
 
 // GetProvider if agent is running in a container environment returns status.Provider otherwise returns nil
-func GetProvider(ac autodiscovery.Component) status.Provider {
+func GetProvider(ac optional.Option[autodiscovery.Component]) status.Provider {
 	if config.IsContainerized() {
 		return Provider{ac: ac}
 	}

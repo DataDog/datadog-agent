@@ -19,10 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -77,8 +79,9 @@ type AutoConfig struct {
 type provides struct {
 	fx.Out
 
-	Comp         autodiscovery.Component
-	OptionalComp optional.Option[autodiscovery.Component]
+	Comp           autodiscovery.Component
+	OptionalComp   optional.Option[autodiscovery.Component]
+	StatusProvider status.InformationProvider
 }
 
 // Module defines the fx options for this component.
@@ -91,9 +94,11 @@ func Module() fxutil.Module {
 
 func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
+	optC := optional.NewOption[autodiscovery.Component](c)
 	return provides{
-		Comp:         c,
-		OptionalComp: optional.NewOption[autodiscovery.Component](c),
+		Comp:           c,
+		OptionalComp:   optC,
+		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(optC)),
 	}
 }
 
