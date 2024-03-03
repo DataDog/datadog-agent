@@ -12,18 +12,32 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path"
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-type apiResponse struct {
-	Error *apiError `json:"error,omitempty"`
+const (
+	defaultSocketPath = defaultRepositoriesPath + "/updater.sock"
+)
+
+// StatusResponse is the response to the status endpoint.
+type StatusResponse struct {
+	APIResponse
+	Version  string                      `json:"version"`
+	Packages map[string]repository.State `json:"packages"`
 }
 
-type apiError struct {
+// APIResponse is the response to an API request.
+type APIResponse struct {
+	Error *APIError `json:"error,omitempty"`
+}
+
+// APIError is an error response.
+type APIError struct {
 	Message string `json:"message"`
 }
 
@@ -42,7 +56,7 @@ type localAPIImpl struct {
 
 // NewLocalAPI returns a new LocalAPI.
 func NewLocalAPI(updater Updater) (LocalAPI, error) {
-	socketPath := path.Join(defaultRepositoriesPath, "updater.sock")
+	socketPath := defaultSocketPath
 	err := os.RemoveAll(socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)
@@ -80,10 +94,29 @@ func (l *localAPIImpl) Stop(ctx context.Context) error {
 
 func (l *localAPIImpl) handler() http.Handler {
 	r := mux.NewRouter().Headers("Content-Type", "application/json").Subrouter()
+	r.HandleFunc("/status", l.status).Methods(http.MethodGet)
 	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
 	return r
+}
+
+func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var response StatusResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	pacakges, err := l.updater.GetState()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+	response = StatusResponse{
+		Version:  version.AgentVersion,
+		Packages: pacakges,
+	}
 }
 
 // example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/experiment/start -d '{"version":"1.21.5"}'
@@ -91,21 +124,21 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
 	var request startExperimentParams
-	var response apiResponse
+	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response.Error = &apiError{Message: err.Error()}
+		response.Error = &APIError{Message: err.Error()}
 		return
 	}
 	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
 	err = l.updater.StartExperiment(r.Context(), pkg, request.Version)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &apiError{Message: err.Error()}
+		response.Error = &APIError{Message: err.Error()}
 		return
 	}
 }
@@ -114,7 +147,7 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var response apiResponse
+	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
@@ -122,7 +155,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 	err := l.updater.StopExperiment(pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &apiError{Message: err.Error()}
+		response.Error = &APIError{Message: err.Error()}
 		return
 	}
 }
@@ -131,7 +164,7 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var response apiResponse
+	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
@@ -139,7 +172,54 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 	err := l.updater.PromoteExperiment(pkg)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &apiError{Message: err.Error()}
+		response.Error = &APIError{Message: err.Error()}
 		return
 	}
+}
+
+// LocalAPIClient is a client to interact with the locally exposed updater API.
+type LocalAPIClient interface {
+	Status() (StatusResponse, error)
+}
+
+// LocalAPIClient is a client to interact with the locally exposed updater API.
+type localAPIClientImpl struct {
+	client *http.Client
+}
+
+// NewLocalAPIClient returns a new LocalAPIClient.
+func NewLocalAPIClient() LocalAPIClient {
+	return &localAPIClientImpl{
+		client: &http.Client{
+			Transport: &http.Transport{
+				Dial: func(_, _ string) (net.Conn, error) {
+					return net.Dial("unix", defaultSocketPath)
+				},
+			},
+		},
+	}
+}
+
+// Status returns the status of the updater.
+func (c *localAPIClientImpl) Status() (StatusResponse, error) {
+	var response StatusResponse
+	req, err := http.NewRequest(http.MethodGet, "http://updater/status", nil)
+	if err != nil {
+		return response, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer resp.Body.Close()
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return response, err
+	}
+	if response.Error != nil {
+		return response, fmt.Errorf("error getting status: %s", response.Error.Message)
+	}
+	return response, nil
 }
