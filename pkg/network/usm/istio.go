@@ -69,7 +69,7 @@ var istioProbes = []manager.ProbesSelector{
 	},
 }
 
-// envoyCmd represents the search term used for determining
+// envoyCmd  represents the search term used for determining
 // whether or not a given PID represents an Envoy process.
 // The search is done over the /proc/<pid>/cmdline file.
 var envoyCmd = []byte("/bin/envoy")
