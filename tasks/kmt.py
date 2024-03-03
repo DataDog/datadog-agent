@@ -232,10 +232,12 @@ def start_compiler(ctx):
     start_cc(ctx)
 
 
-def filter_target_domains(vms, infra):
+def filter_target_domains(vms, infra, local_arch):
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
     domains = list()
     for vmset in vmsets:
+        if vmset.arch != "local" and vmset.arch != local_arch:
+            raise Exit(f"KMT does not support cross-arch ({local_arch} -> {vmset.arch}) build/test at the moment")
         for vm in vmset.vms:
             for domain in infra[vmset.arch].microvms:
                 if domain.tag == vm.version:
@@ -351,7 +353,7 @@ def vms_have_correct_deps(ctx, domains, depsfile):
 
 
 @task
-def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, full_rebuild=False, packages="", verbose=True):
+def prepare(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, packages="", verbose=True):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -359,11 +361,10 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, full_rebuild=False, p
     if vms == "":
         raise Exit("No vms specified to sync with")
 
-    if not arch:
-        arch = platform.machine()
+    arch = arch_mapping[platform.machine()]
 
     infra = build_infrastructure(stack, ssh_key)
-    domains = filter_target_domains(vms, infra)
+    domains = filter_target_domains(vms, infra, arch)
     build_from_scratch = (
         full_rebuild
         or (not os.path.exists(f"kmt-deps/{stack}"))
@@ -462,7 +463,8 @@ def test(
         prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages)
 
     infra = build_infrastructure(stack, ssh_key)
-    domains = filter_target_domains(vms, infra)
+    arch = arch_mapping[platform.machine()]
+    domains = filter_target_domains(vms, infra, arch)
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
     pkgs = packages.split(",")
@@ -503,9 +505,9 @@ def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
     if not os.path.exists(f"kmt-deps/{stack}"):
         ctx.run(f"mkdir -p kmt-deps/{stack}")
 
-    arch = platform.machine()
+    arch = arch_mapping[platform.machine()]
     infra = build_infrastructure(stack, ssh_key)
-    domains = filter_target_domains(vms, infra)
+    domains = filter_target_domains(vms, infra, arch)
 
     build_from_scratch = (
         full_rebuild
