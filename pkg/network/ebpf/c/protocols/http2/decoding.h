@@ -982,11 +982,9 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             continue;
         }
 
-        if (current_stream->request_method.finalized && current_stream->path.finalized) {
+        if (!current_stream->status_code.finalized) {
             current_stream->request_end_of_stream_real = true;
-        }
-
-        if (current_stream->status_code.finalized) {
+        } else {
             current_stream->response_end_of_stream = true;
         }
 
