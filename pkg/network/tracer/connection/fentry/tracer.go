@@ -29,12 +29,12 @@ const probeUID = "net"
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer
-func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (*manager.Manager, func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, nil, ErrorNotSupported
 	}
 
-	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, &ebpftelemetry.ErrorsTelemetryModifier{})
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RLimit = mgrOpts.RLimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
@@ -83,7 +83,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 				})
 		}
 
-		return m.InitWithOptions(ar, o)
+		return m.InitWithOptions(ar, &o)
 	})
 
 	if err != nil {
