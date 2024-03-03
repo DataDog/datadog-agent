@@ -18,27 +18,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WindowsCreateFileSelfTest defines a windows create file self test
-type WindowsCreateFileSelfTest struct {
+// WindowsSetRegistryKeyTest defines a windows set registry value self test
+type WindowsSetRegistryKeyTest struct {
 	ruleID    eval.RuleID
 	isSuccess bool
-	filename  string
+	keyName   string
 }
 
 // GetRuleDefinition returns the rule
-func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
+func (o *WindowsSetRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
+	o.ruleID = fmt.Sprintf("%s_windows_set_registry_key_value", ruleIDPrefix)
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`create.file.name == "%s"`, filepath.Base(o.filename)),
+		Expression: fmt.Sprintf(`set.registry.key_name == "%s"`, filepath.Base(o.KeyName)),
 	}
 }
 
 // GenerateEvent generate an event
-func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
+func (o *WindowsSetRegistryKeyTest) GenerateEvent() error {
 	o.isSuccess = false
-	psCommand := fmt.Sprintf(`New-Item -Path "%s" -ItemType File`, o.filename)
+	ps := fmt.Sprintf(`Set-ItemProperty "%s" -Name 'tmp_self_test_value' -Value \"c:\\temp\\tmp_self_test.exe\"`, o.keyName)
 	cmd := exec.Command("powershell", "-Command", psCommand)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running command: %v", err)
@@ -48,11 +48,11 @@ func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 }
 
 // HandleEvent handles self test events
-func (o *WindowsCreateFileSelfTest) HandleEvent(event selfTestEvent) {
+func (o *WindowsSetRegistryKeyTest) HandleEvent(event selfTestEvent) {
 	o.isSuccess = event.RuleID == o.ruleID
 }
 
 // IsSuccess return the state of the test
-func (o *WindowsCreateFileSelfTest) IsSuccess() bool {
+func (o *WindowsSetRegistryKeyTest) IsSuccess() bool {
 	return o.isSuccess
 }

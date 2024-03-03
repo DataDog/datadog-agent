@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -27,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // SelfTest represent one self test
@@ -49,6 +52,7 @@ type SelfTester struct {
 	lastTimestamp   time.Time
 	selfTests       []SelfTest
 	tmpDir          string
+	tmpKey          string
 	done            chan bool
 }
 
@@ -59,6 +63,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	var (
 		selfTests []SelfTest
 		tmpDir    string
+		tmpKey    string
 	)
 
 	if runtime.GOOS == "windows" {
@@ -68,8 +73,15 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		}
 		tmpDir = dir
 		fileToCreate := "file.txt"
+
+		keyName, err := createTempRegistryKey()
+		if err != nil {
+			return nil, err
+		}
+		tmpKey = keyName
 		selfTests = []SelfTest{
 			&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
+			&WindowsSetRegistryKeyTest{keyName: keyName},
 		}
 	}
 
@@ -79,6 +91,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		probe:           probe,
 		selfTests:       selfTests,
 		tmpDir:          tmpDir,
+		tmpKey:          tmpKey,
 		done:            make(chan bool),
 	}
 
@@ -104,6 +117,43 @@ func createTargetDir() (string, error) {
 		return "", err
 	}
 	return tmpDir, nil
+}
+
+func createTempRegistryKey() (string, error) {
+
+	keyName := fmt.Sprintf("datadog_agent_cws_self_test_temp_registry_key_%s", strconv.FormatInt(time.Now().UnixNano(), 10))
+
+	baseKey, err := registry.OpenKey(registry.CURRENT_USER, "Software", registry.WRITE)
+	if err != nil {
+		return "", fmt.Errorf("failed to open base key: %v", err)
+	}
+	defer baseKey.Close()
+
+	// Create the temporary subkey under HKEY_CURRENT_USER\Software
+	tempKey, _, err := registry.CreateKey(baseKey, keyName, registry.ALL_ACCESS)
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary registry key: %v", err)
+	}
+	tempKey.Close()
+
+	// Return the full path of the created temporary registry key
+	return fmt.Sprintf("HKCU\\Software\\%s", keyName), nil
+}
+
+func deleteRegistryKey(path string) error {
+	// Open base key
+	baseKey, err := registry.OpenKey(registry.CURRENT_USER, "Software", registry.WRITE)
+	if err != nil {
+		return fmt.Errorf("failed to open base key: %v", err)
+	}
+	defer baseKey.Close()
+
+	// Delete the registry key
+	if err := registry.DeleteKey(baseKey, path); err != nil {
+		return fmt.Errorf("failed to delete registry key: %v", err)
+	}
+
+	return nil
 }
 
 // RunSelfTest runs the self test and return the result
@@ -143,9 +193,7 @@ func (t *SelfTester) WaitForResult(timeout time.Duration, cb func(success []eval
 				return
 			case event := <-t.eventChan:
 				t.Lock()
-				fmt.Println("--------SELFTESTS----------", t.selfTests)
 				for _, selfTest := range t.selfTests {
-					fmt.Println("--------SELFTESTS STATUS----------", selfTest.IsSuccess())
 					if !selfTest.IsSuccess() {
 						selfTest.HandleEvent(event)
 					}
@@ -191,6 +239,11 @@ func (t *SelfTester) Close() error {
 	if t.tmpDir != "" {
 		err := os.RemoveAll(t.tmpDir)
 		t.tmpDir = ""
+		return err
+	}
+	if t.tmpKey != "" {
+		err := deleteRegistryKey(t.tmpKey)
+		t.tmpKey = ""
 		return err
 	}
 	return nil
