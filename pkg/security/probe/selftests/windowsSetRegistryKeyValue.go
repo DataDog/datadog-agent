@@ -31,14 +31,14 @@ func (o *WindowsSetRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`set.registry.key_name == "%s"`, filepath.Base(o.KeyName)),
+		Expression: fmt.Sprintf(`set.registry.key_name == "%s"`, filepath.Base(o.keyName)),
 	}
 }
 
 // GenerateEvent generate an event
 func (o *WindowsSetRegistryKeyTest) GenerateEvent() error {
 	o.isSuccess = false
-	ps := fmt.Sprintf(`Set-ItemProperty "%s" -Name 'tmp_self_test_value' -Value \"c:\\temp\\tmp_self_test.exe\"`, o.keyName)
+	psCommand := fmt.Sprintf(`Set-ItemProperty "%s" -Name 'tmp_self_test_value' -Value \"c:\\temp\\tmp_self_test.exe\"`, o.keyName)
 	cmd := exec.Command("powershell", "-Command", psCommand)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running command: %v", err)
