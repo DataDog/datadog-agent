@@ -6,7 +6,13 @@
 // Package protocols provides the implementation of the network tracer protocols
 package protocols
 
-import "math"
+import (
+	"fmt"
+	"math"
+
+	"github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+)
 
 // below is copied from pkg/trace/stats/statsraw.go
 
@@ -20,4 +26,15 @@ func NSTimestampToFloat(ns uint64) float64 {
 	// https://en.wikipedia.org/wiki/Double-precision_floating-point_format
 	b &= 0xfffff80000000000
 	return math.Float64frombits(b)
+}
+
+func GetMap(mgr *manager.Manager, name string) (*ebpf.Map, error) {
+	m, _, err := mgr.GetMap(name)
+	if err != nil {
+		return nil, fmt.Errorf("error getting %q map: %s", name, err)
+	}
+	if m == nil {
+		return nil, fmt.Errorf("%q map is nil", name)
+	}
+	return m, nil
 }
