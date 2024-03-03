@@ -137,7 +137,7 @@ func createTempRegistryKey() (string, error) {
 	tempKey.Close()
 
 	// Return the full path of the created temporary registry key
-	return fmt.Sprintf("HKCU\\Software\\%s", keyName), nil
+	return fmt.Sprintf("HKCU:\\Software\\%s", keyName), nil
 }
 
 func deleteRegistryKey(path string) error {
