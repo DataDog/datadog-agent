@@ -103,7 +103,7 @@ func createTargetDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return tmpDir, fmt.Errorf("Error while creating directory")
+	return tmpDir, nil
 }
 
 // RunSelfTest runs the self test and return the result
