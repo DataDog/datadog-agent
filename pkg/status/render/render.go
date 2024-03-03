@@ -221,7 +221,6 @@ func FormatCheckStats(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-
 //go:embed templates
 var templatesFS embed.FS
 
