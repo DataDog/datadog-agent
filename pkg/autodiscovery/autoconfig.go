@@ -14,7 +14,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -99,9 +98,6 @@ func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler, secretResolver sec
 func (ac *AutoConfig) serviceListening() {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	tagFreshnessTicker := time.NewTicker(15 * time.Second) // we can miss tags for one run
-	defer tagFreshnessTicker.Stop()
-
 	for {
 		select {
 		case <-ac.listenerStop:
@@ -115,30 +111,7 @@ func (ac *AutoConfig) serviceListening() {
 			ac.processNewService(ctx, svc)
 		case svc := <-ac.delService:
 			ac.processDelService(ctx, svc)
-		case <-tagFreshnessTicker.C:
-			ac.checkTagFreshness(ctx)
 		}
-	}
-}
-
-func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
-	// check if services tags are up to date
-	var servicesToRefresh []listeners.Service
-	for _, service := range ac.store.getServices() {
-		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
-		currentHash := tagger.GetEntityHash(service.GetTaggerEntity(), tagger.ChecksCardinality)
-		// Since an empty hash is a valid value, and we are not able to differentiate
-		// an empty tagger or store with an empty value.
-		// So we only look at the difference between current and previous
-		if currentHash != previousHash {
-			ac.store.setTagsHashForService(service.GetTaggerEntity(), currentHash)
-			servicesToRefresh = append(servicesToRefresh, service)
-		}
-	}
-	for _, service := range servicesToRefresh {
-		log.Debugf("Tags changed for service %s, rescheduling associated checks if any", service.GetTaggerEntity())
-		ac.processDelService(ctx, service)
-		ac.processNewService(ctx, service)
 	}
 }
 
@@ -414,13 +387,6 @@ func (ac *AutoConfig) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) check
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
 func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
-	// in any case, register the service and store its tag hash
-	ac.store.setServiceForEntity(svc, svc.GetServiceID())
-	ac.store.setTagsHashForService(
-		svc.GetTaggerEntity(),
-		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
-	)
-
 	// get all the templates matching service identifiers
 	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
 	if err != nil {
@@ -434,9 +400,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 
 // processDelService takes a service, stops its associated checks, and updates the cache
 func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
-	ac.store.removeServiceForEntity(svc.GetServiceID())
 	changes := ac.cfgMgr.processDelService(ctx, svc)
-	ac.store.removeTagsHashForService(svc.GetTaggerEntity())
 	ac.applyChanges(changes)
 }
 

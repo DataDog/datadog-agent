@@ -318,13 +318,21 @@ func (l *SNMPListener) Stop() {
 	l.stop <- true
 }
 
-// GetServiceID returns the unique entity ID linked to that service
-func (s *SNMPService) GetServiceID() string {
-	return s.entityID
+// Equal returns whether the two SNMPService are equal
+func (s *SNMPService) Equal(o Service) bool {
+	s2, ok := o.(*SNMPService)
+	if !ok {
+		return false
+	}
+
+	return s.entityID == s2.entityID &&
+		s.deviceIP == s2.deviceIP &&
+		s.config.Port == s2.config.Port &&
+		s.adIdentifier == s2.adIdentifier
 }
 
-// GetTaggerEntity returns the unique entity ID linked to that service
-func (s *SNMPService) GetTaggerEntity() string {
+// GetServiceID returns the unique entity ID linked to that service
+func (s *SNMPService) GetServiceID() string {
 	return s.entityID
 }
 
@@ -365,11 +373,6 @@ func (s *SNMPService) GetHostname(context.Context) (string, error) {
 // IsReady returns true
 func (s *SNMPService) IsReady(context.Context) bool {
 	return true
-}
-
-// GetCheckNames returns nil
-func (s *SNMPService) GetCheckNames(context.Context) []string {
-	return nil
 }
 
 // HasFilter returns false on SNMP

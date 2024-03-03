@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -226,16 +225,6 @@ func (t *TaggerClient) AccumulateTagsFor(entity string, cardinality collectors.T
 	}
 	t.mux.RUnlock()
 	return t.defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
-}
-
-// GetEntityHash returns the hash for the tags associated with the given entity
-// Returns an empty string if the tags lookup fails
-func (t *TaggerClient) GetEntityHash(entity string, cardinality collectors.TagCardinality) string {
-	tags, err := t.Tag(entity, cardinality)
-	if err != nil {
-		return ""
-	}
-	return utils.ComputeTagsHash(tags)
 }
 
 // Standard queries the defaultTagger to get entity

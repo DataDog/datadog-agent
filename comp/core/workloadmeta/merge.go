@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"reflect"
+	"sort"
 	"strconv"
 	"time"
 
@@ -56,7 +57,11 @@ func portSliceMerge(dst, src reflect.Value) error {
 	dstSlice := dst.Interface().([]ContainerPort)
 
 	// Not allocation the map if nothing to do
-	if len(srcSlice) == 0 || len(dstSlice) == 0 {
+	if len(srcSlice) == 0 {
+		return nil
+	}
+	if len(dstSlice) == 0 {
+		dst.Set(reflect.ValueOf(srcSlice))
 		return nil
 	}
 
@@ -73,6 +78,15 @@ func portSliceMerge(dst, src reflect.Value) error {
 	for _, port := range mergeMap {
 		dstSlice = append(dstSlice, port)
 	}
+	sort.Slice(dstSlice, func(i, j int) bool {
+		if dstSlice[i].Port < dstSlice[j].Port {
+			return true
+		}
+		if dstSlice[i].Port > dstSlice[j].Port {
+			return false
+		}
+		return dstSlice[i].Protocol < dstSlice[j].Protocol
+	})
 	dst.Set(reflect.ValueOf(dstSlice))
 
 	return nil

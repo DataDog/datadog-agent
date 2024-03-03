@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
@@ -19,11 +18,6 @@ type store struct {
 	// for that service.  Configs are never removed from this map, even if the
 	// template for which they were resolved is removed.
 	serviceToConfigs map[string][]integration.Config
-
-	// serviceToTagsHash maps tagger entity ID to a hash of the tags associated
-	// with the service.  Note that this key differs from keys used elsewhere
-	// in this type.
-	serviceToTagsHash map[string]string
 
 	// templateToConfigs maps config digest of a template to the resolved templates
 	// created from it.  Configs are never removed from this map, even if the
@@ -41,9 +35,6 @@ type store struct {
 	// services with that AD identifier.  The map structure is
 	// adIDTOServices[adID][serviceID] = struct{}{}
 	adIDToServices map[string]map[string]struct{}
-
-	// entityToService maps serviceIDs to Service instances.
-	entityToService map[string]listeners.Service
 
 	// templateCache stores templates by their AD identifiers.
 	templateCache *templateCache
@@ -67,12 +58,10 @@ type store struct {
 func newStore() *store {
 	s := store{
 		serviceToConfigs:       make(map[string][]integration.Config),
-		serviceToTagsHash:      make(map[string]string),
 		templateToConfigs:      make(map[string][]integration.Config),
 		loadedConfigs:          make(map[string]integration.Config),
 		nameToJMXMetrics:       make(map[string]integration.Data),
 		adIDToServices:         make(map[string]map[string]struct{}),
-		entityToService:        make(map[string]listeners.Service),
 		templateCache:          newTemplateCache(),
 		idsOfChecksWithSecrets: make(map[checkid.ID]checkid.ID),
 	}
@@ -119,27 +108,6 @@ func (s *store) addConfigForTemplate(templateDigest string, config integration.C
 	s.templateToConfigs[templateDigest] = append(s.templateToConfigs[templateDigest], config)
 }
 
-// getTagsHashForService return the tags hash for a specified service
-func (s *store) getTagsHashForService(serviceEntity string) string {
-	s.m.RLock()
-	defer s.m.RUnlock()
-	return s.serviceToTagsHash[serviceEntity]
-}
-
-// removeTagsHashForService removes the tags hash for a specified service
-func (s *store) removeTagsHashForService(serviceEntity string) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	delete(s.serviceToTagsHash, serviceEntity)
-}
-
-// setTagsHashForService set the tags hash for a specified service
-func (s *store) setTagsHashForService(serviceEntity string, hash string) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.serviceToTagsHash[serviceEntity] = hash
-}
-
 // setJMXMetricsForConfigName stores the jmx metrics config for a config name
 func (s *store) setJMXMetricsForConfigName(config string, metrics integration.Data) {
 	s.m.Lock()
@@ -152,28 +120,6 @@ func (s *store) getJMXMetricsForConfigName(config string) integration.Data {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	return s.nameToJMXMetrics[config]
-}
-
-func (s *store) getServices() []listeners.Service {
-	s.m.Lock()
-	defer s.m.Unlock()
-	services := []listeners.Service{}
-	for _, service := range s.entityToService {
-		services = append(services, service)
-	}
-	return services
-}
-
-func (s *store) setServiceForEntity(svc listeners.Service, entity string) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.entityToService[entity] = svc
-}
-
-func (s *store) removeServiceForEntity(entity string) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	delete(s.entityToService, entity)
 }
 
 func (s *store) setADIDForServices(adID string, serviceEntity string) {
