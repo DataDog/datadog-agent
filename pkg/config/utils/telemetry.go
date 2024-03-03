@@ -13,7 +13,7 @@ import (
 // Returns true if a * is present in the telemetry.checks list.
 func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 	// when agent_telemetry is enabled, we enable telemetry for every check
-	if IsAgentTelemetryEnabled(cfg) {
+	if isAgentTelemetryEnabled(cfg) {
 		return true
 	}
 
@@ -38,10 +38,10 @@ func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 // IsTelemetryEnabled returns whether or not telemetry is enabled
 func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.IsSet("telemetry.enabled") && cfg.GetBool("telemetry.enabled") ||
-		(IsAgentTelemetryEnabled(cfg))
+		(isAgentTelemetryEnabled(cfg))
 }
 
-// IsAgentTelemetryEnabled returns whether or not agent telemetry is enabled
-func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
+// isAgentTelemetryEnabled returns whether or not agent telemetry is enabled
+func isAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.IsSet("agent_telemetry.enabled") && cfg.GetBool("agent_telemetry.enabled")
 }

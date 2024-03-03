@@ -13,7 +13,9 @@
 package agenttelemetryimpl
 
 import (
+	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"reflect"
 	"strconv"
@@ -25,13 +27,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"golang.org/x/exp/maps"
 
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/fx"
 )
+
+// Embed one or more rendering templated into this binary as a resource
+// to be used at runtime.
+
+//go:embed status_templates
+var templatesFS embed.FS
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
@@ -349,27 +356,29 @@ func (a *atel) reportAgentMetrics(session *senderSession, p *Profile) {
 	}
 }
 
-func (a *atel) renderAgentStatus(p *Profile, fullStatus map[string]interface{}, statusOutput map[string]interface{}) {
+// renderAgentStatus renders (transform) input status JSON object into output status using the template
+func (a *atel) renderAgentStatus(p *Profile, inputStatus map[string]interface{}, statusOutput map[string]interface{}) {
 	// Render template if needed
-	if p.Status.Template != "none" {
-		// Filter full Agent Status JSON via template which is selected by appending template suffix
-		// to "pkg\status\render\templates\agent-telemetry-<suffix>.tmpl" file name. Currently we
-		// support only "basic" suffix/template with future extensions to use other templates.
-		statusBytes, err := render.FormatAgentTelemetry(fullStatus, p.Status.Template)
-		if err != nil {
-			a.logComp.Errorf("Failed to collect Agent Status telemetry. Error: %s", err.Error())
-			return
-		}
-		if len(statusBytes) == 0 {
-			a.logComp.Debug("Agent status rendering to agent telemetry payloads return empty payload")
-			return
-		}
+	if p.Status.Template == "none" {
+		return
+	}
 
-		// Convert byte slice to JSON object
-		if err := json.Unmarshal(statusBytes, &statusOutput); err != nil {
-			a.logComp.Errorf("Failed to collect Agent Status telemetry. Error: %s", err.Error())
-			return
-		}
+	templateName := "agent-telemetry-" + p.Status.Template + ".tmpl"
+	var b = new(bytes.Buffer)
+	err := status.RenderText(templatesFS, templateName, b, inputStatus)
+	if err != nil {
+		a.logComp.Errorf("Failed to collect Agent Status telemetry. Error: %s", err.Error())
+		return
+	}
+	if len(b.Bytes()) == 0 {
+		a.logComp.Debug("Agent status rendering to agent telemetry payloads return empty payload")
+		return
+	}
+
+	// Convert byte slice to JSON object
+	if err := json.Unmarshal(b.Bytes(), &statusOutput); err != nil {
+		a.logComp.Errorf("Failed to collect Agent Status telemetry. Error: %s", err.Error())
+		return
 	}
 }
 
@@ -449,8 +458,10 @@ func (a *atel) reportAgentStatus(session *senderSession, p *Profile) {
 
 	a.logComp.Debugf("Collect Agent Status telemetry for profile %s", p.Name)
 
-	// Get Agent Status JSON object
-	statusBytes, err := a.statusComp.GetStatus("json", true)
+	// Current "agent-telemetry-basic.tmpl" uses only "runneStats" and "dogstatsdStats" JSON sections
+	// These JSON sections are populated via "collector" and "DogStatsD" status providers sections
+	minimumReqSections := []string{"collector", "DogStatsD"}
+	statusBytes, err := a.statusComp.GetStatusBySection(minimumReqSections, "json", false)
 	if err != nil {
 		a.logComp.Errorf("failed to get agent status: %s", err)
 		return

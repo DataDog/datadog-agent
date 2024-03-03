@@ -1,11 +1,11 @@
 {
-  {{- with .RunnerStats }}
+  {{- with .runnerStats }}
   "checks": {
     "running_checks": {{.RunningChecks}},
     "runs": {{.Runs}}
   },
   {{- end }}
-  {{- with .DogStatsdStats -}}
+  {{- with .dogstatsdStats -}}
   "dogstatsd": {
     "EventParseErrors": {{.EventParseErrors}},
     "MetricParseErrors": {{.MetricParseErrors}},

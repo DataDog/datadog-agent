@@ -225,11 +225,10 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	}
 }
 
-func (s *statusImplementation) GetStatusBySection(section string, format string, verbose bool) ([]byte, error) {
+func (s *statusImplementation) GetStatusBySection(sections []string, format string, verbose bool) ([]byte, error) {
 	var errors []error
 
-	switch section {
-	case "header":
+	if len(sections) == 1 && sections[0] == "header" {
 		providers := s.sortedHeaderProviders
 		switch format {
 		case "json":
@@ -289,63 +288,71 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 		default:
 			return []byte{}, nil
 		}
-	default:
-		providers := s.sortedProvidersBySection[section]
-		switch format {
-		case "json":
-			stats := make(map[string]interface{})
+	}
 
-			for _, sc := range providers {
-				if err := sc.JSON(verbose, stats); err != nil {
-					errors = append(errors, err)
-				}
-			}
-
-			if len(errors) > 0 {
-				errorsInfo := []string{}
-				for _, error := range errors {
-					errorsInfo = append(errorsInfo, error.Error())
-				}
-				stats["errors"] = errorsInfo
-			}
-
-			return json.Marshal(stats)
-		case "text":
-			var b = new(bytes.Buffer)
-
-			for i, sc := range providers {
-				if i == 0 {
-					printHeader(b, section)
-					newLine(b)
-				}
-
-				if err := sc.Text(verbose, b); err != nil {
-					errors = append(errors, err)
-				}
-			}
-
-			if len(errors) > 0 {
-				if err := renderErrors(b, errors); err != nil {
-					return []byte{}, err
-				}
-
-				return b.Bytes(), nil
-			}
-
-			return b.Bytes(), nil
-		case "html":
-			var b = new(bytes.Buffer)
-
-			for _, sc := range providers {
-				err := sc.HTML(verbose, b)
-				if err != nil {
-					return b.Bytes(), err
-				}
-			}
-			return b.Bytes(), nil
-		default:
-			return []byte{}, nil
+	// Get overall provider lists from one or more sections
+	var providers []status.Provider
+	for _, section := range sections {
+		providersForSection, ok := s.sortedProvidersBySection[section]
+		if ok && len(providersForSection) > 0 {
+			providers = append(providers, providersForSection...)
 		}
+	}
+
+	switch format {
+	case "json":
+		stats := make(map[string]interface{})
+
+		for _, sc := range providers {
+			if err := sc.JSON(verbose, stats); err != nil {
+				errors = append(errors, err)
+			}
+		}
+
+		if len(errors) > 0 {
+			errorsInfo := []string{}
+			for _, error := range errors {
+				errorsInfo = append(errorsInfo, error.Error())
+			}
+			stats["errors"] = errorsInfo
+		}
+
+		return json.Marshal(stats)
+	case "text":
+		var b = new(bytes.Buffer)
+
+		for i, sc := range providers {
+			if i == 0 {
+				printHeader(b, sections[0])
+				newLine(b)
+			}
+
+			if err := sc.Text(verbose, b); err != nil {
+				errors = append(errors, err)
+			}
+		}
+
+		if len(errors) > 0 {
+			if err := renderErrors(b, errors); err != nil {
+				return []byte{}, err
+			}
+
+			return b.Bytes(), nil
+		}
+
+		return b.Bytes(), nil
+	case "html":
+		var b = new(bytes.Buffer)
+
+		for _, sc := range providers {
+			err := sc.HTML(verbose, b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+		return b.Bytes(), nil
+	default:
+		return []byte{}, nil
 	}
 }
 
