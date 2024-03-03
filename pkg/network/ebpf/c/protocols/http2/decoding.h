@@ -982,20 +982,20 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             continue;
         }
 
-        // When we accept an RST, it means that the current stream is terminated.
-        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
-        // If rst, and stream is empty (no status code, or no response) then delete from inflight
-        if (is_rst && (!current_stream->status_code.finalized || !current_stream->request_method.finalized || !current_stream->path.finalized)) {
-            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
-            continue;
-        }
-
         if (current_stream->request_method.finalized && current_stream->path.finalized) {
             current_stream->request_end_of_stream_real = true;
         }
 
         if (current_stream->status_code.finalized) {
             current_stream->response_end_of_stream = true;
+        }
+
+        // When we accept an RST, it means that the current stream is terminated.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
+        // If rst, and stream is empty (no status code, or no response) then delete from inflight
+        if (is_rst && (!current_stream->status_code.finalized || !current_stream->request_method.finalized || !current_stream->path.finalized)) {
+            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+            continue;
         }
 
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
