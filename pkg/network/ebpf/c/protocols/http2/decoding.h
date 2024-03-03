@@ -990,6 +990,14 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
             continue;
         }
 
+        if (current_stream->request_method.finalized && current_stream->path.finalized) {
+            current_stream->request_end_of_stream_real = true;
+        }
+
+        if (current_stream->status_code.finalized) {
+            current_stream->response_end_of_stream = true;
+        }
+
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
 
         // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
