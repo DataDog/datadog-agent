@@ -62,13 +62,14 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	)
 
 	if runtime.GOOS == "windows" {
-		name, dir, err := createTargetFile()
+		dir, err := createTargetDir()
 		if err != nil {
 			return nil, err
 		}
 		tmpDir = dir
+		fileToCreate := "file.txt"
 		selfTests = []SelfTest{
-			&WindowsCreateFileSelfTest{filename: name},
+			&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
 		}
 	}
 
@@ -96,20 +97,13 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 	}
 }
 
-func createTargetFile() (string, string, error) {
+func createTargetDir() (string, error) {
 	// Create temp directory to put target file in
 	tmpDir, err := os.MkdirTemp("", "datadog_agent_cws_self_test")
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-
-	// Create target file
-	targetFile, err := os.CreateTemp(tmpDir, "datadog_agent_cws_target_file")
-	if err != nil {
-		return "", "", err
-	}
-
-	return targetFile.Name(), tmpDir, targetFile.Close()
+	return tmpDir, fmt.Errorf("Error while creating directory")
 }
 
 // RunSelfTest runs the self test and return the result
