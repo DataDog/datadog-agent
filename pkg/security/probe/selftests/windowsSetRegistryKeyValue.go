@@ -38,7 +38,7 @@ func (o *WindowsSetRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 // GenerateEvent generate an event
 func (o *WindowsSetRegistryKeyTest) GenerateEvent() error {
 	o.isSuccess = false
-	psCommand := fmt.Sprintf(`Set-ItemProperty "%s" -Name 'tmp_self_test_value' -Value \"c:\\temp\\tmp_self_test.exe\"`, o.keyName)
+	psCommand := fmt.Sprintf(`Set-ItemProperty "%s" -Name 'tmp_self_test_value_name' -Value 'tmp_self_test_value'`, o.keyName)
 	cmd := exec.Command("powershell", "-Command", psCommand)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running command: %v", err)
