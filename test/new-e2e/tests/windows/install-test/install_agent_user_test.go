@@ -76,7 +76,7 @@ func (s *agentUserTestSuite) GetStackNamePart() (string, error) {
 
 func (s *agentUserTestSuite) mustUseNewStack() bool {
 	// if we're running in parallel, each test case must use its own stack
-	return !s.shouldRunParallel()
+	return s.shouldRunParallel()
 }
 
 func (s *agentUserTestSuite) shouldRunParallel() bool {
