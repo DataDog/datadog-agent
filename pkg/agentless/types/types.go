@@ -607,6 +607,8 @@ func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction,
 	switch configRaw.Type {
 	case string(ConfigTypeAWS):
 		config.Type = ConfigTypeAWS
+	case string(ConfigTypeAzure):
+		config.Type = ConfigTypeAzure
 	default:
 		return nil, fmt.Errorf("config: unexpected type %q", config.Type)
 	}
