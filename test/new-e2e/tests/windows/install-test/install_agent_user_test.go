@@ -64,19 +64,10 @@ type agentUserTestSuite struct {
 	tc agentUserTestCase
 }
 
-func (s *agentUserTestSuite) GetStackNamePart() (string, error) {
-	if s.mustUseNewStack() {
-		// include the subtest name to differentiate the stacks
-		return s.tc.TC().name, nil
-	}
-
-	// otherwise, keep the stack name the same so the same resource is used
-	return "", nil
-}
-
-func (s *agentUserTestSuite) mustUseNewStack() bool {
+// UseUniqueStackName returns true when running tests in parallel
+func (s *agentUserTestSuite) UseUniqueStackName() (bool, error) {
 	// if we're running in parallel, each test case must use its own stack
-	return s.shouldRunParallel()
+	return s.shouldRunParallel(), nil
 }
 
 func (s *agentUserTestSuite) shouldRunParallel() bool {

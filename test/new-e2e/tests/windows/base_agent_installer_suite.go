@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -18,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/test-infra-definitions/common/utils"
+
+	"github.com/google/uuid"
 
 	"testing"
 )
@@ -27,9 +27,8 @@ import (
 type AgentInstallerSuite[Env any] interface {
 	e2e.Suite[Env]
 
-	// GetStackNamePart returns a string that will be included in the stack name.
-	// Use this to differentiate the stacks when running multiple suites in parallel.
-	GetStackNamePart() (string, error)
+	// UseUniqueStackName returns true if the stack name should be unique for this suite.
+	UseUniqueStackName() (bool, error)
 
 	// GetAgentPackage returns the Agent package to install.
 	GetAgentPackage() (*windowsAgent.Package, error)
@@ -98,9 +97,9 @@ func (b *BaseAgentInstallerSuite[Env]) GetAgentPackage() (*windowsAgent.Package,
 	return b.AgentPackage, nil
 }
 
-// GetStackNamePart implements AgentInstallerSuite, returning an empty string by default.
-func (b *BaseAgentInstallerSuite[Env]) GetStackNamePart() (string, error) {
-	return "", nil
+// UseUniqueStackName returns true when running in CI
+func (b *BaseAgentInstallerSuite[Env]) UseUniqueStackName() (bool, error) {
+	return os.Getenv("CI") != "", nil
 }
 
 // Run runs an AgentInstallerSuite test suite.
@@ -147,25 +146,27 @@ func getDefaultStackName[Env any, T AgentInstallerSuite[Env]](s T) (string, erro
 		return "", err
 	}
 
-	suitePart, err := s.GetStackNamePart()
-	if err != nil {
-		return "", err
-	}
-	if suitePart != "" {
-		suitePart = fmt.Sprintf("-%s", suitePart)
-	}
-
 	// E2E auto includes the pipeline ID in the stack name, so we don't need to do that here.
-	stackName := fmt.Sprintf("windows-msi-test%s-v%s-%s", suitePart, majorVersion, agentPackage.Arch)
+	stackName := fmt.Sprintf("windows-msi-test-v%s-%s", majorVersion, agentPackage.Arch)
 
 	ciJobID := os.Getenv("CI_JOB_ID")
 	if ciJobID != "" {
-		// include type information in the stack name to differentiate stacks running in a single job.
-		sType := reflect.TypeOf(s).Elem()
-		hash := utils.StrHash(sType.PkgPath())
-		stackName = fmt.Sprintf("%s-%s-%s", stackName, sType.Name(), hash)
-		// include the CI job ID to the stack name to ensure uniqueness between jobs
+		// include the CI job ID to the stack name to help identify the stack in the CI
 		stackName = fmt.Sprintf("%s-%s", stackName, ciJobID)
+	}
+
+	useUniqueStackName, err := s.UseUniqueStackName()
+	if err != nil {
+		return "", err
+	}
+	if useUniqueStackName {
+		// The stack name has a limit of 100 characters, so rather than including
+		// test parameters to build a unique name, we'll use a UUID to ensure uniqueness.
+		uuid, err := uuid.NewRandom()
+		if err != nil {
+			return "", err
+		}
+		stackName = fmt.Sprintf("%s-%s", stackName, uuid.String())
 	}
 
 	return stackName, nil
