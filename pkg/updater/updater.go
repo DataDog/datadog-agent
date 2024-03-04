@@ -188,11 +188,11 @@ func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package
 	defer os.RemoveAll(tmpDir)
 	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
 	if err != nil {
-		return fmt.Errorf("could not download experiment: %w", err)
+		return fmt.Errorf("could not download: %w", err)
 	}
 	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
 	if err != nil {
-		return fmt.Errorf("could not install experiment: %w", err)
+		return fmt.Errorf("could not install: %w", err)
 	}
 	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
 	return nil
