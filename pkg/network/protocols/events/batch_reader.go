@@ -37,7 +37,7 @@ func newBatchReader(offsetManager *offsetManager, batchMap *maps.GenericMap[batc
 		// the code that does the batch offset tracking.
 		batch.Cpu = uint32(i)
 		for j := 0; j < batchPagesPerCPU; j++ {
-			key := &batchKey{Cpu: uint32(i), Num: uint32(j)}
+			key := &batchKey{Cpu: batch.Cpu, Num: uint32(j)}
 			err := batchMap.Put(key, batch)
 			if err != nil {
 				return nil, err
