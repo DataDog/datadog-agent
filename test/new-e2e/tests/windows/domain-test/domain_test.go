@@ -102,7 +102,7 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 
 	_, err = suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
-		windowsAgent.WithInstallLogFile("TC-UPG-DC-001_upgrade.log"))
+		windowsAgent.WithInstallLogFile(filepath.Join(suite.OutputDir, "TC-UPG-DC-001_upgrade.log")))
 	suite.Require().NoError(err, "should succeed to upgrade an Agent on a Domain Controller")
 
 	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
