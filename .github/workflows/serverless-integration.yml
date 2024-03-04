@@ -2,6 +2,8 @@ name: "Serverless Integration Tests"
 
 on:
   push:
+    branches-ignore:
+      - 'mq-working-branch-*'
     paths:
       - 'cmd/serverless/**'
       - 'pkg/serverless/**'

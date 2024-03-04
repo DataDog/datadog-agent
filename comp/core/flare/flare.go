@@ -21,9 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -53,33 +54,22 @@ type flare struct {
 	secretResolver        secrets.Component
 }
 
-func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
+func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
 	f := &flare{
 		log:                   deps.Log,
 		config:                deps.Config,
 		params:                deps.Params,
+		providers:             fxutil.GetAndFilterGroup(deps.Providers),
 		diagnosesendermanager: deps.Diagnosesendermanager,
 		invAgent:              deps.InvAgent,
 		collector:             deps.Collector,
 	}
 
-	// We filder nil elements from the providers list. FX doesn't filter nil elements from groups and some
-	// components register a provider conditionally.
-	for _, p := range deps.Providers {
-		if p != nil {
-			f.providers = append(f.providers, p)
-		}
-	}
-
-	rcListener := rcclient.TaskListenerProvider{
-		Listener: f.onAgentTaskEvent,
-	}
-
-	return f, rcListener, nil
+	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
-func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task rcclient.AgentTaskConfig) (bool, error) {
-	if taskType != rcclient.TaskFlare {
+func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
 	caseID, found := task.Config.TaskArgs["case_id"]

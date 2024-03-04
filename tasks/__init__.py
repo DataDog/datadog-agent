@@ -14,6 +14,7 @@ from tasks import (
     cws_instrumentation,
     diff,
     docker_tasks,
+    docs,
     dogstatsd,
     ebpf,
     emacs,
@@ -24,6 +25,7 @@ from tasks import (
     modules,
     msi,
     new_e2e_tests,
+    notify,
     package,
     pipeline,
     process_agent,
@@ -124,6 +126,7 @@ ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
@@ -135,6 +138,7 @@ ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
+ns.add_collection(notify)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
