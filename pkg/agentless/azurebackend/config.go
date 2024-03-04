@@ -25,6 +25,7 @@ import (
 var (
 	statsd *ddogstatsd.Client
 
+	globalConfigs   sync.Map
 	globalConfigsMu sync.Mutex
 )
 
@@ -60,6 +61,10 @@ func GetConfigFromCloudID(ctx context.Context, cloudID types.CloudID) (Config, e
 
 // GetConfig returns the configuration for the given subscription ID.
 func GetConfig(ctx context.Context, subscriptionID string) (Config, error) {
+	if cfg, ok := globalConfigs.Load(subscriptionID); ok {
+		return cfg.(Config), nil
+	}
+
 	globalConfigsMu.Lock()
 	defer globalConfigsMu.Unlock()
 
@@ -91,11 +96,13 @@ func GetConfig(ctx context.Context, subscriptionID string) (Config, error) {
 		return Config{}, err
 	}
 
-	return Config{
+	cfg := Config{
 		Credentials:          cred,
 		ComputeClientFactory: computeClientFactory,
 		ScannerSubscription:  metadata.Compute.SubscriptionID,
 		ScannerLocation:      metadata.Compute.Location,
 		ScannerResourceGroup: metadata.Compute.ResourceGroupName,
-	}, nil
+	}
+	globalConfigs.Store(subscriptionID, cfg)
+	return cfg, nil
 }
