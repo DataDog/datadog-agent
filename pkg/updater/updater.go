@@ -47,9 +47,9 @@ type Updater interface {
 	Stop(ctx context.Context) error
 
 	Bootstrap(ctx context.Context, pkg string) error
-	StartExperiment(ctx context.Context, pkg string, version string) error
-	StopExperiment(pkg string) error
-	PromoteExperiment(pkg string) error
+	StartExperiment(ctx context.Context, pkg string, taskID string, version string) error
+	StopExperiment(pkg string, taskID string) error
+	PromoteExperiment(pkg string, taskID string) error
 
 	GetState() (map[string]repository.State, error)
 }
@@ -189,12 +189,19 @@ func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 }
 
 // StartExperiment starts an experiment with the given package.
-func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) error {
+func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, taskID string, version string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
+
+	var err error
+	u.setPackagesStateTaskRunning(pkg, taskID)
+	defer func() {
+		u.setPackagesStateTaskFinished(pkg, taskID, err)
+	}()
+
 	log.Infof("Updater: Starting experiment for package %s version %s", pkg, version)
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	err = checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
@@ -220,11 +227,18 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version s
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (u *updaterImpl) PromoteExperiment(pkg string) error {
+func (u *updaterImpl) PromoteExperiment(pkg string, taskID string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
+
+	var err error
+	u.setPackagesStateTaskRunning(pkg, taskID)
+	defer func() {
+		u.setPackagesStateTaskFinished(pkg, taskID, err)
+	}()
+
 	log.Infof("Updater: Promoting experiment for package %s", pkg)
-	err := u.installer.promoteExperiment(pkg)
+	err = u.installer.promoteExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -233,11 +247,18 @@ func (u *updaterImpl) PromoteExperiment(pkg string) error {
 }
 
 // StopExperiment stops the experiment.
-func (u *updaterImpl) StopExperiment(pkg string) error {
+func (u *updaterImpl) StopExperiment(pkg string, taskID string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
+
+	var err error
+	u.setPackagesStateTaskRunning(pkg, taskID)
+	defer func() {
+		u.setPackagesStateTaskFinished(pkg, taskID, err)
+	}()
+
 	log.Infof("Updater: Stopping experiment for package %s", pkg)
-	err := u.installer.uninstallExperiment(pkg)
+	err = u.installer.uninstallExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
@@ -272,22 +293,13 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		u.setPackagesStateTaskRunning(request.Package, request.ID)
-		taskErr := u.StartExperiment(context.Background(), request.Package, params.Version)
-		u.setPackagesStateTaskFinished(request.Package, request.ID, taskErr)
-		return taskErr
+		return u.StartExperiment(context.Background(), request.Package, request.ID, params.Version)
 	case methodStopExperiment:
 		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
-		u.setPackagesStateTaskRunning(request.Package, request.ID)
-		taskErr := u.StopExperiment(request.Package)
-		u.setPackagesStateTaskFinished(request.Package, request.ID, taskErr)
-		return taskErr
+		return u.StopExperiment(request.Package, request.ID)
 	case methodPromoteExperiment:
 		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
-		u.setPackagesStateTaskRunning(request.Package, request.ID)
-		taskErr := u.PromoteExperiment(request.Package)
-		u.setPackagesStateTaskFinished(request.Package, request.ID, taskErr)
-		return taskErr
+		return u.PromoteExperiment(request.Package, request.ID)
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
