@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -54,7 +54,7 @@ type flare struct {
 	secretResolver        secrets.Component
 }
 
-func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
+func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
 	f := &flare{
 		log:                   deps.Log,
 		config:                deps.Config,
@@ -65,15 +65,11 @@ func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, erro
 		collector:             deps.Collector,
 	}
 
-	rcListener := rcclient.TaskListenerProvider{
-		Listener: f.onAgentTaskEvent,
-	}
-
-	return f, rcListener, nil
+	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
-func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task rcclient.AgentTaskConfig) (bool, error) {
-	if taskType != rcclient.TaskFlare {
+func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
 	caseID, found := task.Config.TaskArgs["case_id"]

@@ -1,0 +1,8 @@
+Datadog Updater v{{ .Version }}
+{{ range $name, $package := .Packages }}
+{{ $name }}
+  State: {{ yellowText "unknown (unimplemented)" }}
+  Installed versions:
+  {{ yellowText "●" }} stable v{{ $package.Stable }}
+  {{ yellowText "●" }} expermiment v{{ $package.Experiment }}
+{{ end -}}
