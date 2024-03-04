@@ -37,7 +37,7 @@ type EBPFErrorsCollector struct {
 type metricKey struct {
 	hash uint64
 	id   int
-	err  string ``
+	err  string
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
