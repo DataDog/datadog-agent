@@ -56,7 +56,6 @@ func TestKindSuite(t *testing.T) {
 	for _, v := range suites {
 		s := v
 		t.Run("Test-"+s.String(), func(t *testing.T) {
-			t.Parallel()
 			suite.Run(t, s)
 		})
 	}
