@@ -226,7 +226,7 @@ Package inventoryhost exposes the interface for the component to generate the 'h
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
-*Datadog Team*: agent-platform
+*Datadog Team*: agent-build-and-releases
 
 Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
