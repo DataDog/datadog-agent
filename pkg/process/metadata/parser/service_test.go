@@ -8,6 +8,8 @@ package parser
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -373,4 +375,47 @@ func TestExtractServiceMetadataDisabled(t *testing.T) {
 	se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	se.Extract(procsByPid)
 	assert.Empty(t, se.GetServiceContext(proc.Pid))
+}
+
+func TestChooseServiceNameFromEnvs(t *testing.T) {
+	tests := []struct {
+		name     string
+		envs     []string
+		expected string
+		found    bool
+	}{
+		{
+			name: "extract from DD_SERVICE",
+			envs: []string{
+				"DD_TRACE_DEBUG=true",
+				"DD_TAGS=env:test",
+				"DD_SERVICE=myservice",
+			},
+			expected: "myservice",
+			found:    true,
+		},
+		{
+			name: "extract from DD_TAGS",
+			envs: []string{
+				"DD_TAGS=env:test,dc:dc1,service:myservice",
+			},
+			expected: "myservice",
+			found:    true,
+		},
+		{
+			name: "could not extract from env",
+			envs: []string{
+				"DD_TRACE_DEBUG=true",
+			},
+			expected: "",
+			found:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, ok := chooseServiceNameFromEnvs(tt.envs)
+			require.Equal(t, tt.expected, value)
+			require.Equal(t, tt.found, ok)
+		})
+	}
 }
