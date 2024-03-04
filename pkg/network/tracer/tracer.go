@@ -192,7 +192,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}
 
 	tr.reverseDNS = newReverseDNS(cfg)
-	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer, bpfTelemetry)
+	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
 
 	if cfg.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
@@ -848,11 +848,11 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 	return nil, nil
 }
 
-func newUSMMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *usm.Monitor {
+func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
 	// Shared with the USM program
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
-	monitor, err := usm.NewMonitor(c, connectionProtocolMap, bpfTelemetry)
+	monitor, err := usm.NewMonitor(c, connectionProtocolMap)
 	if err != nil {
 		log.Errorf("usm initialization failed: %s", err)
 		return nil

@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package rcclient is a remote config client that can run within the agent to receive
+// Package rcclientimpl is a remote config client that can run within the agent to receive
 // configurations.
-package rcclient
+package rcclientimpl
 
 import (
 	"sync"
@@ -16,6 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -25,23 +27,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// TaskType contains the type of the remote config task to execute
-type TaskType string
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newRemoteConfigClient),
+		fx.Provide(func(c rcclient.Component) optional.Option[rcclient.Component] {
+			return optional.NewOption[rcclient.Component](c)
+		}),
+	)
+}
 
 const (
-	// TaskFlare is the task sent to request a flare from the agent
-	TaskFlare        TaskType = "flare"
-	agentTaskTimeout          = 5 * time.Minute
+	agentTaskTimeout = 5 * time.Minute
 )
-
-// RCAgentTaskListener is the FX-compatible listener, so RC can push updates through it
-type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, error)
-
-// RCListener is the generic type for components to register a callback for any product
-type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
 type rcClient struct {
 	client        *client.Client
@@ -49,9 +51,9 @@ type rcClient struct {
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
-	listeners []RCListener
+	listeners []types.RCListener
 	// Tasks are separated from the other products, because they must be executed once
-	taskListeners []RCAgentTaskListener
+	taskListeners []types.RCAgentTaskListener
 }
 
 type dependencies struct {
@@ -59,14 +61,14 @@ type dependencies struct {
 
 	Log log.Component
 
-	Listeners     []RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
-	TaskListeners []RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
+	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
+	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
 type provides struct {
 	fx.Out
 
-	Comp           Component
+	Comp           rcclient.Component
 	StatusProvider status.InformationProvider
 }
 
@@ -267,7 +269,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 			pkglog.Debugf("Agent task %s started", configPath)
 			defer wg.Done()
 			defer pkglog.Debugf("Agent task %s completed", configPath)
-			task, err := parseConfigAgentTask(c.Config, c.Metadata)
+			task, err := types.ParseConfigAgentTask(c.Config, c.Metadata)
 			if err != nil {
 				rc.client.UpdateApplyStatus(configPath, state.ApplyStatus{
 					State: state.ApplyStateError,
@@ -289,7 +291,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 				var processed bool
 				// Call all the listeners component
 				for _, l := range rc.taskListeners {
-					oneProcessed, oneErr := l(TaskType(task.Config.TaskType), task)
+					oneProcessed, oneErr := l(types.TaskType(task.Config.TaskType), task)
 					// Check if the task was processed at least once
 					processed = oneProcessed || processed
 					if oneErr != nil {
@@ -335,18 +337,4 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 		// timed out
 		pkglog.Warnf("Timeout of at least one agent task configuration")
 	}
-}
-
-// TaskListenerProvider defines component that can receive RC updates
-type TaskListenerProvider struct {
-	fx.Out
-
-	Listener RCAgentTaskListener `group:"rCAgentTaskListener"`
-}
-
-// ListenerProvider defines component that can receive RC updates for any product
-type ListenerProvider struct {
-	fx.Out
-
-	ListenerProvider RCListener `group:"rCListener"`
 }

@@ -9,6 +9,7 @@ package updater
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,6 +32,13 @@ const (
 	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
+)
+
+var (
+	// requiredDiskSpace is the required disk space to download and extract a package
+	// It is the sum of the maximum size of the extracted oci-layout and the maximum size of the datadog package
+	requiredDiskSpace = ociLayoutMaxSize + datadogPackageMaxSize
+	fsDisk            = filesystem.NewDisk()
 )
 
 // Updater is the updater used to update packages.
@@ -54,56 +63,56 @@ type updaterImpl struct {
 	repositoryPath string
 	repository     *repository.Repository
 	downloader     *downloader
+	installer      *installer
 
 	rc                *remoteConfig
 	catalog           catalog
 	bootstrapVersions bootstrapVersions
 }
 
-// Install installs the default version for the given package.
+type disk interface {
+	GetUsage(path string) (*filesystem.DiskUsage, error)
+}
+
+// Bootstrap bootstraps the default version for the given package.
 // It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, pkg string) error {
+func Bootstrap(ctx context.Context, pkg string) error {
 	repository := &repository.Repository{
 		RootPath:  path.Join(defaultRepositoryPath, pkg),
 		LocksPath: path.Join(defaultLocksPath, pkg),
 	}
-	u := &updaterImpl{
-		pkg:               pkg,
-		repositoryPath:    defaultRepositoryPath,
-		repository:        repository,
-		downloader:        newDownloader(http.DefaultClient),
-		catalog:           defaultCatalog,
-		bootstrapVersions: defaultBootstrapVersions,
-	}
+	rc := newNoopRemoteConfig()
+	u := newUpdater(rc, repository, pkg)
 	return u.bootstrapStable(ctx)
 }
 
 // NewUpdater returns a new Updater.
 func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (Updater, error) {
-	return newUpdater(rcFetcher, pkg)
-}
-
-func newUpdater(rcFetcher client.ConfigFetcher, pkg string) (*updaterImpl, error) {
-	repository := &repository.Repository{
-		RootPath:  path.Join(defaultRepositoryPath, pkg),
-		LocksPath: path.Join(defaultLocksPath, pkg),
-	}
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
+	repository := &repository.Repository{
+		RootPath:  path.Join(defaultRepositoryPath, pkg),
+		LocksPath: path.Join(defaultLocksPath, pkg),
+	}
+	return newUpdater(rc, repository, pkg), nil
+}
+
+func newUpdater(rc *remoteConfig, repository *repository.Repository, pkg string) *updaterImpl {
 	u := &updaterImpl{
 		pkg:               pkg,
 		repositoryPath:    defaultRepositoryPath,
 		rc:                rc,
 		repository:        repository,
 		downloader:        newDownloader(http.DefaultClient),
+		installer:         newInstaller(repository),
 		catalog:           defaultCatalog,
 		bootstrapVersions: defaultBootstrapVersions,
 		stopChan:          make(chan struct{}),
 	}
 	u.updatePackagesState()
-	return u, nil
+	return u
 }
 
 // GetRepositoryPath returns the path to the repository.
@@ -153,6 +162,11 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 func (u *updaterImpl) bootstrapStable(ctx context.Context) error {
 	u.m.Lock()
 	defer u.m.Unlock()
+	// both tmp and repository paths are checked for available disk space in case they are on different partitions
+	err := checkAvailableDiskSpace(fsDisk, defaultRepositoryPath, os.TempDir())
+	if err != nil {
+		return fmt.Errorf("not enough disk space to install package: %w", err)
+	}
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, u.pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get default package %s for %s, %s", u.pkg, runtime.GOARCH, runtime.GOOS)
@@ -163,14 +177,13 @@ func (u *updaterImpl) bootstrapStable(ctx context.Context) error {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	pkgDir := path.Join(tmpDir, "pkg")
-	err = u.downloader.Download(ctx, stablePackage, pkgDir)
+	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.repository.Create(stablePackage.Version, pkgDir)
+	err = u.installer.installStable(stablePackage.Version, image)
 	if err != nil {
-		return fmt.Errorf("could not create package: %w", err)
+		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, u.pkg)
 	return nil
@@ -181,6 +194,11 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Starting experiment for package %s version %s", u.pkg, version)
+	// both tmp and repository paths are checked for available disk space in case they are on different partitions
+	err := checkAvailableDiskSpace(fsDisk, u.repository.RootPath, os.TempDir())
+	if err != nil {
+		return fmt.Errorf("not enough disk space to install package: %w", err)
+	}
 	experimentPackage, ok := u.catalog.getPackage(u.pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get package %s, %s for %s, %s", u.pkg, version, runtime.GOARCH, runtime.GOOS)
@@ -190,14 +208,13 @@ func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	pkgDir := path.Join(tmpDir, "pkg")
-	err = u.downloader.Download(ctx, experimentPackage, pkgDir)
+	image, err := u.downloader.Download(ctx, tmpDir, experimentPackage)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.repository.SetExperiment(experimentPackage.Version, pkgDir)
+	err = u.installer.installExperiment(version, image)
 	if err != nil {
-		return fmt.Errorf("could not set experiment: %w", err)
+		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
 	u.updatePackagesState()
@@ -209,7 +226,7 @@ func (u *updaterImpl) PromoteExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Promoting experiment for package %s", u.pkg)
-	err := u.repository.PromoteExperiment()
+	err := u.installer.promoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -223,9 +240,9 @@ func (u *updaterImpl) StopExperiment() error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	log.Infof("Updater: Stopping experiment for package %s", u.pkg)
-	err := u.repository.DeleteExperiment()
+	err := u.installer.uninstallExperiment()
 	if err != nil {
-		return fmt.Errorf("could not set stable: %w", err)
+		return fmt.Errorf("could not stop experiment: %w", err)
 	}
 	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
 	u.updatePackagesState()
@@ -276,4 +293,31 @@ func (u *updaterImpl) updatePackagesState() {
 		return
 	}
 	u.rc.SetState(u.pkg, state)
+}
+
+// checkAvailableDiskSpace checks if there is enough disk space to download and extract a package in the given paths.
+// This will check the underlying partition of the given path. Note that the path must be an existing dir.
+//
+// On Unix, it is computed using `statfs` and is the number of free blocks available to an unprivileged used * block size
+// See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
+// On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
+// See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
+func checkAvailableDiskSpace(fsDisk disk, paths ...string) error {
+	for _, path := range paths {
+		_, err := os.Stat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("could not stat path %s: %w", path, err)
+		}
+		s, err := fsDisk.GetUsage(path)
+		if err != nil {
+			return err
+		}
+		if s.Available < uint64(requiredDiskSpace) {
+			return fmt.Errorf("not enough disk space to download package: %d bytes available at %s, %d required", s.Available, path, requiredDiskSpace)
+		}
+	}
+	return nil
 }

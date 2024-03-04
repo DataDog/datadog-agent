@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package rcclient
+package rcclientimpl
 
 import (
 	"os"
