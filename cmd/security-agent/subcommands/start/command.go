@@ -54,6 +54,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -93,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					SecretParams:         secrets.NewEnabledParams(),
-					LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+					LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
 				dogstatsd.ClientBundle,
@@ -132,7 +133,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return startstop.NewSerialStopper()
 				}),
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-					return statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
+					return statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
 				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
