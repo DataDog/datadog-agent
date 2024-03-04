@@ -108,10 +108,8 @@ install_method:
   installer_version: $installer_version
 "
     echo "$install_info_content" > $CONFIG_DIR/install_info
-    chown -R dd-agent:dd-agent ${CONFIG_DIR}
 fi
 
-set +e
 
 generate_install_signature()
 {
@@ -122,14 +120,13 @@ generate_install_signature()
 }
 
 if [ ! -f "$CONFIG_DIR/install.json" ]; then
-    install_id="c5844f73-a738-4322-99f0-fcc7e5add17"
-    install_type="linux_manual_with_rpm"
-    install_time=$(date +%s)
-    install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
-    sh -c "echo '$install_signature' > $CONFIG_DIR/install.json"
+    install_signature='{"install_id":"ecba222b-7f87-426b-ac72-18f1824fd909","install_type":"manual","install_time":1705689975}'
+    echo "$install_signature" > $CONFIG_DIR/install.json
+fi
+
+if [ -f "$CONFIG_DIR/install.json" ] || [ -f "$CONFIG_DIR/install_info" ]; then
     chown -R dd-agent:dd-agent ${CONFIG_DIR}
 fi
-set -e
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid
