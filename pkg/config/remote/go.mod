@@ -33,6 +33,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.7.0
 	github.com/stretchr/testify v1.8.4
 	go.etcd.io/bbolt v1.3.7
+	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.31.0
 )
 
@@ -49,7 +50,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 )
 
