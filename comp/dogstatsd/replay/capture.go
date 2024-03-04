@@ -48,7 +48,7 @@ type trafficCapture struct {
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessTrafficCapture() (Component, error) {
 	tc := newTrafficCaptureCompat(config.Datadog)
-	err := tc.start(context.TODO())
+	err := tc.configure(context.TODO())
 	return tc, err
 }
 
@@ -56,7 +56,7 @@ func NewServerlessTrafficCapture() (Component, error) {
 func newTrafficCapture(deps dependencies) Component {
 	tc := newTrafficCaptureCompat(deps.Config)
 	deps.Lc.Append(fx.Hook{
-		OnStart: tc.start,
+		OnStart: tc.configure,
 	})
 
 	return tc
@@ -68,7 +68,7 @@ func newTrafficCaptureCompat(cfg config.Reader) *trafficCapture {
 	}
 }
 
-func (tc *trafficCapture) start(_ context.Context) error {
+func (tc *trafficCapture) configure(_ context.Context) error {
 	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
 		return fmt.Errorf("unable to instantiate capture writer")
