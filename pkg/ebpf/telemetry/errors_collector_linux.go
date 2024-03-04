@@ -8,7 +8,6 @@
 package telemetry
 
 import (
-	"fmt"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,11 +17,8 @@ import (
 )
 
 const (
-	maxErrno              = 64
-	maxErrnoStr           = "other"
-	ebpfPrefix            = "ebpf"
-	ebpfMapTelemetryNS    = "maps"
-	ebpfHelperTelemetryNS = "helpers"
+	maxErrno    = 64
+	maxErrnoStr = "other"
 )
 
 // EBPFErrorsCollector implements the prometheus Collector interface
@@ -48,8 +44,8 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 
 	return &EBPFErrorsCollector{
 		T:                newEBPFTelemetry(),
-		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__%s__errors", ebpfPrefix, ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
-		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__%s__errors", ebpfPrefix, ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
+		ebpfMapOpsErrors: prometheus.NewDesc("ebpf__maps__errors", "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
+		ebpfHelperErrors: prometheus.NewDesc("ebpf__helpers__errors", "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
 		lastValues:       make(map[metricKey]uint64),
 	}
 }
