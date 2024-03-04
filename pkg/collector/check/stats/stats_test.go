@@ -153,3 +153,14 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	assert.True(t, assert.ObjectsAreEqual(expected, result))
 	assert.EqualValues(t, expected, result)
 }
+
+func TestSqrt(t *testing.T) {
+	// Testing valid number
+	result, err := Sqrt(9)
+	assert.NoError(t, err, "Sqrt(9) returned an error")
+	assert.Equal(t, float64(3), result, "Sqrt(9) = %v; want 3", result)
+
+	// Testing invalid number (negative)
+	_, err = Sqrt(-1)
+	assert.Error(t, err, "Sqrt(-1) didn't returned an error")
+}
