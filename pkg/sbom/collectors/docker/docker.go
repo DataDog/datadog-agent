@@ -63,8 +63,8 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg)
+func (c *Collector) Init(cfg config.Config, wmeta workloadmeta.Component) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}

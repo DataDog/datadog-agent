@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
@@ -61,8 +62,8 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initialize the host collector
-func (c *Collector) Init(cfg config.Config) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg)
+func (c *Collector) Init(cfg config.Config, wmeta workloadmeta.Component) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}

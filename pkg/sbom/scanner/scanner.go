@@ -187,7 +187,7 @@ func NewScanner() *Scanner {
 // CreateGlobalScanner creates a SBOM scanner, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
+func CreateGlobalScanner(cfg config.Config, wmeta workloadmeta.Component) (*Scanner, error) {
 	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
@@ -197,7 +197,7 @@ func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
 	}
 
 	for name, collector := range collectors.Collectors {
-		if err := collector.Init(cfg); err != nil {
+		if err := collector.Init(cfg, wmeta); err != nil {
 			return nil, fmt.Errorf("failed to initialize SBOM collector '%s': %w", name, err)
 		}
 	}

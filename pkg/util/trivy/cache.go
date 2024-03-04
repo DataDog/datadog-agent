@@ -37,7 +37,7 @@ type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
 // NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
 // maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
+func NewCustomBoltCache(wmeta workloadmeta.Component, cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
@@ -53,7 +53,7 @@ func NewCustomBoltCache(cacheDir string, maxDiskSize int) (cache.Cache, CacheCle
 		return nil, &StubCacheCleaner{}, err
 	}
 	trivyCache := &ScannerCache{Cache: cache}
-	return trivyCache, NewScannerCacheCleaner(trivyCache), nil
+	return trivyCache, NewScannerCacheCleaner(trivyCache, wmeta), nil
 }
 
 // NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy and an empty cleaner.
@@ -117,23 +117,25 @@ type ScannerCache struct {
 type ScannerCacheCleaner struct {
 	cachedKeysForEntity map[string][]string
 	target              *ScannerCache
+	wmeta               workloadmeta.Component
 }
 
 // NewScannerCacheCleaner creates a new instance of ScannerCacheCleaner and returns a pointer to it.
-func NewScannerCacheCleaner(target *ScannerCache) *ScannerCacheCleaner {
+func NewScannerCacheCleaner(target *ScannerCache, wmeta workloadmeta.Component) *ScannerCacheCleaner {
 	return &ScannerCacheCleaner{
 		cachedKeysForEntity: make(map[string][]string),
 		target:              target,
+		wmeta:               wmeta,
 	}
 }
 
 // Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
 func (c *ScannerCacheCleaner) Clean() error {
-	if workloadmeta.GetGlobalStore() == nil {
+	if c.wmeta == nil {
 		return nil
 	}
 
-	images := workloadmeta.GetGlobalStore().ListImages()
+	images := c.wmeta.ListImages()
 
 	toKeep := make(map[string]struct{}, len(images))
 	for _, imageMetadata := range images {

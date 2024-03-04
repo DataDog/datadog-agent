@@ -103,20 +103,21 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 
 // defaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func defaultCollectorConfig(cacheLocation string) CollectorConfig {
+func defaultCollectorConfig(wmeta workloadmeta.Component, cacheLocation string) CollectorConfig {
 	collectorConfig := CollectorConfig{
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"))
+	collectorConfig.CacheProvider = cacheProvider(wmeta, cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"))
 
 	return collectorConfig
 }
 
-func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
+func cacheProvider(wmeta workloadmeta.Component, cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
 	if useCustomCache {
 		return func() (cache.Cache, CacheCleaner, error) {
 			return NewCustomBoltCache(
+				wmeta,
 				cacheLocation,
 				config.Datadog.GetInt("sbom.cache.max_disk_size"),
 			)
@@ -162,8 +163,8 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 // NewCollector returns a new collector
-func NewCollector(cfg config.Config) (*Collector, error) {
-	config := defaultCollectorConfig(cfg.GetString("sbom.cache_directory"))
+func NewCollector(cfg config.Config, wmeta workloadmeta.Component) (*Collector, error) {
+	config := defaultCollectorConfig(wmeta, cfg.GetString("sbom.cache_directory"))
 	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
 	return &Collector{
@@ -175,12 +176,12 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 }
 
 // GetGlobalCollector gets the global collector
-func GetGlobalCollector(cfg config.Config) (*Collector, error) {
+func GetGlobalCollector(cfg config.Config, wmeta workloadmeta.Component) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
 
-	collector, err := NewCollector(cfg)
+	collector, err := NewCollector(cfg, wmeta)
 	if err != nil {
 		return nil, err
 	}
