@@ -162,7 +162,7 @@ func (s *service) Run(svcctx context.Context) error {
 		}),
 		fx.Supply(
 			status.Params{
-				PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+				PythonVersionGetFunc: python.GetPythonVersion,
 			},
 		),
 		fx.Provide(func(config config.Component) status.HeaderInformationProvider {
