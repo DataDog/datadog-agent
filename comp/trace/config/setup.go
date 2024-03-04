@@ -17,26 +17,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	//nolint:revive // TODO(APM) Fix revive linter
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
 )
 
 // team: agent-apm
@@ -110,15 +106,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := rc.NewGRPCClient(
-			ipcAddress,
-			coreconfig.GetIPCPort(),
-			func() (string, error) { return security.FetchAuthToken(c) },
-			rc.WithAgent(rcClientName, version.AgentVersion),
-			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
-			rc.WithPollInterval(rcClientPollInterval),
-			rc.WithDirectorRootOverride(c.GetString("site"), c.GetString("remote_configuration.director_root")),
-		)
+		client, err := remote(c, ipcAddress)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
