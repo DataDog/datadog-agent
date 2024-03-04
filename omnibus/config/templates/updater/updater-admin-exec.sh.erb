@@ -1,0 +1,153 @@
+#!/bin/sh
+# This script is used to allow datadog-updater
+# to execute a predefined set of root commands.
+# A datadog-root-runner.service executes those commands
+# on writes to a fifo file.
+
+error_message=""
+updater_path=<%= install_dir %>
+unit_path="$updater_path/systemd"
+in_fifo="$updater_path/run/in.fifo"
+out_fifo="$updater_path/run/out.fifo"
+
+systemd_path="/lib/systemd/system"
+if [ ! -f /etc/debian_version ]; then
+    mkdir -p "/usr/lib/systemd/system"
+    systemd_path="/usr/lib/systemd/system"
+fi
+
+assert_command() {
+    command="$1"
+    if [ "${#command}" -gt 100 ]; then
+        error_message="command longer than 100"
+        return 1
+    fi
+    tmp_str="${command}"
+    while [ -n "$tmp_str" ]; do
+        rest="${tmp_str#?}"
+        first_character="${tmp_str%"$rest"}"
+        tmp_str="$rest"
+        case "$first_character" in
+            [abcdefghijklmnopqrstuvwxyz-])
+                ;;
+            ".")
+                ;;
+            " ")
+                ;;
+            *)
+                error_message="invalid command: $command"
+                echo "failed"
+                return 1
+                ;;
+        esac
+    done
+    echo "success"
+    return 0
+}
+
+assert_unit() {
+    unit="$1"
+    echo "asserting unit $unit"
+    if [ "${unit#"datadog"}" = "$unit" ]; then
+        error_message="unit name must start with 'datadog'"
+        echo "failed datadog start check"
+        return 1
+    fi
+    return 0
+}
+
+handle_command() {
+    command="$1"
+    case "$command" in
+        "stop" | "enable" | "disable")
+            if [ "$#" -ne 2 ]; then
+                error_message="missing argument"
+                return 1
+            fi
+            unit="$2"
+            assert_unit "$unit" || return 1
+            if ! systemctl "$command" "$unit"; then
+                error_message="failed to $command unit: $unit"
+                return 1
+            fi
+            return 0
+            ;;
+        "start")
+            if [ "$#" -ne 2 ]; then
+                error_message="missing arguments"
+                return 1
+            fi
+            unit="$2"
+            assert_unit "$unit" || return 1
+            # --no-block is used to avoid blocking on oneshot executions
+            if ! systemctl "$command" "$unit" --no-block ; then
+                error_message="failed to $command unit: $unit"
+                return 1
+            fi
+            return 0
+            ;;
+        "systemd-reload")
+            if ! systemctl daemon-reload; then
+                error_message="failed to reload: $unit"
+                return 1
+            fi
+            return 0
+            ;;
+        "load-unit")
+            if [ "$#" -ne 2 ]; then
+                error_message="missing arguments"
+                return 1
+            fi
+            unit="$2"
+            assert_unit "$unit" || return 1
+            echo "added"
+            cp "$unit_path/$unit" "$systemd_path/$unit"
+            echo "it passes"
+            return 0
+            ;;
+        "remove-unit")
+            if [ "$#" -ne 2 ]; then
+                error_message="missing arguments"
+                return 1
+            fi
+            unit="$2"
+            assert_unit "$unit" || return 1
+            rm "$systemd_path/$unit"
+            echo "removed"
+            return 0
+            ;;
+        *)
+            error_message="not supported command: $command"
+            return 1
+            ;;
+    esac
+}
+# open file descriptors
+# they need to remain open for the lifetime of the script
+# for the updater to be able to communicate with it
+exec 3> "$out_fifo"
+exec 4< "$in_fifo"
+while true; do
+    echo "waiting"
+    if ! read -r command <&4; then
+        # close file descriptors
+        exec 3>&-
+        exec 4<&-
+        exit 0
+    fi
+    echo "read $command"
+
+    # verify command before expanding it in handle_command
+    if assert_command "$command"; then
+        # shellcheck disable=SC2086
+        handle_command $command
+    fi
+
+    result="success"
+    if [ -n "$error_message" ]; then
+       result="error: $error_message"
+    fi
+    echo "sending $result"
+    echo "$result" >&3
+    error_message=""
+done

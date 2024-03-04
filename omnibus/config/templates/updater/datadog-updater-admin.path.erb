@@ -1,0 +1,8 @@
+[Unit]
+Description="Monitor requests to execute systemd commands"
+
+[Path]
+PathModified=<%= install_dir %>/run/in.fifo
+
+[Install]
+WantedBy=multi-user.target

@@ -8,22 +8,17 @@ package updater
 import (
 	"fmt"
 	"os"
-	"strconv"
-	"time"
 
 	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 )
 
 const (
 	datadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
 	datadogPackageMaxSize                        = 3 << 30 // 3GiB
-
-	updaterSystemdCommandsPath                = "/opt/datadog/updater/systemd_commands"
-	updaterSystemdCommandsStartExperimentPath = updaterSystemdCommandsPath + "/start_experiment"
-	updaterSystemdCommandsStopExperimentPath  = updaterSystemdCommandsPath + "/stop_experiment"
 )
 
 type installer struct {
@@ -90,12 +85,7 @@ func (i *installer) startExperiment(pkg string) error {
 	if pkg != "datadog-agent" {
 		return nil
 	}
-	err := os.MkdirAll(updaterSystemdCommandsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("could not create systemd commands directory: %w", err)
-	}
-	content := []byte(strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
-	return os.WriteFile(updaterSystemdCommandsStartExperimentPath, content, 0644)
+	return service.StartAgentExperiment()
 }
 
 func (i *installer) stopExperiment(pkg string) error {
@@ -103,12 +93,7 @@ func (i *installer) stopExperiment(pkg string) error {
 	if pkg != "datadog-agent" {
 		return nil
 	}
-	err := os.MkdirAll(updaterSystemdCommandsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("could not create systemd commands directory: %w", err)
-	}
-	content := []byte(strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
-	return os.WriteFile(updaterSystemdCommandsStopExperimentPath, content, 0644)
+	return service.StopAgentExperiment()
 }
 
 func extractPackageLayers(image oci.Image, dir string) error {

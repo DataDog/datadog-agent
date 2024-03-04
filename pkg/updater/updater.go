@@ -21,6 +21,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/uuid"
@@ -209,11 +210,15 @@ func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package
 	defer os.RemoveAll(tmpDir)
 	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
 	if err != nil {
-		return fmt.Errorf("could not download experiment: %w", err)
+		return fmt.Errorf("could not download: %w", err)
 	}
 	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
 	if err != nil {
-		return fmt.Errorf("could not install experiment: %w", err)
+		return fmt.Errorf("could not install: %w", err)
+	}
+	_ = service.SetupAgentUnits()
+	if err != nil {
+		return fmt.Errorf("could not setup agent units: %w", err)
 	}
 	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
 	return nil

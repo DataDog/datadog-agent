@@ -363,7 +363,7 @@ require (
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/continuity v0.4.3 // indirect
-	github.com/containerd/fifo v1.1.0 // indirect
+	github.com/containerd/fifo v1.1.0
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/containerd/ttrpc v1.2.2 // indirect
 	github.com/containernetworking/plugins v1.4.0 // indirect

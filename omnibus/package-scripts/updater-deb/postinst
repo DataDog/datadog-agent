@@ -4,7 +4,7 @@
 #
 # .deb: STEP 5 of 5
 
-INSTALL_DIR=/opt/datadog
+INSTALL_DIR=/opt/datadog/updater
 PACKAGES_DIR=/opt/datadog-packages
 LOG_DIR=/var/log/datadog
 PACKAGES_LOCK_DIR=/var/run/datadog-packages
@@ -27,22 +27,6 @@ add_user_and_group() {
         echo "Adding $NAME user to $NAME group"
         usermod -g "$NAME" "$NAME"
     fi
-}
-
-enable_stable_agents() {
-    if command -v systemctl >/dev/null 2>&1; then
-        # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-process || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-sysprobe || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-trace || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-security || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent || true
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent.path || true
-        # experiment agents are not enabled as we don't systemctl enable them
-        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-exp.path || true
-    fi
-
-
 }
 
 set -e
@@ -110,16 +94,15 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
-$INSTALL_DIR/updater/bin/updater/updater bootstrap -P datadog-agent
+SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater-admin.path || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater-admin.path || true
+
+$INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent
 # Bootstrap installs first agent with root ownership, overriding to dd-agent
 chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 
-# start udpater
+# start updater
 SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
-enable_stable_agents
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent.path || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent-exp.path || true
 
 exit 0

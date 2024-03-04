@@ -1,0 +1,11 @@
+[Unit]
+Description=Datadog Updater admin command executor
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-<%= etc_dir %>/environment
+ExecStart=<%= install_dir %>/bin/updater-admin-exec.sh
+
+[Install]
+WantedBy=multi-user.target

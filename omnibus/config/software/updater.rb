@@ -35,6 +35,7 @@ build do
     command "invoke updater.build --rebuild --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
+    mkdir "#{install_dir}/systemd/"
 
 
     # Config
@@ -52,32 +53,50 @@ build do
 
     copy 'bin/updater', "#{install_dir}/bin/"
 
-    # Systemd
-    systemdPath = "/lib/systemd/system/"
+    # Add updater-admin-exec.sh
+    erb source: "updater-admin-exec.sh.erb",
+        dest: "#{install_dir}/bin/updater-admin-exec.sh",
+        mode: 0744,
+        vars: { install_dir: install_dir }
+
+
+    # Add updater units
+    systemd_path = "/lib/systemd/system/"
     if not debian_target?
       mkdir "/usr/lib/systemd/system/"
-      systemdPath = "/usr/lib/systemd/system/"
+      systemd_path = "/usr/lib/systemd/system/"
+    end
+    templateToFile = {
+      "datadog-updater-admin.path.erb" => "datadog-updater-admin.path",
+      "datadog-updater-admin.service.erb" => "datadog-updater-admin.service",
+      "datadog-updater.service.erb" => "datadog-updater.service",
+    }
+    templateToFile.each do |template, file|
+      erb source: template,
+         dest: systemd_path + file,
+         mode: 0644,
+         vars: { install_dir: install_dir, etc_dir: etc_dir}
     end
 
-    # Add stable systemd units
+
+    systemd_path = "#{install_dir}/systemd/"
+    # Add stable agent units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",
       "datadog-agent-trace.service.erb" => "datadog-agent-trace.service",
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "datadog-agent-exp.path.erb" => "datadog-agent-exp.path",
-      "datadog-agent.path.erb" => "datadog-agent.path",
       "datadog-updater.service.erb" => "datadog-updater.service",
     }
     templateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/stable"
       erb source: template,
-         dest: systemdPath + file,
+         dest: systemd_path + file,
          mode: 0644,
          vars: { install_dir: install_dir, etc_dir: etc_dir, agent_dir: agent_dir }
     end
-    # Add experiment systemd units
+    # Add experiment agent units
     expTemplateToFile = {
       "datadog-agent-exp.service.erb" => "datadog-agent-exp.service",
       "datadog-agent-trace-exp.service.erb" => "datadog-agent-trace-exp.service",
@@ -88,7 +107,7 @@ build do
     expTemplateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/experiment"
       erb source: template,
-         dest: systemdPath + file,
+         dest: systemd_path + file,
          mode: 0644,
          vars: { etc_dir: etc_dir, agent_dir: agent_dir }
     end
