@@ -47,6 +47,7 @@ type Updater interface {
 	Stop(ctx context.Context) error
 
 	Bootstrap(ctx context.Context, pkg string) error
+	BootstrapVersion(ctx context.Context, pkg string, version string) error
 	StartExperiment(ctx context.Context, pkg string, version string, taskID string) error
 	StopExperiment(pkg string, taskID string) error
 	PromoteExperiment(pkg string, taskID string) error
@@ -86,6 +87,16 @@ func Bootstrap(ctx context.Context, pkg string) error {
 		return err
 	}
 	return u.Bootstrap(ctx, pkg)
+}
+
+// BootstrapVersion bootstraps the default version for the given package.
+func BootstrapVersion(ctx context.Context, pkg string, version string) error {
+	rc := newNoopRemoteConfig()
+	u, err := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
+	if err != nil {
+		return err
+	}
+	return u.BootstrapVersion(ctx, pkg, version)
 }
 
 // NewUpdater returns a new Updater.
@@ -166,6 +177,37 @@ func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
+	}
+	log.Infof("Updater: Installing default version %s of package %s", stablePackage.Version, pkg)
+	tmpDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		return fmt.Errorf("could not create temporary directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
+	if err != nil {
+		return fmt.Errorf("could not download experiment: %w", err)
+	}
+	err = u.installer.installStable(pkg, stablePackage.Version, image)
+	if err != nil {
+		return fmt.Errorf("could not install experiment: %w", err)
+	}
+	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, pkg)
+	return nil
+}
+
+// Bootstrap installs the stable version of the package.
+func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) error {
+	u.m.Lock()
+	defer u.m.Unlock()
+	// both tmp and repository paths are checked for available disk space in case they are on different partitions
+	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	if err != nil {
+		return fmt.Errorf("not enough disk space to install package: %w", err)
+	}
+	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	if !ok {
+		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	log.Infof("Updater: Installing default version %s of package %s", stablePackage.Version, pkg)
 	tmpDir, err := os.MkdirTemp("", "")

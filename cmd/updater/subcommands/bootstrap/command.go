@@ -26,13 +26,15 @@ import (
 
 type cliParams struct {
 	command.GlobalParams
-	pkg string
+	pkg     string
+	version string
 }
 
 // Commands returns the bootstrap command
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	var timeout time.Duration
 	var pkg string
+	var version string
 	bootstrapCmd := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Bootstraps the package with the first version.",
@@ -45,11 +47,13 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 			return boostrapFxWrapper(ctx, &cliParams{
 				GlobalParams: *global,
 				pkg:          pkg,
+				version:      version,
 			})
 		},
 	}
 	bootstrapCmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
 	bootstrapCmd.Flags().StringVarP(&pkg, "package", "P", "", "package to bootstrap")
+	bootstrapCmd.Flags().StringVarP(&version, "version", "V", "", "optional version of the package to bootstrap")
 	return []*cobra.Command{bootstrapCmd}
 }
 
@@ -68,9 +72,16 @@ func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
 }
 
 func bootstrap(ctx context.Context, params *cliParams) error {
-	err := updater.Bootstrap(ctx, params.pkg)
-	if err != nil {
-		return fmt.Errorf("could not install package: %w", err)
+	if params.version == "" {
+		err := updater.Bootstrap(ctx, params.pkg)
+		if err != nil {
+			return fmt.Errorf("could not install package: %w", err)
+		}
+	} else {
+		err := updater.BootstrapVersion(ctx, params.pkg, params.version)
+		if err != nil {
+			return fmt.Errorf("could not install package: %w", err)
+		}
 	}
 	return nil
 }
