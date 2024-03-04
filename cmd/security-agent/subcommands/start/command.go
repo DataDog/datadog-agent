@@ -51,11 +51,13 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -135,40 +137,42 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 					return statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
-						return status.NewInformationProvider(nil), err
+						return status.NewInformationProvider(nil), nil, err
 					}
 
 					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
 					if err != nil {
-						return status.NewInformationProvider(nil), err
+						return status.NewInformationProvider(nil), nil, err
 					}
 
 					if runtimeAgent == nil {
-						return status.NewInformationProvider(nil), nil
+						return status.NewInformationProvider(nil), nil, nil
 					}
 
-					return status.NewInformationProvider(runtimeAgent.StatusProvider()), nil
+					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
+					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component) (status.InformationProvider, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
-						return status.NewInformationProvider(nil), err
+						return status.NewInformationProvider(nil), nil, err
 					}
 
 					// start compliance security agent
 					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
 					if err != nil {
-						return status.NewInformationProvider(nil), err
+						return status.NewInformationProvider(nil), nil, err
 					}
 
 					if complianceAgent == nil {
-						return status.NewInformationProvider(nil), nil
+						return status.NewInformationProvider(nil), nil, nil
 					}
 
-					return status.NewInformationProvider(complianceAgent.StatusProvider()), nil
+					// TODO - components: Do not remove complianceAgent ref until "github.com/DataDog/datadog-agent/pkg/compliance" is a component so they're not GCed
+					return status.NewInformationProvider(complianceAgent.StatusProvider()), complianceAgent, nil
 				}),
 				fx.Supply(
 					status.Params{

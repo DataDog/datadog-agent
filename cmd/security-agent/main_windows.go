@@ -47,6 +47,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -135,30 +136,31 @@ func (s *service) Run(svcctx context.Context) error {
 				AgentType: catalog,
 			}
 		}),
-		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, demultiplexer demultiplexer.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
 
 			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 
 			if err != nil {
-				return status.NewInformationProvider(nil), err
+				return status.NewInformationProvider(nil), nil, err
 			}
 
 			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 			if err != nil {
-				return status.NewInformationProvider(nil), err
+				return status.NewInformationProvider(nil), nil, err
 			}
 
 			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
 			if err != nil {
-				return status.NewInformationProvider(nil), err
+				return status.NewInformationProvider(nil), nil, err
 			}
 
 			if runtimeAgent == nil {
-				return status.NewInformationProvider(nil), nil
+				return status.NewInformationProvider(nil), nil, nil
 			}
 
-			return status.NewInformationProvider(runtimeAgent.StatusProvider()), nil
+			// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
+			return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 		}),
 		fx.Supply(
 			status.Params{
