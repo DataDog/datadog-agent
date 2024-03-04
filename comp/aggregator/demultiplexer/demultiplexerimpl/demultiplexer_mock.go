@@ -22,7 +22,11 @@ import (
 // MockModule defines the fx options for this component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock))
+		fx.Provide(newMock),
+		fx.Provide(func(demux demultiplexerComp.Component) aggregator.Demultiplexer {
+			return demux
+		}),
+	)
 }
 
 type mock struct {

@@ -7,7 +7,6 @@
 package flare
 
 import (
-	_ "embed"
 	"testing"
 	"time"
 

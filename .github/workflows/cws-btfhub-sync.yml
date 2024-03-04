@@ -24,14 +24,14 @@ jobs:
           path: dev/dist/archive
 
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
           cache: 'pip'
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: '.go-version'
 
