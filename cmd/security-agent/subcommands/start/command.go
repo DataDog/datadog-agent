@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -173,7 +174,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
 					},
 				),
-
+				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
+						Config: config,
+					})
+				}),
 				statusimpl.Module(),
 			)
 		},
