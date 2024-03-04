@@ -139,10 +139,11 @@ func TestOnePayloadSimple(t *testing.T) {
 
 func TestMaxCompressedSizePayload(t *testing.T) {
 	tests := map[string]struct {
-		kind string
+		kind           string
+		maxPayloadSize int
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 22},
+		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 90},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -153,7 +154,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 			}
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			mockConfig.SetDefault("serializer_max_payload_size", 22)
+			mockConfig.SetDefault("serializer_max_payload_size", tc.maxPayloadSize)
 
 			builder := NewJSONPayloadBuilder(true, mockConfig)
 			payloads, err := BuildJSONPayload(builder, m)
@@ -171,7 +172,7 @@ func TestTwoPayload(t *testing.T) {
 		maxPayloadSize int
 	}{
 		"zlib": {kind: compression.ZlibKind, maxPayloadSize: 22},
-		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 20}, // zstd more efficient
+		"zstd": {kind: compression.ZstdKind, maxPayloadSize: 70},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -226,16 +227,17 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 
 func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
 	tests := map[string]struct {
-		kind string
+		kind                       string
+		maxUncompressedPayloadSize int
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: compression.ZlibKind, maxUncompressedPayloadSize: 40},
+		"zstd": {kind: compression.ZstdKind, maxUncompressedPayloadSize: 170},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", 40)
+			mockConfig.SetWithoutSource("serializer_max_uncompressed_payload_size", tc.maxUncompressedPayloadSize)
 			marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
 			builder := NewJSONPayloadBuilder(false, mockConfig)
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(
