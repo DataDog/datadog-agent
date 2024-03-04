@@ -111,7 +111,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 					}
 				}),
-				workloadmeta.OptionalModule(),
+				workloadmeta.Module(),
 				tagger.OptionalModule(),
 				flare.Module(),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),

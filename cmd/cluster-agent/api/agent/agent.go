@@ -45,7 +45,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, senderManager se
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
-		makeFlare(w, r, senderManager, collector, secretResolver)
+		makeFlare(w, r, senderManager, collector, secretResolver, wmeta)
 	}).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
@@ -132,7 +132,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) {
+func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta workloadmeta.Component) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 
@@ -155,7 +155,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver)
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta))
 	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, diagnoseDeps)
 	if err != nil || filePath == "" {
 		if err != nil {

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -411,14 +412,20 @@ type SuitesDeps struct {
 	senderManager  sender.DiagnoseSenderManager
 	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
+	wmeta          optional.Option[workloadmeta.Component]
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
-func NewSuitesDeps(senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) SuitesDeps {
+func NewSuitesDeps(
+	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component,
+	wmeta optional.Option[workloadmeta.Component]) SuitesDeps {
 	return SuitesDeps{
 		senderManager:  senderManager,
 		collector:      collector,
 		secretResolver: secretResolver,
+		wmeta:          wmeta,
 	}
 }
 
@@ -426,7 +433,7 @@ func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
 
 	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {
-		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver)
+		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.wmeta)
 	})
 	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)

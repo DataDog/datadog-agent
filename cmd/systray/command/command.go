@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
@@ -103,6 +104,7 @@ func MakeCommand() *cobra.Command {
 					path.DefaultDogstatsDLogFile,
 				)),
 				flare.Module(),
+				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				diagnosesendermanagerimpl.Module(),
 				authtokenimpl.Module(),

@@ -230,7 +230,7 @@ This command print the package-signing metadata payload. This payload is used by
 
 func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
-	_ optional.Option[workloadmeta.Component],
+	wmeta optional.Option[workloadmeta.Component],
 	_ optional.Option[tagger.Component],
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component) error {
@@ -241,7 +241,7 @@ func cmdDiagnose(cliParams *cliParams,
 		Exclude:  cliParams.exclude,
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver)
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, wmeta)
 	// Is it List command
 	if cliParams.listSuites {
 		diagnose.ListStdOut(color.Output, diagCfg, diagnoseDeps)
