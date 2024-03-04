@@ -30,6 +30,9 @@ func TestGetFullSqlText(t *testing.T) {
 		} else {
 			driver = common.Godror
 		}
+		if driver == common.Godror && skipGodror() {
+			continue
+		}
 		err := chk.Run()
 		assert.NoError(t, err, "check run")
 

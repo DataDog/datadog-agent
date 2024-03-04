@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -44,25 +45,25 @@ type dependencies struct {
 }
 
 type flare struct {
-	log                   log.Component
-	config                config.Component
-	diagnosesendermanager diagnosesendermanager.Component
-	invAgent              inventoryagent.Component
-	params                Params
-	providers             []types.FlareCallback
-	collector             optional.Option[collector.Component]
-	secretResolver        secrets.Component
+	log          log.Component
+	config       config.Component
+	invAgent     inventoryagent.Component
+	params       Params
+	providers    []types.FlareCallback
+	diagnoseDeps diagnose.SuitesDeps
 }
 
 func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
+	// TODO FIX this uninitialize variable.
+	var secretResolver secrets.Component
+	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, secretResolver)
 	f := &flare{
-		log:                   deps.Log,
-		config:                deps.Config,
-		params:                deps.Params,
-		providers:             fxutil.GetAndFilterGroup(deps.Providers),
-		diagnosesendermanager: deps.Diagnosesendermanager,
-		invAgent:              deps.InvAgent,
-		collector:             deps.Collector,
+		log:          deps.Log,
+		config:       deps.Config,
+		params:       deps.Params,
+		providers:    fxutil.GetAndFilterGroup(deps.Providers),
+		invAgent:     deps.InvAgent,
+		diagnoseDeps: diagnoseDeps,
 	}
 
 	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
@@ -124,7 +125,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector, f.secretResolver)
+			return pkgFlare.CompleteFlare(fb, f.invAgent, f.diagnoseDeps)
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,

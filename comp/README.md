@@ -454,6 +454,10 @@ Package updater implements the updater component.
 
 Package localapi is the updater local api component.
 
+### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
+
+Package localapiclient provides the local API client component.
+
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
