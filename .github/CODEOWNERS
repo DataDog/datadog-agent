@@ -98,6 +98,7 @@
 /.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
 
 /.gitlab/kernel_version_testing                      @DataDog/ebpf-platform
+/.gitlab/kernel_version_testing/security_agent.yml   @DataDog/agent-security
 
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-platform
 /.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-platform @DataDog/windows-agent
@@ -451,6 +452,7 @@
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
+/pkg/databasemonitoring                 @DataDog/database-monitoring
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/network-device-monitoring

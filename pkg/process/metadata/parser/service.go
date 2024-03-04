@@ -6,6 +6,7 @@
 package parser
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -16,11 +17,12 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	nodejsparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/nodejs"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type serviceExtractorFn func(args []string) string
+type serviceExtractorFn func(serviceExtractor *ServiceExtractor, process *procutil.Process, args []string) string
 
 const (
 	javaJarFlag         = "-jar"
@@ -29,6 +31,7 @@ const (
 	javaModuleFlagShort = "-m"
 	javaSnapshotSuffix  = "-SNAPSHOT"
 	javaApachePrefix    = "org.apache."
+	dllSuffix           = ".dll"
 )
 
 var (
@@ -37,15 +40,19 @@ var (
 
 // List of binaries that usually have additional process context of whats running
 var binsWithContext = map[string]serviceExtractorFn{
-	"python":    parseCommandContextPython,
-	"python2.7": parseCommandContextPython,
-	"python3":   parseCommandContextPython,
-	"python3.7": parseCommandContextPython,
-	"ruby2.3":   parseCommandContext,
-	"ruby":      parseCommandContext,
-	"java":      parseCommandContextJava,
-	"java.exe":  parseCommandContextJava,
-	"sudo":      parseCommandContext,
+	"python":     parseCommandContextPython,
+	"python2.7":  parseCommandContextPython,
+	"python3":    parseCommandContextPython,
+	"python3.7":  parseCommandContextPython,
+	"ruby2.3":    parseCommandContext,
+	"ruby":       parseCommandContext,
+	"java":       parseCommandContextJava,
+	"java.exe":   parseCommandContextJava,
+	"sudo":       parseCommandContext,
+	"node":       parseCommandContextNodeJs,
+	"node.exe":   parseCommandContextNodeJs,
+	"dotnet":     parseCommandContextDotnet,
+	"dotnet.exe": parseCommandContextDotnet,
 }
 
 var _ metadata.Extractor = &ServiceExtractor{}
@@ -53,6 +60,7 @@ var _ metadata.Extractor = &ServiceExtractor{}
 // ServiceExtractor infers a service tag by extracting it from a process
 type ServiceExtractor struct {
 	enabled               bool
+	useImprovedAlgorithm  bool
 	useWindowsServiceName bool
 	serviceByPID          map[int32]*serviceMetadata
 	scmReader             *scmReader
@@ -71,9 +79,10 @@ type WindowsServiceInfo struct {
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
-func NewServiceExtractor(enabled bool, useWindowsServiceName bool) *ServiceExtractor {
+func NewServiceExtractor(enabled, useWindowsServiceName, useImprovedAlgorithm bool) *ServiceExtractor {
 	return &ServiceExtractor{
 		enabled:               enabled,
+		useImprovedAlgorithm:  useImprovedAlgorithm,
 		useWindowsServiceName: useWindowsServiceName,
 		serviceByPID:          make(map[int32]*serviceMetadata),
 		scmReader:             newSCMReader(),
@@ -98,7 +107,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 				}
 			}
 		}
-		meta := extractServiceMetadata(proc.Cmdline)
+		meta := d.extractServiceMetadata(proc)
 		if meta != nil && log.ShouldLog(seelog.TraceLvl) {
 			log.Tracef("detected service metadata: %v", meta)
 		}
@@ -135,7 +144,8 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	return nil
 }
 
-func extractServiceMetadata(cmd []string) *serviceMetadata {
+func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *serviceMetadata {
+	cmd := process.Cmdline
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
 		return &serviceMetadata{
 			cmdline: cmd,
@@ -161,7 +171,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	}
 
 	if contextFn, ok := binsWithContext[exe]; ok {
-		tag := contextFn(cmd[1:])
+		tag := contextFn(d, process, cmd[1:])
 		return &serviceMetadata{
 			cmdline:        cmd,
 			serviceContext: "process_context:" + tag,
@@ -232,7 +242,7 @@ func parseExeStartWithSymbol(exe string) string {
 }
 
 // In most cases, the best context is the first non-argument / environment variable, if it exists
-func parseCommandContext(args []string) string {
+func parseCommandContext(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
 	var prevArgIsFlag bool
 
 	for _, a := range args {
@@ -251,7 +261,7 @@ func parseCommandContext(args []string) string {
 	return ""
 }
 
-func parseCommandContextPython(args []string) string {
+func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
 	var (
 		prevArgIsFlag bool
 		moduleFlag    bool
@@ -278,7 +288,7 @@ func parseCommandContextPython(args []string) string {
 	return ""
 }
 
-func parseCommandContextJava(args []string) string {
+func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
 	prevArgIsFlag := false
 
 	// Look for dd.service
@@ -333,4 +343,66 @@ func parseCommandContextJava(args []string) string {
 	}
 
 	return "java"
+}
+
+func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, args []string) string {
+	if !se.useImprovedAlgorithm {
+		return "node"
+	}
+	skipNext := false
+	for _, a := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			if a == "-r" || a == "--require" {
+				// next arg can be a js file but not the entry point. skip it
+				skipNext = !strings.ContainsRune(a, '=') // in this case the value is already in this arg
+				continue
+			}
+		} else if strings.HasSuffix(strings.ToLower(a), ".js") {
+			absFile := abs(filepath.Clean(a), process.Cwd)
+			if _, err := os.Stat(absFile); err == nil {
+				value, ok := nodejsparser.FindNameFromNearestPackageJSON(absFile)
+				if ok {
+					return value
+				}
+				break
+			}
+		}
+	}
+	return "node"
+}
+
+// abs returns the path itself if already absolute or the absolute path by joining cwd with path
+// This is a variant of filepath.Abs since on windows it likely returns false when the drive/volume is missing
+// hence, since we accept also paths, we test if the first char is a path separator
+func abs(path string, cwd string) string {
+	if !(filepath.IsAbs(path) || path[0] == os.PathSeparator) && len(cwd) > 0 {
+		return filepath.Join(cwd, path)
+	}
+	return path
+}
+
+// parseCommandContextDotnet extracts metadata from a dotnet launcher command line
+func parseCommandContextDotnet(se *ServiceExtractor, _ *procutil.Process, args []string) string {
+	if !se.useImprovedAlgorithm {
+		return "dotnet"
+	}
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		// when running assembly's dll, the cli must be executed without command
+		// https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-run#description
+		if strings.HasSuffix(strings.ToLower(a), dllSuffix) {
+			_, file := filepath.Split(a)
+			return file[:len(file)-len(dllSuffix)]
+		}
+		// dotnet cli syntax is something like `dotnet <cmd> <args> <dll> <prog args>`
+		// if the first non arg (`-v, --something, ...) is not a dll file, exit early since nothing is matching a dll execute case
+		break
+	}
+	return "dotnet"
 }

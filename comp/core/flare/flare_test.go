@@ -16,14 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
 
 func TestFlareCreation(t *testing.T) {
 	realProvider := func(fb types.FlareBuilder) error { return nil }
 
-	f, _, err := newFlare(
+	f, _ := newFlare(
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
@@ -46,7 +45,6 @@ func TestFlareCreation(t *testing.T) {
 		),
 	)
 
-	require.NoError(t, err)
 	assert.Len(t, f.(*flare).providers, 1)
 	assert.NotNil(t, f.(*flare).providers[0])
 }

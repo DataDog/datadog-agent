@@ -934,6 +934,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1220,7 +1224,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
-	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)

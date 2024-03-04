@@ -6,7 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-other:
+features:
   - |
-    Move GitHub teams to Jira projects mapping and GitHub teams to
-    Slack channel mapping out of Python files and into YAML files.
+    Enable 'host_benchmarks' by default when running the security-agent compliance module.
