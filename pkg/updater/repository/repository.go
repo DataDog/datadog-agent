@@ -54,7 +54,7 @@ var (
 type Repository struct {
 	rootPath string
 
-	// LocksPath is the path to the locks directory
+	// locksPath is the path to the locks directory
 	// containing the PIDs of the processes using the packages.
 	locksPath string
 }

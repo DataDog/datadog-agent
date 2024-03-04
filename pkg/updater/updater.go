@@ -54,13 +54,6 @@ type Updater interface {
 	GetState() (map[string]repository.State, error)
 }
 
-// TaskState represents the state of a task.
-type TaskState struct {
-	ID    string
-	State pbgo.TaskState
-	Err   *updaterErrors.UpdaterError
-}
-
 type updaterImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
@@ -74,9 +67,11 @@ type updaterImpl struct {
 	bootstrapVersions bootstrapVersions
 }
 
-type State struct {
-	RepositoryState *repository.State
-	TaskState       *TaskState
+// TaskState represents the state of a task.
+type TaskState struct {
+	ID    string
+	State pbgo.TaskState
+	Err   *updaterErrors.UpdaterError
 }
 
 type disk interface {
@@ -324,7 +319,7 @@ func (u *updaterImpl) setPackagesStateTaskFinished(pkg string, taskID string, ta
 		Err:   updaterErrors.From(taskErr),
 	}
 	if taskErr != nil {
-		u.taskState.State = pbgo.TaskState_ERROR
+		taskState.State = pbgo.TaskState_ERROR
 	}
 
 	repoState, err := u.repositories.GetPackageState(pkg)
