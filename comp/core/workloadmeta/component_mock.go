@@ -43,6 +43,7 @@ type Mock interface {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newWorkloadMetaMock),
+		fx.Provide(func(mock Mock) Component { return mock }),
 	)
 }
 

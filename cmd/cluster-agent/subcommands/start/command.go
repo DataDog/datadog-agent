@@ -413,7 +413,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			StopCh:              stopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
