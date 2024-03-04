@@ -110,11 +110,19 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:myservice",
 		},
 		{
-			name: "python - module zip file",
+			name: "python - zip file",
 			cmdline: []string{
-				"python3", "-m", "hello.zip",
+				"python3", "./hello.zip",
 			},
-			expectedServiceTag: "process_context:hello",
+			expectedServiceTag: "process_context:hello.zip",
+		},
+		{
+			name: "python - zip file - improved algorithm",
+			cmdline: []string{
+				"python3", "./hello.zip",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:hello",
 		},
 		{
 			name: "python .py",
@@ -406,6 +414,7 @@ func TestChooseServiceNameFromEnvs(t *testing.T) {
 			name: "could not extract from env",
 			envs: []string{
 				"DD_TRACE_DEBUG=true",
+				"DD_TAGS=peer_service:test",
 			},
 			expected: "",
 			found:    false,

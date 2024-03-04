@@ -154,9 +154,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 
 	// check if all args are packed into the first argument
 	if len(cmd) == 1 {
-		if idx := strings.IndexRune(cmd[0], ' '); idx != -1 {
-			cmd = strings.Split(cmd[0], " ")
-		}
+		cmd = strings.Split(cmd[0], " ")
 	}
 	cmdOrig := cmd
 	envs, cmd := extractEnvsFromCommand(cmd)
@@ -261,7 +259,8 @@ func chooseServiceNameFromEnvs(envs []string) (string, bool) {
 	for _, env := range envs {
 		if strings.HasPrefix(env, "DD_SERVICE=") {
 			return strings.TrimPrefix(env, "DD_SERVICE="), true
-		} else if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
+		}
+		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
 			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
 			for _, p := range parts {
 				if strings.HasPrefix(p, "service:") {
@@ -307,7 +306,7 @@ func parseCommandContext(_ *ServiceExtractor, _ *procutil.Process, args []string
 	return ""
 }
 
-func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
+func parseCommandContextPython(se *ServiceExtractor, _ *procutil.Process, args []string) string {
 	var (
 		prevArgIsFlag bool
 		moduleFlag    bool
@@ -320,7 +319,7 @@ func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []
 
 		if !shouldSkipArg || moduleFlag {
 			if c := trimColonRight(removeFilePath(a)); isRuneLetterAt(c, 0) {
-				if moduleFlag {
+				if se.useImprovedAlgorithm && !moduleFlag {
 					return strings.TrimSuffix(c, filepath.Ext(c))
 				}
 				return c
