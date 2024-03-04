@@ -287,7 +287,7 @@ variables:
 # RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "true") && $RUN_E2E_TESTS != "false"
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS != "off") && $RUN_E2E_TESTS != "off"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
