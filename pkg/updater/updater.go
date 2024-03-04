@@ -189,7 +189,7 @@ func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 }
 
 // StartExperiment starts an experiment with the given package.
-func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, taskID string, version string) error {
+func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string, taskID string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 
