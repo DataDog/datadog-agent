@@ -17,8 +17,6 @@ const (
 	ProductCWSCustom Product = "CWS_CUSTOM"
 	// ProductCWSProfile is the cloud workload security product
 	ProductCWSProfile Product = "CWS_SECURITY_PROFILES"
-	// ProductCSMSideScanning is the side scanning product
-	ProductCSMSideScanning = "CSM_SIDE_SCANNING"
 	// ProductAPMTracing is the apm tracing product
 	ProductAPMTracing Product = "APM_TRACING"
 	// ProductTesting1 is a testing product

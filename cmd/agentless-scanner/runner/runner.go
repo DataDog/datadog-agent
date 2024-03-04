@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -124,7 +123,6 @@ func New(opts Options) (*Runner, error) {
 	}
 
 	rcClient, err := client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
-		client.WithProducts([]data.Product{data.ProductCSMSideScanning}),
 		client.WithAgent("sidescanner", version.AgentVersion),
 		client.WithPollInterval(5*time.Second),
 	)
