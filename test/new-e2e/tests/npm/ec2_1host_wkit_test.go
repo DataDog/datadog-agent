@@ -34,6 +34,14 @@ func TestEC2VMWKitSuite(t *testing.T) {
 	e2e.Run(t, s, e2eParams...)
 }
 
+// SetupSuite
+func (v *ec2VMWKitSuite) SetupSuite() {
+	v.BaseSuite.SetupSuite()
+
+	v.Env().RemoteHost.MustExecute("Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression;")
+	v.Env().RemoteHost.MustExecute("C:\\ProgramData\\chocolatey\\choco install /y apache-httpd --params '\"/noService\"'")
+}
+
 // BeforeTest will be called before each test
 func (v *ec2VMWKitSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
@@ -48,7 +56,9 @@ func (v *ec2VMWKitSuite) BeforeTest(suiteName, testName string) {
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
-func (v *ec2VMWKitSuite) TestFakeIntakeNPM_HostRequests() {
+//
+// The test start by 00 to validate the agent/system-probe is up and running
+func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	v.Env().RemoteHost.MustExecute("$result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL)
@@ -63,9 +73,8 @@ func (v *ec2VMWKitSuite) TestFakeIntakeNPM_HostRequests() {
 func (v *ec2VMWKitSuite) TestFakeIntakeNPM600cnxBucket_HostRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
-	v.T().Skip("TODO need to find a way to generate 600 cnx from all windows powershell")
 	// generate connections
-	v.Env().RemoteHost.MustExecute("1..600 | ForEach-Object -Parallel { $result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL + " } -ThrottleLimit 600")
+	v.Env().RemoteHost.MustExecute("C:\\Users\\Administrator\\AppData\\Roaming\\Apache24\\bin\\ab.exe -n 600 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
