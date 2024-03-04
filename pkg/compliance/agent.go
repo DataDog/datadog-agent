@@ -520,11 +520,10 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 }
 
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
-	store := workloadmeta.GetGlobalStore()
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
-	if store != nil && resourceLog.Container != nil {
-		if ctnr, _ := store.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
+	if a.wmeta != nil && resourceLog.Container != nil {
+		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
 			resourceLog.Container.ImageName = ctnr.Image.Name
 			resourceLog.Container.ImageTag = ctnr.Image.Tag
@@ -534,7 +533,6 @@ func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *Resour
 }
 
 func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent) {
-	store := workloadmeta.GetGlobalStore()
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
@@ -542,8 +540,8 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 		if event.Result == CheckSkipped {
 			continue
 		}
-		if store != nil && event.Container != nil {
-			if ctnr, _ := store.GetContainer(event.Container.ContainerID); ctnr != nil {
+		if a.wmeta != nil && event.Container != nil {
+			if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
 				event.Container.ImageID = ctnr.Image.ID
 				event.Container.ImageName = ctnr.Image.Name
 				event.Container.ImageTag = ctnr.Image.Tag
