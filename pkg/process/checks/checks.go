@@ -16,14 +16,14 @@ import (
 
 // Name for check performed by process-agent or system-probe
 const (
-	ProcessCheckName              = "process"
-	RTProcessCheckName            = "rtprocess"
-	ContainerCheckName            = "container"
-	RTContainerCheckName          = "rtcontainer"
-	ConnectionsCheckName          = "connections"
-	DiscoveryCheckName            = "process_discovery"
-	ProcessEventsCheckName        = "process_events"
-	ContainerConnectionsCheckName = "container_connections"
+	ProcessCheckName            = "process"
+	RTProcessCheckName          = "rtprocess"
+	ContainerCheckName          = "container"
+	RTContainerCheckName        = "rtcontainer"
+	ConnectionsCheckName        = "connections"
+	DiscoveryCheckName          = "process_discovery"
+	ProcessEventsCheckName      = "process_events"
+	ContainerNoForwardCheckName = "container_no_forward"
 )
 
 // SysProbeConfig provides access to system probe configuration
@@ -110,9 +110,9 @@ func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.C
 	return []Check{
 		NewProcessCheck(config, sysprobeYamlCfg),
 		NewContainerCheck(config),
+		NewContainerNoForwardCheck(config, syscfg),
 		NewRTContainerCheck(config),
 		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
-		NewContainerConnectionsCheck(config, syscfg),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),
 	}

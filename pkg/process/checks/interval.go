@@ -22,9 +22,9 @@ const (
 	//nolint:revive // TODO(PROC) Fix revive linter
 	RTContainerCheckDefaultInterval = 2 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
-	ConnectionsCheckDefaultInterval = 30 * time.Second
+	ContainerNoForwardCheckDefaultInterval = 10 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
-	ContainerConnectionsCheckDefaultInterval = 10 * time.Second
+	ConnectionsCheckDefaultInterval = 30 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
@@ -35,33 +35,33 @@ const (
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
-	configProcessInterval              = configIntervals + "process"
-	configRTProcessInterval            = configIntervals + "process_realtime"
-	configContainerInterval            = configIntervals + "container"
-	configRTContainerInterval          = configIntervals + "container_realtime"
-	configConnectionsInterval          = configIntervals + "connections"
-	configContainerConnectionsInterval = configIntervals + "container_connections"
+	configProcessInterval            = configIntervals + "process"
+	configRTProcessInterval          = configIntervals + "process_realtime"
+	configContainerInterval          = configIntervals + "container"
+	configRTContainerInterval        = configIntervals + "container_realtime"
+	configContainerNoForwardInterval = configIntervals + "container_no_forward"
+	configConnectionsInterval        = configIntervals + "connections"
 )
 
 var (
 	defaultIntervals = map[string]time.Duration{
-		ProcessCheckName:              ProcessCheckDefaultInterval,
-		RTProcessCheckName:            RTProcessCheckDefaultInterval,
-		ContainerCheckName:            ContainerCheckDefaultInterval,
-		RTContainerCheckName:          RTContainerCheckDefaultInterval,
-		ConnectionsCheckName:          ConnectionsCheckDefaultInterval,
-		DiscoveryCheckName:            ProcessDiscoveryCheckDefaultInterval,
-		ProcessEventsCheckName:        config.DefaultProcessEventsCheckInterval,
-		ContainerConnectionsCheckName: ContainerConnectionsCheckDefaultInterval,
+		ProcessCheckName:            ProcessCheckDefaultInterval,
+		RTProcessCheckName:          RTProcessCheckDefaultInterval,
+		ContainerCheckName:          ContainerCheckDefaultInterval,
+		RTContainerCheckName:        RTContainerCheckDefaultInterval,
+		ContainerNoForwardCheckName: ContainerNoForwardCheckDefaultInterval,
+		ConnectionsCheckName:        ConnectionsCheckDefaultInterval,
+		DiscoveryCheckName:          ProcessDiscoveryCheckDefaultInterval,
+		ProcessEventsCheckName:      config.DefaultProcessEventsCheckInterval,
 	}
 
 	configKeys = map[string]string{
-		ProcessCheckName:              configProcessInterval,
-		RTProcessCheckName:            configRTProcessInterval,
-		ContainerCheckName:            configContainerInterval,
-		RTContainerCheckName:          configRTContainerInterval,
-		ConnectionsCheckName:          configConnectionsInterval,
-		ContainerConnectionsCheckName: configContainerConnectionsInterval,
+		ProcessCheckName:            configProcessInterval,
+		RTProcessCheckName:          configRTProcessInterval,
+		ContainerCheckName:          configContainerInterval,
+		ContainerNoForwardCheckName: configContainerNoForwardInterval,
+		RTContainerCheckName:        configRTContainerInterval,
+		ConnectionsCheckName:        configConnectionsInterval,
 	}
 )
 

@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/containerconnectionscheck/containerconnectionscheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/containernoforwardcheck/containernoforwardcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
@@ -46,7 +46,7 @@ func Bundle() fxutil.BundleOptions {
 		processeventscheckimpl.Module(),
 		rtcontainercheckimpl.Module(),
 		processdiscoverycheckimpl.Module(),
-		containerconnectionscheckimpl.Module(),
+		containernoforwardcheckimpl.Module(),
 		agentimpl.Module(),
 
 		hostinfoimpl.Module(),
