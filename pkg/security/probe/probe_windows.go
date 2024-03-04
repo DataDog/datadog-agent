@@ -329,8 +329,6 @@ func (p *WindowsProbe) Start() error {
 		defer p.wg.Done()
 
 		for {
-			var pce *model.ProcessCacheEntry
-			var err error
 			ev := p.zeroEvent()
 
 			select {
@@ -342,116 +340,16 @@ func (p *WindowsProbe) Start() error {
 				// subsystem can't recover from.  Need to initiate some sort of cleanup
 
 			case start := <-p.onStart:
-				pid := process.Pid(start.Pid)
-				if pid == 0 {
-					// TODO this shouldn't happen
+				if !p.handleProcessStart(ev, start) {
 					continue
 				}
-
-				log.Debugf("Received start %v", start)
-
-				// TODO
-				// handle new fields
-				// CreatingPRocessId
-				// CreatingThreadId
-				if start.RequiredSize != 0 {
-					// in this case, the command line and/or the image file might not be filled in
-					// depending upon how much space was needed.
-
-					// potential actions
-					// - just log/count the error and keep going
-					// - restart underlying procmon with larger buffer size, at least if error keeps occurring
-					log.Warnf("insufficient buffer size %v", start.RequiredSize)
-
-				}
-
-				pce, err = p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
-				if err != nil {
-					log.Errorf("error in resolver %v", err)
-					continue
-				}
-				ev.Type = uint32(model.ExecEventType)
-				ev.Exec.Process = &pce.Process
-
-				// use ProcessCacheEntry process context as process context
-				ev.ProcessCacheEntry = pce
-				ev.ProcessContext = &pce.ProcessContext
-
-				p.Resolvers.ProcessResolver.DequeueExited()
 			case stop := <-p.onStop:
-				pid := process.Pid(stop.Pid)
-				if pid == 0 {
-					// TODO this shouldn't happen
+				if !p.handleProcessStop(ev, stop) {
 					continue
 				}
-				log.Debugf("Received stop %v", stop)
-
-				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
-				p.Resolvers.ProcessResolver.AddToExitedQueue(pid)
-
-				ev.Type = uint32(model.ExitEventType)
-				if pce == nil {
-					log.Errorf("unable to resolve pid %d", pid)
-					continue
-				}
-				ev.Exit.Process = &pce.Process
-				// use ProcessCacheEntry process context as process context
-				ev.ProcessCacheEntry = pce
-				ev.ProcessContext = &pce.ProcessContext
-
-				p.Resolvers.ProcessResolver.DequeueExited()
 			case notif := <-p.onETWNotification:
-				// handle incoming events here
-				// each event will come in as a different type
-				// parse it with
-				switch arg := notif.arg.(type) {
-				case *createNewFileArgs:
-					ev.Type = uint32(model.CreateNewFileEventType)
-					ev.CreateNewFile = model.CreateNewFileEvent{
-						File: model.FileEvent{
-							PathnameStr: arg.fileName,
-							BasenameStr: filepath.Base(arg.fileName),
-						},
-					}
-				case *createKeyArgs:
-					ev.Type = uint32(model.CreateRegistryKeyEventType)
-					ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyPath: arg.computedFullPath,
-							KeyName: filepath.Base(arg.computedFullPath),
-						},
-					}
-				case *openKeyArgs:
-					ev.Type = uint32(model.OpenRegistryKeyEventType)
-					ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyPath: arg.computedFullPath,
-							KeyName: filepath.Base(arg.computedFullPath),
-						},
-					}
-				case *deleteKeyArgs:
-					ev.Type = uint32(model.DeleteRegistryKeyEventType)
-					ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
-						Registry: model.RegistryEvent{
-							KeyName: filepath.Base(arg.computedFullPath),
-							KeyPath: arg.computedFullPath,
-						},
-					}
-				case *setValueKeyArgs:
-					ev.Type = uint32(model.SetRegistryKeyValueEventType)
-					ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
-						Registry: model.RegistryEvent{
-							KeyName: filepath.Base(arg.computedFullPath),
-							KeyPath: arg.computedFullPath,
-						},
-						ValueName: arg.valueName,
-					}
-				}
-				if ev.Type != uint32(model.UnknownEventType) {
-					errRes := p.setProcessContext(notif.pid, ev)
-					if errRes != nil {
-						log.Debugf("%v", errRes)
-					}
+				if !p.handleETWNotification(ev, notif) {
+					continue
 				}
 			}
 
@@ -459,6 +357,126 @@ func (p *WindowsProbe) Start() error {
 		}
 	}()
 	return p.pm.Start()
+}
+
+func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.ProcessStartNotification) bool {
+	pid := process.Pid(start.Pid)
+	if pid == 0 {
+		return false
+	}
+
+	log.Debugf("Received start %v", start)
+
+	// TODO
+	// handle new fields
+	// CreatingPRocessId
+	// CreatingThreadId
+	if start.RequiredSize != 0 {
+		// in this case, the command line and/or the image file might not be filled in
+		// depending upon how much space was needed.
+
+		// potential actions
+		// - just log/count the error and keep going
+		// - restart underlying procmon with larger buffer size, at least if error keeps occurring
+		log.Warnf("insufficient buffer size %v", start.RequiredSize)
+
+	}
+
+	pce, err := p.Resolvers.ProcessResolver.AddNewEntry(pid, uint32(start.PPid), start.ImageFile, start.CmdLine, start.OwnerSidString)
+	if err != nil {
+		log.Errorf("error in resolver %v", err)
+		return false
+	}
+	ev.Type = uint32(model.ExecEventType)
+	ev.Exec.Process = &pce.Process
+
+	// use ProcessCacheEntry process context as process context
+	ev.ProcessCacheEntry = pce
+	ev.ProcessContext = &pce.ProcessContext
+
+	p.Resolvers.ProcessResolver.DequeueExited()
+	return true
+}
+
+func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessStopNotification) bool {
+	pid := process.Pid(stop.Pid)
+	if pid == 0 {
+		// TODO this shouldn't happen
+		return false
+	}
+	log.Debugf("Received stop %v", stop)
+
+	pce := p.Resolvers.ProcessResolver.GetEntry(pid)
+	p.Resolvers.ProcessResolver.AddToExitedQueue(pid)
+
+	ev.Type = uint32(model.ExitEventType)
+	if pce == nil {
+		log.Errorf("unable to resolve pid %d", pid)
+		return false
+	}
+	ev.Exit.Process = &pce.Process
+	// use ProcessCacheEntry process context as process context
+	ev.ProcessCacheEntry = pce
+	ev.ProcessContext = &pce.ProcessContext
+
+	p.Resolvers.ProcessResolver.DequeueExited()
+	return true
+}
+
+func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
+	// handle incoming events here
+	// each event will come in as a different type
+	// parse it with
+	switch arg := notif.arg.(type) {
+	case *createNewFileArgs:
+		ev.Type = uint32(model.CreateNewFileEventType)
+		ev.CreateNewFile = model.CreateNewFileEvent{
+			File: model.FileEvent{
+				PathnameStr: arg.fileName,
+				BasenameStr: filepath.Base(arg.fileName),
+			},
+		}
+	case *createKeyArgs:
+		ev.Type = uint32(model.CreateRegistryKeyEventType)
+		ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
+			Registry: model.RegistryEvent{
+				KeyPath: arg.computedFullPath,
+				KeyName: filepath.Base(arg.computedFullPath),
+			},
+		}
+	case *openKeyArgs:
+		ev.Type = uint32(model.OpenRegistryKeyEventType)
+		ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
+			Registry: model.RegistryEvent{
+				KeyPath: arg.computedFullPath,
+				KeyName: filepath.Base(arg.computedFullPath),
+			},
+		}
+	case *deleteKeyArgs:
+		ev.Type = uint32(model.DeleteRegistryKeyEventType)
+		ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
+			Registry: model.RegistryEvent{
+				KeyName: filepath.Base(arg.computedFullPath),
+				KeyPath: arg.computedFullPath,
+			},
+		}
+	case *setValueKeyArgs:
+		ev.Type = uint32(model.SetRegistryKeyValueEventType)
+		ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
+			Registry: model.RegistryEvent{
+				KeyName: filepath.Base(arg.computedFullPath),
+				KeyPath: arg.computedFullPath,
+			},
+			ValueName: arg.valueName,
+		}
+	}
+	if ev.Type != uint32(model.UnknownEventType) {
+		errRes := p.setProcessContext(notif.pid, ev)
+		if errRes != nil {
+			log.Debugf("%v", errRes)
+		}
+	}
+	return true
 }
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
