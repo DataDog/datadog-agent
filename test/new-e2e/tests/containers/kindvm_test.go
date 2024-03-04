@@ -8,6 +8,9 @@ package containers
 import (
 	"context"
 	"encoding/json"
+	"flag"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -20,12 +23,43 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// osDesc is a comma-separated list of operating systems for the kind vm test
+var osDesc = flag.String("os-desc", "ubuntu:22.04,ubuntu:20.04", "Comma-separated of operating systems for the kind vm test")
+
 type kindSuite struct {
 	k8sSuite
+
+	osDesc string
+}
+
+func (suite *kindSuite) String() string {
+	s := fmt.Sprintf("kind-%s", suite.osDesc)
+	// replace : and . by - to avoid pulumi stack name issues
+	s = strings.ReplaceAll(s, ":", "-")
+	return strings.ReplaceAll(s, ".", "-")
+
 }
 
 func TestKindSuite(t *testing.T) {
-	suite.Run(t, &kindSuite{})
+	var suites []*kindSuite
+
+	if osDesc != nil && *osDesc != "" {
+		for _, os := range strings.Split(*osDesc, ",") {
+			suites = append(suites, &kindSuite{osDesc: os})
+		}
+	}
+
+	if len(suites) == 0 {
+		suites = append(suites, &kindSuite{})
+	}
+
+	for _, v := range suites {
+		s := v
+		t.Run("Test-"+s.String(), func(t *testing.T) {
+			t.Parallel()
+			suite.Run(t, s)
+		})
+	}
 }
 
 func (suite *kindSuite) SetupSuite() {
@@ -37,14 +71,17 @@ func (suite *kindSuite) SetupSuite() {
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
+	if suite.osDesc != "" {
+		stackConfig.Set("ddinfra:osDescriptor", suite.osDesc, false)
+	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, suite.String(), stackConfig, kindvm.Run, false, nil)
 	if !suite.Assert().NoError(err) {
-		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+		stackName, err := infra.GetStackManager().GetPulumiStackName(suite.String())
 		suite.Require().NoError(err)
 		suite.T().Log(dumpKindClusterState(ctx, stackName))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
-			infra.GetStackManager().DeleteStack(ctx, "kind-cluster", nil)
+			infra.GetStackManager().DeleteStack(ctx, suite.String(), nil)
 		}
 		suite.T().FailNow()
 	}
@@ -76,7 +113,7 @@ func (suite *kindSuite) TearDownSuite() {
 	suite.k8sSuite.TearDownSuite()
 
 	ctx := context.Background()
-	stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+	stackName, err := infra.GetStackManager().GetPulumiStackName(suite.String())
 	suite.Require().NoError(err)
 	suite.T().Log(dumpKindClusterState(ctx, stackName))
 }
