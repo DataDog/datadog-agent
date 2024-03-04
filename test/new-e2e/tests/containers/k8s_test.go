@@ -1059,7 +1059,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 
 		var err error
 		// Iterate starting from the most recent traces
-		for _, trace := range lo.Reverse(traces) {
+		for _, trace := range traces {
 			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
 				return k + ":" + v
 			})
