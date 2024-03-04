@@ -114,7 +114,7 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_changelog(ctx, new_version=None, target="all"):
+def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
@@ -123,6 +123,9 @@ def update_changelog(ctx, new_version=None, target="all"):
     If new_version is omitted, a changelog since last tag on the current branch
     will be generated.
     """
+
+    # Step 1 - generate the changelogs
+
     generate_agent = target in ["all", "agent"]
     generate_cluster_agent = target in ["all", "cluster-agent"]
 
@@ -153,6 +156,49 @@ def update_changelog(ctx, new_version=None, target="all"):
         update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
     if generate_cluster_agent:
         update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+
+    # Step 2 - commit changes
+
+    update_branch = f"changelog-update-{new_version}"
+    base_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    print(color_message(f"Branching out to {update_branch}", "bold"))
+    ctx.run(f"git checkout -b {update_branch}")
+
+    print(color_message("Committing CHANGELOG.rst and CHANGELOG-DCA.rst", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
+
+    commit_message = f"'Changelog updates for {new_version} release'"
+
+    ok = try_git_command(ctx, f"git commit -m {commit_message}")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 3 - Push and create PR
+
+    print(color_message("Pushing new branch to the upstream repository", "bold"))
+    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
+                "red",
+            ),
+            code=1,
+        )
+
+    create_release_pr("Changelog update for {new_version} release", base_branch, update_branch, new_version)
 
 
 def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
@@ -1070,7 +1116,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
     create_release_pr(
-        "Final updates for release.json and Go modules for {new_version} release + preludes",
+        f"Final updates for release.json and Go modules for {new_version} release + preludes",
         current_branch,
         final_branch,
         new_version,
