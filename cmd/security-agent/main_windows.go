@@ -52,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type service struct {
@@ -136,13 +135,15 @@ func (s *service) Run(svcctx context.Context) error {
 				AgentType: catalog,
 			}
 		}),
-		fx.Provide(func() startstop.Stopper {
-			return startstop.NewSerialStopper()
-		}),
-		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
-		}),
-		fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
+			stopper := startstop.NewSerialStopper()
+
+			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+
+			if err != nil {
+				return status.NewInformationProvider(nil), err
+			}
+
 			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 			if err != nil {
 				return status.NewInformationProvider(nil), err
