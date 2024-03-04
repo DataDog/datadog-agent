@@ -66,7 +66,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	numCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
 		numCPUs = 96
-		log.Error("unable to detect number of CPUs. assuming 96 cores")
+		log.Errorf("unable to detect number of CPUs. assuming 96 cores: %s", err)
 	}
 
 	offsets := newOffsetManager(numCPUs)
