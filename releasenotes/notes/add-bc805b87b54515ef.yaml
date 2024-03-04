@@ -1,3 +1,4 @@
 ---
 fixes:
-  - oracle: Fix wrong tablespace metrics.
+  - |
+    oracle: Fix wrong tablespace metrics.
