@@ -15,6 +15,7 @@ const (
 	kubeletListenerName         = "kubelet"
 	snmpListenerName            = "snmp"
 	staticConfigListenerName    = "static config"
+	dbmAuroraListenerName       = "database-monitoring-aurora"
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
@@ -28,4 +29,5 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(kubeletListenerName, NewKubeletListener, serviceListenerFactories)
 	Register(snmpListenerName, NewSNMPListener, serviceListenerFactories)
 	Register(staticConfigListenerName, NewStaticConfigListener, serviceListenerFactories)
+	Register(dbmAuroraListenerName, NewDBMAuroraListener, serviceListenerFactories)
 }

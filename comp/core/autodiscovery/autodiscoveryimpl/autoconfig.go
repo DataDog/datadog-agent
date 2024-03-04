@@ -80,7 +80,6 @@ type provides struct {
 	fx.Out
 
 	Comp           autodiscovery.Component
-	OptionalComp   optional.Option[autodiscovery.Component]
 	StatusProvider status.InformationProvider
 }
 
@@ -94,11 +93,9 @@ func Module() fxutil.Module {
 
 func newProvides(deps dependencies) provides {
 	c := newAutoConfig(deps)
-	optC := optional.NewOption[autodiscovery.Component](c)
 	return provides{
 		Comp:           c,
-		OptionalComp:   optC,
-		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(optC)),
+		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 	}
 }
 

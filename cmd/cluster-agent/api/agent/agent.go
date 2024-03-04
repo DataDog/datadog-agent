@@ -156,7 +156,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, ac)
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption[autodiscovery.Component](ac))
 	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, diagnoseDeps, statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {

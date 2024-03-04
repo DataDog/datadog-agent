@@ -340,7 +340,6 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 
 // Run runs diagnoses.
 func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, error) {
-
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)
@@ -412,7 +411,7 @@ type SuitesDeps struct {
 	senderManager  sender.DiagnoseSenderManager
 	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
-	ac             optional.Option[autodiscovery.Component]
+	AC             optional.Option[autodiscovery.Component]
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
@@ -421,7 +420,7 @@ func NewSuitesDeps(senderManager sender.DiagnoseSenderManager, collector optiona
 		senderManager:  senderManager,
 		collector:      collector,
 		secretResolver: secretResolver,
-		ac:             ac,
+		AC:             ac,
 	}
 }
 
@@ -429,7 +428,7 @@ func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
 
 	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {
-		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.ac)
+		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.AC)
 	})
 	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)

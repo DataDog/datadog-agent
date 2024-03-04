@@ -24,16 +24,9 @@ import (
 const (
 	dbmPostgresADIdentifier = "_dbm_postgres_aurora"
 	dbmMySQLADIdentifier    = "_dbm_mysql_aurora"
-
-	// dbmAuroraListenerName is the name of the aurora listener, used to init the listener
-	dbmAuroraListenerName  = "database-monitoring-aurora"
-	auroraPostgresqlEngine = "aurora-postgresql"
-	auroraMysqlEngine      = "aurora-mysql"
+	auroraPostgresqlEngine  = "aurora-postgresql"
+	auroraMysqlEngine       = "aurora-mysql"
 )
-
-func init() {
-	Register(dbmAuroraListenerName, NewDBMAuroraListener)
-}
 
 // DBMAuroraListener implements database-monitoring aurora discovery
 type DBMAuroraListener struct {

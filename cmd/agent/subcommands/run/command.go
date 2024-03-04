@@ -347,6 +347,9 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),
 		autodiscoveryimpl.Module(),
+		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
+			return optional.NewOption[autodiscovery.Component](ac)
+		}),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we

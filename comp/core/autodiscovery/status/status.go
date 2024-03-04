@@ -35,9 +35,9 @@ type Provider struct {
 }
 
 // GetProvider if agent is running in a container environment returns status.Provider otherwise returns nil
-func GetProvider(ac optional.Option[autodiscovery.Component]) status.Provider {
+func GetProvider(ac autodiscovery.Component) status.Provider {
 	if config.IsContainerized() {
-		return Provider{ac: ac}
+		return Provider{ac: optional.NewOption[autodiscovery.Component](ac)}
 	}
 
 	return nil
