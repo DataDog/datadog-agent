@@ -519,6 +519,8 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 			}
 		}
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
+		log.Errorf("Problematic paylod: %+v", req)
+		log.Errorf("Problematic body: %+v", (*req).Body)
 		return
 	}
 	if !ranHook {
@@ -711,6 +713,10 @@ func decodeRequest(req *http.Request, dest *pb.Traces) (ranHook bool, err error)
 			return false, err
 		}
 		_, err = dest.UnmarshalMsg(buf.Bytes())
+		if err != nil {
+			log.Errorf("Problematic buffer: %+v", buf)
+			log.Errorf("Problematic traces: %+v", dest)
+		}
 		return true, err
 	case "application/json":
 		fallthrough
