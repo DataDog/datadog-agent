@@ -47,7 +47,7 @@ type Updater interface {
 	Stop(ctx context.Context) error
 
 	Bootstrap(ctx context.Context, pkg string) error
-	StartExperiment(ctx context.Context, pkg string, taskID string, version string) error
+	StartExperiment(ctx context.Context, pkg string, version string, taskID string) error
 	StopExperiment(pkg string, taskID string) error
 	PromoteExperiment(pkg string, taskID string) error
 
@@ -293,7 +293,7 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		return u.StartExperiment(context.Background(), request.Package, request.ID, params.Version)
+		return u.StartExperiment(context.Background(), request.Package, params.Version, request.ID)
 	case methodStopExperiment:
 		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
 		return u.StopExperiment(request.Package, request.ID)
@@ -318,7 +318,6 @@ func (u *updaterImpl) setPackagesStateTaskRunning(pkg string, taskID string) {
 		log.Warnf("could not update packages state: %s", err)
 		return
 	}
-
 	u.rc.SetState(pkg, repoState, taskState)
 }
 
@@ -339,7 +338,6 @@ func (u *updaterImpl) setPackagesStateTaskFinished(pkg string, taskID string, ta
 		log.Warnf("could not update packages state: %s", err)
 		return
 	}
-
 	u.rc.SetState(pkg, repoState, taskState)
 }
 

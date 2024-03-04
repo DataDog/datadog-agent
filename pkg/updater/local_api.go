@@ -137,9 +137,8 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
-
 	taskID := uuid.New().String()
-	err = l.updater.StartExperiment(r.Context(), pkg, taskID, request.Version)
+	err = l.updater.StartExperiment(r.Context(), pkg, request.Version, taskID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
