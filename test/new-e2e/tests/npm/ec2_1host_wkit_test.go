@@ -15,12 +15,6 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
-const (
-	TestDomain   = "datadogqalab.com"
-	TestUser     = "TestUser"
-	TestPassword = "Test1234#"
-)
-
 type ec2VMWKitSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
 }
