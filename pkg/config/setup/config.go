@@ -741,6 +741,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
 	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
+	// sets the expiration deadline (TTL) for reported languages
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
+	// language annotation cleanup period
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 
 	// Metadata endpoints
 
@@ -1073,7 +1078,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", false)                                   // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
@@ -1299,15 +1304,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
-	// client period represents how frequently newly detected languages are reported to the language detection handler
-	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
-	// cleanup period represents how frequently we check for expired languages and remove them
-	config.BindEnvAndSetDefault("language_detection.cleanup.period", "10m")
-	// TTL refresh period represents how frequently we refresh the TTL of detected languages
-	config.BindEnvAndSetDefault("language_detection.cleanup.ttl_refresh_period", "20m")
-	// language TTL represents the TTL that is set for each language when it is detected
-	// it is also used when refreshing the expiration timestamp of the language
-	config.BindEnvAndSetDefault("language_detection.cleanup.language_ttl", "30m")
+	config.BindEnvAndSetDefault("language_detection.reporting.enabled", true)
+	// buffer period represents how frequently newly detected languages buffer is flushed by reporting its content to the language detection handler in the cluster agent
+	config.BindEnvAndSetDefault("language_detection.reporting.buffer_period", "10s")
+	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
+	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
 	setupAPM(config)
 	OTLP(config)
