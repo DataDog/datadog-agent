@@ -221,9 +221,8 @@ func TestGetStatus(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name            string
@@ -236,7 +235,7 @@ func TestGetStatus(t *testing.T) {
 			format: "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -250,7 +249,7 @@ func TestGetStatus(t *testing.T) {
 			excludeSections: []string{status.CollectorSection},
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -497,9 +496,8 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	bytesResult, err := statusComponent.GetStatus("text", false)
 
@@ -567,9 +565,8 @@ func TestGetStatusWithErrors(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -581,7 +578,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 			format: "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -715,9 +712,8 @@ func TestGetStatusBySection(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -731,7 +727,7 @@ func TestGetStatusBySection(t *testing.T) {
 			format:  "json",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -827,9 +823,8 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -843,7 +838,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 			section: "error section",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
@@ -878,7 +873,7 @@ Status render errors
 			section: "header",
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 
