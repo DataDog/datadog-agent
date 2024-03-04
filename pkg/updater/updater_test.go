@@ -91,8 +91,7 @@ func TestUpdaterBootstrap(t *testing.T) {
 	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -132,8 +131,7 @@ func TestUpdaterStartExperiment(t *testing.T) {
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
 
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -169,8 +167,7 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 		Method: methodPromoteExperiment,
 	})
 
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
@@ -195,8 +192,7 @@ func TestUpdaterStopExperiment(t *testing.T) {
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.True(t, state.HasExperiment())
