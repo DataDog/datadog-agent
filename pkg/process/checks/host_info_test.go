@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
+	log "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -102,6 +104,9 @@ func TestGetHostnameShellCmd(t *testing.T) {
 		return
 	}
 	defer os.Exit(0)
+
+	// Setup logger due to int logger in debug mode that made the test fail
+	log.SetupLogger(seelog.Default, "info")
 
 	args := os.Args
 	for len(args) > 0 {
