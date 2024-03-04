@@ -68,14 +68,14 @@ func TestNewAggregation(t *testing.T) {
 			"nil case, peer tag aggregation disabled",
 			&pb.Span{},
 			false,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{IsParentRoot: true}},
 			nil,
 		},
 		{
 			"nil case, peer tag aggregation enabled",
 			&pb.Span{},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{IsParentRoot: true}},
 			nil,
 		},
 		{
@@ -85,7 +85,7 @@ func TestNewAggregation(t *testing.T) {
 				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
 			false,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", IsParentRoot: true}},
 			nil,
 		},
 		{
@@ -95,7 +95,7 @@ func TestNewAggregation(t *testing.T) {
 				Meta:    map[string]string{"span.kind": "", "peer.service": "remote-service"},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", IsParentRoot: true}},
 			nil,
 		},
 		{
@@ -105,7 +105,7 @@ func TestNewAggregation(t *testing.T) {
 				Meta:    map[string]string{"span.kind": "client", "peer.service": "remote-service"},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash, isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash, IsParentRoot: true}},
 			[]string{"peer.service:remote-service"},
 		},
 		{
@@ -115,7 +115,7 @@ func TestNewAggregation(t *testing.T) {
 				Meta:    map[string]string{"span.kind": "producer", "peer.service": "remote-service"},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: peerSvcOnlyHash, isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: peerSvcOnlyHash, IsParentRoot: true}},
 			[]string{"peer.service:remote-service"},
 		},
 		{
@@ -125,7 +125,7 @@ func TestNewAggregation(t *testing.T) {
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "i-1234", "db.system": "postgres"},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerTagsHash, isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerTagsHash, IsParentRoot: true}},
 			[]string{"db.instance:i-1234", "db.system:postgres", "peer.service:remote-service"},
 		},
 		{
@@ -135,7 +135,7 @@ func TestNewAggregation(t *testing.T) {
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "", "db.instance": "", "db.system": ""},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 0, isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 0, IsParentRoot: true}},
 			nil,
 		},
 		{
@@ -145,7 +145,7 @@ func TestNewAggregation(t *testing.T) {
 				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "", "db.system": ""},
 			},
 			true,
-			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash, isParentRoot: true}},
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash, IsParentRoot: true}},
 			[]string{"peer.service:remote-service"},
 		},
 	} {

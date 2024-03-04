@@ -295,7 +295,7 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 				HTTPStatusCode: aggrKey.StatusCode,
 				Type:           aggrKey.Type,
 				Synthetics:     aggrKey.Synthetics,
-				IsParentRoot:   aggrKey.isParentRoot,
+				IsParentRoot:   aggrKey.IsParentRoot,
 				PeerTags:       counts.peerTags,
 				Hits:           counts.hits,
 				Errors:         counts.errors,
@@ -341,7 +341,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerTagsAgg bool) B
 		Type:         b.Type,
 		Synthetics:   b.Synthetics,
 		StatusCode:   b.HTTPStatusCode,
-		isParentRoot: b.IsParentRoot,
+		IsParentRoot: b.IsParentRoot,
 	}
 	if enablePeerTagsAgg {
 		k.PeerTagsHash = peerTagsHash(b.GetPeerTags())

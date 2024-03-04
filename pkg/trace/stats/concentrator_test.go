@@ -267,6 +267,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         6,
 				TopLevelHits: 6,
 				Errors:       0,
+				IsParentRoot: true,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -304,6 +305,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         5,
 				TopLevelHits: 5,
 				Errors:       0,
+				IsParentRoot: true,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -324,6 +326,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         1,
 				TopLevelHits: 1,
 				Errors:       0,
+				IsParentRoot: true,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -433,6 +436,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         4,
 			TopLevelHits: 4,
 			Errors:       1,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A2",
@@ -443,6 +447,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         2,
 			TopLevelHits: 2,
 			Errors:       2,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A2",
@@ -453,6 +458,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A1",
@@ -464,6 +470,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A1",
@@ -475,6 +482,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsParentRoot: true,
 		},
 	}
 	// 1-bucket old flush
@@ -488,6 +496,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A1",
@@ -498,6 +507,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A2",
@@ -508,6 +518,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A2",
@@ -518,6 +529,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
+			IsParentRoot: true,
 		},
 		{
 			Service:      "A2",
@@ -528,6 +540,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsParentRoot: true,
 		},
 	}
 	// last bucket to be flushed
@@ -541,6 +554,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsParentRoot: true,
 		},
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
