@@ -217,23 +217,21 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
 	}
 
+	// delete check from checks map even if we encounter an error
+	defer c.delete(id)
+
 	if err := c.runner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
-		c.delete(id)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
 
 	if err := c.cancelCheck(ch, c.cancelCheckTimeout); err != nil {
-		c.delete(id)
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
 
 	// remove the check from the stats map
 	expvars.RemoveCheckStats(id)
-
-	// vaporize the check
-	c.delete(id)
 
 	return nil
 }
