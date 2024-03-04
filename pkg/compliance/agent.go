@@ -113,6 +113,7 @@ const (
 // continuously benchmarks and configuration checking.
 type Agent struct {
 	senderManager sender.SenderManager
+	wmeta         workloadmeta.Component
 	opts          AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
@@ -167,7 +168,7 @@ func DefaultRuleFilter(r *Rule) bool {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
+func NewAgent(senderManager sender.SenderManager, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -190,6 +191,7 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 	}
 	return &Agent{
 		senderManager: senderManager,
+		wmeta:         wmeta,
 		opts:          opts,
 		statuses:      make(map[string]*CheckStatus),
 	}
@@ -197,7 +199,7 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
+	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager, a.wmeta)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err
