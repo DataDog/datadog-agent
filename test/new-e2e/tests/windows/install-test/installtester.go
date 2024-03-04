@@ -368,7 +368,7 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	require.NoError(tt, err)
 	serviceTester.TestInstall(tt)
 
-	tt.Run("user groups", func(tt *testing.T) {
+	tt.Run("user is a member of expected groups", func(tt *testing.T) {
 		AssertAgentUserGroupMembership(tt, t.host,
 			windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 		)
