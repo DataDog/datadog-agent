@@ -477,7 +477,6 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 		addLogToBuffer(bufferFunc)
 	}
 
-
 	// Originally (PR 6436) fallbackStderr check had been added to handle a small window
 	// where error messages had been lost before Logger had been initialized. Adjusting
 	// just for that case because if the error log should not be logged - because it has
@@ -527,7 +526,6 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 	} else if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	}
-
 
 	// Originally (PR 6436) fallbackStderr check had been added to handle a small window
 	// where error messages had been lost before Logger had been initialized. Adjusting
@@ -893,7 +891,7 @@ func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
 	}
 
 	l.l.Lock()
-    defer l.l.Unlock()
+	defer l.l.Unlock()
 	if l.inner == nil {
 		return nil // Return nil if logger.inner is not initialized
 	}
