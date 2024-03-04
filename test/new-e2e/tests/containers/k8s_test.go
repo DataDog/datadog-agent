@@ -1088,6 +1088,6 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				break
 			}
 		}
-		require.NoErrorf(c, err, "Failed finding trace with proper tags and message")
-	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags and message")
+		require.NoErrorf(c, err, "Failed finding trace with proper tags")
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
