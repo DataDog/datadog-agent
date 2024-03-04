@@ -67,7 +67,7 @@ func patchPrintkInstructions(p *ebpf.ProgramSpec) (int, error) {
 	// keep track of that to avoid errors when we don't find a newline in an instruction we've already patched.
 	patchedInstructionIndexes := make(map[int]bool)
 
-	log.Tracef("Patching instructions for %s. Original instructions: \n%v", p.Name, p.Instructions)
+	log.Tracef("Start patching instructions for %s", p.Name)
 	for idx, ins := range p.Instructions {
 		if !ins.IsBuiltinCall() || ins.Constant != int64(asm.FnTracePrintk) {
 			continue // Not a call to bpf_trace_printk, skip
