@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
@@ -136,7 +137,8 @@ func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Infof("Received local request to start experiment for package %s version %s", pkg, request.Version)
-	err = l.updater.StartExperiment(r.Context(), pkg, request.Version)
+	taskID := uuid.New().String()
+	err = l.updater.StartExperiment(r.Context(), pkg, request.Version, taskID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -153,7 +155,8 @@ func (l *localAPIImpl) stopExperiment(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to stop experiment for package %s", pkg)
-	err := l.updater.StopExperiment(pkg)
+	taskID := uuid.New().String()
+	err := l.updater.StopExperiment(pkg, taskID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -170,7 +173,8 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 		_ = json.NewEncoder(w).Encode(response)
 	}()
 	log.Infof("Received local request to promote experiment for package %s", pkg)
-	err := l.updater.PromoteExperiment(pkg)
+	taskID := uuid.New().String()
+	err := l.updater.PromoteExperiment(pkg, taskID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
