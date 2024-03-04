@@ -14,6 +14,3 @@ import (
 func init() {
 	SetupLogger(seelog.Default, "debug")
 }
-
-// sw.l.Lock()
-// defer sw.l.Unlock()
