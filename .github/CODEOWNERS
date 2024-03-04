@@ -34,7 +34,7 @@
 /setup.cfg                              @DataDog/agent-platform
 /repository.datadog.yml                 @DataDog/agent-platform
 /generate_tools.go                      @DataDog/agent-platform
-/service.datadog.yaml                   @DataDog/agent-platform
+/service.datadog.yaml                   @DataDog/agent-build-and-releases
 
 /.circleci/                             @DataDog/agent-platform
 
