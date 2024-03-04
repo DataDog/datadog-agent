@@ -12,7 +12,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -61,7 +61,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *ebpftelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool, cfg *config.Config) error {
+func initManager(mgr *ddebpf.Manager, closedHandler *ddebpf.PerfHandler, runtimeTracer bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
