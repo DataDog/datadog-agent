@@ -31,6 +31,7 @@ const (
 	javaModuleFlagShort = "-m"
 	javaSnapshotSuffix  = "-SNAPSHOT"
 	javaApachePrefix    = "org.apache."
+	dllSuffix           = ".dll"
 )
 
 var (
@@ -39,17 +40,19 @@ var (
 
 // List of binaries that usually have additional process context of whats running
 var binsWithContext = map[string]serviceExtractorFn{
-	"python":    parseCommandContextPython,
-	"python2.7": parseCommandContextPython,
-	"python3":   parseCommandContextPython,
-	"python3.7": parseCommandContextPython,
-	"ruby2.3":   parseCommandContext,
-	"ruby":      parseCommandContext,
-	"java":      parseCommandContextJava,
-	"java.exe":  parseCommandContextJava,
-	"sudo":      parseCommandContext,
-	"node":      parseCommandContextNodeJs,
-	"node.exe":  parseCommandContextNodeJs,
+	"python":     parseCommandContextPython,
+	"python2.7":  parseCommandContextPython,
+	"python3":    parseCommandContextPython,
+	"python3.7":  parseCommandContextPython,
+	"ruby2.3":    parseCommandContext,
+	"ruby":       parseCommandContext,
+	"java":       parseCommandContextJava,
+	"java.exe":   parseCommandContextJava,
+	"sudo":       parseCommandContext,
+	"node":       parseCommandContextNodeJs,
+	"node.exe":   parseCommandContextNodeJs,
+	"dotnet":     parseCommandContextDotnet,
+	"dotnet.exe": parseCommandContextDotnet,
 }
 
 var _ metadata.Extractor = &ServiceExtractor{}
@@ -380,4 +383,26 @@ func abs(path string, cwd string) string {
 		return filepath.Join(cwd, path)
 	}
 	return path
+}
+
+// parseCommandContextDotnet extracts metadata from a dotnet launcher command line
+func parseCommandContextDotnet(se *ServiceExtractor, _ *procutil.Process, args []string) string {
+	if !se.useImprovedAlgorithm {
+		return "dotnet"
+	}
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		// when running assembly's dll, the cli must be executed without command
+		// https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-run#description
+		if strings.HasSuffix(strings.ToLower(a), dllSuffix) {
+			_, file := filepath.Split(a)
+			return file[:len(file)-len(dllSuffix)]
+		}
+		// dotnet cli syntax is something like `dotnet <cmd> <args> <dll> <prog args>`
+		// if the first non arg (`-v, --something, ...) is not a dll file, exit early since nothing is matching a dll execute case
+		break
+	}
+	return "dotnet"
 }

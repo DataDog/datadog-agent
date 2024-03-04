@@ -33,25 +33,28 @@ func TestConnectionGoOra(t *testing.T) {
 }
 
 func TestConnection(t *testing.T) {
-	databaseUrl := fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, USER, PASSWORD, TNS_ALIAS)
-	db, err := sqlx.Open("godror", databaseUrl)
-	assert.NoError(t, err)
-	err = db.Ping()
-	assert.NoError(t, err)
+	var databaseUrl string
+	var err error
+	var db *sqlx.DB
 
-	databaseUrl = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
-	_, err = sqlx.Open("oracle", databaseUrl)
-	assert.NoError(t, err)
-	err = db.Ping()
-	assert.NoError(t, err)
+	if !skipGodror() {
+		databaseUrl = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, USER, PASSWORD, TNS_ALIAS)
+		db, err = sqlx.Open(common.Godror, databaseUrl)
+		assert.NoError(t, err)
+		err = db.Ping()
+		assert.NoError(t, err)
+	}
 
+	c, _ := newRealCheck(t, "")
+	_, err = c.Connect()
+	assert.NoError(t, err)
 }
 
 func connectToDB(driver string) (*sqlx.DB, error) {
 	var connStr string
-	if driver == "godror" {
+	if driver == common.Godror {
 		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s:%d/%s"`, USER, PASSWORD, HOST, PORT, SERVICE_NAME)
-	} else if driver == "oracle" {
+	} else if driver == common.GoOra {
 		connStr = go_ora.BuildUrl(HOST, PORT, SERVICE_NAME, USER, PASSWORD, map[string]string{})
 	} else {
 		return nil, fmt.Errorf("wrong driver: %s", driver)
@@ -74,7 +77,7 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 
 func getUsedPGA(db *sqlx.DB) (float64, error) {
 	var pga float64
-	err := chk.db.Get(&pga, `SELECT 
+	err := chk.db.Get(&pga, `SELECT
 	sum(p.pga_used_mem)
 FROM   v$session s,
 	v$process p
@@ -90,15 +93,15 @@ func getSession(db *sqlx.DB) (string, error) {
 
 func getLOBReads(db *sqlx.DB) (float64, error) {
 	var r float64
-	err := chk.db.Get(&r, `SELECT name,value 
-	FROM v$sesstat  m, v$statname n, v$session s 
+	err := chk.db.Get(&r, `SELECT name,value
+	FROM v$sesstat  m, v$statname n, v$session s
 	WHERE n.statistic# = m.statistic# AND s.sid = m.sid AND s.username = 'C##DATADOG' AND n.name = 'lob reads'`)
 	return r, err
 }
 
 func getTemporaryLobs(db *sqlx.DB) (int, error) {
 	var r int
-	err := chk.db.Get(&r, `SELECT SUM(cache_lobs) + SUM(nocache_lobs) + SUM(abstract_lobs) 
+	err := chk.db.Get(&r, `SELECT SUM(cache_lobs) + SUM(nocache_lobs) + SUM(abstract_lobs)
 	FROM v$temporary_lobs l, v$session s WHERE s.SID = l.SID AND s.username = 'C##DATADOG'`)
 	return r, err
 }
@@ -124,6 +127,9 @@ func TestChkRun(t *testing.T) {
 			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
+		}
+		if driver == common.Godror && skipGodror() {
+			continue
 		}
 
 		chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
@@ -188,18 +194,18 @@ func TestLicense(t *testing.T) {
 	err = db.Get(&usedFeaturesCount, `SELECT NVL(SUM(detected_usages),0)
 	FROM dba_feature_usage_statistics
  	WHERE name in (
-		'ADDM', 
-		'Automatic SQL Tuning Advisor', 
-		'Automatic Workload Repository', 
-		'AWR Baseline', 
-		'AWR Baseline Template', 
-		'AWR Report', 
-		'EM Performance Page', 
-		'Real-Time SQL Monitoring', 
-		'SQL Access Advisor', 
-		'SQL Monitoring and Tuning pages', 
-		'SQL Performance Analyzer', 
-		'SQL Tuning Advisor', 
+		'ADDM',
+		'Automatic SQL Tuning Advisor',
+		'Automatic Workload Repository',
+		'AWR Baseline',
+		'AWR Baseline Template',
+		'AWR Report',
+		'EM Performance Page',
+		'Real-Time SQL Monitoring',
+		'SQL Access Advisor',
+		'SQL Monitoring and Tuning pages',
+		'SQL Performance Analyzer',
+		'SQL Tuning Advisor',
 		'SQL Tuning Set (user)'
 		)
  `)
@@ -209,11 +215,9 @@ func TestLicense(t *testing.T) {
 	assert.Equal(t, 0, usedFeaturesCount)
 }
 
-var DRIVERS = []string{"oracle", "godror"}
-
 func TestBindingSimple(t *testing.T) {
 	result := 3
-	for _, driver := range DRIVERS {
+	for _, driver := range getDrivers() {
 		db, _ := connectToDB(driver)
 		stmt, err := db.Prepare(fmt.Sprintf("SELECT %d FROM dual WHERE rownum = :1", result))
 		if err != nil {
@@ -236,7 +240,7 @@ func TestBindingSimple(t *testing.T) {
 func TestSQLXIn(t *testing.T) {
 	slice := []any{1}
 	result := 7
-	for _, driver := range DRIVERS {
+	for _, driver := range getDrivers() {
 		db, _ := connectToDB(driver)
 
 		var rows *sql.Rows
