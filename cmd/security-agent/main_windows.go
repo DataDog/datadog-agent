@@ -145,16 +145,16 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
 			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 			if err != nil {
-				return status.NoopInformationProvider(), err
+				return status.NewInformationProvider(nil), err
 			}
 
 			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
 			if err != nil {
-				return status.NoopInformationProvider(), err
+				return status.NewInformationProvider(nil), err
 			}
 
 			if runtimeAgent == nil {
-				return status.NoopInformationProvider(), nil
+				return status.NewInformationProvider(nil), nil
 			}
 
 			return status.NewInformationProvider(runtimeAgent.StatusProvider()), nil

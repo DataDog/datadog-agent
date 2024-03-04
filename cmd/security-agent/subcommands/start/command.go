@@ -137,16 +137,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
-						return status.NoopInformationProvider(), err
+						return status.NewInformationProvider(nil), err
 					}
 
 					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
 					if err != nil {
-						return status.NoopInformationProvider(), err
+						return status.NewInformationProvider(nil), err
 					}
 
 					if runtimeAgent == nil {
-						return status.NoopInformationProvider(), nil
+						return status.NewInformationProvider(nil), nil
 					}
 
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), nil
@@ -154,17 +154,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component) (status.InformationProvider, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
-						return status.NoopInformationProvider(), err
+						return status.NewInformationProvider(nil), err
 					}
 
 					// start compliance security agent
 					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
 					if err != nil {
-						return status.NoopInformationProvider(), err
+						return status.NewInformationProvider(nil), err
 					}
 
 					if complianceAgent == nil {
-						return status.NoopInformationProvider(), nil
+						return status.NewInformationProvider(nil), nil
 					}
 
 					return status.NewInformationProvider(complianceAgent.StatusProvider()), nil
