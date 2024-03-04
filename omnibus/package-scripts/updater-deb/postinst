@@ -77,15 +77,10 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
-set +e
-
-install_id="11dac3a6-11c6-4ea8-b72b-a28df980291a"
-install_type="linux_manual_with_rpm"
-install_time="1709505669"
-
-install_signature='{"install_id":"e8b7ba30-2b3e-484f-a935-c859dc7d02e3","install_type":"linux_manual_with_apt","install_time":1708633404}'
-echo "$install_signature" > $CONFIG_DIR/install.json  || true
-set -e
+if [ ! -f "$CONFIG_DIR/install.json" ]; then
+  install_signature='{"install_id":"e8b7ba30-2b3e-484f-a935-c859dc7d02e3","install_type":"linux_manual_with_apt","install_time":1708633404}'
+  echo "$install_signature" > $CONFIG_DIR/install.json
+fi
 
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
