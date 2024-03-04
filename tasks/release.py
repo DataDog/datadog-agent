@@ -198,7 +198,7 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
             code=1,
         )
 
-    create_release_pr("Changelog update for {new_version} release", base_branch, update_branch, new_version)
+    create_pr(f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True)
 
 
 def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
@@ -1115,7 +1115,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
         )
 
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-    create_release_pr(
+    create_pr(
         f"Final updates for release.json and Go modules for {new_version} release + preludes",
         current_branch,
         final_branch,
@@ -1244,7 +1244,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    create_release_pr(
+    create_pr(
         f"[release] Update release.json and Go modules for {versions_string}",
         current_branch,
         update_branch,
@@ -1252,7 +1252,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     )
 
 
-def create_release_pr(title, base_branch, target_branch, version):
+def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
@@ -1287,16 +1287,21 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Created PR #{pr.number}", "bold"))
 
+    labels = [
+        "changelog/no-changelog",
+        "qa/no-code-change",
+        "team/agent-platform",
+        "team/agent-release-management",
+        "category/release_operations",
+    ]
+
+    if changelog_pr:
+        labels.append("backport/main")
+
     updated_pr = github.update_pr(
         pull_number=pr.number,
         milestone_number=milestone.number,
-        labels=[
-            "changelog/no-changelog",
-            "qa/no-code-change",
-            "team/agent-platform",
-            "team/agent-release-management",
-            "category/release_operations",
-        ],
+        labels=labels,
     )
 
     if not updated_pr or not updated_pr.number or not updated_pr.html_url:
