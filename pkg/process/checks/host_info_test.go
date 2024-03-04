@@ -105,9 +105,6 @@ func TestGetHostnameShellCmd(t *testing.T) {
 	}
 	defer os.Exit(0)
 
-	// Setup logger due to int logger in debug mode that made the test fail
-	log.SetupLogger(seelog.Default, "info")
-
 	args := os.Args
 	for len(args) > 0 {
 		if args[0] == "--" {
