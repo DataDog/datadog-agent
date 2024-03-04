@@ -59,6 +59,8 @@ build do
       systemdPath = "/usr/lib/systemd/system/"
     end
 
+    move "omnibus/files/updater/updater-admin-exec.sh", "#{install_dir}/bin/updater-admin-exec.sh"
+
     # Add stable systemd units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",
@@ -88,7 +90,7 @@ build do
     expTemplateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/experiment"
       erb source: template,
-         dest: systemdPath + file,
+        dest: "#{install_dir}/systemd/" + file,
          mode: 0644,
          vars: { etc_dir: etc_dir, agent_dir: agent_dir }
     end

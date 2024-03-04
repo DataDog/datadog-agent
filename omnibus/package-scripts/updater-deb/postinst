@@ -4,7 +4,6 @@
 #
 # .deb: STEP 5 of 5
 
-INSTALL_DIR=/opt/datadog
 PACKAGES_DIR=/opt/datadog-packages
 LOG_DIR=/var/log/datadog
 PACKAGES_LOCK_DIR=/var/run/datadog-packages
@@ -80,7 +79,6 @@ fi
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
-chown -R dd-agent:dd-agent ${INSTALL_DIR}
 chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 chown -R dd-agent:dd-agent ${PACKAGES_LOCK_DIR}
 chmod -R 755 ${PACKAGES_DIR}
@@ -108,7 +106,7 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
-$INSTALL_DIR/updater/bin/updater/updater bootstrap -P datadog-agent
+$PACKAGES_DIR/datadog-updater/stable/updater/bin/updater/updater bootstrap -P datadog-agent || true
 # Bootstrap installs first agent with root ownership, overriding to dd-agent
 chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 
