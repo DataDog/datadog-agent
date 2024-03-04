@@ -8,6 +8,8 @@
 package log
 
 import (
+	"os"
+
 	"github.com/cihub/seelog"
 )
 
