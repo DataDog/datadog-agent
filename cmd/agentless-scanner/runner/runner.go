@@ -94,7 +94,6 @@ type Runner struct {
 
 	configsCh chan *types.ScanConfig
 	scansCh   chan *types.ScanTask
-
 	resultsCh chan types.ScanResult
 }
 
@@ -117,24 +116,12 @@ func New(opts Options) (*Runner, error) {
 	if err != nil {
 		return nil, err
 	}
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return nil, err
-	}
 
-	rcClient, err := client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
-		client.WithAgent("sidescanner", version.AgentVersion),
-		client.WithPollInterval(5*time.Second),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("could not init Remote Config client: %w", err)
-	}
 	return &Runner{
 		Options: opts,
 
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
-		rcClient:         rcClient,
 
 		scansInProgress: make(map[types.CloudID]struct{}),
 
@@ -195,6 +182,19 @@ func (s *Runner) statsResourceTTL(resourceType types.ResourceType, scan *types.S
 // SubscribeRemoteConfig subscribes to remote-config polling for scan tasks.
 func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 	log.Infof("subscribing to remote-config")
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	s.rcClient, err = client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+		client.WithAgent("sidescanner", version.AgentVersion),
+		client.WithPollInterval(5*time.Second),
+	)
+	if err != nil {
+		return fmt.Errorf("could not init Remote Config client: %w", err)
+	}
+
 	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
@@ -347,8 +347,11 @@ func (s *Runner) Start(ctx context.Context) {
 
 	s.eventForwarder.Start()
 	defer s.eventForwarder.Stop()
+	defer s.findingsReporter.Stop()
 
-	s.rcClient.Start()
+	if s.rcClient != nil {
+		s.rcClient.Start()
+	}
 
 	go func() {
 		err := s.healthServer(ctx)
@@ -359,136 +362,146 @@ func (s *Runner) Start(ctx context.Context) {
 
 	go s.cleanupProcess(ctx)
 
-	done := make(chan struct{})
+	doneCh := make(chan struct{})
 	go func() {
-		defer func() { done <- struct{}{} }()
-		for result := range s.resultsCh {
-			if result.Err != nil {
-				if !errors.Is(result.Err, context.Canceled) {
-					log.Errorf("%s: %s: %s scanner reported a failure: %v", result.Scan, result.Scan.TargetID, result.Action, result.Err)
-				}
-				if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsFailure(result.Err), 1.0); err != nil {
-					log.Warnf("failed to send metric: %v", err)
-				}
-			} else {
-				log.Infof("%s: %s: scanner %s finished (waited %s | took %s): %s", result.Scan, result.Scan.TargetID, result.Action, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt), nResults(result))
-				if vulns := result.Vulns; vulns != nil {
-					if hasResults(vulns.BOM) {
-						if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsSuccess(), 1.0); err != nil {
-							log.Warnf("failed to send metric: %v", err)
-						}
-					} else {
-						if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsNoResult(), 1.0); err != nil {
-							log.Warnf("failed to send metric: %v", err)
-						}
-					}
-					if err := s.sendSBOM(result); err != nil {
-						log.Errorf("%s: failed to send SBOM: %v", result.Scan, err)
-					}
-					if s.PrintResults {
-						if bomRaw, err := json.MarshalIndent(vulns.BOM, "  ", "  "); err == nil {
-							fmt.Printf("scanning SBOM result %s (took %s):\n", result.Scan, time.Since(result.StartedAt))
-							fmt.Printf("ID: %s\n", vulns.ID)
-							fmt.Printf("SourceType: %s\n", vulns.SourceType.String())
-							fmt.Printf("Tags: %+q\n", vulns.Tags)
-							fmt.Printf("%s\n", bomRaw)
-						}
-					}
-				}
-				if malware := result.Malware; malware != nil {
-					if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsSuccess(), 1.0); err != nil {
-						log.Warnf("failed to send metric: %v", err)
-					}
-					log.Debugf("%s: sending findings", result.Scan)
-					s.sendFindings(malware.Findings)
-					if s.PrintResults {
-						b, _ := json.MarshalIndent(malware.Findings, "", "  ")
-						fmt.Printf("scanning types.Malware result %s (took %s): %s\n", result.Scan, time.Since(result.StartedAt), string(b))
-					}
-				}
-			}
-		}
+		s.reportResults(s.resultsCh)
+		close(doneCh)
 	}()
 
+	var wg sync.WaitGroup
+	wg.Add(s.Workers)
 	for i := 0; i < s.Workers; i++ {
 		go func() {
-			defer func() { done <- struct{}{} }()
-			for scan := range s.scansCh {
-				// Gather the  scanned roles / accounts as we go. We only ever
-				// need to store one role associated with one region. They
-				// will be used for cleanup process.
-				s.touchedMu.Lock()
-				{
-					// TODO: we could persist this "touched" map on the
-					// filesystem to have a more robust knowledge of the
-					// accounts / regions with scanned.
-					if s.touched == nil {
-						s.touched = make(map[scanRecord]struct{})
-					}
-					record := scanRecord{
-						Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
-						Region: scan.TargetID.Region(),
-					}
-					s.touched[record] = struct{}{}
-				}
-				s.touchedMu.Unlock()
-
-				// Avoid pushing a scan that we are already performing.
-				// TODO: this guardrail could be avoided with a smarter scheduling.
-				s.scansInProgressMu.Lock()
-				if _, ok := s.scansInProgress[scan.TargetID]; ok {
-					s.scansInProgressMu.Unlock()
-					continue
-				}
-				s.scansInProgress[scan.TargetID] = struct{}{}
-				s.scansInProgressMu.Unlock()
-
-				if err := s.launchScan(ctx, scan); err != nil {
-					if !errors.Is(err, context.Canceled) {
-						log.Errorf("%s: could not be setup properly: %v", scan, err)
-					}
-				}
-
-				s.scansInProgressMu.Lock()
-				delete(s.scansInProgress, scan.TargetID)
-				s.scansInProgressMu.Unlock()
-			}
+			s.scanWorker(ctx, s.scansCh)
+			wg.Done()
 		}()
 	}
 
-	go func() {
-		defer close(s.scansCh)
-		defer s.rcClient.Close()
-		for {
-			select {
-			case config, ok := <-s.configsCh:
-				if !ok {
-					return
-				}
+	s.dispatchConfigs(ctx, s.configsCh, s.scansCh)
+	wg.Wait()
+	close(s.resultsCh)
+	<-doneCh
+}
 
-				for _, scan := range config.Tasks {
-					select {
-					case <-ctx.Done():
-						return
-					case s.scansCh <- scan:
-					}
-				}
-			case <-ctx.Done():
+func (s *Runner) dispatchConfigs(ctx context.Context, configsCh <-chan *types.ScanConfig, scansCh chan<- *types.ScanTask) {
+	defer close(scansCh)
+	for {
+		select {
+		case config, ok := <-configsCh:
+			if !ok {
 				return
 			}
+			for _, scan := range config.Tasks {
+				select {
+				case <-ctx.Done():
+					return
+				case scansCh <- scan:
+				}
+			}
+		case <-ctx.Done():
+			return
 		}
-	}()
-
-	for i := 0; i < s.Workers; i++ {
-		<-done
 	}
-	close(s.resultsCh)
-	<-done // waiting for done in range resultsCh goroutine
+}
+
+func (s *Runner) scanWorker(ctx context.Context, scansCh <-chan *types.ScanTask) {
+	for scan := range scansCh {
+		// Gather the  scanned roles / accounts as we go. We only ever
+		// need to store one role associated with one region. They
+		// will be used for cleanup process.
+		s.touchedMu.Lock()
+		{
+			// TODO: we could persist this "touched" map on the
+			// filesystem to have a more robust knowledge of the
+			// accounts / regions with scanned.
+			if s.touched == nil {
+				s.touched = make(map[scanRecord]struct{})
+			}
+			record := scanRecord{
+				Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
+				Region: scan.TargetID.Region(),
+			}
+			s.touched[record] = struct{}{}
+		}
+		s.touchedMu.Unlock()
+
+		// Avoid pushing a scan that we are already performing.
+		// TODO: this guardrail could be avoided with a smarter scheduling.
+		s.scansInProgressMu.Lock()
+		if _, ok := s.scansInProgress[scan.TargetID]; ok {
+			s.scansInProgressMu.Unlock()
+			continue
+		}
+		s.scansInProgress[scan.TargetID] = struct{}{}
+		s.scansInProgressMu.Unlock()
+
+		if err := s.launchScan(ctx, scan); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				log.Errorf("%s: could not be setup properly: %v", scan, err)
+			}
+		}
+
+		s.scansInProgressMu.Lock()
+		delete(s.scansInProgress, scan.TargetID)
+		s.scansInProgressMu.Unlock()
+	}
+}
+
+func (s *Runner) reportResults(resultsCh <-chan types.ScanResult) {
+	for result := range resultsCh {
+		if result.Err != nil {
+			if !errors.Is(result.Err, context.Canceled) {
+				log.Errorf("%s: %s: %s scanner reported a failure: %v", result.Scan, result.Scan.TargetID, result.Action, result.Err)
+			}
+			if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsFailure(result.Err), 1.0); err != nil {
+				log.Warnf("failed to send metric: %v", err)
+			}
+		} else {
+			log.Infof("%s: %s: scanner %s finished (waited %s | took %s): %s", result.Scan, result.Scan.TargetID, result.Action, result.StartedAt.Sub(result.CreatedAt), time.Since(result.StartedAt), nResults(result))
+			if vulns := result.Vulns; vulns != nil {
+				if hasResults(vulns.BOM) {
+					if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsSuccess(), 1.0); err != nil {
+						log.Warnf("failed to send metric: %v", err)
+					}
+				} else {
+					if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsNoResult(), 1.0); err != nil {
+						log.Warnf("failed to send metric: %v", err)
+					}
+				}
+				if err := s.sendSBOM(result); err != nil {
+					log.Errorf("%s: failed to send SBOM: %v", result.Scan, err)
+				}
+				if s.PrintResults {
+					if bomRaw, err := json.MarshalIndent(vulns.BOM, "  ", "  "); err == nil {
+						fmt.Printf("scanning SBOM result %s (took %s):\n", result.Scan, time.Since(result.StartedAt))
+						fmt.Printf("ID: %s\n", vulns.ID)
+						fmt.Printf("SourceType: %s\n", vulns.SourceType.String())
+						fmt.Printf("Tags: %+q\n", vulns.Tags)
+						fmt.Printf("%s\n", bomRaw)
+					}
+				}
+			}
+			if malware := result.Malware; malware != nil {
+				if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, result.Scan.TagsSuccess(), 1.0); err != nil {
+					log.Warnf("failed to send metric: %v", err)
+				}
+				log.Debugf("%s: sending findings", result.Scan)
+				s.sendFindings(malware.Findings)
+				if s.PrintResults {
+					b, _ := json.MarshalIndent(malware.Findings, "", "  ")
+					fmt.Printf("scanning types.Malware result %s (took %s): %s\n", result.Scan, time.Since(result.StartedAt), string(b))
+				}
+			}
+		}
+	}
 }
 
 // Stop stops the runner main loop.
 func (s *Runner) Stop() {
 	log.Infof("stopping agentless-scanner main loop")
+	if s.rcClient != nil {
+		s.rcClient.Close()
+	}
 	close(s.configsCh)
 }
 
@@ -527,27 +540,44 @@ func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err erro
 		s.scanRootFilesystems(ctx, scan, []string{scan.TargetID.ResourceName()}, pool)
 
 	case types.TaskTypeAMI:
-		if err := awsutils.SetupEBS(ctx, scan, &s.waiter); err != nil {
-			return err
-		}
-		partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+		snapshotID, err := awsutils.SetupEBSSnapshot(ctx, scan, &s.waiter)
 		if err != nil {
-			return err
-		}
-		mountpoints, err := devices.Mount(ctx, scan, partitions)
-		if err != nil {
-			return err
-		}
-		s.scanImage(ctx, scan, mountpoints, pool)
-
-	case types.TaskTypeEBS:
-		if err := awsutils.SetupEBS(ctx, scan, &s.waiter); err != nil {
 			return err
 		}
 		switch scan.DiskMode {
 		case types.DiskModeNoAttach:
-			s.scanSnaphotNoAttach(ctx, scan, pool)
+			s.scanSnaphotNoAttach(ctx, scan, snapshotID, pool)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
+			err = awsutils.SetupEBSVolume(ctx, scan, &s.waiter, snapshotID)
+			if err != nil {
+				return err
+			}
+			assert(scan.AttachedDeviceName != nil)
+			partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+			if err != nil {
+				return err
+			}
+			mountpoints, err := devices.Mount(ctx, scan, partitions)
+			if err != nil {
+				return err
+			}
+			s.scanImage(ctx, scan, mountpoints, pool)
+		}
+
+	case types.TaskTypeEBS:
+		snapshotID, err := awsutils.SetupEBSSnapshot(ctx, scan, &s.waiter)
+		if err != nil {
+			return err
+		}
+		switch scan.DiskMode {
+		case types.DiskModeNoAttach:
+			s.scanSnaphotNoAttach(ctx, scan, snapshotID, pool)
+		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
+			err := awsutils.SetupEBSVolume(ctx, scan, &s.waiter, snapshotID)
+			if err != nil {
+				return err
+			}
+			assert(scan.AttachedDeviceName != nil)
 			partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
 			if err != nil {
 				return err
@@ -765,16 +795,17 @@ func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []st
 	wg.Wait()
 }
 
-func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, pool *scannersPool) {
+func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, snapshotID types.CloudID, pool *scannersPool) {
 	assert(scan.Type == types.TaskTypeEBS)
 	s.resultsCh <- pool.launchScannerVulns(ctx,
 		sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
 		scan.TargetName,
 		scan.TargetTags,
 		types.ScannerOptions{
-			Action:    types.ScanActionVulnsHostOSVm,
-			Scan:      scan,
-			CreatedAt: time.Now(),
+			Action:     types.ScanActionVulnsHostOSVm,
+			Scan:       scan,
+			CreatedAt:  time.Now(),
+			SnapshotID: &snapshotID,
 		})
 }
 

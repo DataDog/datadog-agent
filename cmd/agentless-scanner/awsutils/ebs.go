@@ -30,39 +30,37 @@ const (
 	maxAttachRetries   = 15
 )
 
-// SetupEBS prepares the EBS volume for scanning. It creates a snapshot of the
-// volume, attaches it to the instance and returns the list of partitions that
-// were mounted.
-func SetupEBS(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter) error {
+// SetupEBSSnapshot prepares the EBS snapshot for scanning.
+func SetupEBSSnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter) (types.CloudID, error) {
 	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.TargetID)
 	ec2client := ec2.NewFromConfig(cfg)
-
-	var snapshotID types.CloudID
-	var err error
 	switch scan.TargetID.ResourceType() {
 	case types.ResourceTypeVolume:
-		snapshotID, err = CreateSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
+		return CreateSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 	case types.ResourceTypeSnapshot:
-		snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
+		return CopySnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 	case types.ResourceTypeHostImage:
-		snapshotID, err = getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
-		if err == nil {
-			snapshotID, err = CopySnapshot(ctx, scan, waiter, ec2client, snapshotID)
+		snapshotID, err := getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
+		if err != nil {
+			return types.CloudID{}, err
 		}
+		return CopySnapshot(ctx, scan, waiter, ec2client, snapshotID)
 	default:
-		err = fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.TargetID)
+		return types.CloudID{}, fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.TargetID)
 	}
-	if err != nil {
-		return err
-	}
+}
 
+// SetupEBSVolume prepares the EBS volume for scanning. It attaches the given
+// snapshot to the instance and returns the list of partitions that were
+// mounted.
+func SetupEBSVolume(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
 	switch scan.DiskMode {
 	case types.DiskModeVolumeAttach:
 		return AttachSnapshotWithVolume(ctx, scan, waiter, snapshotID)
 	case types.DiskModeNBDAttach:
-		return AttachSnapshotWithNBD(ctx, scan, snapshotID, ebs.NewFromConfig(cfg))
+		return AttachSnapshotWithNBD(ctx, scan, snapshotID)
 	case types.DiskModeNoAttach:
-		return nil // nothing to do. early exit.
+		return fmt.Errorf("ebs-volume: could not setup volume in no attach mode defined for task %q", scan)
 	default:
 		panic("unreachable")
 	}
@@ -199,7 +197,8 @@ func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWai
 
 // AttachSnapshotWithNBD attaches the given snapshot to the instance using a
 // Network Block Device (NBD).
-func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID types.CloudID, ebsclient *ebs.Client) error {
+func AttachSnapshotWithNBD(ctx context.Context, scan *types.ScanTask, snapshotID types.CloudID) error {
+	ebsclient := ebs.NewFromConfig(GetConfigFromCloudID(ctx, scan.Roles, scan.TargetID))
 	device, ok := devices.NextNBD()
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")

@@ -626,7 +626,13 @@ func awsAttachCmd(ctx context.Context, resourceID types.CloudID, mount bool, dis
 	}()
 
 	var waiter awsutils.ResourceWaiter
-	if err := awsutils.SetupEBS(ctx, scan, &waiter); err != nil {
+	snapshotID, err := awsutils.SetupEBSSnapshot(ctx, scan, &waiter)
+	if err != nil {
+		return err
+	}
+
+	err = awsutils.SetupEBSVolume(ctx, scan, &waiter, snapshotID)
+	if err != nil {
 		return err
 	}
 
