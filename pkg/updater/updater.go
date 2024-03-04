@@ -98,10 +98,7 @@ func NewUpdater(rcFetcher client.ConfigFetcher) (Updater, error) {
 }
 
 func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string) (*updaterImpl, error) {
-	repositories, err := repository.NewRepositories(repositoriesPath, locksPath)
-	if err != nil {
-		return nil, err
-	}
+	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	u := &updaterImpl{
 		rc:                rc,
 		repositories:      repositories,
