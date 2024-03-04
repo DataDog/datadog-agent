@@ -639,6 +639,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
+	config.BindEnvAndSetDefault("kubelet_core_check", false, "DD_KUBERNETES_KUBELET_CORE_CHECK_ENABLED")
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
