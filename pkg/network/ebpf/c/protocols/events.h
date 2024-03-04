@@ -57,10 +57,10 @@
                     perf_ret = bpf_ringbuf_output(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
                 } else {                                                                                \
                     perf_ret = bpf_perf_event_output(ctx,                                               \
-                                                 &name##_batch_events,                                  \
-                                                 key.cpu,                                               \
-                                                 batch,                                                 \
-                                                 sizeof(batch_data_t));                                 \
+                                                     &name##_batch_events,                              \
+                                                     key.cpu,                                           \
+                                                     batch,                                             \
+                                                     sizeof(batch_data_t));                             \
                 }                                                                                       \
                 if (perf_ret < 0) {                                                                     \
                     _LOG(name, "batch flush error: cpu: %d idx: %d err: %d",                            \
