@@ -1045,7 +1045,7 @@ func (suite *k8sSuite) TestTraceUDP() {
 }
 
 func (suite *k8sSuite) TestTraceTCP() {
-	suite.testTrace(kubeDeploymentTracegenUDPWorkload)
+	suite.testTrace(kubeDeploymentTracegenTCPWorkload)
 }
 
 // testTrace verifies that traces are tagged with container and pod tags.
