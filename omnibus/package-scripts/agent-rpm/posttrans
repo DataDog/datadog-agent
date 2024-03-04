@@ -110,15 +110,6 @@ install_method:
     echo "$install_info_content" > $CONFIG_DIR/install_info
 fi
 
-
-generate_install_signature()
-{
-    install_id="$1"
-    install_type="$2"
-    install_time="$3"
-    printf "{\"install_id\":\"$install_id\",\"install_type\":\"$install_type\",\"install_time\":$install_time}"
-}
-
 if [ ! -f "$CONFIG_DIR/install.json" ]; then
     install_signature='{"install_id":"ecba222b-7f87-426b-ac72-18f1824fd909","install_type":"manual","install_time":1705689975}'
     echo "$install_signature" > $CONFIG_DIR/install.json
