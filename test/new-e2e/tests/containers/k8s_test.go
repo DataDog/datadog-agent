@@ -1052,7 +1052,10 @@ func (suite *k8sSuite) TestTraceTCP() {
 func (suite *k8sSuite) testTrace(kubeDeployment string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
-		require.NoErrorf(c, cerr, "Failed to query fake intake")
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
+			return
+		}
 
 		var err error
 		// Iterate starting from the most recent traces
