@@ -41,6 +41,9 @@ type Component interface {
 
 	// Enqueue enqueues a capture buffer so it's written to file.
 	Enqueue(msg *CaptureBuffer) bool
+
+	// GetStartUpError returns an error if TrafficCapture failed to start up
+	GetStartUpError() error
 }
 
 // Mock implements mock-specific methods.

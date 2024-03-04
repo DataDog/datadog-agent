@@ -326,6 +326,10 @@ func (s *server) start(context.Context) error {
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
+	if err := s.tCapture.GetStartUpError(); err != nil {
+		return err
+	}
+
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
 	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"))

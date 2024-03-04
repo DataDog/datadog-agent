@@ -68,3 +68,8 @@ func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) err
 func (tc *mockTrafficCapture) Enqueue(msg *CaptureBuffer) bool {
 	return true
 }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (tc *mockTrafficCapture) GetStartUpError() error {
+	return nil
+}

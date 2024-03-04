@@ -37,8 +37,9 @@ type dependencies struct {
 
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
-	writer *TrafficCaptureWriter
-	config config.Reader
+	writer       *TrafficCaptureWriter
+	config       config.Reader
+	startUpError error
 
 	sync.RWMutex
 }
@@ -46,10 +47,10 @@ type trafficCapture struct {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessTrafficCapture() (Component, error) {
+func NewServerlessTrafficCapture() Component {
 	tc := newTrafficCaptureCompat(config.Datadog)
-	err := tc.configure(context.TODO())
-	return tc, err
+	tc.configure(context.TODO())
+	return tc
 }
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
@@ -71,7 +72,7 @@ func newTrafficCaptureCompat(cfg config.Reader) *trafficCapture {
 func (tc *trafficCapture) configure(_ context.Context) error {
 	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
-		return fmt.Errorf("unable to instantiate capture writer")
+		tc.startUpError = fmt.Errorf("unable to instantiate capture writer")
 	}
 	tc.writer = writer
 
@@ -146,4 +147,8 @@ func (tc *trafficCapture) defaultlocation() string {
 	}
 	return location
 
+}
+
+func (tc *trafficCapture) GetStartUpError() error {
+	return tc.startUpError
 }
