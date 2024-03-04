@@ -166,6 +166,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     init_routing_cache(usm_ctx, protocol_stack);
 
     const char *buffer = &(usm_ctx->buffer.data[0]);
+    protocol_stack->flags |= FLAG_ATTEMPTED_CLASSIFICATION;
     // TLS classification
     if (is_tls(buffer, usm_ctx->buffer.size)) {
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);

@@ -36,6 +36,7 @@
 #define FLAG_SOCKET_FILTER_DELETION 1 << 4
 #define FLAG_SERVER_SIDE            1 << 5
 #define FLAG_CLIENT_SIDE            1 << 6
+#define FLAG_ATTEMPTED_CLASSIFICATION 1 << 7
 
 // The enum below represents all different protocols we're able to
 // classify. Entries are segmented such that it is possible to infer the
