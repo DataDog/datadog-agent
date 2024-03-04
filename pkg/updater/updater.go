@@ -89,7 +89,7 @@ func Bootstrap(ctx context.Context, pkg string) error {
 	return u.Bootstrap(ctx, pkg)
 }
 
-// BootstrapVersion bootstraps the default version for the given package.
+// BootstrapVersion bootstraps the given package at the given version.
 func BootstrapVersion(ctx context.Context, pkg string, version string) error {
 	rc := newNoopRemoteConfig()
 	u, err := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
@@ -169,47 +169,31 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
-	if err != nil {
-		return fmt.Errorf("not enough disk space to install package: %w", err)
-	}
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
 	}
-	log.Infof("Updater: Installing default version %s of package %s", stablePackage.Version, pkg)
-	tmpDir, err := os.MkdirTemp("", "")
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
-	if err != nil {
-		return fmt.Errorf("could not download experiment: %w", err)
-	}
-	err = u.installer.installStable(pkg, stablePackage.Version, image)
-	if err != nil {
-		return fmt.Errorf("could not install experiment: %w", err)
-	}
-	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, pkg)
-	return nil
+	return u.boostrapPackage(ctx, stablePackage)
 }
 
 // Bootstrap installs the stable version of the package.
 func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
+	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	if !ok {
+		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
+	}
+	return u.boostrapPackage(ctx, stablePackage)
+}
+
+func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package) error {
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
 	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
-	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
-	if !ok {
-		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
-	}
-	log.Infof("Updater: Installing default version %s of package %s", stablePackage.Version, pkg)
+	log.Infof("Updater: Bootstrapping stable version %s of package %s", stablePackage.Version, stablePackage.Name)
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
@@ -219,11 +203,11 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 	if err != nil {
 		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.installer.installStable(pkg, stablePackage.Version, image)
+	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
 	if err != nil {
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
-	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, pkg)
+	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
 	return nil
 }
 
@@ -327,7 +311,7 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 	switch request.Method {
 	case methodStartExperiment:
 		log.Infof("Updater: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
-		var params startExperimentParams
+		var params taskWithVersionParams
 		err := json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
@@ -339,6 +323,18 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 	case methodPromoteExperiment:
 		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
 		return u.PromoteExperiment(request.Package, request.ID)
+	case methodBootstrap:
+		var params taskWithVersionParams
+		err := json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		log.Infof("Updater: Received remote request %s to bootstrap package %s version %s", request.ID, request.Package, params.Version)
+		// TODO: add state support
+		if params.Version == "" {
+			return u.Bootstrap(context.Background(), request.Package)
+		}
+		return u.BootstrapVersion(context.Background(), request.Package, params.Version)
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}

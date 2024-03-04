@@ -100,6 +100,7 @@ func (l *localAPIImpl) handler() http.Handler {
 	r.HandleFunc("/{package}/experiment/start", l.startExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/stop", l.stopExperiment).Methods(http.MethodPost)
 	r.HandleFunc("/{package}/experiment/promote", l.promoteExperiment).Methods(http.MethodPost)
+	r.HandleFunc("/{package}/bootstrap", l.bootstrap).Methods(http.MethodPost)
 	return r
 }
 
@@ -125,7 +126,7 @@ func (l *localAPIImpl) status(w http.ResponseWriter, _ *http.Request) {
 func (l *localAPIImpl) startExperiment(w http.ResponseWriter, r *http.Request) {
 	pkg := mux.Vars(r)["package"]
 	w.Header().Set("Content-Type", "application/json")
-	var request startExperimentParams
+	var request taskWithVersionParams
 	var response APIResponse
 	defer func() {
 		_ = json.NewEncoder(w).Encode(response)
@@ -175,6 +176,39 @@ func (l *localAPIImpl) promoteExperiment(w http.ResponseWriter, r *http.Request)
 	log.Infof("Received local request to promote experiment for package %s", pkg)
 	taskID := uuid.New().String()
 	err := l.updater.PromoteExperiment(pkg, taskID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		response.Error = &APIError{Message: err.Error()}
+		return
+	}
+}
+
+// example: curl -X POST --unix-socket /opt/datadog-packages/updater.sock -H 'Content-Type: application/json' http://updater/datadog-agent/bootstrap -d '{"version":"1.21.5"}'
+func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
+	pkg := mux.Vars(r)["package"]
+	w.Header().Set("Content-Type", "application/json")
+	var request taskWithVersionParams
+	var response APIResponse
+	defer func() {
+		_ = json.NewEncoder(w).Encode(response)
+	}()
+	var err error
+	if r.ContentLength > 0 {
+		err = json.NewDecoder(r.Body).Decode(&request)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			response.Error = &APIError{Message: err.Error()}
+			return
+		}
+	}
+	if request.Version != "" {
+		log.Infof("Received local request to bootstrap package %s version %s", pkg, request.Version)
+		err = l.updater.BootstrapVersion(r.Context(), pkg, request.Version)
+	} else {
+		log.Infof("Received local request to bootstrap package %s", pkg)
+		err = l.updater.Bootstrap(r.Context(), pkg)
+
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -235,7 +269,7 @@ func (c *localAPIClientImpl) Status() (StatusResponse, error) {
 
 // StartExperiment starts an experiment for a package.
 func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
-	params := startExperimentParams{
+	params := taskWithVersionParams{
 		Version: version,
 	}
 	body, err := json.Marshal(params)
