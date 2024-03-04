@@ -45,6 +45,7 @@ type Launcher struct {
 	registry            auditor.Registry
 	tailerSleepDuration time.Duration
 	stop                chan struct{}
+	done                chan struct{}
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
@@ -74,6 +75,7 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		rotatedTailers:         []*tailer.Tailer{},
 		tailerSleepDuration:    tailerSleepDuration,
 		stop:                   make(chan struct{}),
+		done:                   make(chan struct{}),
 		validatePodContainerID: validatePodContainerID,
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
@@ -93,13 +95,16 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 // this call returns only when all the tailers are stopped
 func (s *Launcher) Stop() {
 	s.stop <- struct{}{}
-	s.cleanup()
+	<-s.done
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
 func (s *Launcher) run() {
 	scanTicker := time.NewTicker(s.scanPeriod)
-	defer scanTicker.Stop()
+	defer func() {
+		scanTicker.Stop()
+		close(s.done)
+	}()
 
 	for {
 		select {
@@ -113,6 +118,7 @@ func (s *Launcher) run() {
 			s.scan()
 		case <-s.stop:
 			// no more file should be tailed
+			s.cleanup()
 			return
 		}
 	}
