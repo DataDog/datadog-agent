@@ -16,8 +16,6 @@ import (
 	"sync"
 	"time"
 
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
@@ -25,6 +23,9 @@ import (
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
+
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -470,9 +471,12 @@ func getManager(cfg *config.Config, buf io.ReaderAt, constants []manager.Constan
 }
 
 func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
-	kv414 := kernel.VersionCode(4, 14, 0)
-	if kv, err := kernel.HostVersion(); err != nil || kv < kv414 {
-		return nil, nil, fmt.Errorf("ebpf conntracker requires kernel version %s or higher", kv414)
+	kv, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to detect the kernel version: %s", err)
+	}
+	if kv.Code < ebpfkernel.Kernel4_14 && !kv.IsRH7Kernel() {
+		return nil, nil, fmt.Errorf("ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 	}
 
 	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)

@@ -53,6 +53,7 @@ import (
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -2028,7 +2029,13 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "trace")
+	kv, err := ebpfkernel.NewKernelVersion()
+	require.NoError(t, err)
+
+	if kv.Code < ebpfkernel.Kernel4_14 && !kv.IsRH7Kernel() {
+		t.Skip("Skipping test on unsupported kernel")
+	}
+
 	type testCase struct {
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool
@@ -2059,7 +2066,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	}
 
 	cfg := config.New()
-	if kv >= kernel.VersionCode(5, 18, 0) {
+	if kv.Code >= kernel.VersionCode(5, 18, 0) {
 		cfg.CollectUDPv6Conns = false
 	}
 	t.Cleanup(func() {

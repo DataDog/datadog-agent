@@ -27,6 +27,7 @@ import (
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -36,6 +37,12 @@ func TestConntrackers(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
 	t.Run("eBPF", func(t *testing.T) {
+		kv, err := ebpfkernel.NewKernelVersion()
+		require.NoError(t, err)
+
+		if kv.Code < ebpfkernel.Kernel4_14 && !kv.IsRH7Kernel() {
+			t.Skip("Skipping test on unsupported kernel")
+		}
 		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled}, "", func(t *testing.T) {
 			runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 		})

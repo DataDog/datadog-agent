@@ -14,9 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
 func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
+	kv, err := ebpfkernel.NewKernelVersion()
+	require.NoError(t, err)
+
+	if kv.Code < ebpfkernel.Kernel4_14 && !kv.IsRH7Kernel() {
+		t.Skip("Skipping test on unsupported kernel")
+	}
+
 	offsetguess.TracerOffsets.Reset()
 
 	cfg := testConfig()
@@ -29,4 +37,22 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 	offsets, err := offsetguess.TracerOffsets.Offsets(cfg)
 	require.NoError(t, err)
 	require.NotEmpty(t, offsets)
+}
+
+func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
+	kv, err := ebpfkernel.NewKernelVersion()
+	require.NoError(t, err)
+
+	if kv.Code >= ebpfkernel.Kernel4_14 || kv.IsRH7Kernel() {
+		t.Skip("This test should only run on pre-4.14 kernels or kernels with backported eBPF support")
+	}
+
+	offsetguess.TracerOffsets.Reset()
+
+	cfg := testConfig()
+	cfg.EnableRuntimeCompiler = false
+	conntracker, err := NewEBPFConntracker(cfg)
+	assert.Error(t, err)
+	assert.Equal(t, "ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support", err.Error())
+	require.Nil(t, conntracker)
 }
