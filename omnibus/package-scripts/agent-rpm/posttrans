@@ -112,18 +112,6 @@ install_method:
 fi
 
 set +e
-generate_install_id()
-{
-    # Try generating a UUID based on /proc/sys/kernel/random/uuid
-    uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null)
-    # If that does not work, then try uuidgen
-    if [ ${#uuid} -ne 36 ]; then
-        uuid=$(uuidgen 2>/dev/null)
-    fi
-    # Convert to lowercase
-    uuid=$(echo "$uuid" | tr '[:upper:]' '[:lower:]')
-    printf "$uuid"
-}
 
 generate_install_signature()
 {
@@ -134,7 +122,7 @@ generate_install_signature()
 }
 
 if [ ! -f "$CONFIG_DIR/install.json" ]; then
-    install_id=$(generate_install_id)
+    install_id="c5844f73-a738-4322-99f0-fcc7e5add17"
     install_type="linux_manual_with_rpm"
     install_time=$(date +%s)
     install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
