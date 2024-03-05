@@ -1290,7 +1290,7 @@ Make sure that milestone is open before trying again.""",
     labels = [
         "changelog/no-changelog",
         "qa/no-code-change",
-        "team/agent-platform",
+        "team/agent-build-and-releases",
         "team/agent-release-management",
         "category/release_operations",
     ]

@@ -1,4 +1,4 @@
-*                                    @DataDog/agent-platform
+*                                    @DataDog/agent-ci-experience
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
@@ -86,13 +86,13 @@ new-e2e-agent-subcommands*        @DataDog/agent-shared-components
 new-e2e-agent-shared-components*  @DataDog/agent-shared-components
 new-e2e-language-detection*       @DataDog/processes
 new-e2e-process*                  @DataDog/processes
-new-e2e-agent-platform*           @DataDog/agent-platform
+new-e2e-agent-platform*           @DataDog/agent-build-and-releases
 new-e2e-aml*                      @DataDog/agent-metrics-logs
 new-e2e-npm*                      @DataDog/Networks
 new-e2e-cws*                      @DataDog/agent-security
 new-e2e-windows-agent*            @DataDog/windows-agent
 new-e2e-orchestrator*             @DataDog/container-app
-e2e_pre_test*                     @DataDog/agent-platform
+e2e_pre_test*                     @DataDog/agent-developer-tools
 new-e2e-remote-config*            @DataDog/remote-config
 
 # Kernel version testing
