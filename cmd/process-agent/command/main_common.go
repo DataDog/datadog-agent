@@ -182,7 +182,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ tagger.Component,
 			processAgent optional.Option[agent.Component],
 		) error {
-			if !processAgent.IsSet() {
+			if _, ok := processAgent.Get(); !ok {
 				return errAgentDisabled
 			}
 			return nil
