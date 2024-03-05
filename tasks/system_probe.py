@@ -264,12 +264,11 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_programs = [
         "tracer",
         "prebuilt/usm",
-        "prebuilt/usm_events_test",
         "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
     network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm", "runtime/shared-libraries"]
-    network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess"]
+    network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess", "prebuilt/usm_events_test"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
@@ -694,6 +693,7 @@ def test(
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
+    env["DD_LOG_LEVEL"]="debug"
 
     go_root = os.getenv("GOROOT")
     if go_root:
