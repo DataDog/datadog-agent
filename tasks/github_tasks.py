@@ -192,7 +192,7 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
 
 
 @task
-def assign_team_label(_, pr_id, changed_files):
+def assign_team_label(_, pr_id = -1, changed_files = ''):
     """
     Assigns the github team label name if a single team can
     be deduced from the changed files.
