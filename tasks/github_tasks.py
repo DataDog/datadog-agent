@@ -17,6 +17,7 @@ from tasks.libs.github_actions_tools import (
 )
 from tasks.libs.junit_upload_core import repack_macos_junit_tar
 from tasks.release import _get_release_json_value
+from tasks.libs.pipeline_notifications import read_owners
 
 
 @lru_cache(maxsize=None)
@@ -191,16 +192,16 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
 
 
 @task
-def deduce_team_label(_, changed_files=[]):
+def assign_team_label(_, pr_id, changed_files):
     """
-    Print the github team label name if a single team can
-    be deduced from the changed files
+    Assigns the github team label name if a single team can
+    be deduced from the changed files.
+    changed_files is a comma separated string
     """
-    def get_team() -> str | None:
-        from codeowners import CodeOwners
+    from .libs.common.github_api import GithubAPI
 
-        with open('.github/CODEOWNERS') as f:
-            codeowners = CodeOwners(f.read())
+    def get_team() -> str | None:
+        codeowners = read_owners('.github/CODEOWNERS')
 
         global_team = None
         for file in changed_files:
@@ -219,10 +220,16 @@ def deduce_team_label(_, changed_files=[]):
         return global_team
 
     # Find team
+    changed_files = changed_files.split(',')
     team = get_team()
-    assert team is not None, 'No team or multiple teams found'
-    assert team.startswith('@DataDog/'), f'Unknown team {team}'
+    if team is None:
+        print('No team or multiple teams found')
+        exit()
 
-    # Print label
+    # Assign label
     label_name = 'team' + team.removeprefix('@DataDog')
-    print(label_name)
+    gh = GithubAPI('DataDog/datadog-agent')
+    if gh.add_label(pr_id, label_name):
+        print(label_name, 'label assigned to the pull request')
+    else:
+        print('Failed to assign label')

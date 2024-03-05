@@ -191,6 +191,19 @@ class GithubAPI:
         """
         return self._github.rate_limiting
 
+    def add_label(self, pr_id: int, label: str) -> bool:
+        """
+        Tries to add a label to the pull request
+        Returns whether the label has been added
+        """
+        try:
+            pr = self._repository.get_pull(pr_id)
+            pr.add_to_labels(label)
+        except:
+            return False
+
+        return True
+
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
