@@ -9,10 +9,9 @@ on:
       - "[0-9]+.[0-9]+.x"
 
 env:
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
-  GITHUB_REPO: ${{ github.repository }}
 
 jobs:
   assign-team-label:
@@ -44,7 +43,7 @@ jobs:
       - name: Get PR labels
         id: pr-labels
         run: |
-          labels="$(GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' GH_REPO='${{ github.repository }}' gh pr view --json labels --jq '[.labels[].name] | (join(" "))')"
+          labels="$(GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' GH_REPO='${{ github.repository }}' gh pr view '${{ github.event.pull_request.number }}' --json labels --jq '[.labels[].name] | (join(" "))')"
           echo "Fetched labels for PR ${{github.event.number}}: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
         env:
