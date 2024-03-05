@@ -23,6 +23,7 @@ def build(
     ctx,
     rebuild=False,
     race=False,
+    install_path=None,
     build_include=None,
     build_exclude=None,
     arch="x64",
@@ -32,7 +33,7 @@ def build(
     Build the updater.
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=MAJOR_VERSION)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=MAJOR_VERSION, install_path=install_path)
 
     build_include = (
         get_default_build_tags(

@@ -10,10 +10,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
 func TestStatus(t *testing.T) {
-	provider := Provider{}
+	provider := statusProvider{
+		agent: &Agent{
+			opts: AgentOptions{
+				Reporter: NewLogReporter("test", "test", "test", "test", &config.Endpoints{}, &client.DestinationsContext{}),
+			},
+		},
+	}
 
 	tests := []struct {
 		name       string

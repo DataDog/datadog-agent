@@ -157,6 +157,7 @@ const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+	methodBootstrap         = "bootstrap"
 )
 
 type remoteAPIRequest struct {
@@ -172,7 +173,7 @@ type expectedState struct {
 	Experiment string `json:"experiment"`
 }
 
-type startExperimentParams struct {
+type taskWithVersionParams struct {
 	Version string `json:"version"`
 }
 
