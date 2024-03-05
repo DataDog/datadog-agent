@@ -578,7 +578,6 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc fun
 	}
 }
 
-// // Inverse tree logic, lock and unlock are on 2 lowest level, we have to talk if we want to reverse it
 func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
 	l := logger.Load()
 
