@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-func getNewConfig() pkgconfigmodel.Reader {
+func getNewConfig() pkgconfigmodel.ReaderWriter {
 	return pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 }
 
@@ -361,4 +361,19 @@ func TestBackoffDelayDisabled(t *testing.T) {
 
 	assert.Equal(t, 0, server.Destination.nbErrors)
 	server.Stop()
+}
+
+func TestDestinationHA(t *testing.T) {
+	variants := []*bool{nil, pointer.Ptr(true), pointer.Ptr(false)}
+	for _, variant := range variants {
+		endpoint := config.Endpoint{
+			IsHA: variant,
+		}
+		isEndpointHA := endpoint.GetIsHA()
+
+		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", getNewConfig())
+		isDestHA := dest.IsHA()
+
+		assert.Equal(t, isEndpointHA, isDestHA)
+	}
 }

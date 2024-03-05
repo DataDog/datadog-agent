@@ -30,6 +30,7 @@ type Destination struct {
 	shouldRetry         bool
 	retryLock           sync.Mutex
 	lastRetryError      error
+	isHA                bool
 }
 
 // NewDestination returns a new destination.
@@ -44,7 +45,16 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
+		isHA:                endpoint.GetIsHA(),
 	}
+}
+
+func (d *Destination) IsHA() bool {
+	return d.isHA
+}
+
+func (d *Destination) Target() string {
+	return d.connManager.address()
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,

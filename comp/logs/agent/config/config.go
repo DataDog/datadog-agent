@@ -275,6 +275,35 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 		}
 	}
 
+	// Add in the HAMR endpoint if HA is enabled.
+	if coreConfig.GetBool("ha.enabled") && (coreConfig.IsSet("ha.site") || coreConfig.IsSet("ha.dd_url")) {
+		haURL := pkgconfigutils.GetHAEndpoint(coreConfig, endpointPrefix, "ha.dd_url")
+		haHost, haPort, haUseSSL, err := parseAddressWithScheme(haURL, defaultNoSSL, parseAddressAsHost)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", haURL, err)
+		}
+
+		// HA endpoint is always reliable
+		additionals = append(additionals, Endpoint{
+			IsHA:             pointer.Ptr(true),
+			APIKey:           coreConfig.GetString("ha.api_key"),
+			Host:             haHost,
+			Port:             haPort,
+			UseSSL:           pointer.Ptr(haUseSSL),
+			UseCompression:   main.UseCompression,
+			CompressionLevel: main.CompressionLevel,
+			BackoffBase:      main.BackoffBase,
+			BackoffMax:       main.BackoffMax,
+			BackoffFactor:    main.BackoffFactor,
+			RecoveryInterval: main.RecoveryInterval,
+			RecoveryReset:    main.RecoveryReset,
+			Version:          main.Version,
+			TrackType:        intakeTrackType,
+			Protocol:         intakeProtocol,
+			Origin:           intakeOrigin,
+		})
+	}
+
 	batchWait := logsConfig.batchWait()
 	batchMaxConcurrentSend := logsConfig.batchMaxConcurrentSend()
 	batchMaxSize := logsConfig.batchMaxSize()

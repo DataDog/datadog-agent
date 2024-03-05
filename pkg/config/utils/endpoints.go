@@ -140,7 +140,7 @@ func GetHAEndpoint(c pkgconfigmodel.Reader, prefix, ddHaURLKey string) string {
 func getResolvedHaDdURL(c pkgconfigmodel.Reader, haURLKey string) string {
 	resolvedHaDdURL := c.GetString(haURLKey)
 	if c.IsSet("ha.site") {
-		log.Infof("'ha.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", haURLKey, haURLKey, resolvedHaDdURL)
+		log.Warnf("'ha.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", haURLKey, haURLKey, resolvedHaDdURL)
 	}
 	return resolvedHaDdURL
 }

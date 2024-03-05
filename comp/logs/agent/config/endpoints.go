@@ -42,6 +42,7 @@ type Endpoint struct {
 	CompressionLevel        int   `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
 	IsReliable              *bool `mapstructure:"is_reliable" json:"is_reliable"`
+	IsHA                    *bool
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -101,6 +102,11 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 // GetIsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.
 func (e *Endpoint) GetIsReliable() bool {
 	return e.IsReliable == nil || *e.IsReliable
+}
+
+// GetIsReliable returns true if the endpoint is an HA endpoint. Endpoints are not HA by default.
+func (e *Endpoint) GetIsHA() bool {
+	return e.IsHA != nil && *e.IsHA
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
