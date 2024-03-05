@@ -16,6 +16,7 @@ jobs:
   assign-team-labels:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install Python dependencies
