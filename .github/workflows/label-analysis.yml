@@ -28,7 +28,10 @@ jobs:
         with:
           format: 'csv'
       - name: Auto assign team label
-        run: GITHUB_TOKEN="$GH_TOKEN" inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}' --changed-files='${{ steps.files.outputs.all }}'
+        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}' --changed-files='${{ steps.files.outputs.all }}'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
   fetch-labels:
     needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
@@ -42,6 +45,9 @@ jobs:
           labels="$(gh pr view --json labels --jq '[.labels[].name] | (join(" "))')"
           echo "Fetched labels for PR ${{github.event.number}}: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
   team-label:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
