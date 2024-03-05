@@ -234,7 +234,7 @@ func (c *Check) validateConfig() error {
 		// wrap ErrSkipCheckInstance for graceful skipping
 		return fmt.Errorf("%w: unsupported configuration: legacy_mode_v2: true", check.ErrSkipCheckInstance)
 	}
-	if c.config.instance.Timeout.IsSet() {
+	if _, isSet := c.config.instance.Timeout.Get(); isSet {
 		// timeout option is deprecated. Now that the subscription runs in the background in a select
 		// style, a timeout on the "wait for events" operation is no longer applicable.
 		c.Warn("instance config `timeout` is deprecated. It is no longer used by the check and can be removed.")
