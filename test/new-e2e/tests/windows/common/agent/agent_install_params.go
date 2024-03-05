@@ -6,6 +6,9 @@
 package agent
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -13,17 +16,34 @@ import (
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
-	AgentUser         string `installer_arg:"DDAGENTUSER_NAME"`
-	AgentUserPassword string `installer_arg:"DDAGENTUSER_PASSWORD"`
-	Site              string `installer_arg:"SITE"`
-	DdURL             string `installer_arg:"DD_URL"`
-	APIKey            string `installer_arg:"APIKEY"`
-	InstallLogFile    string
-	Package           *Package
+	AgentUser           string `installer_arg:"DDAGENTUSER_NAME"`
+	AgentUserPassword   string `installer_arg:"DDAGENTUSER_PASSWORD"`
+	Site                string `installer_arg:"SITE"`
+	DdURL               string `installer_arg:"DD_URL"`
+	APIKey              string `installer_arg:"APIKEY"`
+	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
+	InstallLogFile      string
+	Package             *Package
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
 type InstallAgentOption = func(*InstallAgentParams) error
+
+func (p *InstallAgentParams) toArgs() []string {
+	var args []string
+	typeOfInstallAgentParams := reflect.TypeOf(*p)
+	for fieldIndex := 0; fieldIndex < typeOfInstallAgentParams.NumField(); fieldIndex++ {
+		field := typeOfInstallAgentParams.Field(fieldIndex)
+		installerArg := field.Tag.Get("installer_arg")
+		if installerArg != "" {
+			installerArgValue := reflect.ValueOf(*p).FieldByName(field.Name).String()
+			if installerArgValue != "" {
+				args = append(args, fmt.Sprintf("%s=%s", installerArg, installerArgValue))
+			}
+		}
+	}
+	return args
+}
 
 // WithAgentUser specifies the DDAGENTUSER_NAME parameter.
 func WithAgentUser(username string) InstallAgentOption {
@@ -109,6 +129,14 @@ func WithLastStablePackage() InstallAgentOption {
 func WithFakeIntake(fakeIntake *components.FakeIntake) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.DdURL = fakeIntake.URL
+		return nil
+	}
+}
+
+// WithWixFailWhenDeferred sets the WixFailWhenDeferred parameter.
+func WithWixFailWhenDeferred() InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.WixFailWhenDeferred = "1"
 		return nil
 	}
 }
