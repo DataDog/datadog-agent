@@ -39,5 +39,6 @@ func getCFlags(config *config.Config) []string {
 }
 
 func getLlcFlags() []string {
+	// this flag instructs llc to add a section describing the total stack usage of a function
 	return []string{"-stack-size-section"}
 }
