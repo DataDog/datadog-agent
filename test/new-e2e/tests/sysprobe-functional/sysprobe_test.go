@@ -120,7 +120,7 @@ func (v *vmSuite) TestSystemProbeSuite() {
 		windowsAgent.WithPackage(v.AgentPackage),
 		windowsAgent.WithInstallLogFile("install.log"))
 	require.NoError(t, err)
-	
+
 	// disable the agent, and enable the drivers for testing
 	_, err = vm.Execute("stop-service -force datadogagent")
 	require.NoError(t, err)

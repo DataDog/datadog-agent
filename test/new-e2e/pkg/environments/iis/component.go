@@ -37,8 +37,8 @@ type Component struct {
 }
 
 // Export registers a key and value pair with the current context's stack.
-func (dc *Component) Export(ctx *pulumi.Context, out *Output) error {
-	return infraComponents.Export(ctx, dc, out)
+func (c *Component) Export(ctx *pulumi.Context, out *Output) error {
+	return infraComponents.Export(ctx, c, out)
 }
 
 // NewServer creates a new IIS server component.
