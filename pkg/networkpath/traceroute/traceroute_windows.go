@@ -42,7 +42,7 @@ func (w *WindowsTraceroute) Run() (NetworkPath, error) {
 		log.Warnf("could not initialize system-probe connection: %s", err.Error())
 		return NetworkPath{}, err
 	}
-	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname)
+	resp, err := tu.GetTraceroute(clientID, w.cfg.DestHostname)
 	if err != nil {
 		return NetworkPath{}, err
 	}

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,19 +23,15 @@ import (
 
 type traceroute struct{}
 
-// Traceroute is a factory for NDMs Traceroute module
-var Traceroute = module.Factory{
-	Name:             config.TracerouteModule,
-	ConfigNamespaces: []string{"traceroute"},
-	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
-		return &traceroute{}, nil
-	},
-	NeedsEBPF: func() bool {
-		return false
-	},
-}
+var (
+	_ module.Module = &traceroute{}
 
-var _ module.Module = &traceroute{}
+	tracerouteConfigNamespaces = []string{"traceroute"}
+)
+
+func createTracerouteModule(cfg *sysconfigtypes.Config) (module.Module, error) {
+	return &traceroute{}, nil
+}
 
 func (t *traceroute) GetStats() map[string]interface{} {
 	return nil
