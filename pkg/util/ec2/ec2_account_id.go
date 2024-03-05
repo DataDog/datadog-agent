@@ -20,7 +20,7 @@ func GetAccountID(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	ec2id, err := getInstanceIdentity(ctx)
+	ec2id, err := GetInstanceIdentity(ctx)
 	if err != nil {
 		return "", err
 	}

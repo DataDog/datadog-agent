@@ -15,10 +15,10 @@ import (
 
 func TestExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
-		name               string
-		cmdline            []string
-		useImprovedAlgos   bool
-		expectedServiceTag string
+		name                 string
+		cmdline              []string
+		useImprovedAlgorithm bool
+		expectedServiceTag   string
 	}{
 		{
 			name:               "empty",
@@ -227,8 +227,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:node",
 		},
 		{
-			name:             "node js with advanced guess enabled with a broken package.json",
-			useImprovedAlgos: true,
+			name:                 "node js with advanced guess enabled with a broken package.json",
+			useImprovedAlgorithm: true,
 			cmdline: []string{
 				"/usr/bin/node",
 				"./nodejs/testData/inner/index.js",
@@ -236,8 +236,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:node",
 		},
 		{
-			name:             "node js with advanced guess enabled and found a valid package.json",
-			useImprovedAlgos: true,
+			name:                 "node js with advanced guess enabled and found a valid package.json",
+			useImprovedAlgorithm: true,
 			cmdline: []string{
 				"/usr/bin/node",
 				"--require",
@@ -247,6 +247,37 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"./nodejs/testData/index.js",
 			},
 			expectedServiceTag: "process_context:my-awesome-package",
+		},
+		{
+			name: "dotnet cmd with dll",
+			cmdline: []string{
+				"/usr/bin/dotnet", "./myservice.dll",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:myservice",
+		},
+		{
+			name: "dotnet cmd with dll and options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:myservice",
+		},
+		{
+			name: "dotnet cmd with unrecognized options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:dotnet",
+		},
+		{
+			name: "dotnet cmd with improved algorithm disabled",
+			cmdline: []string{
+				"/usr/bin/dotnet", "./myservice.dll",
+			},
+			expectedServiceTag: "process_context:dotnet",
 		},
 	}
 
@@ -259,7 +290,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 			serviceExtractorEnabled := true
 			useWindowsServiceName := true
-			useImprovedAlgorithm := true
+			useImprovedAlgorithm := tt.useImprovedAlgorithm
 			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
