@@ -24,6 +24,7 @@ jobs:
       - name: Add get-changed-files dependency
         id: files
         uses: jitterbit/get-changed-files@v1
+        continue-on-error: true
         with:
           format: 'csv'
       - name: Auto assign team label
