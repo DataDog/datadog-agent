@@ -55,20 +55,9 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 
 		if params.Disabled {
 			cmd, err := host.OS.Runner().Command(comp.namer.ResourceName("disable-defender"), &command.Args{
-				Create: pulumi.String(`
-if ((Get-MpComputerStatus).IsTamperProtected) {
-	Write-Error "Windows NewDefender is tamper protected, unable to modify settings"
-}
-(@{DisableArchiveScanning = $true },
- @{DisableRealtimeMonitoring = $true },
- @{DisableBehaviorMonitoring = $true },
- @{MAPSReporting = 0 },
- @{ScanScheduleDay = 8 },
- @{RemediationScheduleDay = 8 }
-) | ForEach-Object { Set-MpPreference @_ };
-mkdir -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NewDefender";
-Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NewDefender" -Name DisableAntiSpyware -Value 1
-`),
+				Create: pulumi.String(powershell.PsHost().
+					DisableWindowsDefender().
+					Compile()),
 			}, deps...)
 			if err != nil {
 				return err
