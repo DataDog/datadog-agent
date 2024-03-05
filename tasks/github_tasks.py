@@ -192,15 +192,14 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
 
 
 @task
-def assign_team_label(_, pr_id=-1, changed_files=''):
+def assign_team_label(_, pr_id=-1):
     """
     Assigns the github team label name if a single team can
-    be deduced from the changed files.
-    changed_files is a comma separated string
+    be deduced from the changed files
     """
     from .libs.common.github_api import GithubAPI
 
-    def get_team() -> str | None:
+    def get_team(changed_files) -> str | None:
         codeowners = read_owners('.github/CODEOWNERS')
 
         global_team = None
@@ -221,27 +220,27 @@ def assign_team_label(_, pr_id=-1, changed_files=''):
 
     gh = GithubAPI('DataDog/datadog-agent')
 
-    # Skip if necessary
-    labels = set(gh.get_labels(pr_id))
+    # TODO
+    # # Skip if necessary
+    # labels = set(gh.get_pr_labels(pr_id))
 
-    if 'qa/done' in labels or 'qa/no-code-change' in labels:
-        print('Qa done or no code change, skipping')
-        return
+    # if 'qa/done' in labels or 'qa/no-code-change' in labels:
+    #     print('Qa done or no code change, skipping')
+    #     return
 
-    if any(label.startswith('team/') for label in labels):
-        print('This PR already has a team label, skipping')
-        return
+    # if any(label.startswith('team/') for label in labels):
+    #     print('This PR already has a team label, skipping')
+    #     return
 
     # Find team
-    changed_files = changed_files.split(',')
-    team = get_team()
+    team = get_team(gh.get_pr_files(pr_id))
     if team is None:
         print('No team or multiple teams found')
         return
 
     # Assign label
     label_name = 'team' + team.removeprefix('@DataDog')
-    if gh.add_label(pr_id, label_name):
+    if gh.add_pr_label(pr_id, label_name):
         print(label_name, 'label assigned to the pull request')
     else:
         print('Failed to assign label')

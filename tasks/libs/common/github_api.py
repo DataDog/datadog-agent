@@ -192,7 +192,7 @@ class GithubAPI:
         """
         return self._github.rate_limiting
 
-    def add_label(self, pr_id: int, label: str) -> bool:
+    def add_pr_abel(self, pr_id: int, label: str) -> bool:
         """
         Tries to add a label to the pull request
         Returns whether the label has been added
@@ -205,13 +205,21 @@ class GithubAPI:
 
         return True
 
-    def get_labels(self, pr_id: int) -> List[str]:
+    def get_pr_labels(self, pr_id: int) -> List[str]:
         """
         Returns the labels of a pull request
         """
         pr = self._repository.get_pull(pr_id)
 
         return [label.name for label in pr.get_labels()]
+
+    def get_pr_files(self, pr_id: int) -> List[str]:
+        """
+        Returns the files involved in the PR
+        """
+        pr = self._repository.get_pull(pr_id)
+
+        return [f.filename for f in pr.get_files()]
 
     def _chose_auth(self, public_repo):
         """

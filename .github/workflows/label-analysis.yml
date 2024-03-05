@@ -22,14 +22,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Install Python dependencies
         run: pip install -r tasks/requirements.txt
-      - name: Add get-changed-files dependency
-        id: files
-        uses: jitterbit/get-changed-files@v1
-        continue-on-error: true
-        with:
-          format: 'csv'
       - name: Auto assign team label
-        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}' --changed-files='${{ steps.files.outputs.all }}'
+        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
   fetch-labels:
     needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
