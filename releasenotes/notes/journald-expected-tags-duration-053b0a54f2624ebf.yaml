@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    ``logs_config.expected_tags_duration`` now works for journald logs.
+    ``logs_config.expected_tags_duration`` now works for ``journald`` logs.
