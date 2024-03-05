@@ -64,7 +64,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 	}
 	bootstrapVersionCmd := &cobra.Command{
 		Use:     "bootstrap-version package version",
-		Aliases: []string{"promote"},
+		Aliases: []string{"bootstrap-version"},
 		Short:   "Bootstraps a package to the expected version",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
