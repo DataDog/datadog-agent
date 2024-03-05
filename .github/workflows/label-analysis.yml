@@ -28,7 +28,7 @@ jobs:
         with:
           format: 'csv'
       - name: Auto assign team label
-        run: inv -e github.assign-team-label '${{ github.event.number }}' '${{ steps.files.outputs.all }}'
+        run: GITHUB_TOKEN="$GH_TOKEN" inv -e github.assign-team-label '${{ github.event.number }}' '${{ steps.files.outputs.all }}'
   fetch-labels:
     needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
