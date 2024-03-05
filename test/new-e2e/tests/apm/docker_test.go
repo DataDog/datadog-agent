@@ -113,6 +113,7 @@ func (s *DockerFakeintakeSuite) TestStatsForService() {
 }
 
 func (s *DockerFakeintakeSuite) TestBasicTrace() {
+	time.Sleep(10 * time.Second) // Wait for remaining traces to show up.
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
