@@ -34,3 +34,4 @@
 '@datadog/telemetry-and-analytics': DEFAULT_JIRA_PROJECT
 '@datadog/asm-go': APPSEC
 '@datadog/agent-build-and-releases': BARX
+'@datadog/agent-developer-tools': ADXT
