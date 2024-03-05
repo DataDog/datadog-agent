@@ -29,6 +29,8 @@ type rotatingNDRecords struct {
 	cfg      config
 	// time of the earliest entry in the file
 	firstEntry time.Time
+	// mtime of the oldest rotated file, nil for uninitialized, zero for "no files"
+	oldestFileMtime *time.Time
 }
 
 type config struct {
@@ -66,6 +68,10 @@ func (r *rotatingNDRecords) Add(t time.Time, payload interface{}) error {
 	// prune old entries
 	if !r.firstEntry.IsZero() && t.Sub(r.firstEntry) > r.cfg.retention {
 		r.pruneOldEntries(t)
+	}
+	// remove old files that were already rotated
+	if !r.oldestFileMtime.IsZero() && t.Sub(*r.oldestFileMtime) > r.cfg.retention {
+		r.removeOldFiles(t)
 	}
 
 	var recordData bytes.Buffer
@@ -143,6 +149,17 @@ func (r *rotatingNDRecords) ensureDefaults() {
 			log.Errorf("opening file: %s", err)
 		}
 	}
+	// mtime of oldest rotated file, if one exists
+	if r.oldestFileMtime == nil {
+		matches := r.RotatedFiles()
+		if len(matches) == 0 {
+			// zero value means "no file"
+			r.oldestFileMtime = &time.Time{}
+		} else if stat, err := os.Stat(matches[0]); err == nil {
+			mtime := stat.ModTime()
+			r.oldestFileMtime = &mtime
+		}
+	}
 }
 
 func (r *rotatingNDRecords) pruneOldEntries(now time.Time) error {
@@ -155,23 +172,47 @@ func (r *rotatingNDRecords) pruneOldEntries(now time.Time) error {
 	for {
 		line, err := rd.ReadBytes('\n')
 		if err != nil {
-			// reached end of file
+			// reached end of file, invalidate cached time stamp
+			r.firstEntry = time.Time{}
 			break
 		}
 		// entries that cannot be parsed, or that have no "time" field, will be pruned
 		if err = json.Unmarshal(line, &rec); err == nil {
 			if !rec.Time.IsZero() && now.Sub(rec.Time) <= r.cfg.retention {
+				r.firstEntry = rec.Time
 				break
 			}
 		}
 	}
 	tmpForRename, _ := os.CreateTemp("", "replace")
+	if !r.firstEntry.IsZero() {
+		// if we found an entry to keep, write it first
+		json.NewEncoder(tmpForRename).Encode(rec)
+	}
+	// write the remainder of the file
 	io.Copy(tmpForRename, rd)
 	tmpForRename.Close()
 	f.Close()
 	return os.Rename(tmpForRename.Name(), r.filename)
 }
 
+// remove any old rotated files that are past the retention time
+func (r *rotatingNDRecords) removeOldFiles(t time.Time) error {
+	for _, filename := range r.RotatedFiles() {
+		if stat, err := os.Stat(filename); err == nil {
+			if t.Sub(stat.ModTime()) > r.cfg.retention {
+				log.Infof("removing old rotated file '%s'", filename)
+				os.Remove(filename)
+				r.oldestFileMtime = nil
+			} else {
+				break
+			}
+		}
+	}
+	return nil
+}
+
+// rotate the current file to the next available name
 func (r *rotatingNDRecords) rotateFile() {
 	rotateDestFilename, err := nextRotateFilename(r.filename, r.cfg.spacer)
 	if err != nil {
@@ -184,9 +225,11 @@ func (r *rotatingNDRecords) rotateFile() {
 			return
 		}
 		log.Infof("renamed large file '%s' to '%s'", r.filename, rotateDestFilename)
+		r.oldestFileMtime = nil
 	}
 }
 
+// nextRotateFilename calculates filename that should be used for next rotation
 func nextRotateFilename(filename string, spacer int) (string, error) {
 	dir := filepath.Dir(filename)
 	re, err := buildRotationRegex(filename, spacer)
@@ -220,10 +263,15 @@ func buildRotationRegex(filename string, spacer int) (*regexp.Regexp, error) {
 	base := filepath.Base(filename)
 	ext := filepath.Ext(base)
 	basenoext := strings.TrimSuffix(base, ext)
+	// add escape "\" for the "." at the start of the extension, if needed
+	maybeEscape := "\\"
+	if ext == "" {
+		maybeEscape = ""
+	}
 	// build a regex that matches rotating files
 	// for example, a filename like "records.ndjson" with spacer=6
 	// would build the regex "records\.(\d{6})\.ndjson"
-	pattern := fmt.Sprintf("%s\\.(\\d{%d})\\%s", basenoext, spacer, ext)
+	pattern := fmt.Sprintf("%s\\.(\\d{%d})%s%s", basenoext, spacer, maybeEscape, ext)
 	return regexp.Compile(pattern)
 }
 

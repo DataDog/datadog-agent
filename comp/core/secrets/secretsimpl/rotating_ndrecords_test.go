@@ -30,6 +30,7 @@ func setupRecordsTest(t *testing.T) (string, *clock.Mock, func()) {
 	return tmpFile, mock, cleanupFunc
 }
 
+// Test the basic functionality of appending to a new audit file
 func TestAppendNewFile(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -46,6 +47,7 @@ func TestAppendNewFile(t *testing.T) {
 	assert.Equal(t, expect, string(data))
 }
 
+// Test appending to an existing audit file
 func TestAppendExistingFile(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -67,6 +69,7 @@ func TestAppendExistingFile(t *testing.T) {
 	assert.Equal(t, expect, string(data))
 }
 
+// Test appending to an audit file with a given value
 func TestAppendNameWithValue(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -83,6 +86,7 @@ func TestAppendNameWithValue(t *testing.T) {
 	assert.Equal(t, expect, string(data))
 }
 
+// Test that old entries at the file start get pruned
 func TestPruneOldEntries(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -93,7 +97,7 @@ func TestPruneOldEntries(t *testing.T) {
 `)
 	os.WriteFile(tmpFileName, startingData, 0640)
 
-	records := newRotatingNDRecords(tmpFileName, config{retention: time.Second * 25})
+	records := newRotatingNDRecords(tmpFileName, config{retention: time.Second * 15})
 	mockClock.Add(30 * time.Second)
 	records.Add(mockClock.Now(), []auditRecord{{Handle: "donut"}})
 
@@ -105,6 +109,7 @@ func TestPruneOldEntries(t *testing.T) {
 	assert.Equal(t, expect, string(data))
 }
 
+// Test that unparsable entries will just be pruned
 func TestPruneUnparsableEntries(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -117,7 +122,7 @@ not json text
 `)
 	os.WriteFile(tmpFileName, startingData, 0640)
 
-	records := newRotatingNDRecords(tmpFileName, config{retention: time.Second * 25})
+	records := newRotatingNDRecords(tmpFileName, config{retention: time.Second * 15})
 	mockClock.Add(30 * time.Second)
 	records.Add(mockClock.Now(), []auditRecord{{Handle: "donut"}})
 
@@ -128,6 +133,7 @@ not json text
 	assert.Equal(t, expect, string(data))
 }
 
+// Test that if everything in the audit file is old, everything is pruned
 func TestPruneEverything(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -136,7 +142,7 @@ func TestPruneEverything(t *testing.T) {
 `)
 	os.WriteFile(tmpFileName, startingData, 0640)
 
-	records := newRotatingNDRecords(tmpFileName, config{retention: time.Second * 25})
+	records := newRotatingNDRecords(tmpFileName, config{retention: time.Second * 15})
 	mockClock.Add(30 * time.Second)
 	records.Add(mockClock.Now(), []auditRecord{{Handle: "donut"}})
 
@@ -146,6 +152,7 @@ func TestPruneEverything(t *testing.T) {
 	assert.Equal(t, expect, string(data))
 }
 
+// Test that if appending makes the file too large, it will be rotated first
 func TestRotateLargeFile(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -173,6 +180,7 @@ func TestRotateLargeFile(t *testing.T) {
 	assert.True(t, strings.HasSuffix(rotated[0], ".000000.ndjson"), fmt.Sprintf("filename doesn't match: %v", rotated[0]))
 }
 
+// Test that pruning old entries happens before checking the size of file that may be rotated
 func TestPrunePreventsRotation(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -186,23 +194,24 @@ func TestPrunePreventsRotation(t *testing.T) {
 	// create with a size limit would be reached by the next row
 	records := newRotatingNDRecords(tmpFileName, config{
 		sizeLimit: 150,
-		retention: time.Second * 25,
+		retention: time.Second * 15,
 	})
 	mockClock.Add(30 * time.Second)
 	records.Add(mockClock.Now(), []auditRecord{{Handle: "donut"}})
 
-	// only 1 record in the current file, the latest
+	// only 2 records in the current file, old were pruned
 	data, _ := os.ReadFile(tmpFileName)
 	expect := `{"time":"2014-02-04T10:30:20Z","data":[{"handle":"cherry"}]}
 {"time":"2014-02-04T10:30:30Z","data":[{"handle":"donut"}]}
 `
 	assert.Equal(t, expect, string(data))
 
-	// there are 0 rotated files
+	// there are 0 rotated files, no rotation happened because pruning happened first
 	rotated := records.RotatedFiles()
 	assert.Equal(t, 0, len(rotated))
 }
 
+// Test that if there's already rotated files, a further rotation uses the next available name
 func TestRotateWithExistingFiles(t *testing.T) {
 	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
 	defer cleanupFunc()
@@ -245,6 +254,90 @@ func TestRotateWithExistingFiles(t *testing.T) {
 	assert.Equal(t, startingData, data)
 }
 
+// Test that old files that were rotated get removed once they pass the retention time
+func TestRemoveOldFiles(t *testing.T) {
+	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
+	defer cleanupFunc()
+
+	// create 5 files that match the rotated pattern, set their mtime
+	ext := filepath.Ext(tmpFileName)
+	prefix := strings.TrimSuffix(tmpFileName, ext)
+	for i := 0; i < 5; i++ {
+		filename := fmt.Sprintf("%s.%06d%s", prefix, i, ext)
+		os.WriteFile(filename, []byte(" "), 0640)
+		os.Chtimes(filename, time.Now(), mockClock.Now())
+		mockClock.Add(10 * time.Second)
+	}
+
+	records := newRotatingNDRecords(tmpFileName, config{retention: time.Second * 35})
+	records.Add(mockClock.Now(), []auditRecord{{Handle: "apple"}})
+
+	// only 1 record in the current file, the latest
+	data, _ := os.ReadFile(tmpFileName)
+	expect := `{"time":"2014-02-04T10:30:50Z","data":[{"handle":"apple"}]}
+`
+	assert.Equal(t, expect, string(data))
+
+	// there are 3 rotated files instead of 5, the first 2 were deleted
+	rotated := records.RotatedFiles()
+	assert.Equal(t, 3, len(rotated))
+	assert.True(t, strings.HasSuffix(rotated[0], ".000002.ndjson"), fmt.Sprintf("filename doesn't match: %v", rotated[0]))
+	assert.True(t, strings.HasSuffix(rotated[1], ".000003.ndjson"), fmt.Sprintf("filename doesn't match: %v", rotated[1]))
+	assert.True(t, strings.HasSuffix(rotated[2], ".000004.ndjson"), fmt.Sprintf("filename doesn't match: %v", rotated[2]))
+}
+
+// Test that old files get removed even if there were no old files at first
+func TestOldFilesGetRemovedOverTime(t *testing.T) {
+	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
+	defer cleanupFunc()
+
+	startingData := []byte(`{"time":"2014-02-04T10:30:00Z","data":[{"handle":"apple"}]}
+{"time":"2014-02-04T10:30:10Z","data":[{"handle":"banana"}]}
+{"time":"2014-02-04T10:30:20Z","data":[{"handle":"cherry"}]}
+`)
+	os.WriteFile(tmpFileName, startingData, 0640)
+
+	// create with a size limit would be reached by the next row
+	records := newRotatingNDRecords(tmpFileName, config{sizeLimit: 150, retention: 35 * time.Second})
+	mockClock.Add(30 * time.Second)
+	records.Add(mockClock.Now(), []auditRecord{{Handle: "donut"}})
+
+	// there is 1 rotated file, set its mtime so it will be removed soon
+	rotated := records.RotatedFiles()
+	assert.Equal(t, 1, len(rotated))
+	os.Chtimes(rotated[0], time.Now(), mockClock.Now())
+
+	// only 1 record in the current file, the latest
+	data, _ := os.ReadFile(tmpFileName)
+	expect := `{"time":"2014-02-04T10:30:30Z","data":[{"handle":"donut"}]}
+`
+	assert.Equal(t, expect, string(data))
+
+	// advance time and add another record
+	mockClock.Add(20 * time.Second)
+	records.Add(mockClock.Now(), []auditRecord{{Handle: "egg"}})
+
+	// there are 2 records in the audit file
+	data, _ = os.ReadFile(tmpFileName)
+	expect = `{"time":"2014-02-04T10:30:30Z","data":[{"handle":"donut"}]}
+{"time":"2014-02-04T10:30:50Z","data":[{"handle":"egg"}]}
+`
+	assert.Equal(t, expect, string(data))
+
+	// there is 1 rotated file still
+	rotated = records.RotatedFiles()
+	assert.Equal(t, 1, len(rotated))
+
+	// advance time again and add another record
+	mockClock.Add(20 * time.Second)
+	records.Add(mockClock.Now(), []auditRecord{{Handle: "fruit"}})
+
+	// there are 0 rotated files because the last append removed the old rotated file
+	rotated = records.RotatedFiles()
+	assert.Equal(t, 0, len(rotated))
+}
+
+// Test the regex and fmt pattern that gets built from config
 func TestBuildRotationRegexAndFmtPattern(t *testing.T) {
 	type testCase struct {
 		description  string
@@ -268,6 +361,13 @@ func TestBuildRotationRegexAndFmtPattern(t *testing.T) {
 			spacer:       8,
 			expectRegex:  `file\.(\d{8})\.txt`,
 			expectFmtPat: "/tmp/file.%08d.txt",
+		},
+		{
+			description:  "build regexp with no file extension",
+			filename:     "/tmp/file",
+			spacer:       4,
+			expectRegex:  `file\.(\d{4})`,
+			expectFmtPat: "/tmp/file.%04d",
 		},
 	}
 
