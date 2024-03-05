@@ -48,13 +48,6 @@ func TestInitSQLObfuscationMode(t *testing.T) {
 			expected: obfuscate.ObfuscateAndNormalize,
 		},
 		{
-			name: "obfuscate_only",
-			conf: &AgentConfig{
-				Features: map[string]struct{}{"sql_obfuscate_only": {}},
-			},
-			expected: obfuscate.ObfuscateOnly,
-		},
-		{
 			name: "default",
 			conf: &AgentConfig{
 				Features: map[string]struct{}{},

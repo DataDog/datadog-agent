@@ -613,8 +613,6 @@ func initSQLObfuscationMode(conf *AgentConfig) obfuscate.ObfuscationMode {
 	// SQL statements will be obfuscated using go-sqllexer
 	if conf.HasFeature("sql_obfuscate_and_normalize") {
 		sqlObfuscationMode = obfuscate.ObfuscateAndNormalize
-	} else if conf.HasFeature("sql_obfuscate_only") {
-		sqlObfuscationMode = obfuscate.ObfuscateOnly
 	} else {
 		sqlObfuscationMode = ""
 	}
