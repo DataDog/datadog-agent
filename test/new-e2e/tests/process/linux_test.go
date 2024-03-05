@@ -138,7 +138,7 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().RemoteHost, []string{"container_connections", "connections"}, false, "sudo datadog-agent status --json")
+		assertRunningChecks(collect, s.Env().RemoteHost, []string{"container_no_forward", "connections"}, false, "sudo datadog-agent status --json")
 	}, 1*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
