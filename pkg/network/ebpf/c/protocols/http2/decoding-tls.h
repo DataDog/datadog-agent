@@ -491,7 +491,7 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
     // Checking if we can read a frame header.
     if (info->data_off + HTTP2_FRAME_HEADER_SIZE <= info->data_end) {
         read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
-        if (format_http2_frame_header(current_frame)) {
+        if ((format_http2_frame_header(current_frame)) && (current_frame->type != kHeadersFrame) && (current_frame->type != kDataFrame)) {
             // We successfully read a valid frame.
             info->data_off += HTTP2_FRAME_HEADER_SIZE;
             return true;
