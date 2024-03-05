@@ -183,6 +183,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				return err
 			}
 
+			ss.Tags.Sort()
 			err = ss.Tags.ForEachErr(func(tag string) error {
 				return ps.String(sketchTags, tag)
 			})

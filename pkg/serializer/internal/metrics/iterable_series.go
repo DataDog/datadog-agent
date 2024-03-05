@@ -289,6 +289,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				return err
 			}
 
+			serie.Tags.Sort()
 			err = serie.Tags.ForEachErr(func(tag string) error {
 				return ps.String(seriesTags, tag)
 			})
