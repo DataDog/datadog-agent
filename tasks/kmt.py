@@ -300,7 +300,7 @@ def build_dependencies(ctx, arch, layout_file, source_dir, ci=False, stack=None,
     if os.path.exists(deps_dir):
         shutil.rmtree(deps_dir)
 
-    Path(deps_dir).mkdir(parents=True)
+    ctx.run(f"mkdir -p {deps_dir}")
 
     with open(layout_file) as f:
         deps_layout = json.load(f)
