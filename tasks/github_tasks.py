@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import fnmatch
 from functools import lru_cache
 
 from invoke import Exit, task
