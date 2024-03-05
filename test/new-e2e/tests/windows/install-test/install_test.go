@@ -9,6 +9,9 @@ package installtest
 import (
 	"flag"
 	"fmt"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/windows/defender"
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,13 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	componentsos "github.com/DataDog/test-infra-definitions/components/os"
 
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"testing"
@@ -32,15 +33,34 @@ var devMode = flag.Bool("devmode", false, "enable devmode")
 
 type agentMSISuite struct {
 	e2e.BaseSuite[environments.Host]
-
+	Defender     *defender.Output
 	agentPackage *windowsAgent.Package
 	majorVersion string
 }
 
 func TestMSI(t *testing.T) {
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
-	))}
+	provisioner := e2e.NewTypedPulumiProvisioner("aws-ec2", func(ctx *pulumi.Context, suite *agentMSISuite) error {
+		awsEnv, err := aws.NewEnvironment(ctx)
+		if err != nil {
+			return err
+		}
+		vm, err := ec2.NewVM(awsEnv, "vm", ec2.WithOS(componentsos.WindowsDefault))
+		if err != nil {
+			return err
+		}
+		err = vm.Export(ctx, &suite.Env().RemoteHost.HostOutput)
+
+		def, err := defender.NewDefender(awsEnv.CommonEnvironment, vm, defender.WithDefenderDisabled())
+		if err != nil {
+			return err
+		}
+		err = def.Export(ctx, suite.Defender)
+		if err != nil {
+			return err
+		}
+		return err
+	}, nil)
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(provisioner)}
 	if *devMode {
 		opts = append(opts, e2e.WithDevMode())
 	}
@@ -78,26 +98,12 @@ func TestMSI(t *testing.T) {
 	})
 }
 
-func (is *agentMSISuite) prepareHost() {
-	vm := is.Env().RemoteHost
-
-	if !is.Run("prepare VM", func() {
-		is.Run("disable defender", func() {
-			err := windows.DisableDefender(vm)
-			is.Require().NoError(err, "should disable defender")
-		})
-	}) {
-		is.T().Fatal("failed to prepare VM")
-	}
-}
-
 func (is *agentMSISuite) TestInstall() {
 	outputDir, err := runner.GetTestOutputDir(runner.GetProfile(), is.T())
 	is.Require().NoError(err, "should get output dir")
 	is.T().Logf("Output dir: %s", outputDir)
 
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	t := is.installAgent(vm, "", filepath.Join(outputDir, "install.log"))
 
@@ -114,7 +120,6 @@ func (is *agentMSISuite) TestUpgrade() {
 	is.T().Logf("Output dir: %s", outputDir)
 
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	_ = is.installLastStable(vm, "", filepath.Join(outputDir, "install.log"))
 
@@ -144,7 +149,6 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	is.T().Logf("Output dir: %s", outputDir)
 
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	previousTester := is.installLastStable(vm, "", filepath.Join(outputDir, "install.log"))
 
@@ -179,7 +183,6 @@ func (is *agentMSISuite) TestRepair() {
 	is.T().Logf("Output dir: %s", outputDir)
 
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	t := is.installAgent(vm, "", filepath.Join(outputDir, "install.log"))
 

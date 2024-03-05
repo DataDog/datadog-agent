@@ -150,6 +150,12 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 	return ps
 }
 
+// UninstallWindowsDefender creates a command to uninstall Windows Defender
+func (ps *powerShellCommandBuilder) UninstallWindowsDefender() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, "Uninstall-WindowsFeature -Name Windows-Defender")
+	return ps
+}
+
 // Execute compiles the list of PowerShell commands into one script and runs it on the given host
 func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string, error) {
 	return host.Execute(ps.Compile())
