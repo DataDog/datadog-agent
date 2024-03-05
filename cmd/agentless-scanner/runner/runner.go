@@ -8,21 +8,15 @@
 package runner
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"io/fs"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,8 +28,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/nbd"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -83,8 +75,6 @@ type Runner struct {
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
 	rcClient         *client.Client
-
-	waiter awsutils.ResourceWaiter
 
 	touchedMu sync.Mutex
 	touched   map[scanRecord]struct{}
@@ -168,14 +158,6 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 				}
 			}
 		}
-	}
-}
-
-func (s *Runner) statsResourceTTL(resourceType types.ResourceType, scan *types.ScanTask, createTime time.Time) {
-	ttl := time.Since(createTime)
-	tags := scan.Tags(fmt.Sprintf("aws_resource_type:%s", string(resourceType)))
-	if err := s.Statsd.Histogram("datadog.agentless_scanner.aws.resources_ttl", float64(ttl.Milliseconds()), tags, 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
 	}
 }
 
@@ -368,83 +350,90 @@ func (s *Runner) Start(ctx context.Context) {
 		close(doneCh)
 	}()
 
+	triggeredScansCh := make(chan *types.ScanTask)
+	finishedScansCh := make(chan *types.ScanTask)
+	go func() {
+		defer close(triggeredScansCh)
+		for {
+			select {
+			case scan, ok := <-s.scansCh:
+				if !ok {
+					return
+				}
+				s.recordTriggeredScan(scan)
+				triggeredScansCh <- scan
+			case scan := <-finishedScansCh:
+				s.recordFinishedScan(scan)
+			}
+		}
+	}()
+
 	var wg sync.WaitGroup
 	wg.Add(s.Workers)
 	for i := 0; i < s.Workers; i++ {
-		go func() {
-			s.scanWorker(ctx, s.scansCh)
+		go func(id int) {
+			w := NewWorker(id, WorkerOptions{
+				ScannerID:   s.ScannerID,
+				ScannersMax: s.ScannersMax,
+				NoFork:      s.NoFork,
+				Statsd:      s.Statsd,
+			})
+			w.Run(ctx, triggeredScansCh, finishedScansCh, s.resultsCh)
 			wg.Done()
-		}()
+		}(i)
 	}
 
-	s.dispatchConfigs(ctx, s.configsCh, s.scansCh)
-	wg.Wait()
-	close(s.resultsCh)
-	<-doneCh
-}
+	defer func() {
+		close(s.scansCh)
+		wg.Wait()
+		close(s.resultsCh)
+		<-doneCh
+	}()
 
-func (s *Runner) dispatchConfigs(ctx context.Context, configsCh <-chan *types.ScanConfig, scansCh chan<- *types.ScanTask) {
-	defer close(scansCh)
-	for {
-		select {
-		case config, ok := <-configsCh:
-			if !ok {
+	for config := range s.configsCh {
+		for _, scan := range config.Tasks {
+			select {
+			case <-ctx.Done():
 				return
+			case s.scansCh <- scan:
 			}
-			for _, scan := range config.Tasks {
-				select {
-				case <-ctx.Done():
-					return
-				case scansCh <- scan:
-				}
-			}
-		case <-ctx.Done():
-			return
 		}
 	}
 }
 
-func (s *Runner) scanWorker(ctx context.Context, scansCh <-chan *types.ScanTask) {
-	for scan := range scansCh {
-		// Gather the  scanned roles / accounts as we go. We only ever
-		// need to store one role associated with one region. They
-		// will be used for cleanup process.
-		s.touchedMu.Lock()
-		{
-			// TODO: we could persist this "touched" map on the
-			// filesystem to have a more robust knowledge of the
-			// accounts / regions with scanned.
-			if s.touched == nil {
-				s.touched = make(map[scanRecord]struct{})
-			}
-			record := scanRecord{
-				Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
-				Region: scan.TargetID.Region(),
-			}
-			s.touched[record] = struct{}{}
+func (s *Runner) recordTriggeredScan(scan *types.ScanTask) {
+	// Gather the  scanned roles / accounts as we go. We only ever
+	// need to store one role associated with one region. They
+	// will be used for cleanup process.
+	s.touchedMu.Lock()
+	{
+		// TODO: we could persist this "touched" map on the
+		// filesystem to have a more robust knowledge of the
+		// accounts / regions with scanned.
+		if s.touched == nil {
+			s.touched = make(map[scanRecord]struct{})
 		}
-		s.touchedMu.Unlock()
-
-		// Avoid pushing a scan that we are already performing.
-		// TODO: this guardrail could be avoided with a smarter scheduling.
-		s.scansInProgressMu.Lock()
-		if _, ok := s.scansInProgress[scan.TargetID]; ok {
-			s.scansInProgressMu.Unlock()
-			continue
+		record := scanRecord{
+			Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
+			Region: scan.TargetID.Region(),
 		}
-		s.scansInProgress[scan.TargetID] = struct{}{}
-		s.scansInProgressMu.Unlock()
-
-		if err := s.launchScan(ctx, scan); err != nil {
-			if !errors.Is(err, context.Canceled) {
-				log.Errorf("%s: could not be setup properly: %v", scan, err)
-			}
-		}
-
-		s.scansInProgressMu.Lock()
-		delete(s.scansInProgress, scan.TargetID)
-		s.scansInProgressMu.Unlock()
+		s.touched[record] = struct{}{}
 	}
+	s.touchedMu.Unlock()
+
+	// Avoid pushing a scan that we are already performing.
+	// TODO: this guardrail could be avoided with a smarter scheduling.
+	s.scansInProgressMu.Lock()
+	defer s.scansInProgressMu.Unlock()
+	if _, ok := s.scansInProgress[scan.TargetID]; !ok {
+		s.scansInProgress[scan.TargetID] = struct{}{}
+	}
+}
+
+func (s *Runner) recordFinishedScan(scan *types.ScanTask) {
+	s.scansInProgressMu.Lock()
+	defer s.scansInProgressMu.Unlock()
+	delete(s.scansInProgress, scan.TargetID)
 }
 
 func (s *Runner) reportResults(resultsCh <-chan types.ScanResult) {
@@ -493,220 +482,6 @@ func (s *Runner) reportResults(resultsCh <-chan types.ScanResult) {
 				}
 			}
 		}
-	}
-}
-
-// Stop stops the runner main loop.
-func (s *Runner) Stop() {
-	log.Infof("stopping agentless-scanner main loop")
-	if s.rcClient != nil {
-		s.rcClient.Close()
-	}
-	close(s.configsCh)
-}
-
-// PushConfig pushes a new scan configuration to the runner.
-func (s *Runner) PushConfig(ctx context.Context, config *types.ScanConfig) bool {
-	select {
-	case s.configsCh <- config:
-		return true
-	case <-ctx.Done():
-		return false
-	}
-}
-
-func (s *Runner) launchScan(ctx context.Context, scan *types.ScanTask) (err error) {
-	if err := s.Statsd.Count("datadog.agentless_scanner.scans.started", 1.0, scan.Tags(), 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
-	}
-	defer func() {
-		if err != nil {
-			if err := s.Statsd.Count("datadog.agentless_scanner.scans.finished", 1.0, scan.TagsFailure(err), 1.0); err != nil {
-				log.Warnf("failed to send metric: %v", err)
-			}
-		}
-	}()
-
-	if err := os.MkdirAll(scan.Path(), 0700); err != nil {
-		return err
-	}
-
-	pool := newScannersPool(s.NoFork, s.ScannersMax)
-	scan.StartedAt = time.Now()
-	defer s.cleanupScan(scan)
-	switch scan.Type {
-	case types.TaskTypeHost:
-		assert(s.ScannerID.Provider == types.CloudProviderNone)
-		s.scanRootFilesystems(ctx, scan, []string{scan.TargetID.ResourceName()}, pool)
-
-	case types.TaskTypeAMI:
-		snapshotID, err := awsutils.SetupEBSSnapshot(ctx, scan, &s.waiter)
-		if err != nil {
-			return err
-		}
-		switch scan.DiskMode {
-		case types.DiskModeNoAttach:
-			s.scanSnaphotNoAttach(ctx, scan, snapshotID, pool)
-		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err = awsutils.SetupEBSVolume(ctx, scan, &s.waiter, snapshotID)
-			if err != nil {
-				return err
-			}
-			assert(scan.AttachedDeviceName != nil)
-			partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
-			if err != nil {
-				return err
-			}
-			mountpoints, err := devices.Mount(ctx, scan, partitions)
-			if err != nil {
-				return err
-			}
-			s.scanImage(ctx, scan, mountpoints, pool)
-		}
-
-	case types.TaskTypeEBS:
-		snapshotID, err := awsutils.SetupEBSSnapshot(ctx, scan, &s.waiter)
-		if err != nil {
-			return err
-		}
-		switch scan.DiskMode {
-		case types.DiskModeNoAttach:
-			s.scanSnaphotNoAttach(ctx, scan, snapshotID, pool)
-		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err := awsutils.SetupEBSVolume(ctx, scan, &s.waiter, snapshotID)
-			if err != nil {
-				return err
-			}
-			assert(scan.AttachedDeviceName != nil)
-			partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
-			if err != nil {
-				return err
-			}
-			mountpoints, err := devices.Mount(ctx, scan, partitions)
-			if err != nil {
-				return err
-			}
-			s.scanRootFilesystems(ctx, scan, mountpoints, pool)
-		}
-
-	case types.TaskTypeLambda:
-		mountpoint, err := awsutils.SetupLambda(ctx, scan)
-		if err != nil {
-			return err
-		}
-		s.scanLambda(ctx, scan, mountpoint, pool)
-
-	default:
-		return fmt.Errorf("unknown scan type: %s", scan.Type)
-	}
-	return nil
-}
-
-// CleanupScanDir cleans up the scan directory on the filesystem: mountpoints,
-// pidfiles, sockets...
-func CleanupScanDir(ctx context.Context, scan *types.ScanTask) {
-	scanRoot := scan.Path()
-
-	log.Debugf("%s: cleaning up scan data on filesystem", scan)
-
-	entries, err := os.ReadDir(scanRoot)
-	if err == nil {
-		var wg sync.WaitGroup
-
-		umount := func(mountPoint string) {
-			defer wg.Done()
-			devices.Umount(ctx, scan, mountPoint)
-		}
-
-		var ebsMountPoints []fs.DirEntry
-		var ctrMountPoints []fs.DirEntry
-		var pidFiles []fs.DirEntry
-
-		for _, entry := range entries {
-			if entry.IsDir() {
-				if strings.HasPrefix(entry.Name(), types.EBSMountPrefix) {
-					ebsMountPoints = append(ebsMountPoints, entry)
-				}
-				if strings.HasPrefix(entry.Name(), types.ContainerMountPrefix) {
-					ctrMountPoints = append(ctrMountPoints, entry)
-				}
-				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".pid") {
-					pidFiles = append(pidFiles, entry)
-				}
-			}
-		}
-
-		for _, entry := range pidFiles {
-			pidFile, err := os.Open(filepath.Join(scanRoot, entry.Name()))
-			if err != nil {
-				continue
-			}
-			pidRaw, err := io.ReadAll(io.LimitReader(pidFile, 32))
-			if err != nil {
-				pidFile.Close()
-				continue
-			}
-			pidFile.Close()
-			if pid, err := strconv.Atoi(strings.TrimSpace(string(pidRaw))); err == nil {
-				if proc, err := os.FindProcess(pid); err == nil {
-					log.Debugf("%s: killing remaining scanner process with pid %d", scan, pid)
-					_ = proc.Kill()
-				}
-			}
-		}
-
-		for _, entry := range ctrMountPoints {
-			wg.Add(1)
-			go umount(filepath.Join(scanRoot, entry.Name()))
-		}
-		wg.Wait()
-		// unmount "ebs-*" entrypoint last as the other mountpoint may depend on it
-		for _, entry := range ebsMountPoints {
-			wg.Add(1)
-			go umount(filepath.Join(scanRoot, entry.Name()))
-		}
-		wg.Wait()
-
-	}
-
-	log.Debugf("%s: removing folder %q", scan, scanRoot)
-	if err := os.RemoveAll(scanRoot); err != nil {
-		log.Errorf("%s: could not cleanup mount root %q: %v", scan, scanRoot, err)
-	}
-
-	if scan.AttachedDeviceName != nil {
-		blockDevices, err := devices.List(ctx, *scan.AttachedDeviceName)
-		if err == nil && len(blockDevices) == 1 {
-			devices.DetachLVMs(scan, blockDevices[0])
-		}
-		if scan.DiskMode == types.DiskModeNBDAttach {
-			nbd.StopNBDBlockDevice(ctx, *scan.AttachedDeviceName)
-		}
-	}
-}
-
-func (s *Runner) cleanupScan(scan *types.ScanTask) {
-	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-	defer cancel()
-
-	CleanupScanDir(ctx, scan)
-
-	switch scan.Type {
-	case types.TaskTypeEBS, types.TaskTypeAMI:
-		for resourceID, createdAt := range scan.CreatedResources {
-			if err := awsutils.CleanupScanEBS(ctx, scan, resourceID); err != nil {
-				log.Warnf("%s: failed to cleanup EBS resource %q: %v", scan, resourceID, err)
-			} else {
-				s.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)
-			}
-		}
-	case types.TaskTypeLambda, types.TaskTypeHost:
-		if len(scan.CreatedResources) > 0 {
-			panic(fmt.Errorf("unexpected resources created in %s scan", scan.Type))
-		}
-		// nothing to do
-	default:
-		panic("unreachable")
 	}
 }
 
@@ -772,438 +547,23 @@ func (s *Runner) sendFindings(findings []*types.ScanFinding) {
 	}
 }
 
-func (s *Runner) scanImage(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool) {
-	assert(scan.Type == types.TaskTypeAMI)
-
-	var wg sync.WaitGroup
-	for _, root := range roots {
-		wg.Add(1)
-		go func(root string) {
-			defer wg.Done()
-			s.resultsCh <- pool.launchScannerVulns(ctx,
-				sbommodel.SBOMSourceType_HOST_IMAGE,
-				scan.TargetName,
-				scan.TargetTags,
-				types.ScannerOptions{
-					Action:    types.ScanActionVulnsHostOS,
-					Scan:      scan,
-					Root:      root,
-					CreatedAt: time.Now(),
-				})
-		}(root)
+// Stop stops the runner main loop.
+func (s *Runner) Stop() {
+	log.Infof("stopping agentless-scanner main loop")
+	if s.rcClient != nil {
+		s.rcClient.Close()
 	}
-	wg.Wait()
+	close(s.configsCh)
 }
 
-func (s *Runner) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, snapshotID types.CloudID, pool *scannersPool) {
-	assert(scan.Type == types.TaskTypeEBS)
-	s.resultsCh <- pool.launchScannerVulns(ctx,
-		sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
-		scan.TargetName,
-		scan.TargetTags,
-		types.ScannerOptions{
-			Action:     types.ScanActionVulnsHostOSVm,
-			Scan:       scan,
-			CreatedAt:  time.Now(),
-			SnapshotID: &snapshotID,
-		})
-}
-
-func (s *Runner) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool) {
-	assert(scan.Type == types.TaskTypeHost || scan.Type == types.TaskTypeEBS)
-
-	var wg sync.WaitGroup
-
-	scanHost := func(root string, actions []types.ScanAction) {
-		defer wg.Done()
-
-		for _, action := range actions {
-			assert(action == types.ScanActionVulnsHostOS || action == types.ScanActionMalware)
-			switch action {
-			case types.ScanActionVulnsHostOS:
-				s.resultsCh <- pool.launchScannerVulns(ctx,
-					sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
-					scan.TargetName,
-					scan.TargetTags,
-					types.ScannerOptions{
-						Action:    types.ScanActionVulnsHostOS,
-						Scan:      scan,
-						Root:      root,
-						CreatedAt: time.Now(),
-					})
-			case types.ScanActionMalware:
-				s.resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
-					Action:    types.ScanActionMalware,
-					Scan:      scan,
-					Root:      root,
-					CreatedAt: time.Now(),
-				})
-			}
-		}
-	}
-
-	scanContainers := func(root string, actions []types.ScanAction) {
-		defer wg.Done()
-
-		ctrPrepareResult := pool.launchScanner(ctx, types.ScannerOptions{
-			Action:    types.ScanActionContainersInspect,
-			Scan:      scan,
-			Root:      root,
-			CreatedAt: time.Now(),
-		})
-		if ctrPrepareResult.Err != nil {
-			s.resultsCh <- ctrPrepareResult
-			return
-		}
-		containers := ctrPrepareResult.Containers.Containers
-		if len(containers) == 0 {
-			return
-		}
-		log.Infof("%s: found %d containers on %q", scan, len(containers), root)
-		runtimes := make(map[string]int64)
-		for _, ctr := range containers {
-			runtimes[ctr.Runtime]++
-		}
-		for runtime, count := range runtimes {
-			tags := scan.Tags(fmt.Sprintf("container_runtime:%s", runtime))
-			if err := s.Statsd.Count("datadog.agentless_scanner.containers.count", count, tags, 1.0); err != nil {
-				log.Warnf("failed to send metric: %v", err)
-			}
-		}
-		ctrDoneCh := make(chan *types.Container)
-		for _, ctr := range containers {
-			go func(ctr *types.Container, actions []types.ScanAction) {
-				s.scanContainer(ctx, scan, ctr, actions, pool)
-				ctrDoneCh <- ctr
-			}(ctr, actions)
-		}
-		for i := 0; i < len(containers); i++ {
-			ctr := <-ctrDoneCh
-			// We cleanup overlays as we go instead of acumulating them. However
-			// the cleanupScan routine also cleans up any leftover. We do not rely
-			// on the parent ctx as we still want to clean these mounts even for a
-			// canceled/timeouted context.
-			cleanupctx, abort := context.WithTimeout(context.Background(), 5*time.Second)
-			devices.Umount(cleanupctx, scan, ctr.MountPoint)
-			abort()
-		}
-	}
-
-	for _, root := range roots {
-		var hostActions []types.ScanAction
-		var ctrsActions []types.ScanAction
-
-		for _, action := range scan.Actions {
-			switch action {
-			case types.ScanActionVulnsHostOS, types.ScanActionMalware:
-				hostActions = append(hostActions, action)
-			case types.ScanActionVulnsContainersApp, types.ScanActionVulnsContainersOS:
-				ctrsActions = append(ctrsActions, action)
-			default:
-				log.Infof("%s: unexpected scan action %q", scan, action)
-			}
-		}
-
-		if len(hostActions) > 0 {
-			wg.Add(1)
-			go scanHost(root, hostActions)
-		}
-
-		if len(ctrsActions) > 0 {
-			wg.Add(1)
-			go scanContainers(root, ctrsActions)
-		}
-	}
-	wg.Wait()
-
-	if err := s.Statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), scan.Tags(), 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
-	}
-}
-
-func (s *Runner) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *types.Container, actions []types.ScanAction, pool *scannersPool) {
-	imageRefTagged, imageRefCanonical, imageTags := scanners.ContainerRefs(*ctr)
-	for _, action := range actions {
-		assert(action == types.ScanActionVulnsContainersApp || action == types.ScanActionVulnsContainersOS)
-
-		var sourceType sbommodel.SBOMSourceType
-		var tags []string
-		switch action {
-		case types.ScanActionVulnsContainersOS:
-			sourceType = sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS // TODO: sbommodel.SBOMSourceType_CONTAINER_FILE_SYSTEM
-			tags = imageTags
-		case types.ScanActionVulnsContainersApp:
-			sourceType = sbommodel.SBOMSourceType_CI_PIPELINE // TODO: sbommodel.SBOMSourceType_CONTAINER_APP
-			tags = append([]string{
-				fmt.Sprintf("runtime_id:%s", imageRefTagged.Name()),
-				fmt.Sprintf("service_version:%s", imageRefTagged.Tag()),
-			}, imageTags...)
-		default:
-			panic("unreachable")
-		}
-
-		sbomID := imageRefCanonical.String()
-		result := pool.launchScannerVulns(ctx,
-			sourceType,
-			sbomID,
-			tags,
-			types.ScannerOptions{
-				Action:    action,
-				Scan:      scan,
-				Root:      ctr.MountPoint,
-				Container: ctr,
-				CreatedAt: time.Now(),
-			})
-		// TODO: remove this when we backport
-		// https://github.com/DataDog/datadog-agent/pull/22161
-		if result.Vulns != nil && result.Vulns.BOM != nil {
-			appendSBOMRepoMetadata(result.Vulns.BOM, imageRefTagged, imageRefCanonical)
-		}
-		s.resultsCh <- result
-	}
-}
-
-func (s *Runner) scanLambda(ctx context.Context, scan *types.ScanTask, root string, pool *scannersPool) {
-	assert(scan.Type == types.TaskTypeLambda)
-
-	tags := append([]string{
-		fmt.Sprintf("runtime_id:%s", scan.TargetID.AsText()),
-		fmt.Sprintf("service_version:%s", scan.TargetName),
-	}, scan.TargetTags...)
-
-	s.resultsCh <- pool.launchScannerVulns(ctx,
-		sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: sbommodel.SBOMSourceType_LAMBDA
-		scan.TargetID.AsText(),
-		tags,
-		types.ScannerOptions{
-			Action:    types.ScanActionAppVulns,
-			Scan:      scan,
-			Root:      root,
-			CreatedAt: time.Now(),
-		})
-	if err := s.Statsd.Histogram("datadog.agentless_scanner.scans.duration", float64(time.Since(scan.StartedAt).Milliseconds()), scan.Tags(), 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
-	}
-}
-
-type scannersPool struct {
-	sem    chan struct{}
-	noFork bool
-}
-
-func newScannersPool(noFork bool, size int) *scannersPool {
-	return &scannersPool{
-		sem:    make(chan struct{}, size),
-		noFork: noFork,
-	}
-}
-
-func (p *scannersPool) launchScannerVulns(ctx context.Context, sourceType sbommodel.SBOMSourceType, sbomID string, tags []string, opts types.ScannerOptions) types.ScanResult {
-	result := p.launchScanner(ctx, opts)
-	if result.Vulns != nil {
-		result.Vulns.SourceType = sourceType
-		result.Vulns.ID = sbomID
-		result.Vulns.Tags = tags
-	}
-	return result
-}
-
-func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
+// PushConfig pushes a new scan configuration to the runner.
+func (s *Runner) PushConfig(ctx context.Context, config *types.ScanConfig) bool {
 	select {
-	case p.sem <- struct{}{}:
+	case s.configsCh <- config:
+		return true
 	case <-ctx.Done():
-		return opts.ErrResult(ctx.Err())
+		return false
 	}
-
-	opts.StartedAt = time.Now()
-	ch := make(chan types.ScanResult, 1)
-	go func() {
-		var result types.ScanResult
-		if p.noFork {
-			result = LaunchScannerInSameProcess(ctx, opts)
-		} else {
-			result = launchScannerInChildProcess(ctx, opts)
-		}
-		<-p.sem
-		ch <- result
-	}()
-
-	select {
-	case result := <-ch:
-		return result
-	case <-ctx.Done():
-		return opts.ErrResult(ctx.Err())
-	}
-}
-
-// LaunchScannerInSameProcess launches the scanner in the same process (no fork).
-func LaunchScannerInSameProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
-	switch opts.Action {
-	case types.ScanActionVulnsHostOS, types.ScanActionVulnsContainersOS:
-		bom, err := scanners.LaunchTrivyHost(ctx, opts)
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
-
-	case types.ScanActionAppVulns, types.ScanActionVulnsContainersApp:
-		bom, err := scanners.LaunchTrivyApp(ctx, opts)
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
-
-	case types.ScanActionVulnsHostOSVm:
-		bom, err := scanners.LaunchTrivyHostVM(ctx, opts)
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		return types.ScanResult{ScannerOptions: opts, Vulns: &types.ScanVulnsResult{BOM: bom}}
-
-	case types.ScanActionContainersInspect:
-		containers, err := scanners.LaunchContainersInspect(ctx, opts)
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		return types.ScanResult{ScannerOptions: opts, Containers: &containers}
-
-	case types.ScanActionMalware:
-		result, err := scanners.LaunchMalware(ctx, opts)
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		return types.ScanResult{ScannerOptions: opts, Malware: &result}
-	default:
-		panic("unreachable")
-	}
-}
-
-func launchScannerInChildProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	exe, err := os.Executable()
-	if err != nil {
-		return opts.ErrResult(err)
-	}
-
-	sockName := filepath.Join(opts.Scan.Path(opts.ID() + ".sock"))
-	l, err := net.Listen("unix", sockName)
-	if err != nil {
-		return opts.ErrResult(err)
-	}
-	defer l.Close()
-
-	remoteCall := func() types.ScanResult {
-		var result types.ScanResult
-
-		conn, err := l.Accept()
-		if err != nil {
-			return opts.ErrResult(err)
-		}
-		defer conn.Close()
-
-		deadline, ok := ctx.Deadline()
-		if ok {
-			_ = conn.SetDeadline(deadline)
-		}
-
-		enc := json.NewEncoder(conn)
-		dec := json.NewDecoder(conn)
-		if err := enc.Encode(opts); err != nil {
-			return opts.ErrResult(err)
-		}
-		if err := dec.Decode(&result); err != nil {
-			return opts.ErrResult(err)
-		}
-		return result
-	}
-
-	resultsCh := make(chan types.ScanResult, 1)
-	go func() {
-		resultsCh <- remoteCall()
-	}()
-
-	stderr := &truncatedWriter{max: 512 * 1024}
-	cmd := exec.CommandContext(ctx, exe, "run-scanner", "--sock", sockName)
-	cmd.Env = []string{
-		"GOMAXPROCS=1",
-		"DD_LOG_FILE=" + opts.Scan.Path(fmt.Sprintf("scanner-%s.log", opts.ID())),
-		"PATH=" + os.Getenv("PATH"),
-	}
-	cmd.Dir = opts.Scan.Path()
-	cmd.Stderr = stderr
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return opts.ErrResult(err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		if ctx.Err() != nil {
-			return opts.ErrResult(ctx.Err())
-		}
-		return opts.ErrResult(err)
-	}
-
-	go func() {
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			line := scanner.Text()
-			// remove the info log at startup from log component spamming "0 Features detected from environment"
-			if len(line) < 256 && strings.Contains(line, "Features detected from environment") {
-				continue
-			}
-			// should start with "XXXX-XX-XX XX:XX:XX UTC | AGENTLESSSCANER |"
-			if len(line) > 24 && strings.HasPrefix(line[24:], "| "+LoggerName+" |") {
-				fmt.Println(line)
-			} else {
-				log.Warnf("%s: scanner %q malformed stdout: %s", opts.Scan, opts.ID(), line)
-			}
-		}
-	}()
-
-	pid := cmd.Process.Pid
-	if err := os.WriteFile(opts.Scan.Path(opts.ID()+".pid"), []byte(strconv.Itoa(pid)), 0600); err != nil {
-		log.Warnf("%s: could not write pid file %d: %v", opts.Scan, cmd.Process.Pid, err)
-	}
-
-	if err := cmd.Wait(); err != nil {
-		if ctx.Err() != nil {
-			return opts.ErrResult(ctx.Err())
-		}
-		var errx *exec.ExitError
-		if errors.As(err, &errx) {
-			stderrx := strings.ReplaceAll(stderr.String(), "\n", "\\n")
-			log.Errorf("%s: execed scanner %q with pid=%d: %v: with output:%s", opts.Scan, opts.Action, cmd.Process.Pid, errx, stderrx)
-		} else {
-			log.Errorf("%s: execed scanner %q: %v", opts.Scan, opts.Action, err)
-		}
-		return opts.ErrResult(err)
-	}
-
-	return <-resultsCh
-}
-
-type truncatedWriter struct {
-	max int
-	buf bytes.Buffer
-}
-
-func (w *truncatedWriter) String() string {
-	return w.buf.String()
-}
-
-func (w *truncatedWriter) Write(b []byte) (n int, err error) {
-	remaining := w.max - len(w.buf.Bytes())
-	if remaining > 0 {
-		if remaining <= len(b) {
-			w.buf.Write(b[:remaining])
-			w.buf.WriteString("... truncated")
-		} else {
-			w.buf.Write(b)
-		}
-	}
-	return len(b), nil
 }
 
 func hasResults(bom *cdx.BOM) bool {
