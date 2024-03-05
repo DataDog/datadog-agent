@@ -159,7 +159,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		return false
 	}
 	program := &ebpfProgram{
-		Manager: ddebpf.NewManagerWithDefault(mgr, &ebpftelemetry.ErrorsTelemetryModifier{
+		Manager: ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{
 			SkipProgram: skipHTTP2Programs,
 		}),
 		cfg:                   c,
