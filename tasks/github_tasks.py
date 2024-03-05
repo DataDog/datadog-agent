@@ -225,7 +225,7 @@ def assign_team_label(_, pr_id=-1, changed_files=''):
     labels = set(gh.get_labels(pr_id))
 
     if 'qa/done' in labels or 'qa/no-code-change' in labels:
-        print('Qa done, skipping')
+        print('Qa done or no code change, skipping')
         return
 
     if any(label.startswith('team/') for label in labels):

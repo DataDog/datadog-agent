@@ -44,7 +44,7 @@ jobs:
       - name: Get PR labels
         id: pr-labels
         run: |
-          labels="$(gh pr view --json labels --jq '[.labels[].name] | (join(" "))')"
+          labels="$(GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' GH_REPO='${{ github.repository }}' gh pr view --json labels --jq '[.labels[].name] | (join(" "))')"
           echo "Fetched labels for PR ${{github.event.number}}: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
         env:
