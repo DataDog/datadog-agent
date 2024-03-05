@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package iis contains code for the IIS component
 package iis
 
 import (
@@ -40,7 +41,7 @@ func (dc *Component) Export(ctx *pulumi.Context, out *Output) error {
 	return infraComponents.Export(ctx, dc, out)
 }
 
-func NewIISServer(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Component, error) {
+func NewServer(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Component, error) {
 	params, err := common.ApplyOption(&Configuration{}, options)
 	if err != nil {
 		return nil, err

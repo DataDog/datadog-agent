@@ -69,13 +69,13 @@ func TestVMSuite(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		iisServer, err := iis.NewIISServer(ctx, awsEnv.CommonEnvironment, vm,
-			iis.WithSite(iis.IISSiteDefinition{
+		iisServer, err := iis.NewServer(ctx, awsEnv.CommonEnvironment, vm,
+			iis.WithSite(iis.SiteDefinition{
 				Name:            "TestSite1",
 				BindingPort:     "*:8081:",
 				SourceAssetsDir: srcDir,
 			}),
-			iis.WithSite(iis.IISSiteDefinition{
+			iis.WithSite(iis.SiteDefinition{
 				Name:            "TestSite2",
 				BindingPort:     "*:8081:",
 				SourceAssetsDir: srcDir,
@@ -119,7 +119,8 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	_, err = v.InstallAgent(vm,
 		windowsAgent.WithPackage(v.AgentPackage),
 		windowsAgent.WithInstallLogFile("install.log"))
-
+	require.NoError(t, err)
+	
 	// disable the agent, and enable the drivers for testing
 	_, err = vm.Execute("stop-service -force datadogagent")
 	require.NoError(t, err)
