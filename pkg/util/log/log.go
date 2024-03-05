@@ -452,8 +452,6 @@ func log(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 
 	isInnerNil := l.inner == nil
 
-
-
 	if !isInnerNil && l.shouldLog(logLevel) {
 		s := BuildLogEntry(v...)
 
@@ -568,7 +566,6 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc fun
 	defer l.l.Unlock()
 
 	isInnerNil := l.inner == nil
-
 
 	if !isInnerNil && l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
