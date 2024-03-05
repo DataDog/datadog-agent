@@ -177,7 +177,7 @@ def find_ssh_key(ssh_key):
         privkey = pubkey[:-4]
         possible_paths.append(privkey)  # Keep track of paths we've checked
 
-        with open(pubkey, "r") as f:
+        with open(pubkey) as f:
             parts = f.read().split()
 
             # Public keys have three "words": key type, public key, name
