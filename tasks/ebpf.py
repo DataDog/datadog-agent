@@ -15,7 +15,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_cws_object_files, build_object_files, is_root, EMBEDDED_SHARE_DIR
+from .system_probe import EMBEDDED_SHARE_DIR, build_cws_object_files, build_object_files, is_root
 
 headers = [
     "Filename/Program",

@@ -1321,7 +1321,17 @@ def run_ninja(
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test, instrument_trampoline=instrument_trampoline)
+    ninja_generate(
+        ctx,
+        nf_path,
+        major_version,
+        arch,
+        debug,
+        strip_object_files,
+        kernel_release,
+        with_unit_test,
+        instrument_trampoline=instrument_trampoline,
+    )
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1413,7 +1423,7 @@ def build_object_files(
         debug=debug,
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
-        instrument_trampoline=instrument_trampoline
+        instrument_trampoline=instrument_trampoline,
     )
 
     if not is_windows:
