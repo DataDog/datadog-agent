@@ -24,7 +24,7 @@ import (
 const (
 	DefaultSourcePort   = 12345
 	DefaultDestPort     = 33434
-	DefaultNumPaths     = 10
+	DefaultNumPaths     = 1
 	DefaultMinTTL       = 1
 	DefaultMaxTTL       = 30
 	DefaultDelay        = 50 //msec
@@ -34,6 +34,9 @@ const (
 
 // RunTraceroute wraps the implementation of traceroute
 // so it can be called from the different OS implementations
+//
+// This code is experimental and will be replaced with a more
+// complete implementation.
 func RunTraceroute(cfg Config) (NetworkPath, error) {
 	rawDest := cfg.DestHostname
 	dests, err := net.LookupIP(rawDest)
@@ -47,18 +50,12 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	// use first resolved IP for now
 	dest := dests[0]
 
-	numpaths := 1
-	if numpaths == 0 {
-		numpaths = DefaultNumPaths
-	}
-
-	//var dt dublintraceroute.DublinTraceroute
 	dt := &probev4.UDPv4{
 		Target:     dest,
 		SrcPort:    uint16(DefaultSourcePort), // TODO: what's a good value?
 		DstPort:    uint16(DefaultDestPort),   // TODO: what's a good value?
 		UseSrcPort: false,
-		NumPaths:   uint16(numpaths),
+		NumPaths:   uint16(DefaultNumPaths),
 		MinTTL:     uint8(DefaultMinTTL), // TODO: what's a good value?
 		MaxTTL:     uint8(15),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond, // TODO: what's a good value?
@@ -67,9 +64,9 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	}
 	results, err := dt.Traceroute()
 	if err != nil {
-		return NetworkPath{}, fmt.Errorf("NetworkPath() failed: %v", err)
+		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
-	log.Debugf("raw results: %+v", results)
+	log.Debugf("Raw results: %+v", results)
 
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -85,7 +82,6 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 }
 
 func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
-	var err error
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -106,7 +102,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 	}
 
 	for idx, probes := range r.Flows {
-		log.Debugf("flow idx: %d\n", idx)
+		log.Debugf("Flow idx: %d\n", idx)
 		for probleIndex, probe := range probes {
 			log.Debugf("%d - %d - %s\n", probleIndex, probe.Sent.IP.TTL, probe.Name)
 		}
@@ -127,9 +123,6 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		var nodes []node
 		// add first hop
 		firstNodeName := hops[0].Sent.IP.SrcIP.String()
-		if err != nil {
-			return NetworkPath{}, fmt.Errorf("failed to create first node: %w", err)
-		}
 		nodes = append(nodes, node{node: firstNodeName, probe: &hops[0]})
 
 		// then add all the other hops
@@ -158,14 +151,14 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 			if hop.IsLast {
 				break
 			}
-			log.Debugf("label: %s", label)
+			log.Debugf("Label: %s", label)
 		}
 		// add edges
 		if len(nodes) <= 1 {
 			// no edges to add if there is only one node
 			continue
 		}
-		//color := rand.Intn(0xffffff)
+
 		// start at node 1. Each node back-references the previous one
 		for idx := 1; idx < len(nodes); idx++ {
 			if idx >= len(nodes) {
@@ -174,7 +167,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 			}
 			prev := nodes[idx-1]
 			cur := nodes[idx]
-			//edgeName := fmt.Sprintf("%s - %s - %d - %d", prev.node, cur.node, idx, flowID)
+
 			edgeLabel := ""
 			if idx == 1 {
 				edgeLabel += fmt.Sprintf(
@@ -188,21 +181,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 			}
 			edgeLabel += fmt.Sprintf("\n%d.%d ms", int(cur.probe.RttUsec/1000), int(cur.probe.RttUsec%1000))
 
-			//tags := []string{
-			//	"dest_name:" + c.config.DestName,
-			//	"agent_host:" + hname,
-			//	"dest_hostname:" + destinationHost,
-			//	"hop_ip_address:" + cur.node,
-			//	"hop_host:" + c.getHostname(cur.node),
-			//	"ttl:" + strconv.Itoa(idx),
-			//}
-			//tags = append(tags, "prev_hop_ip_address:"+prev.node)
-			//tags = append(tags, "prev_hop_host:"+c.getHostname(prev.node))
-			//log.Infof("[netpath] tags: %s", tags)
-			//sender.Gauge("netpath.hop.duration", float64(cur.probe.RttUsec)/1000, "", CopyStrings(tags))
-			//sender.Count("netpath.hop.record", float64(1), "", CopyStrings(tags))
 			isSuccess := cur.probe.Received != nil
-
 			ip := cur.node
 			durationMs := float64(cur.probe.RttUsec) / 1000
 
@@ -217,7 +196,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		}
 	}
 
-	log.Debugf("traceroute path metadata payload: %+v", traceroutePath)
+	log.Debugf("Traceroute path metadata payload: %+v", traceroutePath)
 	return traceroutePath, nil
 }
 

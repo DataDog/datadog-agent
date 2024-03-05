@@ -40,6 +40,7 @@ func (t *traceroute) GetStats() map[string]interface{} {
 func (t *traceroute) Register(httpMux *module.Router) error {
 	var runCounter = atomic.NewUint64(0)
 
+	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		vars := mux.Vars(req)
