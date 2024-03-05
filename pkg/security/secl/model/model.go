@@ -208,6 +208,10 @@ func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
 }
 
+func (e *Event) HasActiveActivityDump() bool {
+	return e.Flags&EventFlagsHasActiveActivityDump > 0
+}
+
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0

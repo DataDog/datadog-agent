@@ -405,6 +405,14 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
+	// mark the events that have an associated activity dump
+	// this is needed for auto suppressions performed by the CWS rule engine
+	if p.profileManagers.activityDumpManager != nil {
+		if p.profileManagers.activityDumpManager.HasActiveActivityDump(event) {
+			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
+		}
+	}
+
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToWildcardHandlers(event)
 
