@@ -898,17 +898,21 @@ func JMXInfo(v ...interface{}) {
 // Flush flushes the underlying inner log
 func Flush() {
 	l := logger.Load()
-	l.l.Lock()
-	if l != nil && l.inner != nil {
-		l.inner.Flush()
+	if l != nil {
+		l.l.Lock()
+		if l.inner != nil {
+			l.inner.Flush()
+		}
+		l.l.Unlock()
 	}
-	l.l.Unlock()
 	l = jmxLogger.Load()
-	l.l.Lock()
-	if l != nil && l.inner != nil {
-		l.inner.Flush()
+	if l != nil {
+		l.l.Lock()
+		if l.inner != nil {
+			l.inner.Flush()
+		}
+		l.l.Unlock()
 	}
-	l.l.Unlock()
 }
 
 // ReplaceLogger allows replacing the internal logger, returns old logger
