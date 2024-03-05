@@ -448,10 +448,11 @@ func log(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 	}
 
 	l.l.Lock()
+	defer l.l.Unlock()
 
 	isInnerNil := l.inner == nil
 
-	defer l.l.Unlock()
+
 
 	if !isInnerNil && l.shouldLog(logLevel) {
 		s := BuildLogEntry(v...)
@@ -480,6 +481,7 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 
 	if !isInnerNil && l.shouldLog(logLevel) {
 		s := BuildLogEntry(v...)
+		defer l.l.Unlock()
 		return scrubAndLogFunc(s)
 	} else if isInnerNil {
 		addLogToBuffer(bufferFunc)
@@ -507,10 +509,9 @@ func logFormat(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func
 	}
 
 	l.l.Lock()
+	defer l.l.Unlock()
 
 	isInnerNil := l.inner == nil
-
-	defer l.l.Unlock()
 
 	if !isInnerNil && l.shouldLog(logLevel) {
 		scrubAndLogFunc(format, params...)
@@ -536,6 +537,7 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 	isInnerNil := l.inner == nil
 
 	if !isInnerNil && l.shouldLog(logLevel) {
+		defer l.l.Unlock()
 		return scrubAndLogFunc(format, params...)
 	} else if isInnerNil {
 		addLogToBuffer(bufferFunc)
@@ -563,10 +565,11 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc fun
 	}
 
 	l.l.Lock()
+	defer l.l.Unlock()
 
 	isInnerNil := l.inner == nil
 
-	defer l.l.Unlock()
+
 	if !isInnerNil && l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
 		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
@@ -601,6 +604,7 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLo
 		err := scrubAndLogFunc(message)
 		l.inner.SetContext(nil)
 		l.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+		defer l.l.Unlock()
 		return err
 	} else if isInnerNil {
 		addLogToBuffer(bufferFunc)
