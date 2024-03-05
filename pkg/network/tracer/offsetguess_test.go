@@ -294,7 +294,7 @@ func testOffsetGuess(t *testing.T) {
 			}
 		case offsetCtOrigin, offsetCtIno, offsetCtNetns, offsetCtReply:
 			// offset guessing for conntrack fields is broken on pre-4.14 kernels
-			if kv.Code < kernel.VersionCode(4, 14, 0) && !kv.IsRH7Kernel() {
+			if !ebpfConntrackerSupportedOnKernelT(t) {
 				continue
 			}
 		}

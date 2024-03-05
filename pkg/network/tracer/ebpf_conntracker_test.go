@@ -14,16 +14,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
-	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
-func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
-	kv, err := ebpfkernel.NewKernelVersion()
+func ebpfConntrackerSupportedOnKernelT(t *testing.T) bool {
+	supported, err := ebpfConntrackerSupportedOnKernel()
 	require.NoError(t, err)
+	return supported
+}
 
-	if kv.Code < ebpfkernel.Kernel4_14 && !kv.IsRH7Kernel() {
+func skipEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
+	if ebpfConntrackerSupportedOnKernelT(t) {
 		t.Skip("Skipping test on unsupported kernel")
 	}
+}
+
+func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
+	skipEbpfConntrackerTestOnUnsupportedKernel(t)
 
 	offsetguess.TracerOffsets.Reset()
 
@@ -40,11 +46,8 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 }
 
 func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
-	kv, err := ebpfkernel.NewKernelVersion()
-	require.NoError(t, err)
-
-	if kv.Code >= ebpfkernel.Kernel4_14 || kv.IsRH7Kernel() {
-		t.Skip("This test should only run on pre-4.14 kernels or kernels with backported eBPF support")
+	if !ebpfConntrackerSupportedOnKernelT(t) {
+		t.Skip("This test should only run on pre-4.14 kernels without backported eBPF support, like RHEL/CentOS")
 	}
 
 	offsetguess.TracerOffsets.Reset()

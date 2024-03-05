@@ -471,11 +471,11 @@ func getManager(cfg *config.Config, buf io.ReaderAt, constants []manager.Constan
 }
 
 func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
-	kv, err := ebpfkernel.NewKernelVersion()
+	supportedOnKernel, err := ebpfConntrackerSupportedOnKernel()
 	if err != nil {
-		return nil, nil, fmt.Errorf("unable to detect the kernel version: %s", err)
+		return nil, nil, fmt.Errorf("could not check if ebpf conntracker is supported on kernel: %w", err)
 	}
-	if kv.Code < ebpfkernel.Kernel4_14 && !kv.IsRH7Kernel() {
+	if !supportedOnKernel {
 		return nil, nil, fmt.Errorf("ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 	}
 
@@ -498,4 +498,16 @@ func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager
 	}
 
 	return buf, constants, nil
+}
+
+func ebpfConntrackerSupportedOnKernel() (bool, error) {
+	kv, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		return false, fmt.Errorf("could not get kernel version: %s", err)
+	}
+
+	if kv.Code >= ebpfkernel.Kernel4_14 || kv.IsRH7Kernel() {
+		return true, nil
+	}
+	return false, nil
 }
