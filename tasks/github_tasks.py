@@ -236,6 +236,9 @@ def assign_team_label(_, pr_id=-1):
     if team is None:
         print('No team or multiple teams found')
         return
+    elif not team.startswith('@DataDog/'):
+        print('Invalid team name', team)
+        return
 
     # Assign label
     label_name = 'team' + team.removeprefix('@DataDog')
