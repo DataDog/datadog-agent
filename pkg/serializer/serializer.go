@@ -84,9 +84,6 @@ func initExtraHeaders(s *Serializer) {
 		s.jsonExtraHeadersWithCompression.Set("Content-Encoding", encoding)
 		s.protobufExtraHeadersWithCompression.Set("Content-Encoding", encoding)
 	}
-
-	fmt.Println("rz initExtraHeaders json", s.jsonExtraHeadersWithCompression)
-	fmt.Println("rz initExtraHeaders proto", s.jsonExtraHeadersWithCompression)
 }
 
 // MetricSerializer represents the interface of method needed by the aggregator to serialize its data
