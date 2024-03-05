@@ -25,7 +25,7 @@ func New(cfg Config) *MacTraceroute {
 // Run executes a traceroute
 func (m *MacTraceroute) Run() (NetworkPath, error) {
 	// TODO: mac implementation, can we get this no system-probe or root access?
-	// To test: we probably can, but maybe without modifying
-	// the dublin library
+	// To test: we probably can, but maybe not without modifying
+	// the library we currently use
 	return RunTraceroute(m.cfg)
 }

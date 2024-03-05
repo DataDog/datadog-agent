@@ -12,17 +12,15 @@ import (
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	DestName            string `yaml:"name"`
-	DestHostname        string `yaml:"hostname"`
-	FakeEventMultiplier int    `yaml:"fake_event_multiplier"`
+	DestName     string `yaml:"name"`
+	DestHostname string `yaml:"hostname"`
 }
 
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
-	DestHostname        string
-	DestName            string
-	FakeEventMultiplier int
+	DestHostname string
+	DestName     string
 }
 
 // NewCheckConfig builds a new check config
@@ -38,11 +36,6 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 
 	c.DestHostname = instance.DestHostname
 	c.DestName = instance.DestName
-	c.FakeEventMultiplier = instance.FakeEventMultiplier
-
-	if c.FakeEventMultiplier == 0 {
-		c.FakeEventMultiplier = 1
-	}
 
 	return c, nil
 }

@@ -76,7 +76,6 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 		return NetworkPath{}, err
 	}
 
-	// TODO: send back EP payload
 	pathResult, err := processResults(results, hname, rawDest, dest)
 	if err != nil {
 		return NetworkPath{}, err
@@ -219,13 +218,6 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 	}
 
 	log.Debugf("traceroute path metadata payload: %+v", traceroutePath)
-	// TODO: move EP send to individual impls
-	// payloadBytes, err := json.Marshal(traceroutePath)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("error marshalling device metadata: %s", err)
-	// }
-	// log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
-	//sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
 	return traceroutePath, nil
 }
 

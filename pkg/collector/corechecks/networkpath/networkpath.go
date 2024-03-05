@@ -67,7 +67,6 @@ func (c *Check) Run() error {
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
 	if err != nil {
-		log.Errorf("failed to send network path metadata: %s", err.Error())
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
@@ -87,7 +86,6 @@ func (c *Check) Run() error {
 
 	numWorkers := config.Datadog.GetInt("check_runners")
 	senderInstance.Gauge("networkpath.telemetry.check_runners", float64(numWorkers), "", tags)
-	senderInstance.Gauge("networkpath.telemetry.fake_event_multiplier", float64(c.config.FakeEventMultiplier), "", tags)
 	senderInstance.Gauge("networkpath.telemetry.hop_count", float64(len(path.Hops)), "", tags)
 	c.lastCheckTime = startTime
 
@@ -108,13 +106,13 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 
 // Configure the networkpath check
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	// Must be called before c.CommonConfigure
+	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
+
 	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
-
-	// Must be called before c.CommonConfigure
-	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
 	config, err := NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
