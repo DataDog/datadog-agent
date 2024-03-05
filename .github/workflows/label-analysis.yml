@@ -13,7 +13,7 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
-  assign-team-labels:
+  assign-team-label:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
