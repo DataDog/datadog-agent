@@ -493,6 +493,16 @@ func TestAddStrippedKeys(t *testing.T) {
 	assertClean(t, contents, `foobar: "********"`)
 }
 
+func TestAddStrippedKeysAPIKey(t *testing.T) {
+	contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'`
+
+	AddStrippedKeys([]string{"api_key"})
+
+	scrubbed, err := ScrubYamlString(contents)
+	require.Nil(t, err)
+	assert.Equal(t, `api_key: '***************************aaaaa'`, scrubbed)
+}
+
 func TestAddStrippedKeysNewReplacer(t *testing.T) {
 	contents := `foobar: baz`
 	AddStrippedKeys([]string{"foobar"})

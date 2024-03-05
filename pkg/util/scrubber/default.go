@@ -8,6 +8,7 @@ package scrubber
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -319,6 +320,11 @@ func ScrubLine(url string) string {
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies
 // the DefaultScrubber directly and be added to any created scrubbers.
 func AddStrippedKeys(strippedKeys []string) {
+	// API and APP keys are already handled by default rules
+	strippedKeys = slices.DeleteFunc(strippedKeys, func(s string) bool {
+		return s == "api_key" || s == "app_key"
+	})
+
 	if len(strippedKeys) > 0 {
 		replacer := matchYAMLKey(
 			fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")),
