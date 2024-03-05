@@ -79,8 +79,8 @@ type Runner struct {
 	touchedMu sync.Mutex
 	touched   map[scanRecord]struct{}
 
-	scansInProgress   map[types.CloudID]struct{}
-	scansInProgressMu sync.RWMutex
+	runningScans   map[types.CloudID]*types.ScanTask
+	runningScansMu sync.RWMutex
 
 	configsCh chan *types.ScanConfig
 	scansCh   chan *types.ScanTask
@@ -113,7 +113,7 @@ func New(opts Options) (*Runner, error) {
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
 
-		scansInProgress: make(map[types.CloudID]struct{}),
+		runningScans: make(map[types.CloudID]*types.ScanTask),
 
 		configsCh: make(chan *types.ScanConfig),
 		scansCh:   make(chan *types.ScanTask),
@@ -359,8 +359,28 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 				if !ok {
 					return
 				}
-				s.recordTriggeredScan(scan)
-				triggeredScansCh <- scan
+				if !s.isScanRunning(scan) {
+					// Gather the  scanned roles / accounts as we go. We only ever
+					// need to store one role associated with one region. They
+					// will be used for cleanup process.
+					s.touchedMu.Lock()
+					{
+						// TODO: we could persist this "touched" map on the
+						// filesystem to have a more robust knowledge of the
+						// accounts / regions with scanned.
+						if s.touched == nil {
+							s.touched = make(map[scanRecord]struct{})
+						}
+						record := scanRecord{
+							Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
+							Region: scan.TargetID.Region(),
+						}
+						s.touched[record] = struct{}{}
+					}
+					s.touchedMu.Unlock()
+					triggeredScansCh <- scan
+					s.recordTriggeredScan(scan)
+				}
 			case scan := <-finishedScansCh:
 				s.recordFinishedScan(scan)
 			}
@@ -412,6 +432,22 @@ func (s *Runner) StartWithRemoteWorkers(ctx context.Context) {
 	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/scans", func(w http.ResponseWriter, req *http.Request) {
+		switch req.Method {
+		case http.MethodGet:
+			s.runningScansMu.RLock()
+			defer s.runningScansMu.RUnlock()
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(s.runningScans); err != nil {
+				http.Error(w, "could not encode scans", http.StatusInternalServerError)
+				return
+			}
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	mux.HandleFunc("/scan", func(w http.ResponseWriter, req *http.Request) {
 		switch req.Method {
 		case http.MethodGet:
@@ -423,6 +459,20 @@ func (s *Runner) StartWithRemoteWorkers(ctx context.Context) {
 				}
 			} else {
 				http.Error(w, "no scan available", http.StatusNoContent)
+			}
+		case http.MethodPut:
+			var scan types.ScanTask
+			if err := json.NewDecoder(req.Body).Decode(&scan); err != nil {
+				http.Error(w, "could not decode scan", http.StatusBadRequest)
+				return
+			}
+			s.runningScansMu.Lock()
+			defer s.runningScansMu.Unlock()
+			if _, ok := s.runningScans[scan.TargetID]; ok {
+				w.WriteHeader(http.StatusAccepted)
+				s.runningScans[scan.TargetID] = &scan
+			} else {
+				http.Error(w, "scan not in progress", http.StatusNotFound)
 			}
 		case http.MethodPost:
 			var scan types.ScanTask
@@ -490,39 +540,27 @@ func (s *Runner) StartWithRemoteWorkers(ctx context.Context) {
 	}
 }
 
-func (s *Runner) recordTriggeredScan(scan *types.ScanTask) {
-	// Gather the  scanned roles / accounts as we go. We only ever
-	// need to store one role associated with one region. They
-	// will be used for cleanup process.
-	s.touchedMu.Lock()
-	{
-		// TODO: we could persist this "touched" map on the
-		// filesystem to have a more robust knowledge of the
-		// accounts / regions with scanned.
-		if s.touched == nil {
-			s.touched = make(map[scanRecord]struct{})
-		}
-		record := scanRecord{
-			Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
-			Region: scan.TargetID.Region(),
-		}
-		s.touched[record] = struct{}{}
-	}
-	s.touchedMu.Unlock()
+func (s *Runner) isScanRunning(scan *types.ScanTask) bool {
+	s.runningScansMu.RLock()
+	defer s.runningScansMu.RUnlock()
+	_, ok := s.runningScans[scan.TargetID]
+	return ok
+}
 
+func (s *Runner) recordTriggeredScan(scan *types.ScanTask) {
 	// Avoid pushing a scan that we are already performing.
 	// TODO: this guardrail could be avoided with a smarter scheduling.
-	s.scansInProgressMu.Lock()
-	defer s.scansInProgressMu.Unlock()
-	if _, ok := s.scansInProgress[scan.TargetID]; !ok {
-		s.scansInProgress[scan.TargetID] = struct{}{}
+	s.runningScansMu.Lock()
+	defer s.runningScansMu.Unlock()
+	if _, ok := s.runningScans[scan.TargetID]; !ok {
+		s.runningScans[scan.TargetID] = scan
 	}
 }
 
 func (s *Runner) recordFinishedScan(scan *types.ScanTask) {
-	s.scansInProgressMu.Lock()
-	defer s.scansInProgressMu.Unlock()
-	delete(s.scansInProgress, scan.TargetID)
+	s.runningScansMu.Lock()
+	defer s.runningScansMu.Unlock()
+	delete(s.runningScans, scan.TargetID)
 }
 
 func (s *Runner) reportResults(resultsCh <-chan types.ScanResult) {
