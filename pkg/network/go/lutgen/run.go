@@ -305,7 +305,6 @@ func versionToString(v goversion.GoVersion) string {
 		return fmt.Sprintf("%d.%dbeta%d", v.Major, v.Minor, v.Beta)
 	} else if v.Rev > 0 {
 		return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Rev)
-	} else {
-		return fmt.Sprintf("%d.%d", v.Major, v.Minor)
 	}
+	return fmt.Sprintf("%d.%d", v.Major, v.Minor)
 }

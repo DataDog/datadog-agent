@@ -251,14 +251,14 @@ func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func ListStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) {
+func ListStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "Diagnose suites ...\n")
 
-	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getSuites(diagCfg, senderManager, collector, secretResolver))
+	sortedSuites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, getSuites(diagCfg, deps))
 	if err != nil {
 		fmt.Fprintf(w, "Failed to get list of diagnose suites. Validate your command line options. Error: %s\n", err.Error())
 		return
@@ -338,7 +338,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 // Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) ([]diagnosis.Diagnoses, error) {
+func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, error) {
 
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
@@ -346,7 +346,7 @@ func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, c
 	}
 
 	// Collect local diagnoses
-	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites(diagCfg, senderManager, collector, secretResolver))
+	diagnoses, err := getDiagnosesFromCurrentProcess(diagCfg, getSuites(diagCfg, deps))
 	if err != nil {
 		return nil, err
 	}
@@ -358,21 +358,21 @@ func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, c
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) error {
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
 
 	fmt.Fprintf(w, "=== Starting diagnose ===\n")
 
-	diagnoses, err := Run(diagCfg, senderManager, collector, secretResolver)
+	diagnoses, err := Run(diagCfg, deps)
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
 
 		// attempt to do so locally
 		diagCfg.RunLocal = true
-		diagnoses, err = Run(diagCfg, senderManager, collector, secretResolver)
+		diagnoses, err = Run(diagCfg, deps)
 	}
 
 	if err != nil {
@@ -406,10 +406,28 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.Diagn
 	return nil
 }
 
-func getSuites(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) []diagnosis.Suite {
+// SuitesDeps stores the dependencies for the diagnose suites.
+type SuitesDeps struct {
+	senderManager  sender.DiagnoseSenderManager
+	collector      optional.Option[collector.Component]
+	secretResolver secrets.Component
+}
+
+// NewSuitesDeps returns a new SuitesDeps.
+func NewSuitesDeps(senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component) SuitesDeps {
+	return SuitesDeps{
+		senderManager:  senderManager,
+		collector:      collector,
+		secretResolver: secretResolver,
+	}
+}
+
+func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
 
-	catalog.Register("check-datadog", func() []diagnosis.Diagnosis { return getDiagnose(diagCfg, senderManager, collector, secretResolver) })
+	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {
+		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver)
+	})
 	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)

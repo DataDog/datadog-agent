@@ -71,9 +71,6 @@ func runFxWrapper(params *cliParams) error {
 			LogParams:            logimpl.ForDaemon("UPDATER", "updater.log_file", pkgconfig.DefaultUpdaterLogFile),
 		}),
 		core.Bundle(),
-		fx.Supply(updaterimpl.Parameters{
-			Package: params.Package,
-		}),
 		fx.Supply(&rcservice.Params{
 			Options: []service.Option{
 				service.WithDatabaseFileName("remote-config-updater.db"),
