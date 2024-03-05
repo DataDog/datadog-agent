@@ -24,7 +24,7 @@ func ebpfConntrackerSupportedOnKernelT(t *testing.T) bool {
 
 func skipEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
 	if ebpfConntrackerSupportedOnKernelT(t) {
-		t.Skip("Skipping test on unsupported kernel")
+		t.Skip("Skipping ebpf conntracker related test on unsupported kernel")
 	}
 }
 
