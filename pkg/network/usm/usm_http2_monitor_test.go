@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -24,6 +25,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -31,6 +33,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -79,13 +82,16 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 	return cfg
 }
 
-func TestHTTP2Scenarios(t *testing.T) {
+func skipIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
 	}
+}
 
+func TestHTTP2Scenarios(t *testing.T) {
+	skipIfKernelNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
@@ -100,10 +106,10 @@ func TestHTTP2Scenarios(t *testing.T) {
 				isTLS: true,
 			},
 		} {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-				t.Skip("GoTLS not supported for this setup")
-			}
 			t.Run(tc.name, func(t *testing.T) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+					t.Skip("GoTLS not supported for this setup")
+				}
 				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
 			})
 		}
@@ -299,7 +305,8 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 							t.Logf("key: %v was not found in res", key.Path.Content.Get())
 						}
 					}
-					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http2_in_flight")
+					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap)
+					dumpTelemetry(t, monitor, s.isTLS)
 				}
 			})
 		}
@@ -405,7 +412,6 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 					return false
 				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
-
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
@@ -1175,14 +1181,8 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
-				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
-					tlsMarker := ""
-					if s.isTLS {
-						tlsMarker = "tls "
-					}
-					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
-				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1240,14 +1240,8 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
-				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
-					tlsMarker := ""
-					if s.isTLS {
-						tlsMarker = "tls "
-					}
-					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
-				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1325,7 +1319,8 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1404,10 +1399,40 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight")
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
+}
+
+func TestHTTP2InFlightMapCleaner(t *testing.T) {
+	skipIfKernelNotSupported(t)
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
+	cfg.HTTPIdleConnectionTTL = time.Second
+	monitor := setupUSMTLSMonitor(t, cfg)
+	ebpfNow, err := ddebpf.NowNanoseconds()
+	require.NoError(t, err)
+	http2InFLightMap, _, err := monitor.ebpfProgram.GetMap(usmhttp2.InFlightMap)
+	require.NoError(t, err)
+	key := usmhttp2.HTTP2StreamKey{
+		Id: 1,
+	}
+	val := usmhttp2.HTTP2Stream{
+		Request_started: uint64(ebpfNow - (time.Second * 3).Nanoseconds()),
+	}
+	require.NoError(t, http2InFLightMap.Update(unsafe.Pointer(&key), unsafe.Pointer(&val), ebpf.UpdateAny))
+
+	var newVal usmhttp2.HTTP2Stream
+	require.NoError(t, http2InFLightMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&newVal)))
+	require.Equal(t, val, newVal)
+
+	require.Eventually(t, func() bool {
+		err := http2InFLightMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&newVal))
+		return errors.Is(err, ebpf.ErrKeyNotExist)
+	}, 3*cfg.HTTP2DynamicTableMapCleanerInterval, time.Millisecond*100)
 }
 
 // validateStats validates that the stats we get from the monitor are as expected.
@@ -1769,4 +1794,14 @@ func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telem
 		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
 	}
 	return http2Telemetry, nil
+}
+
+func dumpTelemetry(t *testing.T, usmMonitor *Monitor, isTLS bool) {
+	if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, isTLS); err == nil {
+		tlsMarker := ""
+		if isTLS {
+			tlsMarker = "tls "
+		}
+		t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
+	}
 }

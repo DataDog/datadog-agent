@@ -103,7 +103,7 @@ type client struct {
 func newClient(
 	deps dependencies,
 ) clientComp.Component {
-	if !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
+	if !deps.Config.GetBool("language_detection.reporting.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
 		return optional.NewNoneOption[clientComp.Component]()
 	}
 
@@ -115,7 +115,7 @@ func newClient(
 		cancel:                           cancel,
 		logger:                           deps.Log,
 		store:                            deps.Workloadmeta,
-		freshDataPeriod:                  deps.Config.GetDuration("language_detection.client_period"),
+		freshDataPeriod:                  deps.Config.GetDuration("language_detection.reporting.buffer_period"),
 		mutex:                            sync.Mutex{},
 		telemetry:                        newComponentTelemetry(deps.Telemetry),
 		currentBatch:                     make(batch),
@@ -123,7 +123,7 @@ func newClient(
 		processesWithoutPodTTL:           defaultProcessWithoutPodTTL,
 		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
 		freshlyUpdatedPods:               make(map[string]struct{}),
-		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.cleanup.ttl_refresh_period"),
+		periodicalFlushPeriod:            deps.Config.GetDuration("language_detection.reporting.refresh_period"),
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
@@ -351,7 +351,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
 	}
-	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
+	c.telemetry.ProcessedEvents.Inc(pod.Namespace, pod.Name, containerName, string(process.Language.Name))
 }
 
 // handlePodEvent removes delete pods from the current batch

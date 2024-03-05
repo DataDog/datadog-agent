@@ -743,9 +743,13 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     return 0;
 }
 
-// http2_tls_headers_parser parses the headers of the interesting HTTP2 frames
-// found in http2_tls_filter. We are trying to find the request path, status code,
-// and method of the request.
+
+// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
+// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
+// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
+// than the maximum number of frames we can process in a single tail call.
+// The program is being called after uprobe__http2_tls_filter, and it is being called only if we have interesting frames.
+// The program calls uprobe__http2_dynamic_table_cleaner to clean the dynamic table if needed.
 SEC("uprobe/http2_tls_headers_parser")
 int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -824,7 +828,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     }
     // Zeroing the iteration index to call EOS parser
     tail_call_state->iteration = 0;
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_DYNAMIC_TABLE_CLEANER);
 
 delete_iteration:
     // restoring the original value.
@@ -834,8 +838,66 @@ delete_iteration:
     return 0;
 }
 
-// http2_tls_eos_parser parses the EOS HTTP2 frames similar to
-// http2_tls_headers_parser.
+// The program is responsible for cleaning the dynamic table.
+// The program calls uprobe__http2_tls_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
+SEC("uprobe/http2_dynamic_table_cleaner")
+int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t dispatcher_args_copy;
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `off` field of skb_info, so
+    // the next prog will start to read from the next valid frame.
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
+    }
+    dispatcher_args_copy = *args;
+
+    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+    if (dynamic_counter == NULL) {
+        goto next;
+    }
+
+    // We're checking if the difference between the current value of the dynamic global table, to the previous index we
+    // cleaned, is bigger than our threshold. If so, we need to clean the table.
+    if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
+        goto next;
+    }
+
+    dynamic_table_index_t dynamic_index = {
+        .tup = dispatcher_args_copy.tup,
+    };
+
+    #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
+    for (__u16 index = 0; index < HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS; index++) {
+        // We should reserve the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries in the dynamic table.
+        // So if we're about to delete an entry that is in the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries,
+        // we should stop the cleanup.
+        if (dynamic_counter->previous + HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD >= dynamic_counter->value) {
+            break;
+        }
+        // Setting the current index.
+        dynamic_index.index = dynamic_counter->previous;
+        // Trying to delete the entry, it might not exist, so we're ignoring the return value.
+        bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
+        // Incrementing the previous index.
+        dynamic_counter->previous++;
+    }
+
+next:
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
+
+    return 0;
+}
+
+// The program is responsible for parsing all frames that mark the end of a stream.
+// We consider a frame as marking the end of a stream if it is either:
+//  - An headers or data frame with END_STREAM flag set.
+//  - An RST_STREAM frame.
+// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
+// to be sent to the user mode.
+// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
+// process than the maximum number of frames we can process in a single tail call.
 SEC("uprobe/http2_tls_eos_parser")
 int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -919,6 +981,13 @@ int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
             __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
         }
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+
+        // If we reached here, it means that we saw End Of Stream. If the End of Stream came from a request,
+        // thus we except it to have a valid path. If the End of Stream came from a response, we except it to
+        // be after seeing a request, thus it should have a path as well.
+        if ((!current_stream->path.finalized) || (!current_stream->request_method.finalized)) {
+            bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        }
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&

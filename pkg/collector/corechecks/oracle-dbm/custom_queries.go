@@ -84,8 +84,7 @@ func (c *Check) CustomQueries() error {
 		metricPrefix := q.MetricPrefix
 
 		if metricPrefix == "" {
-			allErrors = concatenateError(allErrors, "Undefined metric_prefix for a custom query")
-			continue
+			metricPrefix = "oracle"
 		}
 		log.Debugf("%s custom query configuration %v", c.logPrompt, q)
 		var pdb string

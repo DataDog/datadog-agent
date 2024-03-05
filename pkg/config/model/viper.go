@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -74,8 +76,9 @@ type safeConfig struct {
 	configEnvVars map[string]struct{}
 }
 
-// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
+// OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
+// Callbacks are only called if the value is effectively changed.
 func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
@@ -89,13 +92,21 @@ func (c *safeConfig) Set(key string, value interface{}, source Source) {
 		return
 	}
 
+	// modify the config then release the lock to avoid deadlocks
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, value)
 	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key)
+	if !reflect.DeepEqual(previousValue, newValue) {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range c.notificationReceivers {
+	for _, receiver := range receivers {
 		receiver(key)
 	}
 }
@@ -143,18 +154,20 @@ func (c *safeConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is known
 func (c *safeConfig) IsKnown(key string) bool {
-	keys := c.GetKnownKeys()
+	keys := c.GetKnownKeysLowercased()
+	key = strings.ToLower(key)
 	_, ok := keys[key]
 	return ok
 }
 
-// GetKnownKeys returns all the keys that meet at least one of these criteria:
+// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 // 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
-func (c *safeConfig) GetKnownKeys() map[string]interface{} {
+// Note that it returns the keys lowercased.
+func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// GetKnownKeys returns a fresh map, so the caller may do with it
+	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
 }
@@ -201,7 +214,7 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	// if "section_key" is set.
 	sectionPrefix := section + "."
 
-	for _, key := range c.AllKeys() {
+	for _, key := range c.AllKeysLowercased() {
 		if strings.HasPrefix(key, sectionPrefix) && c.IsSet(key) {
 			return true
 		}
@@ -212,7 +225,7 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	return c.IsSet(section)
 }
 
-func (c *safeConfig) AllKeys() []string {
+func (c *safeConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.AllKeys()

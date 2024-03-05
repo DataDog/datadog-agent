@@ -370,3 +370,19 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 		})
 	}
 }
+
+func TestFullMonitorWithTracer(t *testing.T) {
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableKafkaMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableIstioMonitoring = true
+	cfg.EnableGoTLSSupport = true
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+
+	initTracerState(t, tr)
+}

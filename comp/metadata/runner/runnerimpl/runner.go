@@ -55,6 +55,13 @@ type Provider struct {
 	Callback optional.Option[MetadataProvider] `group:"metadata_provider"`
 }
 
+// NewProvider registers a new metadata provider by adding a callback to the runner.
+func NewProvider(callback MetadataProvider) Provider {
+	return Provider{
+		Callback: optional.NewOption[MetadataProvider](callback),
+	}
+}
+
 // NewEmptyProvider returns a empty provider which is not going to register anything. This is useful for providers that
 // can be enabled/disabled through configuration.
 func NewEmptyProvider() Provider {
@@ -63,19 +70,12 @@ func NewEmptyProvider() Provider {
 	}
 }
 
-// NewProvider registers a new metadata provider by adding a callback to the runner.
-func NewProvider(callback MetadataProvider) Provider {
-	return Provider{
-		Callback: optional.NewOption[MetadataProvider](callback),
-	}
-}
-
 // createRunner instantiates a runner object
 func createRunner(deps dependencies) *runnerImpl {
 	return &runnerImpl{
 		log:       deps.Log,
 		config:    deps.Config,
-		providers: deps.Providers,
+		providers: fxutil.GetAndFilterGroup(deps.Providers),
 		stopChan:  make(chan struct{}),
 	}
 }

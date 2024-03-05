@@ -33,6 +33,9 @@ func TestBatchAPISupported(t *testing.T) {
 		t.Skip("Unknown support for batch API on RHEL kernels")
 	}
 
+	err = rlimit.RemoveMemlock()
+	require.NoError(t, err)
+
 	require.Equal(t, kernelVersion.Code >= ebpfkernel.Kernel5_6, BatchAPISupported())
 }
 
