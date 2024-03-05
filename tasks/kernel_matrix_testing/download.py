@@ -28,7 +28,7 @@ arch_mapping = {
 
 
 def requires_update(url_base, rootfs_dir, image):
-    sum_url = os.path.join(url_base, "master", image + ".sum")
+    sum_url = os.path.join(url_base, image + ".sum")
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
     debug(f"[debug] new_sum: {new_sum}")
@@ -105,11 +105,11 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
                 # download package entry
-                tmp.write(os.path.join(url_base, "master", filename) + "\n")
+                tmp.write(os.path.join(url_base, filename) + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={filename}\n")
                 # download sum entry
-                tmp.write(os.path.join(url_base, "master", f"{sum_file}") + "\n")
+                tmp.write(os.path.join(url_base, f"{sum_file}") + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={sum_file}\n")
             tmp.write("\n")
