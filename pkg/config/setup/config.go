@@ -1646,8 +1646,7 @@ func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver opti
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if secretResolver.IsSet() {
-		resolver, _ := secretResolver.Get()
+	if resolver, ok := secretResolver.Get(); ok {
 		if err := ResolveSecrets(config, resolver, origin); err != nil {
 			return &warnings, err
 		}

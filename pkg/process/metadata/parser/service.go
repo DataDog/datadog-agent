@@ -38,7 +38,7 @@ var (
 	javaAllowedFlags = []string{javaJarFlag, javaModuleFlag, javaModuleFlagShort}
 )
 
-// List of binaries that usually have additional process context of whats running
+// List of binaries that usually have additional process context of what's running
 var binsWithContext = map[string]serviceExtractorFn{
 	"python":     parseCommandContextPython,
 	"python2.7":  parseCommandContextPython,
@@ -152,14 +152,28 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 		}
 	}
 
-	exe := cmd[0]
 	// check if all args are packed into the first argument
 	if len(cmd) == 1 {
-		if idx := strings.IndexRune(exe, ' '); idx != -1 {
-			exe = exe[0:idx]
-			cmd = strings.Split(cmd[0], " ")
+		cmd = strings.Split(cmd[0], " ")
+	}
+	cmdOrig := cmd
+	envs, cmd := extractEnvsFromCommand(cmd)
+	if len(envs) > 0 { // evaluate and skip the envs
+		svc, ok := chooseServiceNameFromEnvs(envs)
+		if ok {
+			return &serviceMetadata{
+				cmdline:        cmdOrig,
+				serviceContext: "process_context:" + svc,
+			}
 		}
 	}
+
+	if len(cmd) == 0 || len(cmd[0]) == 0 {
+		return &serviceMetadata{
+			cmdline: cmdOrig,
+		}
+	}
+	exe := cmd[0]
 
 	// trim any quotes from the executable
 	exe = strings.Trim(exe, "\"")
@@ -173,7 +187,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(d, process, cmd[1:])
 		return &serviceMetadata{
-			cmdline:        cmd,
+			cmdline:        cmdOrig,
 			serviceContext: "process_context:" + tag,
 		}
 	}
@@ -184,7 +198,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	}
 
 	return &serviceMetadata{
-		cmdline:        cmd,
+		cmdline:        cmdOrig,
 		serviceContext: "process_context:" + exe,
 	}
 }
@@ -227,6 +241,37 @@ func isRuneLetterAt(s string, position int) bool {
 	return len(s) > position && unicode.IsLetter(rune(s[position]))
 }
 
+// extractEnvsFromCommand separates the env var declaration from the command + args part
+func extractEnvsFromCommand(cmd []string) ([]string, []string) {
+	pos := 0
+	for _, arg := range cmd {
+		if !strings.ContainsRune(arg, '=') {
+			break
+		}
+		pos++
+	}
+	return cmd[:pos], cmd[pos:]
+}
+
+// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// returns the service name, true if found, otherwise "", false
+func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+	for _, env := range envs {
+		if strings.HasPrefix(env, "DD_SERVICE=") {
+			return strings.TrimPrefix(env, "DD_SERVICE="), true
+		}
+		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
+			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
+			for _, p := range parts {
+				if strings.HasPrefix(p, "service:") {
+					return strings.TrimPrefix(p, "service:"), true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 // parseExeStartWithSymbol deals with exe that starts with special chars like "(", "-" or "["
 func parseExeStartWithSymbol(exe string) string {
 	if exe == "" {
@@ -261,7 +306,7 @@ func parseCommandContext(_ *ServiceExtractor, _ *procutil.Process, args []string
 	return ""
 }
 
-func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
+func parseCommandContextPython(se *ServiceExtractor, _ *procutil.Process, args []string) string {
 	var (
 		prevArgIsFlag bool
 		moduleFlag    bool
@@ -274,6 +319,9 @@ func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []
 
 		if !shouldSkipArg || moduleFlag {
 			if c := trimColonRight(removeFilePath(a)); isRuneLetterAt(c, 0) {
+				if se.useImprovedAlgorithm && !moduleFlag {
+					return strings.TrimSuffix(c, filepath.Ext(c))
+				}
 				return c
 			}
 		}

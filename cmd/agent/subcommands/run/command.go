@@ -309,7 +309,7 @@ func getSharedFxOption() fx.Option {
 		workloadmeta.Module(),
 		fx.Supply(
 			status.Params{
-				PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+				PythonVersionGetFunc: python.GetPythonVersion,
 			},
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),

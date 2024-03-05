@@ -54,6 +54,7 @@ var functions = template.FuncMap{
 	"greenText":  color.GreenString,
 	"yellowText": color.YellowString,
 	"redText":    color.RedString,
+	"boldText":   color.New(color.Bold).Sprint,
 }
 
 func status(client localapiclient.Component) error {

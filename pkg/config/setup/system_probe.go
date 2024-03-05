@@ -138,7 +138,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// ebpf general settings
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_debug"), false, "DD_SYSTEM_PROBE_CONFIG_BPF_DEBUG", "BPF_DEBUG")
 	cfg.BindEnvAndSetDefault(join(spNS, "bpf_dir"), defaultSystemProbeBPFDir, "DD_SYSTEM_PROBE_BPF_DIR")
-	cfg.BindEnvAndSetDefault(join(spNS, "java_dir"), defaultSystemProbeJavaDir, "DD_SYSTEM_PROBE_JAVA_DIR")
 	cfg.BindEnvAndSetDefault(join(spNS, "excluded_linux_versions"), []string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tracepoints"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_co_re"), true, "DD_ENABLE_CO_RE")
@@ -231,6 +230,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "allow_regex"), "")
 	cfg.BindEnvAndSetDefault(join(smjtNS, "block_regex"), "")
+	cfg.BindEnvAndSetDefault(join(smjtNS, "dir"), defaultSystemProbeJavaDir)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_stats_by_status_code"), true)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
