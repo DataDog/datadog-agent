@@ -41,6 +41,7 @@ func (dc *Component) Export(ctx *pulumi.Context, out *Output) error {
 	return infraComponents.Export(ctx, dc, out)
 }
 
+// NewServer creates a new IIS server component.
 func NewServer(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Component, error) {
 	params, err := common.ApplyOption(&Configuration{}, options)
 	if err != nil {
