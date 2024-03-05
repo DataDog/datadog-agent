@@ -280,7 +280,12 @@ func tryGetHostname(ctx context.Context) string {
 
 func getDefaultRolesMapping(provider types.CloudProvider) types.RolesMapping {
 	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
-	return types.ParseRolesMapping(provider, roles)
+	rolesMapping, err := types.ParseRolesMapping(provider, roles)
+	if err != nil {
+		log.Errorf("config error: could not parse `agentless_scanner.default_roles` properly: %s", err)
+		os.Exit(1)
+	}
+	return rolesMapping
 }
 
 func detectCloudProvider(s string) (types.CloudProvider, error) {

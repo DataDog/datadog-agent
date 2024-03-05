@@ -462,16 +462,16 @@ func ParseDiskMode(diskMode string) (DiskMode, error) {
 
 // ParseRolesMapping parses a list of roles into a mapping from account ID to
 // role cloud resource ID.
-func ParseRolesMapping(provider CloudProvider, roles []string) RolesMapping {
+func ParseRolesMapping(provider CloudProvider, roles []string) (RolesMapping, error) {
 	roleIDs := make([]CloudID, 0, len(roles))
 	for _, role := range roles {
 		roleID, err := ParseCloudID(role, ResourceTypeRole)
 		if err != nil {
-			continue
+			return RolesMapping{}, fmt.Errorf("unexpected role when parsing roles mapping: %w", err)
 		}
 		roleIDs = append(roleIDs, roleID)
 	}
-	return NewRolesMapping(provider, roleIDs)
+	return NewRolesMapping(provider, roleIDs), nil
 }
 
 // NewScanTask creates a new scan task.
@@ -593,7 +593,10 @@ func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction,
 	}
 
 	if len(configRaw.Roles) > 0 {
-		config.Roles = ParseRolesMapping(scannerID.Provider, configRaw.Roles)
+		config.Roles, err = ParseRolesMapping(scannerID.Provider, configRaw.Roles)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		config.Roles = defaultRolesMapping
 	}
