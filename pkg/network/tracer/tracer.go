@@ -160,7 +160,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
+	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(cfg.BPFDir); tr.bpfErrorsCollector != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
 	} else {
 		log.Debug("eBPF telemetry not supported")
