@@ -513,6 +513,7 @@ unit_names:
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.cpu_time_consumed", float64(10), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.task_count", float64(30), "", tags)
 	mockSender.AssertCalled(t, "Gauge", "systemd.service.restart_count", float64(40), "", tags)
+	mockSender.AssertNotCalled(t, "Gauge", "systemd.service.memory_usage", float64(math.MaxUint64), "", tags)
 
 	expectedGaugeCalls := 8 /* overall metrics */
 	expectedGaugeCalls += 7 /* unit/service metrics */
