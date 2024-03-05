@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Stop sending systemd metrics when they are not set
+    Stop sending ``systemd`` metrics when they are not set
