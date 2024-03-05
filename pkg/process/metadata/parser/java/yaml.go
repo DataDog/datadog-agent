@@ -9,6 +9,8 @@ import (
 	"io"
 	"strings"
 
+	"github.com/rickar/props"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,7 +51,7 @@ func (f *flattener) UnmarshalYAML(value *yaml.Node) error {
 }
 
 // newYamlSource creates a mapSource property getter by parsing the content accessed by the reader
-func newYamlSource(reader io.Reader) (*mapSource, error) {
+func newYamlSource(reader io.Reader) (props.PropertyGetter, error) {
 	f := flattener{props: map[string]string{}}
 	err := yaml.NewDecoder(reader).Decode(&f)
 	if err != nil && err != io.EOF {

@@ -49,7 +49,11 @@ func TestArgumentPropertySource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			argSource := newArgumentSource(tt.args, tt.prefix)
-			require.Equal(t, tt.expected, argSource.m)
+			for key, expected := range tt.expected {
+				value, ok := argSource.Get(key)
+				require.True(t, ok)
+				require.Equal(t, expected, value)
+			}
 		})
 	}
 }

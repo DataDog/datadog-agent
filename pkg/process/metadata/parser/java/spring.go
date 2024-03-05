@@ -89,7 +89,7 @@ func abs(path string, cwd string) string {
 }
 
 // newPropertySourceFromInnerJarFile opens a file inside a zip archive and returns a PropertyGetter or error if unable to handle the file
-func newPropertySourceFromInnerJarFile(f *zip.File) (*props.PropertyGetter, error) {
+func newPropertySourceFromInnerJarFile(f *zip.File) (props.PropertyGetter, error) {
 	rc, err := f.Open()
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func newSpringBootArchiveSourceFromReader(reader *zip.Reader, patternMap map[str
 						val = &props.Combined{Sources: []props.PropertyGetter{}}
 						ret[profile] = val
 					}
-					val.Sources = append(val.Sources, *source)
+					val.Sources = append(val.Sources, source)
 					break
 				}
 			}

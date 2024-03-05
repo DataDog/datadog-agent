@@ -44,7 +44,7 @@ func (y *mapSource) GetDefault(key string, defVal string) string {
 
 // newArgumentSource a PropertyGetter that is taking key=value from the list of arguments provided
 // it can be done to parse both java system properties (the prefix is `-D`) or spring boot property args (the prefix is `--`)
-func newArgumentSource(arguments []string, prefix string) *mapSource {
+func newArgumentSource(arguments []string, prefix string) props.PropertyGetter {
 	parsed := make(map[string]string)
 	for _, val := range arguments {
 		if !strings.HasPrefix(val, prefix) {
@@ -62,7 +62,7 @@ func newArgumentSource(arguments []string, prefix string) *mapSource {
 
 // newPropertySourceFromStream create a PropertyGetter by selecting the most appropriate parser giving the file extension.
 // An error will be returned if the filesize is greater than maxParseFileSize
-func newPropertySourceFromStream(rc io.Reader, filename string, filesize uint64) (*props.PropertyGetter, error) {
+func newPropertySourceFromStream(rc io.Reader, filename string, filesize uint64) (props.PropertyGetter, error) {
 	if filesize > maxParseFileSize {
 		return nil, fmt.Errorf("unable to parse %q. max file size exceeded(actual: %d, max: %d)", filename, filesize, maxParseFileSize)
 	}
@@ -77,11 +77,11 @@ func newPropertySourceFromStream(rc io.Reader, filename string, filesize uint64)
 	default:
 		return nil, fmt.Errorf("unhandled file type for %q", filename)
 	}
-	return &properties, err
+	return properties, err
 }
 
 // newPropertySourceFromFile wraps filename opening and closing, delegating the rest of the logic to newPropertySourceFromStream
-func newPropertySourceFromFile(filename string) (*props.PropertyGetter, error) {
+func newPropertySourceFromFile(filename string) (props.PropertyGetter, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func scanSourcesFromFileSystem(profilePatterns map[string][]string) map[string]*
 						arr = &props.Combined{Sources: []props.PropertyGetter{}}
 						ret[profile] = arr
 					}
-					arr.Sources = append(arr.Sources, *value)
+					arr.Sources = append(arr.Sources, value)
 				}
 				return nil
 			})
