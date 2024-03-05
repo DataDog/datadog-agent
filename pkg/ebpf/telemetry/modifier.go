@@ -27,6 +27,10 @@ func (t *ErrorsTelemetryModifier) String() string {
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
 func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, opts *manager.Options, bytecode io.ReaderAt) error {
+	// TODO: remove this once errors collector is separated from the tracer
+	if errorsTelemetry == nil {
+		initEBPTelemetry(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR"))
+	}
 	return setupForTelemetry(m, opts, errorsTelemetry, bytecode, t.SkipProgram)
 }
 
