@@ -107,7 +107,7 @@ func initializeProbeKeys(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EB
 	bpfTelemetry.mtx.Lock()
 	defer bpfTelemetry.mtx.Unlock()
 
-	for fn, _ := range programs {
+	for fn := range programs {
 		bpfTelemetry.probeKeys[fn] = bpfTelemetry.probeIndex
 		bpfTelemetry.probeIndex++
 	}
@@ -193,7 +193,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 		// No trampoline call is therefore an error condition. If this program is built without
 		// instrumentation we should never have come this far.
 		if trampolinePatchSite == nil {
-			return fmt.Errorf("No compiler instrumented patch site found for program %s\n", p.Name)
+			return fmt.Errorf("no compiler instrumented patch site found for program %s\n", p.Name)
 		}
 
 		// if a specific program in a manager should not be instrumented,
@@ -245,7 +245,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 
 			// the instrumentation code should not access the stack other than to cache the telemetry pointer
 			// writing to the stack will not cause the program to fail but may cause errors related to
-			// accessing uninitialized stack locations to get supressed
+			// accessing uninitialized stack locations to get suppressed
 			if sizes[program] > 8 /*bytes*/ {
 				return errors.New("instrumentation block cannot perform any stack reads or writes on more than one stack slot")
 			}
@@ -310,7 +310,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 
 	instrumented, err := ELFBuiltWithInstrumentation(bytecode)
 	if err != nil {
-		return fmt.Errorf("error determing if instrumentation is enabled: %w", err)
+		return fmt.Errorf("error determining if instrumentation is enabled: %w", err)
 	}
 
 	// if the elf file is not instrumented then early return

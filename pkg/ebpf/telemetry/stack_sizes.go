@@ -112,7 +112,7 @@ func parseStackSizesSections(bytecode io.ReaderAt, programSpecs map[string]*ebpf
 	}
 
 	var notFound []string
-	for pName, _ := range programSpecs {
+	for pName := range programSpecs {
 		if _, ok := sizes[pName]; !ok {
 			notFound = append(notFound, pName)
 		}
