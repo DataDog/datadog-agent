@@ -43,7 +43,7 @@ func NewEBPFErrorsCollector(bpfDir string) prometheus.Collector {
 		return nil
 	}
 	return &EBPFErrorsCollector{
-		T:                newEBPFTelemetry(bpfDir),
+		T:                initEBPTelemetry(bpfDir),
 		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
 		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
 		supported:        supported,

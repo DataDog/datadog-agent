@@ -72,17 +72,13 @@ var instrumentation = eBPFInstrumentation{
 // A singleton instance of the ebpf telemetry struct. Used by the collector and the ebpf managers (via ErrorsTelemetryModifier).
 var errorsTelemetry *EBPFTelemetry
 
-// newEBPFTelemetry initializes a new EBPFTelemetry object
-func newEBPFTelemetry(bpfDir string) *EBPFTelemetry {
-	errorsTelemetry = &EBPFTelemetry{
-		mapKeys:   make(map[string]uint32),
-		probeKeys: make(map[string]uint32),
-		bpfDir:    bpfDir,
-	}
-
+// initEBPTelemetry initializes a new EBPFTelemetry object
+func initEBPTelemetry(bpfDir string) *EBPFTelemetry {
+	errorsTelemetry = NewEBPFTelemetry(bpfDir)
 	return errorsTelemetry
 }
 
+// NewEBPFTelemetry returns an initialized EBPFTelemetry object
 func NewEBPFTelemetry(bpfDir string) *EBPFTelemetry {
 	return &EBPFTelemetry{
 		mapKeys:   make(map[string]uint32),
@@ -137,6 +133,7 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 	return PatchEBPFInstrumentation(programs, bpfTelemetry, bytecode, shouldSkip)
 }
 
+// PatchEBPFInstrumentation accepts eBPF bytecode and patches in the eBPF instrumentation
 func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
 	initializeProbeKeys(programs, bpfTelemetry)
 
@@ -193,7 +190,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 		// No trampoline call is therefore an error condition. If this program is built without
 		// instrumentation we should never have come this far.
 		if trampolinePatchSite == nil {
-			return fmt.Errorf("no compiler instrumented patch site found for program %s\n", p.Name)
+			return fmt.Errorf("no compiler instrumented patch site found for program %s", p.Name)
 		}
 
 		// if a specific program in a manager should not be instrumented,
@@ -394,6 +391,8 @@ func ebpfTelemetrySupported() (bool, error) {
 	return kversion >= kernel.VersionCode(4, 14, 0), nil
 }
 
+// ELFBuiltWithInstrumentation inspects an eBPF ELF file and determines if
+// it has been built with instrumentation
 func ELFBuiltWithInstrumentation(bytecode io.ReaderAt) (bool, error) {
 	objFile, err := elf.NewFile(bytecode)
 	if err != nil {
