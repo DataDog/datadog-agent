@@ -857,17 +857,23 @@ workflow:
     allow_failure: true
 
 .on_kitchen_tests_a6:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_6
     when: never
   - <<: *if_installer_tests
 
 .on_kitchen_tests_a6_always:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_6
     when: never
   - <<: *if_installer_tests
     when: always
 
 .on_all_kitchen_builds_a6:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_6
     when: never
   - <<: *if_not_run_all_builds
@@ -875,11 +881,15 @@ workflow:
   - <<: *if_installer_tests
 
 .on_kitchen_tests_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_installer_tests
 
 .on_all_kitchen_builds_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds
@@ -887,6 +897,8 @@ workflow:
   - <<: *if_installer_tests
 
 .on_all_new-e2e_tests_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds
