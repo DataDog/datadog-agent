@@ -159,6 +159,8 @@ func (u *updaterImpl) Start(_ context.Context) error {
 func (u *updaterImpl) Stop(_ context.Context) error {
 	u.rc.Close()
 	close(u.stopChan)
+	u.requestsWG.Wait()
+	close(u.requests)
 	return nil
 }
 
