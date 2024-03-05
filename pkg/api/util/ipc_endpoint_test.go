@@ -207,9 +207,8 @@ func TestIPCEndpointErrorText(t *testing.T) {
 	assert.NoError(t, err)
 
 	// test that error is returned by the endpoint
-	res, err := end.DoGet()
+	_, err = end.DoGet()
 	assert.Error(t, err)
-	_ = res
 }
 
 func TestIPCEndpointErrorMap(t *testing.T) {
@@ -227,8 +226,7 @@ func TestIPCEndpointErrorMap(t *testing.T) {
 	assert.NoError(t, err)
 
 	// test that error gets unwrapped from the errmap
-	res, err := end.DoGet()
+	_, err = end.DoGet()
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "something went wrong")
-	_ = res
 }
