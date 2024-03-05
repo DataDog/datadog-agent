@@ -222,9 +222,9 @@ def assign_team_label(_, pr_id=-1, changed_files=''):
     gh = GithubAPI('DataDog/datadog-agent')
 
     # Skip if necessary
-    labels = gh.get_labels(pr_id)
+    labels = set(gh.get_labels(pr_id))
 
-    if 'qa/done' in labels:
+    if 'qa/done' in labels or 'qa/no-code-change' in labels:
         print('Qa done, skipping')
         return
 
