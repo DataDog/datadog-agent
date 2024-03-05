@@ -498,7 +498,9 @@
 /test/integration/                      @DataDog/container-integrations
 /test/integration/serverless            @DataDog/serverless
 /test/integration/serverless_perf       @DataDog/serverless
-/test/kitchen/                          @DataDog/agent-build-and-releases
+/test/kitchen/                          @DataDog/agent-developer-tools
+/test/kitchen/test-definitions/         @DataDog/agent-build-and-releases
+/test/kitchen/test/integration/         @DataDog/agent-build-and-releases
 /test/kitchen/kitchen-azure-security-agent-test.yml @DataDog/agent-security
 /test/kitchen/kitchen-vagrant-security-agent.yml @DataDog/agent-security
 /test/kitchen/site-cookbooks/dd-security-agent-check/ @DataDog/agent-security
