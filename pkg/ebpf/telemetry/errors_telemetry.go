@@ -197,7 +197,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 		// instrument patch point with a NOP (r1=r1)
 		if shouldSkip(p.Name) {
 			*trampolinePatchSite = asm.Mov.Reg(asm.R1, asm.R1).WithMetadata(trampolinePatchSite.Metadata)
-			return nil
+			continue
 		}
 
 		trampolineInstruction := asm.Instruction{
