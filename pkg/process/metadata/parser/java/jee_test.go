@@ -1,12 +1,17 @@
 package javaparser
 
 import (
+	"archive/zip"
+	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/spf13/afero"
 
 	"github.com/stretchr/testify/require"
 )
 
+// TestResolveAppServerFromCmdLine tests that vendor can be determined from the process cmdline
 func TestResolveAppServerFromCmdLine(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -60,7 +65,6 @@ func TestResolveAppServerFromCmdLine(t *testing.T) {
 -Djava.system.class.loader=com.oracle.classloader.weblogic.LaunchClassLoader -javaagent:/u01/oracle/wlserver/server/lib/debugpatch-agent.jar
 -da -Dwls.home=/u01/oracle/wlserver/server -Dweblogic.home=/u01/oracle/wlserver/server weblogic.Server`,
 			expectedVendor: weblogic,
-			expectedHome:   "/u01/oracle/wlserver/server",
 		},
 		{
 			name: "websphere",
@@ -99,4 +103,126 @@ func TestResolveAppServerFromCmdLine(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestExtractContextRootFromApplicationXml tests that context root can be extracted from an ear under /META-INF/application.xml
+func TestExtractContextRootFromApplicationXml(t *testing.T) {
+	tests := []struct {
+		name     string
+		xml      string
+		expected []string
+		err      bool
+	}{
+		{
+			name: "application.xml with webapps",
+			xml: `<application xmlns="http://xmlns.jcp.org/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/javaee http://xmlns.jcp.org/xml/ns/javaee/application_7.xsd" version="7">
+	<application-name>myapp</application-name>
+	<initialize-in-order>false</initialize-in-order>
+  	<module><ejb>mymodule.jar</ejb></module>
+  <module>
+        <web>
+            <web-uri>myweb1.war</web-uri>
+            <context-root>MyWeb1</context-root>
+        </web>
+    </module>
+	<module>
+        <web>
+            <web-uri>myweb2.war</web-uri>
+            <context-root>MyWeb2</context-root>
+        </web>
+    </module>
+</application>`,
+			expected: []string{"MyWeb1", "MyWeb2"},
+		},
+		{
+			name: "application.xml with doctype and no webapps",
+			xml: `<!DOCTYPE application PUBLIC "-//Sun Microsystems, Inc.//DTD J2EE Application 1.2//EN
+http://java.sun.com/j2ee/dtds/application_1_2.dtd">
+<application><module><java>my_app.jar</java></module></application>`,
+			expected: nil,
+		},
+		{
+			name: "no application.xml (invalid ear)",
+			err:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mapFs := afero.NewMemMapFs()
+
+			if len(tt.xml) > 0 {
+				require.NoError(t, afero.WriteFile(mapFs, applicationXMLPath, []byte(tt.xml), 0664))
+			}
+			value, err := extractContextRootFromApplicationXML(mapFs)
+			if tt.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, value)
+			}
+		})
+	}
+}
+
+// TestWeblogicExtractServiceNamesForJEEServer tests all cases of detecting weblogic as vendor and extracting context root.
+// It simulates having 1 ear deployed, 1 war with weblogic.xml and 1 war without weblogic.xml.
+// Hence, it should extract ear context from application.xml, 1st war context from weblogic.xml and derive last war context from the filename.
+func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
+	wlsConfig := `
+<domain>
+    <app-deployment>
+        <target>AdminServer</target>
+        <source-path>/apps/app1.ear</source-path>
+        <staging-mode>stage</staging-mode>
+    </app-deployment>
+    <app-deployment>
+        <target>AdminServer</target>
+        <source-path>/apps/app2.war</source-path>
+        <staging-mode>stage</staging-mode>
+    </app-deployment>
+    <app-deployment>
+        <target>AdminServer</target>
+        <source-path>/apps/app3.war</source-path>
+        <staging-mode>stage</staging-mode>
+    </app-deployment>
+</domain>`
+	appXML := `
+<application>
+  <application-name>myapp</application-name>
+  <initialize-in-order>false</initialize-in-order>
+  <module>
+	<web>
+      <web-uri>app1.war</web-uri>
+      <context-root>app1_context</context-root>
+    </web>
+  </module>
+</application>`
+	weblogicXML := `
+<weblogic-web-app>
+   <context-root>app2_context</context-root>
+</weblogic-web-app>
+`
+	memfs := afero.NewMemMapFs()
+	require.NoError(t, afero.WriteFile(memfs, "/wls/domain/config/config.xml", []byte(wlsConfig), 0664))
+	require.NoError(t, afero.WriteFile(memfs, "/apps/app1.ear"+applicationXMLPath, []byte(appXML), 0664))
+	buf := bytes.NewBuffer([]byte{})
+	writer := zip.NewWriter(buf)
+	require.NoError(t, writeFile(writer, weblogicXMLFile, weblogicXML))
+	require.NoError(t, writer.Close())
+	require.NoError(t, afero.WriteFile(memfs, "/apps/app2.war", buf.Bytes(), 0664))
+	require.NoError(t, memfs.MkdirAll("/apps/app3.war", 0775))
+
+	// simulate weblogic command line args
+	cmd := []string{
+		wlsServerNameSysProp + "AdminServer",
+		wlsHomeSysProp + "/wls",
+		wlsServerMainClass,
+	}
+	extractedContextRoots := ExtractServiceNamesForJEEServer(cmd, "/wls/domain", memfs)
+	require.Equal(t, []string{
+		"app1_context", // taken from ear application.xml
+		"app2_context", // taken from war weblogic.xml
+		"app3",         // derived from the war filename
+	}, extractedContextRoots)
 }

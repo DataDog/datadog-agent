@@ -6,6 +6,7 @@
 package parser
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +19,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
 		name                 string
 		cmdline              []string
+		cwd                  string
 		useImprovedAlgorithm bool
 		expectedServiceTags  []string
 	}{
@@ -351,13 +353,57 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTags: nil,
 		},
+		{
+			name: "weblogic with default context root name",
+			cmdline: []string{
+				"java",
+				"-Dwls.home=somewhere",
+				"weblogic.Server",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:weblogic",
+		},
+		{
+			name: "weblogic with a found context root name",
+			cmdline: []string{
+				"java",
+				"-Dwls.home=testdata/weblogic",
+				"-Dwls.Name=AdminServer",
+				"weblogic.Server",
+			},
+			cwd:                  "java/testdata/weblogic",
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:my_context",
+		},
+		{
+			name: "tomcat - old naming for backward compatibility",
+			cmdline: []string{
+				"java",
+				"-Dcatalina.base=somewhere",
+				"org.apache.catalina.startup.Bootstrap",
+			},
+			expectedServiceTag: "process_context:catalina",
+		},
+		{
+			name: "tomcat - improved algorithm",
+			cmdline: []string{
+				"java",
+				"-Dcatalina.base=somewhere",
+				"org.apache.catalina.startup.Bootstrap",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:tomcat",
+		},
 	}
+	_, err := os.Getwd()
+	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
+				Cwd:     tt.cwd,
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 			serviceExtractorEnabled := true
