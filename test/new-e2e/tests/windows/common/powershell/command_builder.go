@@ -152,14 +152,26 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 
 // InstallIIS creates a command that installs IIS on the target machine.
 func (ps *powerShellCommandBuilder) InstallIIS() *powerShellCommandBuilder {
-	ps.cmds = append(ps.cmds, "Install-WindowsFeature -name Web-Server -IncludeManagementTools -Restart")
+	ps.cmds = append(ps.cmds, `
+function ExitWithCode($exitcode) {
+	$host.SetShouldExit($exitcode)
+	exit $exitcode
+}
+$result = Install-Windowsfeature -name Web-Server -IncludeManagementTools
+if (! $result.Success ) {
+	exit -1
+}
+if ($result.RestartNeeded -eq "Yes") {
+	ExitWithCode(3010)
+}
+`)
 	return ps
 }
 
 // NewIISSite creates a command that creates a new IISSite.
 func (ps *powerShellCommandBuilder) NewIISSite(siteName, bindingPort, path string) *powerShellCommandBuilder {
 	ps.cmds = append(ps.cmds, fmt.Sprintf(`
-New-IISSite -Name %s -BindingInformation '%s' -PhysicalPath %s
+New-IISSite -Name '%s' -BindingInformation '%s' -PhysicalPath '%s'
 `, siteName, bindingPort, path))
 	return ps
 }

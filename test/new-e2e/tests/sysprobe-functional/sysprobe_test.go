@@ -7,6 +7,7 @@ package sysprobefunctional
 
 import (
 	"flag"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/iis"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -18,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	componentsos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -26,8 +26,8 @@ import (
 )
 
 type sysprobeEnv struct {
-	environments.Host
-	IISServer *iis.Output
+	RemoteHost *components.RemoteHost
+	IISServer  *iis.Output
 }
 
 type vmSuite struct {
@@ -74,7 +74,8 @@ func TestVMSuite(t *testing.T) {
 				Name:            "TestSite1",
 				BindingPort:     "*:8081:",
 				SourceAssetsDir: srcDir,
-			}), iis.WithSite(iis.IISSiteDefinition{
+			}),
+			iis.WithSite(iis.IISSiteDefinition{
 				Name:            "TestSite2",
 				BindingPort:     "*:8081:",
 				SourceAssetsDir: srcDir,

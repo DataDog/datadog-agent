@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/common"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/namer"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	infraComponents "github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/components/remote"
@@ -83,27 +84,27 @@ func NewIISServer(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote
 
 		if len(params.Sites) > 0 {
 			for _, site := range params.Sites {
-				dependencies := []pulumi.Resource{
-					ensureIISStarted,
+				dependencies := []pulumi.ResourceOption{
+					utils.PulumiDependsOn(ensureIISStarted),
 				}
 
 				if site.TargetAssetsDir == "" {
-					site.TargetAssetsDir = fmt.Sprintf("C:\\inetput\\%s", site.Name)
+					site.TargetAssetsDir = fmt.Sprintf("C:\\inetpub\\%s", site.Name)
 				}
 
 				if site.SourceAssetsDir != "" {
-					copyAssets, err := host.OS.FileManager().CopyAbsoluteFolder(site.SourceAssetsDir, site.TargetAssetsDir)
+					copyAssets, err := host.OS.FileManager().CopyAbsoluteFolder(site.SourceAssetsDir, site.TargetAssetsDir, dependencies...)
 					if err != nil {
 						return err
 					}
-					dependencies = append(dependencies, copyAssets...)
+					dependencies = append(dependencies, pulumi.DependsOn(copyAssets))
 				}
 
-				_, err = host.OS.Runner().Command(comp.namer.ResourceName("create-iis-site"), &command.Args{
+				_, err = host.OS.Runner().Command(comp.namer.ResourceName("create-iis-site", site.Name), &command.Args{
 					Create: pulumi.String(powershell.PsHost().
 						NewIISSite(site.Name, site.BindingPort, site.TargetAssetsDir).
 						Compile()),
-				}, pulumi.DependsOn(dependencies))
+				}, dependencies...)
 				if err != nil {
 					return err
 				}
