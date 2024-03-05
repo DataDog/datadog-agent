@@ -32,7 +32,7 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke updater.build --rebuild", env: env
+    command "invoke updater.build --rebuild --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
