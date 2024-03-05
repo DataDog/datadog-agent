@@ -928,3 +928,26 @@ Status render errors
 		})
 	}
 }
+
+func TestFlareProvider(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgconfigsetup.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(agentParams),
+	))
+
+	provides := newStatus(deps)
+	flareProvider := provides.FlareProvider.Provider
+
+	assert.NotNil(t, flareProvider)
+}
