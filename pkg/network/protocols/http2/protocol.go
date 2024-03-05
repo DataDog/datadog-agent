@@ -184,7 +184,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
-		dynamicTable:               NewDynamicTable(),
+		dynamicTable:               NewDynamicTable(cfg),
 	}, nil
 }
 
@@ -229,7 +229,7 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
-	events.Configure(eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, mgr, opts)
 	p.dynamicTable.configureOptions(mgr, opts)
 }
 

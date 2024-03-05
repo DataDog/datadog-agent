@@ -264,6 +264,12 @@ type Config struct {
 
 	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
 	EnableUSMConnectionRollup bool
+
+	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on
+	// supported kernels.
+	// Defaults to true. Setting this to false on a Kernel that supports ring
+	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
+	EnableUSMRingBuffers bool
 }
 
 func join(pieces ...string) string {
@@ -362,6 +368,7 @@ func New() *Config {
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")

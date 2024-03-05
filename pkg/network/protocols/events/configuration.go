@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +38,7 @@ const defaultPerfHandlerSize = 100
 // This essentially instantiates the perf map/ring buffers and configure the
 // eBPF maps where events are enqueued.
 // Note this must be called *before* manager.InitWithOptions
-func Configure(proto string, m *manager.Manager, o *manager.Options) {
+func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.Options) {
 	if alreadySetUp(proto, m) {
 		return
 	}
@@ -50,8 +51,7 @@ func Configure(proto string, m *manager.Manager, o *manager.Options) {
 
 	configureBatchMaps(proto, o, onlineCPUs)
 
-	// TODO: add a feature flag so we can optionally disable it
-	useRingBuffer := features.HaveMapType(ebpf.RingBuf) == nil
+	useRingBuffer := cfg.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil
 	utils.AddBoolConst(o, useRingBuffer, "use_ring_buffer")
 
 	if useRingBuffer {

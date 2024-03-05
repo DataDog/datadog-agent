@@ -90,7 +90,7 @@ func (p *protocol) Name() string {
 //
 // We also configure the kafka event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	events.Configure(eventStreamName, mgr, opts)
+	events.Configure(p.cfg, eventStreamName, mgr, opts)
 	opts.MapSpecEditors[kafkaLastTCPSeqPerConnectionMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
