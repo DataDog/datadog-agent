@@ -56,7 +56,7 @@ func TestBundleOneShot(t *testing.T) {
 			"process_events",
 			"connections",
 			"process_discovery",
-			"container_connections",
+			"container_no_forward",
 		}, names)
 	}
 
