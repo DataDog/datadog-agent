@@ -82,6 +82,13 @@ func WithHTTPClient(client *http.Client) func(*IPCEndpoint) {
 	}
 }
 
+// WithURLScheme is an option to set the URL's scheme
+func WithURLScheme(scheme string) func(*IPCEndpoint) {
+	return func(end *IPCEndpoint) {
+		end.target.Scheme = scheme
+	}
+}
+
 // WithHostAndPort is an option to use a host address for sending IPC requests
 func WithHostAndPort(cmdHost string, cmdPort int) func(*IPCEndpoint) {
 	return func(end *IPCEndpoint) {

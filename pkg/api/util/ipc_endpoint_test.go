@@ -102,6 +102,29 @@ func TestIPCEndpointDoGet(t *testing.T) {
 	assert.Equal(t, gotURL, "/test/api")
 }
 
+func TestIPCEndpointGetWithHTTPClientAndNonTLS(t *testing.T) {
+	// non-http server
+	gotURL := ""
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotURL = r.URL.String()
+		_, _ = io.ReadAll(r.Body)
+		w.Write([]byte("ok"))
+	}))
+	defer ts.Close()
+
+	// create non-TLS client and use the "http" protocol
+	client := http.Client{}
+	conf := createConfig(t, ts)
+	end, err := NewIPCEndpoint(conf, "test/api", WithHTTPClient(&client), WithURLScheme("http"))
+	assert.NoError(t, err)
+
+	// test that DoGet will hit the endpoint url
+	res, err := end.DoGet()
+	assert.NoError(t, err)
+	assert.Equal(t, res, []byte("ok"))
+	assert.Equal(t, gotURL, "/test/api")
+}
+
 func TestIPCEndpointGetWithValues(t *testing.T) {
 	gotURL := ""
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
