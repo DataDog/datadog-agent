@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -117,7 +118,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		process.Bundle(),
 
 		// Provide remote config client module
-		rcclient.Module(),
+		rcclientimpl.Module(),
 
 		// Provide workloadmeta module
 		workloadmeta.Module(),
@@ -165,6 +166,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			profiler.Component,
 			expvars.Component,
 			apiserver.Component,
+			// TODO: This is needed by the container-provider which is not currently a component.
+			// We should ensure the tagger is a dependency when converting to a component.
+			tagger.Component,
 		) {
 		}),
 

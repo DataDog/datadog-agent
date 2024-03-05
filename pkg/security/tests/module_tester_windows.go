@@ -319,6 +319,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 }
 
 func (tm *testModule) Close() {
+	tm.eventMonitor.Close()
 }
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test

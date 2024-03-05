@@ -21,12 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -231,7 +232,8 @@ func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	_ optional.Option[workloadmeta.Component],
 	_ optional.Option[tagger.Component],
-	collector optional.Option[collector.Component]) error {
+	collector optional.Option[collector.Component],
+	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -239,14 +241,15 @@ func cmdDiagnose(cliParams *cliParams,
 		Exclude:  cliParams.exclude,
 	}
 
+	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver)
 	// Is it List command
 	if cliParams.listSuites {
-		pkgdiagnose.ListStdOut(color.Output, diagCfg, senderManager, collector)
+		diagnose.ListStdOut(color.Output, diagCfg, diagnoseDeps)
 		return nil
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager, collector)
+	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

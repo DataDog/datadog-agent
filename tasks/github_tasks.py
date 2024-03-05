@@ -15,6 +15,7 @@ from tasks.libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
+from tasks.libs.junit_upload_core import repack_macos_junit_tar
 from tasks.release import _get_release_json_value
 
 
@@ -48,13 +49,13 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
     if destination:
         download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
 
-    if workflow_conclusion != "success":
-        raise Exit(code=1)
+    return workflow_conclusion
 
 
 @task
-def trigger_macos_build(
+def trigger_macos(
     _,
+    workflow_type="build",
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
@@ -64,65 +65,48 @@ def trigger_macos_build(
     retry_download=3,
     retry_interval=10,
 ):
-    _trigger_macos_workflow(
-        # Provide the release version to be able to fetch the associated
-        # macos-build branch from release.json for all workflows...
-        release_version,
-        destination,
-        retry_download,
-        retry_interval,
-        workflow_name="macos.yaml",
-        datadog_agent_ref=datadog_agent_ref,
-        # ... And provide the release version as a workflow input when needed
-        release_version=release_version,
-        major_version=major_version,
-        python_runtimes=python_runtimes,
-        # Send pipeline id and bucket branch so that the package version
-        # can be constructed properly for nightlies.
-        gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
-        bucket_branch=os.environ.get("BUCKET_BRANCH", None),
-        version_cache_file_content=version_cache,
-    )
-
-
-@task
-def trigger_macos_test(
-    _,
-    datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
-    python_runtimes="3",
-    destination=".",
-    version_cache=None,
-    retry_download=3,
-    retry_interval=10,
-):
-    _trigger_macos_workflow(
-        release_version,
-        destination,
-        retry_download,
-        retry_interval,
-        workflow_name="test.yaml",
-        datadog_agent_ref=datadog_agent_ref,
-        python_runtimes=python_runtimes,
-        version_cache_file_content=version_cache,
-    )
-
-
-@task
-def trigger_macos_lint(
-    _,
-    datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
-    python_runtimes="3",
-    version_cache=None,
-):
-    _trigger_macos_workflow(
-        release_version,
-        workflow_name="lint.yaml",
-        datadog_agent_ref=datadog_agent_ref,
-        python_runtimes=python_runtimes,
-        version_cache_file_content=version_cache,
-    )
+    if workflow_type == "build":
+        conclusion = _trigger_macos_workflow(
+            # Provide the release version to be able to fetch the associated
+            # macos-build branch from release.json for all workflows...
+            release_version,
+            destination,
+            retry_download,
+            retry_interval,
+            workflow_name="macos.yaml",
+            datadog_agent_ref=datadog_agent_ref,
+            # ... And provide the release version as a workflow input when needed
+            release_version=release_version,
+            major_version=major_version,
+            python_runtimes=python_runtimes,
+            # Send pipeline id and bucket branch so that the package version
+            # can be constructed properly for nightlies.
+            gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
+            bucket_branch=os.environ.get("BUCKET_BRANCH", None),
+            version_cache_file_content=version_cache,
+        )
+    elif workflow_type == "test":
+        conclusion = _trigger_macos_workflow(
+            release_version,
+            destination,
+            retry_download,
+            retry_interval,
+            workflow_name="test.yaml",
+            datadog_agent_ref=datadog_agent_ref,
+            python_runtimes=python_runtimes,
+            version_cache_file_content=version_cache,
+        )
+        repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
+    elif workflow_type == "lint":
+        conclusion = _trigger_macos_workflow(
+            release_version,
+            workflow_name="lint.yaml",
+            datadog_agent_ref=datadog_agent_ref,
+            python_runtimes=python_runtimes,
+            version_cache_file_content=version_cache,
+        )
+    if conclusion != "success":
+        raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
 @task
@@ -197,3 +181,10 @@ def send_rate_limit_info_datadog(_, pipeline_id):
         tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
     )
     send_metrics([metric])
+
+
+@task
+def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
+    from .libs.common.github_api import GithubAPI
+
+    GithubAPI.get_token_from_app(app_id_env, pkey_env)

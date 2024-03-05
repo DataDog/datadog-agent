@@ -8,12 +8,14 @@
 package agentsidecar
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"reflect"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"reflect"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestLoadSidecarProfiles(t *testing.T) {
@@ -115,7 +117,7 @@ func TestLoadSidecarProfiles(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
-			profiles, err := LoadSidecarProfiles()
+			profiles, err := loadSidecarProfiles()
 
 			if test.expectError {
 				assert.Error(tt, err)

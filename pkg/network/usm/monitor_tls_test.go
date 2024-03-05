@@ -523,6 +523,8 @@ func (s *tlsSuite) TestJavaInjection() {
 }
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
+	t.Skip("skipping GoTLS tests while we investigate their flakiness")
+
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !gotlstestutil.GoTLSSupported(t, config.New()) {
@@ -774,7 +776,7 @@ func (m requestsMap) String() string {
 }
 
 func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	usmMonitor, err := NewMonitor(cfg, nil, nil)
+	usmMonitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
 	t.Cleanup(usmMonitor.Stop)

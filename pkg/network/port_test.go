@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -131,11 +132,27 @@ func testReadInitialState(t *testing.T, proto string) {
 
 	var ports []uint16
 	for _, proto := range protos {
-		ports = append(ports, runServerProcess(t, proto, 0, rootNs))
+		i := 0
+		for ; i < 5; i++ {
+			p := runServerProcess(t, proto, 0, rootNs)
+			if !slices.Contains(ports, p) {
+				ports = append(ports, p)
+				break
+			}
+		}
+		require.Less(t, i, 5, "failed to find unique port for proto %s", proto)
 	}
 
 	for _, proto := range protos {
-		ports = append(ports, runServerProcess(t, proto, 0, ns))
+		i := 0
+		for ; i < 5; i++ {
+			p := runServerProcess(t, proto, 0, ns)
+			if !slices.Contains(ports, p) {
+				ports = append(ports, p)
+				break
+			}
+		}
+		require.Less(t, i, 5, "failed to find unique port for proto %s", proto)
 	}
 
 	rootNsIno, err := kernel.GetInoForNs(rootNs)
