@@ -80,6 +80,9 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         determine_connection_direction(&conn.tup, &conn.conn_stats);
     }
 
+    // update the `duration` field to reflect the duration of the
+    // connectgion; `duration` had the creation timestamp for
+    // the conn_stats_ts_t object up to now
     conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
 
     // Batch TCP closed connections before generating a perf event

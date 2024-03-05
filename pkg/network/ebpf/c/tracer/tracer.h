@@ -32,6 +32,12 @@ typedef struct {
     __u32 sent_packets;
     __u32 recv_packets;
     __u64 timestamp;
+    // duration of the connection.
+    // this is initialized to the current unix
+    // timestamp when a conn_stats_ts_t is created.
+    // the field remains unchanged until this object
+    // is removed from the conn_stats map when it
+    // is updated with (CURRENT_TIME - duration)
     __u64 duration;
     // "cookie" that uniquely identifies
     // a conn_stas_ts_t. This is used
