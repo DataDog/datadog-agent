@@ -351,7 +351,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 		delete(c.processesWithoutPod, process.ContainerID)
 	}
-	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
+	c.telemetry.ProcessedEvents.Inc(pod.Namespace, pod.Name, containerName, string(process.Language.Name))
 }
 
 // handlePodEvent removes delete pods from the current batch
