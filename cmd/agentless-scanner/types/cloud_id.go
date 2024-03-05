@@ -50,7 +50,7 @@ func (id CloudID) AsText() string {
 	case CloudProviderAWS:
 		return id.arn
 	}
-	panic("unimplemented")
+	panic(fmt.Errorf("unimplemented: %#+v", id))
 }
 
 // Provider returns the cloud provider of the resource.

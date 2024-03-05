@@ -111,8 +111,8 @@ const (
 
 // RolesMapping is the mapping of roles from accounts IDs to role IDs
 type RolesMapping struct {
-	provider CloudProvider
-	m        map[string]CloudID
+	Provider CloudProvider      `json:"Provider"`
+	Mapping  map[string]CloudID `json:"Mapping"`
 }
 
 // NewRolesMapping creates a new roles mapping from a list of roles.
@@ -122,8 +122,8 @@ func NewRolesMapping(provider CloudProvider, roles []CloudID) RolesMapping {
 		m[role.AccountID()] = role
 	}
 	return RolesMapping{
-		provider: provider,
-		m:        m,
+		Provider: provider,
+		Mapping:  m,
 	}
 }
 
@@ -134,10 +134,10 @@ func (r RolesMapping) GetCloudIDRole(id CloudID) CloudID {
 
 // GetRole returns the role cloud resource ID for an account ID.
 func (r RolesMapping) GetRole(accountID string) CloudID {
-	if r, ok := r.m[accountID]; ok {
+	if r, ok := r.Mapping[accountID]; ok {
 		return r
 	}
-	switch r.provider {
+	switch r.Provider {
 	case CloudProviderNone:
 		return CloudID{}
 	case CloudProviderAWS:
@@ -147,7 +147,7 @@ func (r RolesMapping) GetRole(accountID string) CloudID {
 		}
 		return role
 	default:
-		panic(fmt.Sprintf("unexpected cloud provider %q", r.provider))
+		panic(fmt.Sprintf("unexpected cloud provider %q", r.Provider))
 	}
 }
 
@@ -463,7 +463,7 @@ func ParseDiskMode(diskMode string) (DiskMode, error) {
 // ParseRolesMapping parses a list of roles into a mapping from account ID to
 // role cloud resource ID.
 func ParseRolesMapping(provider CloudProvider, roles []string) RolesMapping {
-	roleIDs := make([]CloudID, len(roles))
+	roleIDs := make([]CloudID, 0, len(roles))
 	for _, role := range roles {
 		roleID, err := ParseCloudID(role, ResourceTypeRole)
 		if err != nil {
