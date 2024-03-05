@@ -20,8 +20,8 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "-v", "3", "-r", "10"},
 		snmpwalk,
-		func(cliParams *cliParams) {
-			require.Equal(t, []string{"1.2.3.4", "10.9.8.7"}, cliParams.args)
+		func(cliParams *connectionParams, args argsType) {
+			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
 			require.Equal(t, "3", cliParams.snmpVersion)
 			require.Equal(t, 10, cliParams.retries)
 			require.False(t, cliParams.unconnectedUDPSocket)
@@ -31,8 +31,8 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "--use-unconnected-udp-socket"},
 		snmpwalk,
-		func(cliParams *cliParams) {
-			require.Equal(t, []string{"1.2.3.4", "10.9.8.7"}, cliParams.args)
+		func(cliParams *connectionParams, args argsType) {
+			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
 			require.True(t, cliParams.unconnectedUDPSocket)
 		})
 }

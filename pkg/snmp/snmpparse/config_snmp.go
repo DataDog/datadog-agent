@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//
-//nolint:revive // TODO(NDM) Fix revive linter
+
+// Package snmpparse extracts SNMP configurations from agent config data.
 package snmpparse
 
 import (
@@ -25,8 +25,6 @@ var configCheckURLSnmp string
 
 // SNMPConfig is a generic container for configuration data specific to the SNMP
 // integration.
-
-//nolint:revive // TODO(NDM) Fix revive linter
 type SNMPConfig struct {
 
 	//General
@@ -48,9 +46,7 @@ type SNMPConfig struct {
 	NetAddress string `yaml:"network_address"`
 }
 
-// set default values used by the agent
-//
-//nolint:revive // TODO(NDM) Fix revive linter
+// SetDefault sets the standard default config values
 func SetDefault(sc *SNMPConfig) {
 	sc.Port = 161
 	sc.Version = ""
@@ -59,7 +55,8 @@ func SetDefault(sc *SNMPConfig) {
 
 }
 
-//nolint:revive // TODO(NDM) Fix revive linter
+// ParseConfigSnmp extracts all SNMPConfigs from an autodiscovery config.
+// Any loading errors are logged but not returned.
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	//an array containing all the snmp instances
 	snmpconfigs := []SNMPConfig{}
@@ -77,6 +74,7 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 
 	return snmpconfigs
 }
+
 func parseConfigSnmpMain() ([]SNMPConfig, error) {
 	snmpconfigs := []SNMPConfig{}
 	configs := []snmplistener.Config{}
@@ -112,7 +110,8 @@ func parseConfigSnmpMain() ([]SNMPConfig, error) {
 
 }
 
-//nolint:revive // TODO(NDM) Fix revive linter
+// GetConfigCheckSnmp returns each SNMPConfig for all running config checks, by querying the local agent.
+// If the agent isn't running or is unreachable, this will fail.
 func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -130,7 +129,10 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	if configCheckURLSnmp == "" {
 		configCheckURLSnmp = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
-	r, _ := util.DoGet(c, configCheckURLSnmp, util.LeaveConnectionOpen)
+	r, err := util.DoGet(c, configCheckURLSnmp, util.LeaveConnectionOpen)
+	if err != nil {
+		return nil, err
+	}
 	cr := response.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
@@ -151,8 +153,12 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 
 }
 
-//nolint:revive // TODO(NDM) Fix revive linter
-func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
+// GetIPConfig finds the SNMPConfig for a specific IP address.
+// If the IP is explicitly configured, that will be returned;
+// if it isn't, but it is part of a configured subnet, then the
+// subnet config will be returned. If there are no matches, this
+// will return an empty SNMPConfig.
+func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	ipAddressConfigs := []SNMPConfig{}
 	netAddressConfigs := []SNMPConfig{}
 
@@ -169,16 +175,16 @@ func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 
 	//check if the ip address is explicitly mentioned
 	for _, snmpIPconfig := range ipAddressConfigs {
-		if snmpIPconfig.IPAddress == ip_address {
+		if snmpIPconfig.IPAddress == ipAddress {
 			return snmpIPconfig
 		}
 	}
 	//check if the ip address is a part of a network/subnet
 	for _, snmpNetConfig := range netAddressConfigs {
 		_, subnet, _ := net.ParseCIDR(snmpNetConfig.NetAddress)
-		ip := net.ParseIP(ip_address)
+		ip := net.ParseIP(ipAddress)
 		if subnet.Contains(ip) {
-			snmpNetConfig.IPAddress = ip_address
+			snmpNetConfig.IPAddress = ipAddress
 			return snmpNetConfig
 		}
 
