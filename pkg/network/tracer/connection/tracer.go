@@ -672,6 +672,10 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
 
+	if (t.Sport == 8443 || t.Dport == 8443) && s.Protocol_stack.Encryption == 0 && (s.Protocol_stack.Flags&(1<<7)) != 0 {
+		log.Debugf("connection on 8443 with TLS clasification having been attempted: %s", stats)
+	}
+
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP
 	} else {
