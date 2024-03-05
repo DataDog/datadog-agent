@@ -245,7 +245,7 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
 
 def ninja_ebpf_telemetry_programs(nw, build_dir):
     telemetry_bpf_dir = os.path.join("pkg", "ebpf", "telemetry", "c")
-    telemetry_flags = "-Ipkg/ebpf/telemetry/c -g -DINSTRUMENTATION_ENABLED"
+    telemetry_flags = "-Ipkg/ebpf/telemetry/c -g"
     telemetry_programs = [
         "ebpf_instrumentation",
     ]
