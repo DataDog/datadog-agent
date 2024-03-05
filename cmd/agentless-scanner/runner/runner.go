@@ -322,8 +322,7 @@ func (s *Runner) CleanSlate() error {
 	return nil
 }
 
-// Start starts the runner main loop.
-func (s *Runner) Start(ctx context.Context) {
+func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *types.ScanTask, <-chan struct{}) {
 	log.Infof("starting agentless-scanner main loop with %d scan workers", s.Workers)
 	defer log.Infof("stopped agentless-scanner main loop")
 
@@ -368,6 +367,13 @@ func (s *Runner) Start(ctx context.Context) {
 		}
 	}()
 
+	return triggeredScansCh, finishedScansCh, doneCh
+}
+
+// Start starts the runner main loop.
+func (s *Runner) Start(ctx context.Context) {
+	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx)
+
 	var wg sync.WaitGroup
 	wg.Add(s.Workers)
 	for i := 0; i < s.Workers; i++ {
@@ -387,9 +393,92 @@ func (s *Runner) Start(ctx context.Context) {
 		close(s.scansCh)
 		wg.Wait()
 		close(s.resultsCh)
-		<-doneCh
+		<-resultsDoneCh
+	}()
+	for config := range s.configsCh {
+		for _, scan := range config.Tasks {
+			select {
+			case <-ctx.Done():
+				return
+			case s.scansCh <- scan:
+			}
+		}
+	}
+}
+
+// StartWithRemoteWorkers starts the runner main loop with remote workers. It
+// spawns an HTTP server to dispatch scan tasks to remote workers.
+func (s *Runner) StartWithRemoteWorkers(ctx context.Context) {
+	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/scan", func(w http.ResponseWriter, req *http.Request) {
+		switch req.Method {
+		case http.MethodGet:
+			if scan, ok := <-triggeredScansCh; ok {
+				w.WriteHeader(http.StatusOK)
+				w.Header().Set("Content-Type", "application/json")
+				if err := json.NewEncoder(w).Encode(scan); err != nil {
+					http.Error(w, "could not encode scan", http.StatusInternalServerError)
+				}
+			} else {
+				http.Error(w, "no scan available", http.StatusNoContent)
+			}
+		case http.MethodPost:
+			var scan types.ScanTask
+			if err := json.NewDecoder(req.Body).Decode(&scan); err != nil {
+				http.Error(w, "could not decode scan", http.StatusBadRequest)
+				return
+			}
+			finishedScansCh <- &scan
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/result", func(w http.ResponseWriter, req *http.Request) {
+		switch req.Method {
+		case http.MethodPost:
+			var result types.ScanResult
+			if err := json.NewDecoder(req.Body).Decode(&result); err != nil {
+				http.Error(w, "could not decode result", http.StatusBadRequest)
+				return
+			}
+			s.resultsCh <- result
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	addr := "127.0.0.1:6254"
+	srv := &http.Server{Addr: "127.0.0.1:6254"}
+	srv.Handler = mux
+
+	go func() {
+		log.Infof("Starting server for agentless-scanner on address %q", addr)
+		err := srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Errorf("runner: could not start HTTP server: %v", err)
+			os.Exit(1)
+		}
 	}()
 
+	go func() {
+		<-ctx.Done()
+		ctxcleanup, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+		defer cancel()
+		err := srv.Shutdown(ctxcleanup)
+		if err != nil {
+			log.Warnf("error shutting down: %v", err)
+		}
+	}()
+
+	defer func() {
+		close(s.scansCh)
+		close(s.resultsCh)
+		<-resultsDoneCh
+	}()
 	for config := range s.configsCh {
 		for _, scan := range config.Tasks {
 			select {
