@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	"golang.org/x/exp/maps"
 
 	"github.com/stretchr/testify/assert"
 
@@ -260,7 +261,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Datadog.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -277,7 +278,9 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			assert.NotEmpty(t, stats)
+			keys := maps.Keys(stats)
+
+			assert.Contains(t, keys, "agent_metadata")
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)

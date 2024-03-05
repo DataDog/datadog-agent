@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: remote-config
@@ -30,8 +31,12 @@ type Component interface {
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteConfigClient))
+// NoneModule return a None optional type for rcclient.Component.
+//
+// This helper allows code that needs a disabled Optional type for rcclient to get it. The helper is split from
+// the implementation to avoid linking with the dependencies from rcclient.
+func NoneModule() fxutil.Module {
+	return fxutil.Component(fx.Provide(func() optional.Option[Component] {
+		return optional.NewNoneOption[Component]()
+	}))
 }

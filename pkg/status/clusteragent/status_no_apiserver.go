@@ -23,10 +23,7 @@ func GetDCAStatus(_ map[string]interface{}) {
 	log.Info("Not implemented")
 }
 
-// GetProvider returns NoopProvider
+// GetProvider returns nil
 func GetProvider(_ config.Component) status.Provider {
-	return status.NoopProvider{}
+	return nil
 }
-
-// Provider provides the functionality to populate the status output
-type Provider status.NoopProvider

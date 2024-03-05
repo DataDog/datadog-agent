@@ -579,6 +579,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			fmt.Println(err)
 		}
 		commonCfgDir = cd
+		os.Chdir(commonCfgDir)
 	}
 
 	var proFile *os.File
