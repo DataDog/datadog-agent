@@ -52,6 +52,10 @@ func extractMetadata(m *metav1.ObjectMeta) *model.Metadata {
 }
 
 func extractLabelSelector(ls *metav1.LabelSelector) []*model.LabelSelectorRequirement {
+	if ls == nil {
+		return nil
+	}
+
 	labelSelectors := make([]*model.LabelSelectorRequirement, 0, len(ls.MatchLabels)+len(ls.MatchExpressions))
 	for k, v := range ls.MatchLabels {
 		s := model.LabelSelectorRequirement{

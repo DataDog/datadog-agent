@@ -15,13 +15,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/btf"
 	"github.com/mholt/archiver/v3"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
@@ -305,7 +304,7 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 		return "", fmt.Errorf("ubuntu platform version incorrectly detected as `%s`. %w", platformVersion, errIncorrectOSReleaseMount)
 	}
 	platformStrings := make([]string, 0, len(possiblePlatforms))
-	for _, pp := range maps.Keys(possiblePlatforms) {
+	for pp := range possiblePlatforms {
 		platformStrings = append(platformStrings, pp.String())
 	}
 	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(platformStrings, ","), errIncorrectOSReleaseMount)

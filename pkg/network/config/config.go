@@ -123,6 +123,9 @@ type Config struct {
 	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
 	JavaAgentBlockRegex string
 
+	// JavaDir is the directory to load the java agent program from
+	JavaDir string
+
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
 	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
@@ -362,6 +365,7 @@ func New() *Config {
 		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
+		JavaDir:                     cfg.GetString(join(smjtNS, "dir")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
 		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),

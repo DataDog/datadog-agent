@@ -15,12 +15,12 @@ import (
 	"hash"
 	"hash/fnv"
 	"io"
+	"slices"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"

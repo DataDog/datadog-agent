@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
