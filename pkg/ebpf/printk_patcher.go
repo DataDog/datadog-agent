@@ -9,6 +9,7 @@ package ebpf
 
 import (
 	"errors"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -43,6 +44,10 @@ func patchPrintkNewline(m *manager.Manager) error {
 	var errs []error
 
 	for _, p := range progs {
+		// Temporary workaround to avoid patching http2 programs.
+		if strings.Contains(p.Name, "http2") {
+			continue
+		}
 		_, err := patchPrintkInstructions(p)
 		errs = append(errs, err)
 	}
