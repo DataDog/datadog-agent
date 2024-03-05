@@ -8,7 +8,6 @@ package split
 
 import (
 	"expvar"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -172,7 +171,6 @@ func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFc
 		return nil, nil, err
 	}
 	if compress {
-		fmt.Println("rz in serializeMarshaller")
 		compressedPayload, err = strategy.Compress(payload)
 		if err != nil {
 			return nil, nil, err
