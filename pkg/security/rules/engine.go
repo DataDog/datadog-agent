@@ -11,6 +11,8 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -186,7 +188,18 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
-				tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+				tags := []string{
+					fmt.Sprintf("version:%s", version.AgentVersion),
+					fmt.Sprintf("os:%s", runtime.GOOS),
+				}
+
+				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_ecs")
+				} else if os.Getenv("DD_EKS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_eks")
+				} else {
+					tags = append(tags, "mode:default")
+				}
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
