@@ -63,15 +63,29 @@ func (rc *remoteConfig) Close() {
 }
 
 // SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(pkg string, state repository.State) {
+func (rc *remoteConfig) SetState(pkg string, repoState repository.State, taskState TaskState) {
 	if rc.client == nil {
 		return
 	}
+
+	var taskErr *pbgo.TaskError
+	if taskState.Err != nil {
+		taskErr = &pbgo.TaskError{
+			Code:    uint64(taskState.Err.Code()),
+			Message: taskState.Err.Error(),
+		}
+	}
+
 	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
 		{
 			Package:           pkg,
-			StableVersion:     state.Stable,
-			ExperimentVersion: state.Experiment,
+			StableVersion:     repoState.Stable,
+			ExperimentVersion: repoState.Experiment,
+			Task: &pbgo.PackageStateTask{
+				Id:    taskState.ID,
+				State: taskState.State,
+				Error: taskErr,
+			},
 		},
 	})
 }
@@ -143,6 +157,7 @@ const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+	methodBootstrap         = "bootstrap"
 )
 
 type remoteAPIRequest struct {
@@ -158,7 +173,7 @@ type expectedState struct {
 	Experiment string `json:"experiment"`
 }
 
-type startExperimentParams struct {
+type taskWithVersionParams struct {
 	Version string `json:"version"`
 }
 

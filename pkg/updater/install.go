@@ -59,10 +59,7 @@ func (i *installer) installExperiment(pkg string, version string, image oci.Imag
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	repository, err := i.repositories.Get(pkg)
-	if err != nil {
-		return fmt.Errorf("could not get repository: %w", err)
-	}
+	repository := i.repositories.Get(pkg)
 	err = repository.SetExperiment(version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not set experiment: %w", err)
@@ -71,11 +68,8 @@ func (i *installer) installExperiment(pkg string, version string, image oci.Imag
 }
 
 func (i *installer) promoteExperiment(pkg string) error {
-	repository, err := i.repositories.Get(pkg)
-	if err != nil {
-		return fmt.Errorf("could not get repository: %w", err)
-	}
-	err = repository.PromoteExperiment()
+	repository := i.repositories.Get(pkg)
+	err := repository.PromoteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
@@ -83,11 +77,8 @@ func (i *installer) promoteExperiment(pkg string) error {
 }
 
 func (i *installer) uninstallExperiment(pkg string) error {
-	repository, err := i.repositories.Get(pkg)
-	if err != nil {
-		return fmt.Errorf("could not get repository: %w", err)
-	}
-	err = repository.DeleteExperiment()
+	repository := i.repositories.Get(pkg)
+	err := repository.DeleteExperiment()
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}

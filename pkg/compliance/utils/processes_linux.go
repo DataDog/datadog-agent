@@ -10,7 +10,11 @@ package utils
 import (
 	// We wrap pkg/security/utils here only for compat reason to be able to
 	// still compile pkg/compliance on !linux.
+	"fmt"
+
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // ContainerID wraps a string representing a container identifier.
@@ -29,4 +33,34 @@ func GetProcessContainerID(pid int32) (ContainerID, bool) {
 // GetProcessRootPath returns the process root path of the given PID.
 func GetProcessRootPath(pid int32) (string, bool) {
 	return secutils.ProcRootPath(uint32(pid)), true
+}
+
+// GetContainerOverlayPath tries to extract the directory mounted as root
+// mountpoint of the given process. To do so it parses the mountinfo table of
+// the process and tries to match it with the mount entry of the root
+// namespace (mountinfo pid 1).
+func GetContainerOverlayPath(pid int32) (string, error) {
+	nsMounts, err := kernel.ParseMountInfoFile(pid)
+	if err != nil {
+		return "", err
+	}
+	var overlayOptions string
+	for _, mount := range nsMounts {
+		if mount.Mountpoint == "/" && mount.FSType == "overlay" {
+			overlayOptions = mount.VFSOptions
+			break
+		}
+	}
+	if overlayOptions != "" {
+		rootMounts, err := kernel.ParseMountInfoFile(1)
+		if err != nil {
+			return "", err
+		}
+		for _, mount := range rootMounts {
+			if mount.FSType == "overlay" && mount.Root == "/" && mount.VFSOptions == overlayOptions {
+				return mount.Mountpoint, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("could not find overlay mountpoint")
 }

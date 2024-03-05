@@ -71,8 +71,7 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 }
 
 func newTestInstaller(t *testing.T) *installer {
-	repositories, err := repository.NewRepositories(t.TempDir(), t.TempDir())
-	assert.NoError(t, err)
+	repositories := repository.NewRepositories(t.TempDir(), t.TempDir())
 	return newInstaller(repositories)
 }
 
@@ -83,8 +82,7 @@ func TestInstallStable(t *testing.T) {
 
 	err := installer.installStable(fixtureSimpleV1.pkg, fixtureSimpleV1.version, s.Image(fixtureSimpleV1))
 	assert.NoError(t, err)
-	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -101,8 +99,7 @@ func TestInstallExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = installer.installExperiment(fixtureSimpleV1.pkg, fixtureSimpleV2.version, s.Image(fixtureSimpleV2))
 	assert.NoError(t, err)
-	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -122,8 +119,7 @@ func TestPromoteExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = installer.promoteExperiment(fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
-	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
@@ -142,8 +138,7 @@ func TestUninstallExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	err = installer.uninstallExperiment(fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
-	r, err := installer.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := installer.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
