@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import subprocess
+from typing import List
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
@@ -204,7 +205,7 @@ class GithubAPI:
 
         return True
 
-    def get_labels(self, pr_id: int) -> list[str]:
+    def get_labels(self, pr_id: int) -> List[str]:
         """
         Returns the labels of a pull request
         """
