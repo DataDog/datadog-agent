@@ -7,8 +7,30 @@
 package utils
 
 import (
+	"errors"
 	"unsafe"
 )
+
+// LabelSet represents an abstracted set of labels that can be used to call PprofDoWithoutContext
+type LabelSet struct {
+	inner *map[string]string
+}
+
+// NewLabelSet returns a new LabelSet based on the labels provided as a pair number of arguments (key, value, key value ....)
+func NewLabelSet(labels ...string) (LabelSet, error) {
+	if len(labels)%2 != 0 {
+		return LabelSet{}, errors.New("non-pair label set values")
+	}
+
+	set := make(map[string]string)
+	for i := 0; i+1 < len(labels); i += 2 {
+		set[labels[i]] = labels[i+1]
+	}
+
+	return LabelSet{
+		inner: &set,
+	}, nil
+}
 
 type labelMap map[string]string
 
@@ -29,12 +51,10 @@ func getGoroutineLabels() *labelMap {
 // PprofDoWithoutContext does the same thing as https://pkg.go.dev/runtime/pprof#Do, but without the allocation resulting
 // from the usage of context values. This function also directly takes a map of labels, instead of incuring allocations
 // when converting from one format (LabelSet) to the other (map).
-func PprofDoWithoutContext(labels map[string]string, f func()) {
+func PprofDoWithoutContext(labelSet LabelSet, f func()) {
 	previousLabels := getGoroutineLabels()
 	defer setGoroutineLabels(previousLabels)
 
-	labels2 := (labelMap)(labels)
-
-	setGoroutineLabels(&labels2)
+	setGoroutineLabels((*labelMap)(labelSet.inner))
 	f()
 }

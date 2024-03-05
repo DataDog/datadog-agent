@@ -32,7 +32,7 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke updater.build --rebuild", env: env
+    command "invoke updater.build --rebuild --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
 
@@ -66,8 +66,8 @@ build do
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "start-experiment.path.erb" => "start-experiment.path",
-      "stop-experiment.path.erb" => "stop-experiment.path",
+      "datadog-agent-exp.path.erb" => "datadog-agent-exp.path",
+      "datadog-agent.path.erb" => "datadog-agent.path",
       "datadog-updater.service.erb" => "datadog-updater.service",
     }
     templateToFile.each do |template, file|

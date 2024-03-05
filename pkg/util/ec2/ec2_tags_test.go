@@ -85,7 +85,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
-	val, err := getInstanceIdentity(ctx)
+	val, err := GetInstanceIdentity(ctx)
 	require.Nil(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
 	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
