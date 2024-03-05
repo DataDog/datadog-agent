@@ -172,15 +172,15 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(pkgconfig.Datadog, "")
+	common.SetupInternalProfiling(config, "")
 
-	if !pkgconfig.Datadog.IsSet("api_key") {
+	if !config.IsSet("api_key") {
 		return fmt.Errorf("no API key configured, exiting")
 	}
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())
-	metricsPort := pkgconfig.Datadog.GetInt("metrics_port")
+	metricsPort := config.GetInt("metrics_port")
 	metricsServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
 		Handler: http.DefaultServeMux,
@@ -194,7 +194,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}()
 
 	// Setup healthcheck port
-	healthPort := pkgconfig.Datadog.GetInt("health_port")
+	healthPort := config.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(mainCtx, config, healthPort)
 		if err != nil {
@@ -209,7 +209,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	rcserv, isSet := rcService.Get()
 	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
 		var err error
-		rcClient, err = initializeRemoteConfigClient(mainCtx, rcserv)
+		rcClient, err = initializeRemoteConfigClient(mainCtx, rcserv, config)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -221,10 +221,10 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Setup the leader forwarder for language detection and cluster checks
-	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") || pkgconfig.Datadog.GetBool("language_detection.enabled") {
+	if config.GetBool("cluster_checks.enabled") || config.GetBool("language_detection.reporting.enabled") {
 		apidca.NewGlobalLeaderForwarder(
-			pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
-			pkgconfig.Datadog.GetInt("cluster_agent.max_connections"),
+			config.GetInt("cluster_agent.cmd_port"),
+			config.GetInt("cluster_agent.max_connections"),
 		)
 	}
 
@@ -306,7 +306,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	// create and setup the Autoconfig instance
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, config.GetString("confd_path"))
 
 	// Set up check collector
 	registerChecks()
@@ -315,7 +315,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	// start the autoconfig, this will immediately run any configured check
 	common.AC.LoadAndRun(mainCtx)
 
-	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") {
+	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
 		clusterCheckHandler, err := setupClusterCheck(mainCtx)
 		if err == nil {
@@ -331,7 +331,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 
 	wg := sync.WaitGroup{}
 	// Autoscaler Controller Goroutine
-	if pkgconfig.Datadog.GetBool("external_metrics_provider.enabled") {
+	if config.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)
 		go func() {
@@ -345,7 +345,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Compliance
-	if pkgconfig.Datadog.GetBool("compliance_config.enabled") {
+	if config.GetBool("compliance_config.enabled") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -356,14 +356,14 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 		}()
 	}
 
-	if pkgconfig.Datadog.GetBool("language_detection.enabled") {
+	if config.GetBool("cluster_agent.language_detection.patcher.enabled") {
 		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}
 
-	if pkgconfig.Datadog.GetBool("admission_controller.enabled") {
-		if pkgconfig.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+	if config.GetBool("admission_controller.enabled") {
+		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
 				IsLeaderFunc:        le.IsLeader,
 				LeaderSubscribeFunc: le.Subscribe,
@@ -497,7 +497,7 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Component) (*rcclient.Client, error) {
+func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Component, config config.Component) (*rcclient.Client, error) {
 	clusterName := ""
 	hname, err := hostname.Get(ctx)
 	if err != nil {
@@ -516,7 +516,7 @@ func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Componen
 		rcclient.WithCluster(clusterName, clusterID),
 		rcclient.WithProducts(state.ProductAPMTracing),
 		rcclient.WithPollInterval(5*time.Second),
-		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
+		rcclient.WithDirectorRootOverride(config.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
