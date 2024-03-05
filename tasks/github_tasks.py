@@ -219,16 +219,28 @@ def assign_team_label(_, pr_id, changed_files):
 
         return global_team
 
+    gh = GithubAPI('DataDog/datadog-agent')
+
+    # Skip if necessary
+    labels = gh.get_labels()
+
+    if 'qa/done' in labels:
+        print('Qa done, skipping')
+        return
+
+    if any(label.startswith('team/') for label in labels):
+        print('This PR already has a team label, skipping')
+        return
+
     # Find team
     changed_files = changed_files.split(',')
     team = get_team()
     if team is None:
         print('No team or multiple teams found')
-        exit()
+        return
 
     # Assign label
     label_name = 'team' + team.removeprefix('@DataDog')
-    gh = GithubAPI('DataDog/datadog-agent')
     if gh.add_label(pr_id, label_name):
         print(label_name, 'label assigned to the pull request')
     else:

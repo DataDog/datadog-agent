@@ -13,7 +13,22 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
+  assign-team-labels:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: pip install -r tasks/requirements.txt
+      - name: Add get-changed-files dependency
+        id: files
+        uses: jitterbit/get-changed-files@v1
+        with:
+          format: 'csv'
+      - name: Auto assign team label
+        run: inv -e github.assign-team-label '${{ github.event.number }}' '${{ steps.files.outputs.all }}'
   fetch-labels:
+    needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     outputs:
@@ -46,17 +61,6 @@ jobs:
           exit 1
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install Python dependencies
-        run: pip install -r tasks/requirements.txt
-      - name: Add get-changed-files dependency
-        id: files
-        uses: jitterbit/get-changed-files@v1
-        with:
-          format: 'csv'
-      - name: Auto assign team label
-        run: inv -e github.assign-team-label '${{ github.event.number }}' '${{ steps.files.outputs.all }}'
   skip-qa:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'

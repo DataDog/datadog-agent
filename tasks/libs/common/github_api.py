@@ -204,6 +204,14 @@ class GithubAPI:
 
         return True
 
+    def get_labels(self, pr_id: int) -> list[str]:
+        """
+        Returns the labels of a pull request
+        """
+        pr = self._repository.get_pull(pr_id)
+
+        return [label.name for label in pr.get_labels()]
+
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
