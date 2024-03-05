@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -104,7 +106,10 @@ func (bc *USMConnectionIndex[K, V]) Find(c network.ConnectionStats) *USMConnecti
 		result.claimed = true
 	}
 
-	log.TraceFunc(func() string { return fmt.Sprintf("could not find connection %+v in usm data", c) })
+	if log.ShouldLog(seelog.TraceLvl) {
+		log.Tracef("could not find connection %+v in usm data", c)
+	}
+
 	return result
 }
 
@@ -190,7 +195,9 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 		var total int
 		for key, value := range bc.data {
 			if !value.claimed {
-				log.TraceFunc(func() string { return fmt.Sprintf("key %+v unclaimed", key) })
+				if log.ShouldLog(seelog.TraceLvl) {
+					log.Tracef("key %+v unclaimed", key)
+				}
 				total += len(value.Data)
 			}
 		}
