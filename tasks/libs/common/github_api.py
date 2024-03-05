@@ -192,7 +192,7 @@ class GithubAPI:
         """
         return self._github.rate_limiting
 
-    def add_pr_abel(self, pr_id: int, label: str) -> bool:
+    def add_pr_label(self, pr_id: int, label: str) -> bool:
         """
         Tries to add a label to the pull request
         Returns whether the label has been added
