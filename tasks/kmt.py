@@ -305,7 +305,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, p
     if rebuild_deps:
         docker_exec(
             ctx,
-            f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
+            f"./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {arch}",
             run_dir="/datadog-agent",
         )
         target_instances = list()
@@ -316,7 +316,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key=None, rebuild_deps=False, p
             instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/dependencies-{full_arch(instance.arch)}.tar.gz")
 
         for d in domains:
-            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=verbose)
+            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch}", allow_fail=True, verbose=verbose)
             d.copy(
                 ctx,
                 "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
