@@ -22,9 +22,8 @@ func GetAWSPartitionByRegion(region string) string {
 		return "aws-us-gov"
 	} else if strings.HasPrefix(region, "cn-") {
 		return "aws-cn"
-	} else {
-		return "aws"
 	}
+	return "aws"
 }
 
 // ExtractAPIGatewayEventARN returns an ARN from an APIGatewayProxyRequest

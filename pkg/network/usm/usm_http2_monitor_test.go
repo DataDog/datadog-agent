@@ -106,10 +106,10 @@ func TestHTTP2Scenarios(t *testing.T) {
 				isTLS: true,
 			},
 		} {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-				t.Skip("GoTLS not supported for this setup")
-			}
 			t.Run(tc.name, func(t *testing.T) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+					t.Skip("GoTLS not supported for this setup")
+				}
 				suite.Run(t, &usmHTTP2Suite{isTLS: tc.isTLS})
 			})
 		}
@@ -306,6 +306,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 						}
 					}
 					ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, usmhttp2.InFlightMap)
+					dumpTelemetry(t, monitor, s.isTLS)
 				}
 			})
 		}
@@ -411,7 +412,6 @@ func (s *usmHTTP2Suite) TestHTTP2KernelTelemetry() {
 					return false
 				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
-
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
@@ -1182,13 +1182,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
-				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
-					tlsMarker := ""
-					if s.isTLS {
-						tlsMarker = "tls "
-					}
-					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
-				}
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1247,13 +1241,7 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
-				if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS); err == nil {
-					tlsMarker := ""
-					if s.isTLS {
-						tlsMarker = "tls "
-					}
-					t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
-				}
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1332,6 +1320,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1411,6 +1400,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 					}
 				}
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
 		})
 	}
@@ -1804,4 +1794,14 @@ func getHTTP2KernelTelemetry(monitor *Monitor, isTLS bool) (*usmhttp2.HTTP2Telem
 		return nil, fmt.Errorf("unable to lookup %q map: %s", mapName, err)
 	}
 	return http2Telemetry, nil
+}
+
+func dumpTelemetry(t *testing.T, usmMonitor *Monitor, isTLS bool) {
+	if telemetry, err := getHTTP2KernelTelemetry(usmMonitor, isTLS); err == nil {
+		tlsMarker := ""
+		if isTLS {
+			tlsMarker = "tls "
+		}
+		t.Logf("http2 eBPF %stelemetry: %v", tlsMarker, telemetry)
+	}
 }

@@ -52,11 +52,21 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"app_key", "appkey", "application_key"},
 		Repl:  []byte(`$1***********************************$2`),
 	}
+
+	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
+	// the token has a different size we scrub it entirely.
 	hintedBearerReplacer := Replacer{
 		Regex: regexp.MustCompile(`\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`),
 		Hints: []string{"Bearer"},
 		Repl:  []byte(`Bearer ***********************************************************$1`),
 	}
+	// For this one we match any letters, not just a -> f
+	hintedBearerInvalidReplacer := Replacer{
+		Regex: regexp.MustCompile(`\bBearer [a-zA-Z0-9]+\b`),
+		Hints: []string{"Bearer"},
+		Repl:  []byte("Bearer " + defaultReplacement),
+	}
+
 	apiKeyReplacerYAML := Replacer{
 		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{27}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`$1$2"***************************$3"`),
@@ -151,6 +161,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedBearerReplacer)
+	scrubber.AddReplacer(SingleLine, hintedBearerInvalidReplacer)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
 	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)

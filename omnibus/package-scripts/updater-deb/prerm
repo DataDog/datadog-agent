@@ -8,19 +8,21 @@ stop_agents()
 {
     if command -v systemctl >/dev/null 2>&1; then
         # Force systemd to ignore the sysvinit scripts. Only cosmetic, remove some irrelevant warnings during upgrade
-        
+
         # starting with experiment agents to avoid retriggering agent
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-process-exp || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-sysprobe-exp || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-trace-exp || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-security-exp || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-exp || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-exp.path || true
 
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-process || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-sysprobe || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-trace || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent-security || true
         SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-agent.path || true
     fi
 }
 
@@ -33,8 +35,9 @@ deregister_agents()
         SYSTEMCTL_SKIP_SYSV=true systemctl disable datadog-agent-trace || true
         SYSTEMCTL_SKIP_SYSV=true systemctl disable datadog-agent-security || true
         SYSTEMCTL_SKIP_SYSV=true systemctl disable datadog-agent || true
-        
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable datadog-agent.path || true
         # experiment agents are not disabled as we don't systemctl enable them
+        SYSTEMCTL_SKIP_SYSV=true systemctl disable datadog-agent-exp.path || true
     fi
 }
 case "$1" in
