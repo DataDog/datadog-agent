@@ -224,6 +224,7 @@ type LocalAPIClient interface {
 	StartExperiment(pkg, version string) error
 	StopExperiment(pkg string) error
 	PromoteExperiment(pkg string) error
+	BootstrapVersion(pkg, version string) error
 }
 
 // LocalAPIClient is a client to interact with the locally exposed updater API.
@@ -344,5 +345,36 @@ func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
 		return fmt.Errorf("error promoting experiment: %s", response.Error.Message)
 	}
 	defer resp.Body.Close()
+	return nil
+}
+
+// BootstrapVersion bootstraps a package to a specific version.
+func (c *localAPIClientImpl) BootstrapVersion(pkg, version string) error {
+	params := taskWithVersionParams{
+		Version: version,
+	}
+	body, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/bootstrap", pkg), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var response APIResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		return err
+	}
+	if response.Error != nil {
+		return fmt.Errorf("error starting experiment: %s", response.Error.Message)
+	}
 	return nil
 }

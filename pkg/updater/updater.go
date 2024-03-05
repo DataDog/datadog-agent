@@ -91,17 +91,6 @@ func Bootstrap(ctx context.Context, pkg string) error {
 	return u.Bootstrap(ctx, pkg, taskID)
 }
 
-// BootstrapVersion bootstraps the given package at the given version.
-func BootstrapVersion(ctx context.Context, pkg string, version string) error {
-	rc := newNoopRemoteConfig()
-	u, err := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
-	if err != nil {
-		return err
-	}
-	taskID := uuid.New().String()
-	return u.BootstrapVersion(ctx, pkg, version, taskID)
-}
-
 // NewUpdater returns a new Updater.
 func NewUpdater(rcFetcher client.ConfigFetcher) (Updater, error) {
 	rc, err := newRemoteConfig(rcFetcher)
