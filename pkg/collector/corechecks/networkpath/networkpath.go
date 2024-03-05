@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -25,7 +24,7 @@ import (
 
 // CheckName defines the name of the
 // Network Path check
-const CheckName = "networkpath"
+const CheckName = "network_path"
 
 // Check doesn't need additional fields
 type Check struct {
@@ -70,26 +69,15 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	tags := []string{
-		"dest_hostname:" + c.config.DestHostname,
-		"dest_name:" + c.config.DestName,
-	}
 	duration := time.Since(startTime)
-	senderInstance.Gauge("networkpath.telemetry.count", 1, "", tags)
-	senderInstance.Gauge("networkpath.telemetry.duration", duration.Seconds(), "", tags)
+	log.Debugf("check duration: %2f for destination: '%s' %s", duration.Seconds(), c.config.DestHostname, c.config.DestName)
 
 	if !c.lastCheckTime.IsZero() {
 		interval := startTime.Sub(c.lastCheckTime)
-		senderInstance.Gauge("networkpath.telemetry.interval", interval.Seconds(), "", tags)
+		log.Tracef("time since last check %2f for destination: '%s' %s", interval.Seconds(), c.config.DestHostname, c.config.DestName)
 	}
-	senderInstance.Commit()
-
-	numWorkers := config.Datadog.GetInt("check_runners")
-	senderInstance.Gauge("networkpath.telemetry.check_runners", float64(numWorkers), "", tags)
-	senderInstance.Gauge("networkpath.telemetry.hop_count", float64(len(path.Hops)), "", tags)
 	c.lastCheckTime = startTime
 
-	senderInstance.Commit()
 	return nil
 }
 
