@@ -64,6 +64,8 @@ type updaterImpl struct {
 
 	rc                *remoteConfig
 	catalog           catalog
+	requests          chan remoteAPIRequest
+	requestsWG        sync.WaitGroup
 	bootstrapVersions bootstrapVersions
 }
 
@@ -105,6 +107,7 @@ func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string) (*u
 		downloader:        newDownloader(http.DefaultClient),
 		installer:         newInstaller(repositories),
 		catalog:           defaultCatalog,
+		requests:          make(chan remoteAPIRequest, 32),
 		bootstrapVersions: defaultBootstrapVersions,
 		stopChan:          make(chan struct{}),
 	}
@@ -128,7 +131,7 @@ func (u *updaterImpl) GetState() (map[string]repository.State, error) {
 
 // Start starts remote config and the garbage collector.
 func (u *updaterImpl) Start(_ context.Context) error {
-	u.rc.Start(u.handleCatalogUpdate, u.handleRemoteAPIRequest)
+	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
 	go func() {
 		for {
 			select {
@@ -141,6 +144,11 @@ func (u *updaterImpl) Start(_ context.Context) error {
 				}
 			case <-u.stopChan:
 				return
+			case request := <-u.requests:
+				err := u.handleRemoteAPIRequest(request)
+				if err != nil {
+					log.Errorf("updater: could not handle remote request: %v", err)
+				}
 			}
 		}
 	}()
@@ -151,6 +159,8 @@ func (u *updaterImpl) Start(_ context.Context) error {
 func (u *updaterImpl) Stop(_ context.Context) error {
 	u.rc.Close()
 	close(u.stopChan)
+	u.requestsWG.Wait()
+	close(u.requests)
 	return nil
 }
 
@@ -271,7 +281,14 @@ func (u *updaterImpl) handleCatalogUpdate(c catalog) error {
 	return nil
 }
 
+func (u *updaterImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
+	u.requestsWG.Add(1)
+	u.requests <- request
+	return nil
+}
+
 func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
+	defer u.requestsWG.Done()
 	s, err := u.repositories.GetPackageState(request.Package)
 	if err != nil {
 		return fmt.Errorf("could not get updater state: %w", err)
