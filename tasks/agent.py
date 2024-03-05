@@ -128,7 +128,7 @@ def build(
     cmake_options='',
     bundle=None,
     bundle_ebpf=False,
-    agent_bin='',
+    agent_bin=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
