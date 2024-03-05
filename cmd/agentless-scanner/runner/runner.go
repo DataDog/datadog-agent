@@ -327,8 +327,6 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 	defer log.Infof("stopped agentless-scanner main loop")
 
 	s.eventForwarder.Start()
-	defer s.eventForwarder.Stop()
-	defer s.findingsReporter.Stop()
 
 	if s.rcClient != nil {
 		s.rcClient.Start()
@@ -346,6 +344,8 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 	doneCh := make(chan struct{})
 	go func() {
 		s.reportResults(s.resultsCh)
+		s.eventForwarder.Stop()
+		s.findingsReporter.Stop()
 		close(doneCh)
 	}()
 
