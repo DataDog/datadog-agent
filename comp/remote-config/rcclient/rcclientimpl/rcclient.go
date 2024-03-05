@@ -64,10 +64,10 @@ type dependencies struct {
 	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
-// newRemoteConfigClient must not declare any provider via Fx groups
-// To avoid Fx dependency cycle we need to have pure leaf component
-// Remote configuration client is a good candidate for that since
-// more and more components would be able to be altered by RC functionality
+// newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
+// other components. To avoid dependency cycles between our components we need to have "pure leaf" components (i.e.
+// components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
+// able to interact with any other components (i.e. be at the end of the dependency graph).
 func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
