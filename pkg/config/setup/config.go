@@ -1269,6 +1269,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Agentless Scanner
 	config.BindEnvAndSetDefault("agentless_scanner.default_roles", []string{})
+	config.BindEnvAndSetDefault("agentless_scanner.azure_client_id", "")
 	// Limit rates are per-second
 	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_default_rate", 10.0)
 	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_ec2_rate", 10.0)
