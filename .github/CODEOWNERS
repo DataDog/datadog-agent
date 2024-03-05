@@ -523,6 +523,7 @@
 /test/new-e2e/test-infra-definition           @DataDog/agent-platform
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
+/test/new-e2e/tests/agent-platform/           @DataDog/agent-build-and-releases @DataDog/agent-developer-tools
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
 /test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
 /test/new-e2e/tests/containers                @DataDog/container-integrations
