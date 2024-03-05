@@ -220,17 +220,16 @@ def assign_team_label(_, pr_id=-1):
 
     gh = GithubAPI('DataDog/datadog-agent')
 
-    # TODO
-    # # Skip if necessary
-    # labels = set(gh.get_pr_labels(pr_id))
+    # Skip if necessary
+    labels = set(gh.get_pr_labels(pr_id))
 
-    # if 'qa/done' in labels or 'qa/no-code-change' in labels:
-    #     print('Qa done or no code change, skipping')
-    #     return
+    if 'qa/done' in labels or 'qa/no-code-change' in labels:
+        print('Qa done or no code change, skipping')
+        return
 
-    # if any(label.startswith('team/') for label in labels):
-    #     print('This PR already has a team label, skipping')
-    #     return
+    if any(label.startswith('team/') for label in labels):
+        print('This PR already has a team label, skipping')
+        return
 
     # Find team
     team = get_team(gh.get_pr_files(pr_id))
