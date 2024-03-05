@@ -9,6 +9,7 @@ package telemetry
 
 import (
 	"io"
+	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
 )
