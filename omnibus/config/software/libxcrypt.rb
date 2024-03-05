@@ -23,14 +23,6 @@ build do
 
     env = with_standard_compiler_flags
 
-    if redhat? && !arm_target? && ohai['platform_version'].to_i == 6
-        # On the CentOS 6 builder, use gcc 4.9.2 in the devtoolset-3 env,
-        # and ignore sign conversion warnings.
-        env["CC"] = "/opt/rh/devtoolset-3/root/usr/bin/gcc"
-        env["CPP"] = "/opt/rh/devtoolset-3/root/usr/bin/cpp"
-        env["CFLAGS"] += " -Wno-sign-conversion"
-    end
-
     # This builds libcrypt.so.2
     # To build libcrypt.so.1, the --disable-obsolete-api option
     # needs to be removed.
