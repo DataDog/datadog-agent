@@ -90,6 +90,7 @@ func WithURLScheme(scheme string) func(*IPCEndpoint) {
 }
 
 // WithHostAndPort is an option to use a host address for sending IPC requests
+// default is the config settings "cmd_host" (default localhost) and "cmd_port" (default 5001)
 func WithHostAndPort(cmdHost string, cmdPort int) func(*IPCEndpoint) {
 	return func(end *IPCEndpoint) {
 		end.target.Host = net.JoinHostPort(cmdHost, strconv.Itoa(cmdPort))
