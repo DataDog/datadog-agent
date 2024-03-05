@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/google/uuid"
 )
 
 const (
@@ -46,8 +47,8 @@ type Updater interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	Bootstrap(ctx context.Context, pkg string) error
-	BootstrapVersion(ctx context.Context, pkg string, version string) error
+	Bootstrap(ctx context.Context, pkg string, taskID string) error
+	BootstrapVersion(ctx context.Context, pkg string, version string, taskID string) error
 	StartExperiment(ctx context.Context, pkg string, version string, taskID string) error
 	StopExperiment(pkg string, taskID string) error
 	PromoteExperiment(pkg string, taskID string) error
@@ -86,7 +87,8 @@ func Bootstrap(ctx context.Context, pkg string) error {
 	if err != nil {
 		return err
 	}
-	return u.Bootstrap(ctx, pkg)
+	taskID := uuid.New().String()
+	return u.Bootstrap(ctx, pkg, taskID)
 }
 
 // BootstrapVersion bootstraps the given package at the given version.
@@ -96,7 +98,8 @@ func BootstrapVersion(ctx context.Context, pkg string, version string) error {
 	if err != nil {
 		return err
 	}
-	return u.BootstrapVersion(ctx, pkg, version)
+	taskID := uuid.New().String()
+	return u.BootstrapVersion(ctx, pkg, version, taskID)
 }
 
 // NewUpdater returns a new Updater.
@@ -166,30 +169,36 @@ func (u *updaterImpl) Stop(_ context.Context) error {
 }
 
 // Bootstrap installs the stable version of the package.
-func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
+func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string, taskID string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage)
+	return u.boostrapPackage(ctx, stablePackage, taskID)
 }
 
 // Bootstrap installs the stable version of the package.
-func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) error {
+func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string, taskID string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
 	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
 		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
-	return u.boostrapPackage(ctx, stablePackage)
+	return u.boostrapPackage(ctx, stablePackage, taskID)
 }
 
-func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package) error {
+func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package, taskID string) error {
+	var err error
+	u.setPackagesStateTaskRunning(stablePackage.Name, taskID)
+	defer func() {
+		u.setPackagesStateTaskFinished(stablePackage.Name, taskID, err)
+	}()
+
 	// both tmp and repository paths are checked for available disk space in case they are on different partitions
-	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	err = checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
 	if err != nil {
 		return fmt.Errorf("not enough disk space to install package: %w", err)
 	}
@@ -330,11 +339,10 @@ func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
 		log.Infof("Updater: Received remote request %s to bootstrap package %s version %s", request.ID, request.Package, params.Version)
-		// TODO: add state support
 		if params.Version == "" {
-			return u.Bootstrap(context.Background(), request.Package)
+			return u.Bootstrap(context.Background(), request.Package, request.ID)
 		}
-		return u.BootstrapVersion(context.Background(), request.Package, params.Version)
+		return u.BootstrapVersion(context.Background(), request.Package, params.Version, request.ID)
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}

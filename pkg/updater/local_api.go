@@ -201,12 +201,13 @@ func (l *localAPIImpl) bootstrap(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	taskID := uuid.New().String()
 	if request.Version != "" {
 		log.Infof("Received local request to bootstrap package %s version %s", pkg, request.Version)
-		err = l.updater.BootstrapVersion(r.Context(), pkg, request.Version)
+		err = l.updater.BootstrapVersion(r.Context(), pkg, request.Version, taskID)
 	} else {
 		log.Infof("Received local request to bootstrap package %s", pkg)
-		err = l.updater.Bootstrap(r.Context(), pkg)
+		err = l.updater.Bootstrap(r.Context(), pkg, taskID)
 
 	}
 	if err != nil {
