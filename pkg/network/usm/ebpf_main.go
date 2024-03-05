@@ -149,8 +149,19 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		}
 	}
 
+	skipHTTP2Programs := func(name string) bool {
+		for _, fn := range http2.Spec.TailCalls {
+			if name == fn.ProbeIdentificationPair.EBPFFuncName {
+				return true
+			}
+		}
+
+		return false
+	}
 	program := &ebpfProgram{
-		Manager:               ddebpf.NewManagerWithDefault(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
+		Manager: ddebpf.NewManagerWithDefault(mgr, &ebpftelemetry.ErrorsTelemetryModifier{
+			SkipProgram: skipHTTP2Programs,
+		}),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
