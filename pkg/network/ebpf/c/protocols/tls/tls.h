@@ -55,13 +55,19 @@ static __always_inline bool is_valid_tls_version(__u16 version) {
 // - the TLS version field is a known SSL/TLS version
 // - the payload length is below the maximum payload length defined in the
 //   standard.
-static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 buf_size) {
+// - the payload length + the size of the record header is less than the size
+//   of the skb
+static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u32 buf_size, __u32 skb_len) {
     if (!is_valid_tls_version(hdr->version)) {
         return false;
     }
 
     __u16 payload_len = bpf_ntohs(hdr->length);
     if (payload_len > TLS_MAX_PAYLOAD_LENGTH) {
+        return false;
+    }
+
+    if (payload_len + sizeof(*hdr) > skb_len) {
         return false;
     }
 
@@ -86,7 +92,7 @@ static __always_inline bool is_tls_handshake(tls_hello_message_t *msg) {
 // currently checking for two types of record headers:
 // - TLS Handshake record headers
 // - TLS Application Data record headers
-static __always_inline bool is_tls(const char *buf, __u32 buf_size) {
+static __always_inline bool is_tls(const char *buf, __u32 buf_size, __u32 skb_len) {
     if (buf_size < (sizeof(tls_record_header_t) + sizeof(tls_hello_message_t))) {
         return false;
     }
@@ -96,7 +102,7 @@ static __always_inline bool is_tls(const char *buf, __u32 buf_size) {
     case TLS_HANDSHAKE:
         return is_tls_handshake((tls_hello_message_t *)(buf + sizeof(tls_record_header_t)));
     case TLS_APPLICATION_DATA:
-        return is_valid_tls_app_data(tls_record_header, buf_size);
+        return is_valid_tls_app_data(tls_record_header, buf_size, skb_len);
     }
 
     return false;
