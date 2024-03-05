@@ -968,7 +968,7 @@ workflow:
     when: never
   - changes:
       paths: *security_agent_change_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -981,7 +981,7 @@ workflow:
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_windows_installer_changes_or_manual:
   - <<: *if_not_e2e
@@ -1024,7 +1024,7 @@ workflow:
     when: never
   - changes:
       paths: *system_probe_change_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1038,7 +1038,7 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/test-infra-definition/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1063,7 +1063,7 @@ workflow:
       paths:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .always_on_container_or_e2e_changes_or_manual:
   - <<: *if_disable_e2e
@@ -1082,7 +1082,7 @@ workflow:
       paths:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - changes:
       paths:
         - comp/core/tagger/**/*
@@ -1104,7 +1104,7 @@ workflow:
         - pkg/util/cgroups/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: always
   - when: manual
     allow_failure: true
@@ -1132,7 +1132,7 @@ workflow:
         - pkg/util/cgroups/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1153,11 +1153,11 @@ workflow:
     when: never
   - changes:
       paths: *system_probe_change_paths
-      compare_to: main
+      compare_to: nschweitzer/fake_revert
     when: on_success
   - changes:
       paths: *security_agent_change_paths
-      compare_to: main
+      compare_to: nschweitzer/fake_revert
     when: on_success
   - when: manual
     allow_failure: true
@@ -1254,7 +1254,7 @@ workflow:
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1276,7 +1276,7 @@ workflow:
         - cmd/updater/**/*
         - test/new-e2e/tests/updater/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1326,14 +1326,14 @@ workflow:
         - .gitlab/package_build.yml
         - release.json
         - .gitlab/package_build/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_go-version_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - .go-version
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: nschweitzer/fake_revert # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_fakeintake_changes: &on_fakeintake_changes
   changes:
