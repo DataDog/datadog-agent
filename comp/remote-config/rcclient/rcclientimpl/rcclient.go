@@ -15,7 +15,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -65,17 +64,14 @@ type dependencies struct {
 	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
-type provides struct {
-	fx.Out
-
-	Comp           rcclient.Component
-	StatusProvider status.InformationProvider
-}
-
-func newRemoteConfigClient(deps dependencies) (provides, error) {
+// newRemoteConfigClient must not declare any provider via Fx groups
+// To avoid Fx dependency cycle we need to have pure leaf component
+// Remote configuration client is a good candidate for that since
+// more and more components would be able to be altered by RC functionality
+func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return provides{}, err
+		return nil, err
 	}
 
 	// We have to create the client in the constructor and set its name later
@@ -87,7 +83,7 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 		client.WithPollInterval(5*time.Second),
 	)
 	if err != nil {
-		return provides{}, err
+		return nil, err
 	}
 
 	var clientHA *client.Client
@@ -100,7 +96,7 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 			client.WithPollInterval(5*time.Second),
 		)
 		if err != nil {
-			return provides{}, err
+			return nil, err
 		}
 	}
 
@@ -112,10 +108,7 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 		clientHA:      clientHA,
 	}
 
-	return provides{
-		Comp:           rc,
-		StatusProvider: status.NewInformationProvider(rc),
-	}, nil
+	return rc, nil
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
