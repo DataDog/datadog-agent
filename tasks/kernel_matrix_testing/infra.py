@@ -117,11 +117,11 @@ class HostInstance:
 
 
 def build_infrastructure(stack, remote_ssh_key=None):
-    stack_outputs = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
-    if not os.path.exists(stack_outputs):
+    stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
+    if not os.path.exists(stack_output):
         raise Exit("no stack.output file present")
 
-    with open(stack_outputs, 'r') as f:
+    with open(stack_output, 'r') as f:
         infra_map = json.load(f)
 
     infra = dict()
