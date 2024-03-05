@@ -16,8 +16,8 @@ from tasks.libs.github_actions_tools import (
     trigger_macos_workflow,
 )
 from tasks.libs.junit_upload_core import repack_macos_junit_tar
-from tasks.release import _get_release_json_value
 from tasks.libs.pipeline_notifications import read_owners
+from tasks.release import _get_release_json_value
 
 
 @lru_cache(maxsize=None)
