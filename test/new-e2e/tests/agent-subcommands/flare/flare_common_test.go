@@ -7,7 +7,6 @@
 package flare
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -28,7 +27,9 @@ type baseFlareSuite struct {
 func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	fakeIntake := v.Env().FakeIntake.Client()
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"})
-	flare, _ := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+
+	assert.NotContains(v.T(), logs, "Error")
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
@@ -52,7 +53,8 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"})
 	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
 
-	assert.True(v.T(), strings.Contains(logs, "Initiating flare locally."))
+	assert.Contains(v.T(), logs, "Initiating flare locally.")
+	assert.NotContains(v.T(), logs, "Error")
 	assertFilesExist(v.T(), flare, []string{"local"})
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
@@ -63,10 +65,6 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
-
-	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
-	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
-	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent agentclient.Agent, fakeintake *fi.Client, flareArgs ...agentclient.AgentArgsOption) (flare.Flare, string) {

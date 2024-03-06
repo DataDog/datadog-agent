@@ -34,8 +34,6 @@ var nonLocalMetadataFlareFiles = []string{
 }
 
 var nonLocalFlareFiles = []string{
-	"container_check_output.json",
-	"process_check_output.json",
 	"process-agent_tagger-list.json",
 	"tagger-list.json",
 	"workload-list.log",
