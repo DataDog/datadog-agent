@@ -1251,6 +1251,14 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
+	// Agentless-scanner
+	config.BindEnvAndSetDefault("agentless_scanner.default_roles", []string{})
+	// Limit rates are per-second
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_default_rate", 10.0)
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_ec2_rate", 10.0)
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_ebs_list_block_rate", 20.0)
+	config.BindEnvAndSetDefault("agentless_scanner.limits.aws_ebs_get_block_rate", 400.0)
+
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)

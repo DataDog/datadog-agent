@@ -452,8 +452,8 @@ github.com/aws/aws-sdk-go-v2 v1.21.2/go.mod h1:ErQhvNuEMhJjweavOYhxVkn2RUx7kQXVA
 github.com/aws/aws-sdk-go-v2 v1.25.2 h1:/uiG1avJRgLGiQM9X3qJM8+Qa6KRGK5rRPuXE0HUM+w=
 github.com/aws/aws-sdk-go-v2 v1.25.2/go.mod h1:Evoc5AsmtveRt1komDwIsjHFyrP5tDuF1D1U+6z6pNo=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.14/go.mod h1:9NCTOURS8OpxvoAVHq79LK81/zC78hfRWFn+aL0SPcY=
-github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.4 h1:OCs21ST2LrepDfD3lwlQiOqIGp6JiEUqG84GzTDoyJs=
-github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.4/go.mod h1:usURWEKSNNAcAZuzRn/9ZYPT8aZQkR7xcCtunK/LkJo=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.1 h1:gTK2uhtAPtFcdRRJilZPx8uJLL2J85xK11nKtWL0wfU=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.1/go.mod h1:sxpLb+nZk7tIfCWChfd+h4QwHNUR57d8hA1cleTkjJo=
 github.com/aws/aws-sdk-go-v2/config v1.8.3/go.mod h1:4AEiLtAb8kLs7vgw2ZV3p2VZ1+hBavOc84hqxVNpCyw=
 github.com/aws/aws-sdk-go-v2/config v1.19.0/go.mod h1:ZwDUgFnQgsazQTnWfeLWk5GjeqTQTL8lMkoE1UXzxdE=
 github.com/aws/aws-sdk-go-v2/config v1.26.6 h1:Z/7w9bUqlRI0FFQpetVuFYEsjzE3h7fpU6HuGmfPL/o=
@@ -503,6 +503,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.16.10 h1:KOxnQeWy5sXyS
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.16.10/go.mod h1:jMx5INQFYFYB3lQD9W0D8Ohgq6Wnl7NYOJ2TQndbulI=
 github.com/aws/aws-sdk-go-v2/service/kms v1.27.1 h1:r9ZaZl6pry/tIri5S0LGyY56cDWFKPWd9a+sUqYrMt8=
 github.com/aws/aws-sdk-go-v2/service/kms v1.27.1/go.mod h1:jjm2TioW0CKmmwRPqg7etb852nKYc7xqea7/vGKdkjU=
+github.com/aws/aws-sdk-go-v2/service/lambda v1.53.1 h1:UP4ijiKqXUneKAHGd5Z8AnuFadzXwzasUXmrUyY/Lx0=
+github.com/aws/aws-sdk-go-v2/service/lambda v1.53.1/go.mod h1:j7LmUBmzv17DtxTqO7DQ/HTnyfFB9ouspZo5C9WWxzk=
 github.com/aws/aws-sdk-go-v2/service/rds v1.73.0 h1:Cq8KqaoLISfjtKBeaZY0rVmjb22J1j9N+M/BYGfXrXQ=
 github.com/aws/aws-sdk-go-v2/service/rds v1.73.0/go.mod h1:VwhpZOXYa/PPsZgcGpXFNe5bdL4Rlcv+1Z7nGKX8MVI=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.40.2/go.mod h1:Zjfqt7KhQK+PO1bbOsFNzKgaq7TcxzmEoDWN8lM0qzQ=
@@ -1175,6 +1177,8 @@ github.com/itchyny/timefmt-go v0.1.5/go.mod h1:nEP7L+2YmAbT2kZ2HfSs1d8Xtw9LY8D2s
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 h1:BQSFePA1RWJOlocH6Fxy8MmwDt+yVQYULKfN0RoTN8A=
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99/go.mod h1:1lJo3i6rXxKeerYnT8Nvf0QmHCRC1n8sfWVwXF2Frvo=
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
+github.com/jinroh/go-nbd v0.0.0-20231130123830-c38d5f5140c8 h1:mKPd4HbpaOxS2Gf86v/GLBmSX3vj/MwGYCUoJL5ILgw=
+github.com/jinroh/go-nbd v0.0.0-20231130123830-c38d5f5140c8/go.mod h1:ZPwNjACqcOEjyFGAwW3drJHQhtTode1IVGiQPcuuFOI=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jlaffaye/ftp v0.0.0-20180404123514-2403248fa8cc/go.mod h1:lli8NYPQOFy3O++YmYbqVgOcQ1JPCwdOy+5zSjKJ9qY=
