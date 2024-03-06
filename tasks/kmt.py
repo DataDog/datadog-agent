@@ -398,7 +398,9 @@ def prepare(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, packages="",
             instance.copy_to_all_vms(ctx, f"kmt-deps/{stack}/dependencies-{full_arch(instance.arch)}.tar.gz")
 
         for d in domains:
-            d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch}", allow_fail=True, verbose=verbose)
+            if not d.run_cmd(ctx, f"/root/fetch_dependencies.sh {arch}", allow_fail=True, verbose=verbose):
+                raise Exit(f"failed to fetch dependencies for domain {d}")
+
             info(f"[+] Dependencies shared with target VM {d}")
 
     tests_archive = f"tests-{arch}.tar.gz"
