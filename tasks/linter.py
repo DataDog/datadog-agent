@@ -237,3 +237,23 @@ def lint_flavor(
         module_results.append(module_result)
 
     return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
+
+
+@task
+def list_ssm_parameters(_):
+    """
+    List all SSM parameters used in the datadog-agent repository.
+    """
+    import re
+
+    ssm_owner = re.compile("^[A-Z].*_SSM_(NAME|KEY): (?P<param>[^ ]+) +# +(?P<owner>.+)$")
+    ssm_params = defaultdict(list)
+    with open(".gitlab-ci.yml") as f:
+        for line in f:
+            m = ssm_owner.match(line.strip())
+            if m:
+                ssm_params[m.group("owner")].append(m.group("param"))
+    for owner in ssm_params.keys():
+        print(f"Owner:{owner}")
+        for param in ssm_params[owner]:
+            print(f"  - {param}")
