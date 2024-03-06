@@ -128,22 +128,6 @@ func (t *Tester) ExpectCWS() bool {
 	return false
 }
 
-func (t *Tester) testDefaultPythonVersion(tt *testing.T) {
-	tt.Run("default python version", func(tt *testing.T) {
-		pythonVersion, err := t.InstallTestClient.GetPythonVersion()
-		if !assert.NoError(tt, err, "should get python version") {
-			return
-		}
-		majorPythonVersion := strings.Split(pythonVersion, ".")[0]
-
-		if t.ExpectPython2Installed() {
-			assert.Equal(tt, "2", majorPythonVersion, "Agent 6 should install Python 2")
-		} else {
-			assert.Equal(tt, "3", majorPythonVersion, "Agent should install Python 3")
-		}
-	})
-}
-
 // RunTestsForKitchenCompat runs several tests that were copied over from the kitchen tests.
 // Many if not all of these should be independent E2E tests and not part of the installer
 // tests, but they have not been converted yet.
@@ -153,7 +137,20 @@ func (t *Tester) RunTestsForKitchenCompat(tt *testing.T) {
 		common.CheckAgentRestarts(tt, t.InstallTestClient)
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
-		t.testDefaultPythonVersion(tt)
+		tt.Run("default python version", func(tt *testing.T) {
+			pythonVersion, err := t.InstallTestClient.GetPythonVersion()
+			if !assert.NoError(tt, err, "should get python version") {
+				return
+			}
+			majorPythonVersion := strings.Split(pythonVersion, ".")[0]
+
+			if t.ExpectPython2Installed() {
+				assert.Equal(tt, "2", majorPythonVersion, "Agent 6 should install Python 2")
+			} else {
+				assert.Equal(tt, "3", majorPythonVersion, "Agent should install Python 3")
+			}
+		})
+
 		if t.ExpectPython2Installed() {
 			tt.Run("switch to Python3", func(tt *testing.T) {
 				common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "3")
