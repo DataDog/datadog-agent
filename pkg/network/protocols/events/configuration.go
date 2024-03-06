@@ -125,7 +125,12 @@ func eventMapName(proto string) string {
 
 // noopInstruction is used for the purposes of eBPF patching (see comments
 // below)
-var noopInstruction = asm.Mov.Reg(asm.R1, asm.R1)
+// we're using here the same noop instruction used internally by the verifier:
+// https://elixir.bootlin.com/linux/v6.7/source/kernel/bpf/verifier.c#L18582
+var noopInstruction = asm.Instruction{
+	OpCode:   asm.Ja.Op(asm.ImmSource),
+	Constant: 0,
+}
 
 // removeRingBufferHelperCalls is called only in the context of kernels that
 // don't support ring buffers. our eBPF code looks more or less like the
