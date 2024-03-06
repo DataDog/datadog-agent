@@ -10,51 +10,41 @@ package selftests
 
 import (
 	"fmt"
-	"os/exec"
+	"math"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ChmodSelfTest defines a chmod self test
-type ChmodSelfTest struct {
+// EBPFLessSelfTest defines an ebpf less self test
+type EBPFLessSelfTest struct {
 	ruleID    eval.RuleID
-	filename  string
 	isSuccess bool
 }
 
 // GetRuleDefinition returns the rule
-func (o *ChmodSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_chmod", ruleIDPrefix)
+func (o *EBPFLessSelfTest) GetRuleDefinition() *rules.RuleDefinition {
+	o.ruleID = fmt.Sprintf("%s_exec", ruleIDPrefix)
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`chmod.file.path == "%s"`, o.filename),
+		Expression: `exec.file.path != "" && process.parent.pid == 0`,
+		Every:      time.Duration(math.MaxInt64),
 	}
 }
 
 // GenerateEvent generate an event
-func (o *ChmodSelfTest) GenerateEvent() error {
-	o.isSuccess = false
-
-	// we need to use chmod (or any other external program) as our PID is discarded by probes
-	// so the events would not be generated
-	cmd := exec.Command("chmod", "777", o.filename)
-	if err := cmd.Run(); err != nil {
-		log.Debugf("error running chmod: %v", err)
-		return err
-	}
-
+func (o *EBPFLessSelfTest) GenerateEvent() error {
 	return nil
 }
 
 // HandleEvent handles self test events
-func (o *ChmodSelfTest) HandleEvent(event selfTestEvent) {
+func (o *EBPFLessSelfTest) HandleEvent(event selfTestEvent) {
 	o.isSuccess = event.RuleID == o.ruleID
 }
 
 // IsSuccess return the state of the test
-func (o *ChmodSelfTest) IsSuccess() bool {
+func (o *EBPFLessSelfTest) IsSuccess() bool {
 	return o.isSuccess
 }
