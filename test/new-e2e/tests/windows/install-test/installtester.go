@@ -180,8 +180,20 @@ func (t *Tester) RunTestsForKitchenCompat(tt *testing.T) {
 	})
 }
 
-// TestUninstall uninstalls the agent and runs tests
-func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
+// TestUninstallExpectations verifies the agent uninstalled correctly.
+func (t *Tester) TestUninstallExpectations(tt *testing.T) {
+	tt.Run("agent is not running and install directory is removed", func(tt *testing.T) {
+		// this helper uses require so wrap it in a subtest so we can continue even if it fails
+		common.CheckUninstallation(tt, t.InstallTestClient)
+	})
+
+	tt.Run("does not change system files", func(tt *testing.T) {
+		t.systemFileIntegrityTester.AssertDoesRemoveSystemFiles(tt)
+	})
+}
+
+// UninstallAgentAndRunUninstallTests installs the agent and runs TestUninstallExpectations
+func (t *Tester) UninstallAgentAndRunUninstallTests(tt *testing.T, logfile string) bool {
 	return tt.Run("uninstall the agent", func(tt *testing.T) {
 		if !tt.Run("uninstall", func(tt *testing.T) {
 			err := windowsAgent.UninstallAgent(t.host, logfile)
@@ -190,11 +202,7 @@ func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 			tt.Fatal("uninstall failed")
 		}
 
-		common.CheckUninstallation(tt, t.InstallTestClient)
-
-		tt.Run("does not change system files", func(tt *testing.T) {
-			t.systemFileIntegrityTester.AssertDoesRemoveSystemFiles(tt)
-		})
+		t.TestUninstallExpectations(tt)
 	})
 }
 
@@ -233,8 +241,8 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	t.RunTestsForKitchenCompat(tt)
 }
 
-// TestExpectations tests the current agent installation meets the expectations provided to the Tester
-func (t *Tester) TestExpectations(tt *testing.T) bool {
+// TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester
+func (t *Tester) TestInstallExpectations(tt *testing.T) bool {
 	return tt.Run(fmt.Sprintf("test %s", t.agentPackage.AgentVersion()), func(tt *testing.T) {
 		if !tt.Run("running expected agent version", func(tt *testing.T) {
 			installedVersion, err := t.InstallTestClient.GetAgentVersion()
