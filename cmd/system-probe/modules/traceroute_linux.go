@@ -16,7 +16,7 @@ import (
 var Traceroute = module.Factory{
 	Name:             config.TracerouteModule,
 	ConfigNamespaces: tracerouteConfigNamespaces,
-	Fn:               createNetworkTracerModule,
+	Fn:               createTracerouteModule,
 	NeedsEBPF: func() bool {
 		return false
 	},
