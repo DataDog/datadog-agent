@@ -36,7 +36,6 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	assertFilesExist(v.T(), flare, defaultMetadataFlareFiles)
 	assertFoldersExist(v.T(), flare, defaultFlareFolders)
 
-
 	assertFilesExist(v.T(), flare, nonLocalFlareFiles)
 	assertFilesExist(v.T(), flare, nonLocalMetadataFlareFiles)
 
