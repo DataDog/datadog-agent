@@ -8,11 +8,13 @@
 package agentsidecar
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestProviderIsSupported(t *testing.T) {
@@ -41,7 +43,7 @@ func TestProviderIsSupported(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			isSupported := ProviderIsSupported(test.provider)
+			isSupported := providerIsSupported(test.provider)
 			if test.expectIsSupported {
 				assert.True(tt, isSupported)
 			} else {

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.21
+go 1.21.7
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
@@ -16,10 +16,10 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.103-0.20240118142331-3069f58aa284
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.2
-	github.com/DataDog/datadog-agent/test/fakeintake v0.52.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/test/fakeintake v0.52.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -27,7 +27,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240304105425-91d26010397f
+	github.com/DataDog/test-infra-definitions v0.0.0-20240306092623-a6fda5c632f9
 	github.com/aws/aws-sdk-go-v2 v1.24.0
 	github.com/aws/aws-sdk-go-v2/config v1.25.10
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -41,6 +41,7 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi/sdk/v3 v3.101.1
+	github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13
 	github.com/samber/lo v1.38.1
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.8.5-0.20231013065317-89920137cdfa
@@ -59,7 +60,7 @@ require (
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.3 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -209,7 +210,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
-	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
+	github.com/zorkian/go-datadog-api v2.30.0+incompatible
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect

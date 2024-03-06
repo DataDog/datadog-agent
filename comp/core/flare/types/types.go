@@ -153,10 +153,3 @@ func NewProvider(callback FlareCallback) Provider {
 		Provider: callback,
 	}
 }
-
-// NewEmptyProvider returns a new Provider with an empty callback
-func NewEmptyProvider() Provider {
-	return Provider{
-		Provider: func(fb FlareBuilder) error { return nil },
-	}
-}

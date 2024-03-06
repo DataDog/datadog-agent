@@ -2024,7 +2024,7 @@ echo "Executing echo insIDe a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print insIDe a python (%s) script insIDe a bash script')
+print('Executing print insIDe a python (%s) script inside a bash script')
 
 EOF
 
@@ -2098,7 +2098,7 @@ chmod 755 pyscript.py
 
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
+			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
 			}
@@ -2107,6 +2107,7 @@ chmod 755 pyscript.py
 
 			testModule.WaitSignal(t, func() error {
 				cmd := exec.Command(scriptLocation)
+				cmd.Dir = os.TempDir()
 				output, scriptRunErr := cmd.CombinedOutput()
 				if scriptRunErr != nil {
 					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)

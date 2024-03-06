@@ -30,11 +30,11 @@ def requires_update(url_base, rootfs_dir, image):
     return False
 
 
-def download_rootfs(ctx, rootfs_dir):
+def download_rootfs(ctx, rootfs_dir, vmconfig_template):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
-    vmconfig_template = get_vmconfig_template()
+    vmconfig_template = get_vmconfig_template(vmconfig_template)
 
     url_base = platforms["url_base"]
 
@@ -117,7 +117,7 @@ def download_rootfs(ctx, rootfs_dir):
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def update_rootfs(ctx, rootfs_dir):
-    download_rootfs(ctx, rootfs_dir)
+def update_rootfs(ctx, rootfs_dir, vmconfig_template):
+    download_rootfs(ctx, rootfs_dir, vmconfig_template)
 
     info("[+] Root filesystem and bootables images updated")
