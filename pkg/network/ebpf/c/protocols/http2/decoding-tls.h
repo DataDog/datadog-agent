@@ -615,6 +615,10 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
     // skip HTTP2 magic, if present
     tls_skip_preface(&dispatcher_args_copy);
+    if (dispatcher_args_copy.data_off == dispatcher_args_copy.data_end) {
+    // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
+        return 0;
+    }
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
 

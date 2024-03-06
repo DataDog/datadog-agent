@@ -627,6 +627,10 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
 
     // skip HTTP2 magic, if present
     skip_preface(skb, &dispatcher_args_copy.skb_info);
+    if (dispatcher_args_copy.skb_info.data_off == dispatcher_args_copy.skb_info.data_end) {
+    // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
+        return 0;
+    }
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
 
