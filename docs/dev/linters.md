@@ -13,7 +13,7 @@ For Go, we're using [golangci-lint](https://golangci-lint.run/), a Go linters ag
 The `linters` key defines the list of linters we're using:
 https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/.golangci.yml#L65-L79
 
-To run the linters locally, run `inv lint-go`.
+To run the linters locally, run `inv linter.go`.
 
 > [!TIP]
 > In your code, you can ignore linter issues on a line by prepending it with [the nolint directive](https://golangci-lint.run/usage/false-positives/#nolint-directive), for example,  `//nolint:linter_name`.
@@ -30,7 +30,7 @@ For Python, we're using ([see invoke task](https://github.com/DataDog/datadog-ag
 
 Their configuration is defined in both the [setup.cfg](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/setup.cfg) and the [pyproject.toml](https://github.com/DataDog/datadog-agent/blob/dffd3262934a5540b9bf8e4bd3a743732637ef37/pyproject.toml) files.
 
-To run the linters locally, run `inv lint-python`.
+To run the linters locally, run `inv linter.python`.
 
 > [!TIP]
 > In your code, you can ignore linter issues on a line by prepending it with `# noqa: error_code`.

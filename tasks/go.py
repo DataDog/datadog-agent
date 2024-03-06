@@ -84,9 +84,9 @@ def golangci_lint(
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     DEPRECATED
-    Please use inv lint-go instead
+    Please use inv linter.go instead
     """
-    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
+    print("WARNING: golangci-lint task is deprecated, please migrate to linter.go task")
     raise Exit(code=1)
 
 
