@@ -14,6 +14,14 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
 
+    def test_no_file(self):
+        changed_files = []
+        expected_teams = []
+
+        teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
+
+        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+
     def test_single_file_single_team(self):
         changed_files = ['.gitignore']
         expected_teams = ['@DataDog/agent-platform']
