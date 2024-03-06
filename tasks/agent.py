@@ -126,6 +126,7 @@ def build(
     cmake_options='',
     bundle=None,
     bundle_ebpf=False,
+    agent_bin=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -197,7 +198,9 @@ def build(
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
-    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    if not agent_bin:
+        agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
