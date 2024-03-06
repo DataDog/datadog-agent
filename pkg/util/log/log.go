@@ -108,11 +108,6 @@ func addLogToBuffer(logHandle func()) {
 	logsBuffer = append(logsBuffer, logHandle)
 }
 
-// This function should be called with `sw.l` held
-func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
-	return level >= sw.level
-}
-
 func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
 	if sw.extra == nil {
 		return errors.New("logger not fully initialized, additional logging unavailable")
@@ -140,6 +135,7 @@ func (sw *loggerPointer) trace(s string) {
 
 	if l == nil {
 		// TODO: throw error?
+		return
 	}
 
 	scrubbed := l.scrub(s)
@@ -366,11 +362,6 @@ func (sw *loggerPointer) criticalf(format string, params ...interface{}) error {
 	}
 
 	return err
-}
-
-// getLogLevel returns the current log level
-func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
-	return sw.level
 }
 
 // BuildLogEntry concatenates all inputs with spaces
@@ -613,7 +604,7 @@ func Tracef(format string, params ...interface{}) {
 
 // TracefStackDepth logs with format at the trace level and the current stack depth plus the given depth
 func TracefStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel > seelog.TraceLvl {
 		return
 	}
@@ -635,7 +626,7 @@ func Tracec(message string, context ...interface{}) {
 
 // TraceFunc calls and logs the result of 'logFunc' if and only if Trace (or more verbose) logs are enabled
 func TraceFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel <= seelog.TraceLvl {
 		TraceStackDepth(2, logFunc())
 	}
@@ -653,7 +644,7 @@ func Debugf(format string, params ...interface{}) {
 
 // DebugfStackDepth logs with format at the debug level and the current stack depth plus the given depth
 func DebugfStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel > seelog.DebugLvl {
 		return
 	}
@@ -675,7 +666,7 @@ func Debugc(message string, context ...interface{}) {
 
 // DebugFunc calls and logs the result of 'logFunc' if and only if Debug (or more verbose) logs are enabled
 func DebugFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel <= seelog.DebugLvl {
 		DebugStackDepth(2, logFunc())
 	}
@@ -693,7 +684,7 @@ func Infof(format string, params ...interface{}) {
 
 // InfofStackDepth logs with format at the info level and the current stack depth plus the given depth
 func InfofStackDepth(depth int, format string, params ...interface{}) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel > seelog.InfoLvl {
 		return
 	}
@@ -715,7 +706,7 @@ func Infoc(message string, context ...interface{}) {
 
 // InfoFunc calls and logs the result of 'logFunc' if and only if Info (or more verbose) logs are enabled
 func InfoFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel <= seelog.InfoLvl {
 		InfoStackDepth(2, logFunc())
 	}
@@ -751,7 +742,7 @@ func Warnc(message string, context ...interface{}) error {
 
 // WarnFunc calls and logs the result of 'logFunc' if and only if Warn (or more verbose) logs are enabled
 func WarnFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel <= seelog.WarnLvl {
 		WarnStackDepth(2, logFunc())
 	}
@@ -787,7 +778,7 @@ func Errorc(message string, context ...interface{}) error {
 
 // ErrorFunc calls and logs the result of 'logFunc' if and only if Error (or more verbose) logs are enabled
 func ErrorFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel <= seelog.ErrorLvl {
 		ErrorStackDepth(2, logFunc())
 	}
@@ -823,7 +814,7 @@ func Criticalc(message string, context ...interface{}) error {
 
 // CriticalFunc calls and logs the result of 'logFunc' if and only if Critical (or more verbose) logs are enabled
 func CriticalFunc(logFunc func() string) {
-	currentLevel, _ := GetLogLevel()
+	currentLevel, _ := logger.getLogLevel()
 	if currentLevel <= seelog.CriticalLvl {
 		CriticalStackDepth(2, logFunc())
 	}
@@ -943,6 +934,11 @@ func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
 	return errors.New("cannot register: logger not initialized")
 }
 
+// This function should be called with `sw.l` held
+func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
+	return level >= sw.level
+}
+
 // ShouldLog returns whether a given log level should be logged by the default logger
 func ShouldLog(lvl seelog.LogLevel) bool {
 	l := logger.Load()
@@ -954,11 +950,9 @@ func ShouldLog(lvl seelog.LogLevel) bool {
 	return false
 }
 
-// GetLogLevel returns a seelog native representation of the current
-// log level
-func GetLogLevel() (seelog.LogLevel, error) {
-	l := logger.Load()
-
+// getLogLevel returns the current log level
+func (sw *loggerPointer) getLogLevel() (seelog.LogLevel, error) {
+	l := sw.Load()
 	if l == nil {
 		return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
@@ -966,12 +960,17 @@ func GetLogLevel() (seelog.LogLevel, error) {
 	l.l.RLock()
 	defer l.l.RUnlock()
 
-	if l.inner != nil {
-		return l.getLogLevel(), nil
+	if l.inner == nil {
+		return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	// need to return something, just set to Info (expected default)
-	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
+	return l.level, nil
+}
+
+// GetLogLevel returns a seelog native representation of the current
+// log level
+func GetLogLevel() (seelog.LogLevel, error) {
+	return logger.getLogLevel()
 }
 
 // This function should be called with `sw.l` held
