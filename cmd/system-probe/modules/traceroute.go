@@ -29,7 +29,7 @@ var (
 	tracerouteConfigNamespaces = []string{"traceroute"}
 )
 
-func createTracerouteModule(cfg *sysconfigtypes.Config) (module.Module, error) {
+func createTracerouteModule(_ *sysconfigtypes.Config) (module.Module, error) {
 	return &traceroute{}, nil
 }
 
