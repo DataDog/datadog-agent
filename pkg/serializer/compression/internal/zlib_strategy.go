@@ -10,10 +10,9 @@ import (
 	"bytes"
 	"compress/zlib"
 	"io"
-)
 
-// ZlibEncoding is the content-encoding value for Zlib
-const ZlibEncoding = "deflate"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
+)
 
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
 type ZlibStrategy struct {
@@ -65,7 +64,7 @@ func (s *ZlibStrategy) CompressBound(sourceLen int) int {
 
 // ContentEncoding returns the content encoding value for zlib
 func (s *ZlibStrategy) ContentEncoding() string {
-	return ZlibEncoding
+	return utils.ZlibEncoding
 }
 
 // NewZlibZipper returns a new zlib writer

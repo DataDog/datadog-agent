@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-//go:build zlib
+//go:build zlib || zstd
 
 //nolint:revive // TODO(AML) Fix revive linter
 package stream
@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 )
 
 const (
@@ -64,8 +65,8 @@ func init() {
 type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
-	strategy            compression.Compressor
-	zipper              compression.Zipper
+	strategy            strategyUtils.Compressor
+	zipper              strategyUtils.Zipper
 	header              []byte // json header to print at the beginning of the payload
 	footer              []byte // json footer to append at the end of the payload
 	uncompressedWritten int    // uncompressed bytes written

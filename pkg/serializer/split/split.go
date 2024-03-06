@@ -13,8 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
-	// "github.com/DataDog/datadog-agent/pkg/util/compression"
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,7 +62,7 @@ func init() {
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Compressor) (bool, []byte, []byte, error) {
+func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy strategyUtils.Compressor) (bool, []byte, []byte, error) {
 	compressedPayload, payload, err := serializeMarshaller(m, compress, marshalFct, strategy)
 	if err != nil {
 		return false, nil, nil, err
@@ -75,7 +74,7 @@ func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshal
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Compressor) (transaction.BytesPayloads, error) {
+func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy strategyUtils.Compressor) (transaction.BytesPayloads, error) {
 	marshallers := []marshaler.AbstractMarshaler{m}
 	smallEnoughPayloads := transaction.BytesPayloads{}
 	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct, strategy)
@@ -161,7 +160,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 }
 
 // serializeMarshaller serializes the marshaller and returns both the compressed and uncompressed payloads
-func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Compressor) ([]byte, []byte, error) {
+func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy strategyUtils.Compressor) ([]byte, []byte, error) {
 	var payload []byte
 	var compressedPayload []byte
 	var err error

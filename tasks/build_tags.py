@@ -43,6 +43,7 @@ ALL_TAGS = {
     "trivy",
     "zk",
     "zlib",
+    "zstd",
     "test",  # used for unit-tests
 }
 
@@ -73,6 +74,7 @@ AGENT_TAGS = {
     "trivy",
     "zk",
     "zlib",
+    "zstd",
 }
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build

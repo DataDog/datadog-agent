@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib && zstd
+//go:build zlib && !zstd
 
 // Package compression provides a set of functions for compressing with zlib / zstd
 package compression
@@ -18,14 +18,15 @@ import (
 )
 
 // NewCompressorStrategy returns a new Compressor based on serializer_compressor_kind
-// This function is called when both zlib and zstd build tags are included
+// This function is called only when the zlib build tag is included
 func NewCompressorStrategy(cfg config.Component) utils.Compressor {
 	kind := cfg.GetString("serializer_compressor_kind")
 	switch kind {
 	case utils.ZlibKind:
 		return compression.NewZlibStrategy()
 	case utils.ZstdKind:
-		return compression.NewZstdStrategy()
+		log.Warn("zstd build tag not included. using zlib")
+		return compression.NewZlibStrategy()
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
 		return compression.NewNoopStrategy()
@@ -39,7 +40,8 @@ func NewZipper(output *bytes.Buffer, cfg config.Component) utils.Zipper {
 	case utils.ZlibKind:
 		return compression.NewZlibZipper(output)
 	case utils.ZstdKind:
-		return compression.NewZstdZipper(output)
+		log.Warn("zstd build tag not included. using zlib")
+		return compression.NewZlibZipper(output)
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
 		return compression.NewNoopZipper(output)
