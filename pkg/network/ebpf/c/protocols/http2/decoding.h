@@ -487,16 +487,6 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
         return false;
     }
 
-    // Checking if we can read a frame header.
-    if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end) {
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
-        if ((format_http2_frame_header(current_frame)) && (current_frame->type != kHeadersFrame) && (current_frame->type != kDataFrame)) {
-            // We successfully read a valid frame.
-            skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
-            return true;
-        }
-    }
-
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
         skb_info->data_off += frame_state->remainder;
