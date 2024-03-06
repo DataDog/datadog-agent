@@ -155,10 +155,11 @@ func (t *Tester) testDefaultPythonVersion(tt *testing.T) {
 	})
 }
 
-// TestRuntimeExpectations tests the runtime behavior of the agent
-func (t *Tester) TestRuntimeExpectations(tt *testing.T) {
+// RunTestsForKitchenCompat runs several tests that were copied over from the kitchen tests.
+// Many if not all of these should be independent E2E tests and not part of the installer
+// tests, but they have not been converted yet.
+func (t *Tester) RunTestsForKitchenCompat(tt *testing.T) {
 	tt.Run("agent runtime behavior", func(tt *testing.T) {
-		common.CheckAgentBehaviour(tt, t.InstallTestClient)
 		common.CheckAgentStops(tt, t.InstallTestClient)
 		common.CheckAgentRestarts(tt, t.InstallTestClient)
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
@@ -251,7 +252,7 @@ func (t *Tester) InstallAgent(options ...windowsAgent.InstallAgentOption) error 
 
 // Only do some basic checks on the agent since it's a previous version
 func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
-	common.CheckAgentBehaviour(tt, t.InstallTestClient)
+	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 }
 
 // More in depth checks on current version
@@ -283,7 +284,10 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	})
 
 	t.testAgentCodeSignature(tt)
-	t.TestRuntimeExpectations(tt)
+
+	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
+
+	t.RunTestsForKitchenCompat(tt)
 }
 
 // TestExpectations tests the current agent installation meets the expectations provided to the Tester
