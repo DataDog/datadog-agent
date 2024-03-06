@@ -181,7 +181,7 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 			if shutdown {
 				break
 			}
-			handleScanRequest(ctx, r, s)
+			s.handleScanRequest(ctx, r)
 			s.scanQueue.Done(r)
 		}
 		for _, collector := range collectors.Collectors {
@@ -190,13 +190,14 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 	}()
 }
 
-func handleScanRequest(ctx context.Context, r interface{}, s *Scanner) {
+func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 	request, ok := r.(sbom.ScanRequest)
 	if !ok {
 		_ = log.Errorf("invalid scan request type '%T'", r)
 		s.scanQueue.Forget(r)
 		return
 	}
+
 	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 	collector, ok := collectors.Collectors[request.Collector()]
 	if !ok {
