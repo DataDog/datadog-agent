@@ -25,12 +25,7 @@ import (
 )
 
 func changeLogLevel(level string) error {
-	l := logger.Load()
-	if l == nil {
-		return errors.New("cannot set log-level: logger not initialized")
-	}
-
-	return l.changeLogLevel(level)
+	return logger.changeLogLevel(level)
 }
 
 // createExtraTextContext defines custom formatter for context logging on tests.
