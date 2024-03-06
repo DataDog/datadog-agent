@@ -236,14 +236,13 @@ def assign_team_label(_, pr_id=-1):
 
     # Find team
     teams = _get_teams(gh.get_pr_files(pr_id))
-    team_labels = [f"team{team.removeprefix('@Datadog')}" for team in teams if team.startswith("@DataDog/")]
     if teams == []:
         print('No team found')
         return
 
     # Assign label
-    for team in teams:
-        label_name = 'team' + team.removeprefix('@DataDog')
+    team_labels = [f"team{team.removeprefix('@Datadog')}" for team in teams if team.startswith("@DataDog/")]
+    for label_name in team_labels:
         try:
             gh.add_pr_label(pr_id, label_name)
             print(label_name, 'label assigned to the pull request')
