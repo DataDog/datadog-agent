@@ -40,7 +40,7 @@ func init() {
 }
 
 func printVersion() {
-	fmt.Fprintf(os.Stdout, "%s: v%s\n\nRapDev (https://www.rapdev.io) (c) 2021\n",
+	fmt.Fprintf(os.Stdout, "%s: v%s\n\nRapDev (https://www.rapdev.io) (c) 2024\n",
 		filepath.Base(os.Args[0]), appVersion)
 	os.Exit(0)
 }
