@@ -21,16 +21,16 @@ type runtimeSettingsHTTPClient struct {
 	c                 *http.Client
 	baseURL           string
 	targetProcessName string
-	closeConnection   util.ShouldCloseConnection
+	clientOptions     HTTPClientOptions
 }
 
 // NewClient returns a client setup to interact with the standard runtime settings HTTP API
-func NewClient(c *http.Client, baseURL string, targetProcessName string, closeConnection util.ShouldCloseConnection) settings.Client {
-	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName, closeConnection}
+func NewClient(c *http.Client, baseURL string, targetProcessName string, clientOptions HTTPClientOptions) settings.Client {
+	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName, clientOptions}
 }
 
 func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
-	r, err := util.DoGet(rc.c, rc.baseURL, rc.closeConnection)
+	r, err := util.DoGet(rc.c, rc.baseURL, rc.clientOptions.closeConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -46,7 +46,7 @@ func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
 }
 
 func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingResponse, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), rc.closeConnection)
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), rc.clientOptions.closeConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -66,7 +66,7 @@ func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingR
 }
 
 func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), rc.closeConnection)
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), rc.clientOptions.closeConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -89,7 +89,7 @@ func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
 }
 
 func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]interface{}, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), rc.closeConnection)
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), rc.clientOptions.closeConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)

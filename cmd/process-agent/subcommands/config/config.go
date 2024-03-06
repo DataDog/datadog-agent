@@ -192,6 +192,6 @@ func getClient(cfg ddconfig.Reader) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent", util.LeaveConnectionOpen)
+	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen))
 	return settingsClient, nil
 }
