@@ -206,7 +206,7 @@ func handleScanRequest(ctx context.Context, r interface{}, s *Scanner) {
 	}
 
 	var imgMeta *workloadmeta.ContainerImageMetadata
-	if collector.Type() != collectors.ContainerImageScanType {
+	if collector.Type() == collectors.ContainerImageScanType {
 		imgMeta = s.getImageMetadata(request)
 		if imgMeta == nil {
 			return
