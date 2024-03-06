@@ -118,6 +118,7 @@ type InstanceConfig struct {
 	Port                               int                    `yaml:"port"`
 	ServiceName                        string                 `yaml:"service_name"`
 	Username                           string                 `yaml:"username"`
+	User                               string                 `yaml:"user"`
 	Password                           string                 `yaml:"password"`
 	TnsAlias                           string                 `yaml:"tns_alias"`
 	TnsAdmin                           string                 `yaml:"tns_admin"`
@@ -232,6 +233,14 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 			}
 		} else {
 			instance.Port = 1521
+		}
+	}
+
+	if instance.Username == "" {
+		if instance.User != "" {
+			instance.Username = instance.User
+		} else {
+			return nil, fmt.Errorf("`username` is not configured")
 		}
 	}
 
