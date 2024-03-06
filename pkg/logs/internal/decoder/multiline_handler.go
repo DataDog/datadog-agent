@@ -36,11 +36,14 @@ type MultiLineHandler struct {
 	linesCombinedInfo *status.CountInfo
 	telemetryEnabled  bool
 	linesCombined     int
-	tailerInfo        *status.InfoRegistry
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
 func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry) *MultiLineHandler {
+
+	i := status.NewMappedInfo("Multi-Line Pattern")
+	i.SetMessage("Pattern", newContentRe.String())
+	tailerInfo.Register(i)
 
 	h := &MultiLineHandler{
 		outputFn:          outputFn,
@@ -52,15 +55,7 @@ func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.R
 		linesCombinedInfo: status.NewCountInfo("Lines Combined"),
 		telemetryEnabled:  telemetryEnabled,
 		linesCombined:     0,
-		tailerInfo:        tailerInfo,
 	}
-
-	i := status.NewMappedInfo("Multi-Line Pattern")
-	i.SetMessage("Pattern", newContentRe.String())
-	tailerInfo.Register(i)
-	tailerInfo.Register(h.countInfo)
-	tailerInfo.Register(h.linesCombinedInfo)
-
 	return h
 }
 
