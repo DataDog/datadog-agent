@@ -34,6 +34,7 @@
 /setup.cfg                              @DataDog/agent-platform
 /repository.datadog.yml                 @DataDog/agent-platform
 /generate_tools.go                      @DataDog/agent-platform
+/service.datadog.yaml                   @DataDog/agent-build-and-releases
 
 /.circleci/                             @DataDog/agent-platform
 
@@ -96,8 +97,8 @@
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
 
-/.gitlab/kernel_version_testing                      @DataDog/ebpf-platform
-/.gitlab/kernel_version_testing/security_agent.yml   @DataDog/agent-security
+/.gitlab/kernel_matrix_testing                       @DataDog/ebpf-platform
+/.gitlab/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-build-and-releases
 /.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-build-and-releases @DataDog/windows-agent
