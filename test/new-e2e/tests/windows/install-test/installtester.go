@@ -128,10 +128,10 @@ func (t *Tester) ExpectCWS() bool {
 	return false
 }
 
-// RunTestsForKitchenCompat runs several tests that were copied over from the kitchen tests.
+// runTestsForKitchenCompat runs several tests that were copied over from the kitchen tests.
 // Many if not all of these should be independent E2E tests and not part of the installer
 // tests, but they have not been converted yet.
-func (t *Tester) RunTestsForKitchenCompat(tt *testing.T) {
+func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 	tt.Run("agent runtime behavior", func(tt *testing.T) {
 		common.CheckAgentStops(tt, t.InstallTestClient)
 		common.CheckAgentRestarts(tt, t.InstallTestClient)
@@ -235,7 +235,7 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 
-	t.RunTestsForKitchenCompat(tt)
+	t.runTestsForKitchenCompat(tt)
 }
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester

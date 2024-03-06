@@ -101,6 +101,7 @@ func (is *agentMSISuite) TestInstall() {
 	if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
 		remoteMSIPath, err = is.InstallAgent(vm,
 			windowsAgent.WithPackage(is.AgentPackage),
+			windowsAgent.WithValidAPIKey(),
 		)
 		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
 	}) {
@@ -139,7 +140,9 @@ func (is *agentMSISuite) TestUpgrade() {
 	if !is.Run(fmt.Sprintf("upgrade to %s", is.AgentPackage.AgentVersion()), func() {
 		_, err := is.InstallAgent(vm,
 			windowsAgent.WithPackage(is.AgentPackage),
-			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "upgrade.log")))
+			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "upgrade.log")),
+			windowsAgent.WithValidAPIKey(),
+		)
 		is.Require().NoError(err, "should upgrade to agent %s", is.AgentPackage.AgentVersion())
 	}) {
 		is.T().FailNow()
@@ -171,6 +174,7 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 			windowsAgent.WithPackage(is.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "upgrade.log")),
+			windowsAgent.WithValidAPIKey(),
 		)
 		is.Require().Error(err, "should fail to install agent %s", is.AgentPackage.AgentVersion())
 	}) {
@@ -195,7 +199,7 @@ func (is *agentMSISuite) TestRepair() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	// install the agent
+	// initialize test helper and install the agent
 	t := is.installAgent(vm, nil)
 
 	err := windowsCommon.StopService(t.host, "DatadogAgent")
@@ -252,23 +256,11 @@ func (is *agentMSISuite) TestAgentUser() {
 			is.OutputDir, err = runner.GetTestOutputDir(runner.GetProfile(), is.T())
 			is.Require().NoError(err, "should get output dir")
 
-			// initialize test helper
-			t, err := NewTester(is.T(), vm,
-				WithAgentPackage(is.AgentPackage),
-				WithExpectedAgentUser(tc.expectedDomain, tc.expectedUser),
-			)
-			is.Require().NoError(err, "should create tester")
-
-			// install the agent
-			if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
-				_, err = is.InstallAgent(vm,
-					windowsAgent.WithPackage(is.AgentPackage),
+			// initialize test helper and install the agent
+			t := is.installAgent(vm,
+				[]windowsAgent.InstallAgentOption{
 					windowsAgent.WithAgentUser(windowsCommon.MakeDownLevelLogonName(tc.expectedDomain, tc.username)),
-				)
-				is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
-			}) {
-				is.T().FailNow()
-			}
+				})
 
 			// run tests
 			if !t.TestInstallExpectations(is.T()) {
@@ -283,11 +275,7 @@ func (is *agentMSISuite) TestAgentUser() {
 }
 
 func (is *agentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, installOptions []windowsAgent.InstallAgentOption, testerOptions ...TesterOption) *Tester {
-	installOpts := []windowsAgent.InstallAgentOption{
-		windowsAgent.WithPackage(agentPackage),
-		windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "install.log")),
-	}
-	installOpts = append(installOpts, installOptions...)
+	// create the tester
 	testerOpts := []TesterOption{
 		WithAgentPackage(agentPackage),
 	}
@@ -295,6 +283,15 @@ func (is *agentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPac
 	t, err := NewTester(is.T(), vm, testerOpts...)
 	is.Require().NoError(err, "should create tester")
 
+	// install the agent
+	installOpts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithPackage(agentPackage),
+		// default log file, can be overridden
+		windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "install.log")),
+		// trace-agent requires a valid API key
+		windowsAgent.WithValidAPIKey(),
+	}
+	installOpts = append(installOpts, installOptions...)
 	if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
 		_, err = is.InstallAgent(vm, installOpts...)
 		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
