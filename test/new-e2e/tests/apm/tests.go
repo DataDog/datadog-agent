@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
 func testBasicTraces(c *assert.CollectT, service string, intake *components.FakeIntake, agent agentclient.Agent) {
@@ -237,4 +239,55 @@ func testTraceAgentMetricTags(t *testing.T, c *assert.CollectT, service string, 
 		}
 	}
 	assert.Empty(c, expected)
+}
+
+func hasStatsForResource(payloads []*aggregator.APMStatsPayload, resource string) bool {
+	for _, p := range payloads {
+		for _, s := range p.StatsPayload.Stats {
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if ss.Resource == resource {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) bool {
+	for _, p := range payloads {
+		for _, t := range p.AgentPayload.TracerPayloads {
+			for _, c := range t.Chunks {
+				for _, s := range c.Spans {
+					if s.Resource == "poison_pill" {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func eventuallyShutdown(s *suite.Suite, intake *components.FakeIntake) {
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		waitForPoisonPill(s.T(), c, intake)
+	}, 20*time.Second, 1*time.Second, "Failed to find poison pill from tracegen shutdown.")
+}
+
+func waitForPoisonPill(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	t.Log("Got apm stats", stats)
+	assert.True(c, hasStatsForResource(stats, "poison_pill")) // tracegen sends this resource as the last trace before shutting down.
+
+	t.Helper()
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	t.Log("Got traces", traces)
+	assert.True(c, hasTraceForResource(traces, "poison_pill"))
 }
