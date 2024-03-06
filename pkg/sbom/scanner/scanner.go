@@ -177,7 +177,8 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 			if shutdown {
 				break
 			}
-			handleScanRequest(ctx, r, s)
+			s.handleScanRequest(ctx, r)
+			s.scanQueue.Done(r)
 		}
 		for _, collector := range collectors.Collectors {
 			collector.Shutdown()
@@ -185,20 +186,19 @@ func (s *Scanner) startScanRequestHandler(ctx context.Context) {
 	}()
 }
 
-func handleScanRequest(ctx context.Context, r interface{}, s *Scanner) {
+func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 	request, ok := r.(sbom.ScanRequest)
 	if !ok {
 		_ = log.Errorf("invalid scan request type '%T'", r)
 		s.scanQueue.Forget(r)
-		s.scanQueue.Done(r)
 		return
 	}
+
 	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 	collector, ok := collectors.Collectors[request.Collector()]
 	if !ok {
 		_ = log.Errorf("invalid collector '%s'", request.Collector())
 		s.scanQueue.Forget(request)
-		s.scanQueue.Done(request)
 		return
 	}
 
@@ -219,14 +219,12 @@ func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.Conta
 	if store == nil {
 		_ = log.Errorf("workloadmeta store is not initialized")
 		s.scanQueue.AddRateLimited(request)
-		s.scanQueue.Done(request)
 		return nil
 	}
 	img, err := store.GetImage(request.ID())
 	if err != nil || img == nil {
 		log.Debugf("image metadata not found for image id %s: %s", request.ID(), err)
 		s.scanQueue.Forget(request)
-		s.scanQueue.Done(request)
 		return nil
 	}
 	return img
@@ -284,7 +282,6 @@ func (s *Scanner) handleScanResult(scanResult sbom.ScanResult, request sbom.Scan
 		telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type())
 		s.scanQueue.Forget(request)
 	}
-	s.scanQueue.Done(request)
 }
 
 func waitAfterScanIfNecessary(ctx context.Context, collector collectors.Collector) {
