@@ -205,7 +205,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		baseEnv = append(
 			baseEnv,
 			"DD_SYSTEM_PROBE_BPF_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/ebpf/bytecode/build"),
-			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testDirRoot, "pkg/network/protocols/tls/java"),
+			"DD_SERVICE_MONITORING_CONFIG_TLS_JAVA_DIR="+filepath.Join(testConfig.testDirRoot, "pkg/network/protocols/tls/java"),
 		)
 		cmd.Env = append(cmd.Environ(), baseEnv...)
 		cmd.Dir = filepath.Dir(testsuite)
