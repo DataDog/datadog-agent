@@ -1040,7 +1040,7 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 	return stdoutSb.String(), stderrSb.String(), nil
 }
 
-func (suite *k8sSuite) TestTraceUDP() {
+func (suite *k8sSuite) TestTraceUDS() {
 	suite.testTrace(kubeDeploymentTracegenUDSWorkload)
 }
 
