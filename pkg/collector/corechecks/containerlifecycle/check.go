@@ -138,8 +138,8 @@ func (c *Check) Run() error {
 	}
 }
 
-// Stop stops the container_lifecycle check
-func (c *Check) Stop() { close(c.stopCh) }
+// Cancel stops the container_lifecycle check
+func (c *Check) Cancel() { close(c.stopCh) }
 
 // Interval returns 0, it makes container_lifecycle a long-running check
 func (c *Check) Interval() time.Duration { return 0 }
