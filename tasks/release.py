@@ -419,7 +419,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format(  # noqa: FS002
+        r'(v)?({})[.]({})([.](\d+))+(-devel)?(-rc\.(\d+))?(?!-\w)'.format(  # noqa: FS002
             "|".join(allowed_major_versions), minor_version
         )
     )
@@ -558,6 +558,7 @@ def _fetch_dependency_repo_version(
     # Get the highest repo version that's not higher than the Agent version we're going to build
     # We don't want to use a tag on dependent repositories that is supposed to be used in a future
     # release of the Agent (eg. if 7.31.1-rc.1 is tagged on integrations-core while we're releasing 7.30.0).
+    print(f"allowed_major_versions={allowed_major_versions}")
     version = _get_highest_repo_version(
         repo_name,
         new_agent_version.prefix,
