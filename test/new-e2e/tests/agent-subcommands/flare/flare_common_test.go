@@ -7,6 +7,7 @@
 package flare
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ type baseFlareSuite struct {
 func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	fakeIntake := v.Env().FakeIntake.Client()
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"})
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+	flare, _ := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
@@ -45,7 +46,9 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 	fakeIntake := v.Env().FakeIntake.Client()
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"})
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+
+	assert.True(v.T(), strings.Contains(logs, "Initiating flare locally."))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
@@ -60,16 +63,16 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 }
 
-func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent agentclient.Agent, fakeintake *fi.Client, flareArgs ...agentclient.AgentArgsOption) flare.Flare {
+func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent agentclient.Agent, fakeintake *fi.Client, flareArgs ...agentclient.AgentArgsOption) (flare.Flare, string) {
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.NoError(c, fakeintake.GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
-	_ = agent.Flare(flareArgs...)
+	flareLog := agent.Flare(flareArgs...)
 
 	flare, err := fakeintake.GetLatestFlare()
 	require.NoError(t, err)
 
-	return flare
+	return flare, flareLog
 }
