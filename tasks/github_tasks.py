@@ -1,7 +1,7 @@
 import os
 import re
 import time
-from collections import defaultdict
+from collections import Counter
 from functools import lru_cache
 from typing import List
 
@@ -196,18 +196,17 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
 def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
     codeowners = read_owners(owners_file)
 
-    team_counter = defaultdict(lambda: 0)
+    team_counter = Counter()
     for file in changed_files:
         owners = [name for (kind, name) in codeowners.of(file) if kind == 'TEAM']
-        for owner in owners:
-            team_counter[owner] += 1
+        team_counter.update(owners)
 
-    team_count = list(sorted(((count, team) for (team, count) in team_counter.items()), reverse=True))
+    team_count = team_counter.most_common()
     if team_count == []:
         return []
 
-    best_count, _ = team_count[0]
-    best_teams = [team for (count, team) in team_count if count == best_count]
+    _, best_count = team_count[0]
+    best_teams = [team for (team, count) in team_count if count == best_count]
 
     return best_teams
 
@@ -215,15 +214,16 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
 @task
 def assign_team_label(_, pr_id=-1):
     """
-    Assigns the github team label name if a single team can
+    Assigns the github team label name if teams can
     be deduced from the changed files
     """
-    from tasks.libs.common.github_api import GithubAPI
     import github
+
+    from tasks.libs.common.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
 
-    labels = set(gh.get_pr_labels(pr_id))
+    labels = gh.get_pr_labels(pr_id)
 
     # Skip if necessary
     if 'qa/done' in labels or 'qa/no-code-change' in labels:
