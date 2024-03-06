@@ -357,7 +357,7 @@ func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, ar
 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
 				if strings.HasSuffix(arg, javaJarExtension) {
-					value, ok := advancedGuessJavaServiceName(se, process, args, arg)
+					value, ok := advancedGuessJavaServiceName(se, process, args, a)
 					if ok {
 						return value
 					}
