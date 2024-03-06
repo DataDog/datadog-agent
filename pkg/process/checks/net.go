@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
@@ -106,6 +107,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
+	LocalResolver.Start()
+
 	return nil
 }
 
@@ -117,7 +120,7 @@ func (c *ConnectionsCheck) IsEnabled() bool {
 	}
 
 	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
-	return npmModuleEnabled && c.syscfg.Enabled
+	return npmModuleEnabled && c.syscfg.Enabled && flavor.GetFlavor() == flavor.ProcessAgent
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
@@ -171,7 +174,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
-func (c *ConnectionsCheck) Cleanup() {}
+func (c *ConnectionsCheck) Cleanup() {
+	LocalResolver.Stop()
+}
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(c.syscfg.SocketAddress)

@@ -12,9 +12,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,10 +25,46 @@ const defaultTTL = 10 * time.Second
 
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
-	mux         sync.RWMutex
-	addrToCtrID map[model.ContainerAddr]string
-	ctrForPid   map[int]string
-	updated     time.Time
+	mux                sync.RWMutex
+	addrToCtrID        map[model.ContainerAddr]string
+	ctrForPid          map[int]string
+	updated            time.Time
+	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
+	Clock              clock.Clock
+	containerProvider  proccontainers.ContainerProvider
+	ticker             *clock.Ticker
+}
+
+func (l *LocalResolver) Start() {
+	l.containerProvider = proccontainers.GetSharedContainerProvider()
+	l.ticker = l.Clock.Ticker(10 * time.Second)
+	for {
+		select {
+		case <-l.ticker.C:
+			l.pullContainers()
+		}
+	}
+}
+
+func (l *LocalResolver) Stop() {
+	l.ticker.Stop()
+}
+
+func (l *LocalResolver) pullContainers() {
+	var containers []*model.Container
+	var pidToCid map[int]string
+	var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
+	cacheValidity := 2 * time.Second
+
+	containers, lastContainerRates, pidToCid, err := l.containerProvider.GetContainers(cacheValidity, l.lastContainerRates)
+	if err == nil {
+		l.lastContainerRates = lastContainerRates
+	} else {
+		log.Debugf("Unable to gather stats for containers, err: %v", err)
+	}
+
+	// Keep track of containers addresses
+	l.LoadAddrs(containers, pidToCid)
 }
 
 // LoadAddrs generates a map of network addresses to container IDs
