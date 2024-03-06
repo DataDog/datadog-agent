@@ -14,11 +14,11 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
-	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 )
 
 var configCheckURLSnmp string
@@ -75,12 +75,12 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	return snmpconfigs
 }
 
-func parseConfigSnmpMain() ([]SNMPConfig, error) {
+func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 	snmpconfigs := []SNMPConfig{}
 	configs := []snmplistener.Config{}
 	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
 	//so for each result of the Unmarshal key we storre the result in a tmp SNMPConfig{} object
-	err := config.Datadog.UnmarshalKey("snmp_listener.configs", &configs)
+	err := conf.UnmarshalKey("snmp_listener.configs", &configs)
 	if err != nil {
 		fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
 		return nil, err
@@ -112,22 +112,22 @@ func parseConfigSnmpMain() ([]SNMPConfig, error) {
 
 // GetConfigCheckSnmp returns each SNMPConfig for all running config checks, by querying the local agent.
 // If the agent isn't running or is unreachable, this will fail.
-func GetConfigCheckSnmp() ([]SNMPConfig, error) {
+func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken(config.Datadog)
+	err := util.SetAuthToken(conf)
 	if err != nil {
 		return nil, err
 	}
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(conf)
 	if err != nil {
 		return nil, err
 	}
 	//TODO: change the configCheckURLSnmp if the snmp check is a cluster check
 	if configCheckURLSnmp == "" {
-		configCheckURLSnmp = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
+		configCheckURLSnmp = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, conf.GetInt("cmd_port"))
 	}
 	r, err := util.DoGet(c, configCheckURLSnmp, util.LeaveConnectionOpen)
 	if err != nil {
@@ -146,7 +146,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 			snmpconfigs = append(snmpconfigs, ParseConfigSnmp(c)...)
 		}
 	}
-	snmpconfigMain, _ := parseConfigSnmpMain()
+	snmpconfigMain, _ := parseConfigSnmpMain(conf)
 	snmpconfigs = append(snmpconfigs, snmpconfigMain...)
 
 	return snmpconfigs, nil
@@ -181,14 +181,16 @@ func GetIPConfig(ipAddress string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	}
 	//check if the ip address is a part of a network/subnet
 	for _, snmpNetConfig := range netAddressConfigs {
-		_, subnet, _ := net.ParseCIDR(snmpNetConfig.NetAddress)
+		_, subnet, err := net.ParseCIDR(snmpNetConfig.NetAddress)
+		if err != nil {
+			// ignore any malformed configs
+			continue
+		}
 		ip := net.ParseIP(ipAddress)
 		if subnet.Contains(ip) {
 			snmpNetConfig.IPAddress = ipAddress
 			return snmpNetConfig
 		}
-
 	}
-
 	return SNMPConfig{}
 }

@@ -105,14 +105,14 @@ func usagef(msg string, args ...any) usageError {
 // (host, port, params, nil). If the address is not a host:port pair, then it
 // assumes it is a plain IP address, and queries the running agent for the
 // configuration for that address.
-func getParams(deviceAddr string, connParams *connectionParams) (string, uint16, *connectionParams, error) {
+func getParams(deviceAddr string, connParams *connectionParams, conf config.Component) (string, uint16, *connectionParams, error) {
 	deviceIP, port, hasPort := parseIPWithMaybePort(deviceAddr)
 
 	if !hasPort {
 		fmt.Println("No port provided. Loading details from agent config.")
 		// If the customer provides only the ip_address then we fetch parameters from the agent runtime.
 		// Allow the possibility to pass the config file as an argument to the command
-		snmpConfigList, err := parse.GetConfigCheckSnmp()
+		snmpConfigList, err := parse.GetConfigCheckSnmp(conf)
 		instance := parse.GetIPConfig(deviceIP, snmpConfigList)
 		if err != nil {
 			return "", 0, nil, fmt.Errorf("unable to load SNMP config from agent: %w", err)
@@ -333,7 +333,7 @@ func parseIPWithMaybePort(address string) (string, uint16, bool) {
 }
 
 // snmpwalk walks every SNMP value and prints it, in the style of the unix snmpwalk command.
-func snmpwalk(connParams *connectionParams, args argsType) error {
+func snmpwalk(connParams *connectionParams, args argsType, conf config.Component) error {
 	// Parse args
 	if len(args) == 0 {
 		return usagef("missing argument: IP address")
@@ -347,7 +347,7 @@ func snmpwalk(connParams *connectionParams, args argsType) error {
 		return usagef("the number of arguments must be between 1 and 2. %d arguments were given.", len(args))
 	}
 	// Load config if needed
-	deviceIP, port, connParams, err := getParams(deviceAddr, connParams)
+	deviceIP, port, connParams, err := getParams(deviceAddr, connParams, conf)
 	if err != nil {
 		return err
 	}
