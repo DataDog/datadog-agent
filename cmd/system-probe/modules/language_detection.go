@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -48,11 +47,6 @@ func (l *languageDetectionModule) GetStats() map[string]interface{} {
 
 func (l *languageDetectionModule) Register(router *module.Router) error {
 	router.HandleFunc("/detect", l.detectLanguage)
-	return nil
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (l *languageDetectionModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 
