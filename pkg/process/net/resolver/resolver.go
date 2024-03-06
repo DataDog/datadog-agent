@@ -32,39 +32,34 @@ type LocalResolver struct {
 	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	Clock              clock.Clock
 	ContainerProvider  proccontainers.ContainerProvider
-	ticker             *clock.Ticker
 }
 
-func (l *LocalResolver) Start() {
-	l.ContainerProvider = proccontainers.GetSharedContainerProvider()
-	l.ticker = l.Clock.Ticker(10 * time.Second)
+func (l *LocalResolver) Run() {
+	ticker := l.Clock.Ticker(10 * time.Second)
+	go l.pullContainers(ticker)
+}
+
+func (l *LocalResolver) pullContainers(ticker *clock.Ticker) {
+	defer ticker.Stop()
 	for {
 		select {
-		case <-l.ticker.C:
-			l.pullContainers()
+		case <-ticker.C:
+			var containers []*model.Container
+			var pidToCid map[int]string
+			var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
+
+			cacheValidityNoRT := 2 * time.Second
+			containers, lastContainerRates, pidToCid, err := l.ContainerProvider.GetContainers(cacheValidityNoRT, l.lastContainerRates)
+			if err == nil {
+				l.lastContainerRates = lastContainerRates
+			} else {
+				log.Debugf("Unable to gather stats for containers, err: %v", err)
+			}
+
+			// Keep track of containers addresses
+			l.LoadAddrs(containers, pidToCid)
 		}
 	}
-}
-
-func (l *LocalResolver) Stop() {
-	l.ticker.Stop()
-}
-
-func (l *LocalResolver) pullContainers() {
-	var containers []*model.Container
-	var pidToCid map[int]string
-	var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
-
-	cacheValidityNoRT := 2 * time.Second
-	containers, lastContainerRates, pidToCid, err := l.ContainerProvider.GetContainers(cacheValidityNoRT, l.lastContainerRates)
-	if err == nil {
-		l.lastContainerRates = lastContainerRates
-	} else {
-		log.Debugf("Unable to gather stats for containers, err: %v", err)
-	}
-
-	// Keep track of containers addresses
-	l.LoadAddrs(containers, pidToCid)
 }
 
 // LoadAddrs generates a map of network addresses to container IDs

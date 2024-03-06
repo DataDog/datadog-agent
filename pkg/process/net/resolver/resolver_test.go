@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
 func TestLocalResolver(t *testing.T) {
@@ -402,11 +403,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 
 func TestLocalResolverPeriodicUpdates(t *testing.T) {
 	assert := assert.New(t)
+	mockCtrl := gomock.NewController(t)
 	mockedClock := clock.NewMock()
-	resolver := &LocalResolver{Clock: mockedClock}
-	resolver.Start()
-	mockContainerProvider := &proccontainers.MockContainerProvider{}
-	resolver.ContainerProvider = mockContainerProvider
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	resolver := &LocalResolver{Clock: mockedClock, ContainerProvider: mockContainerProvider}
 	containers := []*model.Container{
 		{
 			Id: "container-1",
@@ -444,9 +444,9 @@ func TestLocalResolverPeriodicUpdates(t *testing.T) {
 			},
 		},
 	}
-
-	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil)
-	mockedClock.Add(11 * time.Minute)
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil).MinTimes(1)
+	resolver.Run()
+	mockedClock.Add(11 * time.Second)
 
 	connections := &model.Connections{
 		Conns: []*model.Connection{
@@ -484,7 +484,6 @@ func TestLocalResolverPeriodicUpdates(t *testing.T) {
 			},
 		},
 	}
-
 	resolver.Resolve(connections)
 	assert.Equal("container-1", connections.Conns[0].Raddr.ContainerId)
 	assert.Equal("container-1", connections.Conns[1].Raddr.ContainerId)
