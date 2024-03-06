@@ -41,7 +41,6 @@ func (v *vmUpdaterSuite) TestUpdaterOwnership() {
 }
 
 func (v *vmUpdaterSuite) TestUpdaterAdmin() {
-	adminUnit := "datadog-updater-admin.service"
 	adminPathUnit := "datadog-updater-admin.path"
 	require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, adminPathUnit)))
 	require.Equal(v.T(), "active\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-active %s`, adminPathUnit)))
