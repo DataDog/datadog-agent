@@ -23,6 +23,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -48,10 +49,10 @@ type PrioritySampler struct {
 }
 
 // NewPrioritySampler returns an initialized Sampler
-func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
+func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig, statsd statsd.ClientInterface) *PrioritySampler {
 	s := &PrioritySampler{
 		agentEnv:      conf.DefaultEnv,
-		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
+		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}, statsd),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(conf.MaxCatalogEntries),
 		exit:          make(chan struct{}),

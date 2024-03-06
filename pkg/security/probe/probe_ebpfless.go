@@ -82,6 +82,10 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	switch msg.Type {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
+			p.probe.DispatchCustomEvent(
+				NewEBPFLessHelloMsgEvent(msg.Hello, p.probe.scrubber),
+			)
+
 			cl.nsID = msg.Hello.NSID
 			cl.containerContext = msg.Hello.ContainerContext
 			cl.entrypointArgs = msg.Hello.EntrypointArgs
@@ -277,7 +281,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -504,7 +508,7 @@ func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.Origin = "ebpfless"
+	p.event.Origin = EBPFLessOrigin
 	return p.event
 }
 

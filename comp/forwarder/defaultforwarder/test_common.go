@@ -24,11 +24,20 @@ type testTransaction struct {
 	assertClient bool
 	processed    chan bool
 	pointCount   int
+	kind         transaction.Kind
 }
 
 func newTestTransaction() *testTransaction {
 	t := new(testTransaction)
 	t.assertClient = true
+	t.processed = make(chan bool, 1)
+	return t
+}
+
+func newTestTransactionWithKind(kind transaction.Kind) *testTransaction {
+	t := new(testTransaction)
+	t.assertClient = true
+	t.kind = kind
 	t.processed = make(chan bool, 1)
 	return t
 }
@@ -59,6 +68,10 @@ func (t *testTransaction) GetTarget() string {
 
 func (t *testTransaction) GetPriority() transaction.Priority {
 	return transaction.TransactionPriorityNormal
+}
+
+func (t *testTransaction) GetKind() transaction.Kind {
+	return t.kind
 }
 
 func (t *testTransaction) GetEndpointName() string {
@@ -106,7 +119,7 @@ func (tf *MockedForwarder) SubmitSeries(payload transaction.BytesPayloads, extra
 }
 
 // SubmitV1Intake updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, extra http.Header) error {
+func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, _ transaction.Kind, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
 

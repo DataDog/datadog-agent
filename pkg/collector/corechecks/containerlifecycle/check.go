@@ -138,8 +138,8 @@ func (c *Check) Run() error {
 	}
 }
 
-// Stop stops the container_lifecycle check
-func (c *Check) Stop() { close(c.stopCh) }
+// Cancel stops the container_lifecycle check
+func (c *Check) Cancel() { close(c.stopCh) }
 
 // Interval returns 0, it makes container_lifecycle a long-running check
 func (c *Check) Interval() time.Duration { return 0 }
@@ -147,11 +147,11 @@ func (c *Check) Interval() time.Duration { return 0 }
 // Factory returns a new check factory
 func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
-		return &Check{
+		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
-		}
+		})
 	})
 }

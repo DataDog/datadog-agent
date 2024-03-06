@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
-	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
 	"github.com/aquasecurity/trivy/pkg/fanal/applier"
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
@@ -34,11 +34,16 @@ import (
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
+	"github.com/aquasecurity/trivy/pkg/scanner/langpkg"
 	"github.com/aquasecurity/trivy/pkg/scanner/local"
+	"github.com/aquasecurity/trivy/pkg/scanner/ospkg"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
 	"github.com/docker/docker/client"
+
+	// This is required to load sqlite based RPM databases
+	_ "modernc.org/sqlite"
 )
 
 const (
@@ -66,7 +71,8 @@ type Collector struct {
 	cacheInitialized sync.Once
 	cache            cache.Cache
 	cacheCleaner     CacheCleaner
-	detector         local.OspkgDetector
+	osScanner        ospkg.Scanner
+	langScanner      langpkg.Scanner
 	vulnClient       vulnerability.Client
 	marshaler        *cyclonedx.Marshaler
 }
@@ -74,17 +80,29 @@ type Collector struct {
 var globalCollector *Collector
 
 func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Option {
+	parallel := 1
+	if opts.Fast {
+		parallel = runtime.NumCPU()
+	}
+
 	option := artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
 		DisabledAnalyzers: DefaultDisabledCollectors(opts.Analyzers),
-		Slow:              !opts.Fast,
+		Parallel:          parallel,
 		SBOMSources:       []string{},
 		DisabledHandlers:  DefaultDisabledHandlers(),
 	}
 
 	if len(opts.Analyzers) == 1 && opts.Analyzers[0] == OSAnalyzers {
-		option.OnlyDirs = []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"}
+		option.OnlyDirs = []string{
+			"/etc/*",
+			"/lib/apk/*",
+			"/usr/lib/*",
+			"/usr/lib/sysimage/*",
+			"/var/lib/dpkg/**",
+			"/var/lib/rpm/*",
+		}
 		if root != "" {
 			// OnlyDirs is handled differently for image than for filesystem.
 			// This needs to be fixed properly but in the meantime, use absolute
@@ -164,10 +182,11 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
 	return &Collector{
-		config:     config,
-		detector:   ospkg.Detector{},
-		vulnClient: vulnerability.NewClient(db.Config{}),
-		marshaler:  cyclonedx.NewMarshaler(""),
+		config:      config,
+		osScanner:   ospkg.NewScanner(),
+		langScanner: langpkg.NewScanner(),
+		vulnClient:  vulnerability.NewClient(db.Config{}),
+		marshaler:   cyclonedx.NewMarshaler(""),
 	}, nil
 }
 
@@ -326,10 +345,9 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		c.cacheCleaner.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
 	}
 
-	s := scanner.NewScanner(local.NewScanner(applier, c.detector, c.vulnClient), artifact)
+	s := scanner.NewScanner(local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient), artifact)
 	trivyReport, err := s.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
-		SecurityChecks:      []string{},
 		ScanRemovedPackages: false,
 		ListAllPackages:     true,
 	})

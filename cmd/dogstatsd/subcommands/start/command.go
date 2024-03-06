@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -162,6 +163,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		resourcesimpl.Module(),
 		hostimpl.Module(),
 		inventoryagentimpl.Module(),
+		authtokenimpl.Module(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
@@ -264,7 +266,7 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	// Setup healthcheck port
 	var healthPort = config.GetInt("health_port")
 	if healthPort > 0 {
-		err = healthprobe.Serve(ctx, healthPort)
+		err = healthprobe.Serve(ctx, config, healthPort)
 		if err != nil {
 			err = log.Errorf("Error starting health port, exiting: %v", err)
 			return
@@ -274,11 +276,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	err = components.DogstatsdServer.Start(demultiplexer)
-	if err != nil {
-		log.Criticalf("Unable to start dogstatsd: %s", err)
-		return
-	}
 	return
 }
 
@@ -322,8 +319,6 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 			pkglog.Errorf("Error shutting down dogstatsd stats server: %s", err)
 		}
 	}
-
-	components.DogstatsdServer.Stop()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

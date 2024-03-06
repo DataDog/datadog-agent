@@ -131,6 +131,7 @@ runtime_security_config:
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
+	cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
     {{end}}
@@ -318,6 +319,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 }
 
 func (tm *testModule) Close() {
+	tm.eventMonitor.Close()
 }
 
 // NewTimeoutError returns a new timeout error with the metrics collected during the test

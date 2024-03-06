@@ -84,11 +84,13 @@ func TestMetadataProvider(t *testing.T) {
 
 	i.Enabled = true
 	cb := i.MetadataProvider().Callback
-	assert.True(t, cb.IsSet())
+	_, ok := cb.Get()
+	assert.True(t, ok)
 
 	i.Enabled = false
 	cb = i.MetadataProvider().Callback
-	assert.False(t, cb.IsSet())
+	_, ok = cb.Get()
+	assert.False(t, ok)
 }
 
 func TestFlareProvider(t *testing.T) {

@@ -57,10 +57,12 @@ func TestHTTP2Path(t *testing.T) {
 				copy(arr[:], buf)
 
 				request := &EbpfTx{
-					Stream: http2Stream{
-						Is_huffman_encoded: huffmanEnabled,
-						Request_path:       arr,
-						Path_size:          uint8(len(buf)),
+					Stream: HTTP2Stream{
+						Path: http2Path{
+							Is_huffman_encoded: huffmanEnabled,
+							Raw_buffer:         arr,
+							Length:             uint8(len(buf)),
+						},
 					},
 				}
 
@@ -81,12 +83,12 @@ func TestHTTP2Path(t *testing.T) {
 func TestHTTP2Method(t *testing.T) {
 	tests := []struct {
 		name   string
-		Stream http2Stream
+		Stream HTTP2Stream
 		want   http.Method
 	}{
 		{
 			name: "Sanity method test",
-			Stream: http2Stream{
+			Stream: HTTP2Stream{
 				Request_method: http2requestMethod{
 					Raw_buffer:         [7]uint8{0x50, 0x55, 0x54},
 					Is_huffman_encoded: false,
@@ -99,7 +101,7 @@ func TestHTTP2Method(t *testing.T) {
 		},
 		{
 			name: "Test method length is bigger than raw buffer size",
-			Stream: http2Stream{
+			Stream: HTTP2Stream{
 				Request_method: http2requestMethod{
 					Raw_buffer:         [7]uint8{1, 2},
 					Is_huffman_encoded: false,
@@ -112,7 +114,7 @@ func TestHTTP2Method(t *testing.T) {
 		},
 		{
 			name: "Test method length is zero",
-			Stream: http2Stream{
+			Stream: HTTP2Stream{
 				Request_method: http2requestMethod{
 					Raw_buffer:         [7]uint8{1, 2},
 					Is_huffman_encoded: true,

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -52,7 +51,8 @@ type ebpfModule struct {
 }
 
 func (o *ebpfModule) Register(httpMux *module.Router) error {
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		o.lastCheck.Store(time.Now().Unix())
 		stats := o.Probe.GetAndFlush()
 		utils.WriteAsJSON(w, stats)
@@ -65,9 +65,4 @@ func (o *ebpfModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": o.lastCheck.Load(),
 	}
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (o *ebpfModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
 }

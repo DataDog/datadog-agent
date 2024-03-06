@@ -543,8 +543,11 @@ func computeGlobalTags() map[string]string {
 	return make(map[string]string)
 }
 
+// ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
+var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defined")
+
 func noopContainerTagsFunc(_ string) ([]string, error) {
-	return nil, errors.New("ContainerTags function not defined")
+	return nil, ErrContainerTagsFuncNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.

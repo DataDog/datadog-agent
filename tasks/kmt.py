@@ -46,6 +46,7 @@ def create_stack(ctx, stack=None):
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
         "from-ci-pipeline": "Generate a vmconfig.json file with the VMs that failed jobs in pipeline with the given ID.",
         "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
+        "vmconfig_template": "Template to use for the generated vmconfig.json file. Defaults to 'system-probe'. A file named 'vmconfig-<vmconfig_template>.json' must exist in 'tasks/new-e2e/system-probe/config/'",
     }
 )
 def gen_config(
@@ -62,6 +63,7 @@ def gen_config(
     output_file="vmconfig.json",
     from_ci_pipeline=None,
     use_local_if_possible=False,
+    vmconfig_template="system-probe",
 ):
     """
     Generate a vmconfig.json file with the given VMs.
@@ -83,7 +85,9 @@ def gen_config(
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
         memory = DEFAULT_MEMORY if memory is None else memory
-        vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
+        vmconfig.gen_config(
+            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+        )
 
 
 def gen_config_from_ci_pipeline(
@@ -208,7 +212,7 @@ def init(ctx, lite=False):
 
 
 @task
-def update_resources(ctx):
+def update_resources(ctx, vmconfig_template="system-probe"):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -218,7 +222,7 @@ def update_resources(ctx):
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_rootfs(ctx, kmt_os.rootfs_dir)
+    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template)
 
 
 @task

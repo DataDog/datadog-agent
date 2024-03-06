@@ -28,6 +28,7 @@ import (
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
@@ -517,6 +518,21 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 }
 
 //nolint:deadcode,unused
+func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
+	b, err := serializers.MarshalEvent(ev, nil)
+	return string(b), err
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) debugEvent(ev *model.Event) string {
+	b, err := tm.marshalEvent(ev)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
+}
+
+//nolint:deadcode,unused
 func assertTriggeredRule(tb testing.TB, r *rules.Rule, id string) bool {
 	tb.Helper()
 	return assert.Equal(tb, id, r.ID, "wrong triggered rule")
@@ -547,7 +563,12 @@ func assertFieldEqualCaseInsensitve(tb testing.TB, e *model.Event, field string,
 	if reflect.TypeOf(fieldValue).Kind() == reflect.String {
 		fieldValue = strings.ToLower(fieldValue.(string))
 	}
-	return assert.Equal(tb, value, fieldValue, msgAndArgs...)
+	eq := assert.Equal(tb, value, fieldValue, msgAndArgs...)
+	if !eq {
+		tb.Logf("expected value %s\n", value.(string))
+		tb.Logf("actual value %s\n", fieldValue.(string))
+	}
+	return eq
 }
 
 //nolint:deadcode,unused
@@ -705,6 +726,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
 		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
+		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
@@ -712,6 +734,10 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
+		"EnableAutoSuppression":                      opts.enableAutoSuppression,
+		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
+		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
+		"AnomalyDetectionEventTypes":                 opts.anomalyDetectionEventTypes,
 		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
 		"AnomalyDetectionMinimumStablePeriodExec":    opts.anomalyDetectionMinimumStablePeriodExec,
 		"AnomalyDetectionMinimumStablePeriodDNS":     opts.anomalyDetectionMinimumStablePeriodDNS,
@@ -724,7 +750,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
 		"EBPFLessEnabled":                            ebpfLessEnabled,
-		"FIMEnabled":                                 opts.enableFIM,  // should only be enabled/disabled on windows
+		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 	}); err != nil {
 		return nil, nil, err
 	}

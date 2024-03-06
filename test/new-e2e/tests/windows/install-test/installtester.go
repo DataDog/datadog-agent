@@ -12,8 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
-	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
+	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
 	"testing"
 
@@ -26,6 +27,16 @@ type Tester struct {
 	hostInfo          *windows.HostInfo
 	host              *components.RemoteHost
 	InstallTestClient *common.TestClient
+
+	agentPackage      *windowsAgent.Package
+	installUser       string
+	isPreviousVersion bool
+
+	// Path to the MSI on the remote host, only available after install is run
+	remoteMSIPath string
+
+	expectedUserName   string
+	expectedUserDomain string
 
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
@@ -49,9 +60,25 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	if err != nil {
 		return nil, err
 	}
+	t.expectedUserName = "ddagentuser"
+	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
 
 	t.beforeInstallSystemDirListPath = `C:\system-files-before-install.log`
 	t.afterUninstallSystemDirListPath = `C:\system-files-after-uninstall.log`
+
+	// If the system file snapshot doesn't exist, create it
+	snapshotExists, err := t.host.FileExists(t.beforeInstallSystemDirListPath)
+	if err != nil {
+		return nil, err
+	}
+	if !snapshotExists {
+		if !tt.Run("snapshot system files", func(tt *testing.T) {
+			err = t.snapshotSystemfiles(tt, t.beforeInstallSystemDirListPath)
+			require.NoError(tt, err)
+		}) {
+			tt.FailNow()
+		}
+	}
 
 	for _, opt := range opts {
 		opt(t)
@@ -61,14 +88,47 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		return nil, fmt.Errorf("expectedAgentVersion is required")
 	}
 
+	// Ensure the expected version is well formed
+	if !tt.Run("validate input params", func(tt *testing.T) {
+		if !windowsAgent.TestAgentVersion(tt, t.expectedAgentVersion, t.expectedAgentVersion) {
+			tt.FailNow()
+		}
+	}) {
+		tt.FailNow()
+	}
+
 	return t, nil
 }
 
-// WithExpectedAgentVersion sets the expected agent version to be installed
-func WithExpectedAgentVersion(version string) TesterOption {
+// WithAgentPackage sets the agent package to be installed
+func WithAgentPackage(agentPackage *windowsAgent.Package) TesterOption {
 	return func(t *Tester) {
-		t.expectedAgentVersion = version
-		t.expectedAgentMajorVersion = strings.Split(version, ".")[0]
+		t.agentPackage = agentPackage
+		t.expectedAgentVersion = agentPackage.AgentVersion()
+		t.expectedAgentMajorVersion = strings.Split(t.expectedAgentVersion, ".")[0]
+	}
+}
+
+// WithPreviousVersion sets the Tester to expect a previous version of the agent to be installed
+// and will not run all tests since expectations may have changed.
+func WithPreviousVersion() TesterOption {
+	return func(t *Tester) {
+		t.isPreviousVersion = true
+	}
+}
+
+// WithInstallUser sets the user to install the agent as
+func WithInstallUser(user string) TesterOption {
+	return func(t *Tester) {
+		t.installUser = user
+	}
+}
+
+// WithExpectedAgentUser sets the expected user the agent should run as
+func WithExpectedAgentUser(domain string, user string) TesterOption {
+	return func(t *Tester) {
+		t.expectedUserDomain = domain
+		t.expectedUserName = user
 	}
 }
 
@@ -169,8 +229,8 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 	// Ignore these paths when collecting the list of files, they are known to frequently change
 	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
 	ignorePaths := []string{
-		`C:\Windows\Assembly\Temp\`,
-		`C:\Windows\Assembly\Tmp\`,
+		`C:\Windows\assembly\`,
+		`C:\Windows\Microsoft.NET\assembly\`,
 		`C:\windows\AppReadiness\`,
 		`C:\Windows\Temp\`,
 		`C:\Windows\Prefetch\`,
@@ -188,9 +248,7 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 		`c:\windows\System32\LogFiles\`,
 		`c:\windows\SoftwareDistribution\`,
 		`c:\windows\ServiceProfiles\NetworkService\AppData\`,
-		`c:\windows\System32\Tasks\Microsoft\Windows\UpdateOrchestrator\`,
-		`c:\windows\System32\Tasks\Microsoft\Windows\Windows Defender\Windows Defender Scheduled Scan`,
-		`C:\Windows\System32\Tasks\MicrosoftEdgeUpdateBrowserReplacementTask`,
+		`C:\Windows\System32\Tasks\`,
 	}
 	// quote each path and join with commas
 	pattern := ""
@@ -213,6 +271,17 @@ func (t *Tester) snapshotSystemfiles(tt *testing.T, remotePath string) error {
 
 func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 	return tt.Run("does not remove system files", func(tt *testing.T) {
+		tt.Cleanup(func() {
+			// Remove the snapshot files after the test
+			err := t.host.Remove(t.beforeInstallSystemDirListPath)
+			if err != nil {
+				tt.Logf("failed to remove %s: %s", t.beforeInstallSystemDirListPath, err)
+			}
+			err = t.host.Remove(t.afterUninstallSystemDirListPath)
+			if err != nil {
+				tt.Logf("failed to remove %s: %s", t.afterUninstallSystemDirListPath, err)
+			}
+		})
 		// Diff the two files on the remote host, selecting missing items
 		cmd := fmt.Sprintf(`Compare-Object -ReferenceObject (Get-Content "%s") -DifferenceObject (Get-Content "%s") | Where-Object -Property SideIndicator -EQ '<=' | Select -ExpandProperty InputObject`, t.beforeInstallSystemDirListPath, t.afterUninstallSystemDirListPath)
 		output, err := t.host.Execute(cmd)
@@ -229,52 +298,6 @@ func (t *Tester) testDoesNotChangeSystemFiles(tt *testing.T) bool {
 			// Skipping does not remove the failed test status, so we must run the assertion after flake.Mark.
 			require.Empty(tt, output, "should not remove system files")
 		}
-	})
-}
-
-// InstallAgentPackage installs the agent and returns any errors
-func (t *Tester) InstallAgentPackage(tt *testing.T, agentPackage *windowsAgent.Package, args string, logfile string) (string, error) {
-	// Put the MSI on the host
-	remoteMSIPath, err := windows.GetTemporaryFile(t.host)
-	require.NoError(tt, err)
-	err = windows.PutOrDownloadFile(t.host, agentPackage.URL, remoteMSIPath)
-	require.NoError(tt, err)
-
-	if !strings.Contains(args, "APIKEY") {
-		// TODO: Add apikey option
-		apikey := "00000000000000000000000000000000"
-		args = fmt.Sprintf(`%s APIKEY="%s"`, args, apikey)
-	}
-	err = windows.InstallMSI(t.host, remoteMSIPath, args, logfile)
-	return remoteMSIPath, err
-}
-
-// TestInstallAgentPackage installs the agent and runs tests
-func (t *Tester) TestInstallAgentPackage(tt *testing.T, agentPackage *windowsAgent.Package, args string, logfile string) bool {
-	return tt.Run("install the agent", func(tt *testing.T) {
-		if !tt.Run("snapshot system files", func(tt *testing.T) {
-			err := t.snapshotSystemfiles(tt, t.beforeInstallSystemDirListPath)
-			require.NoError(tt, err)
-		}) {
-			tt.Fatal("snapshot system files failed")
-		}
-
-		var remoteMSIPath string
-		var err error
-		if !tt.Run("install", func(tt *testing.T) {
-			remoteMSIPath, err = t.InstallAgentPackage(tt, agentPackage, args, logfile)
-			require.NoError(tt, err, "should install the agent")
-		}) {
-			tt.Fatal("install failed")
-		}
-
-		installedVersion, err := t.InstallTestClient.GetAgentVersion()
-		require.NoError(tt, err, "should get agent version")
-		windowsAgent.TestAgentVersion(tt, t.expectedAgentVersion, installedVersion)
-
-		windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, []string{remoteMSIPath})
-		common.CheckInstallation(tt, t.InstallTestClient)
-		t.testAgentCodeSignature(tt)
 	})
 }
 
@@ -298,5 +321,73 @@ func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 		}
 
 		t.testDoesNotChangeSystemFiles(tt)
+	})
+}
+
+func (t *Tester) testRunningExpectedVersion(tt *testing.T) bool {
+	return tt.Run("running expected version", func(tt *testing.T) {
+		installedVersion, err := t.InstallTestClient.GetAgentVersion()
+		require.NoError(tt, err, "should get agent version")
+		windowsAgent.TestAgentVersion(tt, t.agentPackage.AgentVersion(), installedVersion)
+	})
+}
+
+// InstallAgent installs the agent
+func (t *Tester) InstallAgent(options ...windowsAgent.InstallAgentOption) error {
+	var err error
+	opts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithPackage(t.agentPackage),
+		windowsAgent.WithValidAPIKey(),
+	}
+	if t.installUser != "" {
+		opts = append(opts, windowsAgent.WithAgentUser(t.installUser))
+	}
+	opts = append(opts, options...)
+	t.remoteMSIPath, err = windowsAgent.InstallAgent(t.host, opts...)
+	return err
+}
+
+// Only do some basic checks on the agent since it's a previous version
+func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
+	common.CheckAgentBehaviour(tt, t.InstallTestClient)
+}
+
+// More in depth checks on current version
+func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
+	if t.remoteMSIPath != "" {
+		windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, []string{t.remoteMSIPath})
+	}
+	common.CheckInstallation(tt, t.InstallTestClient)
+	tt.Run("user in registry", func(tt *testing.T) {
+		AssertInstalledUserInRegistry(tt, t.host, t.expectedUserDomain, t.expectedUserName)
+	})
+
+	serviceTester, err := servicetest.NewTester(t.host,
+		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
+	)
+	require.NoError(tt, err)
+	serviceTester.TestInstall(tt)
+
+	tt.Run("user is a member of expected groups", func(tt *testing.T) {
+		AssertAgentUserGroupMembership(tt, t.host,
+			windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+		)
+	})
+
+	t.testAgentCodeSignature(tt)
+	t.TestRuntimeExpectations(tt)
+}
+
+// TestExpectations tests the current agent installation meets the expectations provided to the Tester
+func (t *Tester) TestExpectations(tt *testing.T) bool {
+	return tt.Run(fmt.Sprintf("test %s", t.agentPackage.AgentVersion()), func(tt *testing.T) {
+		if !t.testRunningExpectedVersion(tt) {
+			tt.FailNow()
+		}
+		if t.isPreviousVersion {
+			t.testPreviousVersionExpectations(tt)
+		} else {
+			t.testCurrentVersionExpectations(tt)
+		}
 	})
 }

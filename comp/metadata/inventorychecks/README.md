@@ -20,6 +20,7 @@ configuration provider. Sending checks configuration can be disabled using `inve
 The payload is a JSON dict with the following fields
 
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
+- `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
 - `check_metadata` - **dict of string to list**: dictionary with check names as keys; values are a list of the metadata for each
   instance of that check.

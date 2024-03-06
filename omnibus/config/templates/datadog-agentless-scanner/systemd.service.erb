@@ -1,0 +1,17 @@
+[Unit]
+Description=Datadog Agentless Scanner
+After=network.target datadog-agent.service
+BindsTo=datadog-agent.service
+ConditionPathExists=<%= etc_dir %>/datadog.yaml
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Service]
+Type=simple
+PIDFile=<%= install_dir %>/run/agentless-scanner.pid
+Restart=on-failure
+ExecStart=<%= install_dir %>/bin/agentless-scanner run -c <%= etc_dir %>/datadog.yaml -p <%= install_dir %>/run/agentless-scanner.pid
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

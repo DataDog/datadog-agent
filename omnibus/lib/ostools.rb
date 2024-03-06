@@ -7,7 +7,7 @@ end
 
 def redhat_target?()
     if not Omnibus::Config.host_distribution().nil?
-      return %w(rhel fedora).include? Omnibus::Config.host_distribution()
+      return %w(rhel fedora ociru).include? Omnibus::Config.host_distribution()
     end
     return %w(rhel fedora).include? ohai['platform_family']
 end

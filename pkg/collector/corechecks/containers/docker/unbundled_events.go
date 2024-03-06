@@ -42,7 +42,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 	)
 
 	for _, ev := range events {
-		if _, ok := t.collectedEventTypes[ev.Action]; !ok {
+		if _, ok := t.collectedEventTypes[string(ev.Action)]; !ok {
 			continue
 		}
 

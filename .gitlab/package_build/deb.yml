@@ -1,10 +1,8 @@
 ---
 .setup_deb_signing_key: &setup_deb_signing_key
-  - set +x
-  - DEB_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $DEB_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
   - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
-  - export DEB_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $DEB_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-  - set -x
+  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
 
 .agent_build_common_deb:
   script:
@@ -105,35 +103,11 @@ agent_deb-x64-a7:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-agent_deb-x64-a7-auto:
-  extends: .agent_build_common_deb
-  rules:
-    - !reference [.on_a7]
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-x64",
-      "go_deps",
-      "generate_minimized_btfs_x64",
-    ]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PYTHON_RUNTIMES: "3"
-    PACKAGE_ARCH: amd64
-    DESTINATION_DEB: "datadog-agent_7_auto_amd64.deb"
-    DESTINATION_DBG_DEB: "datadog-agent-dbg_7_auto_amd64.deb"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export INSTALL_DIR=/opt/datadog/agents/$RELEASE_VERSION_7
-
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
     - !reference [.on_all_builds_a6]
-    - !reference [.on_omnibus_change]
+    - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -222,7 +196,7 @@ iot_agent_deb-arm64:
   extends: .iot_agent_build_common_deb
   rules:
     - !reference [.on_all_builds_a7]
-    - !reference [.on_omnibus_change]
+    - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -236,7 +210,7 @@ iot_agent_deb-armhf:
   extends: .iot_agent_build_common_deb
   rules:
     - !reference [.on_all_builds_a7]
-    - !reference [.on_omnibus_change]
+    - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -278,7 +252,7 @@ dogstatsd_deb-x64:
 dogstatsd_deb-arm64:
   rules:
     - !reference [.on_all_builds_a7]
-    - !reference [.on_omnibus_change]
+    - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
@@ -306,8 +280,7 @@ dogstatsd_deb-arm64:
 
 updater_deb-amd64:
   extends: .updater_build_common_deb
-  rules:
-    !reference [.on_a7]
+  rules: !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -315,15 +288,14 @@ updater_deb-amd64:
   variables:
     AGENT_MAJOR_VERSION: 7
     PACKAGE_ARCH: amd64
-    DESTINATION_DEB: 'datadog-updater_7_amd64.deb'
-    DESTINATION_DBG_DEB: 'datadog-updater-dbg_7_amd64.deb'
+    DESTINATION_DEB: "datadog-updater_7_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_amd64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 updater_deb-arm64:
   extends: .updater_build_common_deb
-  rules:
-    !reference [.on_a7]
+  rules: !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -331,10 +303,65 @@ updater_deb-arm64:
   variables:
     AGENT_MAJOR_VERSION: 7
     PACKAGE_ARCH: arm64
-    DESTINATION_DEB: 'datadog-updater_7_arm64.deb'
-    DESTINATION_DBG_DEB: 'datadog-updater-dbg_7_arm64.deb'
+    DESTINATION_DEB: "datadog-updater_7_arm64.deb"
+    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_arm64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+agentless_scanner_deb-x64:
+  rules:
+    !reference [.on_a7]
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
+  variables:
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - !reference [.setup_ruby_mirror_linux]
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - *setup_deb_signing_key
+    # Use --skip-deps since the deps are installed by `before_script`.
+    - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agentless-scanner*_amd64.deb $S3_ARTIFACTS_URI/datadog-agentless-scanner_amd64.deb
+    - !reference [.upload_sbom_artifacts]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+agentless_scanner_deb-arm64:
+  rules:
+    !reference [.on_all_builds_a7]
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_arm64", "go_deps"]
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+  script:
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - !reference [.setup_ruby_mirror_linux]
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - *setup_deb_signing_key
+    # Use --skip-deps since the deps are installed by `before_script`.
+    - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agentless-scanner*_arm64.deb $S3_ARTIFACTS_URI/datadog-agentless-scanner_arm64.deb
+    - !reference [.upload_sbom_artifacts]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 agent_heroku_deb-x64-a6:
   extends: agent_deb-x64-a6
