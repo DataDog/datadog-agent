@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -131,6 +132,75 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgent() {
 
 	// check that the process agent is not collected as it should not be running
 	requireProcessNotCollected(t, payloads, "process-agent")
+}
+
+func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
+	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertRunningChecks(collect, s.Env().RemoteHost, []string{"connections"}, false, "sudo datadog-agent status --json")
+	}, 1*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	var payloads []*aggregator.ProcessPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+	}, 2*time.Minute, 10*time.Second)
+
+	// check that intake has process agent log
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs("process-agent", fi.WithMessageMatching("Starting process-agent with enabled checks=[connections]"))
+		assert.NoErrorf(c, err, "Error found: %s", err)
+		assert.NotEmpty(c, logs, "Expected at least 1 log with content")
+	}, 2*time.Minute, 10*time.Second)
+
+	// check that intake has core agent log
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs("datadog-agent", fi.WithMessageMatching("Starting process-agent with enabled checks=[process rtprocess]"))
+		assert.NoErrorf(c, err, "Error found: %s", err)
+		assert.NotEmpty(c, logs, "Expected at least 1 log with content")
+	}, 2*time.Minute, 10*time.Second)
+
+	assertProcessCollected(t, payloads, false, "stress")
+}
+
+func (s *linuxTestSuite) TestProcessChecksWithNPM() {
+	t := s.T()
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeNPMConfigStr))))
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		assertRunningChecks(collect, s.Env().RemoteHost, []string{"process", "rtprocess", "connections"}, false, "sudo datadog-agent status --json")
+	}, 1*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+
+	var payloads []*aggregator.ProcessPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+	}, 2*time.Minute, 10*time.Second)
+
+	// check that intake has process agent log
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := s.Env().FakeIntake.Client().FilterLogs("process-agent", fi.WithMessageMatching("Starting process-agent with enabled checks=[connections process rtprocess]"))
+		assert.NoErrorf(c, err, "Error found: %s", err)
+		assert.NotEmpty(c, logs, "Expected at least 1 log with content")
+	}, 2*time.Minute, 10*time.Second)
+
+	assertProcessCollected(t, payloads, false, "stress")
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {

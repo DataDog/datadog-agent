@@ -12,6 +12,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -22,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
+	putil "github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +34,7 @@ import (
 
 var (
 	// LocalResolver is a singleton LocalResolver
-	LocalResolver = &resolver.LocalResolver{}
+	LocalResolver = &resolver.LocalResolver{Clock: clock.New(), ContainerProvider: proccontainers.GetSharedContainerProvider()}
 
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
@@ -107,7 +111,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
-	LocalResolver.Start()
+	LocalResolver.Run()
 
 	return nil
 }

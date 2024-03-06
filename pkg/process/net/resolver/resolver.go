@@ -32,11 +32,17 @@ type LocalResolver struct {
 	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	Clock              clock.Clock
 	ContainerProvider  proccontainers.ContainerProvider
+	done               chan bool
 }
 
 func (l *LocalResolver) Run() {
 	ticker := l.Clock.Ticker(10 * time.Second)
+	l.done = make(chan bool)
 	go l.pullContainers(ticker)
+}
+
+func (l *LocalResolver) Stop() {
+	l.done <- true
 }
 
 func (l *LocalResolver) pullContainers(ticker *clock.Ticker) {
@@ -58,6 +64,9 @@ func (l *LocalResolver) pullContainers(ticker *clock.Ticker) {
 
 			// Keep track of containers addresses
 			l.LoadAddrs(containers, pidToCid)
+
+		case <-l.done:
+			return
 		}
 	}
 }

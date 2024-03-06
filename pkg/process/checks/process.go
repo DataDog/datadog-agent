@@ -276,9 +276,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		extractor.Extract(procs)
 	}
 
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
-
 	// End check early if this is our first run.
 	if p.lastProcs == nil {
 		p.lastProcs = procs

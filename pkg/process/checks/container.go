@@ -93,9 +93,8 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 
 	var err error
 	var containers []*model.Container
-	var pidToCid map[int]string
 	var lastRates map[string]*proccontainers.ContainerRateMetrics
-	containers, lastRates, pidToCid, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
+	containers, lastRates, _, err = c.containerProvider.GetContainers(cacheValidityNoRT, c.lastRates)
 	if err == nil {
 		c.lastRates = lastRates
 	} else {
@@ -106,9 +105,6 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 		log.Trace("No containers found")
 		return nil, nil
 	}
-
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
 
 	groupSize := len(containers) / c.maxBatchSize
 	if len(containers)%c.maxBatchSize != 0 {
