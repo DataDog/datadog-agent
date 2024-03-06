@@ -21,6 +21,9 @@ const ZlibKind = "zlib"
 // ZstdKind  defines a const value for the zstd compressor
 const ZstdKind = "zstd"
 
+// NoneKind defines a const value for disabling compression
+const NoneKind = "none"
+
 // ZlibEncoding is the content-encoding value for Zlib
 const ZlibEncoding = compression.ZlibEncoding
 
@@ -43,8 +46,10 @@ func NewCompressorStrategy(cfg config.Component) Compressor {
 		return compression.NewZlibStrategy()
 	case ZstdKind:
 		return compression.NewZstdStrategy()
+	case NoneKind:
+		return compression.NewNoopStrategy()
 	default:
-		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
+		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd', 'none'")
 		return compression.NewNoopStrategy()
 	}
 }
@@ -63,8 +68,10 @@ func NewStreamCompressor(output *bytes.Buffer, cfg config.Component) StreamCompr
 		return compression.NewZlibZipper(output)
 	case ZstdKind:
 		return compression.NewZstdZipper(output)
+	case NoneKind:
+		return compression.NewNoopZipper(output)
 	default:
-		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
+		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd', 'none'")
 		return compression.NewNoopZipper(output)
 	}
 }
