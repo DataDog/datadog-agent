@@ -52,8 +52,6 @@ type flare struct {
 }
 
 func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
-	// TODO FIX this uninitialize variable.
-	// var secretResolver secrets.Component
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets)
 	f := &flare{
 		log:          deps.Log,
