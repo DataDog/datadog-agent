@@ -219,6 +219,7 @@ def assign_team_label(_, pr_id=-1):
     be deduced from the changed files
     """
     from tasks.libs.common.github_api import GithubAPI
+    import github
 
     gh = GithubAPI('DataDog/datadog-agent')
 
@@ -243,7 +244,8 @@ def assign_team_label(_, pr_id=-1):
     # Assign label
     for team in teams:
         label_name = 'team' + team.removeprefix('@DataDog')
-        if gh.add_pr_label(pr_id, label_name):
+        try:
+            gh.add_pr_label(pr_id, label_name)
             print(label_name, 'label assigned to the pull request')
-        else:
+        except github.GithubException.GithubException:
             print('Failed to assign label')
