@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -41,8 +40,7 @@ type Tester struct {
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
 
-	beforeInstallSystemDirListPath  string
-	afterUninstallSystemDirListPath string
+	systemFileIntegrityTester *SystemFileIntegrityTester
 }
 
 // TesterOption is a function that can be used to configure a Tester
@@ -63,21 +61,14 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	t.expectedUserName = "ddagentuser"
 	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
 
-	t.beforeInstallSystemDirListPath = `C:\system-files-before-install.log`
-	t.afterUninstallSystemDirListPath = `C:\system-files-after-uninstall.log`
-
-	// If the system file snapshot doesn't exist, create it
-	snapshotExists, err := t.host.FileExists(t.beforeInstallSystemDirListPath)
-	if err != nil {
-		return nil, err
-	}
-	if !snapshotExists {
-		if !tt.Run("snapshot system files", func(tt *testing.T) {
-			err = t.snapshotSystemfiles(tt, t.beforeInstallSystemDirListPath)
-			require.NoError(tt, err)
-		}) {
-			tt.FailNow()
-		}
+	t.systemFileIntegrityTester = NewSystemFileIntegrityTester(t.host)
+	snapshotTaken, err := t.systemFileIntegrityTester.FirstSnapshotTaken()
+	require.NoError(tt, err)
+	if !snapshotTaken {
+		// Only take a snapshot if one doesn't already exist so we can compare across
+		// multiple installs.
+		err = t.systemFileIntegrityTester.TakeSnapshot()
+		require.NoError(tt, err)
 	}
 
 	for _, opt := range opts {
@@ -237,14 +228,9 @@ func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 
 		common.CheckUninstallation(tt, t.InstallTestClient)
 
-		if !tt.Run("snapshot system files", func(tt *testing.T) {
-			err := t.snapshotSystemfiles(tt, t.afterUninstallSystemDirListPath)
-			require.NoError(tt, err)
-		}) {
-			tt.Fatal("snapshot system files failed")
-		}
-
-		t.testDoesNotChangeSystemFiles(tt)
+		tt.Run("does not change system files", func(tt *testing.T) {
+			t.systemFileIntegrityTester.AssertDoesRemoveSystemFiles(tt)
+		})
 	})
 }
 
