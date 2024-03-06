@@ -25,7 +25,27 @@ type baseFlareSuite struct {
 }
 
 func (v *baseFlareSuite) TestFlareDefaultFiles() {
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	fakeIntake := v.Env().FakeIntake.Client()
+	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"})
+	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+
+	assertFilesExist(v.T(), flare, defaultFlareFiles)
+	assertFilesExist(v.T(), flare, defaultLogFiles)
+	assertFilesExist(v.T(), flare, defaultConfigFiles)
+	assertFoldersExist(v.T(), flare, defaultFlareFolders)
+
+	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
+	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
+
+	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
+	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
+	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
+}
+
+func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
+	fakeIntake := v.Env().FakeIntake.Client()
+	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"})
+	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
