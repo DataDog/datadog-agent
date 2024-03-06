@@ -3,6 +3,7 @@ package akeyless
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 )
@@ -34,6 +35,10 @@ func NewAkeylessConfigFromBackendConfig(akeylessUrl string, sessionConfig Akeyle
 	if err != nil {
 		return "", err
 	}
+	if resp.StatusCode != 200 {
+		return "", errors.New("failed to authenticate with akeyless")
+	}
+
 	defer resp.Body.Close()
 
 	var authResp authResponse
