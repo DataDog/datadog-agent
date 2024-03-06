@@ -31,12 +31,12 @@ type LocalResolver struct {
 	updated            time.Time
 	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	Clock              clock.Clock
-	containerProvider  proccontainers.ContainerProvider
+	ContainerProvider  proccontainers.ContainerProvider
 	ticker             *clock.Ticker
 }
 
 func (l *LocalResolver) Start() {
-	l.containerProvider = proccontainers.GetSharedContainerProvider()
+	l.ContainerProvider = proccontainers.GetSharedContainerProvider()
 	l.ticker = l.Clock.Ticker(10 * time.Second)
 	for {
 		select {
@@ -54,9 +54,9 @@ func (l *LocalResolver) pullContainers() {
 	var containers []*model.Container
 	var pidToCid map[int]string
 	var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
-	cacheValidity := 2 * time.Second
 
-	containers, lastContainerRates, pidToCid, err := l.containerProvider.GetContainers(cacheValidity, l.lastContainerRates)
+	cacheValidityNoRT := 2 * time.Second
+	containers, lastContainerRates, pidToCid, err := l.ContainerProvider.GetContainers(cacheValidityNoRT, l.lastContainerRates)
 	if err == nil {
 		l.lastContainerRates = lastContainerRates
 	} else {
