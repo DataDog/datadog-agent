@@ -269,7 +269,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 			} else {
 				n, _, err = conn.ReadFromUnix(packet.Buffer[n:maxPacketLength])
 			}
-			if n == 0 && oobn == 0 {
+			if n == 0 && oobn == 0 && l.transport == "unix" {
 				log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
 				return nil
 			}

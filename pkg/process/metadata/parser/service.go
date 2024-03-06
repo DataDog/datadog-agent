@@ -17,6 +17,7 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	javaparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java"
 	nodejsparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/nodejs"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -336,7 +337,7 @@ func parseCommandContextPython(se *ServiceExtractor, _ *procutil.Process, args [
 	return ""
 }
 
-func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
+func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, args []string) string {
 	prevArgIsFlag := false
 
 	// Look for dd.service
@@ -356,6 +357,11 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
 				if strings.HasSuffix(arg, javaJarExtension) {
+					value, ok := advancedGuessJavaServiceName(se, process, args, a)
+					if ok {
+						return value
+					}
+					// return the jar
 					jarName := arg[:len(arg)-len(javaJarExtension)]
 					if !strings.HasSuffix(jarName, javaSnapshotSuffix) {
 						return jarName
@@ -391,6 +397,23 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 	}
 
 	return "java"
+}
+
+// advancedGuessJavaServiceName inspects a jvm process to extract framework specific metadata that could be used as service name
+// if found the function will return the service name and true. Otherwise, "",false
+func advancedGuessJavaServiceName(se *ServiceExtractor, process *procutil.Process, args []string, jarname string) (string, bool) {
+	if !se.useImprovedAlgorithm {
+		return "", false
+	}
+	// try to introspect the jar to get service name from spring application name
+	// TODO: pass process envs
+	springAppName, err := javaparser.GetSpringBootAppName(process.Cwd, jarname, args)
+	if err == nil {
+		return springAppName, true
+	}
+	log.Tracef("Error while trying to extract properties from potential spring boot application: %v", err)
+
+	return "", false
 }
 
 func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, args []string) string {
