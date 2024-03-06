@@ -125,7 +125,7 @@ func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 // This function should not be blocking
 func sendResult(requestID string, result *sbom.ScanResult, collector collectors.Collector) {
 	if result == nil {
-		_ = log.Errorf("nil result for '%s'", requestID)
+		log.Errorf("nil result for '%s'", requestID)
 		return
 	}
 	select {
