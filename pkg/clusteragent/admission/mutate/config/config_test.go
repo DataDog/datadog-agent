@@ -83,6 +83,100 @@ func TestInjectService(t *testing.T) {
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_AGENT_HOST", "datadog."+common.GetMyNamespace()+".svc.cluster.local"))
 }
 
+func TestInjectIdentity(t *testing.T) {
+	testCases := []struct {
+		name          string
+		inputPod      corev1.Pod
+		expectedPod   corev1.Pod
+		expectedValue bool
+	}{
+		{
+			name: "normal case",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers:     []corev1.Container{{Name: "cont-name"}},
+					InitContainers: []corev1.Container{{Name: "init-container"}},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
+						},
+					}},
+					InitContainers: []corev1.Container{{
+						Name: "init-container",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddEntityIDEnvVarName, Value: "en-init.$(DD_INTERNAL_POD_UID)/init-container"},
+						},
+					}},
+				},
+			},
+			expectedValue: true,
+		},
+		{
+			name: "with_set_dd_entity_id",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name",
+						Env:  []corev1.EnvVar{{Name: ddEntityIDEnvVarName, Value: "value"}},
+					}},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name",
+						Env:  []corev1.EnvVar{{Name: ddEntityIDEnvVarName, Value: "value"}},
+					}},
+				},
+			},
+			expectedValue: false,
+		},
+		{
+			name: "override dd_internal_pod_uid",
+			inputPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, Value: "foo"},
+						},
+					}},
+				},
+			},
+			expectedPod: corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "cont-name",
+						Env: []corev1.EnvVar{
+							{Name: podUIDEnvVarName, ValueFrom: &corev1.EnvVarSource{
+								FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}},
+							{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
+						},
+					}},
+				},
+			},
+			expectedValue: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := injectIdentity(&tc.inputPod)
+			assert.Equal(t, tc.expectedValue, got)
+			assert.Equal(t, tc.expectedPod, tc.inputPod)
+		})
+	}
+}
+
 func TestInjectSocket(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})

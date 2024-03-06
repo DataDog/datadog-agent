@@ -12,6 +12,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"github.com/samber/lo"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,7 @@ const (
 	ddEntityIDEnvVarName   = "DD_ENTITY_ID"
 	traceURLEnvVarName     = "DD_TRACE_AGENT_URL"
 	dogstatsdURLEnvVarName = "DD_DOGSTATSD_URL"
+	podUIDEnvVarName       = "DD_INTERNAL_POD_UID"
 
 	// Config injection modes
 	hostIP  = "hostip"
@@ -62,16 +64,6 @@ var (
 	agentHostServiceEnvVar = corev1.EnvVar{
 		Name:  agentHostEnvVarName,
 		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
-	}
-
-	ddEntityIDEnvVar = corev1.EnvVar{
-		Name:  ddEntityIDEnvVarName,
-		Value: "",
-		ValueFrom: &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				FieldPath: "metadata.uid",
-			},
-		},
 	}
 
 	traceURLSocketEnvVar = corev1.EnvVar{
@@ -182,7 +174,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		return fmt.Errorf("invalid injection mode %q", w.mode)
 	}
 
-	injectedEntity = common.InjectEnv(pod, ddEntityIDEnvVar)
+	injectedEntity = injectIdentity(pod)
 
 	return nil
 }
@@ -201,6 +193,56 @@ func injectionMode(pod *corev1.Pod, globalMode string) string {
 	}
 
 	return globalMode
+}
+
+func injectIdentityInContainer(container *corev1.Container, prefix, podStr string) bool {
+	if container == nil {
+		_ = log.Errorf("Cannot inject identity into nil container")
+		return false
+	}
+	// Do not override DD_ENTITY_ID if it's already set
+	if lo.ContainsBy(container.Env, func(v corev1.EnvVar) bool { return v.Name == ddEntityIDEnvVarName }) {
+		log.Debugf("Ignoring container '%s' in pod %s: env var '%s' already exist", container.Name, podStr, ddEntityIDEnvVarName)
+		return false
+	}
+
+	// We can and should override DD_INTERNAL_* variables if they are already set
+	container.Env = lo.Filter(container.Env, func(v corev1.EnvVar, _ int) bool { return v.Name != podUIDEnvVarName })
+	addedEnv := []corev1.EnvVar{
+		// DD_INTERNAL_POD_UID must precede DD_ENTITY_ID to be referenced in the latter.
+		// See https://kubernetes.io/docs/tasks/inject-data-application/define-interdependent-environment-variables/
+		{
+			Name: podUIDEnvVarName,
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.uid",
+				},
+			},
+		},
+		{
+			Name:  ddEntityIDEnvVarName,
+			Value: fmt.Sprintf("en-%s$(%s)/%s", prefix, podUIDEnvVarName, container.Name),
+		},
+	}
+
+	// prepend rather than append so that our new vars precede container vars in the final list, so that they
+	// can be referenced in other env vars downstream.  (see:  Kubernetes dependent environment variables.)
+	container.Env = append(addedEnv, container.Env...)
+	return true
+}
+
+// injectIdentity injects `DD_INTERNAL_CONTAINER_NAME`, `DD_INTERNAL_POD_UID` and `DD_ENTITY_ID`
+// as `en-(init.)$(DD_INTERNAL_POD_UID)/$(DD_INTERNAL_CONTAINER_NAME)`.
+func injectIdentity(pod *corev1.Pod) bool {
+	injected := false
+	podStr := common.PodString(pod)
+	for i := range pod.Spec.Containers {
+		injected = injectIdentityInContainer(&pod.Spec.Containers[i], "", podStr)
+	}
+	for i := range pod.Spec.InitContainers {
+		injected = injectIdentityInContainer(&pod.Spec.InitContainers[i], "init.", podStr) || injected
+	}
+	return injected
 }
 
 func buildVolume(volumeName, path string, readOnly bool) (corev1.Volume, corev1.VolumeMount) {
