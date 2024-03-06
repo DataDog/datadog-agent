@@ -8,7 +8,6 @@ package log
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"reflect"
 	"regexp"
