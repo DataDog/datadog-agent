@@ -197,7 +197,7 @@ def assign_team_label(_, pr_id=-1):
     Assigns the github team label name if a single team can
     be deduced from the changed files
     """
-    from .libs.common.github_api import GithubAPI
+    from tasks.libs.common.github_api import GithubAPI
 
     def get_team(changed_files) -> str | None:
         codeowners = read_owners('.github/CODEOWNERS')
