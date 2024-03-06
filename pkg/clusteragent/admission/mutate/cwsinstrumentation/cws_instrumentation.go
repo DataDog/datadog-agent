@@ -233,7 +233,13 @@ func NewCWSInstrumentation() (*CWSInstrumentation, error) {
 	// Parse init container image
 	cwsInjectorImageName := config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")
 	cwsInjectorImageTag := config.Datadog.GetString("admission_controller.cws_instrumentation.image_tag")
-	cwsInjectorContainerRegistry := config.Datadog.GetString("admission_controller.cws_instrumentation.container_registry")
+
+	var cwsInjectorContainerRegistry string
+	if config.Datadog.IsSet("admission_controller.cws_instrumentation.container_registry") {
+		cwsInjectorContainerRegistry = config.Datadog.GetString("admission_controller.cws_instrumentation.container_registry")
+	} else {
+		cwsInjectorContainerRegistry = config.Datadog.GetString("admission_controller.container_registry")
+	}
 
 	if len(cwsInjectorImageName) == 0 {
 		return nil, fmt.Errorf("can't initialize CWS Instrumentation without an image_name")
@@ -391,6 +397,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	}
 
 	// add init container to copy cws-instrumentation in the cws volume
+	fmt.Println("Image from CI before injection: ", ci.image)
 	injectCWSInitContainer(pod, ci.resources, ci.image)
 
 	// add label to indicate that the pod has been instrumented
