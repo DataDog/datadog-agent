@@ -12,15 +12,15 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
 
-        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+        self.assertEqual(sorted(teams), sorted(expected_teams))
 
     def test_no_file(self):
-        changed_files = []
+        changed_files = ['idonotexist']
         expected_teams = []
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
 
-        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+        self.assertEqual(sorted(teams), sorted(expected_teams))
 
     def test_single_file_single_team(self):
         changed_files = ['.gitignore']
@@ -28,7 +28,7 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
 
-        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+        self.assertEqual(sorted(teams), sorted(expected_teams))
 
     def test_single_file_multiple_teams(self):
         changed_files = ['README.md']
@@ -36,7 +36,7 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
 
-        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+        self.assertEqual(sorted(teams), sorted(expected_teams))
 
     def test_multiple_files_single_team(self):
         changed_files = ['.gitignore', '.gitlab/a.py']
@@ -44,7 +44,7 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
 
-        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+        self.assertEqual(sorted(teams), sorted(expected_teams))
 
     def test_multiple_files_single_team_best(self):
         # agent-platform has more files than security so only one team will be assigned
@@ -53,7 +53,7 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
 
-        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+        self.assertEqual(sorted(teams), sorted(expected_teams))
 
     def test_multiple_files_multiple_teams(self):
         changed_files = ['.gitignore', '.gitlab/security.yml']
@@ -61,4 +61,4 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
 
-        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+        self.assertEqual(sorted(teams), sorted(expected_teams))
