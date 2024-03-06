@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -106,4 +107,9 @@ func AssertUserRights(t *testing.T, host *components.RemoteHost, username string
 		return false
 	}
 	return assert.ElementsMatch(t, expectedRights, actualRights, "user %s should have user rights", username)
+}
+
+// RequireAgentRunningWithNoErrors checks the agent is running with no errors
+func RequireAgentRunningWithNoErrors(t *testing.T, client *common.TestClient) {
+	common.CheckAgentBehaviour(t, client)
 }
