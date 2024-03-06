@@ -237,8 +237,10 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	if instance.Username == "" {
+		// For the backward compatibility with the Python integration
 		if instance.User != "" {
 			instance.Username = instance.User
+			warnDeprecated("user", "username")
 		} else {
 			return nil, fmt.Errorf("`username` is not configured")
 		}
@@ -289,4 +291,8 @@ func GetConnectData(c InstanceConfig) string {
 		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
 	}
 	return p
+}
+
+func warnDeprecated(old string, new string) {
+	log.Warnf("The config parameter %s is deprecated and will be removed in future versions. Please use %s instead.", old, new)
 }
