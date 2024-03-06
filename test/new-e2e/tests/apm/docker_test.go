@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 )
@@ -48,7 +50,10 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 		dockeragentparams.WithAgentServiceEnvVariable(
 			"STATSD_URL",
 			pulumi.String("unix:///var/run/datadog/dsd.socket")),
-	))
+	),
+		// The LoadBalancer uses https while the raw fakeintake uses http (incompatible with current config)
+		// Also, it can restart the fakeintake container
+		awsdocker.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()))
 	e2e.Run(t, &DockerFakeintakeSuite{transport: uds}, options...)
 }
 
