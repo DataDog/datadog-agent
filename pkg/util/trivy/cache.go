@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
@@ -37,7 +38,7 @@ type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
 // NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
 // maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(wmeta workloadmeta.Component, cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
+func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = utils.DefaultCacheDir()
 	}
@@ -117,11 +118,11 @@ type ScannerCache struct {
 type ScannerCacheCleaner struct {
 	cachedKeysForEntity map[string][]string
 	target              *ScannerCache
-	wmeta               workloadmeta.Component
+	wmeta               optional.Option[workloadmeta.Component]
 }
 
 // NewScannerCacheCleaner creates a new instance of ScannerCacheCleaner and returns a pointer to it.
-func NewScannerCacheCleaner(target *ScannerCache, wmeta workloadmeta.Component) *ScannerCacheCleaner {
+func NewScannerCacheCleaner(target *ScannerCache, wmeta optional.Option[workloadmeta.Component]) *ScannerCacheCleaner {
 	return &ScannerCacheCleaner{
 		cachedKeysForEntity: make(map[string][]string),
 		target:              target,
@@ -131,11 +132,11 @@ func NewScannerCacheCleaner(target *ScannerCache, wmeta workloadmeta.Component) 
 
 // Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
 func (c *ScannerCacheCleaner) Clean() error {
-	if c.wmeta == nil {
+	instance, ok := c.wmeta.Get()
+	if !ok {
 		return nil
 	}
-
-	images := c.wmeta.ListImages()
+	images := instance.ListImages()
 
 	toKeep := make(map[string]struct{}, len(images))
 	for _, imageMetadata := range images {

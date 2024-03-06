@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
@@ -103,7 +104,7 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 
 // defaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func defaultCollectorConfig(wmeta workloadmeta.Component, cacheLocation string) CollectorConfig {
+func defaultCollectorConfig(wmeta optional.Option[workloadmeta.Component], cacheLocation string) CollectorConfig {
 	collectorConfig := CollectorConfig{
 		ClearCacheOnClose: true,
 	}
@@ -113,7 +114,7 @@ func defaultCollectorConfig(wmeta workloadmeta.Component, cacheLocation string) 
 	return collectorConfig
 }
 
-func cacheProvider(wmeta workloadmeta.Component, cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
+func cacheProvider(wmeta optional.Option[workloadmeta.Component], cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
 	if useCustomCache {
 		return func() (cache.Cache, CacheCleaner, error) {
 			return NewCustomBoltCache(
@@ -163,7 +164,7 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 // NewCollector returns a new collector
-func NewCollector(cfg config.Config, wmeta workloadmeta.Component) (*Collector, error) {
+func NewCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
 	config := defaultCollectorConfig(wmeta, cfg.GetString("sbom.cache_directory"))
 	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
@@ -176,7 +177,7 @@ func NewCollector(cfg config.Config, wmeta workloadmeta.Component) (*Collector, 
 }
 
 // GetGlobalCollector gets the global collector
-func GetGlobalCollector(cfg config.Config, wmeta workloadmeta.Component) (*Collector, error) {
+func GetGlobalCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}

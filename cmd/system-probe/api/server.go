@@ -24,15 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const maxGRPCServerMessage = 100 * 1024 * 1024
 
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component) error {
+func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
@@ -50,7 +52,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component) erro
 		)
 	}
 
-	err = module.Register(cfg, mux, grpcServer, modules.All)
+	err = module.Register(cfg, mux, grpcServer, modules.All, wmeta)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
@@ -63,7 +65,7 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component) erro
 	setupConfigHandlers(mux)
 
 	// Module-restart handler
-	mux.HandleFunc("/module-restart/{module-name}", restartModuleHandler).Methods("POST")
+	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, wmeta) }).Methods("POST")
 
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())

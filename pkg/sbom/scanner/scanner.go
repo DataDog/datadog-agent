@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -187,7 +188,7 @@ func NewScanner() *Scanner {
 // CreateGlobalScanner creates a SBOM scanner, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalScanner(cfg config.Config, wmeta workloadmeta.Component) (*Scanner, error) {
+func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
 	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}

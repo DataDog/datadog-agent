@@ -273,7 +273,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
+	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer, wmeta)
 	if err != nil {
 		return err
 	}
