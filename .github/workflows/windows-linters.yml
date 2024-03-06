@@ -61,4 +61,4 @@ jobs:
           echo $PATH
           powershell.exe -Command ./tasks/winbuildscripts/pre-go-build.ps1
           inv -e rtloader.format --raise-if-changed
-          inv -e lint-go --timeout 30
+          inv -e linter.go --timeout 30

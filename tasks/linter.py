@@ -15,7 +15,7 @@ from tasks.test_core import ModuleLintResult, process_input_args, process_module
 
 
 @task
-def lint_python(ctx):
+def python(ctx):
     """
     Lints Python files.
     See 'setup.cfg' and 'pyproject.toml' file for configuration.
@@ -34,7 +34,7 @@ def lint_python(ctx):
 
 
 @task
-def lint_copyrights(_, fix=False, dry_run=False, debug=False):
+def copyrights(_, fix=False, dry_run=False, debug=False):
     """
     Checks that all Go files contain the appropriate copyright header. If '--fix'
     is provided as an option, it will try to fix problems as it finds them. If
@@ -45,7 +45,7 @@ def lint_copyrights(_, fix=False, dry_run=False, debug=False):
 
 
 @task
-def lint_filenames(ctx):
+def filenames(ctx):
     """
     Scan files to ensure there are no filenames too long or containing illegal characters
     """
@@ -82,7 +82,7 @@ def lint_filenames(ctx):
 
 
 @task(iterable=['flavors'])
-def lint_go(
+def go(
     ctx,
     module=None,
     targets=None,
@@ -112,8 +112,8 @@ def lint_go(
     --headless-mode allows you to output the result in a single json file.
 
     Example invokation:
-        inv lint-go --targets=./pkg/collector/check,./pkg/aggregator
-        inv lint-go --module=.
+        inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
+        inv linter.go --module=.
     """
 
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
