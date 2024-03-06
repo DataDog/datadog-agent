@@ -109,25 +109,6 @@ func addLogToBuffer(logHandle func()) {
 }
 
 // This function should be called with `sw.l` held
-func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
-
-	old := sw.inner
-	sw.inner = l
-
-	return old
-}
-
-// This function should be called with `sw.l` held
-func (sw *DatadogLogger) changeLogLevel(level string) error {
-	lvl, ok := seelog.LogLevelFromString(strings.ToLower(level))
-	if !ok {
-		return errors.New("bad log level")
-	}
-	sw.level = lvl
-	return nil
-}
-
-// This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
 	return level >= sw.level
 }
@@ -156,6 +137,11 @@ func (sw *DatadogLogger) scrub(s string) string {
 // trace logs at the trace level, called with sw.l held
 func (sw *loggerPointer) trace(s string) {
 	l := sw.Load()
+
+	if l == nil {
+		// TODO: throw error?
+	}
+
 	scrubbed := l.scrub(s)
 	l.inner.Trace(scrubbed)
 
@@ -895,40 +881,49 @@ func JMXInfo(v ...interface{}) {
 	log(seelog.InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
 }
 
-// Flush flushes the underlying inner log
-func Flush() {
-	l := logger.Load()
-	if l != nil {
-		l.l.Lock()
-		if l.inner != nil {
-			l.inner.Flush()
-		}
-		l.l.Unlock()
+func (sw *loggerPointer) flush() {
+	l := sw.Load()
+	if l == nil {
+		return
 	}
-	l = jmxLogger.Load()
-	if l != nil {
-		l.l.Lock()
-		if l.inner != nil {
-			l.inner.Flush()
-		}
-		l.l.Unlock()
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner != nil {
+		l.inner.Flush()
 	}
 }
 
-// ReplaceLogger allows replacing the internal logger, returns old logger
-func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
-	l := logger.Load()
+// Flush flushes the underlying inner log
+func Flush() {
+	logger.flush()
+	jmxLogger.flush()
+}
+
+// This function should be called with `sw.l` held
+func (sw *loggerPointer) replaceInnerLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
+	l := sw.Load()
 	if l == nil {
 		return nil // Return nil if logger is not initialized
 	}
 
 	l.l.Lock()
 	defer l.l.Unlock()
+
 	if l.inner == nil {
 		return nil // Return nil if logger.inner is not initialized
 	}
 
-	return l.replaceInnerLogger(li)
+	old := l.inner
+	l.inner = li
+
+	return old
+}
+
+// ReplaceLogger allows replacing the internal logger, returns old logger
+func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
+	return logger.replaceInnerLogger(li)
 }
 
 // RegisterAdditionalLogger registers an additional logger for logging
@@ -979,11 +974,9 @@ func GetLogLevel() (seelog.LogLevel, error) {
 	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 }
 
-// ChangeLogLevel changes the current log level, valid levels are trace, debug,
-// info, warn, error, critical and off, it requires a new seelog logger because
-// an existing one cannot be updated
-func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
-	l := logger.Load()
+// This function should be called with `sw.l` held
+func (sw *loggerPointer) changeLogLevel(level string) error {
+	l := sw.Load()
 	if l == nil {
 		return errors.New("cannot change loglevel: logger not initialized")
 	}
@@ -995,18 +988,28 @@ func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	err := l.changeLogLevel(level)
-	if err != nil {
+	lvl, ok := seelog.LogLevelFromString(strings.ToLower(level))
+	if !ok {
+		return errors.New("bad log level")
+	}
+	l.level = lvl
+	return nil
+}
+
+// ChangeLogLevel changes the current log level, valid levels are trace, debug,
+// info, warn, error, critical and off, it requires a new seelog logger because
+// an existing one cannot be updated
+func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
+	if err := logger.changeLogLevel(level); err != nil {
 		return err
 	}
 
 	// See detailed explanation in SetupLogger(...)
-	err = li.SetAdditionalStackDepth(defaultStackDepth)
-	if err != nil {
+	if err := li.SetAdditionalStackDepth(defaultStackDepth); err != nil {
 		return err
 	}
 
-	l.replaceInnerLogger(li)
+	logger.replaceInnerLogger(li)
 	return nil
 
 	// need to return something, just set to Info (expected default)
