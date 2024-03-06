@@ -46,7 +46,7 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 }
 
 func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
-	if !ebpfConntrackerSupportedOnKernelT(t) {
+	if ebpfConntrackerSupportedOnKernelT(t) {
 		t.Skip("This test should only run on pre-4.14 kernels without backported eBPF support, like RHEL/CentOS")
 	}
 
