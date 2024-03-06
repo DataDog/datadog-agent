@@ -2512,14 +2512,96 @@ func TestConnectionRollup(t *testing.T) {
 			Duration: 3 * time.Minute,
 			IsClosed: true,
 		},
+		{
+			Pid:              5652,
+			Source:           util.AddressFromString("172.29.160.125"),
+			SPort:            8443,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			Dest:             util.AddressFromString("172.29.166.243"),
+			DPort:            38633,
+			Family:           AFINET,
+			Type:             TCP,
+			SPortIsEphemeral: EphemeralFalse,
+			Monotonic: StatCounters{
+				SentBytes:      0,
+				RecvBytes:      306,
+				Retransmits:    0,
+				SentPackets:    1,
+				RecvPackets:    3,
+				TCPEstablished: 1,
+			},
+			Direction: INCOMING,
+			NetNS:     4026531992,
+			RTT:       262,
+			RTTVar:    131,
+			IntraHost: false,
+			Cookie:    6,
+			Duration:  time.Second,
+			IsClosed:  true,
+		},
+		{
+			Pid:              5652,
+			Source:           util.AddressFromString("172.29.160.125"),
+			SPort:            8443,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			Dest:             util.AddressFromString("172.29.154.189"),
+			DPort:            60509,
+			Family:           AFINET,
+			Type:             TCP,
+			SPortIsEphemeral: EphemeralFalse,
+			Monotonic: StatCounters{
+				SentBytes:      0,
+				RecvBytes:      306,
+				Retransmits:    0,
+				SentPackets:    1,
+				RecvPackets:    3,
+				TCPEstablished: 1,
+			},
+			Direction: INCOMING,
+			NetNS:     4026531992,
+			RTT:       254,
+			RTTVar:    127,
+			IntraHost: false,
+			Cookie:    7,
+			Duration:  time.Second,
+			IsClosed:  true,
+		},
+		{
+			Pid:              5652,
+			Source:           util.AddressFromString("172.29.160.125"),
+			SPort:            8443,
+			ContainerID:      struct{ Source, Dest *intern.Value }{Source: intern.GetByString("403ca32ba9b1c3955ba79a84039c9de34d81c83aa3a27ece70b19b3df84c9460")},
+			Dest:             util.AddressFromString("172.29.166.243"),
+			DPort:            34715,
+			Family:           AFINET,
+			Type:             TCP,
+			SPortIsEphemeral: EphemeralFalse,
+			Monotonic: StatCounters{
+				SentBytes:      2392,
+				RecvBytes:      670,
+				Retransmits:    0,
+				SentPackets:    7,
+				RecvPackets:    8,
+				TCPEstablished: 1,
+			},
+			Direction: INCOMING,
+			NetNS:     4026531992,
+			RTT:       250,
+			RTTVar:    66,
+			IntraHost: false,
+			Cookie:    8,
+			Duration:  time.Second,
+			IsClosed:  true,
+		},
 	}
 
 	ns := newDefaultState()
 	ns.enableConnectionRollup = true
+	ns.processEventConsumerEnabled = true
 	ns.RegisterClient("foo")
 	delta := ns.GetDelta("foo", 0, conns, nil, nil)
-	// should have 3 connections
-	assert.Len(t, delta.Conns, 3)
+	// should have 5 connections
+	assert.Len(t, delta.Conns, 5)
 
 	findConnections := func(conns []ConnectionStats, _laddr, _raddr string) []ConnectionStats {
 		laddr, err := netip.ParseAddrPort(_laddr)
@@ -2593,6 +2675,35 @@ func TestConnectionRollup(t *testing.T) {
 		TCPEstablished: 0,
 	}, c.Monotonic)
 	assert.Equal(t, uint32(28385), c.Pid)
+
+	found = findConnections(conns, "172.29.160.125:8443", "172.29.166.243:0")
+	require.Len(t, found, 1)
+	c = found[0]
+	assert.Nil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, StatCounters{
+		RecvBytes:      306 + 670,
+		SentBytes:      0 + 2392,
+		RecvPackets:    3 + 8,
+		SentPackets:    1 + 7,
+		Retransmits:    0,
+		TCPClosed:      0,
+		TCPEstablished: 1 + 1,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(5652), c.Pid)
+
+	found = findConnections(conns, "172.29.160.125:8443", "172.29.166.243:34715")
+	require.Len(t, found, 1)
+	c = found[0]
+	assert.Nil(t, c.IPTranslation, "ip translation was nil")
+	assert.Equal(t, StatCounters{
+		SentBytes:      2392,
+		RecvBytes:      670,
+		Retransmits:    0,
+		SentPackets:    7,
+		RecvPackets:    8,
+		TCPEstablished: 1,
+	}, c.Monotonic)
+	assert.Equal(t, uint32(5652), c.Pid)
 }
 
 func TestFilterConnections(t *testing.T) {
