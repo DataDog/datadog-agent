@@ -10,6 +10,7 @@ package systemd
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -434,7 +435,12 @@ func sendServicePropertyAsGauge(sender sender.Sender, properties map[string]inte
 	if err != nil {
 		return fmt.Errorf("error getting property %s: %v", service.propertyName, err)
 	}
-	sender.Gauge(service.metricName, float64(value), "", tags)
+
+	// When the value is `[Not set]`, dbus returns MaxUint64
+	if value != math.MaxUint64 {
+		sender.Gauge(service.metricName, float64(value), "", tags)
+	}
+
 	return nil
 }
 
