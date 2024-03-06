@@ -6,6 +6,7 @@ vendor/
 .vendor-new/
 bin/
 /dev/
+/site/
 __pycache__
 .pytest_cache
 venv/

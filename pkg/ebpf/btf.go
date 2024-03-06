@@ -15,13 +15,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/cilium/ebpf/btf"
 	"github.com/mholt/archiver/v3"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
@@ -34,14 +33,15 @@ const btfFlushDelay = 1 * time.Minute
 type btfPlatform string
 
 const (
-	platformAmazon btfPlatform = "amzn"
-	platformCentOS btfPlatform = "centos"
-	platformDebian btfPlatform = "debian"
-	platformFedora btfPlatform = "fedora"
-	platformOracle btfPlatform = "ol"
-	platformRedhat btfPlatform = "rhel"
-	platformSUSE   btfPlatform = "sles"
-	platformUbuntu btfPlatform = "ubuntu"
+	platformAmazon       btfPlatform = "amzn"
+	platformCentOS       btfPlatform = "centos"
+	platformDebian       btfPlatform = "debian"
+	platformFedora       btfPlatform = "fedora"
+	platformOpenSUSELeap btfPlatform = "opensuse-leap"
+	platformOracle       btfPlatform = "ol"
+	platformRedhat       btfPlatform = "rhel"
+	platformSUSE         btfPlatform = "sles"
+	platformUbuntu       btfPlatform = "ubuntu"
 )
 
 func (p btfPlatform) String() string {
@@ -52,8 +52,10 @@ func btfPlatformFromString(platform string) (btfPlatform, error) {
 	switch platform {
 	case "amzn", "amazon":
 		return platformAmazon, nil
-	case "suse", "sles": //opensuse treated differently on purpose
+	case "suse", "sles":
 		return platformSUSE, nil
+	case "opensuse", "opensuse-leap":
+		return platformOpenSUSELeap, nil
 	case "redhat", "rhel":
 		return platformRedhat, nil
 	case "oracle", "ol":
@@ -222,6 +224,8 @@ var kernelVersionPatterns = []struct {
 	{regexp.MustCompile(`\.el[7-8]uek\.`), []btfPlatform{platformOracle}},
 	{regexp.MustCompile(`\.deb10\.`), []btfPlatform{platformDebian}},
 	{regexp.MustCompile(`\.fc\d{2}\.`), []btfPlatform{platformFedora}},
+	{regexp.MustCompile(`-lp15\d\.`), []btfPlatform{platformOpenSUSELeap}},
+	{regexp.MustCompile(`-150300\.`), []btfPlatform{platformOpenSUSELeap}},
 }
 
 var errIncorrectOSReleaseMount = errors.New("please mount the /etc/os-release file as /host/etc/os-release in the system-probe container to resolve this")
@@ -300,7 +304,7 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 		return "", fmt.Errorf("ubuntu platform version incorrectly detected as `%s`. %w", platformVersion, errIncorrectOSReleaseMount)
 	}
 	platformStrings := make([]string, 0, len(possiblePlatforms))
-	for _, pp := range maps.Keys(possiblePlatforms) {
+	for pp := range possiblePlatforms {
 		platformStrings = append(platformStrings, pp.String())
 	}
 	return "", fmt.Errorf("BTF platform incorrectly detected as `%s`. It is likely one of `%s`, but we are unable to automatically decide. %w", platform, strings.Join(platformStrings, ","), errIncorrectOSReleaseMount)

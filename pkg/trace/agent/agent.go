@@ -410,7 +410,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 	// We will first need to deprecate the `enable_cid_stats` feature flag.
 	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
 	if err != nil {
-		log.Error("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
+		log.Debugf("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
 	} else {
 		pt.ImageTag = imageTag
 		// Only override the GitCommitSha if it was not set in the trace.

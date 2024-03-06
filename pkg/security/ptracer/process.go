@@ -9,8 +9,9 @@
 package ptracer
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-	"golang.org/x/exp/slices"
 )
 
 type fileHandleKey struct {

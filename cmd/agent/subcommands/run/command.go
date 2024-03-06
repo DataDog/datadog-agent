@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -46,8 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -84,9 +83,9 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
-	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha/rcservicehaimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -201,7 +200,6 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
-	processAgent optional.Option[processAgent.Component],
 	otelcollector otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
@@ -217,7 +215,7 @@ func run(log log.Component,
 	collector collector.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, agentAPI)
+		stopAgent(cliParams, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -268,7 +266,6 @@ func run(log log.Component,
 		taggerComp,
 		rcclient,
 		logsAgent,
-		processAgent,
 		forwarder,
 		sharedSerializer,
 		otelcollector,
@@ -312,7 +309,7 @@ func getSharedFxOption() fx.Option {
 		workloadmeta.Module(),
 		fx.Supply(
 			status.Params{
-				PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+				PythonVersionGetFunc: python.GetPythonVersion,
 			},
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),
@@ -334,14 +331,15 @@ func getSharedFxOption() fx.Option {
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statusimpl.Module(),
+		authtokenimpl.Module(),
 		apiimpl.Module(),
-
+		demultiplexerimpl.Module(),
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
 		rcservicehaimpl.Module(),
-		rcclient.Module(),
+		rcclientimpl.Module(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),
 
@@ -371,7 +369,6 @@ func getSharedFxOption() fx.Option {
 			params.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			return params
 		}),
-		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		eventplatformimpl.Module(),
@@ -387,7 +384,6 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
-		process.Bundle(),
 	)
 }
 
@@ -404,7 +400,6 @@ func startAgent(
 	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
-	_ optional.Option[processAgent.Component],
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
@@ -601,16 +596,6 @@ func startAgent(
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// start dogstatsd
-	if pkgconfig.Datadog.GetBool("use_dogstatsd") {
-		err := server.Start(demultiplexer)
-		if err != nil {
-			log.Errorf("Could not start dogstatsd: %s", err)
-		} else {
-			log.Debugf("dogstatsd started")
-		}
-	}
-
 	// load and run all configs in AD
 	common.AC.LoadAndRun(ctx)
 
@@ -639,12 +624,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, agentAPI)
+func StopAgentWithDefaults(agentAPI internalAPI.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, agentAPI internalAPI.Component) {
+func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -659,7 +644,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, agentAPI 
 			pkglog.Errorf("Error shutting down expvar server: %v", err)
 		}
 	}
-	server.Stop()
 	if common.AC != nil {
 		common.AC.Stop()
 	}

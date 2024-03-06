@@ -177,7 +177,7 @@ type tracer struct {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (Tracer, error) {
+func NewTracer(config *config.Config) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -224,7 +224,7 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP, bpfTelemetry)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -234,7 +234,7 @@ func NewTracer(config *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP, bpfTelemetry)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
 		}

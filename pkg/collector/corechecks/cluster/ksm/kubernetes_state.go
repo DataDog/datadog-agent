@@ -11,6 +11,7 @@ package ksm
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -35,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"golang.org/x/exp/maps"
 
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"

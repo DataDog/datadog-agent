@@ -563,7 +563,12 @@ func assertFieldEqualCaseInsensitve(tb testing.TB, e *model.Event, field string,
 	if reflect.TypeOf(fieldValue).Kind() == reflect.String {
 		fieldValue = strings.ToLower(fieldValue.(string))
 	}
-	return assert.Equal(tb, value, fieldValue, msgAndArgs...)
+	eq := assert.Equal(tb, value, fieldValue, msgAndArgs...)
+	if !eq {
+		tb.Logf("expected value %s\n", value.(string))
+		tb.Logf("actual value %s\n", fieldValue.(string))
+	}
+	return eq
 }
 
 //nolint:deadcode,unused
@@ -721,6 +726,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
 		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
+		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,

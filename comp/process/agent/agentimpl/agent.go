@@ -16,7 +16,6 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
-	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -42,19 +41,17 @@ func Module() fxutil.Module {
 type processAgentParams struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Log       logComponent.Component
-	Config    config.Component
-	Checks    []types.CheckComponent `group:"check"`
-	Runner    runner.Component
-	Submitter submitterComp.Component
+	Lc     fx.Lifecycle
+	Log    logComponent.Component
+	Config config.Component
+	Checks []types.CheckComponent `group:"check"`
+	Runner runner.Component
 }
 
 type processAgent struct {
-	Checks    []checks.Check
-	Log       logComponent.Component
-	Runner    runner.Component
-	Submitter submitterComp.Component
+	Checks []checks.Check
+	Log    logComponent.Component
+	Runner runner.Component
 }
 
 func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
@@ -63,7 +60,7 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(p.Checks))
-	for _, c := range p.Checks {
+	for _, c := range fxutil.GetAndFilterGroup(p.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
@@ -77,10 +74,9 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 	}
 
 	processAgentComponent := processAgent{
-		Checks:    enabledChecks,
-		Log:       p.Log,
-		Runner:    p.Runner,
-		Submitter: p.Submitter,
+		Checks: enabledChecks,
+		Log:    p.Log,
+		Runner: p.Runner,
 	}
 
 	p.Lc.Append(fx.Hook{
@@ -92,32 +88,19 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 }
 
 func (p processAgent) start(ctx context.Context) error {
-	p.Log.Debug("Starting the process-agent component")
+	p.Log.Info("process-agent starting")
 
 	chks := make([]string, 0, len(p.Checks))
 	for _, check := range p.Checks {
 		chks = append(chks, check.Name())
 	}
-	p.Log.Debug("process-agent checks", log.Object("checks", chks))
+	p.Log.Info("process-agent checks", log.Object("checks", chks))
 
-	// start the submitter
-	if err := p.Submitter.Start(); err != nil {
-		return err
-	}
-
-	// start the check runner
 	return p.Runner.Run(ctx)
 }
 
-// stop stops all agent components that were started in reverse order
-func (p processAgent) stop(ctx context.Context) error {
-	p.Log.Debug("Stopping the process-agent component")
+func (p processAgent) stop(_ context.Context) error {
+	p.Log.Info("process-agent stopping")
 
-	// stop the check runner
-	err := p.Runner.Stop(ctx)
-
-	// stop the submitter
-	p.Submitter.Stop()
-
-	return err
+	return nil
 }

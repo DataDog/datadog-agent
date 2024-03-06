@@ -9,18 +9,24 @@ package repository
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	previousVersionLink   = "previous"
 	stableVersionLink     = "stable"
 	experimentVersionLink = "experiment"
+)
+
+var (
+	errRepositoryNotCreated = errors.New("repository not created")
 )
 
 // Repository contains the stable and experimental package of a single artifact managed by the updater.
@@ -46,11 +52,11 @@ const (
 // It is possible to end up with garbage left on disk if an error happens during some operations. This
 // is cleaned up during the next operation.
 type Repository struct {
-	RootPath string
+	rootPath string
 
-	// LocksPath is the path to the locks directory
+	// locksPath is the path to the locks directory
 	// containing the PIDs of the processes using the packages.
-	LocksPath string
+	locksPath string
 }
 
 // State is the state of the repository.
@@ -69,13 +75,26 @@ func (s *State) HasExperiment() bool {
 	return s.Experiment != ""
 }
 
+// StableFS returns the stable package fs.
+func (r *Repository) StableFS() fs.FS {
+	return os.DirFS(filepath.Join(r.rootPath, stableVersionLink))
+}
+
+// ExperimentFS returns the experiment package fs.
+func (r *Repository) ExperimentFS() fs.FS {
+	return os.DirFS(filepath.Join(r.rootPath, experimentVersionLink))
+}
+
 // GetState returns the state of the repository.
-func (r *Repository) GetState() (*State, error) {
-	repository, err := readRepository(r.RootPath, r.LocksPath)
-	if err != nil {
-		return nil, err
+func (r *Repository) GetState() (State, error) {
+	repository, err := readRepository(r.rootPath, r.locksPath)
+	if errors.Is(err, errRepositoryNotCreated) {
+		return State{}, nil
 	}
-	return &State{
+	if err != nil {
+		return State{}, err
+	}
+	return State{
 		Stable:     repository.stable.Target(),
 		Experiment: repository.experiment.Target(),
 	}, nil
@@ -90,12 +109,12 @@ func (r *Repository) GetState() (*State, error) {
 // 3. Move the stable source to the repository.
 // 4. Create the stable link.
 func (r *Repository) Create(name string, stableSourcePath string) error {
-	err := os.MkdirAll(r.RootPath, 0755)
+	err := os.MkdirAll(r.rootPath, 0755)
 	if err != nil {
 		return fmt.Errorf("could not create packages root directory: %w", err)
 	}
 
-	repository, err := readRepository(r.RootPath, r.LocksPath)
+	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
@@ -115,13 +134,13 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 	}
 
 	// Remove left-over locks paths
-	packageLocksPaths, err := os.ReadDir(r.LocksPath)
-	if err != nil {
+	packageLocksPaths, err := os.ReadDir(r.locksPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("could not read locks directory: %w", err)
 	}
 	for _, pkg := range packageLocksPaths {
-		pkgRootPath := filepath.Join(r.RootPath, pkg.Name())
-		pkgLocksPath := filepath.Join(r.LocksPath, pkg.Name())
+		pkgRootPath := filepath.Join(r.rootPath, pkg.Name())
+		pkgLocksPath := filepath.Join(r.locksPath, pkg.Name())
 		if _, err := os.Stat(pkgRootPath); err != nil && errors.Is(err, os.ErrNotExist) {
 			err = os.RemoveAll(pkgLocksPath)
 			if err != nil {
@@ -148,7 +167,7 @@ func (r *Repository) Create(name string, stableSourcePath string) error {
 // 2. Move the experiment source to the repository.
 // 3. Set the experiment link to the experiment package.
 func (r *Repository) SetExperiment(name string, sourcePath string) error {
-	repository, err := readRepository(r.RootPath, r.LocksPath)
+	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
@@ -173,7 +192,7 @@ func (r *Repository) SetExperiment(name string, sourcePath string) error {
 // 3. Delete the experiment link.
 // 4. Cleanup the repository to remove the previous stable package.
 func (r *Repository) PromoteExperiment() error {
-	repository, err := readRepository(r.RootPath, r.LocksPath)
+	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
@@ -197,7 +216,7 @@ func (r *Repository) PromoteExperiment() error {
 	}
 
 	// Read repository again to re-load the list of locked packages
-	repository, err = readRepository(r.RootPath, r.LocksPath)
+	repository, err = readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
@@ -214,7 +233,7 @@ func (r *Repository) PromoteExperiment() error {
 // 2. Delete the experiment link.
 // 3. Cleanup the repository to remove the previous experiment package.
 func (r *Repository) DeleteExperiment() error {
-	repository, err := readRepository(r.RootPath, r.LocksPath)
+	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
@@ -234,7 +253,7 @@ func (r *Repository) DeleteExperiment() error {
 	}
 
 	// Read repository again to re-load the list of locked packages
-	repository, err = readRepository(r.RootPath, r.LocksPath)
+	repository, err = readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
@@ -247,7 +266,7 @@ func (r *Repository) DeleteExperiment() error {
 
 // Cleanup calls the cleanup function of the repository
 func (r *Repository) Cleanup() error {
-	repository, err := readRepository(r.RootPath, r.LocksPath)
+	repository, err := readRepository(r.rootPath, r.locksPath)
 	if err != nil {
 		return err
 	}
@@ -275,8 +294,11 @@ func readRepository(rootPath string, locksPath string) (*repositoryFiles, error)
 
 	// List locked packages
 	packages, err := os.ReadDir(rootPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, errRepositoryNotCreated
+	}
 	if err != nil {
-		return nil, fmt.Errorf("could not read locks directory: %w", err)
+		return nil, fmt.Errorf("could not read root directory: %w", err)
 	}
 	lockedPackages := map[string]bool{}
 	for _, pkg := range packages {
@@ -346,7 +368,7 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 func (r *repositoryFiles) cleanup() error {
 	files, err := os.ReadDir(r.rootPath)
 	if err != nil {
-		return fmt.Errorf("could not read locks directory: %w", err)
+		return fmt.Errorf("could not read root directory: %w", err)
 	}
 
 	// For each version, get the running PIDs. These PIDs are written by the injector.

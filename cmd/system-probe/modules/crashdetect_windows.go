@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"google.golang.org/grpc"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
@@ -51,10 +49,6 @@ func (wcdm *winCrashDetectModule) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, results)
 	}))
 
-	return nil
-}
-
-func (wcdm *winCrashDetectModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

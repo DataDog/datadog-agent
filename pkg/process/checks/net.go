@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sort"
 	"time"
 
@@ -101,7 +102,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.dockerFilter = parser.NewDockerProxy()
 	serviceExtractorEnabled := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.enabled")
 	useWindowsServiceName := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName)
+	useImprovedAlgorithm := c.sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
+	c.serviceExtractor = parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
 
@@ -110,6 +112,11 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 // IsEnabled returns true if the check is enabled by configuration
 func (c *ConnectionsCheck) IsEnabled() bool {
+	// connection check is not supported on darwin, so we should fail gracefully in this case.
+	if runtime.GOOS == "darwin" {
+		return false
+	}
+
 	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
 	return npmModuleEnabled && c.syscfg.Enabled
 }

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -60,10 +59,6 @@ type CheckSubmitter struct {
 	rtProcessForwarder   defaultforwarder.Component
 	connectionsForwarder defaultforwarder.Component
 	eventForwarder       defaultforwarder.Component
-
-	// Endpoints for logging purposes
-	processAPIEndpoints       []apicfg.Endpoint
-	processEventsAPIEndpoints []apicfg.Endpoint
 
 	hostname string
 
@@ -132,6 +127,7 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		return nil, err
 	}
 
+	printStartMessage(log, hostname, processAPIEndpoints, processEventsAPIEndpoints)
 	return &CheckSubmitter{
 		log:                log,
 		processResults:     processResults,
@@ -143,9 +139,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
 		connectionsForwarder: forwarders.GetConnectionsForwarder(),
 		eventForwarder:       forwarders.GetEventForwarder(),
-
-		processAPIEndpoints:       processAPIEndpoints,
-		processEventsAPIEndpoints: processEventsAPIEndpoints,
 
 		hostname: hostname,
 
@@ -183,8 +176,6 @@ func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Pa
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Start() error {
-	printStartMessage(s.log, s.hostname, s.processAPIEndpoints, s.processEventsAPIEndpoints)
-
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}

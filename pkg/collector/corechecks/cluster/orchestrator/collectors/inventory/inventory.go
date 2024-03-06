@@ -47,6 +47,7 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewUnassignedPodCollectorVersions(),
 			k8sCollectors.NewVerticalPodAutoscalerCollectorVersions(),
 			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(),
+			k8sCollectors.NewNetworkPolicyCollectorVersions(),
 		},
 	}
 }

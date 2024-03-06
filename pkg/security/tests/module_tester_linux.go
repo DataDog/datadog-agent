@@ -120,6 +120,7 @@ runtime_security_config:
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
+    cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
     traced_event_types: {{range .ActivityDumpTracedEventTypes}}
     - {{. -}}
     {{- end}}
@@ -578,6 +579,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			fmt.Println(err)
 		}
 		commonCfgDir = cd
+		os.Chdir(commonCfgDir)
 	}
 
 	var proFile *os.File

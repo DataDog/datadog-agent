@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 )
 
@@ -30,18 +28,13 @@ var ConnContextKey = &contextKey{"http-connection"}
 func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer *grpc.Server, httpHandler http.Handler) *http.Server {
 	// our gRPC clients do not handle protocol negotiation, so we need to force
 	// HTTP/2
-	var handler http.Handler
-	// when HTTP/2 traffic that is not TLS being sent we need to create a new handler which
-	// is able to handle the pre fix magic sent
-	handler = h2c.NewHandler(handlerWithFallback(grpcServer, httpHandler), &http2.Server{})
 	if tlsConfig != nil {
 		tlsConfig.NextProtos = []string{"h2"}
-		handler = handlerWithFallback(grpcServer, httpHandler)
 	}
 
 	return &http.Server{
 		Addr:      addr,
-		Handler:   handler,
+		Handler:   handlerWithFallback(grpcServer, httpHandler),
 		TLSConfig: tlsConfig,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			// Store the connection in the context so requests can reference it if needed

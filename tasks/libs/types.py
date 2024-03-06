@@ -75,6 +75,14 @@ class FailedJobs:
     def all_mandatory_failures(self):
         return self.mandatory_job_failures + self.mandatory_infra_job_failures
 
+    def all_failures(self):
+        return (
+            self.mandatory_job_failures
+            + self.optional_job_failures
+            + self.mandatory_infra_job_failures
+            + self.optional_infra_job_failures
+        )
+
 
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"

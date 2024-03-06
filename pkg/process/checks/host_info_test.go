@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	pbmocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetHostname(t *testing.T) {
@@ -82,11 +81,6 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestInvalidHostname(t *testing.T) {
-	oldFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(oldFlavor)
-
-	flavor.SetFlavor(flavor.ProcessAgent)
-
 	cfg := config.Mock(t)
 
 	// Lower the GRPC timeout, otherwise the test will time out in CI

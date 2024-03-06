@@ -36,6 +36,7 @@ type runnerImpl struct {
 
 type dependencies struct {
 	fx.In
+	Lc fx.Lifecycle
 
 	Submitter  submitter.Component
 	RTNotifier <-chan types.RTResponse `optional:"true"`
@@ -47,16 +48,24 @@ type dependencies struct {
 }
 
 func newRunner(deps dependencies) (runner.Component, error) {
-	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(deps.Checks), deps.RTNotifier)
+	checks := fxutil.GetAndFilterGroup(deps.Checks)
+	c, err := processRunner.NewRunner(deps.Config, deps.SysCfg.SysProbeObject(), deps.HostInfo.Object(), filterEnabledChecks(checks), deps.RTNotifier)
 	if err != nil {
 		return nil, err
 	}
 	c.Submitter = deps.Submitter
 
-	return &runnerImpl{
+	runner := &runnerImpl{
 		checkRunner:    c,
-		providedChecks: deps.Checks,
-	}, nil
+		providedChecks: checks,
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: runner.Run,
+		OnStop:  runner.Stop,
+	})
+
+	return runner, nil
 }
 
 func (r *runnerImpl) Run(context.Context) error {
