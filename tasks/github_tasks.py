@@ -236,7 +236,7 @@ def assign_team_label(_, pr_id=-1):
 
     # Find team
     teams = _get_teams(gh.get_pr_files(pr_id))
-    teams = [team for team in teams if team.startswith('@DataDog/')]
+    team_labels = [f"team{team.removeprefix('@Datadog')}" for team in teams if team.startswith("@DataDog/")]
     if teams == []:
         print('No team found')
         return
