@@ -173,14 +173,15 @@ func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
 	s.itemsOut <- &senderMetricSample{s.id, sample, false}
 }
 
-func (s *checkSender) sendMetricSample(
+func (s *checkSender) sendMetricSampleWithTs(
 	metric string,
 	value float64,
 	hostname string,
 	tags []string,
 	mType metrics.MetricType,
 	flushFirstValue bool,
-	noIndex bool) {
+	noIndex bool,
+	timestamp float64) {
 	tags = append(tags, s.checkTags...)
 
 	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
@@ -192,7 +193,7 @@ func (s *checkSender) sendMetricSample(
 		Tags:            tags,
 		Host:            hostname,
 		SampleRate:      1,
-		Timestamp:       timeNowNano(),
+		Timestamp:       timestamp,
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         s.noIndex || noIndex,
 		Source:          metrics.CoreCheckToMetricSource(checkid.IDToCheckName(s.id)),
@@ -209,9 +210,25 @@ func (s *checkSender) sendMetricSample(
 	s.statsLock.Unlock()
 }
 
+func (s *checkSender) sendMetricSample(
+	metric string,
+	value float64,
+	hostname string,
+	tags []string,
+	mType metrics.MetricType,
+	flushFirstValue bool,
+	noIndex bool) {
+	s.sendMetricSampleWithTs(metric, value, hostname, tags, mType, flushFirstValue, noIndex, timeNowNano())
+}
+
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, false)
+}
+
+// Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
+func (s *checkSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) {
+	s.sendMetricSampleWithTs(metric, value, hostname, tags, metrics.GaugeType, false, false, -timestamp)
 }
 
 // GaugeNoIndex should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.

@@ -39,6 +39,11 @@ type Sender interface {
 	FinalizeCheckServiceTag()
 	OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int)
 	OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string)
+	// GaugeWithTimestamp sends a gauge data point with the given timestamp, without aggregation.
+	//
+	// Use this when the check reports metrics collected and timestamped by an external system, and the
+	// timestamps do not correlate with the check execution.
+	GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64)
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
