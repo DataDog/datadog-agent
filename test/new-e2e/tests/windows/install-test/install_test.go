@@ -34,7 +34,7 @@ var devMode = flag.Bool("devmode", false, "enable devmode")
 
 type agentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.Host]
-	Defender     *defender.Output
+	Defender *defender.Output
 }
 
 func TestMSI(t *testing.T) {
@@ -191,7 +191,6 @@ func (is *agentMSISuite) TestRepair() {
 // TC-INS-006
 func (is *agentMSISuite) TestAgentUser() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	hostinfo, err := windowsCommon.GetHostInfo(vm)
 	is.Require().NoError(err)
