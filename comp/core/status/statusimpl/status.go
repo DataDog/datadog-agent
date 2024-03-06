@@ -22,6 +22,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -36,6 +37,13 @@ type dependencies struct {
 
 	Providers       []status.Provider       `group:"status"`
 	HeaderProviders []status.HeaderProvider `group:"header_status"`
+}
+
+type provides struct {
+	fx.Out
+
+	Comp          status.Component
+	FlareProvider flaretypes.Provider
 }
 
 type statusImplementation struct {
@@ -59,7 +67,7 @@ func sortByName(providers []status.Provider) []status.Provider {
 	return providers
 }
 
-func newStatus(deps dependencies) (status.Component, error) {
+func newStatus(deps dependencies) provides {
 	// Sections are sorted by name
 	// The exception is the collector section. We want that to be the first section to be displayed
 	// We manually insert the collector section in the first place after sorting them alphabetically
@@ -105,11 +113,17 @@ func newStatus(deps dependencies) (status.Component, error) {
 
 	sortedHeaderProviders = append([]status.HeaderProvider{newCommonHeaderProvider(deps.Params, deps.Config)}, sortedHeaderProviders...)
 
-	return &statusImplementation{
+	c := &statusImplementation{
 		sortedSectionNames:       sortedSectionNames,
 		sortedProvidersBySection: sortedProvidersBySection,
 		sortedHeaderProviders:    sortedHeaderProviders,
-	}, nil
+	}
+
+	return provides{
+		Comp:          c,
+		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+	}
+
 }
 
 func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSections ...string) ([]byte, error) {
@@ -353,6 +367,12 @@ func (s *statusImplementation) GetStatusBySection(section string, format string,
 			return []byte{}, nil
 		}
 	}
+}
+
+// fillFlare add the inventory payload to flares.
+func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("status.log", func() ([]byte, error) { return s.GetStatus("text", true) })
+	return nil
 }
 
 func present(value string, container []string) bool {

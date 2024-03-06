@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -38,31 +37,27 @@ type dependencies struct {
 	Log                   log.Component
 	Config                config.Component
 	Diagnosesendermanager diagnosesendermanager.Component
-	InvAgent              inventoryagent.Component // TODO: (components) - Temporary dependencies until the status page is a Component and we don't need to call it in 'CompleteFlare'.
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
 	Collector             optional.Option[collector.Component]
+	Secrets               secrets.Component
 }
 
 type flare struct {
 	log          log.Component
 	config       config.Component
-	invAgent     inventoryagent.Component
 	params       Params
 	providers    []types.FlareCallback
 	diagnoseDeps diagnose.SuitesDeps
 }
 
 func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
-	// TODO FIX this uninitialize variable.
-	var secretResolver secrets.Component
-	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, secretResolver)
+	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets)
 	f := &flare{
 		log:          deps.Log,
 		config:       deps.Config,
 		params:       deps.Params,
 		providers:    fxutil.GetAndFilterGroup(deps.Providers),
-		invAgent:     deps.InvAgent,
 		diagnoseDeps: diagnoseDeps,
 	}
 
@@ -125,7 +120,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.invAgent, f.diagnoseDeps)
+			return pkgFlare.CompleteFlare(fb, f.diagnoseDeps)
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,
