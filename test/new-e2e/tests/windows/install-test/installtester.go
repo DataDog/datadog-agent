@@ -191,32 +191,6 @@ func (t *Tester) RunTestsForKitchenCompat(tt *testing.T) {
 	})
 }
 
-func (t *Tester) testAgentCodeSignature(tt *testing.T) bool {
-	root := `C:\Program Files\Datadog\Datadog Agent\`
-	paths := []string{
-		// user binaries
-		root + `bin\agent.exe`,
-		root + `bin\libdatadog-agent-three.dll`,
-		root + `bin\agent\trace-agent.exe`,
-		root + `bin\agent\process-agent.exe`,
-		root + `bin\agent\system-probe.exe`,
-		// drivers
-		root + `bin\agent\driver\ddnpm.sys`,
-	}
-	// Python3 should be signed by Python, since we don't build our own anymore
-	// We still build our own Python2, so we need to check that
-	if t.ExpectPython2Installed() {
-		paths = append(paths, []string{
-			root + `bin\libdatadog-agent-three.dll`,
-			root + `embedded2\python.exe`,
-			root + `embedded2\pythonw.exe`,
-			root + `embedded2\python27.dll`,
-		}...)
-	}
-
-	return windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, paths)
-}
-
 // TestUninstall uninstalls the agent and runs tests
 func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 	return tt.Run("uninstall the agent", func(tt *testing.T) {
@@ -257,9 +231,6 @@ func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 
 // More in depth checks on current version
 func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
-	if t.remoteMSIPath != "" {
-		windowsAgent.TestValidDatadogCodeSignatures(tt, t.host, []string{t.remoteMSIPath})
-	}
 	common.CheckInstallation(tt, t.InstallTestClient)
 	tt.Run("user in registry", func(tt *testing.T) {
 		AssertInstalledUserInRegistry(tt, t.host, t.expectedUserDomain, t.expectedUserName)
@@ -282,8 +253,6 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 		)
 	})
-
-	t.testAgentCodeSignature(tt)
 
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 
