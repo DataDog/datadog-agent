@@ -108,7 +108,7 @@ func (is *agentMSISuite) TestInstall() {
 	}
 
 	// run tests
-	if !t.TestExpectations(is.T()) {
+	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
 
@@ -125,7 +125,7 @@ func (is *agentMSISuite) TestInstall() {
 	}
 	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
 
-	t.TestUninstall(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
 }
 
 func (is *agentMSISuite) TestUpgrade() {
@@ -148,11 +148,11 @@ func (is *agentMSISuite) TestUpgrade() {
 		is.T().FailNow()
 	}
 
-	if !t.TestExpectations(is.T()) {
+	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
 
-	t.TestUninstall(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
 }
 
 // TC-INS-002
@@ -178,11 +178,11 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	err := windowsCommon.StartService(vm, "DatadogAgent")
 	is.Require().NoError(err, "agent service should start after rollback")
 
-	if !previousTester.TestExpectations(is.T()) {
+	if !previousTester.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
 
-	previousTester.TestUninstall(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	previousTester.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
 }
 
 // TC-INS-001
@@ -208,11 +208,11 @@ func (is *agentMSISuite) TestRepair() {
 		is.T().FailNow()
 	}
 
-	if !t.TestExpectations(is.T()) {
+	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
 
-	t.TestUninstall(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
 }
 
 // TC-INS-006
@@ -263,11 +263,11 @@ func (is *agentMSISuite) TestAgentUser() {
 			}
 
 			// run tests
-			if !t.TestExpectations(is.T()) {
+			if !t.TestInstallExpectations(is.T()) {
 				is.T().FailNow()
 			}
 
-			t.TestUninstall(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+			t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
 		}) {
 			is.T().FailNow()
 		}
@@ -311,7 +311,7 @@ func (is *agentMSISuite) installLastStable(vm *components.RemoteHost, options []
 	)
 
 	// Ensure the agent is functioning properly to provide a proper foundation for the test
-	if !t.TestExpectations(is.T()) {
+	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
 
