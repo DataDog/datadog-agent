@@ -44,7 +44,7 @@ type LauncherTestSuite struct {
 	testRotatedPath string
 	testRotatedFile *os.File
 
-	outputChan       chan *message.Message
+	outputChan       chan message.TimedMessage[*message.Message]
 	pipelineProvider pipeline.Provider
 	source           *sources.LogSource
 	openFilesLimit   int

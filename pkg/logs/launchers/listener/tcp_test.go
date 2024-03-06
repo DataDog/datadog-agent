@@ -32,11 +32,11 @@ func TestTCPShouldReceivesMessages(t *testing.T) {
 	assert.Nil(t, err)
 	defer conn.Close()
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	fmt.Fprintf(conn, "hello world\n")
 	msg = <-msgChan
-	assert.Equal(t, "hello world", string(msg.GetContent()))
+	assert.Equal(t, "hello world", string(msg.Inner.GetContent()))
 	assert.Equal(t, 1, len(listener.tailers))
 
 	listener.Stop()

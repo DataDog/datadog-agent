@@ -28,7 +28,7 @@ const otelSource = "datadog_agent"
 
 type exporter struct {
 	set              component.TelemetrySettings
-	logsAgentChannel chan *message.Message
+	logsAgentChannel chan message.TimedMessage[*message.Message]
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
 }
@@ -36,7 +36,7 @@ type exporter struct {
 func newExporter(
 	set component.TelemetrySettings,
 	logSource *sources.LogSource,
-	logsAgentChannel chan *message.Message,
+	logsAgentChannel chan message.TimedMessage[*message.Message],
 	attributesTranslator *attributes.Translator,
 ) (*exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, otelSource)
@@ -89,7 +89,7 @@ func (e *exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 
 		// ingestionTs is an internal field used for latency tracking on the status page, not the actual log timestamp.
 		ingestionTs := time.Now().UnixNano()
-		message := message.NewMessage(content, origin, status, ingestionTs)
+		message := message.NewTimedMessage(message.NewMessage(content, origin, status, ingestionTs))
 
 		e.logsAgentChannel <- message
 	}

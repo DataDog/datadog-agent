@@ -72,7 +72,7 @@ func (c *collector) Start() error {
 	if !on {
 		return nil
 	}
-	var logch chan *message.Message
+	var logch chan message.TimedMessage[*message.Message]
 	if v, ok := deps.LogsAgent.Get(); ok {
 		if provider := v.GetPipelineProvider(); provider != nil {
 			logch = provider.NextPipelineChan()

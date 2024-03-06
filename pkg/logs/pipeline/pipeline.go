@@ -25,7 +25,7 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan chan *message.Message
+	InputChan chan message.TimedMessage[*message.Message]
 	flushChan chan struct{}
 	processor *processor.Processor
 	strategy  sender.Strategy
@@ -66,7 +66,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, pipelineID)
 	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
-	inputChan := make(chan *message.Message, config.ChanSize)
+	inputChan := make(chan message.TimedMessage[*message.Message], config.ChanSize)
 	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname)
 
 	return &Pipeline{

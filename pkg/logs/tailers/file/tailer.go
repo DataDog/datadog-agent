@@ -69,7 +69,7 @@ type Tailer struct {
 	tagProvider tag.Provider
 
 	// outputChan is the channel to which fully-decoded messages are written.
-	outputChan chan *message.Message
+	outputChan chan message.TimedMessage[*message.Message]
 
 	// decoder handles decoding the raw bytes read from the file into log messages.
 	decoder *decoder.Decoder
@@ -121,12 +121,12 @@ type Tailer struct {
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan    chan *message.Message // Required
-	File          *File                 // Required
-	SleepDuration time.Duration         // Required
-	Decoder       *decoder.Decoder      // Required
-	Info          *status.InfoRegistry  // Required
-	Rotated       bool                  // Optional
+	OutputChan    chan message.TimedMessage[*message.Message] // Required
+	File          *File                                       // Required
+	SleepDuration time.Duration                               // Required
+	Decoder       *decoder.Decoder                            // Required
+	Info          *status.InfoRegistry                        // Required
+	Rotated       bool                                        // Optional
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -354,7 +354,8 @@ func (t *Tailer) forwardMessages() {
 		// normal case.
 		select {
 		// XXX(remy): is it ok recreating a message like this here?
-		case t.outputChan <- message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp):
+		case t.outputChan <- message.NewTimedMessage(
+			message.NewMessage(output.GetContent(), origin, output.Status, output.IngestionTimestamp)):
 		case <-t.forwardContext.Done():
 		}
 	}
