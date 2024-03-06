@@ -234,14 +234,6 @@ func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 	})
 }
 
-func (t *Tester) testRunningExpectedVersion(tt *testing.T) bool {
-	return tt.Run("running expected version", func(tt *testing.T) {
-		installedVersion, err := t.InstallTestClient.GetAgentVersion()
-		require.NoError(tt, err, "should get agent version")
-		windowsAgent.TestAgentVersion(tt, t.agentPackage.AgentVersion(), installedVersion)
-	})
-}
-
 // InstallAgent installs the agent
 func (t *Tester) InstallAgent(options ...windowsAgent.InstallAgentOption) error {
 	var err error
@@ -297,7 +289,11 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 // TestExpectations tests the current agent installation meets the expectations provided to the Tester
 func (t *Tester) TestExpectations(tt *testing.T) bool {
 	return tt.Run(fmt.Sprintf("test %s", t.agentPackage.AgentVersion()), func(tt *testing.T) {
-		if !t.testRunningExpectedVersion(tt) {
+		if !tt.Run("running expected agent version", func(tt *testing.T) {
+			installedVersion, err := t.InstallTestClient.GetAgentVersion()
+			require.NoError(tt, err, "should get agent version")
+			windowsAgent.TestAgentVersion(tt, t.agentPackage.AgentVersion(), installedVersion)
+		}) {
 			tt.FailNow()
 		}
 		if t.isPreviousVersion {
