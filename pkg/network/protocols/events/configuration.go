@@ -43,19 +43,19 @@ func Configure(cfg *config.Config, proto string, m *manager.Manager, o *manager.
 		return
 	}
 
-	onlineCPUs, err := kernel.PossibleCPUs()
+	numCPUs, err := kernel.PossibleCPUs()
 	if err != nil {
-		onlineCPUs = 96
+		numCPUs = 96
 		log.Error("unable to detect number of CPUs. assuming 96 cores")
 	}
 
-	configureBatchMaps(proto, o, onlineCPUs)
+	configureBatchMaps(proto, o, numCPUs)
 
 	useRingBuffer := cfg.EnableUSMRingBuffers && features.HaveMapType(ebpf.RingBuf) == nil
 	utils.AddBoolConst(o, useRingBuffer, "use_ring_buffer")
 
 	if useRingBuffer {
-		setupPerfRing(proto, m, o, onlineCPUs)
+		setupPerfRing(proto, m, o, numCPUs)
 	} else {
 		setupPerfMap(proto, m)
 	}
