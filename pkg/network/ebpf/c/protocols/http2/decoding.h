@@ -436,7 +436,7 @@ static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *
 
 static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *skb_info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
     // No state, try reading a frame.
-    if (frame_state == NULL) {
+    if (frame_state == NULL || (frame_state->remainder == 0 && frame_state->header_length == 0)) {
         // Checking we have enough bytes in the packet to read a frame header.
         if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
             // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
@@ -489,16 +489,20 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
+        if (skb_info->data_off + frame_state->remainder > skb_info->data_end) {
+            frame_state->remainder -= skb_info->data_end - skb_info->data_off;
+            skb_info->data_off = skb_info->data_end;
+            return false;
+        }
         skb_info->data_off += frame_state->remainder;
+        frame_state->remainder = 0;
         // The remainders "ends" the current packet. No interesting frames were found.
         if (skb_info->data_off == skb_info->data_end) {
-            frame_state->remainder = 0;
             return false;
         }
         reset_frame(current_frame);
         bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
         if (format_http2_frame_header(current_frame)) {
-            frame_state->remainder = 0;
             skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
             return true;
         }

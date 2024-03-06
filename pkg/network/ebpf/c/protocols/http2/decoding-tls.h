@@ -438,7 +438,7 @@ static __always_inline void tls_fix_header_frame(tls_dispatcher_arguments_t *inf
 
 static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
     // No state, try reading a frame.
-    if (frame_state == NULL) {
+    if (frame_state == NULL || (frame_state->remainder == 0 && frame_state->header_length == 0)) {
         // Checking we have enough bytes in the packet to read a frame header.
         if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
             // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
@@ -490,16 +490,20 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
+        if (info->data_off + frame_state->remainder > info->data_end) {
+            frame_state->remainder -= info->data_end - info->data_off;
+            info->data_off = info->data_end;
+            return false;
+        }
         info->data_off += frame_state->remainder;
         // The remainders "ends" the current packet. No interesting frames were found.
+        frame_state->remainder = 0;
         if (info->data_off == info->data_end) {
-            frame_state->remainder = 0;
             return false;
         }
         reset_frame(current_frame);
         read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
         if (format_http2_frame_header(current_frame)) {
-            frame_state->remainder = 0;
             info->data_off += HTTP2_FRAME_HEADER_SIZE;
             return true;
         }
