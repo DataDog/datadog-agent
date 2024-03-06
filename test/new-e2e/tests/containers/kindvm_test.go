@@ -77,12 +77,12 @@ func (suite *kindSuite) SetupSuite() {
 
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, suite.stackName, stackConfig, kindvm.Run, false, nil)
 	if !suite.Assert().NoError(err) {
-		_, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
+		stackname, err := infra.GetStackManager().GetPulumiStackName(suite.stackName)
 		suite.Require().NoError(err)
-		suite.T().Log(dumpKindClusterState(ctx, suite.stackName))
+		suite.T().Log(dumpKindClusterState(ctx, stackname))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
 
-			infra.GetStackManager().DeleteStack(ctx, suite.stackName, nil)
+			infra.GetStackManager().DeleteStack(ctx, stackname, nil)
 		}
 		suite.T().FailNow()
 	}
