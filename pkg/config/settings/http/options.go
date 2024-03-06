@@ -8,10 +8,12 @@ package http
 
 import "github.com/DataDog/datadog-agent/pkg/api/util"
 
-type HTTPClientOptions struct {
-	closeConnection util.ShouldCloseConnection
+// ClientOptions holds options for the HTTP client
+type ClientOptions struct {
+	CloseConnection util.ShouldCloseConnection
 }
 
-func NewHTTPClientOptions(closeConnection util.ShouldCloseConnection) HTTPClientOptions {
-	return HTTPClientOptions{closeConnection}
+// NewHTTPClientOptions returns a new struct containing the HTTP client options
+func NewHTTPClientOptions(closeConnection util.ShouldCloseConnection) ClientOptions {
+	return ClientOptions{closeConnection}
 }
