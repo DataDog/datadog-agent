@@ -28,7 +28,9 @@ var ConnContextKey = &contextKey{"http-connection"}
 func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer *grpc.Server, httpHandler http.Handler) *http.Server {
 	// our gRPC clients do not handle protocol negotiation, so we need to force
 	// HTTP/2
-	tlsConfig.NextProtos = []string{"h2"}
+	if tlsConfig != nil {
+		tlsConfig.NextProtos = []string{"h2"}
+	}
 
 	return &http.Server{
 		Addr:      addr,
