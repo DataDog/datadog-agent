@@ -233,7 +233,7 @@ func (ia *inventoryagent) fetchSecurityAgentMetadata() {
 	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig, ia.conf)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
-	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
+	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.enabled") && securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 func (ia *inventoryagent) fetchTraceAgentMetadata() {

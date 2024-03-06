@@ -84,6 +84,7 @@ tests_windows-x64-fast-v2:
 lint_windows-x64:
   extends: .lint_windows_base
   rules:
+    - !reference [.except_mergequeue]
     - when: on_success
   variables:
     PYTHON_RUNTIMES: 3
@@ -91,7 +92,7 @@ lint_windows-x64:
 
 .tests_windows_sysprobe:
   stage: source_test
-  needs: ["go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - $ErrorActionPreference = "Stop"
@@ -118,7 +119,7 @@ lint_windows-x64:
 
 .tests_windows_secagent:
   stage: source_test
-  needs: ["go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - $ErrorActionPreference = "Stop"

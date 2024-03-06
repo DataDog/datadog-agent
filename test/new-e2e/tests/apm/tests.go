@@ -12,8 +12,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 )
@@ -205,5 +207,34 @@ func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.
 		}
 	}
 	t.Log("Remaining metrics", expected)
+	assert.Empty(c, expected)
+}
+
+func testTraceAgentMetricTags(t *testing.T, c *assert.CollectT, service string, intake *components.FakeIntake) {
+	t.Helper()
+	expected := map[string]struct{}{
+		"datadog.trace_agent.receiver.payload_accepted":         {},
+		"datadog.trace_agent.receiver.trace":                    {},
+		"datadog.trace_agent.receiver.traces_received":          {},
+		"datadog.trace_agent.receiver.spans_received":           {},
+		"datadog.trace_agent.receiver.traces_bytes":             {},
+		"datadog.trace_agent.receiver.traces_filtered":          {},
+		"datadog.trace_agent.receiver.spans_dropped":            {},
+		"datadog.trace_agent.receiver.spans_filtered":           {},
+		"datadog.trace_agent.receiver.traces_priority":          {},
+		"datadog.trace_agent.normalizer.traces_dropped":         {},
+		"datadog.trace_agent.normalizer.spans_malformed":        {},
+		"datadog.trace_agent.receiver.client_dropped_p0_spans":  {},
+		"datadog.trace_agent.receiver.client_dropped_p0_traces": {},
+		"datadog.trace_agent.receiver.events_sampled":           {},
+		"datadog.trace_agent.receiver.events_extracted":         {},
+	}
+	serviceTag := "service:" + service
+	for m := range expected {
+		filtered, err := intake.Client().FilterMetrics(m, fakeintake.WithTags[*aggregator.MetricSeries]([]string{serviceTag}))
+		if assert.NoError(c, err) && assert.NotEmpty(c, filtered) {
+			delete(expected, m)
+		}
+	}
 	assert.Empty(c, expected)
 }

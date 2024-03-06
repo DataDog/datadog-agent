@@ -65,6 +65,17 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
+func (s *DockerFakeintakeSuite) TestTraceAgentMetricTags() {
+	service := fmt.Sprintf("tracegen-metric-tags-%s", s.transport)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testTraceAgentMetricTags(s.T(), c, service, s.Env().FakeIntake)
+	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics with tags")
+}
+
 func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
