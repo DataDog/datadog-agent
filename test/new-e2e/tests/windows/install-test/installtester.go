@@ -28,11 +28,7 @@ type Tester struct {
 	InstallTestClient *common.TestClient
 
 	agentPackage      *windowsAgent.Package
-	installUser       string
 	isPreviousVersion bool
-
-	// Path to the MSI on the remote host, only available after install is run
-	remoteMSIPath string
 
 	expectedUserName   string
 	expectedUserDomain string
@@ -105,13 +101,6 @@ func WithAgentPackage(agentPackage *windowsAgent.Package) TesterOption {
 func WithPreviousVersion() TesterOption {
 	return func(t *Tester) {
 		t.isPreviousVersion = true
-	}
-}
-
-// WithInstallUser sets the user to install the agent as
-func WithInstallUser(user string) TesterOption {
-	return func(t *Tester) {
-		t.installUser = user
 	}
 }
 
@@ -207,21 +196,6 @@ func (t *Tester) TestUninstall(tt *testing.T, logfile string) bool {
 			t.systemFileIntegrityTester.AssertDoesRemoveSystemFiles(tt)
 		})
 	})
-}
-
-// InstallAgent installs the agent
-func (t *Tester) InstallAgent(options ...windowsAgent.InstallAgentOption) error {
-	var err error
-	opts := []windowsAgent.InstallAgentOption{
-		windowsAgent.WithPackage(t.agentPackage),
-		windowsAgent.WithValidAPIKey(),
-	}
-	if t.installUser != "" {
-		opts = append(opts, windowsAgent.WithAgentUser(t.installUser))
-	}
-	opts = append(opts, options...)
-	t.remoteMSIPath, err = windowsAgent.InstallAgent(t.host, opts...)
-	return err
 }
 
 // Only do some basic checks on the agent since it's a previous version
