@@ -169,14 +169,12 @@ func (c *Check) Run() error {
 
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
-	if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
-		err := c.CustomQueries()
-		if c.config.OnlyCustomQueries {
-			return err
+	if c.config.OnlyCustomQueries {
+		var err error
+		if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
+			err = c.CustomQueries()
 		}
-		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
-		}
+		return err
 	}
 
 	if !c.initialized {
@@ -245,6 +243,12 @@ func (c *Check) Run() error {
 			err := c.ProcessMemory()
 			if err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect process memory %w", c.logPrompt, err))
+			}
+		}
+		if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
+			err := c.CustomQueries()
+			if err != nil {
+				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
 			}
 		}
 	}
