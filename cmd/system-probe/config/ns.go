@@ -51,7 +51,7 @@ func pngNS(k ...string) string {
 	return nskey("ping", k...)
 }
 
-// trcrtNS adds `traceroute` namespace to config key
-func trcrtNS(k ...string) string {
+// tracerouteNS adds `traceroute` namespace to config key
+func tracerouteNS(k ...string) string {
 	return nskey("traceroute", k...)
 }

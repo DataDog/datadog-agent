@@ -141,7 +141,7 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
-	if cfg.GetBool(trcrtNS("enabled")) {
+	if cfg.GetBool(tracerouteNS("enabled")) {
 		c.EnabledModules[TracerouteModule] = struct{}{}
 	}
 

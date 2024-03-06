@@ -33,18 +33,6 @@ type Check struct {
 	lastCheckTime time.Time
 }
 
-// Program constants and default values
-const (
-	DefaultSourcePort   = 12345
-	DefaultDestPort     = 33434
-	DefaultNumPaths     = 10
-	DefaultMinTTL       = 1
-	DefaultMaxTTL       = 30
-	DefaultDelay        = 50 //msec
-	DefaultReadTimeout  = 3 * time.Second
-	DefaultOutputFormat = "json"
-)
-
 // Run executes the check
 func (c *Check) Run() error {
 	startTime := time.Now()
@@ -57,8 +45,8 @@ func (c *Check) Run() error {
 		DestHostname: c.config.DestHostname,
 	}
 
-	trcrt := traceroute.New(cfg)
-	path, err := trcrt.Run()
+	tr := traceroute.New(cfg)
+	path, err := tr.Run()
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
