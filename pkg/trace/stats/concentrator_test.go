@@ -16,6 +16,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"github.com/google/go-cmp/cmp"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/metric/noop"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/sketches-go/ddsketch"
@@ -29,14 +37,18 @@ var (
 )
 
 func NewTestConcentrator(now time.Time) *Concentrator {
-	statsChan := make(chan *pb.StatsPayload)
 	cfg := config.AgentConfig{
 		BucketInterval: time.Duration(testBucketInterval),
 		AgentVersion:   "0.99.0",
 		DefaultEnv:     "env",
 		Hostname:       "hostname",
 	}
-	return NewConcentrator(&cfg, statsChan, now, &statsd.NoOpClient{})
+	return NewTestConcentratorWithCfg(now, &cfg)
+}
+
+func NewTestConcentratorWithCfg(now time.Time, cfg *config.AgentConfig) *Concentrator {
+	statsChan := make(chan *pb.StatsPayload)
+	return NewConcentrator(cfg, statsChan, now, &statsd.NoOpClient{})
 }
 
 // getTsInBucket gives a timestamp in ns which is `offset` buckets late
@@ -992,7 +1004,7 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 			false,
 		},
 	} {
-		assert.Equal(tc.res, computeStatsForSpanKind(tc.s))
+		assert.Equal(tc.res, computeStatsForSpanKind(tc.s.Meta["span.kind"]))
 	}
 }
 
@@ -1022,5 +1034,159 @@ func TestPreparePeerTags(t *testing.T) {
 	} {
 		sort.Strings(tc.output)
 		assert.Equal(t, tc.output, preparePeerTags(tc.input...))
+	}
+}
+
+func TestProcessOTLPTraces(t *testing.T) {
+	start := time.Now().Add(-1 * time.Second)
+	end := time.Now()
+	set := componenttest.NewNopTelemetrySettings()
+	set.MeterProvider = noop.NewMeterProvider()
+	attributesTranslator, err := attributes.NewTranslator(set)
+	assert.NoError(t, err)
+
+	agentEnv := "agent_env"
+	agentHost := "agent_host"
+
+	for _, tt := range []struct {
+		name                   string
+		spanName               string
+		rattrs                 map[string]string
+		sattrs                 map[string]string
+		spanKind               ptrace.SpanKind
+		libname                string
+		spanNameAsResourceName bool
+		spanNameRemappings     map[string]string
+		peerTagsAggr           bool
+		enabledCIDStats        bool
+		expected               *pb.StatsPayload
+	}{
+		{
+			name:     "span with no name service or resource",
+			expected: createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "opentelemetry.unspecified", "custom", "unspecified", "", agentHost, agentEnv, "", nil, nil),
+		},
+		{
+			name:     "span with name instrumentation scope and span kind",
+			spanName: "spanname",
+			rattrs:   map[string]string{"service.name": "svc"},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "spring",
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", nil, nil),
+		},
+		{
+			name:     "span with operation name and resource name",
+			spanName: "spanname2",
+			rattrs:   map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env"},
+			sattrs:   map[string]string{"operation.name": "op", "resource.name": "res"},
+			spanKind: ptrace.SpanKindClient,
+			libname:  "spring",
+			expected: createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "res", agentHost, "tracer-env", "", nil, nil),
+		},
+		{
+			name:                   "span operation name from span name",
+			spanName:               "spanname3",
+			rattrs:                 map[string]string{"service.name": "svc", "host.name": "test-host", "db.system": "redis"},
+			spanKind:               ptrace.SpanKindClient,
+			spanNameAsResourceName: true,
+			expected:               createStatsPayload(agentEnv, agentHost, "svc", "spanname3", "cache", "client", "spanname3", "test-host", agentEnv, "", nil, nil),
+		},
+		{
+			name:            "with container tags",
+			spanName:        "spanname4",
+			rattrs:          map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
+			spanKind:        ptrace.SpanKindClient,
+			enabledCIDStats: true,
+			expected:        createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid"}, nil),
+		},
+		{
+			name:               "operation name remapping and resource from http",
+			spanName:           "spanname5",
+			spanKind:           ptrace.SpanKindInternal,
+			sattrs:             map[string]string{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/home"},
+			spanNameRemappings: map[string]string{"opentelemetry.internal": "internal_op"},
+			expected:           createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "internal_op", "custom", "internal", "GET /home", agentHost, agentEnv, "", nil, nil),
+		},
+		{
+			name:         "with peer tags",
+			spanName:     "spanname6",
+			spanKind:     ptrace.SpanKindClient,
+			peerTagsAggr: true,
+			rattrs:       map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env", "datadog.host.name": "dd-host"},
+			sattrs:       map[string]string{"operation.name": "op", semconv.AttributeRPCMethod: "call", semconv.AttributeRPCService: "rpc_service"},
+			expected:     createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", nil, []string{"rpc.service:rpc_service"}),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := ptrace.NewTraces()
+			rspan := traces.ResourceSpans().AppendEmpty()
+			res := rspan.Resource()
+			for k, v := range tt.rattrs {
+				res.Attributes().PutStr(k, v)
+			}
+			sspan := rspan.ScopeSpans().AppendEmpty()
+			sspan.Scope().SetName(tt.libname)
+			span := sspan.Spans().AppendEmpty()
+			span.SetTraceID(traceID)
+			span.SetSpanID(spanID1)
+			span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+			span.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
+			span.SetName(tt.spanName)
+			span.SetKind(tt.spanKind)
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+
+			conf := config.New()
+			conf.Hostname = agentHost
+			conf.DefaultEnv = agentEnv
+			if tt.enabledCIDStats {
+				conf.Features["enable_cid_stats"] = struct{}{}
+			}
+			conf.PeerTagsAggregation = tt.peerTagsAggr
+			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
+			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings
+
+			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+			concentrator.ProcessOTLPTraces(traces)
+
+			stats := concentrator.Flush(true)
+			if diff := cmp.Diff(
+				tt.expected,
+				stats,
+				protocmp.Transform(),
+				protocmp.IgnoreFields(&pb.ClientStatsBucket{}, "start", "duration"),
+				protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
+				t.Errorf("Diff between APM stats received:\n%v", diff)
+			}
+		})
+	}
+}
+
+func createStatsPayload(agentEnv string, agentHost string, svc string, operation string, typ string,
+	kind string, resource string, tracerHost string, env string, cid string, ctags []string, peerTags []string) *pb.StatsPayload {
+	return &pb.StatsPayload{
+		AgentEnv:      agentEnv,
+		AgentHostname: agentHost,
+		Stats: []*pb.ClientStatsPayload{{
+			Hostname:    tracerHost,
+			Env:         env,
+			ContainerID: cid,
+			Tags:        ctags,
+			Stats: []*pb.ClientStatsBucket{{
+				Stats: []*pb.ClientGroupedStats{
+					{
+						Service:      svc,
+						Name:         operation,
+						Resource:     resource,
+						Type:         typ,
+						Hits:         1,
+						TopLevelHits: 1,
+						SpanKind:     kind,
+						PeerTags:     peerTags,
+						IsTraceRoot:  pb.TraceRootFlag_TRUE,
+					},
+				},
+			}}}},
 	}
 }

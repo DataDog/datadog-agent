@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 func TestGetStatusCode(t *testing.T) {
@@ -150,6 +153,120 @@ func TestNewAggregation(t *testing.T) {
 		},
 	} {
 		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerTagsAgg, peerTags)
+		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
+		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
+		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)
+		assert.Equal(t, tt.resPeerTags, et, tt.name)
+	}
+}
+
+func TestNewAggregationFromSpan(t *testing.T) {
+	peerTags := []string{"db.instance", "db.system", "peer.service"}
+	peerSvcOnlyHash := uint64(3430395298086625290)
+	peerTagsHash := uint64(9894752672193411515)
+	for _, tt := range []struct {
+		name              string
+		rattrs            map[string]string
+		spanKind          ptrace.SpanKind
+		enablePeerTagsAgg bool
+		resAgg            Aggregation
+		resPeerTags       []string
+	}{
+		{
+			name:              "nil case, peer tag aggregation disabled",
+			enablePeerTagsAgg: false,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "otlpresourcenoservicename", SpanKind: "unspecified"}},
+			resPeerTags:       nil,
+		},
+		{
+			name:              "nil case, peer tag aggregation enabled",
+			enablePeerTagsAgg: true,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "otlpresourcenoservicename", SpanKind: "unspecified"}},
+			resPeerTags:       nil,
+		},
+		{
+			name: "peer tag aggregation disabled even though peer.service is present",
+			rattrs: map[string]string{
+				"service.name": "a",
+				"peer.service": "remote-service",
+			},
+			spanKind:          ptrace.SpanKindClient,
+			enablePeerTagsAgg: false,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client"}},
+			resPeerTags:       nil,
+		},
+		{
+			name: "peer tags aggregation enabled, but span.kind != (client, producer)",
+			rattrs: map[string]string{
+				"service.name": "a",
+				"peer.service": "remote-service",
+			},
+			enablePeerTagsAgg: true,
+			spanKind:          ptrace.SpanKindInternal,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "internal"}},
+			resPeerTags:       nil,
+		},
+		{
+			name: "peer tags aggregation enabled, span.kind == client",
+			rattrs: map[string]string{
+				"service.name": "a",
+				"peer.service": "remote-service",
+			},
+			spanKind:          ptrace.SpanKindClient,
+			enablePeerTagsAgg: true,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
+			resPeerTags:       []string{"peer.service:remote-service"},
+		},
+		{
+			name: "peer tags aggregation enabled, span.kind == producer",
+			rattrs: map[string]string{
+				"service.name": "a",
+				"peer.service": "remote-service",
+			},
+			spanKind:          ptrace.SpanKindProducer,
+			enablePeerTagsAgg: true,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "producer", PeerTagsHash: peerSvcOnlyHash}},
+			resPeerTags:       []string{"peer.service:remote-service"},
+		},
+		{
+			name: "peer tags aggregation enabled and multiple peer tags match",
+			rattrs: map[string]string{
+				"service.name": "a",
+				"field1":       "val1",
+				"peer.service": "remote-service",
+				"db.instance":  "i-1234",
+				"db.system":    "postgres",
+			},
+			spanKind:          ptrace.SpanKindClient,
+			enablePeerTagsAgg: true,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerTagsHash}},
+			resPeerTags:       []string{"db.instance:i-1234", "db.system:postgres", "peer.service:remote-service"},
+		},
+		{
+			name:              "peer tags aggregation enabled but all peer tags are empty",
+			rattrs:            map[string]string{"service.name": "a", "field1": "val1", "peer.service": "", "db.instance": "", "db.system": ""},
+			spanKind:          ptrace.SpanKindClient,
+			enablePeerTagsAgg: true,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 0}},
+			resPeerTags:       nil,
+		},
+		{
+			name:              "peer tags aggregation enabled but some peer tags are empty",
+			rattrs:            map[string]string{"service.name": "a", "field1": "val1", "peer.service": "remote-service", "db.instance": "", "db.system": ""},
+			spanKind:          ptrace.SpanKindClient,
+			enablePeerTagsAgg: true,
+			resAgg:            Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
+			resPeerTags:       []string{"peer.service:remote-service"},
+		},
+	} {
+		res := pcommon.NewResource()
+		for k, v := range tt.rattrs {
+			res.Attributes().PutStr(k, v)
+		}
+		span := ptrace.NewSpan()
+		span.SetKind(tt.spanKind)
+		conf := config.New()
+		agg, et := NewAggregationFromOTLPSpan(span, res, pcommon.NewInstrumentationScope(), conf, PayloadAggregationKey{}, tt.enablePeerTagsAgg, peerTags)
 		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
 		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
 		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)

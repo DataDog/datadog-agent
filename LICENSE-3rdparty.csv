@@ -1809,6 +1809,7 @@ core,go.opentelemetry.io/collector/receiver/receiverhelper,Apache-2.0,Copyright 
 core,go.opentelemetry.io/collector/receiver/receivertest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.18.0,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/semconv/v1.5.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/service/extensions,Apache-2.0,Copyright The OpenTelemetry Authors

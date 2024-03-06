@@ -13,8 +13,11 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 const (
@@ -105,6 +108,39 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	return agg, peerTags
 }
 
+// NewAggregationFromOTLPSpan creates a new aggregation from the provided OTLP span
+func NewAggregationFromOTLPSpan(s ptrace.Span, res pcommon.Resource, lib pcommon.InstrumentationScope, conf *config.AgentConfig, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
+	resName := GetOTelResource(s, res)
+	svc := GetOTelService(s, res, true)
+	opName := GetOTelOperationName(s, res, lib, conf, true)
+	spanType := GetOTelSpanType(s, res)
+	code := GetOTelStatusCode(s)
+	var isTraceRoot pb.TraceRootFlag
+	if s.ParentSpanID().IsEmpty() {
+		isTraceRoot = pb.TraceRootFlag_TRUE
+	} else {
+		isTraceRoot = pb.TraceRootFlag_FALSE
+	}
+	agg := Aggregation{
+		PayloadAggregationKey: aggKey,
+		BucketsAggregationKey: BucketsAggregationKey{
+			Resource:    resName,
+			Service:     svc,
+			Name:        opName,
+			SpanKind:    strings.ToLower(s.Kind().String()),
+			Type:        spanType,
+			StatusCode:  code,
+			IsTraceRoot: isTraceRoot,
+		},
+	}
+	var peerTags []string
+	if clientOrProducer(agg.SpanKind) && enablePeerTagsAgg {
+		peerTags = matchingOTelPeerTags(s, res, peerTagKeys)
+		agg.PeerTagsHash = peerTagsHash(peerTags)
+	}
+	return agg, peerTags
+}
+
 func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
@@ -116,6 +152,32 @@ func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 		}
 	}
 	return pt
+}
+
+// matchingOTelPeerTags returns a list of matched peer tags in OTel span and resource attributes.
+// Peer tags are always normalized.
+func matchingOTelPeerTags(span ptrace.Span, res pcommon.Resource, peerTagKeys []string) []string {
+	if len(peerTagKeys) == 0 {
+		return nil
+	}
+	var pts []string
+	for _, t := range peerTagKeys {
+		if v := GetOTelAttrValInResAndSpanAttrs(span, res, doNotNormalize, t); v != "" {
+			ps, err := traceutil.NormalizePeerService(v)
+			switch err {
+			case traceutil.ErrTooLong:
+				log.Debugf("Fixing malformed trace. peer.service is too long (reason:peer_service_truncate), truncating peer.service to length=%d: %s", traceutil.MaxServiceLen, ps)
+			case traceutil.ErrInvalid:
+				log.Debugf("Fixing malformed trace. peer.service is invalid (reason:peer_service_invalid), replacing invalid peer.service=%s with empty string", v)
+			default:
+				if err != nil {
+					log.Debugf("Unexpected error in peer.service normalization from original value (%s) to new value (%s): %s", v, ps, err)
+				}
+			}
+			pts = append(pts, t+":"+ps)
+		}
+	}
+	return pts
 }
 
 func peerTagsHash(tags []string) uint64 {
