@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,6 @@ func TestFlareCreation(t *testing.T) {
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Provide(func() diagnosesendermanager.Component { return nil }),
-			inventoryagentimpl.MockModule(),
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),
 			fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),

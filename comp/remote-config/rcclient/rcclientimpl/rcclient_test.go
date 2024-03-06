@@ -6,7 +6,6 @@
 package rcclientimpl
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
@@ -133,49 +132,4 @@ func TestAgentConfigCallback(t *testing.T) {
 	}, applyEmpty)
 	assert.Equal(t, "debug", config.Datadog.Get("log_level"))
 	assert.Equal(t, model.SourceCLI, config.Datadog.GetSource("log_level"))
-}
-
-func TestStatusOuput(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-	))
-
-	provides, err := newRemoteConfigClient(deps)
-	assert.NoError(t, err)
-
-	headerProvider := provides.StatusProvider.Provider
-
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerProvider.JSON(false, stats)
-
-			assert.NotEmpty(t, stats)
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.Text(false, b)
-
-			assert.NoError(t, err)
-
-			assert.NotEmpty(t, b.String())
-		}},
-		{"HTML", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.HTML(false, b)
-
-			assert.NoError(t, err)
-
-			assert.NotEmpty(t, b.String())
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
-		})
-	}
 }

@@ -15,7 +15,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -65,17 +64,14 @@ type dependencies struct {
 	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
 
-type provides struct {
-	fx.Out
-
-	Comp           rcclient.Component
-	StatusProvider status.InformationProvider
-}
-
-func newRemoteConfigClient(deps dependencies) (provides, error) {
+// newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
+// other components. To avoid dependency cycles between our components we need to have "pure leaf" components (i.e.
+// components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
+// able to interact with any other components (i.e. be at the end of the dependency graph).
+func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return provides{}, err
+		return nil, err
 	}
 
 	// We have to create the client in the constructor and set its name later
@@ -87,7 +83,7 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 		client.WithPollInterval(5*time.Second),
 	)
 	if err != nil {
-		return provides{}, err
+		return nil, err
 	}
 
 	var clientHA *client.Client
@@ -100,7 +96,7 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 			client.WithPollInterval(5*time.Second),
 		)
 		if err != nil {
-			return provides{}, err
+			return nil, err
 		}
 	}
 
@@ -112,10 +108,7 @@ func newRemoteConfigClient(deps dependencies) (provides, error) {
 		clientHA:      clientHA,
 	}
 
-	return provides{
-		Comp:           rc,
-		StatusProvider: status.NewInformationProvider(rc),
-	}, nil
+	return rc, nil
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
