@@ -18,7 +18,6 @@ import (
 )
 
 func TestTiming(t *testing.T) {
-	//
 	stats := &teststatsd.Client{}
 
 	t.Run("report", func(t *testing.T) {
