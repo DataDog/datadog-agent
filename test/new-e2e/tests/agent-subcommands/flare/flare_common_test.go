@@ -33,7 +33,12 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
 	assertFilesExist(v.T(), flare, defaultConfigFiles)
+	assertFilesExist(v.T(), flare, defaultMetadataFlareFiles)
 	assertFoldersExist(v.T(), flare, defaultFlareFolders)
+
+
+	assertFilesExist(v.T(), flare, nonLocalFlareFiles)
+	assertFilesExist(v.T(), flare, nonLocalMetadataFlareFiles)
 
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
@@ -54,6 +59,7 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
 	assertFilesExist(v.T(), flare, defaultConfigFiles)
+	assertFilesExist(v.T(), flare, defaultMetadataFlareFiles)
 	assertFoldersExist(v.T(), flare, defaultFlareFolders)
 
 	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
