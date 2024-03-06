@@ -90,11 +90,37 @@ func (is *agentMSISuite) TestInstall() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	t := is.installAgent(vm, nil)
+	t, err := NewTester(is.T(), vm,
+		WithAgentPackage(is.AgentPackage),
+	)
+	is.Require().NoError(err, "should create tester")
+
+	remoteMSIPath := ""
+	if !is.Run(fmt.Sprintf("install %s", t.agentPackage.AgentVersion()), func() {
+		remoteMSIPath, err = is.InstallAgent(vm,
+			windowsAgent.WithPackage(is.AgentPackage),
+		)
+		is.Require().NoError(err, "should install agent %s", t.agentPackage.AgentVersion())
+	}) {
+		is.T().FailNow()
+	}
 
 	if !t.TestExpectations(is.T()) {
 		is.T().FailNow()
 	}
+
+	// Test the code signatures of the installed files.
+	// The same MSI is used in all tests so only check it once here.
+	root, err := windowsAgent.GetInstallPathFromRegistry(t.host)
+	is.Require().NoError(err)
+	paths := getExpectedSignedFilesForAgentMajorVersion(t.expectedAgentMajorVersion)
+	for i, path := range paths {
+		paths[i] = root + path
+	}
+	if remoteMSIPath != "" {
+		paths = append(paths, remoteMSIPath)
+	}
+	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
 
 	t.TestUninstall(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
 }
