@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 // ComplianceModule is a system-probe module that exposes an HTTP api to
@@ -58,11 +57,6 @@ func (m *complianceModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"performed_checks": m.performedChecks.Load(),
 	}
-}
-
-// RegisterGRPC is a noop (implements module.Module)
-func (*complianceModule) RegisterGRPC(grpc.ServiceRegistrar) error {
-	return nil
 }
 
 // Register implements module.Module.

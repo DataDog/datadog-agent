@@ -48,7 +48,8 @@ func TestConfDisabled(t *testing.T) {
 	)
 
 	// When interval is 0 the resource Provider should be an empty Optional[T]
-	assert.False(t, ret.Provider.Callback.IsSet())
+	_, isSet := ret.Provider.Callback.Get()
+	assert.False(t, isSet)
 }
 
 func TestConfInterval(t *testing.T) {

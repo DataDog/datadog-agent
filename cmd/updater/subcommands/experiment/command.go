@@ -62,7 +62,20 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	return []*cobra.Command{startExperimentCmd, stopExperimentCmd, promoteExperimentCmd}
+	bootstrapVersionCmd := &cobra.Command{
+		Use:     "bootstrap-version package version",
+		Aliases: []string{"bootstrap-version"},
+		Short:   "Bootstraps a package to the expected version",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return experimentFxWrapper(bootstrapVersion, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+				version:      args[1],
+			})
+		},
+	}
+	return []*cobra.Command{startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, bootstrapVersionCmd}
 }
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {
@@ -94,6 +107,15 @@ func promote(params *cliParams, client localapiclient.Component) error {
 	err := client.PromoteExperiment(params.pkg)
 	if err != nil {
 		fmt.Println("Error promoting experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func bootstrapVersion(params *cliParams, client localapiclient.Component) error {
+	err := client.BootstrapVersion(params.pkg, params.version)
+	if err != nil {
+		fmt.Println("Error bootstrapping package:", err)
 		return err
 	}
 	return nil

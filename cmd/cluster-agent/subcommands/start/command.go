@@ -149,7 +149,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				tagger.Module(),
 				fx.Supply(
 					status.Params{
-						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+						PythonVersionGetFunc: python.GetPythonVersion,
 					},
 					status.NewInformationProvider(collectorStatus.Provider{}),
 					status.NewInformationProvider(leaderelection.Provider{}),

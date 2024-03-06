@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/gorilla/mux"
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 const (
@@ -114,10 +113,6 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		logPingRequests(host, id, count, interval, timeout, runCount, start)
 	})
 
-	return nil
-}
-
-func (p *pinger) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

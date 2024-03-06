@@ -13,19 +13,28 @@ import (
 
 // Repositories manages multiple repositories.
 type Repositories struct {
-	rootPath     string
-	locksPath    string
-	repositories map[string]*Repository
+	rootPath  string
+	locksPath string
 }
 
 // NewRepositories returns a new Repositories.
-func NewRepositories(rootPath, locksPath string) (*Repositories, error) {
-	r := &Repositories{
-		rootPath:     rootPath,
-		locksPath:    locksPath,
-		repositories: make(map[string]*Repository),
+func NewRepositories(rootPath, locksPath string) *Repositories {
+	return &Repositories{
+		rootPath:  rootPath,
+		locksPath: locksPath,
 	}
-	dir, err := os.ReadDir(rootPath)
+}
+
+func (r *Repositories) newRepository(pkg string) *Repository {
+	return &Repository{
+		rootPath:  filepath.Join(r.rootPath, pkg),
+		locksPath: filepath.Join(r.locksPath, pkg),
+	}
+}
+
+func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
+	repositories := make(map[string]*Repository)
+	dir, err := os.ReadDir(r.rootPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not open root directory: %w", err)
 	}
@@ -33,43 +42,35 @@ func NewRepositories(rootPath, locksPath string) (*Repositories, error) {
 		if !d.IsDir() {
 			continue
 		}
-		repo := &Repository{
-			rootPath:  filepath.Join(rootPath, d.Name()),
-			locksPath: filepath.Join(locksPath, d.Name()),
-		}
-		r.repositories[d.Name()] = repo
+		repo := r.newRepository(d.Name())
+		repositories[d.Name()] = repo
 	}
-	return r, nil
+	return repositories, nil
 }
 
 // Get returns the repository for the given package name.
-func (r *Repositories) Get(pkg string) (*Repository, error) {
-	repo, ok := r.repositories[pkg]
-	if !ok {
-		return nil, fmt.Errorf("repository for package %s not found", pkg)
-	}
-	return repo, nil
+func (r *Repositories) Get(pkg string) *Repository {
+	return r.newRepository(pkg)
 }
 
 // Create creates a new repository for the given package name.
 func (r *Repositories) Create(pkg string, version string, stableSourcePath string) error {
-	repository := &Repository{
-		rootPath:  filepath.Join(r.rootPath, pkg),
-		locksPath: filepath.Join(r.locksPath, pkg),
-	}
+	repository := r.newRepository(pkg)
 	err := repository.Create(version, stableSourcePath)
 	if err != nil {
 		return fmt.Errorf("could not create repository for package %s: %w", pkg, err)
 	}
-	r.repositories[pkg] = repository
 	return nil
 }
 
 // GetState returns the state of all repositories.
 func (r *Repositories) GetState() (map[string]State, error) {
 	state := make(map[string]State)
-	var err error
-	for name, repo := range r.repositories {
+	repositories, err := r.loadRepositories()
+	if err != nil {
+		return nil, fmt.Errorf("could not load repositories: %w", err)
+	}
+	for name, repo := range repositories {
 		state[name], err = repo.GetState()
 		if err != nil {
 			return nil, fmt.Errorf("could not get state for repository %s: %w", name, err)
@@ -80,15 +81,17 @@ func (r *Repositories) GetState() (map[string]State, error) {
 
 // GetPackageState returns the state of the given package.
 func (r *Repositories) GetPackageState(pkg string) (State, error) {
-	if repo, ok := r.repositories[pkg]; ok {
-		return repo.GetState()
-	}
-	return State{}, nil
+	repo := r.newRepository(pkg)
+	return repo.GetState()
 }
 
 // Cleanup cleans up the repositories.
 func (r *Repositories) Cleanup() error {
-	for _, repo := range r.repositories {
+	repositories, err := r.loadRepositories()
+	if err != nil {
+		return fmt.Errorf("could not load repositories: %w", err)
+	}
+	for _, repo := range repositories {
 		err := repo.Cleanup()
 		if err != nil {
 			return fmt.Errorf("could not clean up repository: %w", err)
