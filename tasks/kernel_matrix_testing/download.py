@@ -87,9 +87,10 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
                 info(f"[+] {f} needs to be downloaded")
                 filename = f"{f}.xz"
                 sum_file = f"{f}.sum"
-                # remove this file and sum
+                # remove this file and sum, uncompressed file too if it exists
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, f)} || true")
                 # download package entry
                 tmp.write(os.path.join(url_base, "master", filename) + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
