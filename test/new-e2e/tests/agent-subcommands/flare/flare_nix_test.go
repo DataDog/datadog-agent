@@ -60,7 +60,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
 
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare, _ := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)

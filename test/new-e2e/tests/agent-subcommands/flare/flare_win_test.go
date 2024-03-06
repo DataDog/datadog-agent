@@ -27,7 +27,7 @@ func TestWindowsFlareSuite(t *testing.T) {
 }
 
 func (v *windowsFlareSuite) TestFlareWindows() {
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare, _ := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, windowsFiles)
 	assertEventlogFolderOnlyContainsWindoesEventLog(v.T(), flare)

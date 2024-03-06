@@ -49,6 +49,7 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
 
 	assert.True(v.T(), strings.Contains(logs, "Initiating flare locally."))
+	assertFilesExist(v.T(), flare, []string{"local"})
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
