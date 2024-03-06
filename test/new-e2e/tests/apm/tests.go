@@ -261,7 +261,7 @@ func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) b
 		for _, t := range p.AgentPayload.TracerPayloads {
 			for _, c := range t.Chunks {
 				for _, s := range c.Spans {
-					if s.Resource == "poison_pill" {
+					if s.Resource == resource {
 						return true
 					}
 				}
