@@ -72,11 +72,15 @@ func (r *rotatingNDRecords) Add(t time.Time, payload interface{}) error {
 
 	// prune old entries
 	if !r.firstEntry.IsZero() && t.Sub(r.firstEntry) > r.cfg.retention {
-		r.pruneOldEntries(t)
+		if err := r.pruneOldEntries(t); err != nil {
+			log.Error(err)
+		}
 	}
 	// remove old files that were already rotated
 	if !r.oldestFileMtime.IsZero() && t.Sub(*r.oldestFileMtime) > r.cfg.retention {
-		r.removeOldFiles(t)
+		if err := r.removeOldFiles(t); err != nil {
+			log.Error(err)
+		}
 	}
 
 	var recordData bytes.Buffer
@@ -192,10 +196,12 @@ func (r *rotatingNDRecords) pruneOldEntries(now time.Time) error {
 	tmpForRename, _ := os.CreateTemp("", "replace")
 	if !r.firstEntry.IsZero() {
 		// if we found an entry to keep, write it first
-		json.NewEncoder(tmpForRename).Encode(rec)
+		json.NewEncoder(tmpForRename).Encode(rec) //nolint:errcheck
 	}
 	// write the remainder of the file
-	io.Copy(tmpForRename, rd)
+	if _, err := io.Copy(tmpForRename, rd); err != nil {
+		return err
+	}
 	tmpForRename.Close()
 	f.Close()
 	return os.Rename(tmpForRename.Name(), r.filename)
