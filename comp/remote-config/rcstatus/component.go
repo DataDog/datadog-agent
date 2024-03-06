@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package rcstatus //nolint:revive // TODO(RC) Fix revive linter
+// Package rcstatus implements the core status component information provider interface
+package rcstatus
 
 // team: remote-config
 

@@ -366,7 +366,7 @@ Package rcserviceha is a remote config service that can run in the Agent to rece
 
 ### [comp/remote-config/rcstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcstatus)
 
-
+Package rcstatus implements the core status component information provider interface
 
 ### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
 
