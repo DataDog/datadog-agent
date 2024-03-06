@@ -132,22 +132,24 @@ func (is *agentMSISuite) TestUpgrade() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
+	// install previous version
 	_ = is.installLastStable(vm, nil)
 
-	t, err := NewTester(is.T(), vm,
-		WithAgentPackage(is.AgentPackage),
-	)
-	is.Require().NoError(err, "should create tester")
-
-	if !is.Run(fmt.Sprintf("upgrade to %s", t.agentPackage.AgentVersion()), func() {
-		_, err = is.InstallAgent(vm,
+	// upgrade to the new version
+	if !is.Run(fmt.Sprintf("upgrade to %s", is.AgentPackage.AgentVersion()), func() {
+		_, err := is.InstallAgent(vm,
 			windowsAgent.WithPackage(is.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "upgrade.log")))
-		is.Require().NoError(err, "should upgrade to agent %s", t.agentPackage.AgentVersion())
+		is.Require().NoError(err, "should upgrade to agent %s", is.AgentPackage.AgentVersion())
 	}) {
 		is.T().FailNow()
 	}
 
+	// run tests
+	t, err := NewTester(is.T(), vm,
+		WithAgentPackage(is.AgentPackage),
+	)
+	is.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
@@ -160,8 +162,10 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
+	// install previous version
 	previousTester := is.installLastStable(vm, nil)
 
+	// upgrade to the new version, but intentionally fail
 	if !is.Run(fmt.Sprintf("upgrade to %s with rollback", is.AgentPackage.AgentVersion()), func() {
 		_, err := windowsAgent.InstallAgent(vm,
 			windowsAgent.WithPackage(is.AgentPackage),
@@ -178,6 +182,7 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	err := windowsCommon.StartService(vm, "DatadogAgent")
 	is.Require().NoError(err, "agent service should start after rollback")
 
+	// the previous version should be functional
 	if !previousTester.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
@@ -190,6 +195,7 @@ func (is *agentMSISuite) TestRepair() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
+	// install the agent
 	t := is.installAgent(vm, nil)
 
 	err := windowsCommon.StopService(t.host, "DatadogAgent")
@@ -201,6 +207,7 @@ func (is *agentMSISuite) TestRepair() {
 	err = t.host.RemoveAll("C:\\Program Files\\Datadog\\Datadog Agent\\embedded3")
 	is.Require().NoError(err)
 
+	// Run Repair through the MSI
 	if !is.Run("repair install", func() {
 		err = windowsAgent.RepairAllAgent(t.host, "", filepath.Join(is.OutputDir, "repair.log"))
 		is.Require().NoError(err)
@@ -208,6 +215,7 @@ func (is *agentMSISuite) TestRepair() {
 		is.T().FailNow()
 	}
 
+	// run tests, agent should function normally after repair
 	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
