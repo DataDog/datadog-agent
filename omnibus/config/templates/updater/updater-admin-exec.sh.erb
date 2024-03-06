@@ -36,21 +36,17 @@ assert_command() {
                 ;;
             *)
                 error_message="invalid command: $command"
-                echo "failed"
                 return 1
                 ;;
         esac
     done
-    echo "success"
     return 0
 }
 
 assert_unit() {
     unit="$1"
-    echo "asserting unit $unit"
     if [ "${unit#"datadog"}" = "$unit" ]; then
         error_message="unit name must start with 'datadog'"
-        echo "failed datadog start check"
         return 1
     fi
     return 0
@@ -100,9 +96,7 @@ handle_command() {
             fi
             unit="$2"
             assert_unit "$unit" || return 1
-            echo "added"
             cp "$unit_path/$unit" "$systemd_path/$unit"
-            echo "it passes"
             return 0
             ;;
         "remove-unit")
@@ -113,7 +107,6 @@ handle_command() {
             unit="$2"
             assert_unit "$unit" || return 1
             rm "$systemd_path/$unit"
-            echo "removed"
             return 0
             ;;
         *)
@@ -128,7 +121,7 @@ handle_command() {
 exec 3> "$out_fifo"
 exec 4< "$in_fifo"
 while true; do
-    echo "waiting"
+    echo "waiting for command"
     if ! read -r command <&4; then
         # close file descriptors
         exec 3>&-
