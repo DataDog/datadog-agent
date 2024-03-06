@@ -1,7 +1,9 @@
 import os
 import re
 import time
+from collections import defaultdict
 from functools import lru_cache
+from typing import List
 
 from invoke import Exit, task
 
@@ -191,6 +193,25 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
+    codeowners = read_owners(owners_file)
+
+    team_counter = defaultdict(lambda: 0)
+    for file in changed_files:
+        owners = [name for (kind, name) in codeowners.of(file) if kind == 'TEAM']
+        for owner in owners:
+            team_counter[owner] += 1
+
+    team_count = list(sorted(((count, team) for (team, count) in team_counter.items()), reverse=True))
+    if team_count == []:
+        return []
+
+    best_count, _ = team_count[0]
+    best_teams = [team for (count, team) in team_count if count == best_count]
+
+    return best_teams
+
+
 @task
 def assign_team_label(_, pr_id=-1):
     """
@@ -199,30 +220,11 @@ def assign_team_label(_, pr_id=-1):
     """
     from tasks.libs.common.github_api import GithubAPI
 
-    def get_team(changed_files) -> str | None:
-        codeowners = read_owners('.github/CODEOWNERS')
-
-        global_team = None
-        for file in changed_files:
-            owners = [name for (kind, name) in codeowners.of(file) if kind == 'TEAM']
-            if len(owners) != 1:
-                # Multiple / no owners case
-                return
-            else:
-                file_team = owners[0]
-                if global_team is not None and file_team != global_team:
-                    # Multiple owners case
-                    return
-                else:
-                    global_team = file_team
-
-        return global_team
-
     gh = GithubAPI('DataDog/datadog-agent')
 
-    # Skip if necessary
     labels = set(gh.get_pr_labels(pr_id))
 
+    # Skip if necessary
     if 'qa/done' in labels or 'qa/no-code-change' in labels:
         print('Qa done or no code change, skipping')
         return
@@ -232,17 +234,16 @@ def assign_team_label(_, pr_id=-1):
         return
 
     # Find team
-    team = get_team(gh.get_pr_files(pr_id))
-    if team is None:
-        print('No team or multiple teams found')
-        return
-    elif not team.startswith('@DataDog/'):
-        print('Invalid team name', team)
+    teams = _get_teams(gh.get_pr_files(pr_id))
+    teams = [team for team in teams if team.startswith('@DataDog/')]
+    if teams == []:
+        print('No team found')
         return
 
     # Assign label
-    label_name = 'team' + team.removeprefix('@DataDog')
-    if gh.add_pr_label(pr_id, label_name):
-        print(label_name, 'label assigned to the pull request')
-    else:
-        print('Failed to assign label')
+    for team in teams:
+        label_name = 'team' + team.removeprefix('@DataDog')
+        if gh.add_pr_label(pr_id, label_name):
+            print(label_name, 'label assigned to the pull request')
+        else:
+            print('Failed to assign label')
