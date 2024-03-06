@@ -49,19 +49,14 @@ func NewCompressorStrategy(cfg config.Component) Compressor {
 	}
 }
 
-// Flusher is the interface that requires the Flush function
-type flusher interface {
+// StreamCompressor is the interface that zlib and zstd should implement
+type StreamCompressor interface {
+	io.WriteCloser
 	Flush() error
 }
 
-// Zipper is the interface that zlib and zstd should implement
-type Zipper interface {
-	io.WriteCloser
-	flusher
-}
-
-// NewZipper returns a Zipper to be used by the stream Compressor
-func NewZipper(output *bytes.Buffer, cfg config.Component) Zipper {
+// NewZipper returns a StreamCompressor
+func NewStreamCompressor(output *bytes.Buffer, cfg config.Component) StreamCompressor {
 	kind := cfg.GetString("serializer_compressor_kind")
 	switch kind {
 	case ZlibKind:
