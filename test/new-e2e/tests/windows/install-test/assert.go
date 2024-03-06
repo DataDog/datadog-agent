@@ -6,6 +6,7 @@
 package installtest
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -40,5 +41,54 @@ func AssertInstalledUserInRegistry(t *testing.T, host *components.RemoteHost, ex
 		return false
 	}
 
+	return true
+}
+
+// AssertAgentUserGroupMembership checks the agent user is a member of the expected groups
+func AssertAgentUserGroupMembership(t *testing.T, host *components.RemoteHost, username string) bool {
+	expectedGroups := []string{
+		"Performance Log Users",
+		"Event Log Readers",
+		"Performance Monitor Users",
+	}
+	return AssertGroupMembership(t, host, username, expectedGroups)
+}
+
+// AssertGroupMembership asserts that the user is a member of the expected groups
+func AssertGroupMembership(t *testing.T, host *components.RemoteHost, user string, expectedGroups []string) bool {
+	hostInfo, err := windows.GetHostInfo(host)
+	if !assert.NoError(t, err) {
+		return false
+	}
+	userSid, err := windows.GetSIDForUser(host, user)
+	if !assert.NoError(t, err) {
+		return false
+	}
+	for _, g := range expectedGroups {
+		// get members of group g
+		var members []windows.SecurityIdentifier
+		if hostInfo.IsDomainController() {
+			// Domain controllers don't have local groups
+			adMembers, err := windows.GetADGroupMembers(host, g)
+			if !assert.NoError(t, err) {
+				return false
+			}
+			for _, m := range adMembers {
+				members = append(members, m)
+			}
+		} else {
+			localMembers, err := windows.GetLocalGroupMembers(host, g)
+			if !assert.NoError(t, err) {
+				return false
+			}
+			for _, m := range localMembers {
+				members = append(members, m)
+			}
+		}
+		// check if user is in group
+		assert.True(t, slices.ContainsFunc(members, func(s windows.SecurityIdentifier) bool {
+			return strings.EqualFold(s.GetSID(), userSid)
+		}), "user should be member of group %s", g)
+	}
 	return true
 }
