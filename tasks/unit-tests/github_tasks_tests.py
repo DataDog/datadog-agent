@@ -38,6 +38,15 @@ class TestAssignTeamLabel(unittest.TestCase):
 
         self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
 
+    def test_multiple_files_single_team_best(self):
+        # agent-platform has more files than security so only one team will be assigned
+        changed_files = ['.gitignore', '.gitlab-ci.yml', '.gitlab/security.yml']
+        expected_teams = ['@DataDog/agent-platform']
+
+        teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
+
+        self.assertEqual(list(sorted(teams)), list(sorted(expected_teams)))
+
     def test_multiple_files_multiple_teams(self):
         changed_files = ['.gitignore', '.gitlab/security.yml']
         expected_teams = ['@DataDog/agent-platform', '@DataDog/agent-security']
