@@ -41,7 +41,14 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	return i.repositories.Create(pkg, version, tmpDir)
+	err = i.repositories.Create(pkg, version, tmpDir)
+	if err != nil {
+		return fmt.Errorf("could not create repository: %w", err)
+	}
+	if pkg == "datadog-agent" {
+		return service.SetupAgentUnits()
+	}
+	return nil
 }
 
 func (i *installer) installExperiment(pkg string, version string, image oci.Image) error {
