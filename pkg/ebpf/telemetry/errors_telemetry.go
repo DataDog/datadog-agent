@@ -64,6 +64,8 @@ type EBPFTelemetry struct {
 	bpfDir                 string
 }
 
+// InstrumentationFunctions represents the code from the instrumentation file
+// which comprise the instrumentation block
 var InstrumentationFunctions = struct {
 	Filename  string
 	functions []string

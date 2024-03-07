@@ -93,7 +93,7 @@ func TestInstrumentationCodeHasLT8BytesStackAccess(t *testing.T) {
 	require.NoError(t, err)
 
 	functions := make(map[string]struct{}, len(collectionSpec.Programs))
-	for fn, _ := range collectionSpec.Programs {
+	for fn := range collectionSpec.Programs {
 		functions[fn] = struct{}{}
 	}
 	sizes, err := parseStackSizesSections(bpfAsset, functions)
