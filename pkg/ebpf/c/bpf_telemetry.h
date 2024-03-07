@@ -77,17 +77,9 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
     })
 // If instrumentation is not enabled do not waste instructions
 #else
-#define map_update_with_telemetry(fn, map, args...) \
-    ({                                              \
-        long errno_ret = fn(&map, args);            \
-        errno_ret;                                  \
-    })
+#define map_update_with_telemetry(fn, map, args...) fn(&map, args)
 
-#define helper_with_telemetry(fn, ...)      \
-    ({                                      \
-        long errno_ret = fn(__VA_ARGS__);   \
-        errno_ret;                          \
-    })
+#define helper_with_telemetry(fn, ...) fn(__VA_ARGS__)
 #endif
 
 #define bpf_map_update_with_telemetry(map, key, val, flags) \
