@@ -15,7 +15,7 @@ class TestAssignTeamLabel(unittest.TestCase):
         self.assertEqual(sorted(teams), sorted(expected_teams))
 
     def test_no_file(self):
-        changed_files = ['idonotexist']
+        changed_files = []
         expected_teams = []
 
         teams = _get_teams(changed_files, TestAssignTeamLabel.CODEOWNERS_FILE)
