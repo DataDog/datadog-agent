@@ -207,7 +207,7 @@ func newSNMP(connParams *connectionParams) (*gosnmp.GoSNMP, error) {
 		return nil, fmt.Errorf("timeout cannot be 0")
 	}
 
-	version := gosnmp.Version2c
+	var version gosnmp.SnmpVersion
 	// Set the snmp version
 	if connParams.Version == "1" {
 		version = gosnmp.Version1
