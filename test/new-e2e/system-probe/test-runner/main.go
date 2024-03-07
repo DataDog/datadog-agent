@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -200,7 +199,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuite, testConfig)
 
-		log.Printf("/go/bin/gotestsum %s", strings.Join(args, " "))
 		cmd := exec.Command("/go/bin/gotestsum", args...)
 		baseEnv = append(
 			baseEnv,
@@ -214,7 +212,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 		if err := cmd.Run(); err != nil {
 			// log but do not return error
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s", testsuite, err)
+			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", testsuite, err)
 		}
 
 		if err := addProperties(xmlpath, props); err != nil {
