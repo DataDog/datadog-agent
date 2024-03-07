@@ -26,10 +26,10 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.52.0-rc.3
 	github.com/stretchr/testify v1.8.4
 )
 

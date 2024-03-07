@@ -32,10 +32,10 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.52.0-rc.3
 	github.com/stretchr/testify v1.8.4
 )
 
@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.52.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.52.0-rc.3 // indirect
@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3 // indirect
