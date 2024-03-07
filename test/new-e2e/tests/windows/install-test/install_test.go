@@ -315,10 +315,17 @@ func (is *agentMSISuite) TestAgentUser() {
 }
 
 // TC-INS-003
-// tests that the installer options are set correctly in the agent config
+// tests that the installer options are set correctly in the agent config.
+// This test toes the line between testing the installer and the agent. The installer
+// already has unit-test coverage for the config replacement, so it is somewhat redundant to
+// test it here.
+// TODO: It would be better for the cmd_port binding test to be done by a regular Agent E2E test.
 func (is *agentMSISuite) TestInstallOpts() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
+
+	// initialize test helper
+	t := is.newTester(vm)
 
 	cmdPort := 4999
 
@@ -404,12 +411,14 @@ func (is *agentMSISuite) TestInstallOpts() {
 		assert.Equalf(c, pid, boundPort.PID(), "port %d should be bound by the agent", cmdPort)
 	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
 	is.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
+
+	is.uninstallAgentAndRunUninstallTests(t)
 }
 
-// TestInstallSubServices tests that the agent installer can configure the subservices.
-// Once E2E's Agent interface supports providing MSI installer options these tests
+// TestSubServicesOpts tests that the agent installer can configure the subservices.
+// TODO: Once E2E's Agent interface supports providing MSI installer options these tests
 // should be moved to regular Agent E2E tests for each subservice.
-func (is *agentMSISuite) TestInstallSubServices() {
+func (is *agentMSISuite) TestSubServicesOpts() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
@@ -427,6 +436,9 @@ func (is *agentMSISuite) TestInstallSubServices() {
 	}
 	for _, tc := range tcs {
 		if !is.Run(tc.testname, func() {
+
+			// initialize test helper
+			t := is.newTester(vm)
 
 			installOpts := []windowsAgent.InstallAgentOption{
 				windowsAgent.WithLogsEnabled(strconv.FormatBool(tc.logsEnabled)),
@@ -487,8 +499,6 @@ func (is *agentMSISuite) TestInstallSubServices() {
 				}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", tc.serviceName)
 			}
 
-			// run tests
-			t := is.newTester(vm)
 			is.uninstallAgentAndRunUninstallTests(t)
 		}) {
 			is.T().FailNow()
