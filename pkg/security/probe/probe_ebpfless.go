@@ -98,7 +98,7 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	}
 }
 
-func copyFileAttributes(src *ebpfless.OpenSyscallMsg, dst *model.FileEvent) {
+func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 	if strings.HasPrefix(src.Filename, "memfd:") {
 		dst.PathnameStr = ""
 		dst.BasenameStr = src.Filename
@@ -109,7 +109,6 @@ func copyFileAttributes(src *ebpfless.OpenSyscallMsg, dst *model.FileEvent) {
 	dst.CTime = src.CTime
 	dst.MTime = src.MTime
 	dst.Mode = uint16(src.Mode)
-	dst.Flags = int32(src.Flags)
 	if src.Credentials != nil {
 		dst.UID = src.Credentials.UID
 		dst.User = src.Credentials.User
@@ -149,7 +148,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
 		event.Open.Retval = syscallMsg.Retval
-		copyFileAttributes(syscallMsg.Open, &event.Open.File)
+		copyFileAttributes(&syscallMsg.Open.FileSyscallMsg, &event.Open.File)
 		event.Open.Mode = syscallMsg.Open.Mode
 		event.Open.Flags = syscallMsg.Open.Flags
 
