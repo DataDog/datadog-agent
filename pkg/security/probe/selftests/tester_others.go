@@ -54,6 +54,7 @@ type SelfTester struct {
 	tmpDir          string
 	tmpKey          string
 	done            chan bool
+	selfTestRunning chan time.Duration
 }
 
 var _ rules.PolicyProvider = (*SelfTester)(nil)
@@ -88,6 +89,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	s := &SelfTester{
 		waitingForEvent: atomic.NewBool(cfg.EBPFLessEnabled),
 		eventChan:       make(chan selfTestEvent, 10),
+		selfTestRunning: make(chan time.Duration, 10),
 		probe:           probe,
 		selfTests:       selfTests,
 		tmpDir:          tmpDir,
@@ -176,16 +178,16 @@ func (t *SelfTester) RunSelfTest(_ time.Duration) error {
 func (t *SelfTester) Start() {}
 
 // WaitForResult wait for self test results
-func (t *SelfTester) WaitForResult(timeout time.Duration, cb func(success []eval.RuleID, fails []eval.RuleID, events map[eval.RuleID]*serializers.EventSerializer)) {
-	timer := time.After(timeout)
+func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID, events map[eval.RuleID]*serializers.EventSerializer)) {
+	for timeout := range t.selfTestRunning {
+		timer := time.After(timeout)
 
-	var (
-		success []string
-		fails   []string
-		events  = make(map[eval.RuleID]*serializers.EventSerializer)
-	)
+		var (
+			success []string
+			fails   []string
+			events  = make(map[eval.RuleID]*serializers.EventSerializer)
+		)
 
-	for {
 	LOOP:
 		for {
 			select {
@@ -235,6 +237,7 @@ func (t *SelfTester) WaitForResult(timeout time.Duration, cb func(success []eval
 
 // Close removes temp directories and files used by the self tester
 func (t *SelfTester) Close() error {
+	close(t.selfTestRunning)
 	close(t.done)
 	if t.tmpDir != "" {
 		err := os.RemoveAll(t.tmpDir)
