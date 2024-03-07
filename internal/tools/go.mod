@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/tools
 
-go 1.21.7
+go 1.21.8
 
 require (
 	github.com/frapposelli/wwhrd v0.4.0
