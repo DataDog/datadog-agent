@@ -294,7 +294,7 @@ labels that can be use:
   - When a PR with the label is merged
   - When an already-merged PR gets the label
 
-  In case of conflicts, the bot will prompt a list of instructions to follow ([example](https://github.com/DataDog/datadog-agent/pull/23316#issuecomment-1973207164)) to manually backport your PR.
+  If there is a conflict, the bot prompts you with a list of instructions to follow ([example](https://github.com/DataDog/datadog-agent/pull/23316#issuecomment-1973207164)) to manually backport your PR.
 - `qa/done` or `qa/no-code-change`: used to skip the QA week:
   - `qa/done` label is recommended in case of code changes **and** manual / automated qa done before merge.
   - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
