@@ -112,7 +112,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -126,8 +126,8 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 	return ac
 }
 
-// NewAutoConfigNoStart creates an AutoConfig instance.
-func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
+// NewAutoConfig creates an AutoConfig instance (without starting).
+func NewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -621,5 +621,5 @@ func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscover
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		NewAutoConfigNoStart(scheduler.NewMetaScheduler(), deps.Secrets))
+		NewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets))
 }

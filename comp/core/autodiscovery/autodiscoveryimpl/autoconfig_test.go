@@ -159,7 +159,7 @@ func (suite *AutoConfigTestSuite) SetupSuite() {
 }
 
 func NewMockAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
-	ac := NewAutoConfigNoStart(scheduler, secretResolver)
+	ac := NewAutoConfig(scheduler, secretResolver)
 	go ac.serviceListening()
 	return ac
 }
