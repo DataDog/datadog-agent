@@ -25,6 +25,7 @@ import (
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -108,7 +109,7 @@ func (is *agentMSISuite) TestInstall() {
 	}
 	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
 
-	t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	is.uninstallAgentAndRunUninstallTests(t)
 }
 
 func (is *agentMSISuite) TestUpgrade() {
@@ -135,7 +136,7 @@ func (is *agentMSISuite) TestUpgrade() {
 		is.T().FailNow()
 	}
 
-	t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	is.uninstallAgentAndRunUninstallTests(t)
 }
 
 // TC-INS-002
@@ -168,7 +169,7 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 		is.T().FailNow()
 	}
 
-	previousTester.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	is.uninstallAgentAndRunUninstallTests(previousTester)
 }
 
 // TC-INS-001
@@ -204,7 +205,7 @@ func (is *agentMSISuite) TestRepair() {
 		is.T().FailNow()
 	}
 
-	t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+	is.uninstallAgentAndRunUninstallTests(t)
 }
 
 // TC-INS-006
@@ -251,11 +252,24 @@ func (is *agentMSISuite) TestAgentUser() {
 				is.T().FailNow()
 			}
 
-			t.UninstallAgentAndRunUninstallTests(is.T(), filepath.Join(is.OutputDir, "uninstall.log"))
+			is.uninstallAgentAndRunUninstallTests(t)
 		}) {
 			is.T().FailNow()
 		}
 	}
+}
+
+func (is *agentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
+	return is.T().Run("uninstall the agent", func(tt *testing.T) {
+		if !tt.Run("uninstall", func(tt *testing.T) {
+			err := windowsAgent.UninstallAgent(t.host, filepath.Join(is.OutputDir, "uninstall.log"))
+			require.NoError(tt, err, "should uninstall the agent")
+		}) {
+			tt.Fatal("uninstall failed")
+		}
+
+		t.TestUninstallExpectations(tt)
+	})
 }
 
 func (is *agentMSISuite) newTester(vm *components.RemoteHost, options ...TesterOption) *Tester {

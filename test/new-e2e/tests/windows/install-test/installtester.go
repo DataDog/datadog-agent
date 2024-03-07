@@ -114,6 +114,8 @@ func WithExpectedAgentUser(domain string, user string) TesterOption {
 	}
 }
 
+// WithSystemFileIntegrityTester sets the SystemFileIntegrityTester.
+// Snapshot will be taken by Tester if it does not already exist, and then tested during TestUninstallExpectations.
 func WithSystemFileIntegrityTester(tester *SystemFileIntegrityTester) TesterOption {
 	return func(t *Tester) {
 		t.systemFileIntegrityTester = tester
@@ -193,35 +195,18 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	})
 
 	if t.systemFileIntegrityTester != nil {
+		// agent is uninstalled now, so register for snapshots to be removed
+		// at end of the test.
+		tt.Cleanup(func() {
+			err := t.systemFileIntegrityTester.RemoveSnapshots()
+			if err != nil {
+				tt.Logf("failed to remove snapshots: %v", err)
+			}
+		})
 		tt.Run("does not change system files", func(tt *testing.T) {
 			t.systemFileIntegrityTester.AssertDoesRemoveSystemFiles(tt)
 		})
 	}
-}
-
-// UninstallAgentAndRunUninstallTests installs the agent and runs TestUninstallExpectations
-func (t *Tester) UninstallAgentAndRunUninstallTests(tt *testing.T, logfile string) bool {
-	return tt.Run("uninstall the agent", func(tt *testing.T) {
-		if !tt.Run("uninstall", func(tt *testing.T) {
-			err := windowsAgent.UninstallAgent(t.host, logfile)
-			require.NoError(tt, err, "should uninstall the agent")
-		}) {
-			tt.Fatal("uninstall failed")
-		}
-
-		if t.systemFileIntegrityTester != nil {
-			// agent is uninstalled now, so register for snapshots to be removed
-			// at end of the test.
-			tt.Cleanup(func() {
-				err := t.systemFileIntegrityTester.RemoveSnapshots()
-				if err != nil {
-					tt.Logf("failed to remove snapshots: %v", err)
-				}
-			})
-		}
-
-		t.TestUninstallExpectations(tt)
-	})
 }
 
 // Only do some basic checks on the agent since it's a previous version
