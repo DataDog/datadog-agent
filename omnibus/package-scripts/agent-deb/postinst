@@ -66,7 +66,7 @@ install_method:
 fi
 
 if [ ! -f "$CONFIG_DIR/install.json" ]; then
-    install_signature='{"install_id":"ecba222b-7f87-426b-ac72-18f1824fd909","install_type":"manual","install_time":1705689975}'
+    install_signature='{"install_id":"ecba222b-7f87-426b-ac72-18f1824fd909","install_type":"linux_manual_with_apt","install_time":1705689975}'
     echo "$install_signature" > $CONFIG_DIR/install.json
 fi
 
