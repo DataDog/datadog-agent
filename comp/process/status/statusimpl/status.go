@@ -78,20 +78,26 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 func (s statusProvider) populateStatus() map[string]interface{} {
 	status := make(map[string]interface{})
 
-	// Get expVar server address
-	ipcAddr, err := ddconfig.GetIPCAddress()
-	if err != nil {
-		status["error"] = fmt.Sprintf("%v", err.Error())
-		return status
+	var url string
+	if s.testServerURL != "" {
+		url = s.testServerURL
+	} else {
+
+		// Get expVar server address
+		ipcAddr, err := ddconfig.GetIPCAddress()
+		if err != nil {
+			status["error"] = fmt.Sprintf("%v", err.Error())
+			return status
+		}
+
+		port := s.config.GetInt("process_config.expvar_port")
+		if port <= 0 {
+			port = ddconfig.DefaultProcessExpVarPort
+		}
+		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
 	}
 
-	port := s.config.GetInt("process_config.expvar_port")
-	if port <= 0 {
-		port = ddconfig.DefaultProcessExpVarPort
-	}
-	expvarEndpoint := fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, port)
-
-	agentStatus, err := processStatus.GetStatus(s.config, expvarEndpoint)
+	agentStatus, err := processStatus.GetStatus(s.config, url)
 	if err != nil {
 		status["error"] = fmt.Sprintf("%v", err.Error())
 		return status
