@@ -16,7 +16,7 @@ import (
 //nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
 	adsched := scheduler.NewMetaScheduler()
-	ac := autodiscoveryimpl.NewAutoConfig(adsched, nil)
+	ac := autodiscoveryimpl.CreateMockAutoConfig(t, adsched)
 
 	got1 := make(chan struct{}, 1)
 	l1 := NewADListener("l1", ac, func(configs []integration.Config) {
