@@ -37,9 +37,7 @@ func Run(
 	metricAgent *metrics.ServerlessMetricAgent,
 	traceAgent *trace.ServerlessTraceAgent,
 	logsAgent logsAgent.ServerlessLogsAgent,
-	args []string,
 ) {
-	log.Debugf("Launching subprocess %v\n", args)
 
 	stopCh := make(chan struct{})
 	go handleTerminationSignals(stopCh, signal.Notify)
