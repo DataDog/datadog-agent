@@ -414,7 +414,8 @@ func (is *agentMSISuite) TestInstallSubServices() {
 	is.prepareHost()
 
 	tcs := []struct {
-		testname       string
+		testname string
+		// it's surprising but we do not have an installer option for enabling NPM/system-probe.
 		logsEnabled    bool
 		processEnabled bool
 		apmEnabled     bool
