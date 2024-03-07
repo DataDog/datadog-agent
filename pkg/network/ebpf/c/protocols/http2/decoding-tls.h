@@ -437,7 +437,7 @@ static __always_inline void tls_fix_header_frame(tls_dispatcher_arguments_t *inf
 }
 
 static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
-    // No state, try reading a frame.
+    // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL || (frame_state->remainder == 0 && frame_state->header_length == 0)) {
         // Checking we have enough bytes in the packet to read a frame header.
         if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
@@ -490,7 +490,9 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
-         if (info->data_off + frame_state->remainder > info->data_end) {
+        // To make a "best effort," if we are in a state where we are left with a remainder, and the length of it from
+        // our current position is larger than the data end, we will attempt to handle the remaining buffer as much as possible.
+        if (info->data_off + frame_state->remainder > info->data_end) {
             frame_state->remainder -= info->data_end - info->data_off;
             info->data_off = info->data_end;
             return false;
@@ -620,7 +622,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     // skip HTTP2 magic, if present
     tls_skip_preface(&dispatcher_args_copy);
     if (dispatcher_args_copy.data_off == dispatcher_args_copy.data_end) {
-    // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
+        // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
         return 0;
     }
 

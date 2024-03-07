@@ -489,6 +489,8 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
+        // To make a "best effort," if we are in a state where we are left with a remainder, and the length of it from
+        // our current position is larger than the data end, we will attempt to handle the remaining buffer as much as possible.
         if (skb_info->data_off + frame_state->remainder > skb_info->data_end) {
             frame_state->remainder -= skb_info->data_end - skb_info->data_off;
             skb_info->data_off = skb_info->data_end;
@@ -634,7 +636,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // skip HTTP2 magic, if present
     skip_preface(skb, &dispatcher_args_copy.skb_info);
     if (dispatcher_args_copy.skb_info.data_off == dispatcher_args_copy.skb_info.data_end) {
-    // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
+        // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
         return 0;
     }
 
