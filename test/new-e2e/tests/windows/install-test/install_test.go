@@ -11,19 +11,25 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -305,6 +311,110 @@ func (is *agentMSISuite) TestAgentUser() {
 			is.T().FailNow()
 		}
 	}
+}
+
+// TC-INS-003
+// tests that the installer options are set correctly in the agent config
+func (is *agentMSISuite) TestInstallOpts() {
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	cmdPort := 4999
+
+	installOpts := []windowsAgent.InstallAgentOption{
+		windowsAgent.WithAPIKey("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		windowsAgent.WithPackage(is.AgentPackage),
+		windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "install.log")),
+		windowsAgent.WithTags("k1:v1,k2:v2"),
+		windowsAgent.WithHostname("win-installopts"),
+		windowsAgent.WithCmdPort(fmt.Sprintf("%d", cmdPort)),
+		windowsAgent.WithProxyHost("proxy.foo.com"),
+		windowsAgent.WithProxyPort("1234"),
+		windowsAgent.WithProxyUser("puser"),
+		windowsAgent.WithProxyPassword("ppass"),
+		windowsAgent.WithSite("eu"),
+		windowsAgent.WithDdURL("https://someurl.datadoghq.com"),
+		windowsAgent.WithLogsDdURL("https://logs.someurl.datadoghq.com"),
+		windowsAgent.WithProcessDdURL("https://process.someurl.datadoghq.com"),
+		windowsAgent.WithTraceDdURL("https://trace.someurl.datadoghq.com"),
+	}
+
+	// initialize test helper and install the agent
+	if !is.Run(fmt.Sprintf("install %s", is.AgentPackage.AgentVersion()), func() {
+		_, err := is.InstallAgent(vm, installOpts...)
+		is.Require().NoError(err, "should install agent %s", is.AgentPackage.AgentVersion())
+	}) {
+		is.T().FailNow()
+	}
+
+	// read the config file and check the options
+	confDir, err := windowsAgent.GetConfigRootFromRegistry(vm)
+	is.Require().NoError(err)
+	configFilePath := filepath.Join(confDir, "datadog.yaml")
+	config, err := vm.ReadFile(configFilePath)
+	is.Require().NoError(err)
+	confYaml := make(map[string]any)
+	err = yaml.Unmarshal(config, &confYaml)
+	is.Require().NoError(err)
+
+	assert.Contains(is.T(), confYaml, "hostname")
+	assert.Equal(is.T(), confYaml["hostname"], "win-installopts")
+	assert.Contains(is.T(), confYaml, "api_key")
+	assert.Equal(is.T(), confYaml["api_key"], "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	assert.Contains(is.T(), confYaml, "tags")
+	assert.ElementsMatch(is.T(), confYaml["tags"], []string{"k1:v1", "k2:v2"})
+	assert.Contains(is.T(), confYaml, "cmd_port")
+	assert.Equal(is.T(), confYaml["cmd_port"], cmdPort)
+	assert.Contains(is.T(), confYaml, "site")
+	assert.Equal(is.T(), confYaml["site"], "eu")
+	assert.Contains(is.T(), confYaml, "dd_url")
+	assert.Equal(is.T(), confYaml["dd_url"], "https://someurl.datadoghq.com")
+
+	if assert.Contains(is.T(), confYaml, "proxy") {
+		// https proxy conf does use http:// in the URL
+		// https://docs.datadoghq.com/agent/configuration/proxy/?tab=windows
+		proxyConf := confYaml["proxy"].(map[string]any)
+		assert.Contains(is.T(), proxyConf, "https")
+		assert.Equal(is.T(), proxyConf["https"], "http://puser:ppass@proxy.foo.com:1234/")
+		assert.Contains(is.T(), proxyConf, "http")
+		assert.Equal(is.T(), proxyConf["http"], "http://puser:ppass@proxy.foo.com:1234/")
+	}
+
+	if assert.Contains(is.T(), confYaml, "logs_config") {
+		logsConf := confYaml["logs_config"].(map[string]any)
+		assert.Contains(is.T(), logsConf, "logs_dd_url")
+		assert.Equal(is.T(), logsConf["logs_dd_url"], "https://logs.someurl.datadoghq.com")
+	}
+
+	if assert.Contains(is.T(), confYaml, "process_config") {
+		processConf := confYaml["process_config"].(map[string]any)
+		assert.Contains(is.T(), processConf, "process_dd_url")
+		assert.Equal(is.T(), processConf["process_dd_url"], "https://process.someurl.datadoghq.com")
+	}
+
+	if assert.Contains(is.T(), confYaml, "apm_config") {
+		apmConf := confYaml["apm_config"].(map[string]any)
+		assert.Contains(is.T(), apmConf, "apm_dd_url")
+		assert.Equal(is.T(), apmConf["apm_dd_url"], "https://trace.someurl.datadoghq.com")
+	}
+
+	// check that agent is listening on the new bound port
+	var boundPort boundport.BoundPort
+	is.Require().EventuallyWithTf(func(c *assert.CollectT) {
+		pid, err := windowsCommon.GetServicePID(vm, "DatadogAgent")
+		if !assert.NoError(c, err) {
+			return
+		}
+		boundPort, err = common.GetBoundPort(vm, cmdPort)
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotNil(c, boundPort, "port %d should be bound", cmdPort) {
+			return
+		}
+		assert.Equalf(c, pid, boundPort.PID(), "port %d should be bound by the agent", cmdPort)
+	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
+	is.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
 }
 
 func (is *agentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
