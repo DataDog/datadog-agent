@@ -34,16 +34,6 @@ Package authtoken implements the creation and access to the auth_token used to c
 This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
 auth_token file but can fetch it it's available.
 
-## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer) (Component Bundle)
-
-*Datadog Team*: windows-agent
-
-
-
-### [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer)
-
-Package apmetwtracer provides ETW events to the .Net tracer
-
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -157,16 +147,6 @@ Package statsd implements a component to get a statsd client.
 
 Package status implements the core status component information provider interface
 
-## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
-
-*Datadog Team*: windows-agent
-
-
-
-### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
-
-Package etw provides an ETW tracing interface
-
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -246,7 +226,7 @@ Package inventoryhost exposes the interface for the component to generate the 'h
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
-*Datadog Team*: agent-platform
+*Datadog Team*: agent-build-and-releases
 
 Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
@@ -384,6 +364,10 @@ Package rcservice is a remote config service that can run within the agent to re
 
 Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
 
+### [comp/remote-config/rcstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcstatus)
+
+Package rcstatus implements the core status component information provider interface
+
 ### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
 
 Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.
@@ -454,6 +438,12 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 Package config implements a component to handle trace-agent configuration.  This
 component temporarily wraps pkg/trace/config.
 
+### [comp/trace/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/etwtracer)
+
+*Datadog Team*: windows-agent
+
+Package etwtracer provides ETW events to the .Net tracer
+
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
 Package status implements the core status component information provider interface
@@ -468,6 +458,16 @@ Package updater implements the updater component.
 
 Package localapi is the updater local api component.
 
+### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
+
+Package localapiclient provides the local API client component.
+
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
+
+### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
+
+*Datadog Team*: windows-agent
+
+Package etw provides an ETW tracing interface

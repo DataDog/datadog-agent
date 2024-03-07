@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"go.uber.org/fx"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=epforwarder_mockgen.go
@@ -187,15 +188,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
-}
-
-// An EventPlatformForwarder forwards Messages to a destination based on their event type
-type EventPlatformForwarder interface {
-	SendEventPlatformEvent(e *message.Message, eventType string) error
-	SendEventPlatformEventBlocking(e *message.Message, eventType string) error
-	Purge() map[string][]*message.Message
-	Start()
-	Stop()
 }
 
 type defaultEventPlatformForwarder struct {
@@ -471,7 +463,7 @@ type dependencies struct {
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder
 func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
-	var forwarder EventPlatformForwarder
+	var forwarder eventplatform.Forwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
 		forwarder = NewNoopEventPlatformForwarder(deps.Hostname)
@@ -486,7 +478,7 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) EventPlatformForwarder {
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
 	f := newDefaultEventPlatformForwarder(eventplatformreceiverimpl.NewReceiver(hostname))
 	// remove the senders
 	for _, p := range f.pipelines {

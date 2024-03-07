@@ -10,15 +10,12 @@ import (
 	"errors"
 	"fmt"
 	"runtime/pprof"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
-	"google.golang.org/grpc"
-
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gorilla/mux"
 )
 
 var l *loader
@@ -63,7 +60,7 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
+func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []Factory) error {
 	var enabledModulesFactories []Factory
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
@@ -103,14 +100,6 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, grpcServer *grpc.
 			l.errors[factory.Name] = err
 			log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
 			continue
-		}
-
-		if grpcServer != nil {
-			if err = module.RegisterGRPC(&systemProbeGRPCServer{sr: grpcServer, ns: factory.Name}); err != nil {
-				l.errors[factory.Name] = err
-				log.Errorf("error registering grpc endpoints for module %s: %s", factory.Name, err)
-				continue
-			}
 		}
 
 		l.routers[factory.Name] = subRouter
@@ -231,32 +220,4 @@ func updateStats() {
 		then = now
 		now = <-ticker.C
 	}
-}
-
-type systemProbeGRPCServer struct {
-	sr grpc.ServiceRegistrar
-	ns sysconfigtypes.ModuleName
-}
-
-func (s *systemProbeGRPCServer) RegisterService(desc *grpc.ServiceDesc, impl interface{}) {
-	modName := NameFromGRPCServiceName(desc.ServiceName)
-	if modName != string(s.ns) {
-		panic(fmt.Sprintf("module name `%s` from service name `%s` does not match `%s`", modName, desc.ServiceName, s.ns))
-	}
-	s.sr.RegisterService(desc, impl)
-}
-
-// NameFromGRPCServiceName extracts a system-probe module name from the gRPC service name.
-// It expects a form of `datadog.agent.systemprobe.<module_name>.ServiceName`.
-func NameFromGRPCServiceName(service string) string {
-	prefix := "datadog.agent.systemprobe."
-	if !strings.HasPrefix(service, prefix) {
-		return ""
-	}
-	s := strings.TrimPrefix(service, prefix)
-	mod, _, ok := strings.Cut(s, ".")
-	if !ok {
-		return ""
-	}
-	return mod
 }

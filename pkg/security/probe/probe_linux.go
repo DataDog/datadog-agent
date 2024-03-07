@@ -18,6 +18,11 @@ import (
 )
 
 const (
+	// EBPFOrigin eBPF origin
+	EBPFOrigin = "ebpf"
+	// EBPFLessOrigin eBPF less origin
+	EBPFLessOrigin = "ebpfless"
+
 	defaultKillActionFlushDelay = 2 * time.Second
 )
 
@@ -47,6 +52,14 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	return p, nil
+}
+
+// Origin returns origin
+func (p *Probe) Origin() string {
+	if p.Opts.EBPFLessEnabled {
+		return EBPFLessOrigin
+	}
+	return EBPFOrigin
 }
 
 func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill func(pid uint32, sig uint32) error) *KillActionReport {

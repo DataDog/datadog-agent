@@ -13,7 +13,7 @@ $PROBE_BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$PROBE_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python2_ROOT_DIR;$Env:Python2_ROOT_DIR\Scripts;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
-& pip install awscli==1.19.112 --upgrade
+& pip install awscli==1.19.112 python-dateutil==2.8.2 --upgrade
 
 & inv -e deps
 & inv -e install-tools
