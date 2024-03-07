@@ -637,7 +637,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.52.0-rc.3
@@ -706,6 +705,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.1.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.52.0-rc.3 // indirect
