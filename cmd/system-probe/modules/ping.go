@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gorilla/mux"
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 const (
@@ -115,17 +114,13 @@ func (p *pinger) Register(httpMux *module.Router) error {
 	return nil
 }
 
-func (p *pinger) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
-}
-
 func (p *pinger) Close() {}
 
 func logPingRequests(host string, client string, count int, interval int, timeout int, runCount uint64, start time.Time) {
 	args := []interface{}{host, client, count, interval, timeout, runCount, time.Since(start)}
 	msg := "Got request on /ping/%s?client_id=%s&count=%d&interval=%d&timeout=%d (count: %d): retrieved ping in %s"
 	switch {
-	case count <= 5, count%20 == 0:
+	case runCount <= 5, runCount%20 == 0:
 		log.Infof(msg, args...)
 	default:
 		log.Debugf(msg, args...)

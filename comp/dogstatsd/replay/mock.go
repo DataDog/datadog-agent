@@ -6,8 +6,11 @@
 package replay
 
 import (
+	"context"
 	"sync"
 	"time"
+
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
@@ -17,11 +20,15 @@ type mockTrafficCapture struct {
 	sync.RWMutex
 }
 
-func newMockTrafficCapture() Component {
-	return &mockTrafficCapture{}
+func newMockTrafficCapture(deps dependencies) Component {
+	tc := &mockTrafficCapture{}
+	deps.Lc.Append(fx.Hook{
+		OnStart: tc.configure,
+	})
+	return tc
 }
 
-func (tc *mockTrafficCapture) Configure() error {
+func (tc *mockTrafficCapture) configure(_ context.Context) error {
 	return nil
 }
 
@@ -60,4 +67,9 @@ func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) err
 //nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) Enqueue(msg *CaptureBuffer) bool {
 	return true
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (tc *mockTrafficCapture) GetStartUpError() error {
+	return nil
 }

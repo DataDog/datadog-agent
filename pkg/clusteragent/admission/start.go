@@ -34,10 +34,10 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext) error {
+func StartControllers(ctx ControllerContext) ([]webhook.MutatingWebhook, error) {
 	if !config.Datadog.GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
-		return nil
+		return nil, nil
 	}
 
 	certConfig := secret.NewCertConfig(
@@ -58,12 +58,12 @@ func StartControllers(ctx ControllerContext) error {
 
 	nsSelectorEnabled, err := useNamespaceSelector(ctx.Client.Discovery())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	v1Enabled, err := UseAdmissionV1(ctx.Client.Discovery())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	webhookConfig := webhook.NewConfig(v1Enabled, nsSelectorEnabled)
@@ -94,5 +94,5 @@ func StartControllers(ctx ControllerContext) error {
 		getWebhookStatus = getWebhookStatusV1beta1
 	}
 
-	return apiserver.SyncInformers(informers, 0)
+	return webhookController.EnabledWebhooks(), apiserver.SyncInformers(informers, 0)
 }

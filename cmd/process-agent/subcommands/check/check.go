@@ -51,10 +51,14 @@ type dependencies struct {
 
 	CliParams *cliParams
 
-	Config       config.Component
-	Syscfg       sysprobeconfig.Component
-	Log          log.Component
-	Hostinfo     hostinfo.Component
+	Config   config.Component
+	Syscfg   sysprobeconfig.Component
+	Log      log.Component
+	Hostinfo hostinfo.Component
+	// TODO: the tagger is used by the ContainerProvider, which is currently not a component so there is no direct
+	// dependency on it. The ContainerProvider needs to be componentized so it can be injected and have fx manage its
+	// lifecycle.
+	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
@@ -154,7 +158,6 @@ func runCheckCmd(deps dependencies) error {
 			MaxConnsPerMessage:   deps.Syscfg.SysProbeObject().MaxConnsPerMessage,
 			SystemProbeAddress:   deps.Syscfg.SysProbeObject().SocketAddress,
 			ProcessModuleEnabled: processModuleEnabled,
-			GRPCServerEnabled:    deps.Syscfg.SysProbeObject().GRPCServerEnabled,
 		}
 
 		if !matchingCheck(deps.CliParams.checkName, ch) {
