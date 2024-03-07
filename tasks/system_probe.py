@@ -70,6 +70,7 @@ CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 extra_cflags = []
+extra_llcflags = []
 
 
 def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
@@ -99,7 +100,7 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     strip = "&& llvm-strip -g $out" if strip_object_files else ""
     nw.rule(
         name="llc",
-        command=f"llc -stack-size-section -march=bpf -filetype=obj -o $out $in {strip}",
+        command=f"llc {' '.join(extra_llcflags)} -march=bpf -filetype=obj -o $out $in {strip}",
     )
 
 
@@ -1410,8 +1411,10 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
     global extra_cflags
+    global extra_llcflags
     if instrument_trampoline:
         extra_cflags = extra_cflags + ["-pg", "-DINSTRUMENTATION_ENABLED"]
+        extra_llcflags = extra_llcflags + ["-stack-size-section"]
 
     run_ninja(
         ctx,

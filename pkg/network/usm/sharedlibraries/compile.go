@@ -18,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/shared-libraries.c pkg/ebpf/bytecode/runtime/shared-libraries.go runtime
 
 func getRuntimeCompiledSharedLibraries(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.SharedLibraries.Compile(&config.Config, getCFlags(config), getLlcFlags(), statsd.Client)
+	return runtime.SharedLibraries.Compile(&config.Config, getCFlags(config), getLlcFlags(config), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -33,7 +33,11 @@ func getCFlags(config *config.Config) []string {
 	return cflags
 }
 
-func getLlcFlags() []string {
-	// this flag instructs llc to add a section describing the total stack usage of a function
-	return []string{"-stack-size-section"}
+func getLlcFlags(config *config.Config) []string {
+	if config.EBPFInstrumentationEnabled {
+		// this flag instructs llc to add a section describing the total stack usage of a function
+		return []string{"-stack-size-section"}
+	}
+
+	return nil
 }
