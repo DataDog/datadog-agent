@@ -8,12 +8,14 @@
 package submitterimpl
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
@@ -35,12 +37,13 @@ type submitterImpl struct {
 
 type dependencies struct {
 	fx.In
-	Lc fx.Lifecycle
+	Lc  fx.Lifecycle
+	Log log.Component
 
-	HostInfo   hostinfo.Component
 	Config     config.Component
-	Log        log.Component
+	Checks     []types.CheckComponent `group:"check"`
 	Forwarders forwarders.Component
+	HostInfo   hostinfo.Component
 }
 
 type result struct {
@@ -54,6 +57,18 @@ func newSubmitter(deps dependencies) (result, error) {
 	s, err := processRunner.NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.HostInfo.Object().HostName)
 	if err != nil {
 		return result{}, err
+	}
+
+	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
+		deps.Lc.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				return s.Start()
+			},
+			OnStop: func(context.Context) error {
+				s.Stop()
+				return nil
+			},
+		})
 	}
 
 	return result{

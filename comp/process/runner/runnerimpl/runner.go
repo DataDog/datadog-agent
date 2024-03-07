@@ -12,7 +12,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
@@ -36,6 +38,8 @@ type runnerImpl struct {
 
 type dependencies struct {
 	fx.In
+	Lc  fx.Lifecycle
+	Log log.Component
 
 	Submitter  submitter.Component
 	RTNotifier <-chan types.RTResponse `optional:"true"`
@@ -54,17 +58,26 @@ func newRunner(deps dependencies) (runner.Component, error) {
 	}
 	c.Submitter = deps.Submitter
 
-	return &runnerImpl{
+	runnerComponent := &runnerImpl{
 		checkRunner:    c,
 		providedChecks: checks,
-	}, nil
+	}
+
+	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
+		deps.Lc.Append(fx.Hook{
+			OnStart: runnerComponent.Run,
+			OnStop:  runnerComponent.stop,
+		})
+	}
+
+	return runnerComponent, nil
 }
 
 func (r *runnerImpl) Run(context.Context) error {
 	return r.checkRunner.Run()
 }
 
-func (r *runnerImpl) Stop(context.Context) error {
+func (r *runnerImpl) stop(context.Context) error {
 	r.checkRunner.Stop()
 	return nil
 }

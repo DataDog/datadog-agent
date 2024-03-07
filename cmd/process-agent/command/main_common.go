@@ -46,7 +46,6 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -180,9 +179,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,
-			processAgent optional.Option[agent.Component],
+			processAgent agent.Component,
 		) error {
-			if _, ok := processAgent.Get(); !ok {
+			if !processAgent.Enabled() {
 				return errAgentDisabled
 			}
 			return nil
