@@ -118,6 +118,9 @@ func TestUInt64Binding(t *testing.T) {
 		} else {
 			driver = common.Godror
 		}
+		if driver == common.Godror && skipGodror() {
+			continue
+		}
 
 		err := chk.Run()
 		assert.NoError(t, err, "check run with %s driver", driver)

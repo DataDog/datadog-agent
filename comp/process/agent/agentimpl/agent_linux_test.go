@@ -134,8 +134,8 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			}
 
 			agt := fxutil.Test[optional.Option[agent.Component]](t, fx.Options(opts...))
-
-			assert.Equal(t, tc.expected, agt.IsSet())
+			_, ok := agt.Get()
+			assert.Equal(t, tc.expected, ok)
 		})
 	}
 }

@@ -28,6 +28,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -212,7 +213,8 @@ func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Compo
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseSenderManager, collector, secretResolver)
+		diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, collector, secretResolver)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseDeps, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

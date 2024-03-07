@@ -8,8 +8,6 @@ package module
 
 import (
 	"errors"
-
-	"google.golang.org/grpc"
 )
 
 // ErrNotEnabled is a special error type that should be returned by a Factory
@@ -20,6 +18,5 @@ var ErrNotEnabled = errors.New("module is not enabled")
 type Module interface {
 	GetStats() map[string]interface{}
 	Register(*Router) error
-	RegisterGRPC(grpc.ServiceRegistrar) error
 	Close()
 }

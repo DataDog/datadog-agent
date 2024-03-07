@@ -136,7 +136,11 @@ func applyOverride(rd1, rd2 *RuleDefinition) {
 	if len(rd2.OverrideOptions.Fields) == 0 {
 		rd1.Expression = rd2.Expression
 	} else if slices.Contains(rd2.OverrideOptions.Fields, OverrideAllFields) {
+		// keep the original policy
+		policy := rd1.Policy
+
 		*rd1 = *rd2
+		rd1.Policy = policy
 	} else {
 		if slices.Contains(rd2.OverrideOptions.Fields, OverrideExpressionField) {
 			rd1.Expression = rd2.Expression
