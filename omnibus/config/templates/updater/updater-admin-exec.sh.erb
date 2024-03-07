@@ -138,7 +138,7 @@ while true; do
 
     result="success"
     if [ -n "$error_message" ]; then
-       result="error: $error_message"
+       result="$error_message"
     fi
     echo "sending $result"
     echo "$result" >&3

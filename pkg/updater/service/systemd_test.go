@@ -9,8 +9,11 @@
 package service
 
 import (
-	"fmt"
+	_ "embed"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,14 +21,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setTestFifoPaths(testName string) {
-	updaterTestID := time.Now().UnixNano()
-	inFifoPath = fmt.Sprintf("/tmp/updater_%s_%v_in.fifo", testName, updaterTestID)
-	outFifoPath = fmt.Sprintf("/tmp/updater_%s_%v_out.fifo", testName, updaterTestID)
+const updaterTestPath = "/tmp/updater_tests"
+
+func setTestFifoPaths() {
+	inFifoPath = updaterTestPath + "/run/in.fifo"
+	outFifoPath = updaterTestPath + "/run/out.fifo"
+}
+
+func runAdmin(t *testing.T) <-chan int {
+	assert.Nil(t, exec.Command("mkdir", "-p", "/tmp/updater_tests/run").Run())
+	template, err := ioutil.ReadFile("../../../omnibus/config/templates/updater/updater-admin-exec.sh.erb")
+	assert.Nil(t, err)
+	runScript := strings.Replace(string(template), "<%= install_dir %>", updaterTestPath, -1)
+
+	done := make(chan int, 0)
+	go func() {
+		cmd := exec.Command("/bin/sh", "-c", string(runScript))
+		cmd.Dir = updaterTestPath
+		assert.Nil(t, cmd.Run())
+		done <- 1
+	}()
+	return done
 }
 
 func TestScriptRunnerBootAndCleanup(t *testing.T) {
-	setTestFifoPaths("boot_clean")
+	setTestFifoPaths()
 
 	// installing fake fifo files to assert cleanup at newScriptRunner
 	f, err := os.Create(inFifoPath)
@@ -53,4 +73,36 @@ func TestScriptRunnerBootAndCleanup(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 	_, err = os.Stat(outFifoPath)
 	assert.True(t, os.IsNotExist(err))
+}
+
+func TestCommands(t *testing.T) {
+	setTestFifoPaths()
+	s, err := newScriptRunner()
+	assert.Nil(t, err)
+	require.NotNil(t, s)
+	defer s.close()
+
+	done := runAdmin(t)
+
+	// assert wrong commands
+	for input, expected := range map[string]string{
+		// fail assert_command max size
+		strings.Repeat("a", 101): "error executing command " + strings.Repeat("a", 101) + ": command longer than 100",
+		// fail assert_command characters assertion
+		";": "error executing command ;: invalid command: ;",
+		"&": "error executing command &: invalid command: &",
+		"/": "error executing command /: invalid command: /",
+
+		// fail command does not exist
+		"echo hello": "error executing command echo hello: not supported command: echo",
+	} {
+		assert.Equal(t, expected, s.executeCommand(input).Error())
+	}
+
+	s.close()
+	select {
+	case <-time.After(30 * time.Second):
+		t.Fatal("timeout")
+	case <-done:
+	}
 }

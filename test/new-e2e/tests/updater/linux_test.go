@@ -56,7 +56,7 @@ func (v *vmUpdaterSuite) TestUpdaterAdmin() {
 
 	// assert failures
 	expectedResults := map[string]string{
-		"&": "error: invalid command: &",
+		"&": "invalid command: &",
 	}
 	for cmd, expected := range expectedResults {
 		go func() {
