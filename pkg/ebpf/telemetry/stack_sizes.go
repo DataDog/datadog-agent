@@ -105,7 +105,8 @@ func parseStackSizesSections(bytecode io.ReaderAt, functions map[string]struct{}
 			}
 
 			if _, ok := symbols[symbolKey{int(section.Link), s}]; ok {
-				sizes[symbols[symbolKey{int(section.Link), s}]] = size
+				key := symbolKey{int(section.Link), s}
+				sizes[symbols[key]] = size
 			}
 		}
 	}
