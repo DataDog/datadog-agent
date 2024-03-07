@@ -6,11 +6,34 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
+
+// Identity contains the name and SID of an identity (user or group)
+type Identity struct {
+	Name string
+	SID  string
+}
+
+// GetName returns the name of the identity
+func (i Identity) GetName() string {
+	return i.Name
+}
+
+// GetSID returns the SID of the identity
+func (i Identity) GetSID() string {
+	return i.SID
+}
+
+// SecurityIdentifier is an interface for objects that have a name and SID
+type SecurityIdentifier interface {
+	GetName() string
+	GetSID() string
+}
 
 // MakeDownLevelLogonName joins a user and domain into a single string, e.g. DOMAIN\user
 //
@@ -62,4 +85,50 @@ func DotSlashNameToLogonName(host *components.RemoteHost, user string) (string, 
 	}
 	user = strings.TrimPrefix(user, ".\\")
 	return MakeDownLevelLogonName(hostname, user), nil
+}
+
+// GetADGroupMembers returns the list of members of the given AD group
+func GetADGroupMembers(host *components.RemoteHost, group string) ([]Identity, error) {
+	cmd := fmt.Sprintf(`ConvertTo-JSON -InputObject @(Get-ADGroupMember -Identity "%s" | Foreach-Object {
+		@{
+			Name = $_.Name
+			SID = $_.SID.Value
+		}})`, group)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return nil, err
+	}
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return nil, nil
+	}
+	var members []Identity
+	err = json.Unmarshal([]byte(out), &members)
+	if err != nil {
+		return nil, err
+	}
+	return members, nil
+}
+
+// GetLocalGroupMembers returns the list of members of the given local group
+func GetLocalGroupMembers(host *components.RemoteHost, group string) ([]Identity, error) {
+	cmd := fmt.Sprintf(`ConvertTo-JSON -InputObject @(Get-LocalGroupMember -Name "%s" | Foreach-Object {
+		@{
+			Name = $_.Name
+			SID = $_.SID.Value
+		}})`, group)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return nil, err
+	}
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return nil, nil
+	}
+	var members []Identity
+	err = json.Unmarshal([]byte(out), &members)
+	if err != nil {
+		return nil, err
+	}
+	return members, nil
 }
