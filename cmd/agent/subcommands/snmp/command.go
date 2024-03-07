@@ -362,8 +362,8 @@ func snmpwalk(connParams *connectionParams, args argsType, conf config.Component
 	return nil
 }
 
+// printValue prints a PDU in a similar style to snmpwalk -Ont
 func printValue(pdu gosnmp.SnmpPDU) error {
-
 	fmt.Printf("%s = ", pdu.Name)
 
 	switch pdu.Type {
@@ -383,13 +383,13 @@ func printValue(pdu gosnmp.SnmpPDU) error {
 	case gosnmp.TimeTicks:
 		fmt.Print(pdu.Value, "\n")
 	case gosnmp.Counter32:
-		fmt.Printf("Counter 32: %d\n", pdu.Value.(uint))
+		fmt.Printf("Counter32: %d\n", pdu.Value.(uint))
 	case gosnmp.Counter64:
-		fmt.Printf("Counter 64: %d\n", pdu.Value.(uint64))
+		fmt.Printf("Counter64: %d\n", pdu.Value.(uint64))
 	case gosnmp.Integer:
 		fmt.Printf("INTEGER: %d\n", pdu.Value.(int))
 	case gosnmp.Gauge32:
-		fmt.Printf("Gauge 32: %d\n", pdu.Value.(uint))
+		fmt.Printf("Gauge32: %d\n", pdu.Value.(uint))
 	case gosnmp.IPAddress:
 		fmt.Printf("IpAddress: %s\n", pdu.Value.(string))
 	default:
