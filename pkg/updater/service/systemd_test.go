@@ -9,7 +9,7 @@ package service
 
 import (
 	_ "embed"
-	"io/ioutil"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -20,20 +20,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const updaterTestPath = "/tmp/updater_tests"
-
-func init() {
-	inFifoPath = updaterTestPath + "/run/in.fifo"
-	outFifoPath = updaterTestPath + "/run/out.fifo"
+func setFifoPaths(t *testing.T) string {
+	tmpDir := t.TempDir()
+	inFifoPath = tmpDir + "/run/in.fifo"
+	outFifoPath = tmpDir + "/run/out.fifo"
+	assert.Nil(t, exec.Command("mkdir", "-p", tmpDir+"/run").Run())
+	return tmpDir
 }
 
-func runAdmin(t *testing.T) <-chan int {
-	assert.Nil(t, exec.Command("mkdir", "-p", "/tmp/updater_tests/run").Run())
-	template, err := ioutil.ReadFile("../../../omnibus/config/templates/updater/updater-admin-exec.sh.erb")
+func runAdmin(t *testing.T, updaterTestPath string) <-chan int {
+	template, err := os.ReadFile("../../../omnibus/config/templates/updater/updater-admin-exec.sh.erb")
 	assert.Nil(t, err)
 	runScript := strings.Replace(string(template), "<%= install_dir %>", updaterTestPath, -1)
 
-	done := make(chan int, 0)
+	fmt.Println(inFifoPath)
+	done := make(chan int)
 	go func() {
 		cmd := exec.Command("/bin/sh", "-c", string(runScript))
 		cmd.Dir = updaterTestPath
@@ -44,6 +45,7 @@ func runAdmin(t *testing.T) <-chan int {
 }
 
 func TestScriptRunnerBootAndCleanup(t *testing.T) {
+	setFifoPaths(t)
 
 	// installing fake fifo files to assert cleanup at newScriptRunner
 	f, err := os.Create(inFifoPath)
@@ -74,12 +76,13 @@ func TestScriptRunnerBootAndCleanup(t *testing.T) {
 }
 
 func TestInvalidCommands(t *testing.T) {
+	updaterPath := setFifoPaths(t)
 	s, err := newScriptRunner()
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 	defer s.close()
 
-	done := runAdmin(t)
+	done := runAdmin(t, updaterPath)
 
 	// assert wrong commands
 	for input, expected := range map[string]string{
