@@ -1315,7 +1315,6 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
-    instrument_trampoline=False,
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
@@ -1422,7 +1421,6 @@ def build_object_files(
         debug=debug,
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
-        instrument_trampoline=instrument_trampoline,
     )
 
     if not is_windows:
