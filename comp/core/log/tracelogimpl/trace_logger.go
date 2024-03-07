@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package logimpl
+// Package tracelogimpl provides a component that implements the log.Component for the trace-agent logger
+package tracelogimpl
 
 import (
 	"context"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -86,24 +88,24 @@ func (*tracelogger) Criticalf(format string, params ...interface{}) error {
 // Flush implements Component#Flush.
 func (*tracelogger) Flush() { pkglog.Flush() }
 
-func newTraceLogger(lc fx.Lifecycle, params Params, config config.Component, telemetryCollector telemetry.TelemetryCollector) (log.Component, error) {
+func newTraceLogger(lc fx.Lifecycle, params logimpl.Params, config config.Component, telemetryCollector telemetry.TelemetryCollector) (log.Component, error) {
 	return NewTraceLogger(lc, params, config, telemetryCollector)
 }
 
 // NewTraceLogger creates a pkglog.Component using the provided config.LogConfig
-func NewTraceLogger(lc fx.Lifecycle, params Params, config config.LogConfig, telemetryCollector telemetry.TelemetryCollector) (log.Component, error) {
-	if params.logLevelFn == nil {
+func NewTraceLogger(lc fx.Lifecycle, params logimpl.Params, config config.LogConfig, telemetryCollector telemetry.TelemetryCollector) (log.Component, error) {
+	if !params.IsLogLevelFnSet() {
 		return nil, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}
 
 	err := pkgconfiglogs.SetupLogger(
-		pkgconfiglogs.LoggerName(params.loggerName),
-		params.logLevelFn(config),
-		params.logFileFn(config),
-		params.logSyslogURIFn(config),
-		params.logSyslogRFCFn(config),
-		params.logToConsoleFn(config),
-		params.logFormatJSONFn(config),
+		pkgconfiglogs.LoggerName(params.LoggerName()),
+		params.LogLevelFn(config),
+		params.LogFileFn(config),
+		params.LogSyslogURIFn(config),
+		params.LogSyslogRFCFn(config),
+		params.LogToConsoleFn(config),
+		params.LogFormatJSONFn(config),
 		config)
 	if err != nil {
 		telemetryCollector.SendStartupError(telemetry.CantCreateLogger, err)

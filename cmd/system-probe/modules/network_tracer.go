@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
@@ -79,11 +78,6 @@ type networkTracer struct {
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
-}
-
-// RegisterGRPC register system probe grpc server
-func (nt *networkTracer) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
 }
 
 // Register all networkTracer endpoints
