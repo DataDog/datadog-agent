@@ -214,7 +214,7 @@ func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Compo
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
 		diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, collector, secretResolver)
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseDeps)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseDeps, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
