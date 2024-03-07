@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
 // Package service provides a way to interact with os services
 package service

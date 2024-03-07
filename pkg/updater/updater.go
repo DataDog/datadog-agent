@@ -216,7 +216,7 @@ func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
-	_ = service.SetupAgentUnits()
+	err = service.SetupAgentUnits()
 	if err != nil {
 		return fmt.Errorf("could not setup agent units: %w", err)
 	}
