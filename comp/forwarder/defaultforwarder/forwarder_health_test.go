@@ -6,9 +6,12 @@
 package defaultforwarder
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sort"
 	"testing"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -128,4 +132,60 @@ func TestCheckValidAPIKeyErrors(t *testing.T) {
 	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with _key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 	assert.Equal(t, &apiKeyEndpointUnreachable, apiKeyStatus.Get("API key ending with key4"))
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts1.Close()
+	defer ts2.Close()
+
+	// get ports from the test servers to make expected data
+	addr, _ := url.Parse(ts1.URL)
+	_, ts1Port, _ := net.SplitHostPort(addr.Host)
+	addr, _ = url.Parse(ts2.URL)
+	_, ts2Port, _ := net.SplitHostPort(addr.Host)
+
+	// starting API Keys, before the update
+	keysPerDomains := map[string][]string{
+		ts1.URL: {"api_key1", "api_key2"},
+		ts2.URL: {"api_key3"},
+	}
+
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	// updating the API Key requires that the config contains a value for the "api_key" field
+	if config, ok := cfg.(pkgconfigmodel.Config); ok {
+		config.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
+	}
+
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
+	fh.init()
+	assert.True(t, fh.checkValidAPIKey())
+
+	// domainResolvers and keysPerAPIEndpoint have the given API Keys
+	for domain, expectedKeys := range keysPerDomains {
+		assert.Equal(t, expectedKeys, fh.domainResolvers[domain].GetAPIKeys())
+	}
+	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
+	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
+	assert.Equal(t, expect, string(data))
+
+	// update the main API Key
+	fh.updateAPIKey("api_key4")
+
+	// ensure that domainResolvers and keysPerAPIEndpoint have the new API Key
+	for domain, expectedKeys := range keysPerDomains {
+		if domain == ts1.URL {
+			expectedKeys = []string{"api_key4", "api_key2"}
+		}
+		assert.Equal(t, expectedKeys, fh.domainResolvers[domain].GetAPIKeys())
+	}
+	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
+	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key4","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
+	assert.Equal(t, expect, string(data))
 }
