@@ -16,14 +16,26 @@ import (
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
+	Package *Package
+	// Installer parameters
 	AgentUser           string `installer_arg:"DDAGENTUSER_NAME"`
 	AgentUserPassword   string `installer_arg:"DDAGENTUSER_PASSWORD"`
-	Site                string `installer_arg:"SITE"`
-	DdURL               string `installer_arg:"DD_URL"`
-	APIKey              string `installer_arg:"APIKEY"`
 	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
 	InstallLogFile      string
-	Package             *Package
+	// Installer parameters for agent config
+	Site          string `installer_arg:"SITE"`
+	DdURL         string `installer_arg:"DD_URL"`
+	APIKey        string `installer_arg:"APIKEY"`
+	Tags          string `installer_arg:"TAGS"`
+	Hostname      string `installer_arg:"HOSTNAME"`
+	CmdPort       string `installer_arg:"CMD_PORT"`
+	ProxyHost     string `installer_arg:"PROXY_HOST"`
+	ProxyPort     string `installer_arg:"PROXY_PORT"`
+	ProxyUser     string `installer_arg:"PROXY_USER"`
+	ProxyPassword string `installer_arg:"PROXY_PASSWORD"`
+	LogsDdURL     string `installer_arg:"LOGS_DD_URL"`
+	ProcessDdURL  string `installer_arg:"PROCESS_DD_URL"`
+	TraceDdURL    string `installer_arg:"TRACE_DD_URL"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -137,6 +149,86 @@ func WithFakeIntake(fakeIntake *components.FakeIntake) InstallAgentOption {
 func WithWixFailWhenDeferred() InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.WixFailWhenDeferred = "1"
+		return nil
+	}
+}
+
+// WithTags specifies the TAGS parameter.
+func WithTags(tags string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.Tags = tags
+		return nil
+	}
+}
+
+// WithHostname specifies the HOSTNAME parameter.
+func WithHostname(hostname string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.Hostname = hostname
+		return nil
+	}
+}
+
+// WithCmdPort specifies the CMD_PORT parameter.
+func WithCmdPort(cmdPort string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.CmdPort = cmdPort
+		return nil
+	}
+}
+
+// WithProxyHost specifies the PROXY_HOST parameter.
+func WithProxyHost(proxyHost string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyHost = proxyHost
+		return nil
+	}
+}
+
+// WithProxyPort specifies the PROXY_PORT parameter.
+func WithProxyPort(proxyPort string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyPort = proxyPort
+		return nil
+	}
+}
+
+// WithProxyUser specifies the PROXY_USER parameter.
+func WithProxyUser(proxyUser string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyUser = proxyUser
+		return nil
+	}
+}
+
+// WithProxyPassword specifies the PROXY_PASSWORD parameter.
+func WithProxyPassword(proxyPassword string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyPassword = proxyPassword
+		return nil
+	}
+}
+
+// WithLogsDdURL specifies the LOGS_DD_URL parameter.
+func WithLogsDdURL(logsDdURL string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.LogsDdURL = logsDdURL
+		return nil
+	}
+}
+
+// WithProcessDdURL specifies the PROCESS_DD_URL parameter.
+func WithProcessDdURL(processDdURL string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProcessDdURL = processDdURL
+		return nil
+	}
+}
+
+// WithTraceDdURL specifies the TRACE_DD_URL parameter.
+func WithTraceDdURL(traceDdURL string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.TraceDdURL = traceDdURL
 		return nil
 	}
 }
