@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package setup
 
 import (
@@ -1418,4 +1416,35 @@ use_proxy_for_cloud_metadata: true
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestServerlessConfigNumComponents(t *testing.T) {
+	// Enforce the number of config "components" reachable by the serverless agent
+	// to avoid accidentally adding entire components if it's not needed
+	require.Len(t, serverlessConfigComponents, 21)
+}
+
+func TestServerlessConfigInit(t *testing.T) {
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	initCommonWithServerless(conf)
+
+	// ensure some core configs are declared
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+
+	// ensure some non-serverless configs are not declared
+	assert.False(t, conf.IsKnown("sbom.enabled"))
+	assert.False(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestAgentConfigInit(t *testing.T) {
+	conf := Conf()
+
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+	assert.True(t, conf.IsKnown("sbom.enabled"))
+	assert.True(t, conf.IsKnown("inventories_enabled"))
 }
