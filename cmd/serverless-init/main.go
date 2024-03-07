@@ -8,6 +8,8 @@
 package main
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"time"
@@ -74,7 +76,6 @@ func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.Serve
 	prefix := cloudService.GetPrefix()
 
 	logConfig := serverlessInitLog.CreateConfig(origin)
-	logsAgent := serverlessInitLog.SetupLog(logConfig, tags)
 
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
@@ -86,6 +87,8 @@ func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.Serve
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
+	common.LoadComponents(nil, workloadmeta.GetGlobalStore(), config.Datadog.GetString("confd_path"))
+	logsAgent := serverlessInitLog.SetupLog(logConfig, tags)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
