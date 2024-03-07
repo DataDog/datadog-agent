@@ -62,13 +62,13 @@ type http2Path struct {
 	Finalized          bool
 }
 type HTTP2Stream struct {
-	Response_last_seen    uint64
-	Request_started       uint64
-	Status_code           http2StatusCode
-	Request_method        http2requestMethod
-	Path                  http2Path
-	Request_end_of_stream bool
-	Pad_cgo_0             [2]byte
+	Response_last_seen uint64
+	Request_started    uint64
+	Status_code        http2StatusCode
+	Request_method     http2requestMethod
+	Path               http2Path
+	End_of_stream_seen bool
+	Pad_cgo_0          [2]byte
 }
 type EbpfTx struct {
 	Tuple  connTuple

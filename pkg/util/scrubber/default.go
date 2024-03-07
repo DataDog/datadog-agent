@@ -60,9 +60,9 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"Bearer"},
 		Repl:  []byte(`Bearer ***********************************************************$1`),
 	}
-	// For this one we match any letters, not just a -> f
+	// For this one we match any characters
 	hintedBearerInvalidReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bBearer [a-zA-Z0-9]+\b`),
+		Regex: regexp.MustCompile(`\bBearer\s+[^*]+\b`),
 		Hints: []string{"Bearer"},
 		Repl:  []byte("Bearer " + defaultReplacement),
 	}
@@ -104,8 +104,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]byte(`$1 "********"`),
 	)
 	snmpReplacer := matchYAMLKey(
-		`(community_string|authKey|privKey|community|authentication_key|privacy_key)`,
-		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
+		`(community_string|authKey|privKey|community|authentication_key|privacy_key|Authorization|authorization)`,
+		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
 	snmpMultilineReplacer := matchYAMLKeyWithListValue(
