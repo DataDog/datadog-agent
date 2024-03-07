@@ -157,7 +157,7 @@ func deleteRegistryKey(path string) error {
 }
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest() error {
+func (t *SelfTester) RunSelfTest(_ time.Duration) error {
 	t.Lock()
 	defer t.Unlock()
 
@@ -172,7 +172,7 @@ func (t *SelfTester) RunSelfTest() error {
 	return nil
 }
 
-// Start the self tester policy provider
+// Start starts the self tester policy provider
 func (t *SelfTester) Start() {}
 
 // WaitForResult wait for self test results
