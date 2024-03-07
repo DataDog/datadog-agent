@@ -8,7 +8,6 @@ package timing
 import (
 	"fmt"
 	"math/rand"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -19,10 +18,10 @@ import (
 )
 
 func TestTiming(t *testing.T) {
-	assert := assert.New(t)
 	stats := &teststatsd.Client{}
 
 	t.Run("report", func(t *testing.T) {
+		assert := assert.New(t)
 		set := newSet(stats)
 		set.Since("counter1", time.Now().Add(-2*time.Second))
 		set.Since("counter1", time.Now().Add(-3*time.Second))
@@ -43,12 +42,10 @@ func TestTiming(t *testing.T) {
 		set := newSet(stats)
 		set.Since("counter1", time.Now().Add(-1*time.Second))
 		set.autoreport(time.Millisecond)
-		if runtime.GOOS == "windows" {
-			time.Sleep(5 * time.Second)
-		}
-		time.Sleep(10 * time.Millisecond)
 		set.Stop()
-		assert.Contains(stats.GetCountSummaries(), "counter1.count")
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			assert.Contains(c, stats.GetCountSummaries(), "counter1.count")
+		}, 5*time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("panic", func(t *testing.T) {
