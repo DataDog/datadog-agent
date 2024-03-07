@@ -217,7 +217,7 @@ def assign_team_label(_, pr_id=-1):
     Assigns the github team label name if teams can
     be deduced from the changed files
     """
-    import github
+    # import github
 
     from tasks.libs.common.github_api import GithubAPI
 
@@ -226,9 +226,9 @@ def assign_team_label(_, pr_id=-1):
     labels = gh.get_pr_labels(pr_id)
 
     # Skip if necessary
-    if 'qa/done' in labels or 'qa/no-code-change' in labels:
-        print('Qa done or no code change, skipping')
-        return
+    # if 'qa/done' in labels or 'qa/no-code-change' in labels:
+    #     print('Qa done or no code change, skipping')
+    #     return
 
     if any(label.startswith('team/') for label in labels):
         print('This PR already has a team label, skipping')
@@ -241,10 +241,11 @@ def assign_team_label(_, pr_id=-1):
         return
 
     # Assign label
-    team_labels = [f"team{team.removeprefix('@Datadog')}" for team in teams if team.startswith("@DataDog/")]
-    for label_name in team_labels:
-        try:
-            gh.add_pr_label(pr_id, label_name)
-            print(label_name, 'label assigned to the pull request')
-        except github.GithubException.GithubException:
-            print(f'Failed to assign label {label_name}')
+    team_labels = [f"team{team.removeprefix('@DataDog')}" for team in teams if team.startswith("@DataDog/")]
+    print('LABEL:', team_labels)
+    # for label_name in team_labels:
+    #     try:
+    #         gh.add_pr_label(pr_id, label_name)
+    #         print(label_name, 'label assigned to the pull request')
+    #     except github.GithubException.GithubException:
+    #         print(f'Failed to assign label {label_name}')
