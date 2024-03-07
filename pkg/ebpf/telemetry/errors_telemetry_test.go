@@ -86,16 +86,20 @@ func TestBinaryCorrectlyInstrumented(t *testing.T) {
 
 func TestInstrumentationCodeHasLT8BytesStackAccess(t *testing.T) {
 	bpfDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
-	bpfAsset, err := netbpf.ReadEBPFInstrumentationModule(bpfDir, instrumentation.filename)
+	bpfAsset, err := netbpf.ReadEBPFInstrumentationModule(bpfDir, InstrumentationFunctions.Filename)
 	require.NoError(t, err)
 
 	collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
 	require.NoError(t, err)
 
-	sizes, err := parseStackSizesSections(bpfAsset, collectionSpec.Programs)
+	functions := make(map[string]struct{}, len(collectionSpec.Programs))
+	for fn, _ := range collectionSpec.Programs {
+		functions[fn] = struct{}{}
+	}
+	sizes, err := parseStackSizesSections(bpfAsset, functions)
 	require.NoError(t, err)
 
-	for _, program := range instrumentation.functions {
+	for _, program := range InstrumentationFunctions.functions {
 		_, ok := collectionSpec.Programs[program]
 		require.True(t, ok)
 
