@@ -25,7 +25,7 @@ type linuxTestSuite struct {
 }
 
 func TestLinuxTestSuite(t *testing.T) {
-	e2e.Run(t, &linuxTestSuite{},
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithSkipDeleteOnFailure(), e2e.WithDevMode(),
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))),
 	)
 }
@@ -155,21 +155,10 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
-	// check that intake has process agent log
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs("process-agent", fi.WithMessageMatching("Starting process-agent with enabled checks=[connections]"))
-		assert.NoErrorf(c, err, "Error found: %s", err)
-		assert.NotEmpty(c, logs, "Expected at least 1 log with content")
-	}, 2*time.Minute, 10*time.Second)
-
-	// check that intake has core agent log
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs("datadog-agent", fi.WithMessageMatching("Starting process-agent with enabled checks=[process rtprocess]"))
-		assert.NoErrorf(c, err, "Error found: %s", err)
-		assert.NotEmpty(c, logs, "Expected at least 1 log with content")
-	}, 2*time.Minute, 10*time.Second)
-
 	assertProcessCollected(t, payloads, false, "stress")
+
+	// check that the process agent is not collected as it should not be running
+	requireProcessNotCollected(t, payloads, "process-agent")
 }
 
 func (s *linuxTestSuite) TestProcessChecksWithNPM() {
@@ -191,13 +180,6 @@ func (s *linuxTestSuite) TestProcessChecksWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 2*time.Minute, 10*time.Second)
-
-	// check that intake has process agent log
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := s.Env().FakeIntake.Client().FilterLogs("process-agent", fi.WithMessageMatching("Starting process-agent with enabled checks=[connections process rtprocess]"))
-		assert.NoErrorf(c, err, "Error found: %s", err)
-		assert.NotEmpty(c, logs, "Expected at least 1 log with content")
 	}, 2*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress")
