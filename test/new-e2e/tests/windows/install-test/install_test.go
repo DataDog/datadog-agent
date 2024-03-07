@@ -38,6 +38,7 @@ type agentMSISuite struct {
 }
 
 func TestMSI(t *testing.T) {
+	// TODO: JL, convert this to a dedicated Windows provider
 	provisioner := e2e.NewTypedPulumiProvisioner("aws-ec2", func(ctx *pulumi.Context, suite *agentMSISuite) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -48,7 +49,9 @@ func TestMSI(t *testing.T) {
 			return err
 		}
 		err = vm.Export(ctx, &suite.Env().RemoteHost.HostOutput)
-
+		if err != nil {
+			return err
+		}
 		def, err := defender.NewDefender(awsEnv.CommonEnvironment, vm, defender.WithDefenderDisabled())
 		if err != nil {
 			return err
