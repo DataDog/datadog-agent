@@ -198,7 +198,12 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("http://%s/config/all", addressPort)
 
-	return getHTTPCallContent(procStatusURL)
+	bytes, err := getHTTPCallContent(procStatusURL)
+
+	if err != nil {
+		return []byte("error: process-agent is not running or is unreachable\n"), nil
+	}
+	return bytes, nil
 }
 
 func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
