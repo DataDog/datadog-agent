@@ -352,44 +352,44 @@ func (is *agentMSISuite) TestInstallOpts() {
 	is.Require().NoError(err)
 
 	assert.Contains(is.T(), confYaml, "hostname")
-	assert.Equal(is.T(), "win-installopts", confYaml["hostname"])
+	assert.Equal(is.T(), "win-installopts", confYaml["hostname"], "hostname should match")
 	assert.Contains(is.T(), confYaml, "api_key")
-	assert.Equal(is.T(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", confYaml["api_key"])
+	assert.Equal(is.T(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", confYaml["api_key"], "api_key should match")
 	assert.Contains(is.T(), confYaml, "tags")
-	assert.ElementsMatch(is.T(), []string{"k1:v1", "k2:v2"}, confYaml["tags"])
+	assert.ElementsMatch(is.T(), []string{"k1:v1", "k2:v2"}, confYaml["tags"], "tags should match")
 	assert.Contains(is.T(), confYaml, "cmd_port")
-	assert.Equal(is.T(), cmdPort, confYaml["cmd_port"])
+	assert.Equal(is.T(), cmdPort, confYaml["cmd_port"], "cmd_port should match")
 	assert.Contains(is.T(), confYaml, "site")
-	assert.Equal(is.T(), "eu", confYaml["site"])
+	assert.Equal(is.T(), "eu", confYaml["site"], "site should match")
 	assert.Contains(is.T(), confYaml, "dd_url")
-	assert.Equal(is.T(), "https://someurl.datadoghq.com", confYaml["dd_url"])
+	assert.Equal(is.T(), "https://someurl.datadoghq.com", confYaml["dd_url"], "dd_url should match")
 
 	if assert.Contains(is.T(), confYaml, "proxy") {
 		// https proxy conf does use http:// in the URL
 		// https://docs.datadoghq.com/agent/configuration/proxy/?tab=windows
 		proxyConf := confYaml["proxy"].(map[string]interface{})
 		assert.Contains(is.T(), proxyConf, "https")
-		assert.Equal(is.T(), "http://puser:ppass@proxy.foo.com:1234/", proxyConf["https"])
+		assert.Equal(is.T(), "http://puser:ppass@proxy.foo.com:1234/", proxyConf["https"], "https proxy should match")
 		assert.Contains(is.T(), proxyConf, "http")
-		assert.Equal(is.T(), "http://puser:ppass@proxy.foo.com:1234/", proxyConf["http"])
+		assert.Equal(is.T(), "http://puser:ppass@proxy.foo.com:1234/", proxyConf["http"], "http proxy should match")
 	}
 
 	if assert.Contains(is.T(), confYaml, "logs_config") {
 		logsConf := confYaml["logs_config"].(map[string]interface{})
 		assert.Contains(is.T(), logsConf, "logs_dd_url")
-		assert.Equal(is.T(), "https://logs.someurl.datadoghq.com", logsConf["logs_dd_url"])
+		assert.Equal(is.T(), "https://logs.someurl.datadoghq.com", logsConf["logs_dd_url"], "logs_dd_url should match")
 	}
 
 	if assert.Contains(is.T(), confYaml, "process_config") {
 		processConf := confYaml["process_config"].(map[string]interface{})
 		assert.Contains(is.T(), processConf, "process_dd_url")
-		assert.Equal(is.T(), "https://process.someurl.datadoghq.com", processConf["process_dd_url"])
+		assert.Equal(is.T(), "https://process.someurl.datadoghq.com", processConf["process_dd_url"], "process_dd_url should match")
 	}
 
 	if assert.Contains(is.T(), confYaml, "apm_config") {
 		apmConf := confYaml["apm_config"].(map[string]interface{})
 		assert.Contains(is.T(), apmConf, "apm_dd_url")
-		assert.Equal(is.T(), "https://trace.someurl.datadoghq.com", apmConf["apm_dd_url"])
+		assert.Equal(is.T(), "https://trace.someurl.datadoghq.com", apmConf["apm_dd_url"], "apm_dd_url should match")
 	}
 
 	// check that agent is listening on the new bound port
