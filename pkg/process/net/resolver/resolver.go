@@ -39,7 +39,7 @@ func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock 
 	return &LocalResolver{
 		ContainerProvider: containerProvider,
 		Clock:             clock,
-		done: 			make(chan bool),
+		done:              make(chan bool),
 	}
 }
 
