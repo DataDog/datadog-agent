@@ -392,7 +392,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 }
 
 func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
-	tailerInfo := status.NewInfoRegistry()
+	tailerInfo := t.GetInfo()
 	return t.NewRotatedTailer(file, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo)
 }
 

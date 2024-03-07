@@ -213,8 +213,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		backoffDuration := d.backoff.GetBackoffDuration(d.nbErrors)
 		d.blockedUntil = time.Now().Add(backoffDuration)
 		if d.blockedUntil.After(time.Now()) {
-			log.Debugf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
+			log.Warnf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
 			d.waitForBackoff()
+			metrics.RetryTimeSpent.Add(int64(backoffDuration))
+			metrics.RetryCount.Add(1)
+			metrics.TlmRetryCount.Add(1)
 		}
 		d.retryLock.Unlock()
 
@@ -223,7 +226,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
-			log.Debugf("Could not send payload: %v", err)
+			log.Warnf("Could not send payload: %v", err)
 		}
 
 		if err == context.Canceled {
