@@ -241,7 +241,7 @@ def assign_team_label(_, pr_id=-1):
         return
 
     # Assign label
-    team_labels = [f"team{team.removeprefix('@Datadog')}" for team in teams if team.startswith("@DataDog/")]
+    team_labels = [f"team{team.removeprefix('@DataDog')}" for team in teams if team.startswith("@DataDog/")]
     for label_name in team_labels:
         try:
             gh.add_pr_label(pr_id, label_name)
