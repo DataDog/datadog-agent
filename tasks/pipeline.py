@@ -1,13 +1,12 @@
 import os
 import pprint
 import re
-import sys
 import time
 from datetime import datetime, timedelta
 
 import yaml
 from invoke import task
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
@@ -847,20 +846,18 @@ def trigger_external(ctx, contributor_branch_name: str, no_verify=False):
     ]
 
     # Run commands then restore commands
-    try:
-        for command in commands:
-            ctx.run(command)
-    except UnexpectedExit:
-        print(f'Command "{command}" failed', file=sys.stderr)
-        raise
-    finally:
-        # Restore current state
-        for command in restore_commands:
-            try:
-                ctx.run(command)
-            except UnexpectedExit:
-                # Allow restore commands to fail
-                pass
+    ret_code = 0
+    for command in commands:
+        ret_code = ctx.run(command, warn=True, echo=True).exited
+        if ret_code != 0:
+            break
+
+    # Restore current state
+    for command in restore_commands:
+        ctx.run(command, warn=True)
+
+    if ret_code != 0:
+        exit(1)
 
     repo = f'https://github.com/DataDog/datadog-agent/tree/{contributor}/{branch}'
     print(f'Branch {contributor}/{branch} pushed to repo: {repo}')
