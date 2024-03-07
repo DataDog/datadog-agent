@@ -202,7 +202,10 @@ func (t *Tester) UninstallAgentAndRunUninstallTests(tt *testing.T, logfile strin
 		// agent is uninstalled now, so register for snapshots to be removed
 		// at end of the test.
 		tt.Cleanup(func() {
-			t.systemFileIntegrityTester.RemoveSnapshots()
+			err := t.systemFileIntegrityTester.RemoveSnapshots()
+			if err != nil {
+				tt.Logf("failed to remove snapshots: %v", err)
+			}
 		})
 
 		t.TestUninstallExpectations(tt)
