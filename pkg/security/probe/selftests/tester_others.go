@@ -159,11 +159,11 @@ func deleteRegistryKey(path string) error {
 }
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest(_ time.Duration) error {
+func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
 	t.Lock()
 	defer t.Unlock()
 
-	t.beginSelfTests()
+	t.beginSelfTests(timeout)
 
 	for _, selfTest := range t.selfTests {
 		if err := selfTest.GenerateEvent(); err != nil {
