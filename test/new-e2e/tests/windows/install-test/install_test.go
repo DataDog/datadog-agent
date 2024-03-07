@@ -117,7 +117,7 @@ func (is *agentMSISuite) TestUpgrade() {
 	is.prepareHost()
 
 	// install previous version
-	_ = is.installLastStable(vm, nil)
+	_ = is.installLastStable(vm)
 
 	// upgrade to the new version
 	if !is.Run(fmt.Sprintf("upgrade to %s", is.AgentPackage.AgentVersion()), func() {
@@ -145,7 +145,7 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 	is.prepareHost()
 
 	// install previous version
-	previousTester := is.installLastStable(vm, nil)
+	previousTester := is.installLastStable(vm)
 
 	// upgrade to the new version, but intentionally fail
 	if !is.Run(fmt.Sprintf("upgrade to %s with rollback", is.AgentPackage.AgentVersion()), func() {
