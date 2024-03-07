@@ -41,7 +41,6 @@ func (v *vmUpdaterSuite) TestUpdaterOwnership() {
 }
 
 func (v *vmUpdaterSuite) TestUpdaterAdmin() {
-	adminUnit := "datadog-updater-admin.service"
 	adminPathUnit := "datadog-updater-admin.path"
 	inFifoPath := "/opt/datadog/updater/run/in.fifo"
 	outFifoPath := "/opt/datadog/updater/run/out.fifo"
