@@ -98,8 +98,6 @@
 
 #define HTTP2_CONTENT_TYPE_IDX 31
 
-#define MAX_FRAME_SIZE 16384
-
 typedef enum {
     kGET = 2,
     kPOST = 3,
