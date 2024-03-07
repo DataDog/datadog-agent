@@ -6,6 +6,7 @@
 package installtest
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -50,27 +51,29 @@ func (t *SystemFileIntegrityTester) TakeSnapshot() error {
 
 // RemoveSnapshots removes any snapshots if they exist
 func (t *SystemFileIntegrityTester) RemoveSnapshots() error {
+	// continue on error, return all errors
+	var combinedErr error
 	exists, err := t.host.FileExists(t.firstSnapshotPath)
 	if err != nil {
-		return fmt.Errorf("failed to check if first snapshot exists: %w", err)
+		combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to check if first snapshot exists: %w", err))
 	}
 	if exists {
 		err := t.host.Remove(t.firstSnapshotPath)
 		if err != nil {
-			return fmt.Errorf("failed to remove first snapshot: %w", err)
+			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to remove first snapshot: %w", err))
 		}
 	}
 	exists, err = t.host.FileExists(t.secondSnapshotPath)
 	if err != nil {
-		return fmt.Errorf("failed to check if second snapshot exists: %w", err)
+		combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to check if second snapshot exists: %w", err))
 	}
 	if exists {
 		err := t.host.Remove(t.secondSnapshotPath)
 		if err != nil {
-			return fmt.Errorf("failed to remove second snapshot: %w", err)
+			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to remove second snapshot: %w", err))
 		}
 	}
-	return nil
+	return combinedErr
 }
 
 // AssertDoesRemoveSystemFiles takes a new snapshot and compares it to the original snapshot taken
@@ -79,7 +82,7 @@ func (t *SystemFileIntegrityTester) AssertDoesRemoveSystemFiles(tt *testing.T) b
 	tt.Helper()
 
 	// ensure initial snapshot exists
-	err := validateSystemFIleSnapshot(t.host, t.firstSnapshotPath)
+	err := validateSystemFileSnapshot(t.host, t.firstSnapshotPath)
 	if !assert.NoError(tt, err) {
 		return false
 	}
@@ -89,7 +92,7 @@ func (t *SystemFileIntegrityTester) AssertDoesRemoveSystemFiles(tt *testing.T) b
 	if !assert.NoError(tt, err) {
 		return false
 	}
-	err = validateSystemFIleSnapshot(t.host, t.secondSnapshotPath)
+	err = validateSystemFileSnapshot(t.host, t.secondSnapshotPath)
 	if !assert.NoError(tt, err) {
 		return false
 	}
@@ -145,8 +148,8 @@ func snapshotSystemfiles(host *components.RemoteHost, remotePath string) error {
 	return nil
 }
 
-// validateSystemFIleSnapshot ensures the snapshot file exists and is a reasonable size
-func validateSystemFIleSnapshot(host *components.RemoteHost, remotePath string) error {
+// validateSystemFileSnapshot ensures the snapshot file exists and is a reasonable size
+func validateSystemFileSnapshot(host *components.RemoteHost, remotePath string) error {
 	// ensure file exists
 	_, err := host.Lstat(remotePath)
 	if err != nil {
