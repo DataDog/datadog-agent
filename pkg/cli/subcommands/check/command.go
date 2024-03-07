@@ -195,7 +195,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 				fx.Supply(
 					status.Params{
-						PythonVersionGetFunc: func() string { return python.GetPythonVersion() },
+						PythonVersionGetFunc: python.GetPythonVersion,
 					},
 				),
 				statusimpl.Module(),

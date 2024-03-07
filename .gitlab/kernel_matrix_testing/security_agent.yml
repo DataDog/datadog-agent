@@ -153,7 +153,6 @@ kernel_matrix_testing_run_security_agent_tests_x64:
           - "debian_10"
           - "debian_11"
           - "debian_12"
-          - "centos_79"
         TEST_SET: [all_tests]
 
 kernel_matrix_testing_run_security_agent_tests_arm64:
@@ -182,7 +181,6 @@ kernel_matrix_testing_run_security_agent_tests_arm64:
           - "debian_10"
           - "debian_11"
           - "debian_12"
-          - "centos_79"
         TEST_SET: ["all_tests"]
 
 .kernel_matrix_testing_security_agent_cleanup:

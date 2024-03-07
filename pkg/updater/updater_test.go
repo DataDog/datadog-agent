@@ -74,8 +74,7 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 
 func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
 	rc := &remoteConfig{client: rcc}
-	u, err := newUpdater(rc, t.TempDir(), t.TempDir())
-	assert.NoError(t, err)
+	u := newUpdater(rc, t.TempDir(), t.TempDir())
 	u.catalog = s.Catalog()
 	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
 	u.Start(context.Background())
@@ -91,8 +90,7 @@ func TestUpdaterBootstrap(t *testing.T) {
 	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -131,9 +129,9 @@ func TestUpdaterStartExperiment(t *testing.T) {
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
+	updater.requestsWG.Wait()
 
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
@@ -159,6 +157,7 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
+	updater.requestsWG.Wait()
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
 		Package: fixtureSimpleV1.pkg,
@@ -168,9 +167,9 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 		},
 		Method: methodPromoteExperiment,
 	})
+	updater.requestsWG.Wait()
 
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
@@ -195,8 +194,8 @@ func TestUpdaterStopExperiment(t *testing.T) {
 		Method: methodStartExperiment,
 		Params: json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
 	})
-	r, err := updater.repositories.Get(fixtureSimpleV1.pkg)
-	assert.NoError(t, err)
+	updater.requestsWG.Wait()
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.True(t, state.HasExperiment())
@@ -209,6 +208,7 @@ func TestUpdaterStopExperiment(t *testing.T) {
 		},
 		Method: methodStopExperiment,
 	})
+	updater.requestsWG.Wait()
 
 	state, err = r.GetState()
 	assert.NoError(t, err)
