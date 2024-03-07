@@ -406,7 +406,7 @@ func TestLocalResolverPeriodicUpdates(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockedClock := clock.NewMock()
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
-	resolver := &LocalResolver{Clock: mockedClock, ContainerProvider: mockContainerProvider}
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock)
 	containers := []*model.Container{
 		{
 			Id: "container-1",

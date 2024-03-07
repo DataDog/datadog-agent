@@ -35,9 +35,16 @@ type LocalResolver struct {
 	done               chan bool
 }
 
+func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock clock.Clock) *LocalResolver {
+	return &LocalResolver{
+		ContainerProvider: containerProvider,
+		Clock:             clock,
+		done: 			make(chan bool),
+	}
+}
+
 func (l *LocalResolver) Run() {
 	ticker := l.Clock.Ticker(10 * time.Second)
-	l.done = make(chan bool)
 	go l.pullContainers(ticker)
 }
 
