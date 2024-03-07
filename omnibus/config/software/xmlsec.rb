@@ -42,8 +42,9 @@ build do
 
   update_config_guess
   configure_options = [
-    " --enable-docs",
-    " --disable-static"
+    "--enable-docs",
+    "--disable-static",
+    "--disable-pedantic",
   ]
   configure(*configure_options, env: env)
   make "-j #{workers}", env: env
