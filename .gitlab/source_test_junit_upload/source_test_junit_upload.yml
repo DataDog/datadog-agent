@@ -1,7 +1,5 @@
 source_test_junit_upload:
   rules:
-  # Uncomment this to only run junit uploads on main/stable branches
-  # - !reference [.on_main_or_release_branch]
     - !reference [.except_mergequeue]
     - when: always
   stage: source_test_junit_upload
