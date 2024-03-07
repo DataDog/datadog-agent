@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/agentless/azurebackend"
+	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
@@ -64,7 +65,7 @@ func azureAttachCommand(sc *types.ScannerConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return azureAttachCmd(ctx, sc, resourceID, flags.GlobalFlags.DiskMode, flags.GlobalFlags.DefaultActions)
+			return azureAttachCmd(ctx, sc, resourceID, !localFlags.noMount, flags.GlobalFlags.DiskMode, flags.GlobalFlags.DefaultActions)
 		},
 	}
 	cmd.Flags().BoolVar(&localFlags.noMount, "no-mount", false, "mount the device")
@@ -148,7 +149,7 @@ func azureOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerCon
 	return cmd
 }
 
-func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.CloudID, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
+func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
 	scannerHostname := common.TryGetHostname(ctx)
 	scannerID := types.ScannerID{Hostname: scannerHostname, Provider: types.CloudProviderAzure}
 
@@ -189,10 +190,31 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 		return err
 	}
 
-	log.Infof("Set up disk on NBD device %v\n", *scan.AttachedDeviceName)
+	partitions, err := devices.ListPartitions(ctx, scan, *scan.AttachedDeviceName)
+	if err != nil {
+		return err
+	}
 
+	if len(partitions) > 0 {
+		for _, part := range partitions {
+			fmt.Printf("partition\t%s\t%s\n", part.DevicePath, part.FSType)
+		}
+
+		if mount {
+			mountpoints, err := devices.Mount(ctx, scan, partitions)
+			if err != nil {
+				return err
+			}
+			for _, mountpoint := range mountpoints {
+				fmt.Printf("mountpoint\t%s\n", mountpoint)
+			}
+		}
+	} else {
+		fmt.Printf("no compatible partition found on %s\n", *scan.AttachedDeviceName)
+	}
+
+	fmt.Println("Ctrl+C to detach the device")
 	<-ctx.Done()
-
 	return nil
 }
 
