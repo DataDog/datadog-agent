@@ -259,8 +259,10 @@ func (is *agentMSISuite) TestAgentUser() {
 			// initialize test helper and install the agent
 			t := is.installAgent(vm,
 				[]windowsAgent.InstallAgentOption{
-					windowsAgent.WithAgentUser(windowsCommon.MakeDownLevelLogonName(tc.expectedDomain, tc.username)),
-				})
+					windowsAgent.WithAgentUser(tc.username),
+				},
+				WithExpectedAgentUser(tc.expectedDomain, tc.expectedUser),
+			)
 
 			// run tests
 			if !t.TestInstallExpectations(is.T()) {
