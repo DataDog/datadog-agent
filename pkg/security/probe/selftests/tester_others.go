@@ -61,6 +61,10 @@ var _ rules.PolicyProvider = (*SelfTester)(nil)
 
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
+
+	if !cfg.FIMEnabled {
+		return nil, fmt.Errorf("FIM is disabled")
+	}
 	var (
 		selfTests []SelfTest
 		tmpDir    string
