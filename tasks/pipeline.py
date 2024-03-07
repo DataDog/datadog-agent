@@ -1,12 +1,13 @@
 import os
 import pprint
 import re
+import sys
 import time
 from datetime import datetime, timedelta
 
 import yaml
 from invoke import task
-from invoke.exceptions import Exit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
@@ -836,14 +837,30 @@ def trigger_external(ctx, contributor_branch_name: str, no_verify=False):
         f"git checkout -b '{contributor}/{branch}'",
         # Push
         f"git push --set-upstream origin '{contributor}/{branch}'{no_verify_flag}",
-        # Restore current state
-        f"git remote remove '{contributor}",
+    ]
+
+    # Restore current state
+    restore_commands = [
+        f"git remote remove '{contributor}'",
         f"git checkout '{curr_branch}'",
         f"git branch -d '{contributor}/{branch}'",
     ]
 
-    for command in commands:
-        ctx.run(command)
+    # Run commands then restore commands
+    try:
+        for command in commands:
+            ctx.run(command)
+    except UnexpectedExit:
+        print(f'Command "{command}" failed', file=sys.stderr)
+        raise
+    finally:
+        # Restore current state
+        for command in restore_commands:
+            try:
+                ctx.run(command)
+            except UnexpectedExit:
+                # Allow restore commands to fail
+                pass
 
     repo = f'https://github.com/DataDog/datadog-agent/tree/{contributor}/{branch}'
     print(f'Branch {contributor}/{branch} pushed to repo: {repo}')
