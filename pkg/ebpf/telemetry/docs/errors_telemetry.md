@@ -8,7 +8,7 @@ EBPF errors telemetry collection refers to collecting error codes for failed hel
     - `bpf_skb_load_bytes`
     - `bpf_perf_event_output`
 
-For maps, errors are collected per map per error code.
+For maps, error counts are collected per map per error code.
 ```json
 {
     "ebpf_maps__errors":{
@@ -24,10 +24,10 @@ For maps, errors are collected per map per error code.
    }
 }
 ```
-For helpers, errors are collected per probe per helper per error code.
+For helpers, error counts are collected per probe per helper per error code.
 ```json
 {
-"ebpf_helpers__errors":{
+    "ebpf_helpers__errors":{
       "kretprobe__do_sys_openat2":{
          "bpf_probe_read_user":{
             "EFAULT":8
@@ -39,7 +39,7 @@ For helpers, errors are collected per probe per helper per error code.
 
 ## Implementation
 This telemetry collection mechanism has two parts
-1. Telemetry instrumentation
+1. Instrumentation
 2. Telemetry macros
 
 ### 1. Telemetry instrumentation
