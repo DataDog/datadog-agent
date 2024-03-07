@@ -43,7 +43,7 @@ var (
 		[]string{"mutation_type", "reason", "language", "auto_detected"}, "Number of mutation failures by mutation type (agent config, standard tags, lib injection).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
-		[]string{}, "Number of mutation webhook requests received.",
+		[]string{"mutation_webhook"}, "Number of mutation webhook requests received.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	GetOwnerCacheHit = telemetry.NewGaugeWithOpts("admission_webhooks", "owner_cache_hit",
 		[]string{"resource"}, "Number of cache hits while getting pod's owner object.",
@@ -54,7 +54,7 @@ var (
 	WebhooksResponseDuration = telemetry.NewHistogramWithOpts(
 		"admission_webhooks",
 		"response_duration",
-		[]string{},
+		[]string{"mutation_webhook"},
 		"Webhook response duration distribution (in seconds).",
 		prometheus.DefBuckets, // The default prometheus buckets are adapted to measure response time
 		telemetry.Options{NoDoubleUnderscoreSep: true},

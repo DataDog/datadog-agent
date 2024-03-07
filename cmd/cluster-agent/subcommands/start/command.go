@@ -422,7 +422,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			server := admissioncmd.NewServer()
 
 			for _, webhookConf := range webhooks {
-				server.Register(webhookConf.Endpoint(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
+				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
 			}
 
 			// Start the k8s admission webhook server
