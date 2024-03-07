@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -403,6 +404,72 @@ func (is *agentMSISuite) TestInstallOpts() {
 		assert.Equalf(c, pid, boundPort.PID(), "port %d should be bound by the agent", cmdPort)
 	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
 	is.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
+}
+
+// TC-INS-003
+// tests that the installer options are set correctly in the agent config
+func (is *agentMSISuite) TestInstallSubServices() {
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	tcs := []struct {
+		testname       string
+		logsEnabled    bool
+		processEnabled bool
+		apmEnabled     bool
+	}{
+		// TC-INS-004
+		{"all-subservices", true, true, true},
+		// TC-INS-005
+		{"no-subservices", false, false, false},
+	}
+	for _, tc := range tcs {
+		if !is.Run(tc.testname, func() {
+
+			installOpts := []windowsAgent.InstallAgentOption{
+				windowsAgent.WithLogsEnabled(strconv.FormatBool(tc.logsEnabled)),
+				// set both process agent options so we can check if process-agent is running or not
+				windowsAgent.WithProcessEnabled(strconv.FormatBool(tc.processEnabled)),
+				windowsAgent.WithProcessDiscoveryEnabled(strconv.FormatBool(tc.processEnabled)),
+				windowsAgent.WithAPMEnabled(strconv.FormatBool(tc.apmEnabled)),
+			}
+			_ = is.installAgentPackage(vm, is.AgentPackage, installOpts...)
+
+			// read the config file and check the options
+			confYaml, err := is.readAgentConfig(vm)
+			is.Require().NoError(err)
+
+			assert.Contains(is.T(), confYaml, "logs_enabled", "logs_enabled should be present in the config")
+			assert.Equal(is.T(), tc.logsEnabled, confYaml["logs_enabled"], "logs_enabled should match")
+
+			if assert.Contains(is.T(), confYaml, "process_config", "process_config should be present in the config") {
+				processConf := confYaml["process_config"].(map[string]interface{})
+				if assert.Contains(is.T(), processConf, "process_collection", "process_collection should be present in process_config") {
+					processCollectionConf := processConf["process_collection"].(map[string]interface{})
+					assert.Contains(is.T(), processCollectionConf, "enabled", "enabled should be present in process_collection")
+					assert.Equal(is.T(), tc.processEnabled, processCollectionConf["enabled"], "process_collection enabled should match")
+				}
+				if assert.Contains(is.T(), processConf, "process_discovery", "process_discovery should be present in process_config") {
+					processDiscoveryConf := processConf["process_discovery"].(map[string]interface{})
+					assert.Contains(is.T(), processDiscoveryConf, "enabled", "enabled should be present in process_discovery")
+					assert.Equal(is.T(), tc.processEnabled, processDiscoveryConf["enabled"], "process_discovery enabled should match")
+				}
+			}
+
+			if assert.Contains(is.T(), confYaml, "apm_config", "apm_config should be present in the config") {
+				apmConf := confYaml["apm_config"].(map[string]interface{})
+				assert.Contains(is.T(), apmConf, "enabled", "enabled should be present in apm_config")
+				assert.Equal(is.T(), tc.apmEnabled, apmConf["enabled"], "apm_config enabled should match")
+			}
+
+			// run tests
+			t := is.newTester(vm)
+			// TODO: implement is service running checks
+			is.uninstallAgentAndRunUninstallTests(t)
+		}) {
+			is.T().FailNow()
+		}
+	}
 }
 
 func (is *agentMSISuite) readYamlConfig(host *components.RemoteHost, path string) (map[string]any, error) {
