@@ -135,7 +135,6 @@ func (is *agentMSISuite) TestUpgrade() {
 		_, err := is.InstallAgent(vm,
 			windowsAgent.WithPackage(is.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "upgrade.log")),
-			windowsAgent.WithValidAPIKey(),
 		)
 		is.Require().NoError(err, "should upgrade to agent %s", is.AgentPackage.AgentVersion())
 	}) {
@@ -168,7 +167,6 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 			windowsAgent.WithPackage(is.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(is.OutputDir, "upgrade.log")),
-			windowsAgent.WithValidAPIKey(),
 		)
 		is.Require().Error(err, "should fail to install agent %s", is.AgentPackage.AgentVersion())
 	}) {
