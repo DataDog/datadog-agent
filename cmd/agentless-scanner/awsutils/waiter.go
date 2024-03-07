@@ -136,18 +136,23 @@ func (w *ResourceWaiter) loop(ctx context.Context, group waitGroup, ec2client *e
 }
 
 func (w *ResourceWaiter) pollSnapshots(ctx context.Context, group waitGroup, ec2client *ec2.Client, snapshotIDs []string) bool {
-	// TODO: could we rely on ListSnapshotBlocks instead of
-	// DescribeSnapshots as a "fast path" to not consume precious quotas ?
-	output, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
-		SnapshotIds: snapshotIDs,
-	})
-	if err != nil {
-		return w.abort(group, err, types.ResourceTypeSnapshot)
-	}
-
-	snapshots := make(map[string]ec2types.Snapshot, len(output.Snapshots))
-	for _, snap := range output.Snapshots {
-		snapshots[*snap.SnapshotId] = snap
+	snapshots := make(map[string]ec2types.Snapshot, len(snapshotIDs))
+	var nextToken *string
+	for {
+		output, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
+			SnapshotIds: snapshotIDs,
+			NextToken:   nextToken,
+		})
+		if err != nil {
+			return w.abort(group, err, types.ResourceTypeSnapshot)
+		}
+		for _, snap := range output.Snapshots {
+			snapshots[*snap.SnapshotId] = snap
+		}
+		nextToken = output.NextToken
+		if nextToken == nil {
+			break
+		}
 	}
 
 	w.Lock()
