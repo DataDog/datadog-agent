@@ -263,7 +263,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 			case idRegOpenKey:
 				if cka, err := parseOpenRegistryKey(e); err == nil {
-					log.Debugf("Got idRegOpenKey %s", cka)
+					log.Tracef("Got idRegOpenKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 
@@ -279,7 +279,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 			case idRegCloseKey:
 				if dka, err := parseCloseKeyArgs(e); err == nil {
-					log.Debugf("Got idRegCloseKey %s", dka)
+					log.Tracef("Got idRegCloseKey %s", dka)
 					delete(regPathResolver, dka.keyObject)
 				}
 			case idQuerySecurityKey:
