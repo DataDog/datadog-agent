@@ -82,6 +82,16 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
 
+	config.BindEnv("asm_config.enabled", "DD_APPSEC_ENABLED_PROPAGATE")
+	config.BindEnvAndSetDefault("asm_config.enabled_namespaces", []string{}, "DD_APPSEC_ENABLED_PROPAGATE_NAMESPACES")
+	config.BindEnvAndSetDefault("asm_config.disabled_namespaces", []string{}, "DD_APPSEC_DISABLED_PROPAGATE_NAMESPACES")
+	config.BindEnv("iast_config.enabled", "DD_IAST_ENABLED_PROPAGATE")
+	config.BindEnvAndSetDefault("iast_config.enabled_namespaces", []string{}, "DD_IAST_ENABLED_PROPAGATE_NAMESPACES")
+	config.BindEnvAndSetDefault("iast_config.disabled_namespaces", []string{}, "DD_IAST_DISABLED_PROPAGATE_NAMESPACES")
+	config.BindEnv("sca_config.enabled", "DD_SCA_ENABLED_PROPAGATE")
+	config.BindEnvAndSetDefault("sca_config.enabled_namespaces", []string{}, "DD_SCA_ENABLED_PROPAGATE_NAMESPACES")
+	config.BindEnvAndSetDefault("sca_config.disabled_namespaces", []string{}, "DD_SCA_DISABLED_PROPAGATE_NAMESPACES")
+
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")

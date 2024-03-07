@@ -141,17 +141,39 @@ type Webhook struct {
 	endpoint          string
 	resources         []string
 	operations        []admiv1.OperationType
-	filter            *containers.Filter
+	filters           map[string]*containers.Filter
 	containerRegistry string
 	pinnedLibraries   []libInfo
 }
 
 // NewWebhook returns a new Webhook
 func NewWebhook() (*Webhook, error) {
-	filter, err := apmSSINamespaceFilter()
+
+	var filters map[string]*containers.Filter = make(map[string]*containers.Filter);
+
+	ssiFilter, err := apmSSINamespaceFilter();
 	if err != nil {
 		return nil, err
 	}
+	filters["apm_config.instrumentation.enabled"] = ssiFilter;
+
+	asmFilter, err := apmProductNamespaceFilter("asm_config.enabled_namespaces", "asm_config.disabled_namespaces");
+	if err != nil {
+		return nil, err
+	}
+	filters["asm_config.enabled"] = asmFilter;
+
+	iastFilter, err := apmProductNamespaceFilter("iast_config.enabled_namespaces", "iast_config.disabled_namespaces");
+	if err != nil {
+		return nil, err
+	}
+	filters["iast_config.enabled"] = iastFilter;
+
+	scaFilter, err := apmProductNamespaceFilter("sca_config.enabled_namespaces", "sca_config.disabled_namespaces");
+	if err != nil {
+		return nil, err
+	}
+	filters["sca_config.enabled"] = scaFilter;
 
 	containerRegistry := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
 
@@ -161,7 +183,7 @@ func NewWebhook() (*Webhook, error) {
 		endpoint:          config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:         []string{"pods"},
 		operations:        []admiv1.OperationType{admiv1.Create},
-		filter:            filter,
+		filters:		   filters,
 		containerRegistry: containerRegistry,
 		pinnedLibraries:   getPinnedLibraries(containerRegistry),
 	}, nil
@@ -178,7 +200,8 @@ func GetWebhook() (*Webhook, error) {
 	return apmInstrumentationWebhook, errInitAPMInstrumentation
 }
 
-// apmSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
+// apmProductNamespaceFilter returns a filter than can be test if a
+// functionality should be inject based on the pods namespace.
 // The filter excludes two namespaces by default: "kube-system" and the
 // namespace where datadog is installed.
 // Cases:
@@ -191,12 +214,12 @@ func GetWebhook() (*Webhook, error) {
 // namespaces that are not included in the list of disabled namespaces and that
 // are not one of the ones disabled by default.
 // - Enabled and disabled namespaces: return error.
-func apmSSINamespaceFilter() (*containers.Filter, error) {
-	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+func apmProductNamespaceFilter(enabledNamespace string, disabledNamespace string) (*containers.Filter, error) {
+	apmEnabledNamespaces := config.Datadog.GetStringSlice(enabledNamespace)
+	apmDisabledNamespaces := config.Datadog.GetStringSlice(disabledNamespace)
 
 	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
-		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
+		return nil, fmt.Errorf("%s and %s configuration cannot be set together", enabledNamespace, disabledNamespace)
 	}
 
 	// Prefix the namespaces as needed by the containers.Filter.
@@ -227,6 +250,11 @@ func apmSSINamespaceFilter() (*containers.Filter, error) {
 	}
 
 	return containers.NewFilter(containers.GlobalFilter, apmEnabledNamespacesWithPrefix, filterExcludeList)
+}
+
+// apmSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
+func apmSSINamespaceFilter() (*containers.Filter, error) {
+	return apmProductNamespaceFilter("apm_config.instrumentation.enabled_namespaces", "apm_config.instrumentation.disabled_namespaces");
 }
 
 // Name returns the name of the webhook
@@ -287,7 +315,11 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	}
 	injectApmTelemetryConfig(pod)
 
-	if w.isEnabledInNamespace(pod.Namespace) {
+	w.injectProductActivation(pod, "asm_config.enabled", "DD_APPSEC_ENABLED")
+	w.injectProductActivation(pod, "iast_config.enabled", "DD_IAST_ENABLED")
+	w.injectProductActivation(pod, "sca_config.enabled", "DD_SCA_ENABLED")
+
+	if w.isSsiEnabledInNamespace(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
 		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
 			log.Debugf("Skipping single step instrumentation of pod %q due to label", mutatecommon.PodString(pod))
@@ -312,7 +344,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	}
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
-	if w.isEnabledInNamespace(pod.Namespace) {
+	if w.isSsiEnabledInNamespace(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 		_ = mutatecommon.InjectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
 		injectionType = singleStepInstrumentationInstallType
@@ -435,7 +467,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
 	}
 
 	// Get libraries to inject for APM Instrumentation
-	if w.isEnabledInNamespace(pod.Namespace) {
+	if w.isSsiEnabledInNamespace(pod.Namespace) {
 		libInfoList, autoDetected = w.getLibrariesToInjectForApmInstrumentation(pod)
 		if len(libInfoList) > 0 {
 			return libInfoList, autoDetected
@@ -552,12 +584,24 @@ func ShouldInject(pod *corev1.Pod) bool {
 		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 	}
 
-	return apmWebhook.isEnabledInNamespace(pod.Namespace) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	return apmWebhook.isSsiEnabledInNamespace(pod.Namespace) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 }
 
-// isEnabledInNamespace indicates if Single Step Instrumentation is enabled for
+// isEnabledInNamespace indicates if a product is enabled for the namespace in the cluster
+func (w *Webhook) isEnabledInNamespace(enabledConfig string, namespace string) bool {
+	enabledValue := config.Datadog.GetString(enabledConfig)
+
+	if len(enabledValue) == 0 {
+		log.Debugf("%s has no value", enabledConfig)
+		return false
+	}
+
+	return !w.filters[enabledConfig].IsExcluded(nil, "", "", namespace)
+}
+
+// isSsiEnabledInNamespace indicates if Single Step Instrumentation is enabled for
 // the namespace in the cluster
-func (w *Webhook) isEnabledInNamespace(namespace string) bool {
+func (w *Webhook) isSsiEnabledInNamespace(namespace string) bool {
 	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
 
 	if !apmInstrumentationEnabled {
@@ -565,7 +609,18 @@ func (w *Webhook) isEnabledInNamespace(namespace string) bool {
 		return false
 	}
 
-	return !w.filter.IsExcluded(nil, "", "", namespace)
+	return !w.filters["apm_config.instrumentation.enabled"].IsExcluded(nil, "", "", namespace)
+}
+
+func (w *Webhook) injectProductActivation(pod *corev1.Pod, enableKey string, envVarKey string) error {
+	if (w.isEnabledInNamespace(enableKey, pod.Namespace)) {
+		enabledValue := config.Datadog.GetBool(enableKey)
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+				Name:	envVarKey,
+				Value: 	strconv.FormatBool(enabledValue),
+			});
+	}
+	return nil;
 }
 
 func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {
@@ -682,7 +737,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 
 	injectLibVolume(pod)
 
-	if w.isEnabledInNamespace(pod.Namespace) {
+	if w.isSsiEnabledInNamespace(pod.Namespace) {
 		libConfig := basicConfig()
 		if name, err := getServiceNameFromPod(pod); err == nil {
 			// Set service name if it can be derived from a pod
