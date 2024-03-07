@@ -24,6 +24,7 @@ import (
 type InitConfig struct {
 	MinCollectionInterval int           `yaml:"min_collection_interval"`
 	CustomQueries         []CustomQuery `yaml:"custom_queries"`
+	UseInstantClient      bool          `yaml:"use_instant_client"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -254,7 +255,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	 */
 	if instance.InstantClient {
 		instance.OracleClient = true
-		log.Warn("The config parameter instance_client is deprecated and will be removed in future versions. Please use oracle_client instead.")
+		warnDeprecated("instant_client", "oracle_client")
+	}
+
+	// `use_instant_client` is for backward compatibility with the old Oracle Python integration
+	if initCfg.UseInstantClient {
+		instance.OracleClient = true
+		warnDeprecated("use_instant_client", "oracle_client in instance config")
 	}
 
 	c := &CheckConfig{

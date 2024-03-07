@@ -619,6 +619,30 @@ func TestBearerToken(t *testing.T) {
 		`Bearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62bdsldijfoiwjeoimdfolisdjoijfewoa`,
 		`Bearer ********`)
 	assertClean(t,
+		`Bearer abf243d1-9ba5-4d8d-8365-ac18229eb2ac`,
+		`Bearer ********`)
+	assertClean(t,
+		`Bearer token with space`,
+		`Bearer ********`)
+	assertClean(t,
+		`Bearer     123456798`,
+		`Bearer ********`)
+	assertClean(t,
 		`AuthBearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`,
 		`AuthBearer 2fe663014abcd1850076f6d68c0355666db98758262870811cace007cd4a62ba`)
+}
+
+func TestAuthorization(t *testing.T) {
+	assertClean(t,
+		`Authorization: some auth`,
+		`Authorization: "********"`)
+	assertClean(t,
+		`  Authorization: some auth`,
+		`  Authorization: "********"`)
+	assertClean(t,
+		`- Authorization: some auth`,
+		`- Authorization: "********"`)
+	assertClean(t,
+		`  authorization: some auth`,
+		`  authorization: "********"`)
 }

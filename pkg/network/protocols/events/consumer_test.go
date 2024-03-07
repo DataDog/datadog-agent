@@ -161,7 +161,7 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		},
 	}
 
-	Configure("test", m, &options)
+	Configure(config.New(), "test", m, &options)
 	err = m.InitWithOptions(bc, options)
 	if err != nil {
 		return nil, err
