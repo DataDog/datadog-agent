@@ -102,6 +102,11 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     normalize_tuple(&conn_tuple_copy);
 
     protocol_stack_t *protocol_stack = __get_protocol_stack(&conn_tuple_copy);
+
+    if (!protocol_stack && (conn_tuple_copy.sport == 8443 || conn_tuple_copy.dport == 8443)) {
+        log_debug("8443 conn without protocol stack: sport: %u, dport: %u", conn_tuple_copy.sport, conn_tuple_copy.dport);
+    }
+
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
