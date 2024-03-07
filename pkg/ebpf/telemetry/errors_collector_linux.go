@@ -31,7 +31,6 @@ type EBPFErrorsCollector struct {
 	T                *EBPFTelemetry
 	ebpfMapOpsErrors *prometheus.Desc
 	ebpfHelperErrors *prometheus.Desc
-	supported        bool
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
@@ -39,20 +38,22 @@ func NewEBPFErrorsCollector(bpfDir string) prometheus.Collector {
 	var supported bool
 	var err error
 
-	if supported, err = ebpfTelemetrySupported(); err != nil {
+	// EBPFTelemetry needs to be initialized so we can patch the bytecode correctly
+	initEBPFTelemetry(bpfDir)
+
+	if supported, err = ebpfTelemetrySupported(); !supported || err != nil {
 		return nil
 	}
 	return &EBPFErrorsCollector{
-		T:                initEBPTelemetry(bpfDir),
+		T:                errorsTelemetry,
 		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
 		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
-		supported:        supported,
 	}
 }
 
 // Describe returns all descriptions of the collector
 func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
-	if !e.supported {
+	if e == nil {
 		return
 	}
 
@@ -62,7 +63,7 @@ func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector
 func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
-	if !e.supported {
+	if e == nil {
 		return
 	}
 

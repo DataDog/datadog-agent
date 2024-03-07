@@ -72,8 +72,8 @@ var instrumentation = eBPFInstrumentation{
 // A singleton instance of the ebpf telemetry struct. Used by the collector and the ebpf managers (via ErrorsTelemetryModifier).
 var errorsTelemetry *EBPFTelemetry
 
-// initEBPTelemetry initializes a new EBPFTelemetry object
-func initEBPTelemetry(bpfDir string) *EBPFTelemetry {
+// initEBPFTelemetry initializes a new EBPFTelemetry object
+func initEBPFTelemetry(bpfDir string) *EBPFTelemetry {
 	errorsTelemetry = NewEBPFTelemetry(bpfDir)
 	return errorsTelemetry
 }
