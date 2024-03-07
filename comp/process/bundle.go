@@ -12,6 +12,7 @@
 package process
 
 import (
+	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler/profilerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -47,6 +49,9 @@ func Bundle() fxutil.BundleOptions {
 
 		hostinfoimpl.Module(),
 		expvarsimpl.Module(),
+		statusimpl.Module(),
+		coreStatusImpl.Module(),
+
 		apiserver.Module(),
 		forwardersimpl.Module(),
 	)
