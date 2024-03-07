@@ -163,10 +163,9 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 
 // SubscribeRemoteConfig subscribes to remote-config polling for scan tasks.
 func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
-	log.Infof("subscribing to remote-config")
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not init Remote Config: could not get IPC address: %w", err)
 	}
 
 	s.rcClient, err = client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
@@ -177,6 +176,7 @@ func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 		return fmt.Errorf("could not init Remote Config client: %w", err)
 	}
 
+	log.Infof("subscribing to remote-config")
 	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
