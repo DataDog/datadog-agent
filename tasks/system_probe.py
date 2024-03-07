@@ -522,8 +522,7 @@ def ninja_generate(
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
-            if instrument_trampoline:
-                ninja_ebpf_telemetry_programs(nw, build_dir)
+            ninja_ebpf_telemetry_programs(nw, build_dir)
 
         ninja_cgo_type_files(nw)
 
