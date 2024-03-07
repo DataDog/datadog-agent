@@ -795,3 +795,55 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
         print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
         time.sleep(10)
         run(ctx, here=True)
+
+
+@task(
+    help={
+        'contributor-branch-name': 'Contributor and branch names in the format <contributor-name>/<branch-name>',
+        'no-verify': 'Adds --no-verify flag when git push',
+    }
+)
+def trigger_external(ctx, contributor_branch_name: str, no_verify=False):
+    """
+    Trigger a pipeline from an external contributor.
+    """
+    # Verify parameters
+    contributor_branch_name = contributor_branch_name.lower()
+
+    assert (
+        contributor_branch_name.count('/') == 1
+    ), f'contributor_branch_name should be "<contributor-name>/<branch-name>" but is {contributor_branch_name}'
+    assert "'" not in contributor_branch_name
+
+    contributor, branch = contributor_branch_name.split('/')
+    no_verify_flag = ' --no-verify' if no_verify else ''
+
+    # Can checkout
+    status_res = ctx.run('git status --porcelain')
+    assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
+
+    # Get current branch
+    curr_branch_res = ctx.run('git branch --show-current', hide='stdout')
+    curr_branch = curr_branch_res.stdout.strip()
+
+    # Commands to push the branch
+    commands = [
+        # Fetch
+        f"git remote add '{contributor}' 'git@github.com:{contributor}/datadog-agent.git'",
+        f"git fetch '{contributor}'",
+        # Create branch
+        f"git checkout '{contributor}/{branch}'",
+        f"git checkout -b '{contributor}/{branch}'",
+        # Push
+        f"git push --set-upstream origin '{contributor}/{branch}'{no_verify_flag}",
+        # Restore current state
+        f"git remote remove '{contributor}",
+        f"git checkout '{curr_branch}'",
+        f"git branch -d '{contributor}/{branch}'",
+    ]
+
+    for command in commands:
+        ctx.run(command)
+
+    repo = f'https://github.com/DataDog/datadog-agent/tree/{contributor}/{branch}'
+    print(f'Branch {contributor}/{branch} pushed to repo: {repo}')
