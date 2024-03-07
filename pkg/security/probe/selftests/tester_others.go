@@ -270,8 +270,9 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 	return []*rules.Policy{p}, nil
 }
 
-func (t *SelfTester) beginSelfTests() {
+func (t *SelfTester) beginSelfTests(timeout time.Duration) {
 	t.waitingForEvent.Store(true)
+	t.selfTestRunning <- timeout
 }
 
 func (t *SelfTester) endSelfTests() {
