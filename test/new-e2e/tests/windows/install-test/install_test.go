@@ -342,13 +342,7 @@ func (is *agentMSISuite) TestInstallOpts() {
 	_ = is.installAgentPackage(vm, is.AgentPackage, installOpts...)
 
 	// read the config file and check the options
-	confDir, err := windowsAgent.GetConfigRootFromRegistry(vm)
-	is.Require().NoError(err)
-	configFilePath := filepath.Join(confDir, "datadog.yaml")
-	config, err := vm.ReadFile(configFilePath)
-	is.Require().NoError(err)
-	confYaml := make(map[string]any)
-	err = yaml.Unmarshal(config, &confYaml)
+	confYaml, err := is.readAgentConfig(vm)
 	is.Require().NoError(err)
 
 	assert.Contains(is.T(), confYaml, "hostname")
@@ -409,6 +403,28 @@ func (is *agentMSISuite) TestInstallOpts() {
 		assert.Equalf(c, pid, boundPort.PID(), "port %d should be bound by the agent", cmdPort)
 	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
 	is.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
+}
+
+func (is *agentMSISuite) readYamlConfig(host *components.RemoteHost, path string) (map[string]any, error) {
+	config, err := host.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	confYaml := make(map[string]any)
+	err = yaml.Unmarshal(config, &confYaml)
+	if err != nil {
+		return nil, err
+	}
+	return confYaml, nil
+}
+
+func (is *agentMSISuite) readAgentConfig(host *components.RemoteHost) (map[string]any, error) {
+	confDir, err := windowsAgent.GetConfigRootFromRegistry(host)
+	if err != nil {
+		return nil, err
+	}
+	configFilePath := filepath.Join(confDir, "datadog.yaml")
+	return is.readYamlConfig(host, configFilePath)
 }
 
 func (is *agentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
