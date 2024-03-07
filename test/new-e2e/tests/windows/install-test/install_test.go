@@ -406,8 +406,9 @@ func (is *agentMSISuite) TestInstallOpts() {
 	is.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
 }
 
-// TC-INS-003
-// tests that the installer options are set correctly in the agent config
+// TestInstallSubServices tests that the agent installer can configure the subservices.
+// Once E2E's Agent interface supports providing MSI installer options these tests
+// should be moved to regular Agent E2E tests for each subservice.
 func (is *agentMSISuite) TestInstallSubServices() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
@@ -462,9 +463,31 @@ func (is *agentMSISuite) TestInstallSubServices() {
 				assert.Equal(is.T(), tc.apmEnabled, apmConf["enabled"], "apm_config enabled should match")
 			}
 
+			tcs := []struct {
+				serviceName string
+				enabled     bool
+			}{
+				// NOTE: Even with processEnabled=false the Agent will start process-agent because container_collection is
+				//       enabled by default. We do not have an installer option to control this process-agent setting.
+				//       However, process-agent will exit soon after starting because there's no container environment installed
+				//       and the other options are disabled.
+				{"datadog-process-agent", tc.processEnabled},
+				{"datadog-trace-agent", tc.apmEnabled},
+			}
+			for _, tc := range tcs {
+				assert.EventuallyWithT(is.T(), func(c *assert.CollectT) {
+					status, err := windowsCommon.GetServiceStatus(vm, tc.serviceName)
+					require.NoError(c, err)
+					if tc.enabled {
+						assert.Equal(c, "Running", status, "%s should be running", tc.serviceName)
+					} else {
+						assert.Equal(c, "Stopped", status, "%s should be stopped", tc.serviceName)
+					}
+				}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", tc.serviceName)
+			}
+
 			// run tests
 			t := is.newTester(vm)
-			// TODO: implement is service running checks
 			is.uninstallAgentAndRunUninstallTests(t)
 		}) {
 			is.T().FailNow()
