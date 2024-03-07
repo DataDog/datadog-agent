@@ -482,7 +482,6 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release=None,
     with_unit_test=False,
-    instrument_trampoline=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
     co_re_build_dir = os.path.join(build_dir, "co-re")
@@ -1329,7 +1328,6 @@ def run_ninja(
         strip_object_files,
         kernel_release,
         with_unit_test,
-        instrument_trampoline=instrument_trampoline,
     )
     explain_opt = "-d explain" if explain else ""
     if task:
