@@ -20,6 +20,12 @@ var templatesFS embed.FS
 // Only use for testing
 var logsProvider = logsStatus.Get
 
+// StatusProvider is the type for logs agent status methods
+type StatusProvider interface {
+	status.Provider
+	statusinterface.Status
+}
+
 type statusProvider struct{}
 
 func (p statusProvider) Name() string {
@@ -68,6 +74,6 @@ func (p statusProvider) RemoveGlobalWarning(key string) {
 }
 
 // NewStatusProvider fetches the status and returns a service wrapping it
-func NewStatusProvider() statusinterface.Status {
+func NewStatusProvider() StatusProvider {
 	return &statusProvider{}
 }
