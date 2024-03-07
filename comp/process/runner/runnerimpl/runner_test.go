@@ -6,7 +6,6 @@
 package runnerimpl
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -39,6 +39,8 @@ func TestRunnerLifecycle(t *testing.T) {
 }
 
 func TestRunnerRealtime(t *testing.T) {
+	enableProcessAgent(t)
+
 	t.Run("rt allowed", func(t *testing.T) {
 		rtChan := make(chan types.RTResponse)
 
@@ -59,12 +61,7 @@ func TestRunnerRealtime(t *testing.T) {
 			processcheckimpl.Module(),
 			hostinfoimpl.MockModule(),
 			core.MockBundle(),
-
-			// starts the check runner
-			fx.Invoke(func(r runner.Component) error {
-				return r.Run(context.Background())
-			},
-			)))
+		))
 
 		rtChan <- types.RTResponse{
 			&model.CollectorStatus{
@@ -98,12 +95,7 @@ func TestRunnerRealtime(t *testing.T) {
 			processcheckimpl.Module(),
 			hostinfoimpl.MockModule(),
 			core.MockBundle(),
-
-			// starts the check runner
-			fx.Invoke(func(r runner.Component) error {
-				return r.Run(context.Background())
-			},
-			)))
+		))
 
 		rtChan <- types.RTResponse{
 			&model.CollectorStatus{
@@ -142,4 +134,15 @@ func TestProvidedChecks(t *testing.T) {
 	t.Log("Provided Checks:", checkNames)
 
 	assert.Len(t, providedChecks, 2)
+}
+
+// enableProcessAgent overrides the process agent enabled function to always return true start/stop the runner
+func enableProcessAgent(t *testing.T) {
+	previousFn := agentEnabled
+	agentEnabled = func(_ config.Component, _ []types.CheckComponent, _ log.Component) bool {
+		return true
+	}
+	t.Cleanup(func() {
+		agentEnabled = previousFn
+	})
 }

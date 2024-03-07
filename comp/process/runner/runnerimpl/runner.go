@@ -24,6 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// for testing
+var agentEnabled = agent.Enabled
+
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
@@ -63,7 +66,7 @@ func newRunner(deps dependencies) (runner.Component, error) {
 		providedChecks: checks,
 	}
 
-	if agent.Enabled(deps.Config, deps.Checks, deps.Log) {
+	if agentEnabled(deps.Config, deps.Checks, deps.Log) {
 		deps.Lc.Append(fx.Hook{
 			OnStart: runnerComponent.Run,
 			OnStop:  runnerComponent.stop,
