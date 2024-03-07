@@ -36,6 +36,7 @@ type Tester struct {
 	expectedAgentVersion      string
 	expectedAgentMajorVersion string
 
+	// optional
 	systemFileIntegrityTester *SystemFileIntegrityTester
 }
 
@@ -57,16 +58,6 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 	t.expectedUserName = "ddagentuser"
 	t.expectedUserDomain = windows.NameToNetBIOSName(t.hostInfo.Hostname)
 
-	t.systemFileIntegrityTester = NewSystemFileIntegrityTester(t.host)
-	snapshotTaken, err := t.systemFileIntegrityTester.FirstSnapshotTaken()
-	require.NoError(tt, err)
-	if !snapshotTaken {
-		// Only take a snapshot if one doesn't already exist so we can compare across
-		// multiple installs.
-		err = t.systemFileIntegrityTester.TakeSnapshot()
-		require.NoError(tt, err)
-	}
-
 	for _, opt := range opts {
 		opt(t)
 	}
@@ -82,6 +73,17 @@ func NewTester(tt *testing.T, host *components.RemoteHost, opts ...TesterOption)
 		}
 	}) {
 		tt.FailNow()
+	}
+
+	if t.systemFileIntegrityTester != nil {
+		snapshotTaken, err := t.systemFileIntegrityTester.FirstSnapshotTaken()
+		require.NoError(tt, err)
+		if !snapshotTaken {
+			// Only take a snapshot if one doesn't already exist so we can compare across
+			// multiple installs.
+			err = t.systemFileIntegrityTester.TakeSnapshot()
+			require.NoError(tt, err)
+		}
 	}
 
 	return t, nil
@@ -109,6 +111,12 @@ func WithExpectedAgentUser(domain string, user string) TesterOption {
 	return func(t *Tester) {
 		t.expectedUserDomain = domain
 		t.expectedUserName = user
+	}
+}
+
+func WithSystemFileIntegrityTester(tester *SystemFileIntegrityTester) TesterOption {
+	return func(t *Tester) {
+		t.systemFileIntegrityTester = tester
 	}
 }
 
@@ -179,14 +187,16 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 
 // TestUninstallExpectations verifies the agent uninstalled correctly.
 func (t *Tester) TestUninstallExpectations(tt *testing.T) {
-	tt.Run("agent is not running and install directory is removed", func(tt *testing.T) {
+	tt.Run("", func(tt *testing.T) {
 		// this helper uses require so wrap it in a subtest so we can continue even if it fails
 		common.CheckUninstallation(tt, t.InstallTestClient)
 	})
 
-	tt.Run("does not change system files", func(tt *testing.T) {
-		t.systemFileIntegrityTester.AssertDoesRemoveSystemFiles(tt)
-	})
+	if t.systemFileIntegrityTester != nil {
+		tt.Run("does not change system files", func(tt *testing.T) {
+			t.systemFileIntegrityTester.AssertDoesRemoveSystemFiles(tt)
+		})
+	}
 }
 
 // UninstallAgentAndRunUninstallTests installs the agent and runs TestUninstallExpectations
@@ -199,14 +209,16 @@ func (t *Tester) UninstallAgentAndRunUninstallTests(tt *testing.T, logfile strin
 			tt.Fatal("uninstall failed")
 		}
 
-		// agent is uninstalled now, so register for snapshots to be removed
-		// at end of the test.
-		tt.Cleanup(func() {
-			err := t.systemFileIntegrityTester.RemoveSnapshots()
-			if err != nil {
-				tt.Logf("failed to remove snapshots: %v", err)
-			}
-		})
+		if t.systemFileIntegrityTester != nil {
+			// agent is uninstalled now, so register for snapshots to be removed
+			// at end of the test.
+			tt.Cleanup(func() {
+				err := t.systemFileIntegrityTester.RemoveSnapshots()
+				if err != nil {
+					tt.Logf("failed to remove snapshots: %v", err)
+				}
+			})
+		}
 
 		t.TestUninstallExpectations(tt)
 	})
