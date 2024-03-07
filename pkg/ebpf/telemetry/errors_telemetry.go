@@ -203,9 +203,11 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 		}
 
 		// if a specific program in a manager should not be instrumented,
-		// instrument patch point with a NOP (r1=r1)
+		// instrument patch point with a NOP (ja 0)
+		// we're using here the same NOP instruction used internally by the verifier:
+		// https://elixir.bootlin.com/linux/v6.7/source/kernel/bpf/verifier.c#L18582
 		if shouldSkip(p.Name) {
-			*trampolinePatchSite = asm.Mov.Reg(asm.R1, asm.R1).WithMetadata(trampolinePatchSite.Metadata)
+			*trampolinePatchSite = asm.Instruction{OpCode: asm.Ja.Op(asm.ImmSource), Constant: 0}.WithMetadata(trampolinePatchSite.Metadata)
 			continue
 		}
 
