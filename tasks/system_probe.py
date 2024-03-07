@@ -693,7 +693,6 @@ def test(
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
-    env["DD_LOG_LEVEL"]="debug"
 
     go_root = os.getenv("GOROOT")
     if go_root:
