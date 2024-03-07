@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	defaultVersion                 = "2c"
 	defaultPort                    = 161
 	defaultCommunityString         = "public"
 	defaultTimeout                 = 10 // Timeout better suited to walking
@@ -82,25 +81,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 	}
 
-	snmpCmd.PersistentFlags().StringVarP(&connParams.Version, "snmp-version", "v", defaultVersion, "Specify SNMP version to use")
-
-	// snmp v1 or v2c specific
-	snmpCmd.PersistentFlags().StringVarP(&connParams.CommunityString, "community-string", "C", "", "Set the community string")
-
-	// snmp v3 specific
-	snmpCmd.PersistentFlags().StringVarP(&connParams.AuthProtocol, "auth-protocol", "a", "", "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
-	snmpCmd.PersistentFlags().StringVarP(&connParams.AuthKey, "auth-key", "A", "", "Set authentication protocol pass phrase")
-	snmpCmd.PersistentFlags().StringVarP(&connParams.SecurityLevel, "security-level", "l", "", "set security level (noAuthNoPriv|authNoPriv|authPriv)")
-	snmpCmd.PersistentFlags().StringVarP(&connParams.Context, "context", "N", "", "Set context name")
-	snmpCmd.PersistentFlags().StringVarP(&connParams.Username, "user-name", "u", "", "Set security name")
-	snmpCmd.PersistentFlags().StringVarP(&connParams.PrivProtocol, "priv-protocol", "x", "", "Set privacy protocol (DES|AES|AES192|AES192C|AES256|AES256C)")
-	snmpCmd.PersistentFlags().StringVarP(&connParams.PrivKey, "priv-key", "X", "", "Set privacy protocol pass phrase")
-
-	// general communication options
-	snmpCmd.PersistentFlags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
-	snmpCmd.PersistentFlags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
-	snmpCmd.PersistentFlags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
-
 	snmpWalkCmd := &cobra.Command{
 		Use:   "walk <IP Address>[:Port] [OID]",
 		Short: "Perform an snmpwalk, if only a valid IP address is provided with the oid then the agent default snmp config will be used",
@@ -126,6 +106,25 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return nil
 		},
 	}
+	snmpWalkCmd.Flags().StringVarP(&connParams.Version, "snmp-version", "v", "", "Specify SNMP version to use")
+
+	// snmp v1 or v2c specific
+	snmpWalkCmd.Flags().StringVarP(&connParams.CommunityString, "community-string", "C", "", "Set the community string")
+
+	// snmp v3 specific
+	snmpWalkCmd.Flags().StringVarP(&connParams.AuthProtocol, "auth-protocol", "a", "", "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
+	snmpWalkCmd.Flags().StringVarP(&connParams.AuthKey, "auth-key", "A", "", "Set authentication protocol pass phrase")
+	snmpWalkCmd.Flags().StringVarP(&connParams.SecurityLevel, "security-level", "l", "", "set security level (noAuthNoPriv|authNoPriv|authPriv)")
+	snmpWalkCmd.Flags().StringVarP(&connParams.Context, "context", "N", "", "Set context name")
+	snmpWalkCmd.Flags().StringVarP(&connParams.Username, "user-name", "u", "", "Set security name")
+	snmpWalkCmd.Flags().StringVarP(&connParams.PrivProtocol, "priv-protocol", "x", "", "Set privacy protocol (DES|AES|AES192|AES192C|AES256|AES256C)")
+	snmpWalkCmd.Flags().StringVarP(&connParams.PrivKey, "priv-key", "X", "", "Set privacy protocol pass phrase")
+
+	// general communication options
+	snmpWalkCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
+	snmpWalkCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
+	snmpWalkCmd.Flags().BoolVar(&connParams.UseUnconnectedUDPSocket, "use-unconnected-udp-socket", defaultUseUnconnectedUDPSocket, "If specified, changes net connection to be unconnected UDP socket")
+
 	snmpCmd.AddCommand(snmpWalkCmd)
 
 	return []*cobra.Command{snmpCmd}
@@ -208,27 +207,35 @@ func newSNMP(connParams *connectionParams) (*gosnmp.GoSNMP, error) {
 		return nil, fmt.Errorf("timeout cannot be 0")
 	}
 
-	// Authentication check
-	if connParams.CommunityString == "" && connParams.Username == "" {
-		// Set default community string if version 1 or 2c and no given community string
-		if connParams.Version == "1" || connParams.Version == "2c" {
-			connParams.CommunityString = defaultCommunityString
-		} else {
-			return nil, fmt.Errorf("no authentication mechanism specified")
-		}
-	}
-
 	version := gosnmp.Version2c
 	// Set the snmp version
 	if connParams.Version == "1" {
 		version = gosnmp.Version1
-	} else if connParams.Version == "2c" || connParams.Version == "2" || (connParams.Version == "" && connParams.CommunityString != "") {
-		version = gosnmp.Version2c
 	} else if connParams.Version == "3" || (connParams.Version == "" && connParams.Username != "") {
+		// Use version 3 if no version was specified but a username was.
 		version = gosnmp.Version3
+	} else if connParams.Version == "2c" || connParams.Version == "2" || connParams.Version == "" {
+		// Default to 2c if nothing was specified.
+		version = gosnmp.Version2c
 	} else {
 		return nil, fmt.Errorf("SNMP version not supported: %s", connParams.Version)
 	}
+
+	if version != gosnmp.Version3 && connParams.CommunityString == "" {
+		// Set default community string if version 1 or 2c and no given community string
+		connParams.CommunityString = defaultCommunityString
+	}
+
+	// Authentication check
+	if version == gosnmp.Version3 && connParams.Username == "" {
+		return nil, fmt.Errorf("username is required for snmp v3")
+	}
+
+	port := connParams.Port
+	if port == 0 {
+		port = defaultPort
+	}
+
 	securityParams := &gosnmp.UsmSecurityParameters{}
 	var msgFlags gosnmp.SnmpV3MsgFlags
 	// Set v3 security parameters
@@ -300,7 +307,7 @@ func newSNMP(connParams *connectionParams) (*gosnmp.GoSNMP, error) {
 	// Set SNMP parameters
 	return &gosnmp.GoSNMP{
 		Target:                  connParams.IPAddress,
-		Port:                    connParams.Port,
+		Port:                    port,
 		Community:               connParams.CommunityString,
 		Transport:               "udp",
 		Version:                 version,
@@ -336,9 +343,6 @@ func snmpwalk(connParams *connectionParams, args argsType, conf config.Component
 		// user provided enough arguments to do this anyway.
 		fmt.Printf("Warning: %v\n", agentErr)
 	}
-	if connParams.Port == 0 {
-		connParams.Port = defaultPort
-	}
 	// Establish connection
 	snmp, err := newSNMP(connParams)
 	if err != nil {
@@ -346,14 +350,13 @@ func snmpwalk(connParams *connectionParams, args argsType, conf config.Component
 		return configErr{err}
 	}
 	if err := snmp.Connect(); err != nil {
-		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", connParams.IPAddress, connParams.Port, err)
+		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
 	defer snmp.Conn.Close()
 
 	// Perform a snmpwalk using Walk for all versions
-	err = snmp.Walk(oid, printValue)
-	if err != nil {
-		return fmt.Errorf("walk error: %w", err)
+	if err := snmp.Walk(oid, printValue); err != nil {
+		return fmt.Errorf("unable to walk SNMP agent on %s:%d: %w", snmp.Target, snmp.Port, err)
 	}
 
 	return nil
