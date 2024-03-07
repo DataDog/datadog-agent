@@ -53,24 +53,23 @@ func (t *SystemFileIntegrityTester) TakeSnapshot() error {
 func (t *SystemFileIntegrityTester) RemoveSnapshots() error {
 	// continue on error, return all errors
 	var combinedErr error
-	exists, err := t.host.FileExists(t.firstSnapshotPath)
-	if err != nil {
-		combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to check if first snapshot exists: %w", err))
+	snapshots := []string{
+		t.firstSnapshotPath,
+		t.secondSnapshotPath,
 	}
-	if exists {
-		err := t.host.Remove(t.firstSnapshotPath)
+	for _, path := range snapshots {
+		exists, err := t.host.FileExists(path)
 		if err != nil {
-			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to remove first snapshot: %w", err))
+			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to check if snapshot exists %s: %w", path, err))
+			continue
 		}
-	}
-	exists, err = t.host.FileExists(t.secondSnapshotPath)
-	if err != nil {
-		combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to check if second snapshot exists: %w", err))
-	}
-	if exists {
-		err := t.host.Remove(t.secondSnapshotPath)
+		if !exists {
+			continue
+		}
+		err = t.host.Remove(path)
 		if err != nil {
-			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to remove second snapshot: %w", err))
+			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to remove snapshot %s: %w", path, err))
+			continue
 		}
 	}
 	return combinedErr
