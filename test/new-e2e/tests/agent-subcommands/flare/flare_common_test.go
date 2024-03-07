@@ -7,13 +7,11 @@
 package flare
 
 import (
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -25,9 +23,8 @@ type baseFlareSuite struct {
 }
 
 func (v *baseFlareSuite) TestFlareDefaultFiles() {
-	fakeIntake := v.Env().FakeIntake.Client()
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"})
-	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v, flareArgs)
 
 	assert.NotContains(v.T(), logs, "Error")
 
@@ -49,9 +46,8 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 }
 
 func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
-	fakeIntake := v.Env().FakeIntake.Client()
 	flareArgs := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--local"})
-	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, fakeIntake, flareArgs)
+	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v, flareArgs)
 
 	assert.Contains(v.T(), logs, "Initiating flare locally.")
 	assert.NotContains(v.T(), logs, "Error")
@@ -67,16 +63,16 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
 }
 
-func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent agentclient.Agent, fakeintake *fi.Client, flareArgs ...agentclient.AgentArgsOption) (flare.Flare, string) {
+func requestAgentFlareAndFetchFromFakeIntake(v *baseFlareSuite, flareArgs ...agentclient.AgentArgsOption) (flare.Flare, string) {
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(c, fakeintake.GetServerHealth())
+	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
-	flareLog := agent.Flare(flareArgs...)
+	flareLog := v.Env().Agent.Client.Flare(flareArgs...)
 
-	flare, err := fakeintake.GetLatestFlare()
-	require.NoError(t, err)
+	flare, err := v.Env().FakeIntake.Client().GetLatestFlare()
+	require.NoError(v.T(), err)
 
 	return flare, flareLog
 }
