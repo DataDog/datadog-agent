@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	processagentStatus "github.com/DataDog/datadog-agent/pkg/status/processagent"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -199,8 +198,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("http://%s/config/all", addressPort)
 
-	cfgB := processagentStatus.GetRuntimeConfig(procStatusURL)
-	return cfgB, nil
+	return getHTTPCallContent(procStatusURL)
 }
 
 func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {
