@@ -42,6 +42,11 @@ var helperNames = map[int]string{
 
 const instrumentationMap string = "bpf_instrumentation_map"
 
+type instrumentationBlock struct {
+	code             []*asm.Instruction
+	instructionCount int
+}
+
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
@@ -57,12 +62,10 @@ type EBPFTelemetry struct {
 	bpfDir                 string
 }
 
-type eBPFInstrumentation struct {
-	filename  string
+var InstrumentationFunctions = struct {
+	Filename  string
 	functions []string
-}
-
-var instrumentation = eBPFInstrumentation{
+}{
 	"ebpf_instrumentation",
 	[]string{
 		"ebpf_instrumentation__trampoline_handler",
@@ -124,17 +127,17 @@ func patchConstant(ins asm.Instructions, symbol string, constant int64) error {
 	return nil
 }
 
-func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
+func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool, block *instrumentationBlock) error {
 	programs, err := m.GetProgramSpecs()
 	if err != nil {
 		return fmt.Errorf("unable to get program specs: %w", err)
 	}
 
-	return PatchEBPFInstrumentation(programs, bpfTelemetry, bytecode, shouldSkip)
+	return PatchEBPFInstrumentation(programs, bpfTelemetry, bytecode, shouldSkip, block)
 }
 
 // PatchEBPFInstrumentation accepts eBPF bytecode and patches in the eBPF instrumentation
-func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
+func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool, block *instrumentationBlock) error {
 	initializeProbeKeys(programs, bpfTelemetry)
 
 	functions := make(map[string]struct{}, len(programs))
@@ -218,91 +221,88 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 			return fmt.Errorf("failed to patch constant 'telemetry_program_id_key' for program %s: %w", p.Name, err)
 		}
 
-		// Append instrumentation blocks to the bytecode
-		var instrumentationBlock []*asm.Instruction
-		var instrumentationBlockCount int
-
-		bpfAsset, err := netbpf.ReadEBPFInstrumentationModule(bpfTelemetry.bpfDir, instrumentation.filename)
-		if err != nil {
-			return fmt.Errorf("failed to read %s bytecode file: %w", instrumentation.filename, err)
-		}
-
-		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
-		if err != nil {
-			return fmt.Errorf("failed to load collection spec from reader: %w", err)
-		}
-
-		functions := make(map[string]struct{}, len(collectionSpec.Programs))
-		for fn := range collectionSpec.Programs {
-			functions[fn] = struct{}{}
-		}
-		sizes, err := parseStackSizesSections(bpfAsset, functions)
-		if err != nil {
-			return fmt.Errorf("cannot get stack sizes for instrumnetation block: %v", err)
-		}
-
-		// each program in the instrumentation file is a separate instrumentation
-		// all instrumentation run one after the other before returning execution back.
-		for _, program := range instrumentation.functions {
-			if _, ok := collectionSpec.Programs[program]; !ok {
-				return fmt.Errorf("no program %s present in instrumentation file %s.o", program, instrumentation.filename)
-			}
-
-			// the instrumentation code should not access the stack other than to cache the telemetry pointer
-			// writing to the stack will not cause the program to fail but may cause errors related to
-			// accessing uninitialized stack locations to get suppressed
-			if sizes[program] > 8 /*bytes*/ {
-				return errors.New("instrumentation block cannot perform any stack reads or writes on more than one stack slot")
-			}
-
-			ins := collectionSpec.Programs[program].Instructions
-
-			iter := ins.Iterate()
-			for iter.Next() {
-				ins := iter.Ins
-				// The final instruction in the instrumentation block is `exit`, which we
-				// do not want.
-				if ins.OpCode.JumpOp() == asm.Exit {
-					break
-				}
-				instrumentationBlockCount += countRawBPFIns(ins)
-
-				// The first instruction has associated func_info btf information. Since
-				// the instrumentation is not a function, the verifier will complain that the number of
-				// `func_info` objects in the BTF do not match the number of loaded programs:
-				// https://elixir.bootlin.com/linux/latest/source/kernel/bpf/verifier.c#L15035
-				// To workaround this we create a new instruction object and give it empty metadata.
-				if iter.Index == 0 {
-					newIns := asm.Instruction{
-						OpCode:   ins.OpCode,
-						Dst:      ins.Dst,
-						Src:      ins.Src,
-						Offset:   ins.Offset,
-						Constant: ins.Constant,
-					}.WithMetadata(asm.Metadata{})
-
-					instrumentationBlock = append(instrumentationBlock, &newIns)
-					continue
-				}
-
-				instrumentationBlock = append(instrumentationBlock, ins)
-			}
-		}
-
 		// absolute jump back to the telemetry patch point to continue normal execution
-		retJumpOffset := trampolinePatchIndex - (insCount + instrumentationBlockCount)
+		retJumpOffset := trampolinePatchIndex - (insCount + block.instructionCount)
 		newIns := asm.Instruction{
 			OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
 			Offset: int16(retJumpOffset),
 		}
-		instrumentationBlock = append(instrumentationBlock, &newIns)
 
-		for _, ins := range instrumentationBlock {
+		for _, ins := range block.code {
 			p.Instructions = append(p.Instructions, *ins)
 		}
+		p.Instructions = append(p.Instructions, newIns)
 	}
 
 	return nil
+}
+
+func BuildInstrumentationBlock(bpfAsset io.ReaderAt, collectionSpec *ebpf.CollectionSpec) (*instrumentationBlock, error) {
+	var block []*asm.Instruction
+	var blockCount int
+
+	functions := make(map[string]struct{}, len(collectionSpec.Programs))
+	for fn := range collectionSpec.Programs {
+		functions[fn] = struct{}{}
+	}
+
+	sizes, err := parseStackSizesSections(bpfAsset, functions)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get stack sizes for instrumnetation block: %w", err)
+	}
+
+	// each program in the instrumentation file is a separate instrumentation
+	// all instrumentation runs one after the other before returning execution back.
+	for _, program := range InstrumentationFunctions.functions {
+		if _, ok := collectionSpec.Programs[program]; !ok {
+			return nil, fmt.Errorf("no program %s present in instrumentation file %s", program, InstrumentationFunctions.Filename)
+		}
+
+		// the instrumentation code should not access the stack other than to cache the telemetry pointer
+		// writing to the stack will not cause the program to fail but may cause errors related to
+		// accessing uninitialized stack locations to get suppressed
+		if sizes[program] > 8 /*bytes*/ {
+			return nil, errors.New("instrumentation block cannot perform any stack reads or writes on more than one stack slot")
+		}
+
+		ins := collectionSpec.Programs[program].Instructions
+
+		iter := ins.Iterate()
+		for iter.Next() {
+			ins := iter.Ins
+			// The final instruction in the instrumentation block is `exit`, which we
+			// do not want.
+			if ins.OpCode.JumpOp() == asm.Exit {
+				break
+			}
+			blockCount += countRawBPFIns(ins)
+
+			// The first instruction has associated func_info btf information. Since
+			// the instrumentation is not a function, the verifier will complain that the number of
+			// `func_info` objects in the BTF do not match the number of loaded programs:
+			// https://elixir.bootlin.com/linux/latest/source/kernel/bpf/verifier.c#L15035
+			// To workaround this we create a new instruction object and give it empty metadata.
+			if iter.Index == 0 {
+				newIns := asm.Instruction{
+					OpCode:   ins.OpCode,
+					Dst:      ins.Dst,
+					Src:      ins.Src,
+					Offset:   ins.Offset,
+					Constant: ins.Constant,
+				}.WithMetadata(asm.Metadata{})
+
+				block = append(block, &newIns)
+				continue
+			}
+
+			block = append(block, ins)
+		}
+	}
+
+	return &instrumentationBlock{
+		code:             block,
+		instructionCount: blockCount,
+	}, nil
 }
 
 // setupForTelemetry sets up the manager to handle eBPF telemetry.
@@ -323,22 +323,28 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		return nil
 	}
 
+	bpfAsset, err := netbpf.ReadEBPFInstrumentationModule(bpfTelemetry.bpfDir, InstrumentationFunctions.Filename)
+	if err != nil {
+		return fmt.Errorf("failed to read %s bytecode file: %w", InstrumentationFunctions.Filename, err)
+	}
+	defer bpfAsset.Close()
+
+	collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
+	if err != nil {
+		return fmt.Errorf("failed to load collection spec from reader: %w", err)
+	}
+
 	// TODO: This check will be removed when ebpf telemetry is converted to a singleton
 	if bpfTelemetry.EBPFInstrumentationMap == nil {
 		// get reference to instrumentation map
-		bpfAsset, err := netbpf.ReadEBPFInstrumentationModule(bpfTelemetry.bpfDir, instrumentation.filename)
-		if err != nil {
-			return fmt.Errorf("failed to read %s bytecode file: %w", instrumentation.filename, err)
-		}
-
-		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
-		if err != nil {
-			return fmt.Errorf("failed to load collection spec from reader: %w", err)
-		}
-
 		if err := collectionSpec.LoadAndAssign(bpfTelemetry, nil); err != nil {
 			return fmt.Errorf("failed to load instrumentation maps: %w", err)
 		}
+	}
+
+	block, err := BuildInstrumentationBlock(bpfAsset, collectionSpec)
+	if err != nil {
+		return fmt.Errorf("unabled to build instrumentation block: %w", err)
 	}
 
 	supported, err := ebpfTelemetrySupported()
@@ -359,7 +365,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	}()
 
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
-		return patchEBPFInstrumentation(m, bpfTelemetry, bytecode, skipFunctionWithSupported)
+		return patchEBPFInstrumentation(m, bpfTelemetry, bytecode, skipFunctionWithSupported, block)
 	})
 
 	// add telemetry maps to list of maps, if not present
