@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -69,15 +69,28 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.GetInt("security_agent.cmd_port"))
+
+	v := url.Values{}
+	if params.prettyPrintJSON || params.json {
+		v.Set("format", "json")
+	} else {
+		v.Set("format", "text")
+	}
+
+	url := url.URL{
+		Scheme:   "https",
+		Host:     fmt.Sprintf("localhost:%v", config.GetInt("security_agent.cmd_port")),
+		Path:     "/agent/status",
+		RawQuery: v.Encode(),
+	}
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
+	r, e := util.DoGet(c, url.String(), util.LeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
@@ -98,14 +111,8 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ") //nolint:errcheck
 		s = prettyJSON.String()
-	} else if params.json {
-		s = string(r)
 	} else {
-		formattedStatus, err := render.FormatSecurityAgentStatus(r)
-		if err != nil {
-			return err
-		}
-		s = formattedStatus
+		s = string(r)
 	}
 
 	if params.file != "" {

@@ -19,9 +19,13 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockedContainer struct {
@@ -107,7 +111,29 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		},
 	}
 
-	result, err := buildWorkloadMetaContainer(namespace, &container, &client)
+	// Create a workload meta global store containing image metadata
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+	imageMetadata := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "my_image_id",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "datadog/agent",
+		},
+		RepoDigests: []string{
+			"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+		},
+	}
+	workloadmetaStore.Set(imageMetadata)
+
+	result, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	assert.NoError(t, err)
 
 	expected := workloadmeta.Container{
@@ -120,11 +146,12 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			Labels: labels,
 		},
 		Image: workloadmeta.ContainerImage{
-			RawName:   "datadog/agent:7",
-			Name:      "datadog/agent",
-			ShortName: "agent",
-			Tag:       "7",
-			ID:        "my_image_id",
+			RawName:    "datadog/agent:7",
+			Name:       "datadog/agent",
+			ShortName:  "agent",
+			Tag:        "7",
+			ID:         "my_image_id",
+			RepoDigest: "sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 		},
 		EnvVars:       envVars,
 		Ports:         nil, // Not available

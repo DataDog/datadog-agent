@@ -20,8 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 )
 
 const dockerCommandMaxLength = 29
@@ -84,7 +83,7 @@ func getDockerPs() ([]byte, error) {
 		log.Debugf("Couldn't reach docker for getting `docker ps`: %s", err)
 		return nil, nil
 	}
-	options := types.ContainerListOptions{All: true, Limit: 500}
+	options := container.ListOptions{All: true, Limit: 500}
 	containerList, err := du.RawContainerList(context.TODO(), options)
 	if err != nil {
 		return nil, err

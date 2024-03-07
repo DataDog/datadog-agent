@@ -173,6 +173,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`container.id`](#container-id-doc) | ID of the container |
 | [`container.tags`](#container-tags-doc) | Tags of the container |
 | [`event.async`](#event-async-doc) | True if the syscall was asynchronous |
+| [`event.service`](#event-service-doc) | Service associated with the event |
 | [`event.timestamp`](#event-timestamp-doc) | Timestamp of the event |
 | [`process.ancestors.args`](#common-process-args-doc) | Arguments of the process (as a string, excluding argv0) |
 | [`process.ancestors.args_flags`](#common-process-args_flags-doc) | Flags in the process arguments |
@@ -2498,6 +2499,13 @@ Constants: [DNS qtypes](#dns-qtypes)
 Type: bool
 
 Definition: True if the syscall was asynchronous
+
+
+
+### `event.service` {#event-service-doc}
+Type: string
+
+Definition: Service associated with the event
 
 
 

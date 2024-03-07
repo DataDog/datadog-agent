@@ -50,8 +50,7 @@ type checkPayload struct {
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-type Runner interface {
-}
+type Runner interface{}
 
 // CheckRunner will collect metrics from the local system and ship to the backend.
 type CheckRunner struct {
@@ -104,7 +103,6 @@ func NewRunner(config ddconfig.Reader, sysCfg *sysconfigtypes.Config, hostInfo *
 		cfg.ProcessModuleEnabled = processModuleEnabled
 		cfg.MaxConnsPerMessage = sysCfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = sysCfg.SocketAddress
-		cfg.GRPCServerEnabled = sysCfg.GRPCServerEnabled
 	}
 
 	for _, c := range enabledChecks {
@@ -517,7 +515,7 @@ func readResponseStatuses(checkName string, responses <-chan defaultforwarder.Re
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.PodCheckName, checks.PodCheckManifestName, checks.ProcessEventsCheckName:
+	case checks.ProcessEventsCheckName:
 		return true
 	default:
 		return false

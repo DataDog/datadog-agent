@@ -18,9 +18,17 @@ import (
 
 	"github.com/invopop/jsonschema"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+// CWSEvent is a similar struct to what we actually send to the backend, except in the real case
+// we actually do some struct-less string concatenation optimization
+type CWSEvent struct {
+	events.BackendEvent         `json:",inline"`
+	serializers.EventSerializer `json:",inline"`
+}
 
 func generateBackendJSON(output string) error {
 	reflector := jsonschema.Reflector{
@@ -35,7 +43,8 @@ func generateBackendJSON(output string) error {
 	}
 	reflector.CommentMap = cleanupEasyjson(reflector.CommentMap)
 
-	schema := reflector.Reflect(&serializers.EventSerializer{})
+	schema := reflector.Reflect(&CWSEvent{})
+	schema.ID = "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers"
 
 	schemaJSON, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {

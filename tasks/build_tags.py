@@ -93,6 +93,9 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
+# AGENTLESS_SCANNER_TAGS lists the tags needed when building the agentless-scanner
+AGENTLESS_SCANNER_TAGS = {""}
+
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "zlib", "ec2", "gce"}
 
@@ -106,7 +109,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib"}
 IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
-PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess", "orchestrator"}).difference({"otlp", "python", "trivy"})
+PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
 PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
@@ -193,6 +196,12 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS),
+    },
+    AgentFlavor.agentless_scanner: {
+        "dogstatsd": AGENTLESS_SCANNER_TAGS,
+        "system-tests": AGENT_TAGS,
+        "lint": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS),
+        "unit-tests": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS),
     },
 }
 

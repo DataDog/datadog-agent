@@ -174,6 +174,10 @@ func TestProcessContext(t *testing.T) {
 			ID:         "test_rule_container",
 			Expression: `exec.file.name == "touch" && exec.argv == "{{.Root}}/test-container"`,
 		},
+		{
+			ID:         "test_event_service",
+			Expression: `open.file.path == "{{.Root}}/test-event-service" && open.flags & O_CREAT != 0 && event.service == "myservice"`,
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -843,7 +847,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.Run(t, "service-tag", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		testFile, _, err := test.Path("test-process-context")
+		testFile, _, err := test.Path("test-event-service")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -862,9 +866,9 @@ func TestProcessContext(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			assert.Equal(t, "test_rule_inode", rule.ID, "wrong rule triggered")
+			assert.Equal(t, "test_event_service", rule.ID, "wrong rule triggered")
 
-			service := event.GetProcessService()
+			service := event.GetEventService()
 			assert.Equal(t, service, "myservice")
 		})
 	})
@@ -2020,7 +2024,7 @@ echo "Executing echo insIDe a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print insIDe a python (%s) script insIDe a bash script')
+print('Executing print insIDe a python (%s) script inside a bash script')
 
 EOF
 
@@ -2094,7 +2098,7 @@ chmod 755 pyscript.py
 
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
+			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
 			}
@@ -2103,6 +2107,7 @@ chmod 755 pyscript.py
 
 			testModule.WaitSignal(t, func() error {
 				cmd := exec.Command(scriptLocation)
+				cmd.Dir = os.TempDir()
 				output, scriptRunErr := cmd.CombinedOutput()
 				if scriptRunErr != nil {
 					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)

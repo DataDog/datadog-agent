@@ -8,7 +8,9 @@ package status
 
 import (
 	"expvar"
+	"fmt"
 	"strings"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -194,12 +196,14 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 }
 
 // getMetricsStatus exposes some aggregated metrics of the log agent on the agent status
-func (b *Builder) getMetricsStatus() map[string]int64 {
-	var metrics = make(map[string]int64, 2)
-	metrics["LogsProcessed"] = b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value()
-	metrics["LogsSent"] = b.logsExpVars.Get("LogsSent").(*expvar.Int).Value()
-	metrics["BytesSent"] = b.logsExpVars.Get("BytesSent").(*expvar.Int).Value()
-	metrics["EncodedBytesSent"] = b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value()
+func (b *Builder) getMetricsStatus() map[string]string {
+	var metrics = make(map[string]string)
+	metrics["LogsProcessed"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsProcessed").(*expvar.Int).Value())
+	metrics["LogsSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsSent").(*expvar.Int).Value())
+	metrics["BytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("BytesSent").(*expvar.Int).Value())
+	metrics["RetryCount"] = fmt.Sprintf("%v", b.logsExpVars.Get("RetryCount").(*expvar.Int).Value())
+	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
+	metrics["EncodedBytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value())
 	return metrics
 }
 

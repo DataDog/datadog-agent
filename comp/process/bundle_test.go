@@ -33,6 +33,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
+		workloadmeta.Module(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Provide(func() context.Context { return context.TODO() }),
 	)
@@ -41,7 +42,7 @@ func TestBundleDependencies(t *testing.T) {
 func TestBundleOneShot(t *testing.T) {
 	runCmd := func(r runner.Component) {
 		checks := r.GetProvidedChecks()
-		require.Len(t, checks, 7)
+		require.Len(t, checks, 6)
 
 		var names []string
 		for _, c := range checks {
@@ -54,7 +55,6 @@ func TestBundleOneShot(t *testing.T) {
 			"rtcontainer",
 			"process_events",
 			"connections",
-			"pod",
 			"process_discovery",
 		}, names)
 	}

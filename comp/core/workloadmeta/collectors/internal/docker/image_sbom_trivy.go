@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
+	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	dutil "github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -36,7 +36,6 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return nil
 	}
 
-	c.scanOptions = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
 		return fmt.Errorf("error retrieving global SBOM scanner")
@@ -53,7 +52,14 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		workloadmeta.NewFilter(&filterParams),
 	)
 
-	resultChan := make(chan sbom.ScanResult, 2000)
+	scanner := collectors.GetDockerScanner()
+	if scanner == nil {
+		return fmt.Errorf("error retrieving global docker scanner")
+	}
+	resultChan := scanner.Channel()
+	if resultChan == nil {
+		return fmt.Errorf("error retrieving global docker scanner channel")
+	}
 	go func() {
 		for {
 			select {
@@ -77,7 +83,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 						continue
 					}
 
-					if err := c.extractSBOMWithTrivy(ctx, image, resultChan); err != nil {
+					if err := c.extractSBOMWithTrivy(ctx, image.ID); err != nil {
 						log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", image.Namespace, image.Name, err)
 					}
 				}
@@ -86,61 +92,66 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	}()
 
 	go func() {
-		for result := range resultChan {
-			if result.ImgMeta == nil {
-				log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
-				continue
-			}
-			status := workloadmeta.Success
-			reportedError := ""
-			var report *cyclonedx.BOM
-			if result.Error != nil {
-				// TODO: add a retry mechanism for retryable errors
-				log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
-				status = workloadmeta.Failed
-				reportedError = result.Error.Error()
-			} else {
-				bom, err := result.Report.ToCycloneDX()
-				if err != nil {
-					log.Errorf("Failed to extract SBOM from report")
+		for {
+			select {
+			case result, ok := <-resultChan:
+				if !ok {
+					return
+				}
+				if result.ImgMeta == nil {
+					log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
+					continue
+				}
+				status := workloadmeta.Success
+				reportedError := ""
+				var report *cyclonedx.BOM
+				if result.Error != nil {
+					// TODO: add a retry mechanism for retryable errors
+					log.Errorf("Failed to generate SBOM for docker: %s", result.Error)
 					status = workloadmeta.Failed
 					reportedError = result.Error.Error()
+				} else {
+					bom, err := result.Report.ToCycloneDX()
+					if err != nil {
+						log.Errorf("Failed to extract SBOM from report")
+						status = workloadmeta.Failed
+						reportedError = result.Error.Error()
+					}
+					report = bom
 				}
-				report = bom
-			}
 
-			sbom := &workloadmeta.SBOM{
-				CycloneDXBOM:       report,
-				GenerationTime:     result.CreatedAt,
-				GenerationDuration: result.Duration,
-				Status:             status,
-				Error:              reportedError,
-			}
-
-			// Updating workloadmeta entities directly is not thread-safe, that's why we
-			// generate an update event here instead.
-			event := &dutil.ImageEvent{
-				ImageID:   result.ImgMeta.ID,
-				Action:    dutil.ImageEventActionSbom,
-				Timestamp: time.Now(),
-			}
-			if err := c.handleImageEvent(ctx, event, sbom); err != nil {
-				log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
+				sbom := &workloadmeta.SBOM{
+					CycloneDXBOM:       report,
+					GenerationTime:     result.CreatedAt,
+					GenerationDuration: result.Duration,
+					Status:             status,
+					Error:              reportedError,
+				}
+				// Updating workloadmeta entities directly is not thread-safe, that's why we
+				// generate an update event here instead.
+				event := &dutil.ImageEvent{
+					ImageID:   result.ImgMeta.ID,
+					Action:    imageEventActionSbom,
+					Timestamp: time.Now(),
+				}
+				if err := c.handleImageEvent(ctx, event, sbom); err != nil {
+					log.Warnf("Error extracting SBOM for image: namespace=%s name=%s, err: %s", result.ImgMeta.Namespace, result.ImgMeta.Name, err)
+				}
+			case <-ctx.Done():
+				return
 			}
 		}
-
 	}()
 
 	return nil
 }
 
-func (c *collector) extractSBOMWithTrivy(_ context.Context, storedImage *workloadmeta.ContainerImageMetadata, resultChan chan<- sbom.ScanResult) error {
-	scanRequest := &docker.ScanRequest{
-		ImageMeta:    storedImage,
-		DockerClient: c.dockerUtil.RawClient(),
+func (c *collector) extractSBOMWithTrivy(_ context.Context, imageID string) error {
+	scanRequest := docker.ScanRequest{
+		ImageID: imageID,
 	}
 
-	if err := c.sbomScanner.Scan(scanRequest, c.scanOptions, resultChan); err != nil {
+	if err := c.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for docker: %s", err)
 		return err
 	}

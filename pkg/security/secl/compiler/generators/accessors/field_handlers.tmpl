@@ -29,7 +29,7 @@ func (ev *Event) resolveFields(forADs bool) {
         {{- if $Field.GettersOnly }}
 	        {{continue}}
         {{end}}
-        
+
         {{- if and (eq $Field.Event "*") }}
             {{ $resolver := $Field | GetFieldHandler $.AllFields }}
             {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
@@ -104,9 +104,9 @@ type FieldHandlers interface {
     ExtraFieldHandlers
 }
 
-type DefaultFieldHandlers struct {}
+type FakeFieldHandlers struct {}
 
 {{$Handlers := .Fields | GetHandlers}}
 {{range $Proto, $Impl := $Handlers}}
-    func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
+    func (dfh *FakeFieldHandlers) {{$Proto}} {{$Impl}}
 {{end}}

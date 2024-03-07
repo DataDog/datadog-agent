@@ -5,6 +5,7 @@ package events
 
 type batch struct {
 	Idx            uint64
+	Cpu            uint16
 	Len            uint16
 	Cap            uint16
 	Event_size     uint16
@@ -13,8 +14,8 @@ type batch struct {
 	Data           [4096]int8
 }
 type batchKey struct {
-	Cpu uint32
-	Num uint32
+	Cpu uint16
+	Num uint16
 }
 
 const (

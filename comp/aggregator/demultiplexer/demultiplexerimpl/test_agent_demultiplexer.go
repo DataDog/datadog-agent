@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -64,7 +65,7 @@ func (a *TestAgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+func (a *TestAgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	return a.AgentDemultiplexer.GetEventPlatformForwarder()
 }
 
@@ -172,7 +173,7 @@ func (a *TestAgentDemultiplexer) Reset() {
 }
 
 // initTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given flush interval.
-func initTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
+func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hostname.Component, flushInterval time.Duration) *TestAgentDemultiplexer {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = flushInterval
 	opts.DontStartForwarders = true
@@ -181,7 +182,7 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, flushInterva
 	sharedForwarderOptions := defaultforwarder.NewOptions(config.Datadog, log, nil)
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
-	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder())
+	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname))
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, "hostname")
 	return NewTestAgentDemultiplexer(demux)
 }

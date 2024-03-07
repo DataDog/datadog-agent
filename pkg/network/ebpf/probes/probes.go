@@ -91,6 +91,8 @@ const (
 
 	// IPMakeSkb traces ip_make_skb
 	IPMakeSkb ProbeFuncName = "kprobe__ip_make_skb"
+	// IPMakeSkbPre4180 tracer ip_make_sbk on kernels prior to 4.18.0
+	IPMakeSkbPre4180 ProbeFuncName = "kprobe__ip_make_skb__pre_4_18_0"
 	// IPMakeSkbReturn traces return of ip_make_skb
 	IPMakeSkbReturn ProbeFuncName = "kretprobe__ip_make_skb"
 	// IP6MakeSkb traces ip6_make_skb
@@ -171,12 +173,6 @@ const (
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
-
-	// SockFDLookup is the kprobe used for mapping socket FDs to kernel sock structs
-	SockFDLookup ProbeFuncName = "kprobe__sockfd_lookup_light"
-
-	// SockFDLookupRet is the kretprobe used for mapping socket FDs to kernel sock structs
-	SockFDLookupRet ProbeFuncName = "kretprobe__sockfd_lookup_light"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
@@ -210,12 +206,6 @@ const (
 	ConntrackMap BPFMapName = "conntrack"
 	//nolint:revive // TODO(NET) Fix revive linter
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
-	//nolint:revive // TODO(NET) Fix revive linter
-	SockFDLookupArgsMap BPFMapName = "sockfd_lookup_args"
-	//nolint:revive // TODO(NET) Fix revive linter
-	SockByPidFDMap BPFMapName = "sock_by_pid_fd"
-	//nolint:revive // TODO(NET) Fix revive linter
-	PidFDBySockMap BPFMapName = "pid_fd_by_sock"
 	//nolint:revive // TODO(NET) Fix revive linter
 	TcpSendMsgArgsMap BPFMapName = "tcp_sendmsg_args"
 	//nolint:revive // TODO(NET) Fix revive linter

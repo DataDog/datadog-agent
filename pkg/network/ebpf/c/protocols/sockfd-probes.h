@@ -13,6 +13,28 @@
 #include "sock.h"
 #include "sockfd.h"
 
+SEC("kprobe/tcp_close")
+int kprobe__tcp_close(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    if (sk == NULL) {
+        return 0;
+    }
+
+    pid_fd_t* pid_fd = bpf_map_lookup_elem(&pid_fd_by_sock, &sk);
+    if (pid_fd == NULL) {
+        return 0;
+    }
+
+    // Copy map value to stack before re-using it (needed for older kernels)
+    pid_fd_t pid_fd_copy = {};
+    bpf_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
+    pid_fd = &pid_fd_copy;
+
+    bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
+    bpf_map_delete_elem(&pid_fd_by_sock, &sk);
+    return 0;
+}
+
 SEC("kprobe/sockfd_lookup_light")
 int kprobe__sockfd_lookup_light(struct pt_regs *ctx) {
     int sockfd = (int)PT_REGS_PARM1(ctx);

@@ -12,6 +12,7 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
 // RuleID - ID of a Rule
@@ -22,11 +23,12 @@ type RuleSetTagValue = string
 
 // Rule - Rule object identified by an `ID` containing a SECL `Expression`
 type Rule struct {
-	ID         RuleID
-	Expression string
-	Tags       []string
-	Model      Model
-	Opts       *Opts
+	ID          RuleID
+	Expression  string
+	Tags        []string
+	Model       Model
+	Opts        *Opts
+	pprofLabels utils.LabelSet
 
 	evaluator *RuleEvaluator
 	ast       *ast.Rule
@@ -34,9 +36,11 @@ type Rule struct {
 
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
-	Eval        BoolEvalFnc
-	EventTypes  []EventType
-	FieldValues map[Field][]FieldValue
+	Eval       BoolEvalFnc
+	EventTypes []EventType
+
+	fieldValues map[Field][]FieldValue
+	fields      []Field
 
 	partialEvals map[Field]BoolEvalFnc
 }
@@ -50,11 +54,17 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 		opts.WithVariableStore(&VariableStore{})
 	}
 
+	labelSet, err := utils.NewLabelSet("rule_id", id)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Rule{
-		ID:         id,
-		Expression: expression,
-		Opts:       opts,
-		Tags:       tags,
+		ID:          id,
+		Expression:  expression,
+		Opts:        opts,
+		Tags:        tags,
+		pprofLabels: labelSet,
 	}
 }
 
@@ -77,13 +87,7 @@ func (r *RuleEvaluator) setPartial(field string, partialEval BoolEvalFnc) {
 
 // GetFields - Returns all the Field that the RuleEvaluator handles
 func (r *RuleEvaluator) GetFields() []Field {
-	fields := make([]Field, len(r.FieldValues))
-	i := 0
-	for key := range r.FieldValues {
-		fields[i] = key
-		i++
-	}
-	return fields
+	return r.fields
 }
 
 // Eval - Evaluates
@@ -93,7 +97,7 @@ func (r *Rule) Eval(ctx *Context) bool {
 
 // GetFieldValues returns the values of the given field
 func (r *Rule) GetFieldValues(field Field) []FieldValue {
-	return r.evaluator.FieldValues[field]
+	return r.evaluator.fieldValues[field]
 }
 
 // PartialEval - Partial evaluation with the given Field
@@ -135,6 +139,11 @@ func (r *Rule) GetFields() []Field {
 	}
 
 	return fields
+}
+
+// GetPprofLabels returns the pprof labels
+func (r *Rule) GetPprofLabels() utils.LabelSet {
+	return r.pprofLabels
 }
 
 // GetEvaluator - Returns the RuleEvaluator of the Rule corresponding to the SECL `Expression`
@@ -205,7 +214,8 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventTypes:  events,
-		FieldValues: state.fieldValues,
+		fieldValues: state.fieldValues,
+		fields:      KeysOfMap(state.fieldValues),
 	}, nil
 }
 

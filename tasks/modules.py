@@ -180,6 +180,7 @@ DEFAULT_MODULES = {
     ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
+    "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True),
@@ -227,6 +228,7 @@ DEFAULT_MODULES = {
     "pkg/util/system": GoModule("pkg/util/system", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),
     "pkg/util/grpc": GoModule("pkg/util/grpc", independent=True),
     "pkg/version": GoModule("pkg/version", independent=True),
@@ -291,8 +293,6 @@ def go_work(_: Context):
     and the go version contained in the file .go-version.
     If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
-    from semver import VersionInfo
-
     print(
         color_message(
             "WARNING: Using a go.work file is not supported and can cause weird errors "
@@ -306,8 +306,7 @@ def go_work(_: Context):
     # read go version from the .go-version file, removing the bugfix part of the version
 
     with open(".go-version") as f:
-        go_version = VersionInfo.parse(f.read().strip())
-        go_version = f"{go_version.major}.{go_version.minor}"
+        go_version = f.read().strip()
 
     if os.path.exists("go.work"):
         print("go.work already exists. Renaming to go.work.backup")

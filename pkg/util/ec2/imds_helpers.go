@@ -65,10 +65,15 @@ func getMetadataItem(ctx context.Context, endpoint string, forceIMDSv2 bool) (st
 	return doHTTPRequest(ctx, metadataURL+endpoint, forceIMDSv2)
 }
 
+// UseIMDSv2 returns true if the agent should use IMDSv2
+func UseIMDSv2(forceIMDSv2 bool) bool {
+	return config.Datadog.GetBool("ec2_prefer_imdsv2") || forceIMDSv2
+}
+
 func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, error) {
 	source := metadataSourceIMDSv1
 	headers := map[string]string{}
-	if config.Datadog.GetBool("ec2_prefer_imdsv2") || forceIMDSv2 {
+	if UseIMDSv2(forceIMDSv2) {
 		tokenValue, err := token.Get(ctx)
 		if err != nil {
 			if forceIMDSv2 {
@@ -82,7 +87,6 @@ func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, e
 			}
 		}
 	}
-
 	res, err := httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond, config.Datadog)
 	// We don't want to register the source when we force imdsv2
 	if err == nil && !forceIMDSv2 {

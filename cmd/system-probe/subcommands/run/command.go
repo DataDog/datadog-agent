@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -80,7 +81,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.Module(),
 				telemetry.Module(),
 				sysprobeconfigimpl.Module(),
-				rcclient.Module(),
+				rcclientimpl.Module(),
 				// use system-probe config instead of agent config for logging
 				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
@@ -208,7 +209,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-		rcclient.Module(),
+		rcclientimpl.Module(),
 		config.Module(),
 		telemetry.Module(),
 		compstatsd.Module(),
@@ -310,7 +311,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	// Setup healthcheck port
 	healthPort := cfg.HealthPort
 	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, healthPort)
+		err := healthprobe.Serve(ctx, ddconfig.Datadog, healthPort)
 		if err != nil {
 			return log.Errorf("error starting health check server, exiting: %s", err)
 		}

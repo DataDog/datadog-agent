@@ -7,9 +7,8 @@
 package selftests
 
 import (
-	"errors"
-	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -26,53 +25,67 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// EventPredicate defines a self test event validation predicate
-type EventPredicate func(event selfTestEvent) bool
-
-// FileSelfTest represent one self test, with its ID and func
-type FileSelfTest interface {
-	GetRuleDefinition(filename string) *rules.RuleDefinition
-	GenerateEvent(filename string) (EventPredicate, error)
-}
-
-// FileSelfTests slice of self test functions representing each individual file test
-var FileSelfTests = []FileSelfTest{
-	&OpenSelfTest{},
-	&ChmodSelfTest{},
-	&ChownSelfTest{},
+// SelfTest represent one self test
+type SelfTest interface {
+	GetRuleDefinition() *rules.RuleDefinition
+	GenerateEvent() error
+	HandleEvent(selfTestEvent)
+	IsSuccess() bool
 }
 
 // SelfTester represents all the state needed to conduct rule injection test at startup
 type SelfTester struct {
+	sync.Mutex
+
+	config          *config.RuntimeSecurityConfig
 	waitingForEvent *atomic.Bool
 	eventChan       chan selfTestEvent
 	probe           *probe.Probe
-	success         []string
-	fails           []string
+	success         []eval.RuleID
+	fails           []eval.RuleID
 	lastTimestamp   time.Time
-
-	// file tests
-	targetFilePath string
-	targetTempDir  string
+	selfTests       []SelfTest
+	tmpDir          string
+	done            chan bool
+	selfTestRunning chan time.Duration
 }
 
 var _ rules.PolicyProvider = (*SelfTester)(nil)
 
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
-	// not supported on ebpfless environment
+	var (
+		selfTests []SelfTest
+		tmpDir    string
+	)
+
 	if cfg.EBPFLessEnabled {
-		return nil, nil
+		selfTests = []SelfTest{
+			&EBPFLessSelfTest{},
+		}
+	} else {
+		name, dir, err := createTargetFile()
+		if err != nil {
+			return nil, err
+		}
+		tmpDir = dir
+
+		selfTests = []SelfTest{
+			&OpenSelfTest{filename: name},
+			&ChmodSelfTest{filename: name},
+			&ChownSelfTest{filename: name},
+		}
 	}
 
 	s := &SelfTester{
-		waitingForEvent: atomic.NewBool(false),
+		waitingForEvent: atomic.NewBool(cfg.EBPFLessEnabled),
 		eventChan:       make(chan selfTestEvent, 10),
+		selfTestRunning: make(chan time.Duration, 10),
 		probe:           probe,
-	}
-
-	if err := s.createTargetFile(); err != nil {
-		return nil, err
+		selfTests:       selfTests,
+		tmpDir:          tmpDir,
+		done:            make(chan bool),
+		config:          cfg,
 	}
 
 	return s, nil
@@ -80,6 +93,9 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 
 // GetStatus returns the result of the last performed self tests
 func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
+	t.Lock()
+	defer t.Unlock()
+
 	return &api.SelfTestsStatus{
 		LastTimestamp: t.lastTimestamp.Format(time.RFC822),
 		Success:       t.success,
@@ -87,72 +103,111 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 	}
 }
 
-func (t *SelfTester) createTargetFile() error {
+func createTargetFile() (string, string, error) {
 	// Create temp directory to put target file in
 	tmpDir, err := os.MkdirTemp("", "datadog_agent_cws_self_test")
 	if err != nil {
-		return err
+		return "", "", err
 	}
-	t.targetTempDir = tmpDir
 
 	// Create target file
 	targetFile, err := os.CreateTemp(tmpDir, "datadog_agent_cws_target_file")
 	if err != nil {
-		return err
+		return "", "", err
 	}
-	t.targetFilePath = targetFile.Name()
 
-	return targetFile.Close()
+	return targetFile.Name(), tmpDir, targetFile.Close()
 }
 
 // RunSelfTest runs the self test and return the result
-func (t *SelfTester) RunSelfTest() ([]string, []string, map[string]*serializers.EventSerializer, error) {
-	if err := t.BeginWaitingForEvent(); err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to run self test: %w", err)
-	}
-	defer t.EndWaitingForEvent()
+func (t *SelfTester) RunSelfTest(timeout time.Duration) error {
+	t.Lock()
+	defer t.Unlock()
 
-	t.lastTimestamp = time.Now()
+	t.beginSelfTests(timeout)
 
-	// launch the self tests
-	var success []string
-	var fails []string
-	testEvents := make(map[string]*serializers.EventSerializer)
-
-	for _, selftest := range FileSelfTests {
-		def := selftest.GetRuleDefinition(t.targetFilePath)
-
-		predicate, err := selftest.GenerateEvent(t.targetFilePath)
-		if err != nil {
-			fails = append(fails, def.ID)
-			log.Errorf("Self test failed: %s", def.ID)
-			continue
-		}
-		event, err2 := t.expectEvent(predicate)
-		testEvents[def.ID] = event
-		if err2 != nil {
-			fails = append(fails, def.ID)
-			log.Errorf("Self test failed: %s", def.ID)
-		} else {
-			success = append(success, def.ID)
+	for _, selfTest := range t.selfTests {
+		if err := selfTest.GenerateEvent(); err != nil {
+			log.Errorf("self test failed: %s", selfTest.GetRuleDefinition().ID)
 		}
 	}
 
-	// save the results for get status command
-	t.success = success
-	t.fails = fails
-
-	return success, fails, testEvents, nil
+	return nil
 }
 
-// Start starts the self tester policy provider
-func (t *SelfTester) Start() {}
+// Start the self tester policy provider
+func (t *SelfTester) Start() {
+	if t.config.EBPFLessEnabled {
+		t.selfTestRunning <- DefaultTimeout
+	}
+}
+
+// WaitForResult wait for self test results
+func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID, events map[eval.RuleID]*serializers.EventSerializer)) {
+	for timeout := range t.selfTestRunning {
+		timer := time.After(timeout)
+
+		var (
+			success []string
+			fails   []string
+			events  = make(map[eval.RuleID]*serializers.EventSerializer)
+		)
+
+	LOOP:
+		for {
+			select {
+			case <-t.done:
+				return
+			case event := <-t.eventChan:
+				t.Lock()
+				for _, selfTest := range t.selfTests {
+					if !selfTest.IsSuccess() {
+						selfTest.HandleEvent(event)
+
+						if selfTest.IsSuccess() {
+							id := selfTest.GetRuleDefinition().ID
+							events[id] = event.Event
+						}
+					}
+				}
+				t.Unlock()
+
+				// all test passed
+				if len(events) == len(t.selfTests) {
+					break LOOP
+				}
+			case <-timer:
+				break LOOP
+			}
+		}
+
+		t.Lock()
+		for _, selfTest := range t.selfTests {
+			id := selfTest.GetRuleDefinition().ID
+
+			if _, ok := events[id]; ok {
+				success = append(success, id)
+			} else {
+				fails = append(fails, id)
+			}
+		}
+		t.success, t.fails, t.lastTimestamp = success, fails, time.Now()
+		t.Unlock()
+
+		cb(success, fails, events)
+
+		t.endSelfTests()
+	}
+}
 
 // Close removes temp directories and files used by the self tester
 func (t *SelfTester) Close() error {
-	if t.targetTempDir != "" {
-		err := os.RemoveAll(t.targetTempDir)
-		t.targetTempDir = ""
+	close(t.selfTestRunning)
+	close(t.done)
+
+	if t.tmpDir != "" {
+		err := os.RemoveAll(t.tmpDir)
+		t.tmpDir = ""
 		return err
 	}
 	return nil
@@ -160,6 +215,8 @@ func (t *SelfTester) Close() error {
 
 // LoadPolicies implements the PolicyProvider interface
 func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
+	t.Lock()
+	defer t.Unlock()
 	p := &rules.Policy{
 		Name:       policyName,
 		Source:     policySource,
@@ -167,28 +224,24 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 		IsInternal: true,
 	}
 
-	for _, selftest := range FileSelfTests {
-		p.AddRule(selftest.GetRuleDefinition(t.targetFilePath))
+	for _, selftest := range t.selfTests {
+		p.AddRule(selftest.GetRuleDefinition())
 	}
 
 	return []*rules.Policy{p}, nil
 }
 
-// BeginWaitingForEvent passes the tester in the waiting for event state
-func (t *SelfTester) BeginWaitingForEvent() error {
-	if t.waitingForEvent.Swap(true) {
-		return errors.New("a self test is already running")
-	}
-	return nil
+func (t *SelfTester) beginSelfTests(timeout time.Duration) {
+	t.waitingForEvent.Store(true)
+	t.selfTestRunning <- timeout
 }
 
-// EndWaitingForEvent exits the waiting for event state
-func (t *SelfTester) EndWaitingForEvent() {
+func (t *SelfTester) endSelfTests() {
 	t.waitingForEvent.Store(false)
 }
 
 type selfTestEvent struct {
-	Type     string
+	RuleID   eval.RuleID
 	Filepath string
 	Event    *serializers.EventSerializer
 }
@@ -201,32 +254,19 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev)
-		if s == nil || s.FileEventSerializer == nil {
-			return true
+		s := serializers.NewEventSerializer(ev, rule.Opts)
+		if s == nil {
+			return false
 		}
 
 		selfTestEvent := selfTestEvent{
-			Type:     event.GetType(),
+			RuleID:   rule.ID,
 			Filepath: s.FileEventSerializer.Path,
 			Event:    s,
 		}
+
 		t.eventChan <- selfTestEvent
 		return true
 	}
 	return false
-}
-
-func (t *SelfTester) expectEvent(predicate func(selfTestEvent) bool) (*serializers.EventSerializer, error) {
-	timer := time.After(3 * time.Second)
-	for {
-		select {
-		case event := <-t.eventChan:
-			if predicate(event) {
-				return event.Event, nil
-			}
-		case <-timer:
-			return nil, errors.New("failed to receive expected event")
-		}
-	}
 }

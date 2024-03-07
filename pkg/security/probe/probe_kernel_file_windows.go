@@ -7,14 +7,12 @@
 package probe
 
 import (
-	"encoding/binary"
 	"fmt"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
-	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 )
 
 const (
@@ -68,6 +66,7 @@ var (
       <data name="FileName" inType="win:UnicodeString"/>
 */
 type createHandleArgs struct {
+	etw.DDEventHeader
 	irp              uint64            // actually a pointer
 	fileObject       fileObjectPointer // pointer
 	threadID         uint64            // actually a pointer
@@ -76,6 +75,42 @@ type createHandleArgs struct {
 	shareAccess      uint32
 	fileName         string
 }
+
+/*
+ * these constants are defined in the windows driver kit (wdm.h).  Copied
+ * here because the correspond to the createOptions field
+ */
+const (
+	kernelDisposition_FILE_SUPERSEDE           = uint32(0x00000000) // nolint:unused,revive
+	kernelDisposition_FILE_OPEN                = uint32(0x00000001) // nolint:unused,revive
+	kernelDisposition_FILE_CREATE              = uint32(0x00000002) // nolint:unused,revive
+	kernelDisposition_FILE_OPEN_IF             = uint32(0x00000003) // nolint:unused,revive
+	kernelDisposition_FILE_OVERWRITE           = uint32(0x00000004) // nolint:unused,revive
+	kernelDisposition_FILE_OVERWRITE_IF        = uint32(0x00000005) // nolint:unused,revive
+	kernelDisposition_FILE_MAXIMUM_DISPOSITION = uint32(0x00000005) // nolint:unused,revive
+)
+
+const (
+	kernelCreateOpts_FILE_DIRECTORY_FILE            = uint32(0x00000001) // nolint:unused,revive
+	kernelCreateOpts_FILE_WRITE_THROUGH             = uint32(0x00000002) // nolint:unused,revive
+	kernelCreateOpts_FILE_SEQUENTIAL_ONLY           = uint32(0x00000004) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_INTERMEDIATE_BUFFERING = uint32(0x00000008) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_SYNCHRONOUS_IO_ALERT    = uint32(0x00000010) // nolint:unused,revive
+	kernelCreateOpts_FILE_SYNCHRONOUS_IO_NONALERT = uint32(0x00000020) // nolint:unused,revive
+	kernelCreateOpts_FILE_NON_DIRECTORY_FILE      = uint32(0x00000040) // nolint:unused,revive
+	kernelCreateOpts_FILE_CREATE_TREE_CONNECTION  = uint32(0x00000080) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_COMPLETE_IF_OPLOCKED = uint32(0x00000100) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_EA_KNOWLEDGE      = uint32(0x00000200) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_REMOTE_INSTANCE = uint32(0x00000400) // nolint:unused,revive
+	kernelCreateOpts_FILE_RANDOM_ACCESS        = uint32(0x00000800) // nolint:unused,revive
+
+	kernelCreateOpts_FILE_DELETE_ON_CLOSE        = uint32(0x00001000) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_BY_FILE_ID        = uint32(0x00002000) // nolint:unused,revive
+	kernelCreateOpts_FILE_OPEN_FOR_BACKUP_INTENT = uint32(0x00004000) // nolint:unused,revive
+	kernelCreateOpts_FILE_NO_COMPRESSION         = uint32(0x00008000) // nolint:unused,revive
+)
 
 type createNewFileArgs createHandleArgs
 
@@ -94,27 +129,29 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	the Installable File System (IFS) documentation.
 */
 func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
-	ca := &createHandleArgs{}
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
+	ca := &createHandleArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.threadID = binary.LittleEndian.Uint64(data[8:16])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
-		ca.createOptions = binary.LittleEndian.Uint32(data[24:28])
-		ca.createAttributes = binary.LittleEndian.Uint32(data[28:32])
-		ca.shareAccess = binary.LittleEndian.Uint32(data[32:36])
+		ca.irp = data.GetUint64(0)
+		ca.threadID = data.GetUint64(8)
+		ca.fileObject = fileObjectPointer(data.GetUint64(16))
+		ca.createOptions = data.GetUint32(24)
+		ca.createAttributes = data.GetUint32(28)
+		ca.shareAccess = data.GetUint32(32)
 
-		ca.fileName, _, _, _ = etwutil.ParseUnicodeString(data, 36)
+		ca.fileName, _, _, _ = data.ParseUnicodeString(36)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
 
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-		ca.threadID = uint64(binary.LittleEndian.Uint32(data[16:20]))
-		ca.createOptions = binary.LittleEndian.Uint32(data[20:24])
-		ca.createAttributes = binary.LittleEndian.Uint32(data[24:38])
-		ca.shareAccess = binary.LittleEndian.Uint32(data[28:32])
+		ca.irp = data.GetUint64(0)
+		ca.fileObject = fileObjectPointer(data.GetUint64(8))
+		ca.threadID = uint64(data.GetUint32(16))
+		ca.createOptions = data.GetUint32(20)
+		ca.createAttributes = data.GetUint32(24)
+		ca.shareAccess = data.GetUint32(28)
 
-		ca.fileName, _, _, _ = etwutil.ParseUnicodeString(data, 32)
+		ca.fileName, _, _, _ = data.ParseUnicodeString(32)
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
@@ -132,19 +169,19 @@ func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
 }
 
 // nolint: unused
-func (ca *createHandleArgs) string() string {
+func (ca *createHandleArgs) String() string {
 	var output strings.Builder
 
-	output.WriteString("  Create TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
+	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
 	output.WriteString("         Name: " + ca.fileName + "\n")
-	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Attrs: " + strconv.FormatUint(uint64(ca.createAttributes), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
+	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 	return output.String()
 }
 
 // nolint: unused
-func (ca *createNewFileArgs) string() string {
-	return (*createHandleArgs)(ca).string()
+func (ca *createNewFileArgs) String() string {
+	return (*createHandleArgs)(ca).String()
 }
 
 /*
@@ -168,6 +205,7 @@ func (ca *createNewFileArgs) string() string {
 */
 
 type setInformationArgs struct {
+	etw.DDEventHeader
 	irp        uint64
 	threadID   uint64
 	fileObject fileObjectPointer
@@ -178,23 +216,25 @@ type setInformationArgs struct {
 }
 
 func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
-	sia := &setInformationArgs{}
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
+	sia := &setInformationArgs{
+		DDEventHeader: e.EventHeader,
+	}
 
+	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
-		sia.irp = binary.LittleEndian.Uint64(data[0:8])
-		sia.threadID = binary.LittleEndian.Uint64(data[8:16])
-		sia.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
-		sia.fileKey = binary.LittleEndian.Uint64(data[24:32])
-		sia.extraInfo = binary.LittleEndian.Uint64(data[32:40])
-		sia.infoClass = binary.LittleEndian.Uint32(data[40:44])
+		sia.irp = data.GetUint64(0)
+		sia.threadID = data.GetUint64(8)
+		sia.fileObject = fileObjectPointer(data.GetUint64(16))
+		sia.fileKey = data.GetUint64(24)
+		sia.extraInfo = data.GetUint64(32)
+		sia.infoClass = data.GetUint32(40)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
-		sia.irp = binary.LittleEndian.Uint64(data[0:8])
-		sia.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-		sia.fileKey = binary.LittleEndian.Uint64(data[16:24])
-		sia.extraInfo = binary.LittleEndian.Uint64(data[24:32])
-		sia.threadID = uint64(binary.LittleEndian.Uint32(data[32:36]))
-		sia.infoClass = binary.LittleEndian.Uint32(data[36:40])
+		sia.irp = data.GetUint64(0)
+		sia.fileObject = fileObjectPointer(data.GetUint64(8))
+		sia.fileKey = data.GetUint64(16)
+		sia.extraInfo = data.GetUint64(24)
+		sia.threadID = uint64(data.GetUint32(32))
+		sia.infoClass = data.GetUint32(36)
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
@@ -205,7 +245,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 }
 
 // nolint: unused
-func (sia *setInformationArgs) string() string {
+func (sia *setInformationArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
@@ -232,6 +272,7 @@ func (sia *setInformationArgs) string() string {
 */
 
 type cleanupArgs struct {
+	etw.DDEventHeader
 	irp        uint64
 	threadID   uint64
 	fileObject fileObjectPointer
@@ -246,20 +287,21 @@ type closeArgs cleanupArgs
 type flushArgs cleanupArgs
 
 func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
-	ca := &cleanupArgs{}
-	data := unsafe.Slice((*byte)(e.UserData), uint64(e.UserDataLength))
-
+	ca := &cleanupArgs{
+		DDEventHeader: e.EventHeader,
+	}
+	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.threadID = binary.LittleEndian.Uint64(data[8:16])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[16:24]))
-		ca.fileKey = binary.LittleEndian.Uint64(data[24:32])
+		ca.irp = data.GetUint64(0)
+		ca.threadID = data.GetUint64(8)
+		ca.fileObject = fileObjectPointer(data.GetUint64(16))
+		ca.fileKey = data.GetUint64(24)
 
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
-		ca.irp = binary.LittleEndian.Uint64(data[0:8])
-		ca.fileObject = fileObjectPointer(binary.LittleEndian.Uint64(data[8:16]))
-		ca.fileKey = binary.LittleEndian.Uint64(data[16:24])
-		ca.threadID = uint64(binary.LittleEndian.Uint32(data[24:28]))
+		ca.irp = data.GetUint64(0)
+		ca.fileObject = fileObjectPointer(data.GetUint64(8))
+		ca.fileKey = data.GetUint64(16)
+		ca.threadID = uint64(data.GetUint32(24))
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
@@ -289,7 +331,7 @@ func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
 }
 
 // nolint: unused
-func (ca *cleanupArgs) string() string {
+func (ca *cleanupArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
@@ -300,11 +342,11 @@ func (ca *cleanupArgs) string() string {
 }
 
 // nolint: unused
-func (ca *closeArgs) string() string {
-	return (*cleanupArgs)(ca).string()
+func (ca *closeArgs) String() string {
+	return (*cleanupArgs)(ca).String()
 }
 
 // nolint: unused
-func (fa *flushArgs) string() string {
-	return (*cleanupArgs)(fa).string()
+func (fa *flushArgs) String() string {
+	return (*cleanupArgs)(fa).String()
 }

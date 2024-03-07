@@ -51,15 +51,20 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
         return NULL;
     }
     bpf_memset(http2_stream_ptr, 0, sizeof(http2_stream_t));
+    http2_stream_ptr->request_started = bpf_ktime_get_ns();
     bpf_map_update_elem(&http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
 
 // get_dynamic_counter returns the current dynamic counter by the conn tuple.
 static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
-    __u64 counter = 0;
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
-    return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+    dynamic_counter_t empty = {0};
+    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &empty, BPF_NOEXIST);
+    dynamic_counter_t *ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+    if (ptr == NULL) {
+        return NULL;
+    }
+    return &ptr->value;
 }
 
 // parse_field_indexed parses fully-indexed headers.
@@ -159,6 +164,13 @@ static __always_inline bool format_http2_frame_header(http2_frame_t *out) {
 
 static __always_inline void reset_frame(http2_frame_t *out) {
     *out = (http2_frame_t){ 0 };
+}
+
+// check_frame_split checks if the frame is split into multiple tcp payloads, if so, it increments the split counter.
+static __always_inline void check_frame_split(http2_telemetry_t *http2_tel, __u32 data_off, __u32 data_end, __u32 length){
+    if (data_off + length > data_end) {
+        __sync_fetch_and_add(&http2_tel->fragmented_frame_count, 1);
+    }
 }
 
 #endif

@@ -24,14 +24,14 @@ jobs:
           path: dev/dist/archive
 
       - name: Install python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
           cache: 'pip'
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: '.go-version'
 
@@ -48,7 +48,7 @@ jobs:
         run: |
           inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive
 
-      - uses: stefanzweifel/git-auto-commit-action@v4
+      - uses: stefanzweifel/git-auto-commit-action@v5
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"
@@ -85,5 +85,5 @@ jobs:
               owner,
               repo,
               issue_number: result.data.number,
-              labels: ['changelog/no-changelog', 'qa/skip-qa', 'qa/no-code-change', 'team/agent-security']
+              labels: ['changelog/no-changelog', 'qa/no-code-change', 'team/agent-security']
             });

@@ -82,6 +82,10 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	switch msg.Type {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
+			p.probe.DispatchCustomEvent(
+				NewEBPFLessHelloMsgEvent(msg.Hello, p.probe.scrubber),
+			)
+
 			cl.nsID = msg.Hello.NSID
 			cl.containerContext = msg.Hello.ContainerContext
 			cl.entrypointArgs = msg.Hello.EntrypointArgs
@@ -94,7 +98,7 @@ func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
 	}
 }
 
-func copyFileAttributes(src *ebpfless.OpenSyscallMsg, dst *model.FileEvent) {
+func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 	if strings.HasPrefix(src.Filename, "memfd:") {
 		dst.PathnameStr = ""
 		dst.BasenameStr = src.Filename
@@ -105,7 +109,6 @@ func copyFileAttributes(src *ebpfless.OpenSyscallMsg, dst *model.FileEvent) {
 	dst.CTime = src.CTime
 	dst.MTime = src.MTime
 	dst.Mode = uint16(src.Mode)
-	dst.Flags = int32(src.Flags)
 	if src.Credentials != nil {
 		dst.UID = src.Credentials.UID
 		dst.User = src.Credentials.User
@@ -145,7 +148,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
 		event.Open.Retval = syscallMsg.Retval
-		copyFileAttributes(syscallMsg.Open, &event.Open.File)
+		copyFileAttributes(&syscallMsg.Open.FileSyscallMsg, &event.Open.File)
 		event.Open.Mode = syscallMsg.Open.Mode
 		event.Open.Flags = syscallMsg.Open.Flags
 
@@ -277,7 +280,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event)
+		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -504,7 +507,7 @@ func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.Origin = "ebpfless"
+	p.event.Origin = EBPFLessOrigin
 	return p.event
 }
 
@@ -537,7 +540,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 		return nil, err
 	}
 
-	p.fieldHandlers = &EBPFLessFieldHandlers{resolvers: p.Resolvers}
+	p.fieldHandlers = &EBPFLessFieldHandlers{config: config, resolvers: p.Resolvers}
 
 	p.event = p.NewEvent()
 

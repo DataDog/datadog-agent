@@ -16,8 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,8 +33,15 @@ type dependencies struct {
 	Config config.Component
 }
 
+// cliParams are the command-line arguments for this subcommand
+type cliParams struct {
+	showEntireConfig bool
+}
+
 // Commands returns a slice of subcommands for the `config` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	params := &cliParams{}
+
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Print the runtime configuration of a running agent",
@@ -42,9 +51,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
 				process.Bundle(),
+				fx.Supply(params),
 			)
 		},
 	}
+	cmd.Flags().BoolVarP(&params.showEntireConfig, "all", "a", false, "Show the entire configuration for the process-agent, not just the 'process_config' section")
 
 	cmd.AddCommand(
 		&cobra.Command{
@@ -93,19 +104,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func showRuntimeConfiguration(deps dependencies) error {
-	c, err := getClient(deps.Config)
-	if err != nil {
-		return err
-	}
-
-	runtimeConfig, err := c.FullConfig()
+func showRuntimeConfiguration(deps dependencies, params *cliParams) error {
+	runtimeConfig, err := fetcher.ProcessAgentConfig(deps.Config, params.showEntireConfig)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println(runtimeConfig)
-
 	return nil
 }
 
@@ -187,6 +192,6 @@ func getClient(cfg ddconfig.Reader) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent")
+	settingsClient := settingshttp.NewClient(httpClient, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen))
 	return settingsClient, nil
 }

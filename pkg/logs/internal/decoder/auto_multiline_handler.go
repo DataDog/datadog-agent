@@ -69,6 +69,7 @@ type AutoMultilineHandler struct {
 	detectedPattern     *DetectedPattern
 	clk                 clock.Clock
 	autoMultiLineStatus *status.MappedInfo
+	tailerInfo          *status.InfoRegistry
 }
 
 // NewAutoMultilineHandler returns a new AutoMultilineHandler.
@@ -108,6 +109,7 @@ func NewAutoMultilineHandler(
 		detectedPattern:     detectedPattern,
 		clk:                 clock.New(),
 		autoMultiLineStatus: status.NewMappedInfo("Auto Multi-line"),
+		tailerInfo:          tailerInfo,
 	}
 
 	h.singleLineHandler = NewSingleLineHandler(outputFn, lineLimit)
@@ -205,7 +207,7 @@ func (h *AutoMultilineHandler) switchToMultilineHandler(r *regexp.Regexp) {
 	h.singleLineHandler = nil
 
 	// Build and start a multiline-handler
-	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true)
+	h.multiLineHandler = NewMultiLineHandler(h.outputFn, r, h.flushTimeout, h.lineLimit, true, h.tailerInfo)
 	h.source.RegisterInfo(h.multiLineHandler.countInfo)
 	h.source.RegisterInfo(h.multiLineHandler.linesCombinedInfo)
 	// stay with the multiline handler
