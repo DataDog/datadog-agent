@@ -15,10 +15,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/fifo"
 )
 
@@ -38,6 +40,7 @@ const (
 var (
 	inFifoPath  = filepath.Join(setup.InstallPath, "run", "in.fifo")
 	outFifoPath = filepath.Join(setup.InstallPath, "run", "out.fifo")
+	runnerMutex sync.Mutex
 )
 
 type scriptRunner struct {
@@ -47,8 +50,16 @@ type scriptRunner struct {
 }
 
 func newScriptRunner() (*scriptRunner, error) {
-	_ = os.Remove(inFifoPath)
-	_ = os.Remove(outFifoPath)
+	runnerMutex.Lock()
+	err := os.Remove(inFifoPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("error deleting inFifo: %s", err)
+	}
+	err = os.Remove(outFifoPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("error deleting inFifo: %s", err)
+	}
+
 	// start with outFifo creation first as inFifo triggers admin exec systemd path listner
 	outFifo, err := fifo.OpenFifo(context.Background(), outFifoPath, syscall.O_CREAT|syscall.O_RDONLY|syscall.O_NONBLOCK, 0660)
 	if err != nil {
@@ -123,10 +134,19 @@ func (s *scriptRunner) executeCommand(command string) error {
 }
 
 func (s *scriptRunner) close() {
-	s.inFifo.Close()
-	_ = os.Remove(inFifoPath)
-	s.outFifo.Close()
-	_ = os.Remove(outFifoPath)
+	if err := s.inFifo.Close(); err != nil {
+		log.Warnf("error closing inFifo: %s", err)
+	}
+	if err := os.Remove(inFifoPath); err != nil {
+		log.Warnf("error removing inFifo: %s", err)
+	}
+	if err := s.outFifo.Close(); err != nil {
+		log.Warnf("error closing outFifo: %s", err)
+	}
+	if err := os.Remove(outFifoPath); err != nil {
+		log.Warnf("error removing outFifo: %s", err)
+	}
+	runnerMutex.Unlock()
 }
 
 func wrapUnitCommand(command unitCommand, unit string) string {

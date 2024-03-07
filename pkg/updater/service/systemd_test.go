@@ -9,7 +9,6 @@ package service
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -33,7 +32,6 @@ func runAdmin(t *testing.T, updaterTestPath string) <-chan int {
 	assert.Nil(t, err)
 	runScript := strings.Replace(string(template), "<%= install_dir %>", updaterTestPath, -1)
 
-	fmt.Println(inFifoPath)
 	done := make(chan int)
 	go func() {
 		cmd := exec.Command("/bin/sh", "-c", string(runScript))
@@ -58,7 +56,6 @@ func TestScriptRunnerBootAndCleanup(t *testing.T) {
 	s, err := newScriptRunner()
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	defer s.close()
 
 	fileInfo, err := os.Stat(inFifoPath)
 	assert.Equal(t, fileInfo.Mode()&os.ModeNamedPipe, os.ModeNamedPipe)
@@ -80,7 +77,6 @@ func TestInvalidCommands(t *testing.T) {
 	s, err := newScriptRunner()
 	assert.Nil(t, err)
 	require.NotNil(t, s)
-	defer s.close()
 
 	done := runAdmin(t, updaterPath)
 
