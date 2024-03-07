@@ -2033,7 +2033,8 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "trace")
+	skipEbpfConntrackerTestOnUnsupportedKernel(t)
+
 	type testCase struct {
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool

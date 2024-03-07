@@ -163,11 +163,11 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 				for _, selfTest := range t.selfTests {
 					if !selfTest.IsSuccess() {
 						selfTest.HandleEvent(event)
-					}
 
-					if selfTest.IsSuccess() {
-						id := selfTest.GetRuleDefinition().ID
-						events[id] = event.Event
+						if selfTest.IsSuccess() {
+							id := selfTest.GetRuleDefinition().ID
+							events[id] = event.Event
+						}
 					}
 				}
 				t.Unlock()
