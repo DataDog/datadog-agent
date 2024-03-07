@@ -496,6 +496,16 @@ func (is *agentMSISuite) readAgentConfig(host *components.RemoteHost) (map[strin
 
 func (is *agentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
 	return is.T().Run("uninstall the agent", func(tt *testing.T) {
+		// Get config dir from registry before uninstalling
+		configDir, err := windowsAgent.GetConfigRootFromRegistry(t.host)
+		require.NoError(tt, err)
+		tt.Cleanup(func() {
+			// remove the agent config for a cleaner uninstall
+			tt.Logf("Removing agent configuration files")
+			err = t.host.RemoveAll(configDir)
+			require.NoError(tt, err)
+		})
+
 		if !tt.Run("uninstall", func(tt *testing.T) {
 			err := windowsAgent.UninstallAgent(t.host, filepath.Join(is.OutputDir, "uninstall.log"))
 			require.NoError(tt, err, "should uninstall the agent")
