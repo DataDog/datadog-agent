@@ -39,10 +39,10 @@ var traceTypes = []string{"enter", "exit"}
 type ebpfProgram struct {
 	cfg         *config.Config
 	perfHandler *ddebpf.PerfHandler
-	*ebpftelemetry.Manager
+	*ddebpf.Manager
 }
 
-func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) *ebpfProgram {
+func newEBPFProgram(c *config.Config) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
 		Map: manager.Map{
@@ -74,7 +74,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry)
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     ebpftelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:     ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
 	}
 }
@@ -133,7 +133,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
-	return e.InitWithOptions(buf, options)
+	return e.InitWithOptions(buf, &options)
 }
 
 func (e *ebpfProgram) initCORE() error {

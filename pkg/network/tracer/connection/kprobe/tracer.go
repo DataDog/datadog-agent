@@ -110,7 +110,7 @@ func ClassificationSupported(config *config.Config) bool {
 }
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
-func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), TracerType, error) {
+func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
@@ -127,7 +127,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 		var m *manager.Manager
 		var closeFn func()
 		if err == nil {
-			m, closeFn, err = coreTracerLoader(cfg, mgrOpts, connCloseEventHandler, bpfTelemetry)
+			m, closeFn, err = coreTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 			// if it is a verifier error, bail always regardless of
 			// whether a fallback is enabled in config
 			var ve *ebpf.VerifierError
@@ -148,7 +148,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	}
 
 	if cfg.EnableRuntimeCompiler && (!cfg.EnableCORE || cfg.AllowRuntimeCompiledFallback) {
-		m, closeFn, err := rcTracerLoader(cfg, mgrOpts, connCloseEventHandler, bpfTelemetry)
+		m, closeFn, err := rcTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 		if err == nil {
 			return m, closeFn, TracerTypeRuntimeCompiled, err
 		}
@@ -167,13 +167,12 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)
 
-	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler, bpfTelemetry)
+	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
-	m := ebpftelemetry.NewManager(&manager.Manager{}, bpfTelemetry)
-
+func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, &ebpftelemetry.ErrorsTelemetryModifier{})
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
@@ -264,14 +263,14 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			})
 	}
 
-	if err := m.InitWithOptions(buf, mgrOpts); err != nil {
+	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
 	return m.Manager, closeProtocolClassifierSocketFilterFn, nil
 }
 
-func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	var m *manager.Manager
 	var closeFn func()
 	var err error
@@ -280,24 +279,24 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
-		m, closeFn, err = loadTracerFromAsset(ar, false, true, config, o, connCloseEventHandler, bpfTelemetry)
+		m, closeFn, err = loadTracerFromAsset(ar, false, true, config, o, connCloseEventHandler)
 		return err
 	})
 
 	return m, closeFn, err
 }
 
-func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	buf, err := getRuntimeCompiledTracer(config)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer buf.Close()
 
-	return loadTracerFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler, bpfTelemetry)
+	return loadTracerFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler)
 }
 
-func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*manager.Manager, func(), error) {
+func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %w", err)
@@ -313,7 +312,7 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 		config.CollectUDPv6Conns = false
 	}
 
-	return loadTracerFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler, bpfTelemetry)
+	return loadTracerFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
 }
 
 func isCORETracerSupported() error {

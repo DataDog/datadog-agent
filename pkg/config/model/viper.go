@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -74,8 +76,9 @@ type safeConfig struct {
 	configEnvVars map[string]struct{}
 }
 
-// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
+// OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
+// Callbacks are only called if the value is effectively changed.
 func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
@@ -89,13 +92,21 @@ func (c *safeConfig) Set(key string, value interface{}, source Source) {
 		return
 	}
 
+	// modify the config then release the lock to avoid deadlocks
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, value)
 	c.mergeViperInstances(key)
+	newValue := c.Viper.Get(key)
+	if !reflect.DeepEqual(previousValue, newValue) {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range c.notificationReceivers {
+	for _, receiver := range receivers {
 		receiver(key)
 	}
 }

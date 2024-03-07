@@ -123,6 +123,9 @@ type Config struct {
 	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
 	JavaAgentBlockRegex string
 
+	// JavaDir is the directory to load the java agent program from
+	JavaDir string
+
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
 	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
@@ -267,6 +270,12 @@ type Config struct {
 
 	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
 	EnableUSMConnectionRollup bool
+
+	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on
+	// supported kernels.
+	// Defaults to true. Setting this to false on a Kernel that supports ring
+	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
+	EnableUSMRingBuffers bool
 }
 
 func join(pieces ...string) string {
@@ -362,11 +371,13 @@ func New() *Config {
 		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
+		JavaDir:                     cfg.GetString(join(smjtNS, "dir")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
 		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")

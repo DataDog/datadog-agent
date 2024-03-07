@@ -13,11 +13,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -89,11 +89,6 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	}
 
 	return m.Start()
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (m *EventMonitor) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
 }
 
 // AddEventTypeHandler registers an event handler

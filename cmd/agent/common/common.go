@@ -61,5 +61,5 @@ func NewSettingsClient() (settings.Client, error) {
 		return nil, err
 	}
 	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "agent"), nil
+	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }

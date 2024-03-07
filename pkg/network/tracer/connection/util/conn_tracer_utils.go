@@ -17,6 +17,7 @@ import (
 	"github.com/cilium/ebpf/features"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -45,7 +46,7 @@ func computeDefaultClosedConnPerfBufferSize() int {
 }
 
 // SetupClosedConnHandler sets up the closed connection event handler
-func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpftelemetry.Manager, cfg *config.Config) {
+func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ddebpf.Manager, cfg *config.Config) {
 	switch handler := connCloseEventHandler.(type) {
 	case *ebpf.RingBufferHandler:
 		options := manager.RingBufferOptions{

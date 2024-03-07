@@ -21,6 +21,8 @@ var recordPool = sync.Pool{
 	},
 }
 
+// PerfHandler implements EventHandler
+// this line is just a static check of the interface
 var _ EventHandler = new(PerfHandler)
 
 // PerfHandler wraps an eBPF perf buffer

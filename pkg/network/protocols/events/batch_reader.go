@@ -35,9 +35,9 @@ func newBatchReader(offsetManager *offsetManager, batchMap *maps.GenericMap[batc
 		// Ring buffer events don't have CPU information, so we associate each
 		// batch entry with a CPU during startup. This information is used by
 		// the code that does the batch offset tracking.
-		batch.Cpu = uint32(i)
+		batch.Cpu = uint16(i)
 		for j := 0; j < batchPagesPerCPU; j++ {
-			key := &batchKey{Cpu: batch.Cpu, Num: uint32(j)}
+			key := &batchKey{Cpu: batch.Cpu, Num: uint16(j)}
 			err := batchMap.Put(key, batch)
 			if err != nil {
 				return nil, err
@@ -114,8 +114,9 @@ func (r *batchReader) Stop() {
 
 func (r *batchReader) generateBatchKey(cpu int) (batchID int, key *batchKey) {
 	batchID = r.offsets.NextBatchID(cpu)
+	pageNum := uint64(batchID) % uint64(batchPagesPerCPU)
 	return batchID, &batchKey{
-		Cpu: uint32(cpu),
-		Num: uint32(batchID) % uint32(batchPagesPerCPU),
+		Cpu: uint16(cpu),
+		Num: uint16(pageNum),
 	}
 }

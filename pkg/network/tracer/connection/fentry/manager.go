@@ -11,14 +11,13 @@ package fentry
 import (
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
-func initManager(mgr *ebpftelemetry.Manager, connCloseEventHandler ebpf.EventHandler, cfg *config.Config) {
+func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
