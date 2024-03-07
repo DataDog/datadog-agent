@@ -172,7 +172,7 @@ func (t *SelfTester) RunSelfTest(_ time.Duration) error {
 	return nil
 }
 
-// Start starts the self tester policy provider
+// Start the self tester policy provider
 func (t *SelfTester) Start() {}
 
 // WaitForResult wait for self test results
@@ -302,8 +302,4 @@ func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *prob
 		return true
 	}
 	return false
-}
-
-// WaitForResult wait for self test results
-func (t *SelfTester) WaitForResult(_ func(_ []eval.RuleID, _ []eval.RuleID, _ map[eval.RuleID]*serializers.EventSerializer)) {
 }
