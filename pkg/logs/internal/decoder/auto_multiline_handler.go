@@ -244,4 +244,6 @@ var formatsToTry = []*regexp.Regexp{
 	regexp.MustCompile(`^[A-Za-z_]+ \d+, \d+ \d+:\d+:\d+ (AM|PM)`),
 	// 2021-01-31 - with stricter matching around the months/days
 	regexp.MustCompile(`^\d{4}-(1[012]|0?[1-9])-([12][0-9]|3[01]|0?[1-9])`),
+	// 2023/02/20 14:33:24
+	regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}`),
 }
