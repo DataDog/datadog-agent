@@ -85,10 +85,7 @@ func (is *agentMSISuite) TestInstall() {
 	is.prepareHost()
 
 	// initialize test helper
-	t, err := NewTester(is.T(), vm,
-		WithAgentPackage(is.AgentPackage),
-	)
-	is.Require().NoError(err, "should create tester")
+	t := is.newTester(vm)
 
 	// install the agent
 	remoteMSIPath := is.installAgentPackage(vm, is.AgentPackage)
@@ -133,10 +130,7 @@ func (is *agentMSISuite) TestUpgrade() {
 	}
 
 	// run tests
-	t, err := NewTester(is.T(), vm,
-		WithAgentPackage(is.AgentPackage),
-	)
-	is.Require().NoError(err, "should create tester")
+	t := is.newTester(vm)
 	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
 	}
@@ -183,15 +177,12 @@ func (is *agentMSISuite) TestRepair() {
 	is.prepareHost()
 
 	// initialize test helper
-	t, err := NewTester(is.T(), vm,
-		WithAgentPackage(is.AgentPackage),
-	)
-	is.Require().NoError(err, "should create tester")
+	t := is.newTester(vm)
 
 	// install the agent
 	_ = is.installAgentPackage(vm, is.AgentPackage)
 
-	err = windowsCommon.StopService(t.host, "DatadogAgent")
+	err := windowsCommon.StopService(t.host, "DatadogAgent")
 	is.Require().NoError(err)
 
 	// Corrupt the install
@@ -246,11 +237,9 @@ func (is *agentMSISuite) TestAgentUser() {
 			is.Require().NoError(err, "should get output dir")
 
 			// initialize test helper
-			t, err := NewTester(is.T(), vm,
-				WithAgentPackage(is.AgentPackage),
+			t := is.newTester(vm,
 				WithExpectedAgentUser(tc.expectedDomain, tc.expectedUser),
 			)
-			is.Require().NoError(err, "should create tester")
 
 			// install the agent
 			_ = is.installAgentPackage(vm, is.AgentPackage,
@@ -267,6 +256,17 @@ func (is *agentMSISuite) TestAgentUser() {
 			is.T().FailNow()
 		}
 	}
+}
+
+func (is *agentMSISuite) newTester(vm *components.RemoteHost, options ...TesterOption) *Tester {
+	testerOpts := []TesterOption{
+		WithAgentPackage(is.AgentPackage),
+		WithSystemFileIntegrityTester(NewSystemFileIntegrityTester(vm)),
+	}
+	testerOpts = append(testerOpts, options...)
+	t, err := NewTester(is.T(), vm, testerOpts...)
+	is.Require().NoError(err, "should create tester")
+	return t
 }
 
 func (is *agentMSISuite) installAgentPackage(vm *components.RemoteHost, agentPackage *windowsAgent.Package, installOptions ...windowsAgent.InstallAgentOption) string {
@@ -299,12 +299,10 @@ func (is *agentMSISuite) installLastStable(vm *components.RemoteHost, options ..
 	is.Require().NoError(err, "should get last stable agent package from env")
 
 	// create the tester
-	testerOpts := []TesterOption{
+	t := is.newTester(vm,
 		WithAgentPackage(previousAgentPackage),
 		WithPreviousVersion(),
-	}
-	t, err := NewTester(is.T(), vm, testerOpts...)
-	is.Require().NoError(err, "should create tester")
+	)
 
 	_ = is.installAgentPackage(vm, previousAgentPackage, options...)
 
