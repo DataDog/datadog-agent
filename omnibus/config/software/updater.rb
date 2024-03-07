@@ -61,10 +61,10 @@ build do
 
 
     # Add updater units
-    systemd_path = "/lib/systemd/system/"
+    systemdPath = "/lib/systemd/system/"
     if not debian_target?
       mkdir "/usr/lib/systemd/system/"
-      systemd_path = "/usr/lib/systemd/system/"
+      systemdPath = "/usr/lib/systemd/system/"
     end
     templateToFile = {
       "datadog-updater-admin.path.erb" => "datadog-updater-admin.path",
@@ -73,13 +73,13 @@ build do
     }
     templateToFile.each do |template, file|
       erb source: template,
-         dest: systemd_path + file,
+         dest: systemdPath + file,
          mode: 0644,
          vars: { install_dir: install_dir, etc_dir: etc_dir}
     end
 
 
-    systemd_path = "#{install_dir}/systemd/"
+    systemdPath = "#{install_dir}/systemd/"
     # Add stable agent units
     templateToFile = {
       "datadog-agent.service.erb" => "datadog-agent.service",
@@ -92,7 +92,7 @@ build do
     templateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/stable"
       erb source: template,
-         dest: systemd_path + file,
+         dest: systemdPath + file,
          mode: 0644,
          vars: { install_dir: install_dir, etc_dir: etc_dir, agent_dir: agent_dir }
     end
@@ -107,7 +107,7 @@ build do
     expTemplateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/experiment"
       erb source: template,
-         dest: systemd_path + file,
+         dest: systemdPath + file,
          mode: 0644,
          vars: { etc_dir: etc_dir, agent_dir: agent_dir }
     end

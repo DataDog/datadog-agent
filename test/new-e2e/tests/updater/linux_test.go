@@ -41,45 +41,30 @@ func (v *vmUpdaterSuite) TestUpdaterOwnership() {
 }
 
 func (v *vmUpdaterSuite) TestUpdaterAdmin() {
+	adminUnit := "datadog-updater-admin.service"
 	adminPathUnit := "datadog-updater-admin.path"
+	inFifoPath := "/opt/datadog/updater/run/in.fifo"
+	outFifoPath := "/opt/datadog/updater/run/out.fifo"
 	require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, adminPathUnit)))
 	require.Equal(v.T(), "active\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-active %s`, adminPathUnit)))
 
-	/*
-		temporary while fixing locally, review can start without
-			// admin should activate on fifo creation
-			v.Env().RemoteHost.MustExecute("sudo mkfifo /opt/datadog/updater/run/out.fifo && sudo mkfifo /opt/datadog/updater/run/in.fifo")
-			v.Env().RemoteHost.MustExecute("sudo chmod 0666 /opt/datadog/updater/run/out.fifo && sudo chmod 0666 /opt/datadog/updater/run/in.fifo")
+	defer v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s %s", inFifoPath, outFifoPath))
 
-			// assert failures
-			expectedResults := map[string]string{
-				"&":                                      "invalid command: &",
-				";":                                      "invalid command: ;",
-				"start datadog agent /":                  "invalid command: start datadog agent /",
-				"start datadog agent *":                  "invalid command: start datadog agent *",
-				string(make([]byte, 101)):                "command longer than 100 characters",
-				"not-supported":                          "not supported command: not-supported",
-				"start":                                  "missing argument",
-				"enable":                                 "missing argument",
-				"disable":                                "missing argument",
-				"stop":                                   "missing argument",
-				"load-unit":                              "missing argument",
-				"remove-unit":                            "missing argument",
-				"start non-datadog-unit.service *":       "unit name must start with 'datadog'",
-				"enable non-datadog-unit.service *":      "unit name must start with 'datadog'",
-				"disable non-datadog-unit.service *":     "unit name must start with 'datadog'",
-				"stop non-datadog-unit.service *":        "unit name must start with 'datadog'",
-				"load-unit non-datadog-unit.service *":   "unit name must start with 'datadog'",
-				"remove-unit non-datadog-unit.service *": "unit name must start with 'datadog'",
-			}
-			for cmd, expected := range expectedResults {
-				v.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo %s > /opt/datadog/updater/run/in.fifo`, cmd))
-				require.Equal(v.T(), v.Env().RemoteHost.MustExecute(`< /opt/datadog/updater/run/out.fifo`), expected)
-			}
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s", inFifoPath))
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s", outFifoPath))
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkfifo %s && sudo mkfifo %s", outFifoPath, inFifoPath))
+	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo chmod 0666 %s %s", inFifoPath, outFifoPath))
 
-			v.Env().RemoteHost.MustExecute("rm /opt/datadog/updater/run/in.fifo")
-			time.Sleep(5 * time.Second)
-	*/
+	// assert failures
+	expectedResults := map[string]string{
+		"&": "error: invalid command: &",
+	}
+	for cmd, expected := range expectedResults {
+		go func() {
+			require.Equal(v.T(), v.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" > %s`, cmd, inFifoPath)), "")
+		}()
+		require.Equal(v.T(), v.Env().RemoteHost.MustExecute(fmt.Sprintf(`cat %s`, outFifoPath)), expected+"\n")
+	}
 }
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
