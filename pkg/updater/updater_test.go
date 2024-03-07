@@ -74,8 +74,7 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 
 func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
 	rc := &remoteConfig{client: rcc}
-	u, err := newUpdater(rc, t.TempDir(), t.TempDir())
-	assert.NoError(t, err)
+	u := newUpdater(rc, t.TempDir(), t.TempDir())
 	u.catalog = s.Catalog()
 	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
 	u.Start(context.Background())
@@ -88,7 +87,7 @@ func TestUpdaterBootstrap(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg, uuid.New().String())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 
 	r := updater.repositories.Get(fixtureSimpleV1.pkg)
@@ -106,10 +105,10 @@ func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 	updater.catalog = catalog{}
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg, uuid.New().String())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.Error(t, err)
 	rc.SubmitCatalog(s.Catalog())
-	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg, uuid.New().String())
+	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 }
 
@@ -119,7 +118,7 @@ func TestUpdaterStartExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg, uuid.New().String())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -147,7 +146,7 @@ func TestUpdaterPromoteExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg, uuid.New().String())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
@@ -184,7 +183,7 @@ func TestUpdaterStopExperiment(t *testing.T) {
 	rc := newTestRemoteConfigClient()
 	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
 
-	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg, uuid.New().String())
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
 	rc.SubmitRequest(remoteAPIRequest{
 		ID:      uuid.NewString(),
