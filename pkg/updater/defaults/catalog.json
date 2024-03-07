@@ -10,7 +10,7 @@
     {
       "package": "datadog-agent",
       "version": "7.53.0-devel.git.156.4681fd9.pipeline.29311299-1",
-      "url": "oci://docker.io/arbll/agent-dev@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"
+      "url": "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"
     }
   ]
 }
