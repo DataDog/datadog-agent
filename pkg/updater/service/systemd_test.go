@@ -23,7 +23,7 @@ import (
 
 const updaterTestPath = "/tmp/updater_tests"
 
-func setTestFifoPaths() {
+func init() {
 	inFifoPath = updaterTestPath + "/run/in.fifo"
 	outFifoPath = updaterTestPath + "/run/out.fifo"
 }
@@ -45,7 +45,6 @@ func runAdmin(t *testing.T) <-chan int {
 }
 
 func TestScriptRunnerBootAndCleanup(t *testing.T) {
-	setTestFifoPaths()
 
 	// installing fake fifo files to assert cleanup at newScriptRunner
 	f, err := os.Create(inFifoPath)
@@ -75,8 +74,7 @@ func TestScriptRunnerBootAndCleanup(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
-func TestCommands(t *testing.T) {
-	setTestFifoPaths()
+func TestInvalidCommands(t *testing.T) {
 	s, err := newScriptRunner()
 	assert.Nil(t, err)
 	require.NotNil(t, s)
