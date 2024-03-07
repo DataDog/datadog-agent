@@ -27,7 +27,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240307121901-4202230772f1
+	github.com/DataDog/test-infra-definitions v0.0.0-20240307150441-299b57500444
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -242,9 +242,6 @@ require (
 
 require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0 // indirect
-	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0 // indirect
-	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
-	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.9.0 // indirect
+	github.com/pulumi/pulumi-eks/sdk v1.0.4 // indirect
+	pgregory.net/rapid v0.6.1 // indirect
 )
