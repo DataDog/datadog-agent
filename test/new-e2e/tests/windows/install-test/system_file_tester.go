@@ -48,6 +48,31 @@ func (t *SystemFileIntegrityTester) TakeSnapshot() error {
 	return snapshotSystemfiles(t.host, t.firstSnapshotPath)
 }
 
+// RemoveSnapshots removes any snapshots if they exist
+func (t *SystemFileIntegrityTester) RemoveSnapshots() error {
+	exists, err := t.host.FileExists(t.firstSnapshotPath)
+	if err != nil {
+		return fmt.Errorf("failed to check if first snapshot exists: %w", err)
+	}
+	if exists {
+		err := t.host.Remove(t.firstSnapshotPath)
+		if err != nil {
+			return fmt.Errorf("failed to remove first snapshot: %w", err)
+		}
+	}
+	exists, err = t.host.FileExists(t.secondSnapshotPath)
+	if err != nil {
+		return fmt.Errorf("failed to check if second snapshot exists: %w", err)
+	}
+	if exists {
+		err := t.host.Remove(t.secondSnapshotPath)
+		if err != nil {
+			return fmt.Errorf("failed to remove second snapshot: %w", err)
+		}
+	}
+	return nil
+}
+
 // AssertDoesRemoveSystemFiles takes a new snapshot and compares it to the original snapshot taken
 // by TakeSnapshot(). If any files have been removes the test will fail.
 func (t *SystemFileIntegrityTester) AssertDoesRemoveSystemFiles(tt *testing.T) bool {
