@@ -123,12 +123,7 @@ func fetchStatus(statusURL string) ([]byte, error) {
 func getAndWriteStatus(log log.Component, statusURL string, w io.Writer) {
 	body, err := fetchStatus(statusURL)
 	if err != nil {
-		switch err.(type) {
-		case status.ConnectionError:
-			writeNotRunning(log, w)
-		default:
-			writeError(log, w, err)
-		}
+		writeNotRunning(log, w)
 		return
 	}
 
