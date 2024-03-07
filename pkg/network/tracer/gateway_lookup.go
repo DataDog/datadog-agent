@@ -17,6 +17,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -153,7 +154,12 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 
 				// cache an empty result so that we don't keep hitting the
 				// ec2 metadata endpoint for this interface
-				g.subnetCache.Add(r.IfIndex, nil)
+				if errors.IsTimeout(err) {
+					// retry after a minute if we timed out
+					g.subnetCache.Add(r.IfIndex, time.Now().Add(time.Minute))
+				} else {
+					g.subnetCache.Add(r.IfIndex, nil)
+				}
 				gatewayLookupTelemetry.subnetCacheSize.Inc()
 				return err
 			}
