@@ -137,7 +137,11 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool) error {
 	initializeProbeKeys(programs, bpfTelemetry)
 
-	sizes, err := parseStackSizesSections(bytecode, programs)
+	functions := make(map[string]struct{}, len(programs))
+	for fn, _ := range programs {
+		functions[fn] = struct{}{}
+	}
+	sizes, err := parseStackSizesSections(bytecode, functions)
 	if err != nil {
 		return fmt.Errorf("failed to parse '.stack_sizes' section in file: %w", err)
 	}
@@ -228,7 +232,11 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 			return fmt.Errorf("failed to load collection spec from reader: %w", err)
 		}
 
-		sizes, err := parseStackSizesSections(bpfAsset, collectionSpec.Programs)
+		functions := make(map[string]struct{}, len(collectionSpec.Programs))
+		for fn := range collectionSpec.Programs {
+			functions[fn] = struct{}{}
+		}
+		sizes, err := parseStackSizesSections(bpfAsset, functions)
 		if err != nil {
 			return fmt.Errorf("cannot get stack sizes for instrumnetation block: %v", err)
 		}

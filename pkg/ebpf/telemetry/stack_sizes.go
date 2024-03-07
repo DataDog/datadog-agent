@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/native"
-	"github.com/cilium/ebpf"
 )
 
 const (
@@ -51,15 +50,15 @@ type symbolKey struct {
 // their section index, and offset into section. The offset into the section is needed to
 // deduplicate programs in the same section. This may happen for example when there are multiple
 // kprobes on the same function.
-func findFunctionSymbols(elfFile *elf.File, programSpecs map[string]*ebpf.ProgramSpec) (map[symbolKey]string, error) {
+func findFunctionSymbols(elfFile *elf.File, functions map[string]struct{}) (map[symbolKey]string, error) {
 	syms, err := elfFile.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read elf symbols: %w", err)
 	}
 
-	symbols := make(map[symbolKey]string, len(programSpecs))
+	symbols := make(map[symbolKey]string, len(functions))
 	for _, sym := range syms {
-		if _, ok := programSpecs[sym.Name]; ok {
+		if _, ok := functions[sym.Name]; ok {
 			symbols[symbolKey{int(sym.Section), sym.Value}] = sym.Name
 		}
 	}
@@ -73,18 +72,18 @@ func findFunctionSymbols(elfFile *elf.File, programSpecs map[string]*ebpf.Progra
 // The unsigned 64 bit integer corresponds to the 'st_value' field of the symbol. For functions this is the offset
 // in the section to the start of the function.
 // The ULEB128 integer represents the stack size of the function.
-func parseStackSizesSections(bytecode io.ReaderAt, programSpecs map[string]*ebpf.ProgramSpec) (stackSizes, error) {
+func parseStackSizesSections(bytecode io.ReaderAt, functions map[string]struct{}) (stackSizes, error) {
 	objFile, err := elf.NewFile(bytecode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open bytecode: %w", err)
 	}
 
-	symbols, err := findFunctionSymbols(objFile, programSpecs)
+	symbols, err := findFunctionSymbols(objFile, functions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find function symbols: %v", err)
 	}
 
-	sizes := make(stackSizes, len(programSpecs))
+	sizes := make(stackSizes, len(functions))
 	for _, section := range objFile.Sections {
 		if section.Name != ".stack_sizes" {
 			continue
@@ -112,7 +111,7 @@ func parseStackSizesSections(bytecode io.ReaderAt, programSpecs map[string]*ebpf
 	}
 
 	var notFound []string
-	for pName := range programSpecs {
+	for pName := range functions {
 		if _, ok := sizes[pName]; !ok {
 			notFound = append(notFound, pName)
 		}
