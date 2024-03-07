@@ -435,7 +435,7 @@ static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *
 }
 
 static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *skb_info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
-    // No state, try reading a frame.
+    // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL || (frame_state->remainder == 0 && frame_state->header_length == 0)) {
         // Checking we have enough bytes in the packet to read a frame header.
         if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
