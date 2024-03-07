@@ -42,6 +42,7 @@ type dependencies struct {
 	Providers             []types.FlareCallback `group:"flare"`
 	Collector             optional.Option[collector.Component]
 	WMeta                 optional.Option[workloadmeta.Component]
+	Secrets               secrets.Component
 }
 
 type flare struct {
@@ -53,9 +54,7 @@ type flare struct {
 }
 
 func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
-	// TODO FIX this uninitialize variable.
-	var secretResolver secrets.Component
-	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, secretResolver, deps.WMeta)
+	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta)
 	f := &flare{
 		log:          deps.Log,
 		config:       deps.Config,

@@ -63,7 +63,7 @@ def init_kernel_matrix_testing_system(ctx, lite):
 
     # download dependencies
     if not lite:
-        download_rootfs(ctx, kmt_os.rootfs_dir)
+        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe")
         gen_ssh_key(ctx, kmt_os.kmt_dir)
 
     # build docker compile image

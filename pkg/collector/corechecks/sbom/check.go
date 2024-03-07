@@ -209,12 +209,15 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processContainerImagesEvents(eventBundle)
+		case scanResult, ok := <-hostSbomChan:
+			if !ok {
+				return nil
+			}
+			c.processor.processHostScanResult(scanResult)
 		case <-containerPeriodicRefreshTicker.C:
 			c.processor.processContainerImagesRefresh(c.workloadmetaStore.ListImages())
 		case <-hostPeriodicRefreshTicker.C:
 			c.processor.triggerHostScan()
-		case scanResult := <-hostSbomChan:
-			c.processor.processHostScanResult(scanResult)
 		case <-metricTicker.C:
 			c.sendUsageMetrics()
 		case <-c.stopCh:
@@ -233,8 +236,8 @@ func (c *Check) sendUsageMetrics() {
 	c.sender.Commit()
 }
 
-// Stop stops the sbom check
-func (c *Check) Stop() {
+// Cancel stops the sbom check
+func (c *Check) Cancel() {
 	close(c.stopCh)
 }
 
