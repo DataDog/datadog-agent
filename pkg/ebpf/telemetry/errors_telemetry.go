@@ -107,8 +107,10 @@ func initializeProbeKeys(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EB
 	defer bpfTelemetry.mtx.Unlock()
 
 	for fn := range programs {
-		bpfTelemetry.probeKeys[fn] = bpfTelemetry.probeIndex
+		// This is done before because we do not want a probe index to be equal to 0
+		// 0 value for telemetry_program_id_key is used as a guard against unpatched telemetry.
 		bpfTelemetry.probeIndex++
+		bpfTelemetry.probeKeys[fn] = bpfTelemetry.probeIndex
 	}
 }
 
@@ -380,8 +382,10 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 
 	var keys []manager.ConstantEditor
 	for _, m := range m.Maps {
-		bpfTelemetry.mapKeys[m.Name] = bpfTelemetry.mapIndex
+		// This is done before because we do not want a map index to be equal to 0
+		// 0 value for map_index is used as a guard against unpatched telemetry.
 		bpfTelemetry.mapIndex++
+		bpfTelemetry.mapKeys[m.Name] = bpfTelemetry.mapIndex
 
 		keys = append(keys, manager.ConstantEditor{
 			Name:  m.Name + "_telemetry_key",

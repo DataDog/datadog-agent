@@ -27,7 +27,7 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
         errno_ret = fn(&map, args);                                     \
         unsigned long map_index;                                        \
         LOAD_CONSTANT(MK_MAP_INDX(map), map_index);                     \
-        if (errno_ret < 0) {                                            \
+        if (errno_ret < 0 && map_index > 0){                            \
             instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();        \
             if (tb) {                                                   \
                 long error = errno_ret * -1;                            \
