@@ -16,7 +16,7 @@
 
 BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 
-#ifdef INSTRUMENTATION_ENABLED
+#ifdef EBPF_INSTRUMENTATION
 
 #define STR(x) #x
 #define MK_MAP_INDX(key) STR(key##_telemetry_key)
@@ -117,7 +117,7 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 #define bpf_perf_event_output_with_telemetry(...) \
     helper_with_telemetry(bpf_perf_event_output, __VA_ARGS__)
 
-#ifdef INSTRUMENTATION_ENABLED
+#ifdef EBPF_INSTRUMENTATION
 char _instrumentation[] SEC(".build.instrumentation") = "enabled";
 #endif
 

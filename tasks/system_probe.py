@@ -1410,7 +1410,7 @@ def build_object_files(
     global extra_cflags
     global extra_llcflags
     if instrument_trampoline:
-        extra_cflags = extra_cflags + ["-pg", "-DINSTRUMENTATION_ENABLED"]
+        extra_cflags = extra_cflags + ["-pg", "-DEBPF_INSTRUMENTATION"]
         extra_llcflags = extra_llcflags + ["-stack-size-section"]
 
     run_ninja(
