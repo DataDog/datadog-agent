@@ -23,19 +23,23 @@ type InstallAgentParams struct {
 	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
 	InstallLogFile      string
 	// Installer parameters for agent config
-	Site          string `installer_arg:"SITE"`
-	DdURL         string `installer_arg:"DD_URL"`
-	APIKey        string `installer_arg:"APIKEY"`
-	Tags          string `installer_arg:"TAGS"`
-	Hostname      string `installer_arg:"HOSTNAME"`
-	CmdPort       string `installer_arg:"CMD_PORT"`
-	ProxyHost     string `installer_arg:"PROXY_HOST"`
-	ProxyPort     string `installer_arg:"PROXY_PORT"`
-	ProxyUser     string `installer_arg:"PROXY_USER"`
-	ProxyPassword string `installer_arg:"PROXY_PASSWORD"`
-	LogsDdURL     string `installer_arg:"LOGS_DD_URL"`
-	ProcessDdURL  string `installer_arg:"PROCESS_DD_URL"`
-	TraceDdURL    string `installer_arg:"TRACE_DD_URL"`
+	Site                    string `installer_arg:"SITE"`
+	DdURL                   string `installer_arg:"DD_URL"`
+	APIKey                  string `installer_arg:"APIKEY"`
+	Tags                    string `installer_arg:"TAGS"`
+	Hostname                string `installer_arg:"HOSTNAME"`
+	CmdPort                 string `installer_arg:"CMD_PORT"`
+	ProxyHost               string `installer_arg:"PROXY_HOST"`
+	ProxyPort               string `installer_arg:"PROXY_PORT"`
+	ProxyUser               string `installer_arg:"PROXY_USER"`
+	ProxyPassword           string `installer_arg:"PROXY_PASSWORD"`
+	LogsDdURL               string `installer_arg:"LOGS_DD_URL"`
+	ProcessDdURL            string `installer_arg:"PROCESS_DD_URL"`
+	TraceDdURL              string `installer_arg:"TRACE_DD_URL"`
+	LogsEnabled             string `installer_arg:"LOGS_ENABLED"`
+	ProcessEnabled          string `installer_arg:"PROCESS_ENABLED"`
+	ProcessDiscoveryEnabled string `installer_arg:"PROCESS_DISCOVERY_ENABLED"`
+	APMEnabled              string `installer_arg:"APM_ENABLED"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -229,6 +233,38 @@ func WithProcessDdURL(processDdURL string) InstallAgentOption {
 func WithTraceDdURL(traceDdURL string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.TraceDdURL = traceDdURL
+		return nil
+	}
+}
+
+// WithLogsEnabled specifies the LOGS_ENABLED parameter.
+func WithLogsEnabled(logsEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.LogsEnabled = logsEnabled
+		return nil
+	}
+}
+
+// WithProcessEnabled specifies the PROCESS_ENABLED parameter, which controls process_collection.
+func WithProcessEnabled(processEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProcessEnabled = processEnabled
+		return nil
+	}
+}
+
+// WithProcessDiscoveryEnabled specifies the PROCESS_DISCOVERY_ENABLED parameter.
+func WithProcessDiscoveryEnabled(processDiscoveryEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProcessDiscoveryEnabled = processDiscoveryEnabled
+		return nil
+	}
+}
+
+// WithAPMEnabled specifies the APM_ENABLED parameter.
+func WithAPMEnabled(apmEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.APMEnabled = apmEnabled
 		return nil
 	}
 }
