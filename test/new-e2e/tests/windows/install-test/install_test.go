@@ -7,7 +7,6 @@
 package installtest
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,8 +28,6 @@ import (
 	"testing"
 )
 
-var devMode = flag.Bool("devmode", false, "enable devmode")
-
 type agentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.Host]
 }
@@ -39,9 +36,6 @@ func TestMSI(t *testing.T) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
 	))}
-	if *devMode {
-		opts = append(opts, e2e.WithDevMode())
-	}
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	if err != nil {
