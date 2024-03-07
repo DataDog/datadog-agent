@@ -42,7 +42,9 @@ var helperNames = map[int]string{
 
 const instrumentationMap string = "bpf_instrumentation_map"
 
-type instrumentationBlock struct {
+// InstrumentationBlock holds the instructions to be appended
+// to the end of eBPF bytecode
+type InstrumentationBlock struct {
 	code             []*asm.Instruction
 	instructionCount int
 }
@@ -129,7 +131,7 @@ func patchConstant(ins asm.Instructions, symbol string, constant int64) error {
 	return nil
 }
 
-func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool, block *instrumentationBlock) error {
+func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool, block *InstrumentationBlock) error {
 	programs, err := m.GetProgramSpecs()
 	if err != nil {
 		return fmt.Errorf("unable to get program specs: %w", err)
@@ -139,11 +141,11 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 }
 
 // PatchEBPFInstrumentation accepts eBPF bytecode and patches in the eBPF instrumentation
-func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool, block *instrumentationBlock) error {
+func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool, block *InstrumentationBlock) error {
 	initializeProbeKeys(programs, bpfTelemetry)
 
 	functions := make(map[string]struct{}, len(programs))
-	for fn, _ := range programs {
+	for fn := range programs {
 		functions[fn] = struct{}{}
 	}
 	sizes, err := parseStackSizesSections(bytecode, functions)
@@ -241,7 +243,8 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 	return nil
 }
 
-func BuildInstrumentationBlock(bpfAsset io.ReaderAt, collectionSpec *ebpf.CollectionSpec) (*instrumentationBlock, error) {
+// BuildInstrumentationBlock build a block of instructions to be appended to the end of bytecode as instrumentation
+func BuildInstrumentationBlock(bpfAsset io.ReaderAt, collectionSpec *ebpf.CollectionSpec) (*InstrumentationBlock, error) {
 	var block []*asm.Instruction
 	var blockCount int
 
@@ -303,7 +306,7 @@ func BuildInstrumentationBlock(bpfAsset io.ReaderAt, collectionSpec *ebpf.Collec
 		}
 	}
 
-	return &instrumentationBlock{
+	return &InstrumentationBlock{
 		code:             block,
 		instructionCount: blockCount,
 	}, nil
