@@ -1,20 +1,24 @@
 import getpass
 import os
 from pathlib import Path
+from typing import Optional
+
+from invoke.context import Context
 
 from tasks.kernel_matrix_testing.compiler import build_compiler
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import info
+from tasks.kernel_matrix_testing.vars import PathOrStr
 
 VMCONFIG = "vmconfig.json"
 
 
-def is_root():
+def is_root() -> bool:
     return os.getuid() == 0
 
 
-def get_active_branch_name():
+def get_active_branch_name() -> str:
     head_dir = Path(".") / ".git" / "HEAD"
     with head_dir.open("r") as f:
         content = f.read().splitlines()
@@ -23,8 +27,10 @@ def get_active_branch_name():
         if line[0:4] == "ref:":
             return line.partition("refs/heads/")[2].replace("/", "-")
 
+    return ""
 
-def check_and_get_stack(stack):
+
+def check_and_get_stack(stack: Optional[str]) -> str:
     if stack is None:
         stack = get_active_branch_name()
 
@@ -34,12 +40,12 @@ def check_and_get_stack(stack):
         return stack
 
 
-def gen_ssh_key(ctx, kmt_dir):
+def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
     ctx.run(f"cp tasks/kernel_matrix_testing/ddvm_rsa {kmt_dir}")
     ctx.run(f"chmod 400 {kmt_dir}/ddvm_rsa")
 
 
-def init_kernel_matrix_testing_system(ctx, lite):
+def init_kernel_matrix_testing_system(ctx: Context, lite: bool):
     kmt_os = get_kmt_os()
 
     sudo = "sudo" if not is_root() else ""

@@ -1,14 +1,19 @@
 import sys
+from os import PathLike
+from typing import Optional, Union, cast
+
+from invoke.context import Context
+from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import info
 
 
-def compiler_built(ctx):
+def compiler_built(ctx: Context):
     res = ctx.run("docker images kmt:compile | grep -v REPOSITORY | grep kmt", warn=True)
-    return res.ok
+    return res is not None and res.ok
 
 
-def docker_exec(ctx, cmd, user="compiler", verbose=True, run_dir=None):
+def docker_exec(ctx: Context, cmd: str, user="compiler", verbose=True, run_dir: Optional[Union[PathLike, str]] = None):
     if run_dir:
         cmd = f"cd {run_dir} && {cmd}"
 
@@ -19,7 +24,7 @@ def docker_exec(ctx, cmd, user="compiler", verbose=True, run_dir=None):
     ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"", hide=(not verbose))
 
 
-def start_compiler(ctx):
+def start_compiler(ctx: Context):
     if not compiler_built(ctx):
         build_compiler(ctx)
 
@@ -30,8 +35,8 @@ def start_compiler(ctx):
         "docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/datadog-agent kmt:compile sleep \"infinity\""
     )
 
-    uid = ctx.run("id -u").stdout.rstrip()
-    gid = ctx.run("id -g").stdout.rstrip()
+    uid = cast(Result, ctx.run("id -u")).stdout.rstrip()
+    gid = cast(Result, ctx.run("id -g")).stdout.rstrip()
     docker_exec(ctx, f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
     docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 
@@ -43,14 +48,14 @@ def start_compiler(ctx):
     docker_exec(ctx, f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
 
-def compiler_running(ctx):
+def compiler_running(ctx: Context):
     res = ctx.run("docker ps -aqf \"name=kmt-compiler\"")
-    if res.ok:
+    if res is not None and res.ok:
         return res.stdout.rstrip() != ""
     return False
 
 
-def build_compiler(ctx):
+def build_compiler(ctx: Context):
     ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")", warn=True, hide=True)
     ctx.run("docker image rm kmt:compile", warn=True, hide=True)
 
