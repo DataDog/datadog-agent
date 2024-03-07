@@ -84,7 +84,7 @@ handle_command() {
             ;;
         "systemd-reload")
             if ! systemctl daemon-reload; then
-                error_message="failed to reload: $unit"
+                error_message="failed to reload"
                 return 1
             fi
             return 0
