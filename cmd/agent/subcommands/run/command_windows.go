@@ -96,7 +96,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
-			processAgent optional.Option[processAgent.Component],
+			processAgent processAgent.Component,
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
