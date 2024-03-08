@@ -40,7 +40,7 @@
       - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestAgentUser
       # run the config option tests together
-      - EXTRA_PARAMS: --run "(TestMSI/Agent/TestInstallOpts$,TestSubServicesOpts$)"
+      - EXTRA_PARAMS: --run "TestMSI/Agent/(TestInstallOpts$|TestSubServicesOpts$)"
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:
