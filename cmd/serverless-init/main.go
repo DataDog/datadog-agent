@@ -8,9 +8,13 @@
 package main
 
 import (
+	"context"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/fx"
 	"os"
 	"time"
 
@@ -44,7 +48,10 @@ type cliParams struct {
 
 func main() {
 
-	err := fxutil.OneShot(run)
+	err := fxutil.OneShot(run,
+		fx.Supply(secrets.NewEnabledParams()),
+		secretsimpl.Module(),
+	)
 
 	if err != nil {
 		log.Error(err)
@@ -52,12 +59,12 @@ func main() {
 	}
 }
 
-func run() {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
+func run(secretsManager secrets.Component) {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(secretsManager)
 	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent)
 }
 
-func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretsManager secrets.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	setupLogger()
 
 	tracelog.SetLogger(corelogger{})
@@ -87,7 +94,8 @@ func setup() (cloudservice.CloudService, *serverlessInitLog.Config, *trace.Serve
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	common.LoadComponents(nil, workloadmeta.GetGlobalStore(), config.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), config.Datadog.GetString("confd_path"))
+	common.AC.LoadAndRun(context.Background())
 	logsAgent := serverlessInitLog.SetupLog(logConfig, tags)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
