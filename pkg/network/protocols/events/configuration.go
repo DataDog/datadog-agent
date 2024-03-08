@@ -150,7 +150,19 @@ func removeRingBufferHelperCalls(m *manager.Manager) {
 	// `EnabledModifiers` and let it control the execution of the callbacks
 	patcher := ddebpf.NewHelperCallRemover(asm.FnRingbufOutput)
 	err := patcher.BeforeInit(m, nil)
+
 	if err != nil {
+		// Our production code is actually loading on all Kernels we test on CI
+		// (including those that don't support Ring Buffers) *even without
+		// patching*, presumably due to pruning/dead code elimination. The only
+		// thing failing to load was actually a small eBPF test program. So we
+		// added the patching almost as an extra safety layer.
+		//
+		// All that to say that even if the patching fails, there's still a good
+		// chance that the program will succeed to load. If it doesn't,there
+		// isn't much we can do, and the loading error will bubble up and be
+		// appropriately handled by the upstream code, which is why we don't do
+		// anything here.
 		log.Errorf("error patching eBPF bytecode: %s", err)
 	}
 }
