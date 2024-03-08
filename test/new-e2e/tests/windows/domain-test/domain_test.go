@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/activedirectory"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	TestDomain   = "datadogqalab.com"
+	TestDomain   = "datadogqalab.local"
 	TestUser     = "TestUser"
 	TestPassword = "Test1234#"
 )
@@ -36,12 +37,13 @@ func TestInstallsOnDomainController(t *testing.T) {
 		suite := suite
 		t.Run(reflect.TypeOf(suite).Elem().Name(), func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(activedirectory.Provisioner(
-				activedirectory.WithActiveDirectoryOptions(
-					activedirectory.WithDomainName(TestDomain),
-					activedirectory.WithDomainPassword(TestPassword),
-					activedirectory.WithDomainUser(TestUser, TestPassword),
-				))))
+			e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner(
+				awshost.WithActiveDirectoryOptions(
+					activedirectory.CreateDomainController(
+						activedirectory.WithDomainName(TestDomain),
+						activedirectory.WithDomainPassword(TestPassword),
+					),
+					activedirectory.WithDomainUser(TestUser, TestPassword)))))
 		})
 	}
 }

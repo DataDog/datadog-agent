@@ -13,6 +13,7 @@ import (
 	infraComponents "github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/command"
 	"github.com/DataDog/test-infra-definitions/components/remote"
+	pulumiRemote "github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/pulumiverse/pulumi-time/sdk/go/time"
 )
@@ -39,44 +40,48 @@ func (dc *Component) Export(ctx *pulumi.Context, out *Output) error {
 }
 
 // NewActiveDirectory creates a new instance of an Active Directory domain deployment
-func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Component, error) {
-	params, err := common.ApplyOption(&Configuration{
-		// JL: Should we set sensible defaults here ?
-	}, options)
+func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *remote.Host, options ...Option) (*Component, []pulumi.Resource, error) {
+	params, err := common.ApplyOption(&Configuration{}, options)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+
+	var createdResources []pulumi.Resource
 
 	domainControllerComp, err := infraComponents.NewComponent(*e, host.Name(), func(comp *Component) error {
 		comp.namer = e.CommonNamer.WithPrefix(comp.Name())
 		comp.host = host
 
-		installForestCmd, err := host.OS.Runner().Command(comp.namer.ResourceName("install-forest"), &command.Args{
-			Create: pulumi.String(powershell.PsHost().
-				AddActiveDirectoryDomainServicesWindowsFeature().
-				ImportActiveDirectoryDomainServicesModule().
-				InstallADDSForest(params.DomainName, params.DomainPassword).
-				Compile()),
-			// JL: I hesitated to provide a Delete function but Uninstall-ADDSDomainController looks
-			// non-trivial to call, and I couldn't test it.
-		}, pulumi.Parent(comp))
-		if err != nil {
-			return err
+		var installCmd *pulumiRemote.Command
+		if params.DomainControllerConfiguration != nil {
+			installCmd, err = host.OS.Runner().Command(comp.namer.ResourceName("install-forest"), &command.Args{
+				Create: pulumi.String(powershell.PsHost().
+					AddActiveDirectoryDomainServicesWindowsFeature().
+					ImportActiveDirectoryDomainServicesModule().
+					InstallADDSForest(params.DomainControllerConfiguration.DomainName, params.DomainControllerConfiguration.DomainPassword).
+					Compile()),
+			}, pulumi.Parent(comp))
+			if err != nil {
+				return err
+			}
 		}
+		createdResources = append(createdResources, installCmd)
 
 		timeProvider, err := time.NewProvider(ctx, comp.namer.ResourceName("time-provider"), &time.ProviderArgs{}, pulumi.DeletedWith(host))
 		if err != nil {
 			return err
 		}
+		createdResources = append(createdResources, timeProvider)
 
 		waitForRebootCmd, err := time.NewSleep(ctx, comp.namer.ResourceName("wait-for-host-to-reboot"), &time.SleepArgs{
 			CreateDuration: pulumi.String("30s"),
 		}, pulumi.Provider(timeProvider), pulumi.DependsOn([]pulumi.Resource{
-			installForestCmd,
+			installCmd,
 		}))
 		if err != nil {
 			return err
 		}
+		createdResources = append(createdResources, waitForRebootCmd)
 
 		ensureAdwsStartedCmd, err := host.OS.Runner().Command(comp.namer.ResourceName("ensure-adws-started"), &command.Args{
 			Create: pulumi.String(powershell.PsHost().WaitForServiceStatus("ADWS", "Running").Compile()),
@@ -86,13 +91,14 @@ func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *
 		if err != nil {
 			return err
 		}
+		createdResources = append(createdResources, ensureAdwsStartedCmd)
 
 		if len(params.DomainUsers) > 0 {
 			cmdHost := powershell.PsHost()
 			for _, user := range params.DomainUsers {
 				cmdHost.AddActiveDirectoryUser(user.Username, user.Password)
 			}
-			_, err := host.OS.Runner().Command(comp.namer.ResourceName("create-domain-users"), &command.Args{
+			createDomainUsers, err := host.OS.Runner().Command(comp.namer.ResourceName("create-domain-users"), &command.Args{
 				Create: pulumi.String(cmdHost.Compile()),
 			}, pulumi.DependsOn([]pulumi.Resource{
 				ensureAdwsStartedCmd,
@@ -100,13 +106,14 @@ func NewActiveDirectory(ctx *pulumi.Context, e *config.CommonEnvironment, host *
 			if err != nil {
 				return err
 			}
+			createdResources = append(createdResources, createDomainUsers)
 		}
 
 		return nil
 	}, pulumi.Parent(host), pulumi.DeletedWith(host))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return domainControllerComp, nil
+	return domainControllerComp, createdResources, nil
 }

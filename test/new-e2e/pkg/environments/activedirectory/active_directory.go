@@ -14,12 +14,7 @@ import (
 // Env represents an Active Directory environment for an e2e test
 type Env struct {
 	DomainControllerHost *components.RemoteHost
-	DomainController     *RemoteActiveDirectory
+	ActiveDirectory      *components.RemoteActiveDirectory
 	FakeIntake           *components.FakeIntake
 	Environment          *config.CommonEnvironment
-}
-
-// RemoteActiveDirectory represents an Active Directory domain setup on a remote host
-type RemoteActiveDirectory struct {
-	Output
 }

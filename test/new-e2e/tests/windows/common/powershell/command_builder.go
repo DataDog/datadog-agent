@@ -90,14 +90,20 @@ func (ps *powerShellCommandBuilder) Reboot() *powerShellCommandBuilder {
 // InstallADDSForest creates a command that promotes a server to the role of forest.
 func (ps *powerShellCommandBuilder) InstallADDSForest(activeDirectoryDomain, passwd string) *powerShellCommandBuilder {
 	ps.cmds = append(ps.cmds, fmt.Sprintf(`
-$HashArguments = @{
-    CreateDNSDelegation           = $false
-    ForestMode                    = "Win2012R2"
-    DomainMode                    = "Win2012R2"
-    DomainName                    = "%s"
-    SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
-    Force                         = $true
-}; Install-ADDSForest @HashArguments`, activeDirectoryDomain, passwd))
+try {
+	Get-ADDomainController
+} catch {
+	$HashArguments = @{
+		CreateDNSDelegation           = $false
+		ForestMode                    = "Win2016"
+		DomainMode                    = "Win2016"
+		DomainName                    = "%s"
+		SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
+		Force                         = $true
+	}; Install-ADDSForest @HashArguments
+}
+`, activeDirectoryDomain, passwd))
+
 	return ps
 }
 
