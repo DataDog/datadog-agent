@@ -14,15 +14,15 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/samber/lo"
-	"gopkg.in/zorkian/go-datadog-api.v2"
-
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/fatih/color"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -36,6 +36,9 @@ import (
 const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
+	kubeNamespaceTracegenWorkload           = "workload-tracegen"
+	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
+	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
 
 var GitCommit string
@@ -1032,4 +1035,56 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 	}
 
 	return stdoutSb.String(), stderrSb.String(), nil
+}
+
+func (suite *k8sSuite) TestTraceUDS() {
+	suite.testTrace(kubeDeploymentTracegenUDSWorkload)
+}
+
+func (suite *k8sSuite) TestTraceTCP() {
+	suite.testTrace(kubeDeploymentTracegenTCPWorkload)
+}
+
+// testTrace verifies that traces are tagged with container and pod tags.
+func (suite *k8sSuite) testTrace(kubeDeployment string) {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		traces, cerr := suite.Fakeintake.GetTraces()
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
+			return
+		}
+
+		var err error
+		// Iterate starting from the most recent traces
+		for _, trace := range traces {
+			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
+				return k + ":" + v
+			})
+			// Assert origin detection is working properly
+			err = assertTags(tags, []*regexp.Regexp{
+				regexp.MustCompile(`^container_id:`),
+				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
+				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
+				regexp.MustCompile(`^git.commit.sha:`),
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
+				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
+				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen$`),
+				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^kube_container_name:` + kubeDeployment + `$`),
+				regexp.MustCompile(`^kube_deployment:` + kubeDeployment + `$`),
+				regexp.MustCompile(`^kube_namespace:` + kubeNamespaceTracegenWorkload + `$`),
+				regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
+				regexp.MustCompile(`^kube_ownerref_name:` + kubeDeployment + `-[[:alnum:]]+$`),
+				regexp.MustCompile(`^kube_replica_set:` + kubeDeployment + `-[[:alnum:]]+$`),
+				regexp.MustCompile(`^kube_qos:burstable$`),
+				regexp.MustCompile(`^pod_name:` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
+				regexp.MustCompile(`^pod_phase:running$`),
+				regexp.MustCompile(`^short_image:apps-tracegen$`),
+			})
+			if err == nil {
+				break
+			}
+		}
+		require.NoErrorf(c, err, "Failed finding trace with proper tags")
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
