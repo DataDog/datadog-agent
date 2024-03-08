@@ -24,6 +24,7 @@ import (
 type InitConfig struct {
 	MinCollectionInterval int           `yaml:"min_collection_interval"`
 	CustomQueries         []CustomQuery `yaml:"custom_queries"`
+	UseInstantClient      bool          `yaml:"use_instant_client"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -118,6 +119,7 @@ type InstanceConfig struct {
 	Port                               int                    `yaml:"port"`
 	ServiceName                        string                 `yaml:"service_name"`
 	Username                           string                 `yaml:"username"`
+	User                               string                 `yaml:"user"`
 	Password                           string                 `yaml:"password"`
 	TnsAlias                           string                 `yaml:"tns_alias"`
 	TnsAdmin                           string                 `yaml:"tns_admin"`
@@ -146,6 +148,7 @@ type InstanceConfig struct {
 	Asm                                asmConfig              `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 	Locks                              locksConfig            `yaml:"locks"`
+	OnlyCustomQueries                  bool                   `yaml:"only_custom_queries"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -235,6 +238,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		}
 	}
 
+	if instance.Username == "" {
+		// For the backward compatibility with the Python integration
+		if instance.User != "" {
+			instance.Username = instance.User
+			warnDeprecated("user", "username")
+		} else {
+			return nil, fmt.Errorf("`username` is not configured")
+		}
+	}
+
 	/*
 	 * `instant_client` is deprecated but still supported to avoid a breaking change
 	 * `oracle_client` is a more appropriate naming because besides Instant Client
@@ -242,7 +255,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	 */
 	if instance.InstantClient {
 		instance.OracleClient = true
-		log.Warn("The config parameter instance_client is deprecated and will be removed in future versions. Please use oracle_client instead.")
+		warnDeprecated("instant_client", "oracle_client")
+	}
+
+	// `use_instant_client` is for backward compatibility with the old Oracle Python integration
+	if initCfg.UseInstantClient {
+		instance.OracleClient = true
+		warnDeprecated("use_instant_client", "oracle_client in instance config")
 	}
 
 	c := &CheckConfig{
@@ -280,4 +299,8 @@ func GetConnectData(c InstanceConfig) string {
 		p = fmt.Sprintf("%s/%s", p, c.ServiceName)
 	}
 	return p
+}
+
+func warnDeprecated(old string, new string) {
+	log.Warnf("The config parameter %s is deprecated and will be removed in future versions. Please use %s instead.", old, new)
 }
