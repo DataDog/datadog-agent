@@ -4,8 +4,9 @@ Description=Clean start of datadog admin executor
 [Service]
 Type=oneshot
 User=root
-ExecStart=systemctl kill -s SIGKILL datadog-updater-admin-exec.service || true
-ExecStart=systemctl start datadog-updater-admin-exec.service || true
+ExecStart=/bin/sh -c 'systemctl kill -s SIGKILL datadog-updater-admin-exec.service' || true
+ExecStart=test -e <%= install_dir %>/run/in.fifo
+ExecStart=systemctl start datadog-updater-admin-exec.service --no-block
 
 [Install]
 WantedBy=multi-user.target
