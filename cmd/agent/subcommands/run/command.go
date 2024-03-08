@@ -113,7 +113,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -614,13 +613,7 @@ func startAgent(
 	// start dependent services
 	go startDependentServices()
 
-	if err := otelcollector.Start(); err != nil {
-		return err
-	}
-	// TODO: (components) remove this once migrating the status package to components
-	otlpStatus.SetOtelCollector(otelcollector)
-
-	return nil
+	return otelcollector.Start()
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
