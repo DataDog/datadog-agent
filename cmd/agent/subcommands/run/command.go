@@ -47,6 +47,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -83,9 +85,10 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha/rcservicehaimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
@@ -113,7 +116,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httpproxyStatus "github.com/DataDog/datadog-agent/pkg/status/httpproxy"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -200,6 +202,7 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
+	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
@@ -266,6 +269,7 @@ func run(log log.Component,
 		taggerComp,
 		rcclient,
 		logsAgent,
+		processAgent,
 		forwarder,
 		sharedSerializer,
 		otelcollector,
@@ -339,7 +343,7 @@ func getSharedFxOption() fx.Option {
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
 		rcservicehaimpl.Module(),
-		rcclientimpl.Module(),
+		remoteconfig.Bundle(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),
 
@@ -384,6 +388,7 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
+		process.Bundle(),
 	)
 }
 
@@ -400,6 +405,7 @@ func startAgent(
 	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
+	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
@@ -614,13 +620,7 @@ func startAgent(
 	// start dependent services
 	go startDependentServices()
 
-	if err := otelcollector.Start(); err != nil {
-		return err
-	}
-	// TODO: (components) remove this once migrating the status package to components
-	otlpStatus.SetOtelCollector(otelcollector)
-
-	return nil
+	return otelcollector.Start()
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
