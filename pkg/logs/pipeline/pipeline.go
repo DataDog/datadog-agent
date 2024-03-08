@@ -46,7 +46,7 @@ func NewPipeline(outputChan chan *message.Payload,
 
 	mainDestinations := getDestinations(endpoints, destinationsContext, pipelineID, serverless, status, cfg)
 
-	strategyInput := make(chan *message.Message, config.ChanSize)
+	strategyInput := make(chan message.TimedMessage[*message.Message], config.ChanSize)
 	senderInput := make(chan *message.Payload, 1) // Only buffer 1 message since payloads can be large
 	flushChan := make(chan struct{})
 
@@ -124,7 +124,7 @@ func getDestinations(endpoints *config.Endpoints, destinationsContext *client.De
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func getStrategy(inputChan chan *message.Message, outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
+func getStrategy(inputChan chan message.TimedMessage[*message.Message], outputChan chan *message.Payload, flushChan chan struct{}, endpoints *config.Endpoints, serverless bool, pipelineID int) sender.Strategy {
 	if endpoints.UseHTTP || serverless {
 		encoder := sender.IdentityContentType
 		if endpoints.Main.UseCompression {

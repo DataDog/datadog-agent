@@ -7,9 +7,11 @@ package processor
 
 import (
 	"context"
+	"math/rand"
+	"strings"
 	"sync"
+	"time"
 
-	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -27,7 +29,7 @@ const UnstructuredProcessingMetricName = "datadog.logs_agent.tailer.unstructured
 // in an outputChan.
 type Processor struct {
 	inputChan                 chan message.TimedMessage[*message.Message]
-	outputChan                chan *message.Message // strategy input
+	outputChan                chan message.TimedMessage[*message.Message] // strategy input
 	processingRules           []*config.ProcessingRule
 	encoder                   Encoder
 	done                      chan struct{}
@@ -37,7 +39,7 @@ type Processor struct {
 }
 
 // New returns an initialized Processor.
-func New(inputChan chan message.TimedMessage[*message.Message], outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
+func New(inputChan chan message.TimedMessage[*message.Message], outputChan chan message.TimedMessage[*message.Message], processingRules []*config.ProcessingRule, encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component) *Processor {
 	return &Processor{
 		inputChan:                 inputChan,
 		outputChan:                outputChan, // strategy input
@@ -64,7 +66,7 @@ func (p *Processor) Stop() {
 var tlmProcessChanTime = telemetry.NewSimpleHistogram("processing",
 	"processing_channel_time",
 	"Time to send on the processing channel",
-	[]float64{100, 1000, 10000, 100000, 1000000})
+	[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
 
 // Flush processes synchronously the messages that this processor has to process.
 func (p *Processor) Flush(ctx context.Context) {
@@ -79,6 +81,7 @@ func (p *Processor) Flush(ctx context.Context) {
 				return
 			}
 			msg := <-p.inputChan
+
 			tlmProcessChanTime.Observe(float64(msg.SendDuration().Nanoseconds()))
 
 			p.processMessage(msg.Inner)
@@ -126,7 +129,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
-		p.outputChan <- msg
+		p.outputChan <- message.NewTimedMessage(msg)
 	}
 }
 
@@ -154,6 +157,12 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	}
 
 	// TODO(remy): this is most likely where we want to plug in SDS
+
+	if strings.Contains(string(content), "chill") {
+		// Sleep for a second to simulate slow processing
+		delay := rand.Int63n(100)
+		time.Sleep(time.Duration(delay) * time.Microsecond)
+	}
 
 	msg.SetContent(content)
 	return true // we want to send this message
