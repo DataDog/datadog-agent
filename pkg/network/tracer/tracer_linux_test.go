@@ -2110,7 +2110,6 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "trace")
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
 	cfg.AllowNetlinkConntrackerFallback = true

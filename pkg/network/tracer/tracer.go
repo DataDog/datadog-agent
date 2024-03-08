@@ -258,7 +258,7 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		}
 		log.Warnf("error initializing ebpf conntracker: %s", err)
 	} else {
-		log.Info("ebpf conntracker disabled via config")
+		log.Info("ebpf conntracker disabled")
 	}
 
 	if cfg.AllowNetlinkConntrackerFallback {

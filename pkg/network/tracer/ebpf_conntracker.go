@@ -163,7 +163,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		}
 		return nil, err
 	}
-	log.Infof("initialized ebpf conntrack")
+	log.Infof("initialized ebpf conntracker")
 	return e, nil
 }
 
