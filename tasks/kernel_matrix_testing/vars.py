@@ -1,5 +1,6 @@
 import os
-from typing import Dict, Literal, Union
+from typing import Dict, Union
+from typing_extensions import Literal
 
 Arch = Literal['x86_64', 'arm64']
 ArchOrLocal = Union[Arch, Literal['local']]

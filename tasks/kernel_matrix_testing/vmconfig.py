@@ -3,7 +3,8 @@ import itertools
 import json
 import os
 import platform
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
+from typing_extensions import Literal, TypedDict
 from urllib.parse import urlparse
 
 from invoke.context import Context

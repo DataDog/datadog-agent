@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Callable, Iterable, List, Protocol, TypeVar
+from typing import TYPE_CHECKING, Callable, Iterable, List, TypeVar
+from typing_extensions import Protocol
 
 from tasks.kernel_matrix_testing.tool import info
 
@@ -11,8 +12,7 @@ def resource_in_stack(stack: str, resource: str) -> bool:
 
 
 class HasName(Protocol):
-    def name(self) -> str:
-        ...  # noqa: E704
+    def name(self) -> str: ...  # noqa: E704
 
 
 T = TypeVar('T', bound=HasName)

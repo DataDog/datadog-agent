@@ -6,7 +6,8 @@ import shutil
 import tempfile
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypedDict, cast
+from typing import Any, Dict, List, Optional, cast
+from typing_extensions import TypedDict
 
 from invoke.context import Context
 from invoke.tasks import task

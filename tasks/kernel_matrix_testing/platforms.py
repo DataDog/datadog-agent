@@ -1,5 +1,6 @@
 import json
-from typing import Dict, TypedDict, cast
+from typing import Dict, cast
+from typing_extensions import TypedDict
 
 
 class Platforms(TypedDict):
