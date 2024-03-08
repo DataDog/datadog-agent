@@ -859,8 +859,10 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     if ret_code != 0:
         exit(1)
 
+    # Show links
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
+    pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
+
+    print()
     print(f'Branch {owner}/{branch} pushed to repo: {repo}')
-    print(
-        f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
-    )
+    print(f'Pipeline: {pipeline}')
