@@ -145,7 +145,7 @@ require (
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/docker v25.0.2+incompatible
+	github.com/docker/docker v25.0.3+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.5.0
@@ -234,7 +234,7 @@ require (
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	github.com/wI2L/jsondiff v0.4.0
 	github.com/xeipuuv/gojsonschema v1.2.0
-	go.etcd.io/bbolt v1.3.8
+	go.etcd.io/bbolt v1.3.9
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.13.1
 	go.opentelemetry.io/collector v0.91.0 // indirect
@@ -362,16 +362,16 @@ require (
 	github.com/briandowns/spinner v1.23.0 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/containerd/continuity v0.4.2 // indirect
+	github.com/containerd/continuity v0.4.3 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
+	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/containerd/ttrpc v1.2.2 // indirect
 	github.com/containernetworking/plugins v1.4.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/docker/cli v25.0.1+incompatible // indirect
+	github.com/docker/cli v25.0.3+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -591,7 +591,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/DataDog/agent-payload/v5 v5.0.105
+	github.com/DataDog/agent-payload/v5 v5.0.106
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.52.0-rc.3
@@ -661,9 +661,11 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/planetscale/vtprotobuf v0.6.0
 	github.com/prometheus-community/pro-bing v0.3.0
+	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.6
 	github.com/stormcat24/protodep v0.1.8
 	github.com/swaggest/jsonschema-go v0.3.64
+	github.com/vibrantbyte/go-antpath v1.1.1
 	go.opentelemetry.io/collector/extension v0.91.0
 	go.opentelemetry.io/collector/otelcol v0.91.0
 	go.opentelemetry.io/collector/processor v0.91.0
@@ -721,7 +723,7 @@ require (
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/google/cel-go v0.17.7 // indirect
-	github.com/google/gnostic v0.6.9 // indirect
+	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/hashicorp/go-getter v1.7.3 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
@@ -808,19 +810,19 @@ replace (
 replace github.com/aquasecurity/trivy-db => github.com/datadog/trivy-db v0.0.0-20240228172000-42caffdaee3f
 
 // Use a version of cel-go compatible with k8s.io/kubeapiserver 0.27.6
-replace github.com/google/cel-go v0.17.7 => github.com/google/cel-go v0.16.1
+replace github.com/google/cel-go => github.com/google/cel-go v0.16.1
 
 // Waiting for datadog-operator kube version bump
-replace sigs.k8s.io/controller-runtime v0.11.2 => sigs.k8s.io/controller-runtime v0.15.0
+replace sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.15.0
 
 // Fixes CVE-2023-1732, imported by nikos
-replace github.com/cloudflare/circl v1.1.0 => github.com/cloudflare/circl v1.3.7
+replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
 
 // Fixes CVE-2023-26054, imported by trivy
-replace github.com/moby/buildkit v0.11.0 => github.com/moby/buildkit v0.13.0-beta3
+replace github.com/moby/buildkit => github.com/moby/buildkit v0.13.0
 
 // Fixes a panic in trivy, see gitlab.com/cznic/libc/-/issues/25
-replace modernc.org/sqlite v1.17.3 => modernc.org/sqlite v1.19.3
+replace modernc.org/sqlite => modernc.org/sqlite v1.19.3
 
 // Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
 // https://github.com/open-telemetry/opentelemetry-collector/issues/8127
@@ -830,15 +832,13 @@ exclude (
 )
 
 replace (
-	// Stick to v0.27.6 as bumping client-go to 0.28.x breaks cluster agent leader election
-	k8s.io/api => k8s.io/api v0.27.6
-	k8s.io/apimachinery => k8s.io/apimachinery v0.27.6
-	k8s.io/apiserver => k8s.io/apiserver v0.27.6
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.27.6
-	k8s.io/client-go => k8s.io/client-go v0.27.6
-	k8s.io/component-base => k8s.io/component-base v0.27.6
-	// Small compilation fixes so that k8s.io/apiserver can compile against kube-openapi
-	k8s.io/kube-openapi => github.com/datadog/kube-openapi v0.0.0-20231101162351-39b249f0ed92
-	k8s.io/kubectl => k8s.io/kubectl v0.27.6
+	// Stick to v0.28.6 even if trivy want v0.29.x, the way we use trivy shouldn't require any k8s.io packages
+	k8s.io/api => k8s.io/api v0.28.6
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.28.6
+	k8s.io/apimachinery => k8s.io/apimachinery v0.28.6
+	k8s.io/apiserver => k8s.io/apiserver v0.28.6
+	k8s.io/client-go => k8s.io/client-go v0.28.6
+	k8s.io/component-base => k8s.io/component-base v0.28.6
+	k8s.io/kube-openapi => k8s.io/kube-openapi v0.0.0-20230901164831-6c774f458599
 	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230526173653-cf3e81b590ab
 )
