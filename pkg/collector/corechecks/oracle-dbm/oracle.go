@@ -224,7 +224,7 @@ func (c *Check) Run() error {
 				}
 				closeDatabase(c, db)
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err))
-			} else { //nolint:revive // TODO(DBM) Fix revive linter
+			} else {
 				handleServiceCheck(c, nil)
 			}
 		}

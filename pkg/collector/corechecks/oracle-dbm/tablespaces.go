@@ -73,7 +73,7 @@ type rowMaxSizeDB struct {
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
 	var tablespaceQuery, maxSizeQuery string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) && !c.oldIntegrationCompatibilityMode {
 		tablespaceQuery = tablespaceQuery12
 		maxSizeQuery = maxSizeQuery12
 	} else {
