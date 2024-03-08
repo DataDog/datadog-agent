@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,6 +42,8 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	return nil
 }
 
+var tlmFileRead = telemetry.NewGauge("processing", "file_read", []string{"file_name"}, "File read progress.")
+
 // read lets the tailer tail the content of a file
 // until it is closed or the tailer is stopped.
 func (t *Tailer) read() (int, error) {
@@ -57,5 +60,17 @@ func (t *Tailer) read() (int, error) {
 	}
 	t.lastReadOffset.Add(int64(n))
 	t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+
+	current, err := t.osFile.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0, err
+	}
+	fileInfo, err := t.osFile.Stat()
+	if err != nil {
+		return 0, err
+	}
+
+	tlmFileRead.Set(float64(current)/float64(fileInfo.Size()), t.file.Path)
+
 	return n, nil
 }
