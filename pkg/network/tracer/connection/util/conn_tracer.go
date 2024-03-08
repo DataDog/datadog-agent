@@ -9,6 +9,7 @@
 package util
 
 import (
+	"math"
 	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -23,6 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// toPowerOf2 converts a number to its nearest power of 2
+func toPowerOf2(x int) int {
+	log2 := math.Log2(float64(x))
+	return int(math.Pow(2, math.Round(log2)))
+}
+
 // computeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffer for closed connection events.
 // Must be a power of 2 and a multiple of the page size
 func computeDefaultClosedConnRingBufferSize() int {
@@ -30,11 +37,7 @@ func computeDefaultClosedConnRingBufferSize() int {
 	if err != nil {
 		numCPUs = 1
 	}
-	pageSize := os.Getpagesize()
-	if numCPUs <= 16 {
-		return 8 * 8 * pageSize
-	}
-	return 8 * 16 * pageSize
+	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
 }
 
 // computeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
