@@ -159,7 +159,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 					gatewayLookupTelemetry.subnetLookupErrors.Inc("timeout")
 				} else {
 					g.subnetCache.Add(r.IfIndex, nil)
-					gatewayLookupTelemetry.subnetLookupErrors.Inc()
+					gatewayLookupTelemetry.subnetLookupErrors.Inc("general error")
 				}
 				gatewayLookupTelemetry.subnetCacheSize.Inc()
 				return err
