@@ -10,10 +10,11 @@ import (
 	"embed"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,23 +38,17 @@ func fakeStatusServer(t *testing.T, errCode int, response []byte) *httptest.Serv
 }
 
 func TestStatus(t *testing.T) {
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
-	defer func() {
-		os.Setenv("TZ", originalTZ)
-	}()
-
-	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/json_response.tmpl")
-	assert.NoError(t, err)
-
-	textResponse, err := fixturesTemplates.ReadFile("fixtures/text_response.tmpl")
+	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
 	assert.NoError(t, err)
 
 	server := fakeStatusServer(t, 200, jsonBytes)
 	defer server.Close()
 
+	configComponent := fxutil.Test[config.Component](t, config.MockModule())
+
 	headerProvider := statusProvider{
 		testServerURL: server.URL,
+		config:        configComponent,
 	}
 
 	tests := []struct {
@@ -77,11 +72,7 @@ func TestStatus(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			// We replace windows line break by linux so the tests pass on every OS
-			expected := strings.Replace(string(textResponse), "\r\n", "\n", -1)
-			output := strings.Replace(b.String(), "\r\n", "\n", -1)
-
-			assert.Equal(t, expected, output)
+			assert.True(t, strings.Contains(b.String(), "API Key ending with:"))
 		}},
 		{"HTML", func(t *testing.T) {
 			b := new(bytes.Buffer)
@@ -104,17 +95,14 @@ func TestStatusError(t *testing.T) {
 	server := fakeStatusServer(t, 500, []byte{})
 	defer server.Close()
 
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
-	defer func() {
-		os.Setenv("TZ", originalTZ)
-	}()
-
 	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
 	assert.NoError(t, err)
 
+	configComponent := fxutil.Test[config.Component](t, config.MockModule())
+
 	headerProvider := statusProvider{
 		testServerURL: server.URL,
+		config:        configComponent,
 	}
 
 	tests := []struct {

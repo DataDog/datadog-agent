@@ -27,6 +27,8 @@ const (
 
 // DynamicTable encapsulates the management of the dynamic table in the user mode.
 type DynamicTable struct {
+	cfg *config.Config
+
 	// terminatedConnectionsEventsConsumer is the consumer used to receive terminated connections events from the kernel.
 	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
 	// terminatedConnections is the list of terminated connections received from the kernel.
@@ -38,13 +40,15 @@ type DynamicTable struct {
 }
 
 // NewDynamicTable creates a new dynamic table.
-func NewDynamicTable() *DynamicTable {
-	return &DynamicTable{}
+func NewDynamicTable(cfg *config.Config) *DynamicTable {
+	return &DynamicTable{
+		cfg: cfg,
+	}
 }
 
 // configureOptions configures the perf handler options for the map cleaner.
 func (dt *DynamicTable) configureOptions(mgr *manager.Manager, opts *manager.Options) {
-	events.Configure(terminatedConnectionsEventStream, mgr, opts)
+	events.Configure(dt.cfg, terminatedConnectionsEventStream, mgr, opts)
 }
 
 // preStart sets up the terminated connections events consumer.
