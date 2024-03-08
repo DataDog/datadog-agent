@@ -21,15 +21,16 @@ type runtimeSettingsHTTPClient struct {
 	c                 *http.Client
 	baseURL           string
 	targetProcessName string
+	clientOptions     ClientOptions
 }
 
 // NewClient returns a client setup to interact with the standard runtime settings HTTP API
-func NewClient(c *http.Client, baseURL string, targetProcessName string) settings.Client {
-	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName}
+func NewClient(c *http.Client, baseURL string, targetProcessName string, clientOptions ClientOptions) settings.Client {
+	return &runtimeSettingsHTTPClient{c, baseURL, targetProcessName, clientOptions}
 }
 
 func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
-	r, err := util.DoGet(rc.c, rc.baseURL, util.LeaveConnectionOpen)
+	r, err := util.DoGet(rc.c, rc.baseURL, rc.clientOptions.CloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -45,7 +46,7 @@ func (rc *runtimeSettingsHTTPClient) FullConfig() (string, error) {
 }
 
 func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingResponse, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), util.LeaveConnectionOpen)
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, "list-runtime"), rc.clientOptions.CloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -65,7 +66,7 @@ func (rc *runtimeSettingsHTTPClient) List() (map[string]settings.RuntimeSettingR
 }
 
 func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), util.LeaveConnectionOpen)
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s", rc.baseURL, key), rc.clientOptions.CloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
@@ -88,7 +89,7 @@ func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
 }
 
 func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]interface{}, error) {
-	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), util.LeaveConnectionOpen)
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), rc.clientOptions.CloseConnection)
 	if err != nil {
 		var errMap = make(map[string]string)
 		_ = json.Unmarshal(r, &errMap)
