@@ -1,11 +1,11 @@
 import os
+from pathlib import Path
 from typing import List, Optional, cast
 
 from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.infra import ask_for_ssh, build_infrastructure, find_ssh_key
-from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.libvirt import (
     delete_domains,
@@ -17,8 +17,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resume_domains,
 )
 from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info
-from tasks.kernel_matrix_testing.vars import PathOrStr
-from tasks.kernel_matrix_testing.vmconfig import get_vmconfig
+from tasks.kernel_matrix_testing.vars import VMCONFIG, PathOrStr
 
 try:
     import libvirt
@@ -27,6 +26,28 @@ except ImportError:
 
 X86_INSTANCE_TYPE = "m5d.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
+
+
+def get_active_branch_name() -> str:
+    head_dir = Path(".") / ".git" / "HEAD"
+    with head_dir.open("r") as f:
+        content = f.read().splitlines()
+
+    for line in content:
+        if line[0:4] == "ref:":
+            return line.partition("refs/heads/")[2].replace("/", "-")
+
+    return ""
+
+
+def check_and_get_stack(stack: Optional[str]) -> str:
+    if stack is None:
+        stack = get_active_branch_name()
+
+    if not stack.endswith("-ddvm"):
+        return f"{stack}-ddvm"
+    else:
+        return stack
 
 
 def stack_exists(stack: str):
@@ -51,6 +72,8 @@ def create_stack(ctx: Context, stack: Optional[str] = None):
 
 
 def remote_vms_in_config(vmconfig: PathOrStr):
+    from tasks.kernel_matrix_testing.vmconfig import get_vmconfig
+
     data = get_vmconfig(vmconfig)
 
     for s in data["vmsets"]:
@@ -61,6 +84,8 @@ def remote_vms_in_config(vmconfig: PathOrStr):
 
 
 def local_vms_in_config(vmconfig: PathOrStr):
+    from tasks.kernel_matrix_testing.vmconfig import get_vmconfig
+
     data = get_vmconfig(vmconfig)
 
     for s in data["vmsets"]:

@@ -1,7 +1,5 @@
 import getpass
 import os
-from pathlib import Path
-from typing import Optional
 
 from invoke.context import Context
 
@@ -11,33 +9,9 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import info
 from tasks.kernel_matrix_testing.vars import PathOrStr
 
-VMCONFIG = "vmconfig.json"
-
 
 def is_root() -> bool:
     return os.getuid() == 0
-
-
-def get_active_branch_name() -> str:
-    head_dir = Path(".") / ".git" / "HEAD"
-    with head_dir.open("r") as f:
-        content = f.read().splitlines()
-
-    for line in content:
-        if line[0:4] == "ref:":
-            return line.partition("refs/heads/")[2].replace("/", "-")
-
-    return ""
-
-
-def check_and_get_stack(stack: Optional[str]) -> str:
-    if stack is None:
-        stack = get_active_branch_name()
-
-    if not stack.endswith("-ddvm"):
-        return f"{stack}-ddvm"
-    else:
-        return stack
 
 
 def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):

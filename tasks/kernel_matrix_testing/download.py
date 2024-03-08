@@ -1,11 +1,11 @@
-import json
 import os
 import platform
 import tempfile
-from typing import Dict, List, TypedDict, cast
+from typing import List
 
 from invoke.context import Context
 
+from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
 from tasks.kernel_matrix_testing.vars import arch_mapping
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
@@ -14,20 +14,6 @@ try:
     import requests
 except ImportError:
     requests = None
-
-
-class Platforms(TypedDict):
-    url_base: str
-    x86_64: Dict[str, str]  # noqa: F841
-    arm64: Dict[str, str]  # noqa: F841
-
-
-platforms_file = "test/new-e2e/system-probe/config/platforms.json"
-
-
-def get_platforms():
-    with open(platforms_file) as f:
-        return cast(Platforms, json.load(f))
 
 
 def requires_update(url_base: str, rootfs_dir: str, image: str, branch: str):

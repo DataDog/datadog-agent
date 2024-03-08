@@ -8,12 +8,11 @@ from urllib.parse import urlparse
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.download import Platforms, arch_mapping, get_platforms, platforms_file
-from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.stacks import create_stack, stack_exists
+from tasks.kernel_matrix_testing.platforms import Platforms, get_platforms
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
-from tasks.kernel_matrix_testing.vars import Arch, ArchOrLocal, PathOrStr
+from tasks.kernel_matrix_testing.vars import VMCONFIG, Arch, ArchOrLocal, PathOrStr, arch_mapping
 
 local_arch = "local"
 
@@ -530,9 +529,7 @@ def generate_vmconfig(
     ci: bool,
     template: str,
 ) -> VMConfig:
-    with open(platforms_file) as f:
-        platforms = json.load(f)
-
+    platforms = get_platforms()
     vmconfig_template = get_vmconfig_template(template)
     vmsets = build_vmsets(normalized_vm_defs, sets)
 
