@@ -140,6 +140,14 @@ func NewTestConfig(t *testing.T) *config.AgentConfig {
 	return cfg
 }
 
+func NewBenchmarkTestConfig(b *testing.B) *config.AgentConfig {
+	cfg := config.New()
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	require.NoError(b, err)
+	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
+	return cfg
+}
+
 func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
@@ -2105,7 +2113,8 @@ func BenchmarkProcessRequest(b *testing.B) {
 		}
 	}()
 
-	r := NewOTLPReceiver(out, nil, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	cfg := NewBenchmarkTestConfig(b)
+	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
