@@ -31,8 +31,6 @@ const (
 	activityDumpTreeType    = "activity_dump"
 )
 
-var allTreeTypes = []string{securityProfileTreeType, activityDumpTreeType}
-
 // Opts holds options for auto suppression
 type Opts struct {
 	SecurityProfileAutoSuppressionEnabled bool
@@ -48,10 +46,11 @@ type StatsTags struct {
 
 // AutoSuppression is a struct that encapsulates the auto suppression logic
 type AutoSuppression struct {
-	once      sync.Once
-	opts      Opts
-	statsLock sync.RWMutex
-	stats     map[StatsTags]*atomic.Int64
+	once             sync.Once
+	opts             Opts
+	statsLock        sync.RWMutex
+	stats            map[StatsTags]*atomic.Int64
+	enabledTreeTypes []string
 }
 
 // Init initializes the auto suppression with the given options
@@ -59,6 +58,12 @@ func (as *AutoSuppression) Init(opts Opts) {
 	as.once.Do(func() {
 		as.opts = opts
 		as.stats = make(map[StatsTags]*atomic.Int64)
+		if opts.SecurityProfileAutoSuppressionEnabled {
+			as.enabledTreeTypes = append(as.enabledTreeTypes, securityProfileTreeType)
+		}
+		if opts.ActivityDumpAutoSuppressionEnabled {
+			as.enabledTreeTypes = append(as.enabledTreeTypes, activityDumpTreeType)
+		}
 	})
 }
 
@@ -87,7 +92,7 @@ func (as *AutoSuppression) Apply(ruleSet *rules.RuleSet) {
 	for _, rule := range ruleSet.GetRules() {
 		if isAllowAutosuppressionRule(rule) {
 			tags.RuleID = rule.ID
-			for _, treeType := range allTreeTypes {
+			for _, treeType := range as.enabledTreeTypes {
 				tags.TreeType = treeType
 				newStats[tags] = atomic.NewInt64(0)
 			}
