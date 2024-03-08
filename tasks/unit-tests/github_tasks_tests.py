@@ -26,7 +26,7 @@ class GithubAPIMock:
 class TestAssignTeamLabelMock(unittest.TestCase):
     CODEOWNERS_FILE = './tasks/unit-tests/testdata/codeowners.txt'
 
-    def make_test(self, changed_files, expected_labels):
+    def make_test(self, changed_files, expected_labels, tags=None):
         from tasks.libs.pipeline_notifications import read_owners
 
         fake_codeowners = read_owners(TestAssignTeamLabelMock.CODEOWNERS_FILE)
@@ -35,7 +35,7 @@ class TestAssignTeamLabelMock(unittest.TestCase):
             tasks.github_tasks, 'read_owners'
         ) as read_owners_mock:
             gh = GithubAPIMock(
-                [],
+                tags or [],
                 changed_files,
             )
             gh_mock.return_value = gh
@@ -87,3 +87,15 @@ class TestAssignTeamLabelMock(unittest.TestCase):
         expected_labels = ['team/agent-platform', 'team/agent-security']
 
         self.make_test(changed_files, expected_labels)
+
+    def test_skip1(self):
+        changed_files = ['.gitignore']
+        expected_labels = []
+
+        self.make_test(changed_files, expected_labels, tags=['qa/done'])
+
+    def test_skip2(self):
+        changed_files = ['.gitignore']
+        expected_labels = []
+
+        self.make_test(changed_files, expected_labels, tags=['team/agent-platform'])
