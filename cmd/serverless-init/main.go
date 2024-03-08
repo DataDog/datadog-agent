@@ -44,10 +44,6 @@ const (
 	loggerName        = "SERVERLESS_INIT"
 )
 
-type cliParams struct {
-	args []string
-}
-
 func main() {
 
 	err := fxutil.OneShot(run,
