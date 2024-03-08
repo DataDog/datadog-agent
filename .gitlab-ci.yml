@@ -1171,16 +1171,16 @@ workflow:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
   - when: manual
-    allow_failure: true
 
 .on_subcommands_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for subcommands
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
   - when: manual
-    allow_failure: true
 
 .on_language-detection_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
