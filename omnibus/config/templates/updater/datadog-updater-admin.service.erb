@@ -1,11 +1,11 @@
 [Unit]
-Description=Datadog Updater admin command executor
+Description=Clean start of datadog admin executor
 
 [Service]
 Type=oneshot
 User=root
-EnvironmentFile=-<%= etc_dir %>/environment
-ExecStart=<%= install_dir %>/bin/updater-admin-exec.sh
+ExecStart=systemctl kill -s SIGKILL datadog-updater-admin-exec.service
+ExecStart=systemctl start datadog-updater-admin-exec.service
 
 [Install]
 WantedBy=multi-user.target

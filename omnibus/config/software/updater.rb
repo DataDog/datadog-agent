@@ -69,6 +69,7 @@ build do
     templateToFile = {
       "datadog-updater-admin.path.erb" => "datadog-updater-admin.path",
       "datadog-updater-admin.service.erb" => "datadog-updater-admin.service",
+      "datadog-updater-admin-exec.service.erb" => "datadog-updater-admin-exec.service",
       "datadog-updater.service.erb" => "datadog-updater.service",
     }
     templateToFile.each do |template, file|
