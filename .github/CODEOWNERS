@@ -511,7 +511,7 @@
 /test/kitchen/test/integration/win-install-fail/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-installopts/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-no-subservices/ @DataDog/windows-agent
-test/kitchen/test/integration/win-sysprobe-test/ @DataDog/windows-kernel-integrations
+/test/kitchen/test/integration/win-sysprobe-test/ @DataDog/windows-kernel-integrations
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent

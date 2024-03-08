@@ -54,7 +54,7 @@ func (u *userInfo) ParseUnicodeString(offset int) (val string, nextOffset int, v
 	return
 }
 
-// ParseUnicodeString reads from the userdata field, and returns the string
+// ParseAsciiString reads from the userdata field, and returns the string
 // the next offset in the buffer of the next field, whether the value was found,
 // and if a terminating null was found, the index of that
 func (u *userInfo) ParseAsciiString(offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
@@ -113,14 +113,13 @@ func bytesIndexOfDoubleZero(data []byte) int {
 	return -1
 }
 
-
 func bytesIndexOfSingleZero(data []byte) int {
 	dataLen := len(data)
 	if dataLen < 1 {
 		return -1
 	}
 
-	for i := 0; i < dataLen-1; i += 2 {
+	for i := 0; i < dataLen; i++ {
 		if data[i] == 0 {
 			return i
 		}
