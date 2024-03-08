@@ -90,10 +90,6 @@ var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, [
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
-	if !cfg.EnableEbpfConntracker {
-		return nil, fmt.Errorf("ebpf conntracker is disabled")
-	}
-
 	var err error
 	var buf bytecode.AssetReader
 	if cfg.EnableRuntimeCompiler {
