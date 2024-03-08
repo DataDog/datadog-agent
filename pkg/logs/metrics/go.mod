@@ -9,7 +9,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.50.2
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.52.0-rc.3
 	github.com/stretchr/testify v1.8.4
 )
 
