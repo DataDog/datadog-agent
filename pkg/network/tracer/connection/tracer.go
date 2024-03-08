@@ -37,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
-	connutil "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -221,7 +220,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		closedChannelSize = config.ClosedChannelSize
 	}
 	var connCloseEventHandler ddebpf.EventHandler
-	if connutil.RingBufferSupported(config) {
+	if config.RingBufferSupported() {
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)

@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -408,4 +411,8 @@ func New() *Config {
 		log.Info("network process event monitoring enabled")
 	}
 	return c
+}
+
+func (c *Config) RingBufferSupported() bool {
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbuffersEnabled
 }

@@ -14,7 +14,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	cebpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/features"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -43,6 +42,16 @@ func ComputeDefaultClosedConnRingBufferSize() int {
 // Must be a multiple of the page size
 func computeDefaultClosedConnPerfBufferSize() int {
 	return 8 * os.Getpagesize()
+}
+
+func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
+	mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
+		Type:       cebpf.RingBuf,
+		MaxEntries: uint32(ComputeDefaultClosedConnRingBufferSize()),
+		KeySize:    0,
+		ValueSize:  0,
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+	}
 }
 
 // SetupClosedConnHandler sets up the closed connection event handler
@@ -85,13 +94,8 @@ func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ddebpf
 	}
 }
 
-// RingBufferSupported returns true if ring buffer is supported on the kernel and enabled in the config
-func RingBufferSupported(c *config.Config) bool {
-	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.RingbuffersEnabled
-}
-
 // AddBoolConst modifies the options to include a constant editor for a boolean value
-func AddBoolConst(options *manager.Options, flag bool, name string) {
+func AddBoolConst(options *manager.Options, name string, flag bool) {
 	val := uint64(1)
 	if !flag {
 		val = uint64(0)

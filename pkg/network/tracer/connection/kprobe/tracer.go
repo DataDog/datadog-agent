@@ -177,23 +177,17 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 
-	ringbufferEnabled := util.RingBufferSupported(config)
-	util.AddBoolConst(&mgrOpts, ringbufferEnabled, "ringbuffers_enabled")
+	ringbufferEnabled := config.RingBufferSupported()
+	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", ringbufferEnabled)
 	if ringbufferEnabled {
-		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
-			Type:       ebpf.RingBuf,
-			MaxEntries: uint32(util.ComputeDefaultClosedConnRingBufferSize()),
-			KeySize:    0,
-			ValueSize:  0,
-			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
-		}
+		util.EnableRingbuffersViaMapEditor(&mgrOpts)
 	}
 
 	var undefinedProbes []manager.ProbeIdentificationPair
 
 	var closeProtocolClassifierSocketFilterFn func()
 	classificationSupported := ClassificationSupported(config)
-	util.AddBoolConst(&mgrOpts, classificationSupported, "protocol_classification_enabled")
+	util.AddBoolConst(&mgrOpts, "protocol_classification_enabled", classificationSupported)
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 
 	if classificationSupported {
@@ -245,7 +239,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	_, udpSendPageEnabled := enabledProbes[probes.UDPSendPage]
-	util.AddBoolConst(&mgrOpts, udpSendPageEnabled, "udp_send_page_enabled")
+	util.AddBoolConst(&mgrOpts, "udp_send_page_enabled", udpSendPageEnabled)
 
 	for funcName := range enabledProbes {
 		probeIdentifier := manager.ProbeIdentificationPair{
