@@ -300,8 +300,5 @@ func waitForPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(t, err)
 	t.Log("Got traces", traces)
-	if !hasTraceForResource(traces, "poison_pill") {
-		return false
-	}
-	return true
+	return hasTraceForResource(traces, "poison_pill")
 }
