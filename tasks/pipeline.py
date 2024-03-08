@@ -799,23 +799,23 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
 
 @task(
     help={
-        'contributor-branch-name': 'Contributor and branch names in the format <contributor-name>/<branch-name>',
+        'owner-branch-name': 'Owner and branch names in the format <owner-name>/<branch-name>',
         'no-verify': 'Adds --no-verify flag when git push',
     }
 )
-def trigger_external(ctx, contributor_branch_name: str, no_verify=False):
+def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     """
-    Trigger a pipeline from an external contributor.
+    Trigger a pipeline from an external owner.
     """
     # Verify parameters
-    contributor_branch_name = contributor_branch_name.lower()
+    owner_branch_name = owner_branch_name.lower()
 
     assert (
-        contributor_branch_name.count('/') == 1
-    ), f'contributor_branch_name should be "<contributor-name>/<branch-name>" but is {contributor_branch_name}'
-    assert "'" not in contributor_branch_name
+        owner_branch_name.count('/') == 1
+    ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
+    assert "'" not in owner_branch_name
 
-    contributor, branch = contributor_branch_name.split('/')
+    owner, branch = owner_branch_name.split('/')
     no_verify_flag = ' --no-verify' if no_verify else ''
 
     # Can checkout
@@ -829,20 +829,20 @@ def trigger_external(ctx, contributor_branch_name: str, no_verify=False):
     # Commands to push the branch
     commands = [
         # Fetch
-        f"git remote add '{contributor}' 'git@github.com:{contributor}/datadog-agent.git'",
-        f"git fetch '{contributor}'",
+        f"git remote add '{owner}' 'git@github.com:{owner}/datadog-agent.git'",
+        f"git fetch '{owner}'",
         # Create branch
-        f"git checkout '{contributor}/{branch}'",
-        f"git checkout -b '{contributor}/{branch}'",
+        f"git checkout '{owner}/{branch}'",
+        f"git checkout -b '{owner}/{branch}'",
         # Push
-        f"git push --set-upstream origin '{contributor}/{branch}'{no_verify_flag}",
+        f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
     ]
 
     # Restore current state
     restore_commands = [
-        f"git remote remove '{contributor}'",
+        f"git remote remove '{owner}'",
         f"git checkout '{curr_branch}'",
-        f"git branch -d '{contributor}/{branch}'",
+        f"git branch -d '{owner}/{branch}'",
     ]
 
     # Run commands then restore commands
@@ -859,5 +859,8 @@ def trigger_external(ctx, contributor_branch_name: str, no_verify=False):
     if ret_code != 0:
         exit(1)
 
-    repo = f'https://github.com/DataDog/datadog-agent/tree/{contributor}/{branch}'
-    print(f'Branch {contributor}/{branch} pushed to repo: {repo}')
+    repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
+    print(f'Branch {owner}/{branch} pushed to repo: {repo}')
+    print(
+        f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
+    )
