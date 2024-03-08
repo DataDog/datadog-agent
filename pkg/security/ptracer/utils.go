@@ -283,7 +283,7 @@ func getGroupFromGID(tracer *Tracer, gid int32) string {
 	return ""
 }
 
-func fillFileMetadata(tracer *Tracer, filepath string, openMsg *ebpfless.OpenSyscallMsg, disableStats bool) error {
+func fillFileMetadata(tracer *Tracer, filepath string, fileMsg *ebpfless.FileSyscallMsg, disableStats bool) error {
 	if disableStats || strings.HasPrefix(filepath, "memfd:") {
 		return nil
 	}
@@ -295,16 +295,16 @@ func fillFileMetadata(tracer *Tracer, filepath string, openMsg *ebpfless.OpenSys
 		return nil
 	}
 	stat := fileInfo.Sys().(*syscall.Stat_t)
-	openMsg.MTime = uint64(stat.Mtim.Nano())
-	openMsg.CTime = uint64(stat.Ctim.Nano())
-	openMsg.Credentials = &ebpfless.Credentials{
+	fileMsg.MTime = uint64(stat.Mtim.Nano())
+	fileMsg.CTime = uint64(stat.Ctim.Nano())
+	fileMsg.Credentials = &ebpfless.Credentials{
 		UID:   stat.Uid,
 		User:  getUserFromUID(tracer, int32(stat.Uid)),
 		GID:   stat.Gid,
 		Group: getGroupFromGID(tracer, int32(stat.Gid)),
 	}
-	if openMsg.Mode == 0 { // here, mode can be already set by handler of open syscalls
-		openMsg.Mode = stat.Mode // useful for exec handlers
+	if fileMsg.Mode == 0 { // here, mode can be already set by handler of open syscalls
+		fileMsg.Mode = stat.Mode // useful for exec handlers
 	}
 	return nil
 }

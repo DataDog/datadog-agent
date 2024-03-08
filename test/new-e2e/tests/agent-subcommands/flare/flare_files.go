@@ -14,19 +14,28 @@ var defaultFlareFiles = []string{
 	"go-routine-dump.log",
 	"health.yaml",
 	"install_info",
-	"metadata/inventory/host.json",
-	"metadata/inventory/agent.json",
-	"metadata/inventory/checks.json",
-	"metadata/host.json",
 	"permissions.log",
 	"process_agent_runtime_config_dump.yaml",
-	"process-agent_tagger-list.json",
 	"runtime_config_dump.yaml",
 	"secrets.log",
 	"status.log",
 	"system_probe_runtime_config_dump.yaml",
-	"tagger-list.json",
 	"version-history.json",
+}
+
+var defaultMetadataFlareFiles = []string{
+	"metadata/host.json",
+	"metadata/inventory/host.json",
+	"metadata/inventory/agent.json",
+}
+
+var nonLocalMetadataFlareFiles = []string{
+	"metadata/inventory/checks.json",
+}
+
+var nonLocalFlareFiles = []string{
+	"process-agent_tagger-list.json",
+	"tagger-list.json",
 	"workload-list.log",
 }
 
