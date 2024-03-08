@@ -741,6 +741,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 		`^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$`,
 	})
 	config.BindEnvAndSetDefault("metrics_port", "5000")
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.patcher.enabled", true)
+	// sets the expiration deadline (TTL) for reported languages
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
+	// language annotation cleanup period
+	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
 
 	// Metadata endpoints
 
@@ -929,6 +934,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.samples.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.activity.")
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1069,7 +1078,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", true)                                    // allows injecting libraries for languages detected by automatic language detection feature
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_auto_detected_libraries", false)                                   // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
@@ -1157,6 +1166,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
+	config.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
+	config.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
 
 	// Container SBOM configuration
 	config.BindEnvAndSetDefault("sbom.container_image.enabled", false)
@@ -1215,7 +1226,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Datadog security agent (compliance)
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
-	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", true)
 	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
@@ -1295,15 +1306,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
-	// client period represents how frequently newly detected languages are reported to the language detection handler
-	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
-	// cleanup period represents how frequently we check for expired languages and remove them
-	config.BindEnvAndSetDefault("language_detection.cleanup.period", "10m")
-	// TTL refresh period represents how frequently we refresh the TTL of detected languages
-	config.BindEnvAndSetDefault("language_detection.cleanup.ttl_refresh_period", "20m")
-	// language TTL represents the TTL that is set for each language when it is detected
-	// it is also used when refreshing the expiration timestamp of the language
-	config.BindEnvAndSetDefault("language_detection.cleanup.language_ttl", "30m")
+	config.BindEnvAndSetDefault("language_detection.reporting.enabled", true)
+	// buffer period represents how frequently newly detected languages buffer is flushed by reporting its content to the language detection handler in the cluster agent
+	config.BindEnvAndSetDefault("language_detection.reporting.buffer_period", "10s")
+	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
+	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
 	setupAPM(config)
 	OTLP(config)
@@ -1503,17 +1510,42 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_PROXY_HTTPS":    {},
 		"DD_PROXY_NO_PROXY": {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":              {},
-		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
-		"DD_DOTNET_TRACER_HOME":              {},
-		"DD_FLUSH_TO_LOG":                    {},
-		"DD_KMS_API_KEY":                     {},
-		"DD_LAMBDA_HANDLER":                  {},
-		"DD_LOGS_INJECTION":                  {},
-		"DD_MERGE_XRAY_TRACES":               {},
-		"DD_SERVERLESS_APPSEC_ENABLED":       {},
-		"DD_SERVICE":                         {},
-		"DD_VERSION":                         {},
+		"DD_AAS_DOTNET_EXTENSION_VERSION":          {},
+		"DD_AAS_EXTENSION_VERSION":                 {},
+		"DD_AAS_JAVA_EXTENSION_VERSION":            {},
+		"DD_AGENT_PIPE_NAME":                       {},
+		"DD_API_KEY_SECRET_ARN":                    {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS":       {},
+		"DD_APPSEC_ENABLED":                        {},
+		"DD_AZURE_APP_SERVICES":                    {},
+		"DD_DOGSTATSD_ARGS":                        {},
+		"DD_DOGSTATSD_PATH":                        {},
+		"DD_DOGSTATSD_WINDOWS_PIPE_NAME":           {},
+		"DD_DOTNET_TRACER_HOME":                    {},
+		"DD_EXTENSION_PATH":                        {},
+		"DD_FLUSH_TO_LOG":                          {},
+		"DD_KMS_API_KEY":                           {},
+		"DD_INTEGRATIONS":                          {},
+		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
+		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
+		"DD_LAMBDA_HANDLER":                        {},
+		"DD_LOGS_INJECTION":                        {},
+		"DD_MERGE_XRAY_TRACES":                     {},
+		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
+		"DD_PROFILING_LOG_DIR":                     {},
+		"DD_RUNTIME_METRICS_ENABLED":               {},
+		"DD_SERVERLESS_APPSEC_ENABLED":             {},
+		"DD_SERVERLESS_FLUSH_STRATEGY":             {},
+		"DD_SERVICE":                               {},
+		"DD_TRACE_AGENT_ARGS":                      {},
+		"DD_TRACE_AGENT_PATH":                      {},
+		"DD_TRACE_AGENT_URL":                       {},
+		"DD_TRACE_LOG_DIRECTORY":                   {},
+		"DD_TRACE_LOG_PATH":                        {},
+		"DD_TRACE_METRICS_ENABLED":                 {},
+		"DD_TRACE_PIPE_NAME":                       {},
+		"DD_TRACE_TRANSPORT":                       {},
+		"DD_VERSION":                               {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
@@ -1641,8 +1673,7 @@ func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver opti
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if secretResolver.IsSet() {
-		resolver, _ := secretResolver.Get()
+	if resolver, ok := secretResolver.Get(); ok {
 		if err := ResolveSecrets(config, resolver, origin); err != nil {
 			return &warnings, err
 		}

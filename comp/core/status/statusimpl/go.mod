@@ -32,6 +32,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.52.0-rc.3

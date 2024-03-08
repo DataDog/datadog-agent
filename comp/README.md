@@ -226,7 +226,7 @@ Package inventoryhost exposes the interface for the component to generate the 'h
 
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
-*Datadog Team*: agent-platform
+*Datadog Team*: agent-build-and-releases
 
 Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
 
@@ -364,6 +364,10 @@ Package rcservice is a remote config service that can run within the agent to re
 
 Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
 
+### [comp/remote-config/rcstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcstatus)
+
+Package rcstatus implements the core status component information provider interface
+
 ### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
 
 Package rctelemetryreporter provides a component that sends RC-specific metrics to the DD backend.
@@ -453,6 +457,10 @@ Package updater implements the updater component.
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
 Package localapi is the updater local api component.
+
+### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
+
+Package localapiclient provides the local API client component.
 
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 

@@ -20,9 +20,10 @@ import (
 
 func TestWindowsExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
-		name               string
-		cmdline            []string
-		expectedServiceTag string
+		name                 string
+		cmdline              []string
+		useImprovedAlgorithm bool
+		expectedServiceTag   string
 	}{
 		{
 			name: "CDPSvc",
@@ -52,13 +53,28 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:myService",
 		},
+		{
+			name: "dotnet with exe extension and with improved algorithm",
+			cmdline: []string{
+				"C:\\Program Files\\dotnet\\dotnet.exe", "-v", "myapp.DLL",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:myapp",
+		},
+		{
+			name: "dotnet with exe extension without improved algorithm",
+			cmdline: []string{
+				"C:\\Program Files\\dotnet\\dotnet.exe", "-v", "myapp.DLL",
+			},
+			expectedServiceTag: "process_context:dotnet",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			enabled := true
 			useWindowsServiceName := false
-			useImprovedAlgorithm := false
+			useImprovedAlgorithm := tt.useImprovedAlgorithm
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
