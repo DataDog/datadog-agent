@@ -193,6 +193,7 @@ type UserData interface {
 	// the next offset in the buffer of the next field, whether the value was found,
 	// and if a terminating null was found, the index of that
 	ParseUnicodeString(offset int) (string, int, bool, int)
+	ParseAsciiString(offset int) (string, int, bool, int)
 
 	// GetUint64 reads a uint64 from the userdata field
 	GetUint64(offset int) uint64

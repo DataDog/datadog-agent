@@ -54,6 +54,30 @@ func (u *userInfo) ParseUnicodeString(offset int) (val string, nextOffset int, v
 	return
 }
 
+// ParseUnicodeString reads from the userdata field, and returns the string
+// the next offset in the buffer of the next field, whether the value was found,
+// and if a terminating null was found, the index of that
+func (u *userInfo) ParseAsciiString(offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
+	termZeroIdx := bytesIndexOfSingleZero(u.data[offset:])
+	var lenString int
+	var skip int
+	if termZeroIdx == 0 {
+		return "", -1, false, offset + termZeroIdx
+	}
+	if termZeroIdx == -1 {
+		// wasn't null terminated.  Assume it's still a valid string though
+		lenString = len(u.data) - offset
+	} else {
+		lenString = termZeroIdx
+		skip = 2
+	}
+	val = string(u.data[offset : offset+lenString])
+	nextOffset = offset + lenString + skip
+	valFound = true
+	foundTermZeroIdx = termZeroIdx
+	return
+}
+
 func (u *userInfo) GetUint64(offset int) uint64 {
 	return binary.LittleEndian.Uint64(u.data[offset:])
 }
@@ -82,6 +106,22 @@ func bytesIndexOfDoubleZero(data []byte) int {
 
 	for i := 0; i < dataLen-1; i += 2 {
 		if data[i] == 0 && data[i+1] == 0 {
+			return i
+		}
+	}
+
+	return -1
+}
+
+
+func bytesIndexOfSingleZero(data []byte) int {
+	dataLen := len(data)
+	if dataLen < 1 {
+		return -1
+	}
+
+	for i := 0; i < dataLen-1; i += 2 {
+		if data[i] == 0 {
 			return i
 		}
 	}

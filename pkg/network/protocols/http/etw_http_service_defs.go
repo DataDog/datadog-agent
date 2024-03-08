@@ -16,24 +16,25 @@ import (
 const (
 	//revive:disable:var-naming Name is intended to match the Windows API name
 	//revive:disable:exported
-	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn       = 21
-	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose      = 23
-	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnCleanup    = 24
-	EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq           = 1
-	EVENT_ID_HttpService_HTTPRequestTraceTaskParse             = 2
-	EVENT_ID_HttpService_HTTPRequestTraceTaskDeliver           = 3
-	EVENT_ID_HttpService_HTTPRequestTraceTaskRecvResp          = 4
-	EVENT_ID_HttpService_HTTPRequestTraceTaskFastResp          = 8
-	EVENT_ID_HttpService_HTTPRequestTraceTaskSrvdFrmCache      = 16
-	EVENT_ID_HttpService_HTTPRequestTraceTaskCachedNotModified = 17
-	EVENT_ID_HttpService_HTTPCacheTraceTaskAddedCacheEntry     = 25
-	EVENT_ID_HttpService_HTTPCacheTraceTaskFlushedCache        = 27
-	EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent          = 34
-	EVENT_ID_HttpService_HTTPRequestTraceTaskSendComplete      = 10
-	EVENT_ID_HttpService_HTTPRequestTraceTaskCachedAndSend     = 11
-	EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend          = 12
-	EVENT_ID_HttpService_HTTPRequestTraceTaskZeroSend          = 13
-	EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError      = 14
+	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn         = 21
+	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose        = 23
+	EVENT_ID_HttpService_HTTPConnectionTraceTaskConnCleanup      = 24
+	EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq             = 1
+	EVENT_ID_HttpService_HTTPRequestTraceTaskParse               = 2
+	EVENT_ID_HttpService_HTTPRequestTraceTaskDeliver             = 3
+	EVENT_ID_HttpService_HTTPRequestTraceTaskRecvResp            = 4
+	EVENT_ID_HttpService_HTTPRequestTraceTaskFastResp            = 8
+	EVENT_ID_HttpService_HTTPRequestTraceTaskSrvdFrmCache        = 16
+	EVENT_ID_HttpService_HTTPRequestTraceTaskCachedNotModified   = 17
+	EVENT_ID_HttpService_HTTPCacheTraceTaskAddedCacheEntry       = 25
+	EVENT_ID_HttpService_HTTPCacheTraceTaskFlushedCache          = 27
+	EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent            = 34
+	EVENT_ID_HttpService_HTTPRequestTraceTaskSendComplete        = 10
+	EVENT_ID_HttpService_HTTPRequestTraceTaskCachedAndSend       = 11
+	EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend            = 12
+	EVENT_ID_HttpService_HTTPRequestTraceTaskZeroSend            = 13
+	EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError        = 14
+	EVENT_ID_HttpService_HTTPRequestTraceTaskRequestRejectedArgs = 64
 	//revive:enable:exported
 	//revive:enable:var-naming
 )
