@@ -20,6 +20,7 @@ import (
 
 /*
 #include <stdlib.h>
+#include <string.h>
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
@@ -126,13 +127,17 @@ func (sl *stickyLock) unlock() {
 func cStringArrayToSlice(array **C.char) []string {
 	if array != nil {
 		res := []string{}
+		si := sharedStringInternerPool.Get()
+		defer sharedStringInternerPool.Put(si)
 		for i := 0; ; i++ {
 			// Work around go vet raising issue about unsafe pointer
 			strPtr := C.getStringAddr(array, C.uint(i))
 			if strPtr == nil {
 				return res
 			}
-			str := C.GoString(strPtr)
+			length := C.strlen(strPtr)
+			bytes := unsafe.Slice((*byte)(strPtr), length)
+			str := si.intern(bytes)
 			res = append(res, str)
 		}
 		return res
