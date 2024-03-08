@@ -21,6 +21,7 @@ type dummyCollector struct {
 	cOpenFilesCount map[string]*uint64
 	cNetStats       map[string]*ContainerNetworkStats
 	cIDForPID       map[int]string
+	cIDForPodCont   map[string]string
 	selfContainerID string
 	err             error
 }
