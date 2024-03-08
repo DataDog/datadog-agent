@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -32,6 +30,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"testing"
@@ -132,6 +131,58 @@ func (is *agentMSISuite) AfterTest(suiteName, testName string) {
 			}
 		}
 	}
+}
+
+// cleanupAgent fully removes the agent from the VM, MSI, config, agent user, etc,
+// to create a clean slate for the next test to run on the same host/stack.
+func (is *agentMSISuite) cleanupAgent() {
+	host := is.Env().RemoteHost
+	t := is.T()
+
+	// The uninstaller removes the registry keys that point to the install parameters,
+	// so we collect them prior to uninstalling and then use defer to perform the actions.
+
+	// remove the agent user
+	_, agentUserName, err := windowsAgent.GetAgentUserFromRegistry(host)
+	if err == nil {
+		defer func() {
+			t.Logf("Removing agent user: %s", agentUserName)
+			err = windowsCommon.RemoveLocalUser(host, agentUserName)
+			require.NoError(t, err)
+		}()
+	}
+
+	// remove the agent config
+	configDir, err := windowsAgent.GetConfigRootFromRegistry(host)
+	if err == nil {
+		defer func() {
+			t.Logf("Removing agent configuration files: %s", configDir)
+			err = host.RemoveAll(configDir)
+			require.NoError(t, err)
+		}()
+	}
+
+	// uninstall the agent
+	_, err = windowsAgent.GetDatadogAgentProductCode(host)
+	if err == nil {
+		defer func() {
+			t.Logf("Uninstalling Datadog Agent")
+			err = windowsAgent.UninstallAgent(host, filepath.Join(is.OutputDir, "uninstall.log"))
+			require.NoError(t, err)
+		}()
+	}
+}
+
+// cleanupOnSuccessInDevMode runs clean tasks on the host when running in DevMode. This makes it
+// easier to run subsequent tests on the same host without having to manually clean up.
+// This is not necessary outside of DevMode because the VM is destroyed after each test run.
+// Cleanup is not run if the test failed, to allow for manual inspection of the VM.
+func (is *agentMSISuite) cleanupOnSuccessInDevMode() {
+	if !is.IsDevMode() || is.T().Failed() {
+		return
+	}
+	is.T().Log("Running DevMode cleanup tasks")
+	is.cleanupAgent()
 }
 
 func (is *agentMSISuite) TestInstall() {
@@ -324,9 +375,6 @@ func (is *agentMSISuite) TestInstallOpts() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
 
-	// initialize test helper
-	t := is.newTester(vm)
-
 	cmdPort := 4999
 
 	installOpts := []windowsAgent.InstallAgentOption{
@@ -412,7 +460,7 @@ func (is *agentMSISuite) TestInstallOpts() {
 	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
 	is.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
 
-	is.uninstallAgentAndRunUninstallTests(t)
+	is.cleanupOnSuccessInDevMode()
 }
 
 // TestSubServicesOpts tests that the agent installer can configure the subservices.
@@ -436,9 +484,6 @@ func (is *agentMSISuite) TestSubServicesOpts() {
 	}
 	for _, tc := range tcs {
 		if !is.Run(tc.testname, func() {
-
-			// initialize test helper
-			t := is.newTester(vm)
 
 			installOpts := []windowsAgent.InstallAgentOption{
 				windowsAgent.WithLogsEnabled(strconv.FormatBool(tc.logsEnabled)),
@@ -498,11 +543,11 @@ func (is *agentMSISuite) TestSubServicesOpts() {
 					}
 				}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", tc.serviceName)
 			}
-
-			is.uninstallAgentAndRunUninstallTests(t)
 		}) {
 			is.T().FailNow()
 		}
+		// clean the host between test runs
+		is.cleanupAgent()
 	}
 }
 
