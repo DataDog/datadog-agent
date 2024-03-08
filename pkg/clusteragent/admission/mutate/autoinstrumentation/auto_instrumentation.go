@@ -153,13 +153,7 @@ func NewWebhook() (*Webhook, error) {
 		return nil, err
 	}
 
-	var containerRegistry string
-
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.container_registry") {
-		containerRegistry = config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
-	} else {
-		containerRegistry = config.Datadog.GetString("admission_controller.container_registry")
-	}
+	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
 
 	return &Webhook{
 		name:              webhookName,

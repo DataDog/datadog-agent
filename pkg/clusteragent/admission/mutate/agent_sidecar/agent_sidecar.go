@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -53,13 +54,7 @@ type Webhook struct {
 func NewWebhook() *Webhook {
 	nsSelector, objSelector := labelSelectors()
 
-	var containerRegistry string
-
-	if config.Datadog.IsSet("admission_controller.agent_sidecar.container_registry") {
-		containerRegistry = config.Datadog.GetString("admission_controller.agent_sidecar.container_registry")
-	} else {
-		containerRegistry = config.Datadog.GetString("admission_controller.container_registry")
-	}
+	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.agent_sidecar.container_registry")
 
 	return &Webhook{
 		name:              webhookName,

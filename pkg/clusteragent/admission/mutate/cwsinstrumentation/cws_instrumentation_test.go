@@ -11,10 +11,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 
 	"github.com/stretchr/testify/require"
 	authenticationv1 "k8s.io/api/authentication/v1"

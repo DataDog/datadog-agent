@@ -234,12 +234,7 @@ func NewCWSInstrumentation() (*CWSInstrumentation, error) {
 	cwsInjectorImageName := config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")
 	cwsInjectorImageTag := config.Datadog.GetString("admission_controller.cws_instrumentation.image_tag")
 
-	var cwsInjectorContainerRegistry string
-	if config.Datadog.IsSet("admission_controller.cws_instrumentation.container_registry") {
-		cwsInjectorContainerRegistry = config.Datadog.GetString("admission_controller.cws_instrumentation.container_registry")
-	} else {
-		cwsInjectorContainerRegistry = config.Datadog.GetString("admission_controller.container_registry")
-	}
+	cwsInjectorContainerRegistry := common.ContainerRegistry("admission_controller.cws_instrumentation.container_registry")
 
 	if len(cwsInjectorImageName) == 0 {
 		return nil, fmt.Errorf("can't initialize CWS Instrumentation without an image_name")
