@@ -33,6 +33,12 @@ func (c *Check) init() error {
 	var i vInstance
 	err := getWrapper(c, &i, "SELECT /* DD */ host_name, instance_name, version version_full FROM v$instance")
 	if err != nil {
+		isPrivilegeError, err2 := handlePrivilegeError(c, err)
+		if !c.dbmEnabled && isPrivilegeError {
+			c.oldIntegrationCompatibilityMode = true
+			log.Warnf("%s missing privileges detected, enabling deprecated integration compatibility mode %w", c.logPrompt, err2)
+			return nil
+		}
 		return fmt.Errorf("%s failed to query v$instance: %w", c.logPrompt, err)
 	}
 	c.dbVersion = i.VersionFull
