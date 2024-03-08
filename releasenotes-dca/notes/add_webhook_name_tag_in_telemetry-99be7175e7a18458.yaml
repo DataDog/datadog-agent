@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add `mutation_webhook` tag to `admission_webhooks.webhooks_received` and `admission_webhooks.response_duration` cluster agent telemetry.
+    Add the `mutation_webhook` tag to `admission_webhooks.webhooks_received` and `admission_webhooks.response_duration` Cluster Agent telemetry.

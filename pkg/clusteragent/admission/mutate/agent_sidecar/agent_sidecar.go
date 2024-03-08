@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const webhookName = "agent-sidecar"
+const webhookName = "agent_sidecar"
 
 // Selector specifies an object label selector and a namespace label selector
 type Selector struct {

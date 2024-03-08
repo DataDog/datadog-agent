@@ -45,7 +45,7 @@ const (
 	// Volume name
 	datadogVolumeName = "datadog"
 
-	webhookName = "config"
+	webhookName = "agent_config"
 )
 
 var (
@@ -154,11 +154,11 @@ func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
 func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	var injectedConfig, injectedEntity bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "", "")
+		metrics.MutationAttempts.Inc(w.Name(), strconv.FormatBool(injectedConfig || injectedEntity), "", "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "nil pod", "", "")
 		return errors.New("cannot inject config into nil pod")
 	}
 
@@ -178,7 +178,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "unknown mode", "", "")
 		return fmt.Errorf("invalid injection mode %q", w.mode)
 	}
 

@@ -45,8 +45,8 @@ const (
 	// PodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
 	PodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
 
-	webhookForPodsName     = "cws-pod-instrumentation"
-	webhookForCommandsName = "cws-command-instrumentation"
+	webhookForPodsName     = "cws_pod_instrumentation"
+	webhookForCommandsName = "cws_exec_instrumentation"
 )
 
 type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) error
@@ -277,15 +277,15 @@ func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest)
 func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.CWSExecInstrumentation, strconv.FormatBool(injected), "", "")
+		metrics.MutationAttempts.Inc(ci.webhookForCommands.Name(), strconv.FormatBool(injected), "", "")
 	}()
 
 	if exec == nil || userInfo == nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "nil exec or user info", "", "")
+		metrics.MutationErrors.Inc(ci.webhookForCommands.Name(), "nil exec or user info", "", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
 	}
 	if len(exec.Command) == 0 {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "empty command", "", "")
+		metrics.MutationErrors.Inc(ci.webhookForCommands.Name(), "empty command", "", "")
 		return nil
 	}
 
@@ -297,7 +297,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	// check if the pod has been instrumented
 	pod, err := apiClient.CoreV1().Pods(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil || pod == nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot get pod", "", "")
+		metrics.MutationErrors.Inc(ci.webhookForCommands.Name(), "cannot get pod", "", "")
 		return fmt.Errorf("couldn't describe pod %s in namespace %s from the API server: %w", name, ns, err)
 	}
 
@@ -316,7 +316,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	// prepare the user session context
 	userSessionCtx, err := usersessions.PrepareK8SUserSessionContext(userInfo, cwsUserSessionDataMaxSize)
 	if err != nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot serialize user info", "", "")
+		metrics.MutationErrors.Inc(ci.webhookForCommands.Name(), "cannot serialize user info", "", "")
 		log.Debugf("ignoring instrumentation of %s: %v", common.PodString(pod), err)
 		return err
 	}
@@ -362,11 +362,11 @@ func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.CWSPodInstrumentation, strconv.FormatBool(injected), "", "")
+		metrics.MutationAttempts.Inc(ci.webhookForPods.Name(), strconv.FormatBool(injected), "", "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "nil pod", "", "")
+		metrics.MutationErrors.Inc(ci.webhookForPods.Name(), "nil pod", "", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil pod")
 	}
 
