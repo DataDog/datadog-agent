@@ -15,8 +15,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-
 	"github.com/stretchr/testify/require"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +22,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 

@@ -392,7 +392,6 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	}
 
 	// add init container to copy cws-instrumentation in the cws volume
-	fmt.Println("Image from CI before injection: ", ci.image)
 	injectCWSInitContainer(pod, ci.resources, ci.image)
 
 	// add label to indicate that the pod has been instrumented
