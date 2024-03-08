@@ -3,8 +3,8 @@
 # Contains jobs which send notifications depending on pipeline status.
 
 # TODO
-# include:
-#   - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
+include:
+  - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
 
 # notify-on-tagged-success:
 #   extends: .slack-notifier-base
@@ -17,31 +17,31 @@
 #     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
 #     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
-# notify:
-#   extends: .slack-notifier-base
-#   stage: notify
-#   rules: !reference [.on_main_or_release_branch_or_deploy_always]
-#   dependencies: []
-#   tags: ["arch:amd64"]
-#   resource_group: notification
-#   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
-#   script:
-#     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
-#     - !reference [.setup_python_mirror_linux]
-#     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
-#     - |
-#       # Do not send notifications if this is a child pipeline of another repo
-#       # The triggering repo should already have its own notification system
-#       if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
-#         if [ "$DEPLOY_AGENT" = "true" ]; then
-#           invoke -e notify.send-message --notification-type "deploy"
-#         else
-#           invoke -e notify.send-message --notification-type "merge"
-#         fi
-#         invoke notify.check-consistent-failures
-#       else
-#         echo "This pipeline was triggered by another repository, skipping notification."
-#       fi
+notify:
+  extends: .slack-notifier-base
+  stage: notify
+  rules: !reference [.on_main_or_release_branch_or_deploy_always]
+  dependencies: []
+  tags: ["arch:amd64"]
+  resource_group: notification
+  timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+  script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
+    - !reference [.setup_python_mirror_linux]
+    - python3 -m pip install -r tasks/libs/requirements-notifications.txt
+    - |
+      # Do not send notifications if this is a child pipeline of another repo
+      # The triggering repo should already have its own notification system
+      if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
+        if [ "$DEPLOY_AGENT" = "true" ]; then
+          invoke -e notify.send-message --notification-type "deploy"
+        else
+          invoke -e notify.send-message --notification-type "merge"
+        fi
+        invoke notify.check-consistent-failures
+      else
+        echo "This pipeline was triggered by another repository, skipping notification."
+      fi
 
 # send_pipeline_stats:
 #   stage: notify
