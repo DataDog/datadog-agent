@@ -208,6 +208,7 @@ func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
 }
 
+// HasActiveActivityDump returns true if the event has an active activity dump associated to it
 func (e *Event) HasActiveActivityDump() bool {
 	return e.Flags&EventFlagsHasActiveActivityDump > 0
 }
