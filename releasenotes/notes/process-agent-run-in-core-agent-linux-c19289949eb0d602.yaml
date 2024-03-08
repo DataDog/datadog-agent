@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Experimental: The process-agent checks (process, container, and process-discovery) can be run from the Core Agent in
+    Linux. This feature can be toggled on by setting the `process_config.run_in_core_agent.enabled` flag to `true` in
+    the `datadog.yaml` file. This feature is disabled by default.

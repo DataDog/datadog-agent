@@ -47,6 +47,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -83,6 +85,7 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -199,6 +202,7 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
+	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
 	_ host.Component,
 	_ inventoryagent.Component,
@@ -265,6 +269,7 @@ func run(log log.Component,
 		taggerComp,
 		rcclient,
 		logsAgent,
+		processAgent,
 		forwarder,
 		sharedSerializer,
 		otelcollector,
@@ -383,6 +388,7 @@ func getSharedFxOption() fx.Option {
 		netflow.Bundle(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
+		process.Bundle(),
 	)
 }
 
@@ -399,6 +405,7 @@ func startAgent(
 	taggerComp tagger.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
+	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
