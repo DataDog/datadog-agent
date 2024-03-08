@@ -76,9 +76,10 @@ type Creds struct {
 
 // TracerOpts defines ptracer options
 type TracerOpts struct {
-	Syscalls []string
-	Creds    Creds
-	Logger   Logger
+	Syscalls       []string
+	Creds          Creds
+	Logger         Logger
+	DisableSeccomp bool
 }
 
 func processVMReadv(pid int, addr uintptr, data []byte) (int, error) {
@@ -239,8 +240,83 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 	return result, nil
 }
 
-// Trace traces a process
-func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
+func isExited(waitStatus syscall.WaitStatus) bool {
+	return waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled()
+}
+
+func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
+	var waitStatus syscall.WaitStatus
+
+	if err := syscall.PtraceSyscall(t.PID, 0); err != nil {
+		return err
+	}
+
+	var (
+		regs   syscall.PtraceRegs
+		prevNr int
+	)
+
+	for {
+		pid, err := syscall.Wait4(-1, &waitStatus, 0, nil)
+		if err != nil {
+			t.opts.Logger.Debugf("unable to wait for pid %d: %v", pid, err)
+			break
+		}
+
+		if isExited(waitStatus) {
+			if pid == t.PID {
+				break
+			}
+			cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
+			continue
+		}
+
+		if waitStatus.Stopped() {
+			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
+				if err := syscall.PtraceSyscall(pid, int(signal)); err == nil {
+					continue
+				}
+			}
+
+			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
+				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
+				break
+			}
+
+			nr := GetSyscallNr(regs)
+			if nr == 0 {
+				nr = prevNr
+			}
+			prevNr = nr
+
+			switch waitStatus.TrapCause() {
+			case syscall.PTRACE_EVENT_CLONE, syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK:
+				if npid, err := syscall.PtraceGetEventMsg(pid); err == nil {
+					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
+				}
+			case syscall.PTRACE_EVENT_EXEC:
+			default:
+				switch nr {
+				case ForkNr, VforkNr, CloneNr, Clone3Nr:
+				default:
+					if ret := t.ReadRet(regs); ret != -int64(syscall.ENOSYS) {
+						cb(CallbackPostType, nr, pid, 0, regs, nil)
+					} else {
+						cb(CallbackPreType, nr, pid, 0, regs, nil)
+					}
+				}
+			}
+
+			if err := syscall.PtraceSyscall(pid, 0); err != nil {
+				t.opts.Logger.Debugf("unable to call ptrace continue for pid %d: %v", pid, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (t *Tracer) traceWithSeccomp(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
 	if err := syscall.PtraceCont(t.PID, 0); err != nil {
@@ -259,7 +335,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			break
 		}
 
-		if waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled() {
+		if isExited(waitStatus) {
 			if pid == t.PID {
 				break
 			}
@@ -338,6 +414,14 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 	return nil
 }
 
+// Trace traces a process
+func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
+	if t.opts.DisableSeccomp {
+		return t.trace(cb)
+	}
+	return t.traceWithSeccomp(cb)
+}
+
 func traceFilterProg(opts TracerOpts) (*syscall.SockFprog, error) {
 	policy := seccomp.Policy{
 		DefaultAction: seccomp.ActionAllow,
@@ -380,9 +464,14 @@ func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tra
 		return nil, err
 	}
 
-	prog, err := traceFilterProg(opts)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
+	var prog *syscall.SockFprog
+
+	// syscalls specified then we generate a seccomp filter
+	if len(opts.Syscalls) > 0 {
+		prog, err = traceFilterProg(opts)
+		if err != nil {
+			return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
+		}
 	}
 
 	runtime.LockOSThread()
