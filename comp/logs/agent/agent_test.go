@@ -254,9 +254,9 @@ func (suite *AgentTestSuite) TestStatusOut() {
 	mockResult := logsStatus.Status{
 		IsRunning: true,
 		Endpoints: []string{"foo", "bar"},
-		StatusMetrics: map[string]int64{
-			"hello": 12,
-			"world": 13,
+		StatusMetrics: map[string]string{
+			"hello": "12",
+			"world": "13",
 		},
 		ProcessFileStats: map[string]uint64{
 			"CoreAgentProcessOpenFiles": 27,

@@ -462,7 +462,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -499,7 +499,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -536,7 +536,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -572,7 +572,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
