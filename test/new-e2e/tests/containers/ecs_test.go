@@ -414,6 +414,9 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
+			Tags: []string{
+				`^task_name:.*-` + taskName + `-ec2$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
