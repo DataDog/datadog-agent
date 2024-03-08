@@ -744,9 +744,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 // test that adding to the audit file stops working when the file gets too large
 func TestRefreshAddsToAuditFile(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 
 	originalAllowlistPaths := allowlistPaths
 	allowlistPaths = map[string]struct{}{"another/config/setting": {}}

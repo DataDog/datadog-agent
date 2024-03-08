@@ -343,11 +343,12 @@ func TestOldFilesGetRemovedOverTime(t *testing.T) {
 }
 
 // Test the regex and fmt pattern that gets built from config
-func TestBuildRotationRegexAndFmtPattern(t *testing.T) {
+func TestBuildRotationRegexAndName(t *testing.T) {
 	type testCase struct {
 		description  string
 		filename     string
 		spacer       int
+		num          int
 		expectRegex  string
 		expectFmtPat string
 	}
@@ -357,22 +358,25 @@ func TestBuildRotationRegexAndFmtPattern(t *testing.T) {
 			description:  "build regexp with spacer 4",
 			filename:     "/tmp/file.txt",
 			spacer:       4,
+			num:          7,
 			expectRegex:  `file\.(\d{4})\.txt`,
-			expectFmtPat: "/tmp/file.%04d.txt",
+			expectFmtPat: "/tmp/file.0007.txt",
 		},
 		{
 			description:  "build regexp with spacer 8",
 			filename:     "/tmp/file.txt",
 			spacer:       8,
+			num:          19,
 			expectRegex:  `file\.(\d{8})\.txt`,
-			expectFmtPat: "/tmp/file.%08d.txt",
+			expectFmtPat: "/tmp/file.00000019.txt",
 		},
 		{
 			description:  "build regexp with no file extension",
 			filename:     "/tmp/file",
 			spacer:       4,
+			num:          121,
 			expectRegex:  `file\.(\d{4})`,
-			expectFmtPat: "/tmp/file.%04d",
+			expectFmtPat: "/tmp/file.0121",
 		},
 	}
 
@@ -383,9 +387,9 @@ func TestBuildRotationRegexAndFmtPattern(t *testing.T) {
 				t.Error(err)
 			}
 			assert.Equal(t, tc.expectRegex, re.String())
-			fmtPat, err := buildRotationFmtPattern(tc.filename, tc.spacer)
+			rotName, err := buildRotationName(tc.filename, tc.spacer, tc.num)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expectFmtPat, fmtPat)
+			assert.Equal(t, tc.expectFmtPat, rotName)
 		})
 	}
 }

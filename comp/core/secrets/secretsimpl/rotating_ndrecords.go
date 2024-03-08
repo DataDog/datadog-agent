@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -115,6 +114,7 @@ func (r *rotatingNDRecords) RotatedFiles() []string {
 	re, err := buildRotationRegex(r.filename, r.cfg.spacer)
 	if err != nil {
 		log.Error(err)
+		return nil
 	}
 
 	matches := []string{}
@@ -127,7 +127,6 @@ func (r *rotatingNDRecords) RotatedFiles() []string {
 			matches = append(matches, filepath.Join(dir, ent.Name()))
 		}
 	}
-	sort.Strings(matches)
 
 	return matches
 }
@@ -245,7 +244,7 @@ func nextRotateFilename(filename string, spacer int) (string, error) {
 	dir := filepath.Dir(filename)
 	re, err := buildRotationRegex(filename, spacer)
 	if err != nil {
-		log.Error(err)
+		return "", err
 	}
 
 	maxSpacerNum := -1
@@ -263,37 +262,28 @@ func nextRotateFilename(filename string, spacer int) (string, error) {
 		}
 	}
 
-	fmtPattern, err := buildRotationFmtPattern(filename, spacer)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf(fmtPattern, maxSpacerNum+1), nil
+	return buildRotationName(filename, spacer, maxSpacerNum+1)
 }
 
 func buildRotationRegex(filename string, spacer int) (*regexp.Regexp, error) {
 	base := filepath.Base(filename)
 	ext := filepath.Ext(base)
 	basenoext := strings.TrimSuffix(base, ext)
-	// add escape "\" for the "." at the start of the extension, if needed
-	maybeEscape := "\\"
-	if ext == "" {
-		maybeEscape = ""
-	}
 	// build a regex that matches rotating files
 	// for example, a filename like "records.ndjson" with spacer=6
 	// would build the regex "records\.(\d{6})\.ndjson"
-	pattern := fmt.Sprintf("%s\\.(\\d{%d})%s%s", basenoext, spacer, maybeEscape, ext)
+	pattern := fmt.Sprintf(`%s\.(\d{%d})%s`, regexp.QuoteMeta(basenoext), spacer, regexp.QuoteMeta(ext))
 	return regexp.Compile(pattern)
 }
 
-func buildRotationFmtPattern(filename string, spacer int) (string, error) {
+func buildRotationName(filename string, spacer, num int) (string, error) {
 	if spacer < 1 {
 		return "", fmt.Errorf("invalid spacer size: %d", spacer)
 	}
 	ext := filepath.Ext(filename)
 	prefix := strings.TrimSuffix(filename, ext)
-	// build a fmt pattern that matches rotating files
-	// for example, a filename like "records.ndjson" with spacer=6
-	// would build the fmt pattern "records.%06d.ndjson"
-	return fmt.Sprintf("%s.%%0%dd%s", prefix, spacer, ext), nil
+	// build a string that matches the names of rotating files
+	// for example, a filename like "records.ndjson" with spacer=6 and num=4
+	// would build the string "records.000004.ndjson"
+	return fmt.Sprintf("%s.%0*d%s", prefix, spacer, num, ext), nil
 }
