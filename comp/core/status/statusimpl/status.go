@@ -225,7 +225,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	}
 }
 
-func (s *statusImplementation) GetStatusBySection(sections []string, format string, verbose bool) ([]byte, error) {
+func (s *statusImplementation) GetStatusBySections(sections []string, format string, verbose bool) ([]byte, error) {
 	var errors []error
 
 	if len(sections) == 1 && sections[0] == "header" {

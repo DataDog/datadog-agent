@@ -452,7 +452,7 @@ func run(
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
-	data, err := statusComponent.GetStatusBySection([]string{status.CollectorSection}, "json", false)
+	data, err := statusComponent.GetStatusBySections([]string{status.CollectorSection}, "json", false)
 
 	if err != nil {
 		return err

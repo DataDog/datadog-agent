@@ -119,7 +119,7 @@ type statusMock struct {
 func (s statusMock) GetStatus(string, bool, ...string) ([]byte, error) {
 	return []byte{}, nil
 }
-func (s statusMock) GetStatusBySection([]string, string, bool) ([]byte, error) {
+func (s statusMock) GetStatusBySections([]string, string, bool) ([]byte, error) {
 	return []byte{}, nil
 }
 func newStatusMock() statusMock {
@@ -493,3 +493,5 @@ func TestTagAggregateTotalCounter(t *testing.T) {
 	m4 := metrics["total:6:"]
 	assert.Equal(t, float64(210), m4.Counter.GetValue())
 }
+
+// TODO: Add more status tests (status mock inspirations are at datadog-agent\comp\core\status\statusimpl\status_test.go)

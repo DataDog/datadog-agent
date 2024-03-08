@@ -783,7 +783,7 @@ X Section
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatusBySection([]string{testCase.section}, testCase.format, false)
+			bytesResult, err := statusComponent.GetStatusBySections([]string{testCase.section}, testCase.format, false)
 
 			assert.NoError(t, err)
 
@@ -927,7 +927,134 @@ Status render errors
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			bytesResult, err := statusComponent.GetStatusBySection([]string{testCase.section}, testCase.format, false)
+			bytesResult, err := statusComponent.GetStatusBySections([]string{testCase.section}, testCase.format, false)
+
+			assert.NoError(t, err)
+
+			testCase.assertFunc(t, bytesResult)
+		})
+	}
+}
+
+func TestGetStatusByMultipleSections(t *testing.T) {
+	nowFunc = func() time.Time { return time.Unix(1515151515, 0) }
+	startTimeProvider = time.Unix(1515151515, 0)
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+
+	defer func() {
+		nowFunc = time.Now
+		startTimeProvider = pkgconfigsetup.StartTime
+		os.Setenv("TZ", originalTZ)
+	}()
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		config.MockModule(),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_1": "bar_1",
+				},
+				name:    "zoo_1",
+				text:    "text from zoo_1\n",
+				section: "moo_1",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_2": "bar_2",
+				},
+				name:    "zoo_2",
+				text:    "text from zoo_2\n",
+				section: "moo_2",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_3": "bar_3",
+				},
+				name:    "zoo_3",
+				text:    "text from zoo_3\n",
+				section: "moo_3",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"foo_4": "bar_4",
+				},
+				name:    "zoo_4",
+				text:    "text from zoo_4\n",
+				section: "moo_4",
+			}),
+		),
+	))
+
+	statusComponent, err := newStatus(deps)
+
+	assert.NoError(t, err)
+
+	testCases := []struct {
+		name       string
+		format     string
+		sections   []string
+		assertFunc func(*testing.T, []byte)
+	}{
+		{
+			name:     "single section",
+			format:   "json",
+			sections: []string{"moo_1"},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err = json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(result))
+				assert.Equal(t, "bar_1", result["foo_1"])
+			},
+		},
+		{
+			name:     "triple section",
+			format:   "json",
+			sections: []string{"moo_1", "moo_2", "moo_4"},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err = json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 3, len(result))
+				assert.Equal(t, "bar_1", result["foo_1"])
+				assert.Equal(t, "bar_2", result["foo_2"])
+				assert.Equal(t, "bar_4", result["foo_4"])
+			},
+		},
+		{
+			name:     "only one section exists",
+			format:   "json",
+			sections: []string{"moo_1", "fake_moo_2", "fake_moo_4"},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err = json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 1, len(result))
+				assert.Equal(t, "bar_1", result["foo_1"])
+			},
+		},
+		{
+			name:     "no section exists",
+			format:   "json",
+			sections: []string{"fake_moo_1"},
+			assertFunc: func(t *testing.T, bytes []byte) {
+				result := map[string]interface{}{}
+				err = json.Unmarshal(bytes, &result)
+
+				assert.NoError(t, err)
+				assert.Equal(t, 0, len(result))
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			bytesResult, err := statusComponent.GetStatusBySections(testCase.sections, testCase.format, false)
 
 			assert.NoError(t, err)
 

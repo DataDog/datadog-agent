@@ -461,7 +461,7 @@ func (a *atel) reportAgentStatus(session *senderSession, p *Profile) {
 	// Current "agent-telemetry-basic.tmpl" uses only "runneStats" and "dogstatsdStats" JSON sections
 	// These JSON sections are populated via "collector" and "DogStatsD" status providers sections
 	minimumReqSections := []string{"collector", "DogStatsD"}
-	statusBytes, err := a.statusComp.GetStatusBySection(minimumReqSections, "json", false)
+	statusBytes, err := a.statusComp.GetStatusBySections(minimumReqSections, "json", false)
 	if err != nil {
 		a.logComp.Errorf("failed to get agent status: %s", err)
 		return
