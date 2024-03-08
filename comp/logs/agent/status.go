@@ -22,10 +22,12 @@ var logsProvider = logsStatus.Get
 // StatusProvider is the type for logs agent status methods
 type StatusProvider struct{}
 
+// Name returns the name
 func (p StatusProvider) Name() string {
 	return "Logs Agent"
 }
 
+// Section returns the section
 func (p StatusProvider) Section() string {
 	return "Logs Agent"
 }
@@ -42,16 +44,19 @@ func (p StatusProvider) populateStatus(verbose bool, stats map[string]interface{
 	stats["logsStats"] = logsProvider(verbose)
 }
 
+// JSON populates the status map
 func (p StatusProvider) JSON(verbose bool, stats map[string]interface{}) error {
 	p.populateStatus(verbose, stats)
 
 	return nil
 }
 
+// Text renders the text output
 func (p StatusProvider) Text(verbose bool, buffer io.Writer) error {
 	return status.RenderText(templatesFS, "logsagent.tmpl", buffer, p.getStatusInfo(verbose))
 }
 
+// HTML renders the HTML output
 func (p StatusProvider) HTML(verbose bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "logsagentHTML.tmpl", buffer, p.getStatusInfo(verbose))
 }
