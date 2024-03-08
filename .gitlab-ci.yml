@@ -58,8 +58,8 @@ default:
 
 stages:
   # TODO
-  # - .pre
-  # - setup
+  - .pre
+  - setup
   # - maintenance_jobs
   # - deps_build
   # - deps_fetch
@@ -103,8 +103,8 @@ stages:
   # - functional_test_cleanup
   # - functional_test_junit_upload
   # - internal_kubernetes_deploy
-  # - post_rc_build
-  # - check_merge
+  - post_rc_build
+  - check_merge
   - notify
 
 variables:
