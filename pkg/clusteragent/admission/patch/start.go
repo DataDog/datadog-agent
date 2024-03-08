@@ -8,6 +8,9 @@
 package patch
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	autoinstrumentation "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,18 +30,26 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the patch controllers
-func StartControllers(ctx ControllerContext) error {
+func StartControllers(ctx ControllerContext) ([]webhook.MutatingWebhook, error) {
 	log.Info("Starting patch controllers")
 	telemetryCollector := telemetry.NewNoopCollector()
 	if ctx.RcClient != nil {
 		telemetryCollector = telemetry.NewCollector(ctx.RcClient.ID, ctx.ClusterID)
 	}
-	provider, err := newPatchProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), telemetryCollector, ctx.ClusterName)
-	if err != nil {
-		return err
+
+	var webhooks []webhook.MutatingWebhook
+	webhook, err := autoinstrumentation.NewWebhook()
+	if err == nil {
+		webhooks = append(webhooks, webhook)
+	} else {
+		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	}
-	patcher := newPatcher(ctx.K8sClient, ctx.IsLeaderFunc, telemetryCollector, provider)
+
+	provider, err := newAPMProvider(ctx.RcClient, ctx.LeaderSubscribeFunc(), telemetryCollector, ctx.ClusterName, webhook)
+
+	if err != nil {
+		return webhooks, err
+	}
 	go provider.start(ctx.StopCh)
-	go patcher.start(ctx.StopCh)
-	return nil
+	return webhooks, nil
 }

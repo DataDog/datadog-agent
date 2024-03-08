@@ -12,7 +12,9 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,11 +27,12 @@ type remoteConfigProvider struct {
 	subscribers        map[TargetObjKind]chan Request
 	clusterName        string
 	telemetryCollector telemetry.TelemetryCollector
+	webhook            *autoinstrumentation.Webhook
 }
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *rcclient.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *rcclient.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string, webhook *autoinstrumentation.Webhook) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
@@ -81,19 +84,47 @@ func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ fu
 		}
 		req.RcVersion = config.Metadata.Version
 		log.Debugf("Patch request parsed %+v", req)
-		if err := req.Validate(rcp.clusterName); err != nil {
-			invalid++
-			rcp.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(err, telemetry.InvalidPatchRequest))
-			log.Errorf("Skipping invalid patch request: %s", err)
-			continue
+
+		// Check for null K8sTargetV2 to be forward compatible
+		if req.K8sTargetV2 == nil {
+			log.Errorf("Received a patch request without a K8sTargetV2, skipping")
+			return
 		}
-		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
-			valid++
-			// Log a telemetry event indicating a remote config patch to the Datadog backend
-			rcp.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))
-			log.Debugf("Publishing patch request for target %s", req.K8sTarget)
-			ch <- req
+
+		// Find the configuration for the current cluster
+		var clusterTarget *K8sClusterTarget
+		for _, ct := range req.K8sTargetV2.ClusterTargets {
+			if ct.ClusterName == rcp.clusterName {
+				clusterTarget = &ct
+				break
+			}
 		}
+		if clusterTarget == nil {
+			log.Errorf("Received an APM request without a configuration for the current cluster, skipping")
+			return
+		}
+
+		// TODO: need to store previous config to revert back to. Also need to handle when remote config deleted.
+		if clusterTarget.EnabledNamespaces != nil {
+			strEnabledNamespaces := ""
+			for _, ns := range *clusterTarget.EnabledNamespaces {
+				strEnabledNamespaces += ns + ","
+			}
+			if len(strEnabledNamespaces) > 0 {
+				ddconfig.Datadog.Set("apm_config.instrumentation.enabled_namespaces", strEnabledNamespaces, "remote_config")
+			}
+		}
+
+		if clusterTarget.Enabled != nil {
+			if *clusterTarget.Enabled == false {
+				ddconfig.Datadog.Set("apm_config.instrumentation.enabled", "false", "remote_config")
+			} else {
+				ddconfig.Datadog.Set("apm_config.instrumentation.enabled", "true", "remote_config")
+			}
+		}
+
+		// Recompute the filter for the webhook
+		rcp.webhook.RecomputeFilter()
 	}
 	metrics.RemoteConfigs.Set(valid)
 	metrics.InvalidRemoteConfigs.Set(invalid)

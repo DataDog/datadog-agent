@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -55,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
@@ -79,7 +81,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	v1 "k8s.io/api/core/v1"
@@ -386,22 +387,22 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 		}
 	}
 
+	var webhooks []webhook.MutatingWebhook
+
 	if config.GetBool("admission_controller.enabled") {
-		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
-			patchCtx := admissionpatch.ControllerContext{
-				IsLeaderFunc:        le.IsLeader,
-				LeaderSubscribeFunc: le.Subscribe,
-				K8sClient:           apiCl.Cl,
-				RcClient:            rcClient,
-				ClusterName:         clusterName,
-				ClusterID:           clusterId,
-				StopCh:              stopCh,
-			}
-			if err := admissionpatch.StartControllers(patchCtx); err != nil {
-				log.Errorf("Cannot start auto instrumentation patcher: %v", err)
-			}
+		patchCtx := admissionpatch.ControllerContext{
+			IsLeaderFunc:        le.IsLeader,
+			LeaderSubscribeFunc: le.Subscribe,
+			K8sClient:           apiCl.Cl,
+			RcClient:            rcClient,
+			ClusterName:         clusterName,
+			ClusterID:           clusterId,
+			StopCh:              stopCh,
+		}
+		if hooks, err := admissionpatch.StartControllers(patchCtx); err != nil {
+			log.Errorf("Cannot start auto instrumentation patcher: %v", err)
 		} else {
-			log.Info("Auto instrumentation patcher is disabled")
+			webhooks = append(webhooks, hooks...)
 		}
 
 		admissionCtx := admissionpkg.ControllerContext{
@@ -413,10 +414,12 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			StopCh:              stopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx)
+		hooks, err := admissionpkg.StartControllers(admissionCtx)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
+			webhooks = append(webhooks, hooks...)
+
 			// Webhook and secret controllers are started successfully
 			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()

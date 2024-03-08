@@ -37,7 +37,7 @@ func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, teleme
 	return &patcher{
 		k8sClient:          k8sClient,
 		isLeader:           isLeaderFunc,
-		deploymentsQueue:   pp.subscribe(KindDeployment),
+		deploymentsQueue:   pp.subscribe(KindCluster),
 		telemetryCollector: telemetryCollector,
 	}
 }

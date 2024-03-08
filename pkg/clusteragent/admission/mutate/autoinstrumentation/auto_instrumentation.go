@@ -137,7 +137,6 @@ var (
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
 	name              string
-	isEnabled         bool
 	endpoint          string
 	resources         []string
 	operations        []admiv1.OperationType
@@ -157,7 +156,6 @@ func NewWebhook() (*Webhook, error) {
 
 	return &Webhook{
 		name:              webhookName,
-		isEnabled:         config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled"),
 		endpoint:          config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:         []string{"pods"},
 		operations:        []admiv1.OperationType{admiv1.Create},
@@ -236,7 +234,7 @@ func (w *Webhook) Name() string {
 
 // IsEnabled returns whether the webhook is enabled
 func (w *Webhook) IsEnabled() bool {
-	return w.isEnabled
+	return config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled")
 }
 
 // Endpoint returns the endpoint of the webhook
@@ -566,6 +564,15 @@ func (w *Webhook) isEnabledInNamespace(namespace string) bool {
 	}
 
 	return !w.filter.IsExcluded(nil, "", "", namespace)
+}
+
+func (w *Webhook) RecomputeFilter() {
+	filter, err := apmSSINamespaceFilter()
+	if err == nil {
+		w.filter = filter
+	} else {
+		log.Errorf("Error recomputing filter: %s", err)
+	}
 }
 
 func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {

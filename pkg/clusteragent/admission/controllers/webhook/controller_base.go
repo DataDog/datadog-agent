@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -72,13 +71,6 @@ func mutatingWebhooks() []MutatingWebhook {
 		config.NewWebhook(),
 		tagsfromlabels.NewWebhook(),
 		agentsidecar.NewWebhook(),
-	}
-
-	apm, err := autoinstrumentation.NewWebhook()
-	if err == nil {
-		webhooks = append(webhooks, apm)
-	} else {
-		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	}
 
 	cws, err := cwsinstrumentation.NewCWSInstrumentation()

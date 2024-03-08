@@ -21,6 +21,7 @@ type TargetObjKind string
 const (
 	// KindDeployment refers to k8s deployment objects
 	KindDeployment TargetObjKind = "deployment"
+	KindCluster    TargetObjKind = "cluster"
 )
 
 // Action is the action requested in the patch
@@ -47,7 +48,19 @@ type Request struct {
 	LibConfig common.LibConfig `json:"lib_config"`
 
 	// Target k8s object
-	K8sTarget K8sTarget `json:"k8s_target"`
+	K8sTarget   K8sTarget    `json:"k8s_target"`
+	K8sTargetV2 *K8sTargetV2 `json:"k8s_target_v2,omitempty"`
+}
+
+type K8sClusterTarget struct {
+	ClusterName       string    `json:"cluster_name"`
+	Enabled           *bool     `json:"enabled,omitempty"`
+	EnabledNamespaces *[]string `json:"enabled_namespaces,omitempty"`
+}
+
+type K8sTargetV2 struct {
+	ClusterTargets []K8sClusterTarget `json:"cluster_targets"`
+	Environment    string             `json:"environment"`
 }
 
 // Validate returns whether a patch request is applicable
@@ -92,7 +105,7 @@ func (pr Request) getApmRemoteConfigEvent(err error, errorCode int) telemetry.Ap
 	}
 }
 
-// K8sTarget represent the targetet k8s object
+// K8sTarget represent the target k8s object
 type K8sTarget struct {
 	Cluster   string        `json:"cluster"`
 	Kind      TargetObjKind `json:"kind"`
