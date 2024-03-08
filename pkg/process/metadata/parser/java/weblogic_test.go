@@ -32,6 +32,7 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 			expected: []string{
 				"java/testdata/weblogic/test.war",
 				"/u01/oracle/user_projects/tmp/sample4.war",
+				"java/testdata/weblogic/test.ear",
 			},
 		},
 		{

@@ -364,7 +364,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag:   "process_context:weblogic",
 		},
 		{
-			name: "weblogic with a found context root name",
+			name: "weblogic with multiple services found",
 			cmdline: []string{
 				"java",
 				"-Dwls.home=testdata/weblogic",
@@ -373,7 +373,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			cwd:                  "java/testdata/weblogic",
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:my_context",
+			expectedServiceTag:   "process_context:my_context;some_context_root",
 		},
 		{
 			name: "tomcat - old naming for backward compatibility",

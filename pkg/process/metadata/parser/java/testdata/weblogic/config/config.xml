@@ -97,5 +97,15 @@
         <plan-staging-mode>stage</plan-staging-mode>
         <cache-in-app-directory>false</cache-in-app-directory>
     </app-deployment>
+    <app-deployment>
+        <name>some_ear</name>
+        <target>AdminServer</target>
+        <module-type>ear</module-type>
+        <source-path>java/testdata/weblogic/test.ear</source-path>
+        <security-dd-model>DDOnly</security-dd-model>
+        <staging-mode>stage</staging-mode>
+        <plan-staging-mode>stage</plan-staging-mode>
+        <cache-in-app-directory>false</cache-in-app-directory>
+    </app-deployment>
     <admin-server-name>AdminServer</admin-server-name>
 </domain>

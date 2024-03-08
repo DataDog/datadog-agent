@@ -13,10 +13,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/spf13/afero"
-
 	"github.com/Masterminds/semver"
 	"github.com/cihub/seelog"
+	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	javaparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java"

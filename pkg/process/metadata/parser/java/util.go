@@ -13,9 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/afero"
-
 	"github.com/rickar/props"
+	"github.com/spf13/afero"
 	"github.com/vibrantbyte/go-antpath/antpath"
 )
 
@@ -46,7 +45,7 @@ func (y *mapSource) GetDefault(key string, defVal string) string {
 
 type closeFn func() error
 
-// fileSystemCloser wraps a FileSystem with a Closer in case the filesystem has been created with a stream the
+// fileSystemCloser wraps a FileSystem with a Closer in case the filesystem has been created with a stream that
 // should be closed after its usage.
 type fileSystemCloser struct {
 	fs afero.Fs
