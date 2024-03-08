@@ -79,7 +79,6 @@
 .package_dependencies:
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  allow_failure: true
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -169,7 +168,6 @@
 
 # -- Test runners
 .kernel_matrix_testing_run_tests:
-  allow_failure: true
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
