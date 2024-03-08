@@ -8,7 +8,6 @@ package powershell
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"strings"
 )
 
@@ -154,11 +153,6 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 (Get-Service %s).WaitForStatus('%s', '00:01:00')
 `, serviceName, status))
 	return ps
-}
-
-// Execute compiles the list of PowerShell commands into one script and runs it on the given host
-func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string, error) {
-	return host.Execute(ps.Compile())
 }
 
 // Compile joins all the saved command into one valid PowerShell script command.
