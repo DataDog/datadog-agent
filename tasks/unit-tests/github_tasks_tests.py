@@ -38,7 +38,7 @@ class TestAssignTeamLabelMock(unittest.TestCase):
                 [],
                 changed_files,
             )
-            gh_mock.side_effect = [gh]
+            gh_mock.return_value = gh
             read_owners_mock.return_value = fake_codeowners
 
             assign_team_label(Context(), -1)
