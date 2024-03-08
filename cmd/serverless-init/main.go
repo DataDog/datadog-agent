@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/fx"
 	"os"
@@ -95,8 +97,18 @@ func setup(secretsManager secrets.Component) (cloudservice.CloudService, *server
 		log.Debugf("Error loading config: %v\n", err)
 	}
 	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), config.Datadog.GetString("confd_path"))
-	common.AC.LoadAndRun(context.Background())
+	ctx := context.Background()
+	common.AC.LoadAndRun(ctx)
 	logsAgent := serverlessInitLog.SetupLog(logConfig, tags)
+
+	healthPort := pkgconfig.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
+		if err != nil {
+			log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
+	}
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
