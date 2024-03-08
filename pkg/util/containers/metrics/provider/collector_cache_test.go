@@ -87,11 +87,11 @@ func TestCollectorCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "cID1", cID1)
 
-	cIDForPodCont, err := cachedCollectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName("pc-pod1", "foo", false, time.Minute)
+	cIDForPodCont, err := cachedCollectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName("pod1", "foo", false, time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, "cID1", cIDForPodCont)
 
-	cIDForPodCont, err = cachedCollectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName("pc-pod1", "foo", true, time.Minute)
+	cIDForPodCont, err = cachedCollectors.ContainerIDForPodUIDAndContName.Collector.ContainerIDForPodUIDAndContName("pod1", "foo", true, time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, "cID2", cIDForPodCont)
 

@@ -68,6 +68,15 @@ func (d *dummyCollector) GetSelfContainerID() (string, error) {
 	return d.selfContainerID, nil
 }
 
+func (d *dummyCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+	initPrefix := ""
+	if initCont {
+		initPrefix = "i-"
+	}
+	cacheKey := contPodUIDContNameToCidCachePrefix + podUID + "/" + initPrefix + contName
+	return d.cIDForPodCont[cacheKey], nil
+}
+
 // Helpers not part of Collector interface
 func (d *dummyCollector) getCollectors(priority uint8) *Collectors {
 	return &Collectors{
@@ -92,6 +101,10 @@ func (d *dummyCollector) getCollectors(priority uint8) *Collectors {
 			Priority:  priority,
 		},
 		SelfContainerID: CollectorRef[SelfContainerIDRetriever]{
+			Collector: d,
+			Priority:  priority,
+		},
+		ContainerIDForPodUIDAndContName: CollectorRef[ContainerIDForPodUIDAndContNameRetriever]{
 			Collector: d,
 			Priority:  priority,
 		},
