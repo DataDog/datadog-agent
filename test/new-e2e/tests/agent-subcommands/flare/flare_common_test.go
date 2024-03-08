@@ -63,6 +63,20 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
 }
 
+func (v *baseFlareSuite) TestFlareProfiling() {
+	args := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--profile", "31",
+		"--profile-blocking", "--profile-blocking-rate", "5000", "--profile-mutex", "--profile-mutex-fraction", "200"})
+	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v, args)
+
+	assert.Contains(v.T(), logs, "Setting runtime_mutex_profile_fraction to 200")
+	assert.Contains(v.T(), logs, "Setting runtime_block_profile_rate to 5000")
+	assert.Contains(v.T(), logs, "Getting a 31s profile snapshot from core.")
+	assert.Contains(v.T(), logs, "Getting a 31s profile snapshot from security-agent.")
+	assert.Contains(v.T(), logs, "Getting a 31s profile snapshot from process.")
+
+	assertFilesExist(v.T(), flare, profilingFiles)
+}
+
 func requestAgentFlareAndFetchFromFakeIntake(v *baseFlareSuite, flareArgs ...agentclient.AgentArgsOption) (flare.Flare, string) {
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
 	assert.EventuallyWithT(v.T(), func(c *assert.CollectT) {
