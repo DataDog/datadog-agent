@@ -205,10 +205,6 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 func (ac *AutoConfig) Start() {
 	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
-	// Where to look for check templates if no custom path is defined
-	config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
-	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
-	config.Datadog.SetDefault("autoconf_template_url_timeout", 5)
 	setupAcErrors()
 	ac.started = true
 	// Start the service listener
