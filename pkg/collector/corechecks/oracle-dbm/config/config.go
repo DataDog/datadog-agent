@@ -25,6 +25,7 @@ type InitConfig struct {
 	MinCollectionInterval int           `yaml:"min_collection_interval"`
 	CustomQueries         []CustomQuery `yaml:"custom_queries"`
 	UseInstantClient      bool          `yaml:"use_instant_client"`
+	Service               string        `yaml:"service"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -149,6 +150,7 @@ type InstanceConfig struct {
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 	Locks                              locksConfig            `yaml:"locks"`
 	OnlyCustomQueries                  bool                   `yaml:"only_custom_queries"`
+	Service                            string                 `yaml:"service"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -262,6 +264,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if initCfg.UseInstantClient {
 		instance.OracleClient = true
 		warnDeprecated("use_instant_client", "oracle_client in instance config")
+	}
+
+	var service string
+	if instance.Service != "" {
+		service = instance.Service
+	} else if initCfg.Service != "" {
+		service = initCfg.Service
+	}
+	if service != "" {
+		instance.Tags = append(instance.Tags, fmt.Sprintf("service:%s", service))
 	}
 
 	c := &CheckConfig{
