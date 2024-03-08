@@ -28,7 +28,7 @@ import (
 type RuntimeReporter struct {
 	hostname  string
 	logSource *sources.LogSource
-	logChan   chan *message.Message
+	logChan   chan message.TimedMessage[*message.Message]
 }
 
 // ReportRaw reports raw (bytes) events to the intake
@@ -38,7 +38,7 @@ func (r *RuntimeReporter) ReportRaw(content []byte, service string, tags ...stri
 	origin.SetService(service)
 	msg := message.NewMessage(content, origin, message.StatusInfo, time.Now().UnixNano())
 	msg.Hostname = r.hostname
-	r.logChan <- msg
+	r.logChan <- message.NewTimedMessage(msg)
 }
 
 // NewCWSReporter returns a new CWS reported based on the fields necessary to communicate with the intake

@@ -40,7 +40,7 @@ type DockerSocketTailer struct {
 	dockerutil  *dockerutilPkg.DockerUtil
 	ContainerID string
 	source      *sources.LogSource
-	pipeline    chan *message.Message
+	pipeline    chan message.TimedMessage[*message.Message]
 	readTimeout time.Duration
 
 	// registry is used to calculate `since`
@@ -57,7 +57,7 @@ type DockerSocketTailer struct {
 }
 
 // NewDockerSocketTailer Creates a new docker socket tailer
-func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan *message.Message, readTimeout time.Duration, registry auditor.Registry) *DockerSocketTailer {
+func NewDockerSocketTailer(dockerutil *dockerutilPkg.DockerUtil, containerID string, source *sources.LogSource, pipeline chan message.TimedMessage[*message.Message], readTimeout time.Duration, registry auditor.Registry) *DockerSocketTailer {
 	return &DockerSocketTailer{
 		dockerutil:  dockerutil,
 		ContainerID: containerID,

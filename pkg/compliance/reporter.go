@@ -33,7 +33,7 @@ type LogReporter struct {
 	pipelineProvider pipeline.Provider
 	auditor          *auditor.RegistryAuditor
 	logSource        *sources.LogSource
-	logChan          chan *message.Message
+	logChan          chan message.TimedMessage[*message.Message]
 	endpoints        *config.Endpoints
 	tags             []string
 }
@@ -106,5 +106,5 @@ func (r *LogReporter) ReportEvent(event interface{}) {
 	origin.SetTags(r.tags)
 	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
 	msg.Hostname = r.hostname
-	r.logChan <- msg
+	r.logChan <- message.NewTimedMessage(msg)
 }

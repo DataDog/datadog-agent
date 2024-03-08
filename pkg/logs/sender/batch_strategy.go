@@ -22,7 +22,7 @@ var (
 
 // batchStrategy contains all the logic to send logs in batch.
 type batchStrategy struct {
-	inputChan  chan *message.Message
+	inputChan  chan message.TimedMessage[*message.Message]
 	outputChan chan *message.Payload
 	flushChan  chan struct{}
 	buffer     *MessageBuffer
@@ -36,7 +36,7 @@ type batchStrategy struct {
 }
 
 // NewBatchStrategy returns a new batch concurrent strategy with the specified batch & content size limits
-func NewBatchStrategy(inputChan chan *message.Message,
+func NewBatchStrategy(inputChan chan message.TimedMessage[*message.Message],
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
 	serializer Serializer,
@@ -48,7 +48,7 @@ func NewBatchStrategy(inputChan chan *message.Message,
 	return newBatchStrategyWithClock(inputChan, outputChan, flushChan, serializer, batchWait, maxBatchSize, maxContentSize, pipelineName, clock.New(), contentEncoding)
 }
 
-func newBatchStrategyWithClock(inputChan chan *message.Message,
+func newBatchStrategyWithClock(inputChan chan message.TimedMessage[*message.Message],
 	outputChan chan *message.Payload,
 	flushChan chan struct{},
 	serializer Serializer,
@@ -79,6 +79,11 @@ func (s *batchStrategy) Stop() {
 	<-s.stopChan
 }
 
+var tlmStrategyChanTime = telemetry.NewSimpleHistogram("strategy",
+	"strategy_channel_time",
+	"Time to send on the strategy channel",
+	[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
+
 // Start reads the incoming messages and accumulates them to a buffer. The buffer is
 // encoded (optionally compressed) and written to a Payload which goes to the next
 // step in the pipeline.
@@ -95,11 +100,13 @@ func (s *batchStrategy) Start() {
 			select {
 			case m, isOpen := <-s.inputChan:
 
+				tlmStrategyChanTime.Observe(float64(m.SendDuration().Nanoseconds()))
+
 				if !isOpen {
 					// inputChan has been closed, no more payloads are expected
 					return
 				}
-				s.processMessage(m, s.outputChan)
+				s.processMessage(m.Inner, s.outputChan)
 			case <-flushTicker.C:
 				// flush the payloads at a regular interval so pending messages don't wait here for too long.
 				s.flushBuffer(s.outputChan)

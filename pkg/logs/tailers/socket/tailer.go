@@ -24,7 +24,7 @@ import (
 type Tailer struct {
 	source     *sources.LogSource
 	Conn       net.Conn
-	outputChan chan *message.Message
+	outputChan chan message.TimedMessage[*message.Message]
 	read       func(*Tailer) ([]byte, error)
 	decoder    *decoder.Decoder
 	stop       chan struct{}
@@ -32,7 +32,7 @@ type Tailer struct {
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *message.Message, read func(*Tailer) ([]byte, error)) *Tailer {
+func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan message.TimedMessage[*message.Message], read func(*Tailer) ([]byte, error)) *Tailer {
 	return &Tailer{
 		source:     source,
 		Conn:       conn,
@@ -67,7 +67,7 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
-			t.outputChan <- message.NewMessageWithSource(output.GetContent(), message.StatusInfo, t.source, output.IngestionTimestamp)
+			t.outputChan <- message.NewTimedMessage(message.NewMessageWithSource(output.GetContent(), message.StatusInfo, t.source, output.IngestionTimestamp))
 		}
 	}
 }
