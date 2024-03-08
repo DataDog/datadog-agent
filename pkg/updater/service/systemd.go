@@ -9,6 +9,7 @@
 package service
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -65,6 +66,10 @@ func newScriptRunner() (*scriptRunner, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error opening out.fifo: %s", err)
 	}
+
+	// creating a inFifo triggers admin exec systemd path listner
+	// If a previous runner is stuck on write due to a crash of the updater
+	// it gets killed and a new updater is spawned
 	inFifo, err := fifo.OpenFifo(context.Background(), inFifoPath, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_NONBLOCK, 0660)
 	if err != nil {
 		outFifo.Close()
@@ -115,10 +120,10 @@ func (s *scriptRunner) executeCommand(command string) error {
 	if err != nil {
 		return fmt.Errorf("error executing command %s while writing to fifo: %s", command, err)
 	}
-	res := make([]byte, 1<<6)
+	bufReader := bufio.NewReader(s.outFifo)
+	var res string
 	err = wrapWithTimeout(func() error {
-		n, err := s.outFifo.Read(res)
-		res = res[:n]
+		res, err = bufReader.ReadString('\n')
 		return err
 	},
 		s.timeout,
@@ -153,6 +158,10 @@ func wrapUnitCommand(command unitCommand, unit string) string {
 	return string(command) + " " + unit
 }
 
+// wrapWithTimeout wraps calls with a timeout
+// The timeout to avoid locking the updater if the admin-exec process
+// gets killed.
+// Relauching the systemd commands will trigger a new admin-exec process
 func wrapWithTimeout(fn func() error, timeout time.Duration) error {
 	err := make(chan error, 1)
 	go func() {
