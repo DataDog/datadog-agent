@@ -1,6 +1,6 @@
 ---
 # notify stage
-# Contains jobs which send slack notifications depending on pipeline status.
+# Contains jobs which send notifications depending on pipeline status.
 
 include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
@@ -55,3 +55,14 @@ send_pipeline_stats:
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
     - !reference [.setup_python_mirror_linux]
     - invoke -e notify.send-stats
+
+notify_github:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
+  # TODO : needs
+  when: always
+  dependencies: []
+  allow_failure: true
+  script: |
+    echo "Well done CI_PIPELINE_ID is $CI_PIPELINE_ID"
