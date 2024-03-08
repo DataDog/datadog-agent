@@ -27,7 +27,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240307150441-299b57500444
+	github.com/DataDog/test-infra-definitions v0.0.0-20240306160032-a1d921006e35
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -177,11 +177,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.8.2 // indirect
-	github.com/pulumi/pulumi-aws/sdk/v5 v5.42.0
-	github.com/pulumi/pulumi-awsx/sdk v1.0.6
 	github.com/pulumi/pulumi-command/sdk v0.9.2 // indirect
-	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
-	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.4 // indirect
 	// pulumi-random v4.14.0 uses GO 1.21:
 	// https://github.com/pulumi/pulumi-random/blob/v4.14.0/sdk/go.mod#L3
@@ -211,7 +207,7 @@ require (
 	github.com/zorkian/go-datadog-api v2.30.0+incompatible
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/mod v0.16.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/oauth2 v0.16.0 // indirect
@@ -241,7 +237,13 @@ require (
 )
 
 require (
+	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
+	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.9.0
+)
+
+require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/pulumi/pulumi-eks/sdk v1.0.4 // indirect
-	pgregory.net/rapid v0.6.1 // indirect
+	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1 // indirect
 )

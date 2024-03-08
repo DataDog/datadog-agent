@@ -5,36 +5,17 @@
 
 //go:build kubeapiserver
 
+// Package clusteragent fetch information about the cluster agent
 package clusteragent
 
 import (
 	"embed"
-	"fmt"
 	"io"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
-
-func getLeaderElectionDetails() map[string]string {
-	leaderElectionStats := make(map[string]string)
-
-	record, err := leaderelection.GetLeaderElectionRecord()
-	if err != nil {
-		leaderElectionStats["status"] = "Failing"
-		leaderElectionStats["error"] = err.Error()
-		return leaderElectionStats
-	}
-	leaderElectionStats["leaderName"] = record.HolderIdentity
-	leaderElectionStats["acquiredTime"] = record.AcquireTime.Format(time.RFC1123)
-	leaderElectionStats["renewedTime"] = record.RenewTime.Format(time.RFC1123)
-	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
-	leaderElectionStats["status"] = "Running"
-	return leaderElectionStats
-}
 
 // GetDCAStatus collect the DCA agent information and return it in a map
 func GetDCAStatus(stats map[string]interface{}) {
