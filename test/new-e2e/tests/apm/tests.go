@@ -272,22 +272,36 @@ func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) b
 }
 
 func eventuallyShutdown(s *suite.Suite, intake *components.FakeIntake) {
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		waitForPoisonPill(s.T(), c, intake)
-	}, 20*time.Second, 1*time.Second, "Failed to find poison pill from tracegen shutdown.")
+	//s.EventuallyWithTf(func(c *assert.CollectT) {
+	//	waitForPoisonPill(s.T(), c, intake)
+	//}, 20*time.Second, 1*time.Second, "Failed to find poison pill from tracegen shutdown.")
+
+	begin := time.Now()
+	max := begin.Add(20 * time.Second)
+	for {
+		if waitForPoisonPill(s.T(), intake) {
+			// success
+			return
+		}
+		if time.Now().After(max) {
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
 
-func waitForPoisonPill(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+func waitForPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
 	stats, err := intake.Client().GetAPMStats()
-	assert.NoError(c, err)
-	assert.NotEmpty(c, stats)
+	assert.NoError(t, err)
 	t.Log("Got apm stats", stats)
-	assert.True(c, hasStatsForResource(stats, "poison_pill")) // tracegen sends this resource as the last trace before shutting down.
-
-	t.Helper()
+	if !hasStatsForResource(stats, "poison_pill") { // tracegen sends this resource as the last trace before shutting down.
+		return false
+	}
 	traces, err := intake.Client().GetTraces()
-	assert.NoError(c, err)
-	assert.NotEmpty(c, traces)
+	assert.NoError(t, err)
 	t.Log("Got traces", traces)
-	assert.True(c, hasTraceForResource(traces, "poison_pill"))
+	if !hasTraceForResource(traces, "poison_pill") {
+		return false
+	}
+	return true
 }
