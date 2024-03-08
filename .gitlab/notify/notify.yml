@@ -2,20 +2,19 @@
 # notify stage
 # Contains jobs which send notifications depending on pipeline status.
 
-# TODO
 include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
 
-# notify-on-tagged-success:
-#   extends: .slack-notifier-base
-#   stage: notify
-#   rules: !reference [.on_deploy_stable_or_beta_repo_branch]
-#   dependencies: []
-#   tags: ["arch:amd64"]
-#   script: |
-#     MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
-#     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
-#     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
+notify-on-tagged-success:
+  extends: .slack-notifier-base
+  stage: notify
+  rules: !reference [.on_deploy_stable_or_beta_repo_branch]
+  dependencies: []
+  tags: ["arch:amd64"]
+  script: |
+    MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
+    *$CI_COMMIT_REF_NAME* is available in the staging repositories."
+    postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
 notify:
   extends: .slack-notifier-base
@@ -43,19 +42,19 @@ notify:
         echo "This pipeline was triggered by another repository, skipping notification."
       fi
 
-# send_pipeline_stats:
-#   stage: notify
-#   # Using a buildimage image with python 3.7+, datadog-api-client and invoke installed
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-#   tags: ["arch:amd64"]
-#   when: always
-#   dependencies: []
-#   script:
-#     - source /root/.bashrc
-#     - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
-#     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-#     - !reference [.setup_python_mirror_linux]
-#     - invoke -e notify.send-stats
+send_pipeline_stats:
+  stage: notify
+  # Using a buildimage image with python 3.7+, datadog-api-client and invoke installed
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  when: always
+  dependencies: []
+  script:
+    - source /root/.bashrc
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - !reference [.setup_python_mirror_linux]
+    - invoke -e notify.send-stats
 
 notify_github:
   stage: notify
