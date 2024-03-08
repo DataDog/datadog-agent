@@ -43,6 +43,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -96,7 +99,6 @@ import (
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -110,7 +112,6 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	autodiscoveryStatus "github.com/DataDog/datadog-agent/pkg/status/autodiscovery"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -196,6 +197,7 @@ func run(log log.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
+	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
@@ -267,6 +269,7 @@ func run(log log.Component,
 		serverDebug,
 		wmeta,
 		taggerComp,
+		ac,
 		rcclient,
 		logsAgent,
 		processAgent,
@@ -328,9 +331,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
 		}),
-		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(autodiscoveryStatus.GetProvider())
-		}),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
@@ -346,6 +346,10 @@ func getSharedFxOption() fx.Option {
 		remoteconfig.Bundle(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 		tagger.Module(),
+		autodiscoveryimpl.Module(),
+		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
+			return optional.NewOption[autodiscovery.Component](ac)
+		}),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -354,11 +358,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, _ tagger.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, _ tagger.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-					// create and setup the Autoconfig instance
-					common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
+					//  setup the AutoConfig instance
+					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -403,6 +407,7 @@ func startAgent(
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
+	ac autodiscovery.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	_ processAgent.Component,
@@ -527,14 +532,14 @@ func startAgent(
 				rcProvider := providers.NewRemoteConfigProvider()
 				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 				// LoadAndRun is called later on
-				common.AC.AddConfigProvider(rcProvider, true, 10*time.Second)
+				ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 			}
 		}
 	}
 
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
-		logsAgent.AddScheduler(adScheduler.New(common.AC))
+		logsAgent.AddScheduler(adScheduler.New(ac))
 	}
 
 	// start the cloudfoundry container tagger
@@ -551,6 +556,7 @@ func startAgent(
 	if err = agentAPI.StartServer(
 		wmeta,
 		taggerComp,
+		ac,
 		logsAgent,
 		demultiplexer,
 		optional.NewOption(collector),
@@ -563,7 +569,7 @@ func startAgent(
 	if pkgconfig.Datadog.GetBool("cluster_agent.enabled") && pkgconfig.Datadog.GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
-		}); err != nil {
+		}, ac); err != nil {
 			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
 	}
@@ -577,7 +583,7 @@ func startAgent(
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent, collector); err != nil {
+	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent, collector, ac); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
@@ -598,12 +604,12 @@ func startAgent(
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
-	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
 	// load and run all configs in AD
-	common.AC.LoadAndRun(ctx)
+	ac.LoadAndRun(ctx)
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
@@ -644,9 +650,7 @@ func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 			pkglog.Errorf("Error shutting down expvar server: %v", err)
 		}
 	}
-	if common.AC != nil {
-		common.AC.Stop()
-	}
+
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/mux"
 
 	v1 "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi/v1"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -31,12 +32,12 @@ import (
 var clcListener net.Listener
 
 // StartCLCRunnerServer creates the router and starts the HTTP server
-func StartCLCRunnerServer(extraHandlers map[string]http.Handler) error {
+func StartCLCRunnerServer(extraHandlers map[string]http.Handler, ac autodiscovery.Component) error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
 	// IPC REST API server
-	v1.SetupHandlers(r.PathPrefix("/api/v1").Subrouter())
+	v1.SetupHandlers(r.PathPrefix("/api/v1").Subrouter(), ac)
 
 	// Register extra hanlders
 	for path, handler := range extraHandlers {

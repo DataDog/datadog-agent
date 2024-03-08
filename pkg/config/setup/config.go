@@ -577,6 +577,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	// Autoconfig
+	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
+	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
+	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
