@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,11 @@ func TestInvalidCommands(t *testing.T) {
 }
 
 func TestAssertWorkingCommands(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Skipping test on non-darwin OS")
+	}
 	testSetup(t)
+
 	// missing permissions on test setup, e2e tests verify the successful commands
 	successErr := "error: failed to lookup dd-agent user: user: unknown user dd-agent\n"
 
