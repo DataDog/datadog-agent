@@ -216,6 +216,33 @@ func (is *agentMSISuite) TestInstall() {
 	is.uninstallAgentAndRunUninstallTests(t)
 }
 
+func (is *agentMSISuite) TestInstallAltDir() {
+	vm := is.Env().RemoteHost
+	is.prepareHost()
+
+	installPath := `C:\altdir`
+	configRoot := `C:\altconfroot`
+
+	// initialize test helper
+	t := is.newTester(vm,
+		WithExpectedInstallPath(installPath),
+		WithExpectedConfigRoot(configRoot),
+	)
+
+	// install the agent
+	_ = is.installAgentPackage(vm, is.AgentPackage,
+		windowsAgent.WithProjectLocation(installPath),
+		windowsAgent.WithApplicationDataDirectory(configRoot),
+	)
+
+	// run tests
+	if !t.TestInstallExpectations(is.T()) {
+		is.T().FailNow()
+	}
+
+	is.uninstallAgentAndRunUninstallTests(t)
+}
+
 func (is *agentMSISuite) TestUpgrade() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
