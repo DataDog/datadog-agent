@@ -136,7 +136,7 @@ func cStringArrayToSlice(array **C.char) []string {
 				return res
 			}
 			length := C.strlen(strPtr)
-			bytes := unsafe.Slice((*byte)(strPtr), length)
+			bytes := unsafe.Slice((*byte)(unsafe.Pointer(strPtr)), length)
 			str := si.intern(bytes)
 			res = append(res, str)
 		}
