@@ -41,6 +41,7 @@
       - E2E_MSI_TEST: TestAgentUser
       - E2E_MSI_TEST: TestInstallOpts
       - E2E_MSI_TEST: TestSubServicesOpts
+      - E2E_MSI_TEST: TestInstallAltDir
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:
