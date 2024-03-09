@@ -19,6 +19,21 @@ import (
 	"testing"
 )
 
+// AssertEqualPathf compares two paths case insensitively, ignoring trailing slashes
+func AssertEqualPathf(t *testing.T, expected string, actual string, fmt string, args ...any) bool {
+	t.Helper()
+
+	// Normalize paths
+	// trim trailing slashes
+	expected = strings.TrimSuffix(expected, `\`)
+	actual = strings.TrimSuffix(actual, `\`)
+	// windows paths are case-insensitive
+	expected = strings.ToLower(expected)
+	actual = strings.ToLower(actual)
+
+	return assert.Equalf(t, expected, actual, fmt, args...)
+}
+
 // AssertInstalledUserInRegistry checks the registry for the installed user and domain
 func AssertInstalledUserInRegistry(t *testing.T, host *components.RemoteHost, expecteddomain string, expectedusername string) bool {
 	// check registry keys
