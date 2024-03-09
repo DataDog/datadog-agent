@@ -248,21 +248,11 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 
 	tt.Run("agent paths in registry", func(tt *testing.T) {
 		installPathFromRegistry, err := windowsAgent.GetInstallPathFromRegistry(t.host)
-		assert.NoError(tt, err)
+		assert.NoError(tt, err, "InstallPath should be in registry")
+		AssertEqualPathf(tt, t.expectedInstallPath, installPathFromRegistry, "install path matches registry")
 		configRootFromRegistry, err := windowsAgent.GetConfigRootFromRegistry(t.host)
-		assert.NoError(tt, err)
-		tcs := []struct {
-			expected string
-			actual   string
-		}{
-			{t.expectedInstallPath, installPathFromRegistry},
-			{t.expectedConfigRoot, configRootFromRegistry},
-		}
-		for _, tc := range tcs {
-			tc.expected = strings.TrimSuffix(tc.expected, "\\")
-			tc.actual = strings.TrimSuffix(tc.actual, "\\")
-			assert.Equal(tt, tc.expected, tc.actual)
-		}
+		assert.NoError(tt, err, "ConfigRoot should be in registry")
+		AssertEqualPathf(tt, t.expectedConfigRoot, configRootFromRegistry, "config root matches registry")
 	})
 
 	tt.Run("agent user in registry", func(tt *testing.T) {
