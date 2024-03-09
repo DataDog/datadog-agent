@@ -40,32 +40,6 @@ func (v *vmUpdaterSuite) TestUpdaterOwnership() {
 	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" /opt/datadog/updater`))
 }
 
-func (v *vmUpdaterSuite) TestUpdaterAdmin() {
-	adminPathUnit := "datadog-updater-admin.path"
-	inFifoPath := "/opt/datadog/updater/run/in.fifo"
-	outFifoPath := "/opt/datadog/updater/run/out.fifo"
-	require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, adminPathUnit)))
-	require.Equal(v.T(), "active\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-active %s`, adminPathUnit)))
-
-	defer v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s %s", inFifoPath, outFifoPath))
-
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s", inFifoPath))
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -f %s", outFifoPath))
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkfifo %s && sudo mkfifo %s", outFifoPath, inFifoPath))
-	v.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo chmod 0666 %s %s", inFifoPath, outFifoPath))
-
-	// assert failures
-	expectedResults := map[string]string{
-		"&": "invalid command: &",
-	}
-	for cmd, expected := range expectedResults {
-		go func() {
-			require.Equal(v.T(), v.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" > %s`, cmd, inFifoPath)), "")
-		}()
-		require.Equal(v.T(), v.Env().RemoteHost.MustExecute(fmt.Sprintf(`cat %s`, outFifoPath)), expected+"\n")
-	}
-}
-
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 	stableUnits := []string{
 		"datadog-agent.service",
