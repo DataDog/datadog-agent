@@ -216,9 +216,10 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	for _, configPath := range configPaths {
 		configPath := filepath.Join(t.expectedConfigRoot, configPath)
 		_, err = t.host.Lstat(configPath)
-		assert.NoError(tt, err, "uninstall should not remove config files")
-		_, err = t.host.Lstat(configPath + ".example")
-		assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove example config files")
+		assert.NoError(tt, err, "uninstall should not remove %s config file", configPath)
+		examplePath := configPath + ".example"
+		_, err = t.host.Lstat(examplePath)
+		assert.ErrorIs(tt, err, fs.ErrNotExist, "uninstall should remove %s example config files", examplePath)
 	}
 
 	_, err = windows.GetSIDForUser(t.host,
@@ -257,6 +258,21 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 
 	tt.Run("agent user in registry", func(tt *testing.T) {
 		AssertInstalledUserInRegistry(tt, t.host, t.expectedUserDomain, t.expectedUserName)
+	})
+
+	tt.Run("creates config files", func(tt *testing.T) {
+		configPaths := []string{
+			"datadog.yaml",
+			"system-probe.yaml",
+		}
+		for _, configPath := range configPaths {
+			configPath := filepath.Join(t.expectedConfigRoot, configPath)
+			_, err := t.host.Lstat(configPath)
+			assert.NoError(tt, err, "install should create %s config file", configPath)
+			examplePath := configPath + ".example"
+			_, err = t.host.Lstat(examplePath)
+			assert.NoError(tt, err, "install should create %s example config files", examplePath)
+		}
 	})
 
 	serviceTester, err := servicetest.NewTester(t.host,
