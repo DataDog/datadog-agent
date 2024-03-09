@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 )
 
 const (
@@ -22,6 +23,21 @@ func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentR
 	commandRunner := newAgentCommandRunner(t, newAgentHostExecutor(host))
 
 	if waitForAgentReady {
+		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
+			return nil, err
+		}
+	}
+
+	return commandRunner, nil
+}
+
+// NewHostAgentClientWithParams creates an Agent client for host install with custom parameters
+func NewHostAgentClientWithParams(t *testing.T, host *components.RemoteHost, options ...agentclientparams.Option) (agentclient.Agent, error) {
+	params := agentclientparams.NewParams(options...)
+	ae := newAgentHostExecutorWithInstallPath(host, params.AgentInstallPath)
+	commandRunner := newAgentCommandRunner(t, ae)
+
+	if params.ShouldWaitForReady {
 		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
 			return nil, err
 		}
