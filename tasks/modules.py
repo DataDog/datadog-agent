@@ -202,7 +202,7 @@ DEFAULT_MODULES = {
     "pkg/logs/status/statusinterface": GoModule("pkg/logs/status/statusinterface", independent=True),
     "pkg/logs/status/utils": GoModule("pkg/logs/status/utils", independent=True),
     "pkg/serializer": GoModule("pkg/serializer", independent=True),
-    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
     "pkg/util/cgroups": GoModule(
