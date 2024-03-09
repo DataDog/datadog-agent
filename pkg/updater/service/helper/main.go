@@ -62,7 +62,7 @@ func buildCommand(inputCommand string) (*exec.Cmd, error) {
 		// --no-block is used to avoid waiting on oneshot executions
 		return exec.Command("systemctl", command, unit, "--no-block"), nil
 	case "load-unit":
-		return exec.Command("cp", installPath+"/"+unit, systemdPath+"/"+unit), nil
+		return exec.Command("cp", installPath+"/systemd/"+unit, systemdPath+"/"+unit), nil
 	case "remove-unit":
 		return exec.Command("rm", systemdPath+"/"+unit), nil
 	default:
