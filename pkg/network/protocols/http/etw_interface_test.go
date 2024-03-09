@@ -271,12 +271,10 @@ func TestEtwTransactions(t *testing.T) {
 			t.Logf("Running %d iterations", test.count)
 			txns, responsecount, err := executeRequestForTest(t, etw, test)
 			require.NoError(t, err)
-			var lastidx int
 
 			failed := false
 			assert.Equal(t, test.count, uint64(len(txns)))
 			for idx, tx := range txns {
-				lastidx = idx
 				assert.Equal(t, uint16(expectedMax), tx.Txn.MaxRequestFragment)
 				tgtbuf := make([]byte, cfg.HTTPMaxRequestFragment)
 				outbuf, fullpath := computePath(tgtbuf, tx.RequestFragment)
