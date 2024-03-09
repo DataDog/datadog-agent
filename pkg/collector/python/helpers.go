@@ -125,8 +125,8 @@ func (sl *stickyLock) unlock() {
 
 // cStringArrayToSlice converts an array of C strings to a slice of Go strings.
 // The function will not free the memory of the C strings.
-func cStringArrayToSlice(strings **C.char) []string {
-	if strings == nil {
+func cStringArrayToSlice(a **C.char) []string {
+	if a == nil {
 		return nil
 	}
 
@@ -134,22 +134,31 @@ func cStringArrayToSlice(strings **C.char) []string {
 	defer sharedStringInternerPool.Put(si)
 
 	var length int
-	forEachCString(strings, func(_ *C.char) {
+	forEachCString(a, func(_ *C.char) {
 		length++
 	})
 	res := make([]string, 0, length)
-	forEachCString(strings, func(s *C.char) {
-		bytes := unsafe.Slice((*byte)(unsafe.Pointer(s)), C.strlen(s))
+	forEachCString(a, func(s *C.char) {
+		bytes := unsafe.Slice((*byte)(unsafe.Pointer(s)), cstrlen(s))
 		res = append(res, si.intern(bytes))
 	})
 	return res
 }
 
+// cstrlen returns the length of a null-terminated C string. It's an alternative
+// to calling C.strlen, which avoids the overhead of doing a cgo call.
+func cstrlen(s *C.char) (len int) {
+	for ; *s != 0; s = (*C.char)(unsafe.Add(unsafe.Pointer(s), 1)) {
+		len++
+	}
+	return
+}
+
 // forEachCString iterates over a null-terminated array of C strings and calls
 // the given function for each string.
-func forEachCString(strings **C.char, f func(*C.char)) {
-	for ; strings != nil && *strings != nil; strings = (**C.char)(unsafe.Add(unsafe.Pointer(strings), unsafe.Sizeof(strings))) {
-		f(*strings)
+func forEachCString(a **C.char, f func(*C.char)) {
+	for ; a != nil && *a != nil; a = (**C.char)(unsafe.Add(unsafe.Pointer(a), unsafe.Sizeof(a))) {
+		f(*a)
 	}
 }
 
