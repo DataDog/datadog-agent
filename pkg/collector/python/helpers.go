@@ -123,26 +123,34 @@ func (sl *stickyLock) unlock() {
 	runtime.UnlockOSThread()
 }
 
-// cStringArrayToSlice returns a slice with the contents of the char **tags (the function will not free 'array').
-func cStringArrayToSlice(array **C.char) []string {
-	if array != nil {
-		res := []string{}
-		si := sharedStringInternerPool.Get()
-		defer sharedStringInternerPool.Put(si)
-		for i := 0; ; i++ {
-			// Work around go vet raising issue about unsafe pointer
-			strPtr := C.getStringAddr(array, C.uint(i))
-			if strPtr == nil {
-				return res
-			}
-			length := C.strlen(strPtr)
-			bytes := unsafe.Slice((*byte)(unsafe.Pointer(strPtr)), length)
-			str := si.intern(bytes)
-			res = append(res, str)
-		}
-		return res
+// cStringArrayToSlice converts an array of C strings to a slice of Go strings.
+// The function will not free the memory of the C strings.
+func cStringArrayToSlice(strings **C.char) []string {
+	if strings == nil {
+		return nil
 	}
-	return nil
+
+	si := sharedStringInternerPool.Get()
+	defer sharedStringInternerPool.Put(si)
+
+	var length int
+	forEachCString(strings, func(_ *C.char) {
+		length++
+	})
+	res := make([]string, 0, length)
+	forEachCString(strings, func(s *C.char) {
+		bytes := unsafe.Slice((*byte)(unsafe.Pointer(s)), C.strlen(s))
+		res = append(res, si.intern(bytes))
+	})
+	return res
+}
+
+// forEachCString iterates over a null-terminated array of C strings and calls
+// the given function for each string.
+func forEachCString(strings **C.char, f func(*C.char)) {
+	for ; strings != nil && *strings != nil; strings = (**C.char)(unsafe.Add(unsafe.Pointer(strings), unsafe.Sizeof(strings))) {
+		f(*strings)
+	}
 }
 
 // sliceToCStringArray converts a slice of Go strings to an array of C strings.
