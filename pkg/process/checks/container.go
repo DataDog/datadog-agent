@@ -14,7 +14,6 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,7 +41,7 @@ type ContainerCheck struct {
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
 
-	containerFailedLogLimit *util.LogLimit
+	containerFailedLogLimit *log.LogLimit
 
 	maxBatchSize int
 }
@@ -58,7 +57,7 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 	}
 	c.networkID = networkID
 
-	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
+	c.containerFailedLogLimit = log.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize(c.config)
 	return nil
 }
