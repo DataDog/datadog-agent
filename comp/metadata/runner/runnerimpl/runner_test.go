@@ -20,11 +20,23 @@ import (
 	"go.uber.org/fx/fxtest"
 )
 
+type provider struct {
+	called chan struct{}
+}
+
+func (provider) Index() int {
+	return 0
+}
+
+func (r provider) SendInformation(_ context.Context) time.Duration {
+	r.called <- struct{}{}
+	return 1 * time.Minute // Long timeout to block
+}
+
 func TestHandleProvider(t *testing.T) {
 	called := make(chan struct{})
-	provider := func(context.Context) time.Duration {
-		called <- struct{}{}
-		return 1 * time.Minute // Long timeout to block
+	provider := provider{
+		called: called,
 	}
 
 	r := createRunner(
@@ -43,9 +55,8 @@ func TestHandleProvider(t *testing.T) {
 
 func TestRunnerCreation(t *testing.T) {
 	called := make(chan struct{})
-	callback := func(context.Context) time.Duration {
-		called <- struct{}{}
-		return 1 * time.Minute // Long timeout to block
+	provider := provider{
+		called: called,
 	}
 
 	lc := fxtest.NewLifecycle(t)
@@ -56,7 +67,7 @@ func TestRunnerCreation(t *testing.T) {
 		config.MockModule(),
 		Module(),
 		// Supplying our provider by using the helper function
-		fx.Supply(NewProvider(callback)),
+		fx.Supply(NewProvider(provider)),
 	)
 
 	ctx := context.Background()
