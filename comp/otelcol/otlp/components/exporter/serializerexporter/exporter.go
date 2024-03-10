@@ -21,24 +21,24 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 )
 
-var _ component.Config = (*exporterConfig)(nil)
+var _ component.Config = (*ExporterConfig)(nil)
 
 func newDefaultConfig() component.Config {
-	return &exporterConfig{
+	return &ExporterConfig{
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
 		QueueSettings: exporterhelper.NewDefaultQueueSettings(),
 
-		Metrics: metricsConfig{
+		Metrics: MetricsConfig{
 			DeltaTTL: 3600,
-			ExporterConfig: metricsExporterConfig{
+			ExporterConfig: MetricsExporterConfig{
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
 				InstrumentationScopeMetadataAsTags:   false,
 			},
 			TagCardinality: "low",
-			HistConfig: histogramConfig{
+			HistConfig: HistogramConfig{
 				Mode:             "distributions",
 				SendAggregations: false,
 			},
@@ -46,7 +46,7 @@ func newDefaultConfig() component.Config {
 				CumulativeMonotonicMode:        CumulativeMonotonicSumModeToDelta,
 				InitialCumulativeMonotonicMode: InitialValueModeAuto,
 			},
-			SummaryConfig: summaryConfig{
+			SummaryConfig: SummaryConfig{
 				Mode: SummaryModeGauges,
 			},
 			APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
@@ -81,7 +81,7 @@ type exporter struct {
 	apmReceiverAddr string
 }
 
-func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *exporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
+func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *ExporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -131,12 +131,13 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
-func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *exporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*exporter, error) {
+func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
 	}
 
+	fmt.Printf("##### starting translatorFromConfig with attributesTranslator: %v\n", attributesTranslator)
 	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
