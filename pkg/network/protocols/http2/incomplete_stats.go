@@ -24,7 +24,7 @@ type incompleteBuffer struct {
 	data              []*EbpfTx
 	maxEntries        int
 	minAgeNano        int64
-	oversizedLogLimit *log.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 // NewIncompleteBuffer returns a new incompleteBuffer.

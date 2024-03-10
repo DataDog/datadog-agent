@@ -41,7 +41,7 @@ type ContainerCheck struct {
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	networkID         string
 
-	containerFailedLogLimit *log.LogLimit
+	containerFailedLogLimit *log.Limit
 
 	maxBatchSize int
 }

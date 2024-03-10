@@ -123,7 +123,7 @@ type ProcessMonitor struct {
 
 	tel processMonitorTelemetry
 
-	oversizedLogLimit *log.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.

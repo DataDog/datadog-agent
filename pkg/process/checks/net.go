@@ -57,7 +57,7 @@ type ConnectionsCheck struct {
 	maxConnsPerMessage     int
 	tracerClientID         string
 	networkID              string
-	notInitializedLogLimit *log.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor

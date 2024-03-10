@@ -34,7 +34,7 @@ type StatKeeper struct {
 	// http path buffer
 	buffer []byte
 
-	oversizedLogLimit *log.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 // NewStatkeeper returns a new StatKeeper.
