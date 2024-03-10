@@ -58,6 +58,25 @@ type provides struct {
 	Provider runnerimpl.Provider
 }
 
+type runnerProvider struct {
+	resource *resourcesImpl
+}
+
+func (runnerProvider) Index() int {
+	return 2
+}
+
+func (r runnerProvider) SendInformation(ctx context.Context) time.Duration {
+	payload := r.resource.Get()
+
+	if payload != nil {
+		if err := r.resource.serializer.SendProcessesMetadata(payload); err != nil {
+			r.resource.log.Errorf("unable to serialize processes metadata payload, %s", err)
+		}
+	}
+	return r.resource.collectInterval
+}
+
 func newResourcesProvider(deps dependencies) provides {
 	// By default, the 'resources' metadata is only enabled on Linux. Users can manually enable it on darwin
 	// platform. This is legacy behavior from Agent V5.
@@ -97,7 +116,7 @@ func newResourcesProvider(deps dependencies) provides {
 		deps.Log.Infof("Collection interval for 'resources' metadata provider is set to 0: disabling it")
 	} else {
 		deps.Log.Debugf("Collection interval for 'resources' metadata provider is set to %s", collectInterval)
-		res.Provider = runnerimpl.NewProvider(r.collect)
+		res.Provider = runnerimpl.NewProvider(runnerProvider{resource: &r})
 	}
 
 	return res

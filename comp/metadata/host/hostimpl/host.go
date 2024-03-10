@@ -71,6 +71,22 @@ type provides struct {
 	StatusHeaderProvider status.HeaderInformationProvider
 }
 
+type runnerProvider struct {
+	host *host
+}
+
+func (runnerProvider) Index() int {
+	return 0
+}
+
+func (r runnerProvider) SendInformation(ctx context.Context) time.Duration {
+	payload := r.host.getPayload(ctx)
+	if err := r.host.serializer.SendHostMetadata(payload); err != nil {
+		r.host.log.Errorf("unable to submit host metadata payload, %s", err)
+	}
+	return r.host.collectInterval
+}
+
 func newHostProvider(deps dependencies) provides {
 	collectInterval := defaultCollectInterval
 	confProviders, err := configUtils.GetMetadataProviders(deps.Config)
@@ -100,9 +116,10 @@ func newHostProvider(deps dependencies) provides {
 		collectInterval: collectInterval,
 		serializer:      deps.Serializer,
 	}
+
 	return provides{
 		Comp:             &h,
-		MetadataProvider: runnerimpl.NewProvider(h.collect),
+		MetadataProvider: runnerimpl.NewProvider(runnerProvider{host: &h}),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
 			Config: h.config,

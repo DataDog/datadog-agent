@@ -7,6 +7,7 @@ package runnerimpl
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -21,19 +22,21 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newRunner))
+		fx.Provide(newRunner),
+	)
 }
 
 // MetadataProvider is the provider for metadata
-type MetadataProvider func(context.Context) time.Duration
+type MetadataProvider interface {
+	Index() int
+	SendInformation(context.Context) time.Duration
+}
 
 type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
-	// configuration
-	providers []optional.Option[MetadataProvider]
+	providers []MetadataProvider
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -45,6 +48,8 @@ type dependencies struct {
 	Log    log.Component
 	Config config.Component
 
+	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
+	// configuration
 	Providers []optional.Option[MetadataProvider] `group:"metadata_provider"`
 }
 
@@ -72,10 +77,23 @@ func NewEmptyProvider() Provider {
 
 // createRunner instantiates a runner object
 func createRunner(deps dependencies) *runnerImpl {
+	nonOptionalProviders := []MetadataProvider{}
+	providers := fxutil.GetAndFilterGroup(deps.Providers)
+
+	for _, optionaP := range providers {
+		if p, isSet := optionaP.Get(); isSet {
+			nonOptionalProviders = append(nonOptionalProviders, p)
+		}
+	}
+
+	sort.SliceStable(nonOptionalProviders, func(i, j int) bool {
+		return nonOptionalProviders[i].Index() < nonOptionalProviders[j].Index()
+	})
+
 	return &runnerImpl{
 		log:       deps.Log,
 		config:    deps.Config,
-		providers: fxutil.GetAndFilterGroup(deps.Providers),
+		providers: nonOptionalProviders,
 		stopChan:  make(chan struct{}),
 	}
 }
@@ -116,7 +134,7 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 
 	for {
 		go func(intervalChan chan time.Duration) {
-			intervalChan <- p(ctx)
+			intervalChan <- p.SendInformation(ctx)
 		}(intervalChan)
 
 		select {
@@ -138,10 +156,14 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 // not block here.
 func (r *runnerImpl) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
-	for _, optionaP := range r.providers {
-		if p, isSet := optionaP.Get(); isSet {
-			go r.handleProvider(p)
+
+	for i, provider := range r.providers {
+		// Very hacky solution for now
+		// At start time we block the agent start process until we return from sending host tags top intake endpoint
+		if i == 0 {
+			provider.SendInformation(context.TODO())
 		}
+		go r.handleProvider(provider)
 	}
 	return nil
 }

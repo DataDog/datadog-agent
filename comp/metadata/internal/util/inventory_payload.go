@@ -132,11 +132,39 @@ func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
 	return flaretypes.NewProvider(i.fillFlare)
 }
 
+type runnerProvider struct {
+	inventory *InventoryPayload
+}
+
+func (runnerProvider) Index() int {
+	return 1
+}
+
+func (r runnerProvider) SendInformation(ctx context.Context) time.Duration {
+	r.inventory.m.Lock()
+	defer r.inventory.m.Unlock()
+
+	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if it's
+	// been at least MaxInterval seconds since the last payload.
+	if !r.inventory.forceRefresh.Load() && r.inventory.MaxInterval-timeSince(r.inventory.LastCollect) > 0 {
+		return r.inventory.MinInterval
+	}
+
+	r.inventory.forceRefresh.Store(false)
+	r.inventory.LastCollect = time.Now()
+
+	p := r.inventory.getPayload()
+	if err := r.inventory.serializer.SendMetadata(p); err != nil {
+		r.inventory.log.Errorf("unable to submit inventories payload, %s", err)
+	}
+	return r.inventory.MinInterval
+}
+
 // MetadataProvider returns a metadata 'runner.Provider' for the current inventory payload (taking into account if
 // invnetory is enabled or not).
 func (i *InventoryPayload) MetadataProvider() runnerimpl.Provider {
 	if i.Enabled {
-		return runnerimpl.NewProvider(i.collect)
+		return runnerimpl.NewProvider(runnerProvider{inventory: i})
 	}
 	return runnerimpl.NewEmptyProvider()
 }
