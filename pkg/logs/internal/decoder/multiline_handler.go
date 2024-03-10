@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -39,8 +39,13 @@ type MultiLineHandler struct {
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler.
-func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool) *MultiLineHandler {
-	return &MultiLineHandler{
+func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.Regexp, flushTimeout time.Duration, lineLimit int, telemetryEnabled bool, tailerInfo *status.InfoRegistry) *MultiLineHandler {
+
+	i := status.NewMappedInfo("Multi-Line Pattern")
+	i.SetMessage("Pattern", newContentRe.String())
+	tailerInfo.Register(i)
+
+	h := &MultiLineHandler{
 		outputFn:          outputFn,
 		newContentRe:      newContentRe,
 		buffer:            bytes.NewBuffer(nil),
@@ -51,6 +56,7 @@ func NewMultiLineHandler(outputFn func(*message.Message), newContentRe *regexp.R
 		telemetryEnabled:  telemetryEnabled,
 		linesCombined:     0,
 	}
+	return h
 }
 
 func (h *MultiLineHandler) flushChan() <-chan time.Time {

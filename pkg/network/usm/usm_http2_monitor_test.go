@@ -1201,11 +1201,61 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
 	tests := []struct {
-		name           string
-		messageBuilder func() [][]byte
+		name                           string
+		messageBuilder                 func() [][]byte
+		fragmentedFrameCountRST        uint64
+		fragmentedHeadersFrameEOSCount uint64
+		fragmentedHeadersFrameCount    uint64
+		fragmentedDataFrameEOSCount    uint64
 	}{
 		{
-			name: "validate message split into 2 tcp segments",
+			name: "validate fragmented headers frame with eos",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				const endStream = true
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders(), EndStream: endStream}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a[:10],
+					a[10:],
+				}
+			},
+			fragmentedHeadersFrameEOSCount: 1,
+		},
+		{
+			name: "validate fragmented data frame with eos",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				b := newFramer().writeData(t, 1, true, []byte("test1234")).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a,
+					b[:10],
+				}
+			},
+			fragmentedDataFrameEOSCount: 1,
+		},
+		{
+			name: "validate fragmented rst frame",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				b := newFramer().writeRSTStream(t, 1, 1).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a,
+					b[:10],
+				}
+			},
+			fragmentedFrameCountRST: 1,
+		},
+		{
+			name: "validate fragmented headers frame",
 			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
 			messageBuilder: func() [][]byte {
 				a := newFramer().
@@ -1216,8 +1266,8 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 					a[:10],
 					a[10:],
 				}
-
 			},
+			fragmentedHeadersFrameCount: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -1235,7 +1285,10 @@ func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
 			assert.Eventually(t, func() bool {
 				telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
 				require.NoError(t, err, "could not get http2 telemetry")
-				require.Greater(t, telemetry.Fragmented_frame_count, uint64(0), "expected to see frames split count > 0")
+				require.Equal(t, telemetry.Fragmented_frame_count_data_eos, tt.fragmentedDataFrameEOSCount, "expected to see %d fragmented data eos frames and got %d", tt.fragmentedDataFrameEOSCount, telemetry.Fragmented_frame_count_data_eos)
+				require.Equal(t, telemetry.Fragmented_frame_count_headers_eos, tt.fragmentedHeadersFrameEOSCount, "expected to see %d fragmented headers eos frames and got %d", tt.fragmentedHeadersFrameEOSCount, telemetry.Fragmented_frame_count_headers_eos)
+				require.Equal(t, telemetry.Fragmented_frame_count_rst, tt.fragmentedFrameCountRST, "expected to see %d fragmented rst frames and got %d", tt.fragmentedFrameCountRST, telemetry.Fragmented_frame_count_rst)
+				require.Equal(t, telemetry.Fragmented_frame_count_headers, tt.fragmentedHeadersFrameCount, "expected to see %d fragmented headers frames and got %d", tt.fragmentedHeadersFrameCount, telemetry.Fragmented_frame_count_headers)
 				return true
 
 			}, time.Second*5, time.Millisecond*100)
@@ -1660,6 +1713,16 @@ func (f *framer) writeRawHeaders(t *testing.T, streamID uint32, endHeaders bool,
 func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions) *framer {
 	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
 	require.NoError(t, err, "could not create headers frame")
+
+	if headersFramesOptions.EndStream {
+		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      streamID,
+			BlockFragment: headersFrame,
+			EndHeaders:    endHeaders,
+			EndStream:     true,
+		}), "could not write header frames")
+		return f
+	}
 
 	return f.writeRawHeaders(t, streamID, true, headersFrame)
 }

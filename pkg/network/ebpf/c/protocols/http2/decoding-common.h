@@ -126,8 +126,8 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // See RFC 7540 section 5.1: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1
 static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
     // We want to see the EOS twice for a given stream: one for the client, one for the server.
-    if (!current_stream->request_end_of_stream) {
-        current_stream->request_end_of_stream = true;
+    if (!current_stream->end_of_stream_seen) {
+        current_stream->end_of_stream_seen = true;
         return;
     }
 
@@ -167,9 +167,21 @@ static __always_inline void reset_frame(http2_frame_t *out) {
 }
 
 // check_frame_split checks if the frame is split into multiple tcp payloads, if so, it increments the split counter.
-static __always_inline void check_frame_split(http2_telemetry_t *http2_tel, __u32 data_off, __u32 data_end, __u32 length){
-    if (data_off + length > data_end) {
-        __sync_fetch_and_add(&http2_tel->fragmented_frame_count, 1);
+static __always_inline void check_frame_split(http2_telemetry_t *http2_tel, __u32 data_off, __u32 data_end, http2_frame_t current_frame){
+    bool is_headers = current_frame.type == kHeadersFrame;
+    bool is_rst_frame = current_frame.type == kRSTStreamFrame;
+    bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
+    bool is_headers_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (is_headers);
+    if (data_off + current_frame.length > data_end) {
+        if (is_headers_end_of_stream) {
+            __sync_fetch_and_add(&http2_tel->fragmented_frame_count_headers_eos, 1);
+        } else if (is_data_end_of_stream) {
+            __sync_fetch_and_add(&http2_tel->fragmented_frame_count_data_eos, 1);
+        } else if (is_rst_frame) {
+            __sync_fetch_and_add(&http2_tel->fragmented_frame_count_rst, 1);
+        } else if (is_headers) {
+           __sync_fetch_and_add(&http2_tel->fragmented_frame_count_headers, 1);
+        }
     }
 }
 

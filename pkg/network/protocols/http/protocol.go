@@ -114,7 +114,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
-	events.Configure(eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, mgr, opts)
 }
 
 func (p *protocol) PreStart(mgr *manager.Manager) (err error) {

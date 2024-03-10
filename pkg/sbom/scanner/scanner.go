@@ -124,6 +124,10 @@ func (s *Scanner) enoughDiskSpace(opts sbom.ScanOptions) error {
 // sendResult sends a ScanResult to the channel associated with the scan request.
 // This function should not be blocking
 func sendResult(requestID string, result *sbom.ScanResult, collector collectors.Collector) {
+	if result == nil {
+		log.Errorf("nil result for '%s'", requestID)
+		return
+	}
 	select {
 	case collector.Channel() <- *result:
 	default:
@@ -231,34 +235,36 @@ func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.Conta
 }
 
 func (s *Scanner) processScan(ctx context.Context, request sbom.ScanRequest, imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) {
-	if !s.checkDiskSpace(request, imgMeta, collector) {
-		return
+	result := s.checkDiskSpace(imgMeta, collector)
+	errorType := "disk_space"
+
+	if result == nil {
+		scanContext, cancel := context.WithTimeout(ctx, timeout(collector))
+		defer cancel()
+		result = s.performScan(scanContext, request, collector)
+		errorType = "scan"
 	}
-	scanContext, cancel := context.WithTimeout(ctx, timeout(collector))
-	defer cancel()
-	scanResult := s.performScan(scanContext, request, collector)
-	sendResult(request.ID(), &scanResult, collector)
-	s.handleScanResult(scanResult, request, collector)
+	sendResult(request.ID(), result, collector)
+	s.handleScanResult(result, request, collector, errorType)
 	waitAfterScanIfNecessary(ctx, collector)
 }
 
 // checkDiskSpace checks if there is enough disk space to perform the scan
-// It sends an error result to the collector if there is not enough space
-// It returns a boolean indicating if the scan should be pursued
-func (s *Scanner) checkDiskSpace(request sbom.ScanRequest, imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) bool {
-	if err := s.enoughDiskSpace(collector.Options()); err != nil {
-		result := sbom.ScanResult{
-			ImgMeta: imgMeta,
-			Error:   fmt.Errorf("failed to check current disk usage: %w", err),
-		}
-		sendResult(request.ID(), &result, collector)
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
-		return false
+// It sends a scan result wrapping an error if there is not enough space
+// If everything is correct it returns nil.
+func (s *Scanner) checkDiskSpace(imgMeta *workloadmeta.ContainerImageMetadata, collector collectors.Collector) *sbom.ScanResult {
+	err := s.enoughDiskSpace(collector.Options())
+	if err == nil {
+		return nil
 	}
-	return true
+	result := &sbom.ScanResult{
+		ImgMeta: imgMeta,
+		Error:   fmt.Errorf("failed to check current disk usage: %w", err),
+	}
+	return result
 }
 
-func (s *Scanner) performScan(ctx context.Context, request sbom.ScanRequest, collector collectors.Collector) sbom.ScanResult {
+func (s *Scanner) performScan(ctx context.Context, request sbom.ScanRequest, collector collectors.Collector) *sbom.ScanResult {
 	createdAt := time.Now()
 
 	s.cacheMutex.Lock()
@@ -269,19 +275,25 @@ func (s *Scanner) performScan(ctx context.Context, request sbom.ScanRequest, col
 
 	scanResult.CreatedAt = createdAt
 	scanResult.Duration = generationDuration
-	return scanResult
+	return &scanResult
 }
 
-func (s *Scanner) handleScanResult(scanResult sbom.ScanResult, request sbom.ScanRequest, collector collectors.Collector) {
+func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, request sbom.ScanRequest, collector collectors.Collector, errorType string) {
+	if scanResult == nil {
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "nil_scan_result")
+		log.Errorf("nil scan result for '%s'", request.ID())
+		return
+	}
 	if scanResult.Error != nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
 		if collector.Type() == collectors.ContainerImageScanType {
 			s.scanQueue.AddRateLimited(request)
 		}
-	} else {
-		telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type())
-		s.scanQueue.Forget(request)
+		return
 	}
+
+	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type())
+	s.scanQueue.Forget(request)
 }
 
 func waitAfterScanIfNecessary(ctx context.Context, collector collectors.Collector) {

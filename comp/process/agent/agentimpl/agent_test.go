@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestProcessAgentComponent(t *testing.T) {
@@ -53,7 +52,11 @@ func TestProcessAgentComponent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			originalFlavor := flavor.GetFlavor()
 			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+			}()
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
@@ -67,9 +70,8 @@ func TestProcessAgentComponent(t *testing.T) {
 				opts = append(opts, processcheckimpl.MockModule())
 			}
 
-			agt := fxutil.Test[optional.Option[agent.Component]](t, fx.Options(opts...))
-			_, ok := agt.Get()
-			assert.Equal(t, tc.expected, ok)
+			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
+			assert.Equal(t, tc.expected, agentComponent.Enabled())
 		})
 	}
 }
