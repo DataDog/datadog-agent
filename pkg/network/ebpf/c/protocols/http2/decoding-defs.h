@@ -170,7 +170,7 @@ typedef struct {
     status_code_t status_code;
     method_t request_method;
     path_t path;
-    bool request_end_of_stream;
+    bool end_of_stream_seen;
     bool response_end_of_stream;
     bool request_end_of_stream_real;
 } http2_stream_t;

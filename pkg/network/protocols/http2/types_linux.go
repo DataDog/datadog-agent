@@ -67,7 +67,7 @@ type HTTP2Stream struct {
 	Status_code                http2StatusCode
 	Request_method             http2requestMethod
 	Path                       http2Path
-	Request_end_of_stream      bool
+	End_of_stream_seen      bool
 	Response_end_of_stream     bool
 	Request_end_of_stream_real bool
 }

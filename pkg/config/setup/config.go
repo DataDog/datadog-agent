@@ -577,6 +577,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	// Autoconfig
+	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
+	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
+	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
@@ -1510,17 +1513,42 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_PROXY_HTTPS":    {},
 		"DD_PROXY_NO_PROXY": {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":              {},
-		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
-		"DD_DOTNET_TRACER_HOME":              {},
-		"DD_FLUSH_TO_LOG":                    {},
-		"DD_KMS_API_KEY":                     {},
-		"DD_LAMBDA_HANDLER":                  {},
-		"DD_LOGS_INJECTION":                  {},
-		"DD_MERGE_XRAY_TRACES":               {},
-		"DD_SERVERLESS_APPSEC_ENABLED":       {},
-		"DD_SERVICE":                         {},
-		"DD_VERSION":                         {},
+		"DD_AAS_DOTNET_EXTENSION_VERSION":          {},
+		"DD_AAS_EXTENSION_VERSION":                 {},
+		"DD_AAS_JAVA_EXTENSION_VERSION":            {},
+		"DD_AGENT_PIPE_NAME":                       {},
+		"DD_API_KEY_SECRET_ARN":                    {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS":       {},
+		"DD_APPSEC_ENABLED":                        {},
+		"DD_AZURE_APP_SERVICES":                    {},
+		"DD_DOGSTATSD_ARGS":                        {},
+		"DD_DOGSTATSD_PATH":                        {},
+		"DD_DOGSTATSD_WINDOWS_PIPE_NAME":           {},
+		"DD_DOTNET_TRACER_HOME":                    {},
+		"DD_EXTENSION_PATH":                        {},
+		"DD_FLUSH_TO_LOG":                          {},
+		"DD_KMS_API_KEY":                           {},
+		"DD_INTEGRATIONS":                          {},
+		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
+		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
+		"DD_LAMBDA_HANDLER":                        {},
+		"DD_LOGS_INJECTION":                        {},
+		"DD_MERGE_XRAY_TRACES":                     {},
+		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
+		"DD_PROFILING_LOG_DIR":                     {},
+		"DD_RUNTIME_METRICS_ENABLED":               {},
+		"DD_SERVERLESS_APPSEC_ENABLED":             {},
+		"DD_SERVERLESS_FLUSH_STRATEGY":             {},
+		"DD_SERVICE":                               {},
+		"DD_TRACE_AGENT_ARGS":                      {},
+		"DD_TRACE_AGENT_PATH":                      {},
+		"DD_TRACE_AGENT_URL":                       {},
+		"DD_TRACE_LOG_DIRECTORY":                   {},
+		"DD_TRACE_LOG_PATH":                        {},
+		"DD_TRACE_METRICS_ENABLED":                 {},
+		"DD_TRACE_PIPE_NAME":                       {},
+		"DD_TRACE_TRANSPORT":                       {},
+		"DD_VERSION":                               {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
