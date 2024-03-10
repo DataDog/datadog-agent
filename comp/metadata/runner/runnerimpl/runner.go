@@ -118,9 +118,10 @@ func newRunner(lc fx.Lifecycle, deps dependencies) runner.Component {
 }
 
 // handleProvider runs a provider at regular interval until the runner is stopped
-func (r *runnerImpl) handleProvider(p MetadataProvider) {
+func (r *runnerImpl) handleProvider(p MetadataProvider, queue chan struct{}) {
 	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
 	r.wg.Add(1)
+	queue <- struct{}{}
 
 	intervalChan := make(chan time.Duration)
 	var interval time.Duration
@@ -132,24 +133,27 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 		r.wg.Done()
 	}()
 
-	for {
-		go func(intervalChan chan time.Duration) {
-			intervalChan <- p.SendInformation(ctx)
-		}(intervalChan)
+	go func() {
+		for {
+			go func(intervalChan chan time.Duration) {
+				intervalChan <- p.SendInformation(ctx)
+				<-queue
+			}(intervalChan)
 
-		select {
-		case interval = <-intervalChan:
-		case <-r.stopChan:
-			cancel()
-			return
-		}
+			select {
+			case interval = <-intervalChan:
+			case <-r.stopChan:
+				cancel()
+				return
+			}
 
-		select {
-		case <-time.After(interval):
-		case <-r.stopChan:
-			return
+			select {
+			case <-time.After(interval):
+			case <-r.stopChan:
+				return
+			}
 		}
-	}
+	}()
 }
 
 // start is called by FX when the application starts. Lifecycle hooks are blocking and called sequencially. We should
@@ -157,14 +161,12 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 func (r *runnerImpl) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
 
-	for i, provider := range r.providers {
-		// Very hacky solution for now
-		// At start time we block the agent start process until we return from sending host tags top intake endpoint
-		if i == 0 {
-			provider.SendInformation(context.TODO())
-		}
-		go r.handleProvider(provider)
+	queue := make(chan struct{}, 1)
+
+	for _, provider := range r.providers {
+		r.handleProvider(provider, queue)
 	}
+
 	return nil
 }
 
