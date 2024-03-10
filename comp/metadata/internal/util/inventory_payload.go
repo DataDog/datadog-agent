@@ -140,7 +140,7 @@ func (runnerProvider) Index() int {
 	return 1
 }
 
-func (r runnerProvider) SendInformation(ctx context.Context) time.Duration {
+func (r runnerProvider) SendInformation(_ context.Context) time.Duration {
 	r.inventory.m.Lock()
 	defer r.inventory.m.Unlock()
 

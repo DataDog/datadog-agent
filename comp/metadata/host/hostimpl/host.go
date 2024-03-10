@@ -127,14 +127,6 @@ func newHostProvider(deps dependencies) provides {
 	}
 }
 
-func (h *host) collect(ctx context.Context) time.Duration {
-	payload := h.getPayload(ctx)
-	if err := h.serializer.SendHostMetadata(payload); err != nil {
-		h.log.Errorf("unable to submit host metadata payload, %s", err)
-	}
-	return h.collectInterval
-}
-
 func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 	return json.MarshalIndent(h.getPayload(ctx), "", "    ")
 }
