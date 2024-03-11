@@ -355,8 +355,19 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 	return filteredMetrics, nil
 }
 
-// WithTags filters by `tags` where tags is an array of regex strings
+// WithTags filters by `tags`.
 func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
+	return func(payload P) (bool, error) {
+		if aggregator.AreTagsSubsetOfOtherTags(tags, payload.GetTags()) {
+			return true, nil
+		}
+		// TODO return similarity error score
+		return false, nil
+	}
+}
+
+// WithMatchingTags filters by `tags` where tags is an array of regex strings
+func WithMatchingTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
 	regTags := lo.Map(tags, func(tag string, _ int) *regexp.Regexp {
 		return regexp.MustCompile(tag)
 	})

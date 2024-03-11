@@ -157,7 +157,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				args.Filter.Name,
-				fakeintake.WithTags[*aggregator.MetricSeries](args.Filter.Tags),
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries](args.Filter.Tags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
