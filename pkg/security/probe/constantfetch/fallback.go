@@ -922,9 +922,7 @@ func getLinuxBinPrmEnvcOffset(kv *kernel.Version) uint64 {
 
 func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	switch {
-	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
-		return 32
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_2, kernel.Kernel6_6):
+	case kv.Code >= kernel.Kernel6_1:
 		return 32
 	}
 	return 80
