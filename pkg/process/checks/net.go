@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
-	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
@@ -58,7 +57,7 @@ type ConnectionsCheck struct {
 	maxConnsPerMessage     int
 	tracerClientID         string
 	networkID              string
-	notInitializedLogLimit *putil.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
@@ -74,7 +73,7 @@ type ProcessConnRates map[int32]*model.ProcessNetworks
 func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
-	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
+	c.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
