@@ -87,13 +87,13 @@ func TestResolveHostname(t *testing.T) {
 	require.NoError(t, err, "failed to get hostname from OS")
 
 	testCases := []struct {
-		name              string
-		agentFlavor       string
-		ddAgentBin        string
+		name        string
+		agentFlavor string
+		ddAgentBin  string
+		// function to define the host name returned from the core agent
 		coreAgentHostname func(context.Context) (string, error)
 		// hostname specified in the config
-		configHostname string
-
+		configHostname   string
 		expectedHostname string
 	}{
 		{
