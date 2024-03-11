@@ -50,6 +50,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -354,14 +355,17 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 	return filteredMetrics, nil
 }
 
-// WithTags filters by `tags`
+// WithTags filters by `tags` where tags is an array of regex strings
 func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
+	regTags := lo.Map(tags, func(tag string, _ int) *regexp.Regexp {
+		return regexp.MustCompile(tag)
+	})
 	return func(payload P) (bool, error) {
-		if aggregator.AreTagsSubsetOfOtherTags(tags, payload.GetTags()) {
-			return true, nil
-		}
-		// TODO return similarity error score
-		return false, nil
+		return lo.EveryBy(regTags, func(regTag *regexp.Regexp) bool {
+			return lo.SomeBy(payload.GetTags(), func(t string) bool {
+				return regTag.MatchString(t)
+			})
+		}), nil
 	}
 }
 

@@ -57,10 +57,14 @@ type testMetricArgs struct {
 
 type testMetricFilterArgs struct {
 	Name string
+	// Tags are used to filter the metrics
+	// Regexes are supported
 	Tags []string
 }
 
 type testMetricExpectArgs struct {
+	// Tags are the tags expected to be present
+	// Regexes are supported
 	Tags  *[]string
 	Value *testMetricExpectValueArgs
 }
