@@ -449,6 +449,10 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 		}
 	}
 
+	// Set a default user and group to support pod deployments with a `runAsNonRoot` security context
+	runAsUser := int64(10000)
+	runAsGroup := int64(10000)
+
 	initContainer := corev1.Container{
 		Name:    cwsInjectorInitContainerName,
 		Image:   image,
@@ -458,6 +462,10 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 				Name:      cwsVolumeName,
 				MountPath: cwsMountPath,
 			},
+		},
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:  &runAsUser,
+			RunAsGroup: &runAsGroup,
 		},
 	}
 	if resources != nil {
