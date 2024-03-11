@@ -21,6 +21,7 @@ func Benchmark_cStringArrayToSlice(b *testing.B) {
 	for i := range slice {
 		slice[i] = strings.Repeat("a", stringLen)
 	}
+	// Note: cArray is not freed, but that's fine for the benchmark.
 	cArray := sliceToCStringArray(slice)
 
 	b.ReportAllocs()

@@ -172,17 +172,6 @@ func sliceToCStringArray(s []string) **C.char {
 	return cArray
 }
 
-// freeCStringArray frees the memory of a null-terminated array of C strings.
-// It's a test helper, but it can't be declared in a _test.go file because cgo
-// is not allowed there.
-func freeCStringArray(cArray **C.char) {
-	for i := 0; cArray != nil && *cArray != nil; i++ {
-		C._free(unsafe.Pointer(*cArray))
-		cArray = (**C.char)(unsafe.Add(unsafe.Pointer(cArray), unsafe.Sizeof(cArray)))
-	}
-	C._free(unsafe.Pointer(cArray))
-}
-
 // GetPythonIntegrationList collects python datadog installed integrations list
 func GetPythonIntegrationList() ([]string, error) {
 	glock, err := newStickyLock()
