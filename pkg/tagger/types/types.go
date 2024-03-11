@@ -23,4 +23,5 @@ type OriginInfo struct {
 	FromMsg       string
 	Cardinality   string
 	ProductOrigin ProductOrigin
+	OptOutEnabled *bool
 }
