@@ -60,12 +60,11 @@ notify_github:
   stage: notify
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
-  # TODO : needs
   when: always
   dependencies: []
   allow_failure: true
+  # TODO : Remove last message
   script: |
-    # TODO : Clean
     # Add janky means of installing PR commenter borrowed from
     # https://github.com/DataDog/dogweb/blob/45d7fcf035d0d515ebd901919099d4c8bfa82829/docker/docker-builder/Dockerfile#L69-L77
     apt-get update
@@ -92,5 +91,5 @@ notify_github:
     echo "```sh" >> "$messagefile"
     echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     echo "```" >> "$messagefile"
-    echo "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
+    cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
     rm "$messagefile"
