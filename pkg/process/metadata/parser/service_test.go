@@ -6,7 +6,6 @@
 package parser
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -395,8 +394,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag:   "process_context:tomcat",
 		},
 	}
-	_, err := os.Getwd()
-	require.NoError(t, err)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

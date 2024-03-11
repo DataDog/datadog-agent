@@ -20,7 +20,7 @@ import (
 // appserver is an enumeration of application server types
 type serverVendor uint8
 
-// appserver enums
+// appserver bitwise enums. Each element should be a power of two. The first element, unknown is 0.
 const (
 	unknown serverVendor = 0
 	jboss                = 1 << (iota - 1)
@@ -240,6 +240,8 @@ func ExtractServiceNamesForJEEServer(args []string, cwd string, fs afero.Fs) []s
 				contextRoots = append(contextRoots, value)
 				continue
 			}
+		} else {
+			_ = fsCloser.Close()
 		}
 		defaultFinder, ok := defaultContextNameExtractors[vendor]
 		if ok {
