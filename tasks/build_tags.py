@@ -119,7 +119,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "zstd" "ec2"}
+SECURITY_AGENT_TAGS = {"netcgo", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "zstd", "ec2"}
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
 SERVERLESS_TAGS = {"serverless", "otlp"}
