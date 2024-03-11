@@ -61,7 +61,7 @@ notify_github:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   when: always
-  needs: setup_agent_version
+  needs: ["setup_agent_version"]
   dependencies: []
   allow_failure: true
   script:
