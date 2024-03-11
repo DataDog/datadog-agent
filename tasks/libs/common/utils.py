@@ -228,10 +228,25 @@ def get_build_flags(
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 
-    # On macOS work around https://github.com/golang/go/issues/38824
-    # as done in https://go-review.googlesource.com/c/go/+/372798
     if sys.platform == "darwin":
-        extldflags += "-Wl,-bind_at_load "
+        # On macOS work around https://github.com/golang/go/issues/38824
+        # as done in https://go-review.googlesource.com/c/go/+/372798
+        extldflags += "-Wl,-bind_at_load,-no_warn_duplicate_libraries"
+
+        # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
+        # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
+        # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
+        # See https://indiestack.com/2023/10/xcode-15-duplicate-library-linker-warnings/
+        xcode_version = ctx.run(
+            "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
+        ).stdout.strip()
+        if xcode_version and int(xcode_version.split('.')[0]) >= 15:
+            extldflags += ",-no_warn_duplicate_libraries "
+        else:
+            print(
+                "Could not determine XCode version with 'xcodebuild -version', not adding -no_warn_duplicate_libraries to extldflags",
+                file=sys.stderr,
+            )
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
