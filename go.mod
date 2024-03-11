@@ -73,6 +73,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry/
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ./pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
@@ -648,6 +649,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/common v0.52.0-rc.3
