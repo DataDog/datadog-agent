@@ -6,7 +6,7 @@
 package networkpath
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"gopkg.in/yaml.v2"
 )
 

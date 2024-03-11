@@ -34,7 +34,10 @@ func TestLinuxFlareSuite(t *testing.T) {
 	e2e.Run(t, &linuxFlareSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
-func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
+// Add zz to name to run this test last in order to don't break other tests
+// Will need to rename it to TestFlareWithAllConfiguration after the fix of Paola's PR
+// To keep in mind that we will need to create the directory then create file in it and specify to delete file as the same time as the directory
+func (v *linuxFlareSuite) TestzzzFlareWithAllConfiguration() {
 	scenarioExpectedFiles := []string{
 		"telemetry.log",       // if telemetry.enabled
 		"registry.json",       // if Logs Agent is running
@@ -60,7 +63,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
 
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare, _ := requestAgentFlareAndFetchFromFakeIntake(&v.baseFlareSuite, agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)

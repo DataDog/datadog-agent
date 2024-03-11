@@ -16,9 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
