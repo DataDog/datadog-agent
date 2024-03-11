@@ -94,6 +94,7 @@ func (r *SingleDomainResolver) GetAlternateDomains() []string {
 	return []string{}
 }
 
+// UpdateAPIKey replaces instances of the oldKey with the newKey
 func (r *SingleDomainResolver) UpdateAPIKey(oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -163,6 +164,7 @@ func (r *MultiDomainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
 }
 
+// UpdateAPIKey replaces instances of the oldKey with the newKey
 func (r *MultiDomainResolver) UpdateAPIKey(oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
