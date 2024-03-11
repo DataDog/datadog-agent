@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.3.1
+install_script_version=1.4.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
