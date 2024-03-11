@@ -1855,6 +1855,93 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"ruby": "v1.2.3"})
 			},
 		},
+		{
+			name: "Single Step Instrumentation: enable ASM",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				{
+					Name:  "DD_APPSEC_ENABLED",
+					Value: "true",
+				},
+			},
+			expectedInjectedLibraries: map[string]string{},
+			wantErr:                   false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("asm.enabled", true)
+			},
+		},
+		{
+			name: "Single Step Instrumentation: enable iast",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				{
+					Name:  "DD_IAST_ENABLED",
+					Value: "true",
+				},
+			},
+			expectedInjectedLibraries: map[string]string{},
+			wantErr:                   false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("iast.enabled", true)
+			},
+		},
+		{
+			name: "Single Step Instrumentation: disable sca",
+			pod: common.FakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{},
+				"replicaset", "test-app-123",
+			),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				{
+					Name:  "DD_SCA_ENABLED",
+					Value: "false",
+				},
+			},
+			expectedInjectedLibraries: map[string]string{},
+			wantErr:                   false,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("sca.enabled", false)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

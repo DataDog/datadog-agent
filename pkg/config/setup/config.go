@@ -1316,6 +1316,11 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
 	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
+	// config for products implemented in the client libraries
+	config.BindEnv("asm.enabled", "DD_APPSEC_ENABLED_PROPAGATE")
+	config.BindEnv("iast.enabled", "DD_IAST_ENABLED_PROPAGATE")
+	config.BindEnv("sca.enabled", "DD_SCA_ENABLED_PROPAGATE")
+
 	setupAPM(config)
 	OTLP(config)
 	setupProcesses(config)

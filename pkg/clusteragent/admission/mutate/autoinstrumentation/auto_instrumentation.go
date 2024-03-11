@@ -286,6 +286,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		return errors.New("cannot inject lib into nil pod")
 	}
 	injectApmTelemetryConfig(pod)
+	injectSecurityClientLibraryProducts(pod)
 
 	if w.isEnabledInNamespace(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
@@ -323,6 +324,22 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	}
 
 	return w.injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType)
+}
+
+func injectSecurityClientLibraryProducts(pod *corev1.Pod) {
+	injectProductActivationKey(pod, "asm.enabled", "DD_APPSEC_ENABLED")
+	injectProductActivationKey(pod, "iast.enabled", "DD_IAST_ENABLED")
+	injectProductActivationKey(pod, "sca.enabled", "DD_SCA_ENABLED")
+}
+
+func injectProductActivationKey(pod *corev1.Pod, configKey string, envVarKey string) {
+	if (config.Datadog.Get(configKey) != nil) {
+		enabledValue := config.Datadog.GetBool(configKey)
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+				Name:	envVarKey,
+				Value: 	strconv.FormatBool(enabledValue),
+			});
+	}
 }
 
 func injectApmTelemetryConfig(pod *corev1.Pod) {
