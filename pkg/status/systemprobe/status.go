@@ -46,13 +46,9 @@ type Provider struct {
 
 // GetProvider if system probe is enabled returns status.Provider otherwise returns nil
 func GetProvider(conf config.Component) status.Provider {
-	if conf.GetBool("system_probe_config.enabled") {
-		return Provider{
-			SocketPath: conf.GetString("system_probe_config.sysprobe_socket"),
-		}
+	return Provider{
+		SocketPath: conf.GetString("system_probe_config.sysprobe_socket"),
 	}
-
-	return nil
 }
 
 //go:embed status_templates
@@ -77,7 +73,7 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "clusteragent.tmpl", buffer, p.getStatusInfo())
+	return status.RenderText(templatesFS, "systemprobe.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
