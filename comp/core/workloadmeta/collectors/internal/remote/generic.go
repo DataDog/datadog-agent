@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -193,12 +192,7 @@ func (c *GenericCollector) Run() {
 			}
 		}
 
-		var response interface{}
-		err := grpcutil.DoWithTimeout(func() error {
-			var err error
-			response, err = c.stream.Recv()
-			return err
-		}, streamRecvTimeout)
+		response, err := c.stream.Recv()
 		if err != nil {
 			// at the end of stream, but its OK
 			if err == io.EOF {
