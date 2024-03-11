@@ -154,10 +154,10 @@ func (c *safeConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is known
 func (c *safeConfig) IsKnown(key string) bool {
-	keys := c.GetKnownKeysLowercased()
-	key = strings.ToLower(key)
-	_, ok := keys[key]
-	return ok
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.Viper.IsKnown(key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
