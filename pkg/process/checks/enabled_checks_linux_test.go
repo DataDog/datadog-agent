@@ -66,7 +66,7 @@ func TestProcessCheckLinux(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
-		
+
 		flavor.SetFlavor("process_agent")
 		enabledChecks := getEnabledChecks(t, cfg, scfg)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
