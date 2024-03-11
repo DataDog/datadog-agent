@@ -53,7 +53,7 @@ type OTLP struct {
 
 	// ComputeTopLevelBySpanKind specifies whether top-level spans should be identified by span kind.
 	// If enabled, root spans and spans with a server or consumer `span.kind` will be marked as top-level.
-	// Additionally, spans with a client or producer `span.kind` will have status computed.
+	// Additionally, spans with a client or producer `span.kind` will be marked as measured (aka will have stats computed).
 	ComputeTopLevelBySpanKind bool `mapstructure:"compute_top_level_by_span_kind"`
 
 	// SpanNameRemappings is the map of datadog span names and preferred name to map to. This can be used to
