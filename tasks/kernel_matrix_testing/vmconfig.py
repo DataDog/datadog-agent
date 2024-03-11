@@ -1,19 +1,34 @@
+from __future__ import annotations
+
 import copy
 import itertools
 import json
 import os
 import platform
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
-from typing_extensions import Literal, TypedDict
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple, Union, cast
 from urllib.parse import urlparse
 
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.platforms import Platforms, get_platforms
+from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
-from tasks.kernel_matrix_testing.vars import VMCONFIG, Arch, ArchOrLocal, PathOrStr, arch_mapping
+from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import (  # noqa: F401
+        Arch,
+        ArchOrLocal,
+        CustomKernel,
+        DistroKernel,
+        Kernel,
+        PathOrStr,
+        Platforms,
+        Recipe,
+        VMConfig,
+        VMSetDict,
+    )
 
 local_arch = "local"
 
@@ -114,47 +129,6 @@ table = [
     ["debian 10 - v4.19.0", TICK, TICK],
     ["debian 11 - v5.10.0", TICK, TICK],
 ]
-
-Recipe = Literal["distro", "custom"]
-
-
-class Disk(TypedDict):
-    mount_point: str  # noqa: F841
-    source: str
-    target: str
-    type: str
-
-
-class DistroKernel(TypedDict):
-    tag: str
-    image_source: str  # noqa: F841
-    dir: str
-
-
-class CustomKernel(TypedDict):
-    tag: str
-    extra_params: Dict[str, str]
-    dir: str
-
-
-Kernel = Union[DistroKernel, CustomKernel]
-
-
-class VMSetDict(TypedDict, total=False):
-    tags: List[str]
-    recipe: str
-    arch: ArchOrLocal
-    console_type: str  # noqa: F841
-    kernels: List[Kernel]
-    disks: List[Disk]  # noqa: F841
-    image: Dict[str, str]
-    vcpu: List[int]
-    memory: List[int]
-    machine: str
-
-
-class VMConfig(TypedDict):
-    vmsets: List[VMSetDict]
 
 
 def get_vmconfig_template_file(template="system-probe"):

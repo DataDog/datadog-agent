@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import TYPE_CHECKING, List, Optional, cast
 
 from invoke.context import Context
 from invoke.runners import Result
@@ -17,7 +19,10 @@ from tasks.kernel_matrix_testing.libvirt import (
     resume_domains,
 )
 from tasks.kernel_matrix_testing.tool import Exit, NoLibvirt, error, info
-from tasks.kernel_matrix_testing.vars import VMCONFIG, PathOrStr
+from tasks.kernel_matrix_testing.vars import VMCONFIG
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import PathOrStr
 
 try:
     import libvirt

@@ -1,12 +1,10 @@
+from __future__ import annotations
+
 import json
-from typing import Dict, cast
-from typing_extensions import TypedDict
+from typing import TYPE_CHECKING, cast
 
-
-class Platforms(TypedDict):
-    url_base: str
-    x86_64: Dict[str, str]  # noqa: F841
-    arm64: Dict[str, str]  # noqa: F841
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import Platforms  # noqa: F401
 
 
 platforms_file = "test/new-e2e/system-probe/config/platforms.json"

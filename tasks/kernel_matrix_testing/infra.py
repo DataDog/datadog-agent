@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 import glob
 import json
 import os
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, ask, error
-from tasks.kernel_matrix_testing.vars import ArchOrLocal, PathOrStr
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr
 
 
 class LocalCommandRunner:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import platform
@@ -6,8 +8,7 @@ import shutil
 import tempfile
 from glob import glob
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
-from typing_extensions import TypedDict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -22,9 +23,11 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
-from tasks.kernel_matrix_testing.vars import Arch, ArchOrLocal, PathOrStr
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
 
 try:
     from tabulate import tabulate
@@ -304,18 +307,6 @@ def build_tests_package(ctx: Context, source_dir: str, stack: str, arch: Arch, c
         ctx.run(f"cp -R {test_pkgs} {system_probe_tests}", hide=(not verbose))
         with ctx.cd(os.path.join(root, stack)):
             ctx.run(f"tar czvf {test_archive} opt", hide=(not verbose))
-
-
-class DependencyBuild(TypedDict):
-    directory: str
-    command: str
-    artifact: str
-
-
-class DependenciesLayout(TypedDict):
-    layout: List[str]  # noqa: F841
-    copy: Dict[str, str]
-    build: Dict[str, DependencyBuild]
 
 
 @task

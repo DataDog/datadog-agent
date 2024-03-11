@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import getpass
 import os
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
@@ -7,7 +10,9 @@ from tasks.kernel_matrix_testing.compiler import build_compiler
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import info
-from tasks.kernel_matrix_testing.vars import PathOrStr
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import PathOrStr
 
 
 def is_root() -> bool:

@@ -1,10 +1,9 @@
-import os
-from typing import Dict, Union
-from typing_extensions import Literal
+from __future__ import annotations
 
-Arch = Literal['x86_64', 'arm64']
-ArchOrLocal = Union[Arch, Literal['local']]
-PathOrStr = Union[os.PathLike, str]
+from typing import TYPE_CHECKING, Dict
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import Arch
 
 
 arch_mapping: Dict[str, Arch] = {
