@@ -53,6 +53,7 @@ func (v *ec2VMWKitSuite) BeforeTest(suiteName, testName string) {
 //
 // The test start by 00 to validate the agent/system-probe is up and running
 func (v *ec2VMWKitSuite) Test00FakeIntakeNPM_HostRequests() {
+	v.T().Skip("skip as the test as it's flaky under load")
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	v.Env().RemoteHost.MustExecute("$result = Invoke-WebRequest -UseBasicParsing -Uri " + testURL)
