@@ -333,12 +333,12 @@ func injectSecurityClientLibraryProducts(pod *corev1.Pod) {
 }
 
 func injectProductActivationKey(pod *corev1.Pod, configKey string, envVarKey string) {
-	if (config.Datadog.Get(configKey) != nil) {
+	if config.Datadog.Get(configKey) != nil {
 		enabledValue := config.Datadog.GetBool(configKey)
 		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
-				Name:	envVarKey,
-				Value: 	strconv.FormatBool(enabledValue),
-			});
+			Name:  envVarKey,
+			Value: strconv.FormatBool(enabledValue),
+		})
 	}
 }
 
