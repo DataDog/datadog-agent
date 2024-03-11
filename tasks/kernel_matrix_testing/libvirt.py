@@ -1,24 +1,18 @@
-from typing import TYPE_CHECKING, Callable, Iterable, List, TypeVar
-from typing_extensions import Protocol
+from typing import TYPE_CHECKING, Callable, Iterable, List
 
 from tasks.kernel_matrix_testing.tool import info
 
 if TYPE_CHECKING:
     import libvirt
 
+    from tasks.kernel_matrix_testing.types import TNamed
+
 
 def resource_in_stack(stack: str, resource: str) -> bool:
     return f"-{stack}" in resource
 
 
-class HasName(Protocol):
-    def name(self) -> str: ...  # noqa: E704
-
-
-T = TypeVar('T', bound=HasName)
-
-
-def get_resources_in_stack(stack: str, list_fn: Callable[[], Iterable[T]]) -> List[T]:
+def get_resources_in_stack(stack: str, list_fn: Callable[[], Iterable[TNamed]]) -> List[TNamed]:
     resources = list_fn()
     stack_resources = list()
     for resource in resources:
