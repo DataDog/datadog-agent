@@ -272,6 +272,8 @@ func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) b
 }
 
 func eventuallyShutdown(s *suite.Suite, intake *components.FakeIntake) {
+	// TODO(knusbaum): we can ideally assert the poison pill eventually arrives,
+	// but currently it seems it does not always.
 	//s.EventuallyWithTf(func(c *assert.CollectT) {
 	//	waitForPoisonPill(s.T(), c, intake)
 	//}, 20*time.Second, 1*time.Second, "Failed to find poison pill from tracegen shutdown.")
@@ -284,6 +286,8 @@ func eventuallyShutdown(s *suite.Suite, intake *components.FakeIntake) {
 			return
 		}
 		if time.Now().After(max) {
+			// Timeout, continue tests assuming
+			// it's long enough that the pipeline is clear.
 			return
 		}
 		time.Sleep(1 * time.Second)
