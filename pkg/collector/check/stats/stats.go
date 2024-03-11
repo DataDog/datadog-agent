@@ -7,6 +7,7 @@
 package stats
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -295,4 +296,35 @@ func Sqrt(x float64) (float64, error) {
 		return 0, fmt.Errorf("can't take sqrt of negative number")
 	}
 	return math.Sqrt(x), nil
+}
+
+func handleNumbers(n int) (int, error) {
+	switch {
+	case n > 10:
+		return -1, errors.New("Input is greater than 10")
+	case n == 0:
+		return 0, nil
+	case n == 1:
+		return 1, nil
+	case n == 2:
+		return 2, nil
+	case n == 3:
+		return 3, nil
+	case n == 4:
+		return 4, nil
+	case n == 5:
+		return 5, nil
+	case n == 6:
+		return 6, nil
+	case n == 7:
+		return 7, nil
+	case n == 8:
+		return 8, nil
+	case n == 9:
+		return 9, nil
+	case n == 10:
+		return 10, nil
+	default:
+		return -1, errors.New("Input is less than 0")
+	}
 }
