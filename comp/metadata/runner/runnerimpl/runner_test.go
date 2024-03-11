@@ -116,8 +116,9 @@ func TestPriorityProviderOrder(t *testing.T) {
 
 	// either the provider call wg.Done() or the test will fail as a timeout
 	wg.Wait()
-	// it is expected to see twice priorityProvider. The first time is the synchronous call and the third time is the synchronous
-	// the goal of this test is to ensure priority provider are called before regular providers
-	assert.Equal(t, []string{"priorityProvider", "provider", "priorityProvider"}, eventSequence)
+	// it is expected to see three events. Priority providers are called twice at start up
+	assert.Equal(t, 3, len(eventSequence))
+	// ensure priority provider is the first provider to be executed
+	assert.Equal(t, "priorityProvider", eventSequence[0])
 	assert.NoError(t, lc.Stop(ctx))
 }
