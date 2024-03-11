@@ -792,7 +792,7 @@ workflow:
   - when: on_success
 
 .except_no_tests_no_deploy:
-  - if:  $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+  - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
     when: never
 
 .on_a6_except_deploy:
