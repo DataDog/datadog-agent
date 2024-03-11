@@ -161,10 +161,10 @@ func forEachCString(a **C.char, f func(*C.char)) {
 	}
 }
 
-// sliceToCStringArray converts a slice of Go strings to an array of C strings.
+// testHelperSliceToCStringArray converts a slice of Go strings to an array of C strings.
 // It's a test helper, but it can't be declared in a _test.go file because cgo
 // is not allowed there.
-func sliceToCStringArray(s []string) **C.char {
+func testHelperSliceToCStringArray(s []string) **C.char {
 	cArray := (**C.char)(C.malloc(C.size_t(len(s) + 1)))
 	for i, str := range s {
 		*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), uintptr(i)*unsafe.Sizeof(cArray))) = C.CString(str)
