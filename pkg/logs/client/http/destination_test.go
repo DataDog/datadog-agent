@@ -364,12 +364,12 @@ func TestBackoffDelayDisabled(t *testing.T) {
 }
 
 func TestDestinationHA(t *testing.T) {
-	variants := []*bool{nil, pointer.Ptr(true), pointer.Ptr(false)}
+	variants := []bool{true, false}
 	for _, variant := range variants {
 		endpoint := config.Endpoint{
 			IsHA: variant,
 		}
-		isEndpointHA := endpoint.GetIsHA()
+		isEndpointHA := endpoint.IsHA
 
 		dest := NewDestination(endpoint, JSONContentType, client.NewDestinationsContext(), 1, false, "test", getNewConfig())
 		isDestHA := dest.IsHA()

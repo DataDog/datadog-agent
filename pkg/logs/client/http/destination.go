@@ -151,7 +151,7 @@ func newDestination(endpoint config.Endpoint,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
-		isHA:                endpoint.GetIsHA(),
+		isHA:                endpoint.IsHA,
 	}
 }
 
@@ -165,10 +165,12 @@ func errorToTag(err error) string {
 	}
 }
 
+// IsHA indicates that this destination is a High Availability destination.
 func (d *Destination) IsHA() bool {
 	return d.isHA
 }
 
+// Target is the address of the destination.
 func (d *Destination) Target() string {
 	return d.url
 }

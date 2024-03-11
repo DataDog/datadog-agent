@@ -357,7 +357,7 @@ type passthroughPipelineDesc struct {
 
 // newHTTPPassthroughPipeline creates a new HTTP-only event platform pipeline that sends messages directly to intake
 // without any of the processing that exists in regular logs pipelines.
-func newHTTPPassthroughPipeline(coreConfig configcomp.Component, eventPlatformReceiver eventplatformreceiver.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
+func newHTTPPassthroughPipeline(coreConfig pkgconfig.Reader, eventPlatformReceiver eventplatformreceiver.Component, desc passthroughPipelineDesc, destinationsContext *client.DestinationsContext, pipelineID int) (p *passthroughPipeline, err error) {
 	configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfig.Datadog)
 	endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfig.Datadog, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 	if err != nil {
@@ -449,12 +449,12 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder(coreConfig configcomp.Component, eventPlatformReceiver eventplatformreceiver.Component) *defaultEventPlatformForwarder {
+func newDefaultEventPlatformForwarder(config pkgconfig.Reader, eventPlatformReceiver eventplatformreceiver.Component) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
 	for i, desc := range passthroughPipelineDescs {
-		p, err := newHTTPPassthroughPipeline(coreConfig, eventPlatformReceiver, desc, destinationsCtx, i)
+		p, err := newHTTPPassthroughPipeline(config, eventPlatformReceiver, desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
 			continue
@@ -480,7 +480,7 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 	var forwarder eventplatform.Forwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
-		forwarder = NewNoopEventPlatformForwarder(deps.Config, deps.Hostname)
+		forwarder = NewNoopEventPlatformForwarder(deps.Hostname)
 	} else if deps.Params.UseEventPlatformForwarder {
 		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver)
 	}
@@ -492,8 +492,8 @@ func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
-func NewNoopEventPlatformForwarder(coreConfig configcomp.Component, hostname hostnameinterface.Component) eventplatform.Forwarder {
-	f := newDefaultEventPlatformForwarder(coreConfig, eventplatformreceiverimpl.NewReceiver(hostname))
+func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
+	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname))
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

@@ -276,8 +276,12 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 	}
 
 	// Add in the HAMR endpoint if HA is enabled.
-	if coreConfig.GetBool("ha.enabled") && (coreConfig.IsSet("ha.site") || coreConfig.IsSet("ha.dd_url")) {
-		haURL := pkgconfigutils.GetHAEndpoint(coreConfig, endpointPrefix, "ha.dd_url")
+	if coreConfig.GetBool("ha.enabled") {
+		haURL, err := pkgconfigutils.GetHAEndpoint(coreConfig, endpointPrefix, "ha.dd_url")
+		if err != nil {
+			return nil, fmt.Errorf("cannot construct HA endpoint: %s", err)
+		}
+
 		haHost, haPort, haUseSSL, err := parseAddressWithScheme(haURL, defaultNoSSL, parseAddressAsHost)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", haURL, err)
@@ -285,7 +289,8 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 
 		// HA endpoint is always reliable
 		additionals = append(additionals, Endpoint{
-			IsHA:             pointer.Ptr(true),
+			IsHA:             true,
+			IsReliable:       pointer.Ptr(true),
 			APIKey:           coreConfig.GetString("ha.api_key"),
 			Host:             haHost,
 			Port:             haPort,

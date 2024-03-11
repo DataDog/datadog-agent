@@ -45,14 +45,16 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
-		isHA:                endpoint.GetIsHA(),
+		isHA:                endpoint.IsHA,
 	}
 }
 
+// IsHA indicates that this destination is a High Availability destination.
 func (d *Destination) IsHA() bool {
 	return d.isHA
 }
 
+// Target is the address of the destination.
 func (d *Destination) Target() string {
 	return d.connManager.address()
 }

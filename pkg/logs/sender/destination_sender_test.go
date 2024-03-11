@@ -55,8 +55,7 @@ func newDestinationSenderWithConfigAndBufferSize(cfg pkgconfigmodel.Reader, buff
 	return dest, d
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func TestDestinationSender(t *testing.T) {
+func TestDestinationSender(_ *testing.T) {
 	dest, destSender := newDestinationSenderWithBufferSize(1)
 
 	destSender.Send(&message.Payload{})
@@ -108,19 +107,17 @@ func TestDestinationSenderStopsRetrying(t *testing.T) {
 	}()
 
 	// retry the send until it succeeds
-	//nolint:revive // TODO(AML) Fix revive linter
-	for !destSender.Send(&message.Payload{}) {
+	for !destSender.Send(&message.Payload{}) { //revive:disable-line:empty-block
 	}
 
 	<-gotPayload
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func TestDestinationSenderDeadlock(t *testing.T) {
+func TestDestinationSenderDeadlock(_ *testing.T) {
 	dest, destSender := newDestinationSenderWithBufferSize(100)
 
 	go func() {
-		for range dest.input {
+		for range dest.input { //revive:disable-line:empty-block
 		}
 	}()
 

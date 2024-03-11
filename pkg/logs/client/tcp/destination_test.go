@@ -6,7 +6,6 @@
 package tcp
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,21 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
-func getNewConfig() pkgconfigmodel.ReaderWriter {
-	return pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-}
-
 func TestDestinationHA(t *testing.T) {
-	variants := []*bool{nil, pointer.Ptr(true), pointer.Ptr(false)}
+	variants := []bool{true, false}
 	for _, variant := range variants {
 		endpoint := config.Endpoint{
 			IsHA: variant,
 		}
-		isEndpointHA := endpoint.GetIsHA()
+		isEndpointHA := endpoint.IsHA
 
 		dest := NewDestination(endpoint, false, client.NewDestinationsContext(), false, statusinterface.NewStatusProviderMock())
 		isDestHA := dest.IsHA()
