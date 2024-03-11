@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -163,4 +164,28 @@ func TestSqrt(t *testing.T) {
 	// Testing invalid number (negative)
 	_, err = Sqrt(-1)
 	assert.Error(t, err, "Sqrt(-1) didn't returned an error")
+}
+
+func Test_handleNumbers(t *testing.T) {
+	tests := []struct {
+		name    string
+		n       int
+		want    int
+		wantErr error
+	}{
+		{"Less than zero", -1, -1, errors.New("Input is less than 0")},
+		{"Zero", 0, 0, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := handleNumbers(tt.n)
+			if tt.wantErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tt.wantErr.Error())
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
