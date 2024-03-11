@@ -10,7 +10,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
-	github.com/DataDog/viper v1.12.0
+	github.com/DataDog/viper v1.12.1-0.20240311110542-3e7837fd388f
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.8.1

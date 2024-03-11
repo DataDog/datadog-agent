@@ -315,8 +315,8 @@ github.com/DataDog/sketches-go v1.4.4 h1:dF52vzXRFSPOj2IjXSWLvXq3jubL4CI69kwYjJ1
 github.com/DataDog/sketches-go v1.4.4/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
 github.com/DataDog/trivy v0.0.0-20240304161355-562f4c8f35a6 h1:QbTUPFkDfpTTM2eShGxiMS4GHEJ0ZR3rrO5BAigo24s=
 github.com/DataDog/trivy v0.0.0-20240304161355-562f4c8f35a6/go.mod h1:0MnErd0UhxPs2oJFKkQOZpi+BiwN2qU8yPygRofJTtE=
-github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
-github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
+github.com/DataDog/viper v1.12.1-0.20240311110542-3e7837fd388f h1:0IY3eXGyxf8U12DkIsoRSs+dab2PiHJWtOO0A59Ty7Q=
+github.com/DataDog/viper v1.12.1-0.20240311110542-3e7837fd388f/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950 h1:2imDajw3V85w1iqHsuXN+hUBZQVF+r9eME8tsPq/HpA=
 github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950/go.mod h1:FU+7qU8DeQQgSZDmmThMJi93kPkLFgy0oVAcLxurjIk=
 github.com/DataDog/watermarkpodautoscaler v0.6.1 h1:KEj10Cm8wO/36lEOgqjgDfIMMpMPReY/+bDacWe7Adw=
