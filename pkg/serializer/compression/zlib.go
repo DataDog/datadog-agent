@@ -34,16 +34,16 @@ func NewCompressorStrategy(cfg config.Component) utils.Compressor {
 }
 
 // NewZipper returns a Zipper to be used by the stream Compressor
-func NewZipper(output *bytes.Buffer, cfg config.Component) utils.Zipper {
+func NewStreamCompressor(output *bytes.Buffer, cfg config.Component) utils.StreamCompressor {
 	kind := cfg.GetString("serializer_compressor_kind")
 	switch kind {
 	case utils.ZlibKind:
-		return compression.NewZlibZipper(output)
+		return compression.NewZlibStreamCompressor(output)
 	case utils.ZstdKind:
 		log.Warn("zstd build tag not included. using zlib")
-		return compression.NewZlibZipper(output)
+		return compression.NewZlibStreamCompressor(output)
 	default:
 		log.Warn("invalid serializer_compressor_kind detected. use zlib or zstd")
-		return compression.NewNoopZipper(output)
+		return compression.NewNoopStreamCompressor(output)
 	}
 }

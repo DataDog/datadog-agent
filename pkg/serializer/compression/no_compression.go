@@ -22,6 +22,6 @@ func NewCompressorStrategy(cfg config.Component) utils.Compressor {
 }
 
 // NewZipper returns a Zipper to be used by the stream Compressor
-func NewZipper(output *bytes.Buffer, cfg config.Component) utils.Zipper {
-	return compression.NewNoopZipper(output)
+func NewStreamCompressor(output *bytes.Buffer, cfg config.Component) utils.StreamCompressor {
+	return compression.NewNoopStreamCompressor(output)
 }

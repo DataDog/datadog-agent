@@ -73,7 +73,7 @@ const (
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
-	// DefaultCompressorKind is the default compressor. Options available are zlib and zstd
+	// DefaultCompressorKind is the default compressor. Options available are 'zlib', 'zstd' and 'none'
 	DefaultCompressorKind = "zlib"
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor

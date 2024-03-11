@@ -43,7 +43,7 @@ func (s *ZstdStrategy) ContentEncoding() string {
 	return utils.ZstdEncoding
 }
 
-// NewZstdZipper returns a new zstd Writer
-func NewZstdZipper(output *bytes.Buffer) *zstd.Writer {
+// NewZstdStreamCompressor returns a new zstd Writer
+func NewZstdStreamCompressor(output *bytes.Buffer) *zstd.Writer {
 	return zstd.NewWriter(output)
 }

@@ -66,7 +66,7 @@ type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
 	strategy            strategyUtils.Compressor
-	zipper              strategyUtils.Zipper
+	zipper              strategyUtils.StreamCompressor
 	header              []byte // json header to print at the beginning of the payload
 	footer              []byte // json footer to append at the end of the payload
 	uncompressedWritten int    // uncompressed bytes written
@@ -94,7 +94,7 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 		separator:           separator,
 	}
 
-	c.zipper = compression.NewZipper(c.compressed, cfg)
+	c.zipper = compression.NewStreamCompressor(c.compressed, cfg)
 	n, err := c.zipper.Write(header)
 	c.maxZippedItemSize = maxUncompressedSize - c.strategy.CompressBound(len(footer)+len(header))
 	c.uncompressedWritten += n

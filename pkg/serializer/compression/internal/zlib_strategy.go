@@ -67,7 +67,7 @@ func (s *ZlibStrategy) ContentEncoding() string {
 	return utils.ZlibEncoding
 }
 
-// NewZlibZipper returns a new zlib writer
-func NewZlibZipper(output *bytes.Buffer) *zlib.Writer {
+// NewZlibStreamCompressor returns a new zlib writer
+func NewZlibStreamCompressor(output *bytes.Buffer) *zlib.Writer {
 	return zlib.NewWriter(output)
 }

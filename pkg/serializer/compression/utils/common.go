@@ -14,6 +14,9 @@ const ZlibKind = "zlib"
 // ZstdKind  defines a const value for the zstd compressor
 const ZstdKind = "zstd"
 
+// NoneKind defines a const value for disabling compression
+const NoneKind = "none"
+
 // ZlibEncoding is the content-encoding value for Zlib
 const ZlibEncoding = "deflate"
 
@@ -28,13 +31,8 @@ type Compressor interface {
 	ContentEncoding() string
 }
 
-// Flusher is the interface that requires the Flush function
-type flusher interface {
-	Flush() error
-}
-
-// Zipper is the interface that zlib and zstd should implement
-type Zipper interface {
+// StreamCompressor is the interface that zlib and zstd should implement
+type StreamCompressor interface {
 	io.WriteCloser
-	flusher
+	Flush() error
 }
