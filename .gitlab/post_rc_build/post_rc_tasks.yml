@@ -5,7 +5,6 @@ update_rc_build_links:
   stage: post_rc_build
   rules:
     - if: $RC_BUILD == "true"
-      when: always
   needs:
     - job: docker_trigger_internal
       artifacts: false
