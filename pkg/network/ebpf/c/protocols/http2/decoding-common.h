@@ -159,7 +159,7 @@ static __always_inline bool format_http2_frame_header(http2_frame_t *out) {
     out->length = bpf_ntohl(out->length << 8);
     out->stream_id = bpf_ntohl(out->stream_id << 1);
 
-    return out->type <= kContinuationFrame && (out->stream_id == 0 || (out->stream_id % 2 == 1));
+    return out->type <= kContinuationFrame && out->length <= MAX_FRAME_SIZE && (out->stream_id == 0 || (out->stream_id % 2 == 1));
 }
 
 static __always_inline void reset_frame(http2_frame_t *out) {
