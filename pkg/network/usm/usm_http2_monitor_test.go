@@ -1379,6 +1379,8 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 	}
 }
 
+// TestRemainderTable tests the remainder table map.
+// We would like to make sure that the remainder table map is being updated correctly.
 func (s *usmHTTP2Suite) TestRemainderTable() {
 	t := s.T()
 	cfg := s.getCfg()
@@ -1405,7 +1407,7 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 				b := newFramer().writeData(t, 1, true, []byte("test12345")).bytes()
 				message := append(a, b[11:]...)
 				return [][]byte{
-					// we split it in 10 bytes in order to split the payload itself.
+					// we split it in 11 bytes in order to split the payload itself.
 					message,
 					b[11:],
 				}
