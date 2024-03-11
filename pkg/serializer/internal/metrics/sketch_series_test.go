@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && zlib && zstd
 
 package metrics
 
@@ -15,6 +15,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
@@ -92,8 +93,8 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -121,8 +122,8 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 		kind                string
 		maxUncompressedSize int
 	}{
-		"zlib": {kind: compression.ZlibKind, maxUncompressedSize: 100},
-		"zstd": {kind: compression.ZstdKind, maxUncompressedSize: 200},
+		"zlib": {kind: strategyUtils.ZlibKind, maxUncompressedSize: 100},
+		"zstd": {kind: strategyUtils.ZstdKind, maxUncompressedSize: 200},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -169,8 +170,8 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -225,8 +226,8 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 		kind                string
 		maxUncompressedSize int
 	}{
-		"zlib": {kind: compression.ZlibKind, maxUncompressedSize: 2000},
-		"zstd": {kind: compression.ZstdKind, maxUncompressedSize: 2000},
+		"zlib": {kind: strategyUtils.ZlibKind, maxUncompressedSize: 2000},
+		"zstd": {kind: strategyUtils.ZstdKind, maxUncompressedSize: 2000},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
