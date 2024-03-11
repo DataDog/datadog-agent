@@ -64,7 +64,7 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	store *serverstore.Store
+	store serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
@@ -90,7 +90,6 @@ func NewServer(options ...func(*Server)) *Server {
 		collectors.NewBuildInfoCollector(),
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		fi.store.NbPayloads,
 	)
 
 	mux := http.NewServeMux()

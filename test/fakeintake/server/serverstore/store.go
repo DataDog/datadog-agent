@@ -30,5 +30,5 @@ type Store interface {
 }
 
 func NewStore() Store {
-	return NewInMemoryStore()
+	return NewSQLStore()
 }
