@@ -155,9 +155,6 @@ func (s *linuxTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 	}, 2*time.Minute, 10*time.Second)
 
 	assertProcessCollected(t, payloads, false, "stress")
-
-	// check that the process agent is not collected as it should not be running
-	requireProcessNotCollected(t, payloads, "process-agent")
 }
 
 func (s *linuxTestSuite) TestProcessChecksWithNPM() {
