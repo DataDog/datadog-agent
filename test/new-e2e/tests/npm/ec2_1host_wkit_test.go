@@ -32,7 +32,7 @@ func TestEC2VMWKitSuite(t *testing.T) {
 func (v *ec2VMWKitSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
-	v.Env().RemoteHost.MustExecute("Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression;")
+	v.Env().RemoteHost.MustExecute("$ProgressPreference = 'SilentlyContinue' ; Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression;")
 	v.Env().RemoteHost.MustExecute("C:\\ProgramData\\chocolatey\\choco install /y apache-httpd --params '\"/noService\"'")
 }
 
