@@ -50,7 +50,14 @@ func Module() fxutil.Module {
 		))
 }
 
-// tagger defines a tagger interface for internal usage of TaggerClient, so that Start and Stop methods are not exposed in component
+// tagger defines a tagger interface for internal usage of TaggerClient,
+// so that Start and Stop methods are not exposed in component
+// The structure of tagger component:
+// Tagger Component
+//
+//	-> TaggerClient {captureTagger, defaultTagger}
+//	                  -> tagger, is an interface with Start, Stop, Component methods (internal usage)
+//	                        -> local, remote, replay, mock tagger etc.
 type tagger interface {
 	Start(ctx context.Context) error
 	Stop() error
