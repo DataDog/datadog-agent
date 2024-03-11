@@ -708,6 +708,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
+	// Network Path
+	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
+
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
 	config.BindEnvAndSetDefault("kubernetes_apiserver_ca_path", "")
@@ -1055,6 +1058,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
+	config.BindEnvAndSetDefault("admission_controller.container_registry", "gcr.io/datadoghq")
 	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 10) // in seconds (see kubernetes/kubernetes#71508)
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
 	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
@@ -1077,7 +1081,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnv("admission_controller.auto_instrumentation.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -1090,7 +1094,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnv("admission_controller.cws_instrumentation.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
@@ -1102,7 +1106,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.selectors", "[]")
 	// Should be able to parse it to a list of env vars and resource limits
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.profiles", "[]")
-	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.container_registry", "gcr.io/datadoghq")
+	config.BindEnv("admission_controller.agent_sidecar.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
