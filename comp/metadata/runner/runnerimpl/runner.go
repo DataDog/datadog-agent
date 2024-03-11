@@ -37,11 +37,8 @@ type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
-	// configuration
-	providers []optional.Option[MetadataProvider]
-	// priorityProviders are the metada providers that execute syncronously at runtime.
-	priorityProviders []optional.Option[PriorityMetadataProvider]
+	providers         []MetadataProvider
+	priorityProviders []PriorityMetadataProvider
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -95,11 +92,29 @@ func NewEmptyProvider() Provider {
 
 // createRunner instantiates a runner object
 func createRunner(deps dependencies) *runnerImpl {
+	providers := []MetadataProvider{}
+	priorityProviders := []PriorityMetadataProvider{}
+
+	nonNilProviders := fxutil.GetAndFilterGroup(deps.Providers)
+	nonNilPriorityProviders := fxutil.GetAndFilterGroup(deps.PriorityProviders)
+
+	for _, optionaP := range nonNilProviders {
+		if p, isSet := optionaP.Get(); isSet {
+			providers = append(providers, p)
+		}
+	}
+
+	for _, optionaP := range nonNilPriorityProviders {
+		if p, isSet := optionaP.Get(); isSet {
+			priorityProviders = append(priorityProviders, p)
+		}
+	}
+
 	return &runnerImpl{
 		log:               deps.Log,
 		config:            deps.Config,
-		providers:         fxutil.GetAndFilterGroup(deps.Providers),
-		priorityProviders: fxutil.GetAndFilterGroup(deps.PriorityProviders),
+		providers:         providers,
+		priorityProviders: priorityProviders,
 		stopChan:          make(chan struct{}),
 	}
 }
@@ -164,18 +179,15 @@ func (r *runnerImpl) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers)+len(r.priorityProviders))
 
 	go func() {
-		for _, optionaP := range r.priorityProviders {
-			if p, isSet := optionaP.Get(); isSet {
-				p(context.Background())
+		for _, priorityProvider := range r.priorityProviders {
+			// Execute syncronously the priority provider
+			priorityProvider(context.Background())
 
-				go r.handleProvider(p)
-			}
+			go r.handleProvider(priorityProvider)
 		}
 
-		for _, optionaP := range r.providers {
-			if p, isSet := optionaP.Get(); isSet {
-				go r.handleProvider(p)
-			}
+		for _, provider := range r.providers {
+			go r.handleProvider(provider)
 		}
 	}()
 
