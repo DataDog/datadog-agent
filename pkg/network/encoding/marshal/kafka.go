@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 var kafkaAggregationPool = sync.Pool{
@@ -25,17 +24,11 @@ var kafkaAggregationPool = sync.Pool{
 }
 
 type kafkaEncoder struct {
-	byConnection *USMConnectionIndex[kafka.Key, *kafka.RequestStat]
-
 	// cached object
 	aggregations *model.DataStreamsAggregations
 }
 
-func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncoder {
-	if len(kafkaPayloads) == 0 {
-		return nil
-	}
-
+func newKafkaEncoder() *kafkaEncoder {
 	return &kafkaEncoder{
 		aggregations: &model.DataStreamsAggregations{
 			// It's not that important to get the initial size of this slice
@@ -44,23 +37,15 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStat) *kafkaEncod
 			// `GetKafkaAggregations`
 			KafkaAggregations: make([]*model.KafkaAggregation, 0, 10),
 		},
-		byConnection: GroupByConnection("kafka", kafkaPayloads, func(key kafka.Key) types.ConnectionKey {
-			return key.ConnectionKey
-		}),
 	}
 }
 
 func (e *kafkaEncoder) GetKafkaAggregations(c network.ConnectionStats) []byte {
-	if e == nil {
+	if len(c.KafkaStats) == 0 {
 		return nil
 	}
 
-	connectionData := e.byConnection.Find(c)
-	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return nil
-	}
-
-	return e.encodeData(connectionData)
+	return e.encodeData(c.KafkaStats)
 }
 
 func (e *kafkaEncoder) Close() {
@@ -69,13 +54,12 @@ func (e *kafkaEncoder) Close() {
 	}
 
 	e.reset()
-	e.byConnection.Close()
 }
 
-func (e *kafkaEncoder) encodeData(connectionData *USMConnectionData[kafka.Key, *kafka.RequestStat]) []byte {
+func (e *kafkaEncoder) encodeData(connectionData []network.USMKeyValue[kafka.Key, *kafka.RequestStat]) []byte {
 	e.reset()
 
-	for _, kv := range connectionData.Data {
+	for _, kv := range connectionData {
 		key := kv.Key
 		stats := kv.Value
 

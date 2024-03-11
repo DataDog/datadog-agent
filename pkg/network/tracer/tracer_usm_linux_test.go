@@ -341,10 +341,12 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 					_, _ = io.Copy(io.Discard, resp.Body)
 					_ = resp.Body.Close()
 
-					httpData := getConnections(t, tr).HTTP
-					for httpKey := range httpData {
-						if httpKey.Path.Content.Get() == resp.Request.URL.Path {
-							return true
+					conns := getConnections(t, tr)
+					for _, c := range conns.Conns {
+						for _, httpData := range c.HTTPStats {
+							if httpData.Key.Path.Content.Get() == resp.Request.URL.Path {
+								return true
+							}
 						}
 					}
 
