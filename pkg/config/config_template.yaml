@@ -3830,8 +3830,6 @@ api_key:
 
     ## @param users - list of custom objects - optional
     ## List of SNMPv3 users that can be used to listen for traps.
-    ## NOTE: Currently the Datadog Agent only supports having a
-    ## single user in this list.
     ## Each user can contain:
     ##  * username     - string - The username used by devices when sending Traps to the Agent.
     ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
