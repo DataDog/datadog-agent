@@ -113,9 +113,9 @@ def trigger_agent_pipeline(
     # End to end tests can be selectively enabled, or disabled on pipelines where they're
     # enabled by default (default branch and deploy pipelines).
     if e2e_tests:
-        args["RUN_E2E_TESTS"] = "true"
+        args["RUN_E2E_TESTS"] = "on"
     else:
-        args["RUN_E2E_TESTS"] = "false"
+        args["RUN_E2E_TESTS"] = "off"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6
