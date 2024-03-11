@@ -86,7 +86,7 @@ func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
 	}
 }
 
-// Create temporary directory
+// CreateTargetDir creates temporary directory
 func CreateTargetDir() (string, error) {
 	// Create temp directory to put target file in
 	tmpDir, err := os.MkdirTemp("", "datadog_agent_cws_self_test")

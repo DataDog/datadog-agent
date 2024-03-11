@@ -10,12 +10,13 @@ package selftests
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // WindowsSetRegistryKeyTest defines a windows set registry value self test
@@ -36,17 +37,6 @@ func (o *WindowsSetRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *WindowsSetRegistryKeyTest) GenerateEvent() error {
-	o.isSuccess = false
-	psCommand := fmt.Sprintf(`Set-ItemProperty "%s" -Name 'tmp_self_test_value_name' -Value 'tmp_self_test_value'`, o.keyName)
-	cmd := exec.Command("powershell", "-Command", psCommand)
-	if err := cmd.Run(); err != nil {
-		log.Debugf("error running command: %v", err)
-		return err
-	}
-	return nil
-}
-
 func (o *WindowsSetRegistryKeyTest) GenerateEvent() error {
 	o.isSuccess = false
 
