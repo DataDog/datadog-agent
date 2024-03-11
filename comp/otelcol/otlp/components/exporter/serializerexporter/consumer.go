@@ -112,6 +112,13 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 // Send exports all data recorded by the consumer. It does not reset the consumer.
 func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 	var serieErr, sketchesErr error
+	fmt.Printf("##### in send method \n")
+	defer func() {
+		fmt.Printf("##### ending send method \n")
+		if r := recover(); r != nil {
+			fmt.Printf("##### Recovered in send: %v\n", r)
+		}
+	}()
 	metrics.Serialize(
 		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
 		metrics.NewIterableSketches(func(se *metrics.SketchSeries) {}, 200, 4000),
@@ -128,13 +135,12 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
 	)
-
-	apmErr := c.sendAPMStats()
-	return multierr.Combine(serieErr, sketchesErr, apmErr)
+	fmt.Printf("### serieErr :%v, sketchesErr: %v\n", serieErr, sketchesErr)
+	// apmErr := c.sendAPMStats()
+	return multierr.Combine(serieErr, sketchesErr)
 }
 
 func (c *serializerConsumer) sendAPMStats() error {
-
 	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
 	for _, body := range c.apmstats {
 		resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)

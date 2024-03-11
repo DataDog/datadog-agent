@@ -70,9 +70,9 @@ func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
 }
 
-// exporter translate OTLP metrics into the Datadog format and sends
+// Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
-type exporter struct {
+type Exporter struct {
 	tr              *metrics.Translator
 	s               serializer.MetricSerializer
 	hostGetter      sourceProviderFunc
@@ -131,7 +131,7 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
-func newExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*exporter, error) {
+func NewExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*Exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
@@ -151,7 +151,7 @@ func newExporter(set component.TelemetrySettings, attributesTranslator *attribut
 	if cfg.Metrics.Tags != "" {
 		extraTags = strings.Split(cfg.Metrics.Tags, ",")
 	}
-	return &exporter{
+	return &Exporter{
 		tr:              tr,
 		s:               s,
 		hostGetter:      hostGetter,
@@ -161,7 +161,14 @@ func newExporter(set component.TelemetrySettings, attributesTranslator *attribut
 	}, nil
 }
 
-func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+	fmt.Printf("##### starting ConsumeMetrics\n")
+	defer func() {
+		fmt.Printf("##### ending ConsumeMetrics\n")
+		if r := recover(); r != nil {
+			fmt.Printf("##### Recovered in ConsumeMetrics: %v\n", r)
+		}
+	}()
 	consumer := &serializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
@@ -174,7 +181,9 @@ func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 
 	consumer.addTelemetryMetric(hostname)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+	fmt.Printf("##### starting Send\n")
 	if err := consumer.Send(e.s); err != nil {
+		fmt.Printf("##### error in Send: %v\n", err)
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil

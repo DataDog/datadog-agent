@@ -66,7 +66,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 	}
 
 	fmt.Printf("### created attributes translator\n")
-	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter)
+	newExp, err := NewExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter)
 	if err != nil {
 		return nil, err
 	}
