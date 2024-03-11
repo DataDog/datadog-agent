@@ -28,7 +28,7 @@ func Module() fxutil.Module {
 type MetadataProvider func(context.Context) time.Duration
 
 // PriorityMetadataProvider is the provider for metadata that needs to be execute at start time of the agent.
-// Right now the agent needs the host metadata provider to execute first to ensure metrcis tags are being reported correctly.
+// Right now the agent needs the host metadata provider to execute first to ensure host tags are being reported correctly.
 // This is a temporary workaorund until we figure a more permanent solution in the backend
 // If you need to use this provide please contact the agent-shared-components team
 type PriorityMetadataProvider func(context.Context) time.Duration
@@ -176,7 +176,7 @@ func (r *runnerImpl) handleProvider(p func(context.Context) time.Duration) {
 // start is called by FX when the application starts. Lifecycle hooks are blocking and called sequencially. We should
 // not block here.
 func (r *runnerImpl) start() error {
-	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers)+len(r.priorityProviders))
+	r.log.Debugf("Starting metadata runner with %d priority providers and %d regular providers", len(r.priorityProviders), len(r.providers))
 
 	go func() {
 		for _, priorityProvider := range r.priorityProviders {
