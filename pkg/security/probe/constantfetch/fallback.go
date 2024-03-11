@@ -263,10 +263,8 @@ func getSignalTTYOffset(kv *kernel.Version) uint64 {
 		return 400
 	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
 		return 408
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_16):
-		return 368
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_16, kernel.Kernel4_19):
-		return 376
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel4_19):
+		return 368 + getNoHzOffset()
 	case kv.IsUbuntuKernel() && kv.Code < kernel.Kernel5_19:
 		return 400 + getNoHzOffset()
 	case kv.IsUbuntuKernel() && kv.Code >= kernel.Kernel5_19:
