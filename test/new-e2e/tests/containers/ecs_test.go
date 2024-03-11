@@ -415,14 +415,14 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				`^task_name:.*-` + taskName + `-ec2$`,
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
-				`^container_name:ecs-.*-` + taskName + `-ec2-`,
+				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
@@ -434,8 +434,8 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 				`^task_arn:`,
-				`^task_family:.*-` + taskName + `-ec2$`,
-				`^task_name:.*-` + taskName + `-ec2$`,
+				`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
 		},
