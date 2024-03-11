@@ -97,12 +97,6 @@ func TestRunnerRealtime(t *testing.T) {
 			hostinfoimpl.MockModule(),
 			core.MockBundle(),
 
-			// starts the check runner
-			fx.Invoke(func(r runner.Component) error {
-				return r.Run(context.Background())
-			},
-			)))
-
 		rtChan <- types.RTResponse{
 			&model.CollectorStatus{
 				ActiveClients: 1,
