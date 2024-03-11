@@ -60,7 +60,7 @@ type StreamCompressor interface {
 	Flush() error
 }
 
-// NewZipper returns a StreamCompressor
+// NewStreamCompressor returns a new StreamCompressor
 func NewStreamCompressor(output *bytes.Buffer, cfg config.Component) StreamCompressor {
 	kind := cfg.GetString("serializer_compressor_kind")
 	switch kind {
