@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agentless-scanner removal steps after package is uninstalled.
+#
+# .deb: STEP 3 of 5
+
+INSTALL_DIR=/opt/datadog/agentless-scanner
+
+# Remove the symlink to the binary.
+rm -f "/usr/bin/datadog-agentless-scanner"
+
+set -e
+
+case "$1" in
+    purge)
+        echo "Force-deleting $INSTALL_DIR"
+        rm -rf $INSTALL_DIR
+    ;;
+    *)
+    ;;
+esac
+
+exit 0

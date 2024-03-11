@@ -1,25 +1,35 @@
+import glob
 import json
 import os
 
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.stacks import ask_for_ssh, find_ssh_key
-from tasks.kernel_matrix_testing.tool import Exit, error
+from tasks.kernel_matrix_testing.tool import Exit, ask, error
 
 
 class LocalCommandRunner:
     @staticmethod
     def run_cmd(ctx, _, cmd, allow_fail, verbose):
-        res = ctx.run(cmd.format(proxy_cmd=""), hide=(not verbose))
+        res = ctx.run(cmd.format(proxy_cmd=""), hide=(not verbose), warn=allow_fail)
         if not res.ok:
             error(f"[-] Failed: {cmd}")
             if allow_fail:
-                return
+                return False
             print_failed(res.stderr)
             raise Exit("command failed")
 
+        return True
+
     @staticmethod
-    def move_to_shared_directory(ctx, _, source):
-        ctx.run(f"cp {source} {get_kmt_os().shared_dir}")
+    def move_to_shared_directory(ctx, _, source, subdir=None):
+        recursive = ""
+        if os.path.isdir(source):
+            recursive = "-R"
+
+        full_target = get_kmt_os().shared_dir
+        if subdir is not None:
+            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
+            ctx.run(f"mkdir -p {full_target}")
+        ctx.run(f"cp {recursive} {source} {full_target}")
 
 
 class RemoteCommandRunner:
@@ -30,18 +40,26 @@ class RemoteCommandRunner:
                 proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
             ),
             hide=(not verbose),
+            warn=allow_fail,
         )
         if not res.ok:
             error(f"[-] Failed: {cmd}")
             if allow_fail:
-                return
+                return False
             print_failed(res.stderr)
             raise Exit("command failed")
 
+        return True
+
     @staticmethod
-    def move_to_shared_directory(ctx, instance, source):
+    def move_to_shared_directory(ctx, instance, source, subdir=None):
+        full_target = get_kmt_os().shared_dir
+        if subdir is not None:
+            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
+            RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
+
         ctx.run(
-            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{get_kmt_os().shared_dir}"
+            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
         )
 
 
@@ -70,11 +88,11 @@ class LibvirtDomain:
 
     def run_cmd(self, ctx, cmd, allow_fail=False, verbose=False):
         run = f"ssh -o StrictHostKeyChecking=no -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
-        self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
+        return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
     def copy(self, ctx, source, target):
         run = f"rsync -e \"ssh -o StrictHostKeyChecking=no {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{self.ip}:{target}"
-        self.instance.runner.run_cmd(ctx, self.instance, run, False, False)
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, False)
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
@@ -91,16 +109,19 @@ class HostInstance:
     def add_microvm(self, domain):
         self.microvms.append(domain)
 
-    def copy_to_all_vms(self, ctx, path):
-        self.runner.move_to_shared_directory(ctx, self, path)
+    def copy_to_all_vms(self, ctx, path, subdir=None):
+        self.runner.move_to_shared_directory(ctx, self, path, subdir)
 
     def __repr__(self):
         return f"<HostInstance> {self.ip} {self.arch}"
 
 
 def build_infrastructure(stack, remote_ssh_key=None):
-    stack_outputs = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
-    with open(stack_outputs, 'r') as f:
+    stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
+    if not os.path.exists(stack_output):
+        raise Exit("no stack.output file present")
+
+    with open(stack_output, 'r') as f:
         infra_map = json.load(f)
 
     infra = dict()
@@ -130,3 +151,37 @@ def ssh_key_to_path(ssh_key):
         ssh_key_path = find_ssh_key(ssh_key)
 
     return ssh_key_path
+
+
+def ask_for_ssh():
+    return (
+        ask(
+            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue without a ssh key?[Y/n]"
+        )
+        != "y"
+    )
+
+
+def find_ssh_key(ssh_key):
+    possible_paths = [f"~/.ssh/{ssh_key}", f"~/.ssh/{ssh_key}.pem"]
+
+    # Try direct files
+    for path in possible_paths:
+        if os.path.exists(os.path.expanduser(path)):
+            return path
+
+    # Ok, no file found with that name. However, maybe we can identify the key by the key name
+    # that's present in the corresponding pub files
+
+    for pubkey in glob.glob(os.path.expanduser("~/.ssh/*.pub")):
+        privkey = pubkey[:-4]
+        possible_paths.append(privkey)  # Keep track of paths we've checked
+
+        with open(pubkey) as f:
+            parts = f.read().split()
+
+            # Public keys have three "words": key type, public key, name
+            if len(parts) == 3 and parts[2] == ssh_key:
+                return privkey
+
+    raise Exit(f"Could not find file for ssh key {ssh_key}. Looked in {possible_paths}")

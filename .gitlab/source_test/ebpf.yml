@@ -47,7 +47,7 @@ tests_ebpf_arm64:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   artifacts:
     when: always
     paths:
@@ -55,6 +55,7 @@ tests_ebpf_arm64:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
   before_script:
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:

@@ -7,9 +7,8 @@
 package eval
 
 import (
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 )
 
 func TestStringValues(t *testing.T) {
@@ -234,4 +233,44 @@ func TestRegexp(t *testing.T) {
 			t.Error("should match")
 		}
 	})
+
+	t.Run("multiple-string-options", func(t *testing.T) {
+		matcher, err := NewStringMatcher(RegexpValueType, ".*(restore|recovery|readme|instruction|how_to|ransom).*", StringCmpOpts{})
+		if err != nil {
+			t.Error(err)
+		}
+
+		if !matcher.Matches("123readme456") {
+			t.Error("should match")
+		}
+
+		if matcher.Matches("TEST123") {
+			t.Error("should not match")
+		}
+
+		reMatcher, ok := matcher.(*RegexpStringMatcher)
+		if !ok {
+			t.Error("should be a regex matcher")
+		}
+
+		if !slices.Equal([]string{"restore", "recovery", "readme", "instruction", "how_to", "ransom"}, reMatcher.stringOptionsOpt) {
+			t.Error("should be an optimized string option re matcher")
+		}
+	})
+}
+
+func BenchmarkRegexpEvaluator(b *testing.B) {
+	pattern := ".*(restore|recovery|readme|instruction|how_to|ransom).*"
+
+	var matcher RegexpStringMatcher
+	if err := matcher.Compile(pattern, false); err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if !matcher.Matches("123ransom456.txt") {
+			b.Fatal("unexpected result")
+		}
+	}
 }

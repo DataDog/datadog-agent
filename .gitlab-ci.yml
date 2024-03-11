@@ -68,7 +68,10 @@ stages:
   - software_composition_analysis
   - binary_build
   - package_deps_build
-  - kernel_matrix_testing
+  - kernel_matrix_testing_prepare
+  - kernel_matrix_testing_system_probe
+  - kernel_matrix_testing_security_agent
+  - kernel_matrix_testing_cleanup
   - integration_test
   - benchmarks
   - package_build
@@ -121,6 +124,7 @@ variables:
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
+  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
@@ -162,23 +166,24 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_WINBUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_ARMBUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v29603376-40fa78c0
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: dfdd12299b97
+  # Make sure to update test-infra-definitions version in go.mod as well
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a1d921006e35
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -930,20 +935,30 @@ workflow:
 .on_testing_cleanup:
   - <<: *if_testing_cleanup
 
+.security_agent_change_paths: &security_agent_change_paths
+  - pkg/ebpf/**/*
+  - pkg/security/**/*
+  - pkg/eventmonitor/**/*
+  - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
+  - test/kitchen/test/integration/security-agent-test/**/*
+  - test/kitchen/test/integration/security-agent-stress/**/*
+  - .gitlab/functional_test/security_agent.yml
+  - .gitlab/kernel_version_testing/security_agent.yml
+  - .gitlab/kernel_version_testing/common.yml
+  - test/new-e2e/system-probe/**/*
+  - test/new-e2e/scenarios/system-probe/**/*
+  - test/new-e2e/runner/**/*
+  - test/new-e2e-utils/**/*
+  - test/new-e2e/go.mod
+  - tasks/security_agent.py
+
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
   - <<: *if_mergequeue
     when: never
   - changes:
-      paths:
-        - pkg/ebpf/**/*
-        - pkg/security/**/*
-        - pkg/eventmonitor/**/*
-        - test/kitchen/site-cookbooks/dd-security-agent-check/**/*
-        - test/kitchen/test/integration/security-agent-test/**/*
-        - test/kitchen/test/integration/security-agent-stress/**/*
-        - .gitlab/functional_test/security_agent.yml
+      paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
@@ -974,29 +989,32 @@ workflow:
   - <<: *if_windows_installer_changes
     when: never
 
+.system_probe_change_paths: &system_probe_change_paths
+  - pkg/collector/corechecks/ebpf/**/*
+  - pkg/ebpf/**/*
+  - pkg/network/**/*
+  - pkg/process/monitor/*
+  - pkg/util/kernel/**/*
+  - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
+  - test/kitchen/test/integration/system-probe-test/**/*
+  - test/kitchen/test/integration/win-sysprobe-test/**/*
+  - .gitlab/functional_test/system_probe_windows.yml
+  - .gitlab/functional_test_sysprobe/system_probe.yml
+  - .gitlab/kernel_matrix_testing/system_probe.yml
+  - .gitlab/kernel_matrix_testing/common.yml
+  - test/new-e2e/system-probe/**/*
+  - test/new-e2e/scenarios/system-probe/**/*
+  - test/new-e2e/runner/**/*
+  - test/new-e2e-utils/**/*
+  - test/new-e2e/go.mod
+  - tasks/system_probe.py
+
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
   - changes:
-      paths:
-        - pkg/collector/corechecks/ebpf/**/*
-        - pkg/ebpf/**/*
-        - pkg/network/**/*
-        - pkg/process/monitor/*
-        - pkg/util/kernel/**/*
-        - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
-        - test/kitchen/test/integration/system-probe-test/**/*
-        - test/kitchen/test/integration/win-sysprobe-test/**/*
-        - .gitlab/functional_test/system_probe_windows.yml
-        - .gitlab/functional_test_sysprobe/system_probe.yml
-        - .gitlab/kernel_version_testing/system_probe.yml
-        - test/new-e2e/system-probe/**/*
-        - test/new-e2e/scenarios/system-probe/**/*
-        - test/new-e2e/runner/**/*
-        - test/new-e2e-utils/**/*
-        - test/new-e2e/go.mod
-        - tasks/system_probe.py
+      paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
@@ -1060,8 +1078,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1088,8 +1106,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1117,6 +1135,21 @@ workflow:
         - pkg/config/remote/**/*
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
+  - when: manual
+    allow_failure: true
+
+.on_any_kmt_test_component_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths: *system_probe_change_paths
+      compare_to: main
+    when: on_success
+  - changes:
+      paths: *security_agent_change_paths
+      compare_to: main
+    when: on_success
   - when: manual
     allow_failure: true
 

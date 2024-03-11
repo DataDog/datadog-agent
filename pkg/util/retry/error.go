@@ -7,8 +7,6 @@ package retry
 
 import "fmt"
 
-var statusFormats map[Status]string
-
 // Error is a custom error type that is returned by the Retrier
 // you can get its Status with IsRetryError()
 type Error struct {
@@ -20,8 +18,15 @@ type Error struct {
 
 // Error implements the `error` interface
 func (e *Error) Error() string {
-	format, found := statusFormats[e.RetryStatus]
-	if !found {
+	var format string
+	switch e.RetryStatus {
+	case NeedSetup:
+		format = "%s needs to be setup with SetupRetrier: %s"
+	case FailWillRetry:
+		format = "temporary failure in %s, will retry later: %s"
+	case PermaFail:
+		format = "permanent failure in %s: %s"
+	default:
 		format = "error in %s: %s"
 	}
 	return fmt.Sprintf(format, e.RessourceName, e.LogicError)
@@ -57,12 +62,4 @@ func IsErrWillRetry(err error) bool {
 		return false
 	}
 	return (e.RetryStatus == FailWillRetry)
-}
-
-func init() {
-	statusFormats = map[Status]string{
-		NeedSetup:     "%s needs to be setup with SetupRetrier: %s",
-		FailWillRetry: "temporary failure in %s, will retry later: %s",
-		PermaFail:     "permanent failure in %s: %s",
-	}
 }

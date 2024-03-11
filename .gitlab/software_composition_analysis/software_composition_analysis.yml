@@ -20,7 +20,7 @@ datadog-sca-ci:
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.datadog-agent.datadog_api_key_org2" --with-decryption --query "Parameter.Value" --out text)
     - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.datadog-agent.datadog_app_key_org2" --with-decryption --query "Parameter.Value" --out text)
     - set -o xtrace
-    - trivy fs --output /tmp/trivy.sbom --format cyclonedx --offline-scan --skip-update .
+    - trivy fs --output /tmp/trivy.sbom --format cyclonedx --offline-scan --skip-db-update .
     # Required until we use datadog-ci version https://github.com/DataDog/datadog-ci/releases/tag/v2.30.0
     # Current version is v2.27.0
     - export DD_BETA_COMMANDS_ENABLED=true

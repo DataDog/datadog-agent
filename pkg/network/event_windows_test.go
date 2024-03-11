@@ -6,9 +6,8 @@
 package network
 
 import (
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"

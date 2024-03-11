@@ -23,9 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"

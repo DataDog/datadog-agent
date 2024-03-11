@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
