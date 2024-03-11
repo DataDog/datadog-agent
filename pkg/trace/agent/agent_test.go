@@ -1312,6 +1312,8 @@ func TestPartialSamplingFree(t *testing.T) {
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsd := &statsd.NoOpClient{}
+	otlpReceiver := config.OTLP{ComputeTopLevelBySpanKind: false}
+	cfg.OTLPReceiver = &otlpReceiver
 	agnt := &Agent{
 		Concentrator:      stats.NewConcentrator(cfg, statsChan, time.Now(), statsd),
 		Blacklister:       filters.NewBlacklister(cfg.Ignore["resource"]),

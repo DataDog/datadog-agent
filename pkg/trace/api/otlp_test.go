@@ -135,6 +135,7 @@ func NewTestConfig(t *testing.T) *config.AgentConfig {
 	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 	require.NoError(t, err)
 	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
+	cfg.OTLPReceiver.ComputeTopLevelBySpanKind = true
 	return cfg
 }
 
