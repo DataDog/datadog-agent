@@ -482,7 +482,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
             frame_state->remainder = 0;
             return true;
         }
-
+        frame_state->remainder = 0;
         // We couldn't read frame header using the remainder.
         return false;
     }
@@ -645,13 +645,14 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
-    if (!get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame, http2_tel)) {
-        return 0;
-    }
-
+    bool has_valid_first_frame = get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame, http2_tel);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    }
+
+    if (!has_valid_first_frame) {
+        return 0;
     }
 
     check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame);

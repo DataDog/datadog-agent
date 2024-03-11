@@ -483,7 +483,7 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
             frame_state->remainder = 0;
             return true;
         }
-
+        frame_state->remainder = 0;
         // We couldn't read frame header using the remainder.
         return false;
     }
@@ -630,7 +630,12 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         return 0;
     }
 
-    if (!tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel)) {
+    bool has_valid_first_frame = tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel);
+    // If we have a state and we consumed it, then delete it.
+    if (frame_state != NULL && frame_state->remainder == 0) {
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    }
+    if (!has_valid_first_frame) {
         return 0;
     }
 
