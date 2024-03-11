@@ -8,6 +8,7 @@ package domain
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/activedirectory"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
@@ -28,7 +29,7 @@ const (
 )
 
 func TestInstallsOnDomainController(t *testing.T) {
-	suites := []e2e.Suite[activedirectory.Env]{
+	suites := []e2e.Suite[environments.Host]{
 		&testInstallSuite{},
 		&testUpgradeSuite{},
 	}
@@ -49,11 +50,11 @@ func TestInstallsOnDomainController(t *testing.T) {
 }
 
 type testInstallSuite struct {
-	windows.BaseAgentInstallerSuite[activedirectory.Env]
+	windows.BaseAgentInstallerSuite[environments.Host]
 }
 
 func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
-	host := suite.Env().DomainControllerHost
+	host := suite.Env().RemoteHost
 
 	_, err := suite.InstallAgent(host,
 		windowsAgent.WithPackage(suite.AgentPackage),
@@ -70,7 +71,7 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 			windowsCommon.MakeDownLevelLogonName(TestDomain, TestUser),
 		)
 	})
-	tc := suite.NewTestClientForHost(suite.Env().DomainControllerHost)
+	tc := suite.NewTestClientForHost(suite.Env().RemoteHost)
 	tc.CheckAgentVersion(suite.T(), suite.AgentPackage.AgentVersion())
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
 	suite.EventuallyWithT(func(c *assert.CollectT) {
@@ -81,11 +82,11 @@ func (suite *testInstallSuite) TestGivenDomainUserCanInstallAgent() {
 }
 
 type testUpgradeSuite struct {
-	windows.BaseAgentInstallerSuite[activedirectory.Env]
+	windows.BaseAgentInstallerSuite[environments.Host]
 }
 
 func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
-	host := suite.Env().DomainControllerHost
+	host := suite.Env().RemoteHost
 
 	_, err := suite.InstallAgent(host,
 		windowsAgent.WithLastStablePackage(),
@@ -97,7 +98,7 @@ func (suite *testUpgradeSuite) TestGivenDomainUserCanUpgradeAgent() {
 
 	suite.Require().NoError(err, "should succeed to install Agent on a Domain Controller with a valid domain account & password")
 
-	tc := suite.NewTestClientForHost(suite.Env().DomainControllerHost)
+	tc := suite.NewTestClientForHost(suite.Env().RemoteHost)
 	platformCommon.CheckAgentBehaviour(suite.T(), tc)
 
 	_, err = suite.InstallAgent(host,
