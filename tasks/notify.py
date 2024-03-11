@@ -28,7 +28,6 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
-JOB_FAILURES_FILE = "job_executions.json"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
@@ -205,21 +204,21 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
 
 
 @task
-def check_consistent_failures(ctx):
+def check_consistent_failures(ctx, job_failures_file="job_executions.json"):
     # Retrieve the stored document in aws s3. It has the following format:
     # {
     #     "pipeline_id": 123,
     #     "jobs": {
     #         "job1": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 1, 0, 1, 1, 0, 1, 1]},
     #         "job2": {"consecutive_failures": 0, "cumulative_failures": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]},
-    #         "job1": {"consecutive_failures": 1, "cumulative_failures": [1]},
+    #         "job3": {"consecutive_failures": 1, "cumulative_failures": [1]},
     #     }
     # }
     # The pipeline_id is used to by-pass the check if the pipeline chronological order is not respected
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
-    job_executions = retrieve_job_executions(ctx)
+    job_executions = retrieve_job_executions(ctx, job_failures_file)
 
     # By-pass if the pipeline chronological order is not respected
     if job_executions.get("pipeline_id", 0) > int(os.getenv("CI_PIPELINE_ID")):
@@ -231,30 +230,30 @@ def check_consistent_failures(ctx):
     send_notification(alert_jobs)
 
     # Upload document
-    with open("job_executions.json", "w") as f:
+    with open(job_failures_file, "w") as f:
         json.dump(job_executions, f)
-    ctx.run(f"{AWS_S3_CP_CMD} {JOB_FAILURES_FILE} {S3_CI_BUCKET_URL}/{JOB_FAILURES_FILE} ", hide="stdout")
+    ctx.run(f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file} ", hide="stdout")
 
 
-def retrieve_job_executions(ctx):
+def retrieve_job_executions(ctx, job_failures_file):
     """
     Retrieve the stored document in aws s3, or create it
     """
     try:
-        ctx.run(f"{AWS_S3_CP_CMD}  {S3_CI_BUCKET_URL}/{JOB_FAILURES_FILE} {JOB_FAILURES_FILE}", hide=True)
-        with open(JOB_FAILURES_FILE) as f:
+        ctx.run(f"{AWS_S3_CP_CMD}  {S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}", hide=True)
+        with open(job_failures_file) as f:
             job_executions = json.load(f)
     except UnexpectedExit as e:
         if "404" in e.result.stderr:
-            job_executions = create_initial_job_executions()
+            job_executions = create_initial_job_executions(job_failures_file)
         else:
             raise e
     return job_executions
 
 
-def create_initial_job_executions():
+def create_initial_job_executions(job_failures_file):
     job_executions = {"pipeline_id": 0, "jobs": {}}
-    with open(JOB_FAILURES_FILE, "w") as f:
+    with open(job_failures_file, "w") as f:
         json.dump(job_executions, f)
     return job_executions
 
