@@ -10,6 +10,7 @@ import (
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -23,6 +24,33 @@ import (
 func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
 	t.Helper()
+
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		t.Log("==== test failed dumping fakeintake info ====")
+		cnx, err := FakeIntake.Client().GetConnections()
+		if err != nil {
+			t.Logf("fakeintake GetConnections() failed %s", err)
+			return
+		}
+		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
+		if err != nil {
+			t.Logf("fakeintake GetConnectionsNames() failed %s", err)
+			return
+		}
+		for _, h := range hostnameNetID {
+			var prevCollectedTime time.Time
+			for i, cc := range cnx.GetPayloadsByName(h) {
+				if i > 0 {
+					dt := cc.GetCollectedTime().Sub(prevCollectedTime).Seconds()
+					t.Logf("hostname+networkID %v diff time %f seconds", h, dt)
+				}
+				prevCollectedTime = cc.GetCollectedTime()
+			}
+		}
+	})
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
