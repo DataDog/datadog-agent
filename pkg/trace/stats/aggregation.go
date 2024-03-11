@@ -39,7 +39,7 @@ type BucketsAggregationKey struct {
 	StatusCode   uint32
 	Synthetics   bool
 	PeerTagsHash uint64
-	IsParentRoot bool
+	IsTraceRoot  bool
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -81,14 +81,14 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:     s.Resource,
-			Service:      s.Service,
-			Name:         s.Name,
-			SpanKind:     s.Meta[tagSpanKind],
-			Type:         s.Type,
-			StatusCode:   getStatusCode(s),
-			Synthetics:   synthetics,
-			IsParentRoot: s.ParentID == 0,
+			Resource:    s.Resource,
+			Service:     s.Service,
+			Name:        s.Name,
+			SpanKind:    s.Meta[tagSpanKind],
+			Type:        s.Type,
+			StatusCode:  getStatusCode(s),
+			Synthetics:  synthetics,
+			IsTraceRoot: s.ParentID == 0,
 		},
 	}
 	var peerTags []string

@@ -747,7 +747,7 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 			TopLevelHits:   b.GetTopLevelHits(),
 			SpanKind:       b.GetSpanKind(),
 			PeerTags:       b.GetPeerTags(),
-			IsParentRoot:   b.GetIsParentRoot(),
+			IsTraceRoot:    b.GetIsTraceRoot(),
 		}
 		if b.OkSummary != nil {
 			new[i].OkSummary = make([]byte, len(b.OkSummary))

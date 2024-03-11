@@ -329,9 +329,9 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.IsParentRoot {
+	if m.IsTraceRoot {
 		i--
-		if m.IsParentRoot {
+		if m.IsTraceRoot {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
@@ -636,7 +636,7 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 			n += 2 + l + sov(uint64(l))
 		}
 	}
-	if m.IsParentRoot {
+	if m.IsTraceRoot {
 		n += 3
 	}
 	n += len(m.unknownFields)
@@ -1932,7 +1932,7 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 17:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field IsParentRoot", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field IsTraceRoot", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
@@ -1949,7 +1949,7 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-			m.IsParentRoot = bool(v != 0)
+			m.IsTraceRoot = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

@@ -127,10 +127,10 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
-		case "IsParentRoot":
-			z.IsParentRoot, err = dc.ReadBool()
+		case "IsTraceRoot":
+			z.IsTraceRoot, err = dc.ReadBool()
 			if err != nil {
-				err = msgp.WrapError(err, "IsParentRoot")
+				err = msgp.WrapError(err, "IsTraceRoot")
 				return
 			}
 		default:
@@ -304,14 +304,14 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	// write "IsParentRoot"
-	err = en.Append(0xac, 0x49, 0x73, 0x50, 0x61, 0x72, 0x65, 0x6e, 0x74, 0x52, 0x6f, 0x6f, 0x74)
+	// write "IsTraceRoot"
+	err = en.Append(0xab, 0x49, 0x73, 0x54, 0x72, 0x61, 0x63, 0x65, 0x52, 0x6f, 0x6f, 0x74)
 	if err != nil {
 		return
 	}
-	err = en.WriteBool(z.IsParentRoot)
+	err = en.WriteBool(z.IsTraceRoot)
 	if err != nil {
-		err = msgp.WrapError(err, "IsParentRoot")
+		err = msgp.WrapError(err, "IsTraceRoot")
 		return
 	}
 	return
@@ -369,9 +369,9 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0001 := range z.PeerTags {
 		o = msgp.AppendString(o, z.PeerTags[za0001])
 	}
-	// string "IsParentRoot"
-	o = append(o, 0xac, 0x49, 0x73, 0x50, 0x61, 0x72, 0x65, 0x6e, 0x74, 0x52, 0x6f, 0x6f, 0x74)
-	o = msgp.AppendBool(o, z.IsParentRoot)
+	// string "IsTraceRoot"
+	o = append(o, 0xab, 0x49, 0x73, 0x54, 0x72, 0x61, 0x63, 0x65, 0x52, 0x6f, 0x6f, 0x74)
+	o = msgp.AppendBool(o, z.IsTraceRoot)
 	return
 }
 
@@ -496,10 +496,10 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
-		case "IsParentRoot":
-			z.IsParentRoot, bts, err = msgp.ReadBoolBytes(bts)
+		case "IsTraceRoot":
+			z.IsTraceRoot, bts, err = msgp.ReadBoolBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "IsParentRoot")
+				err = msgp.WrapError(err, "IsTraceRoot")
 				return
 			}
 		default:
@@ -520,7 +520,7 @@ func (z *ClientGroupedStats) Msgsize() (s int) {
 	for za0001 := range z.PeerTags {
 		s += msgp.StringPrefixSize + len(z.PeerTags[za0001])
 	}
-	s += 13 + msgp.BoolSize
+	s += 12 + msgp.BoolSize
 	return
 }
 

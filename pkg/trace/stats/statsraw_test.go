@@ -30,10 +30,10 @@ func TestGrain(t *testing.T) {
 			ContainerID: "cid",
 		},
 		BucketsAggregationKey: BucketsAggregationKey{
-			Service:      "thing",
-			Name:         "other",
-			Resource:     "yo",
-			IsParentRoot: true,
+			Service:     "thing",
+			Name:        "other",
+			Resource:    "yo",
+			IsTraceRoot: true,
 		},
 	}, aggr)
 }
@@ -60,11 +60,11 @@ func TestGrainWithPeerTags(t *testing.T) {
 				ContainerID: "cid",
 			},
 			BucketsAggregationKey: BucketsAggregationKey{
-				Service:      "thing",
-				SpanKind:     "client",
-				Name:         "other",
-				Resource:     "yo",
-				IsParentRoot: true,
+				Service:     "thing",
+				SpanKind:    "client",
+				Name:        "other",
+				Resource:    "yo",
+				IsTraceRoot: true,
 			},
 		}, aggr)
 		assert.Nil(et)
@@ -95,7 +95,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 				Name:         "other",
 				Resource:     "yo",
 				PeerTagsHash: 13698082192712149795,
-				IsParentRoot: true,
+				IsTraceRoot:  true,
 			},
 		}, aggr)
 		assert.Equal([]string{"aws.s3.bucket:bucket-a", "peer.service:aws-s3"}, et)
@@ -126,7 +126,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 				Name:         "other",
 				Resource:     "yo",
 				PeerTagsHash: 5537613849774405073,
-				IsParentRoot: true,
+				IsTraceRoot:  true,
 			},
 		}, aggr)
 		assert.Equal([]string{"db.instance:dynamo.test.us1", "db.system:dynamodb", "peer.service:aws-dynamodb"}, et)
@@ -150,12 +150,12 @@ func TestGrainWithSynthetics(t *testing.T) {
 			ContainerID: "cid",
 		},
 		BucketsAggregationKey: BucketsAggregationKey{
-			Service:      "thing",
-			Resource:     "yo",
-			Name:         "other",
-			StatusCode:   418,
-			Synthetics:   true,
-			IsParentRoot: true,
+			Service:     "thing",
+			Resource:    "yo",
+			Name:        "other",
+			StatusCode:  418,
+			Synthetics:  true,
+			IsTraceRoot: true,
 		},
 	}, aggr)
 }
