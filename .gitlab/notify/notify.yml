@@ -67,6 +67,8 @@ notify_github:
   script:
     - !reference [.install_pr_commenter]
     - messagefile="$(mktemp)"
+    # A unique header is required to avoid collision with other pr-commenter commands
+    - echo "# Test on VM" >> "$messagefile"
     - echo "Use this command to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
     - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
