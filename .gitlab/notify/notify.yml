@@ -61,13 +61,13 @@ notify_github:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   when: always
-  needs: ["setup_agent_version"]
+  needs: ["deploy_deb_testing_a7"]
   dependencies: []
   allow_failure: true
   script:
     - !reference [.install_pr_commenter]
     - messagefile="$(mktemp)"
-    - echo "Use this command to manually test this PR changes on a VM:" >> "$messagefile"
+    - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
     - echo '```sh' >> "$messagefile"
     - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     - echo '```' >> "$messagefile"
