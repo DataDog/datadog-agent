@@ -44,7 +44,6 @@ type SelfTester struct {
 	lastTimestamp   time.Time
 	selfTests       []SelfTest
 	tmpDir          string
-	tmpKey          string
 	done            chan bool
 	selfTestRunning chan time.Duration
 }
@@ -159,10 +158,12 @@ func (t *SelfTester) Close() error {
 	close(t.selfTestRunning)
 	close(t.done)
 
-	err := Cleanup(t.tmpDir, t.tmpKey)
-	t.tmpDir = ""
-	t.tmpKey = ""
-	return err
+	if t.tmpDir != "" {
+		err := os.RemoveAll(t.tmpDir)
+		t.tmpDir = ""
+		return err
+	}
+	return nil
 }
 
 // LoadPolicies implements the PolicyProvider interface
