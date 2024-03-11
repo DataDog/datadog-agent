@@ -281,7 +281,7 @@ require (
 	google.golang.org/grpc v1.61.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.32.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.58.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -668,7 +668,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
-	github.com/DataDog/go-libddwaf/v2 v2.2.2
+	github.com/DataDog/go-libddwaf/v2 v2.3.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3
 	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240212231818-6a2ed8bdfe76
