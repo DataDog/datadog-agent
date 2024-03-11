@@ -37,10 +37,7 @@ type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
-	// configuration
-	providers []optional.Option[MetadataProvider]
-	// priorityProviders are the metada providers that execute syncronously at runtime.
+	providers         []optional.Option[MetadataProvider]
 	priorityProviders []optional.Option[PriorityMetadataProvider]
 
 	wg       sync.WaitGroup
@@ -166,6 +163,7 @@ func (r *runnerImpl) start() error {
 	go func() {
 		for _, optionaP := range r.priorityProviders {
 			if p, isSet := optionaP.Get(); isSet {
+				// Execute syncronously the priority provider
 				p(context.Background())
 
 				go r.handleProvider(p)
