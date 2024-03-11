@@ -39,9 +39,11 @@ type util struct {
 	initV1          sync.Once
 	initV2          sync.Once
 	initV3orV4      sync.Once
+	initV4          sync.Once
 	v1              v1.Client
 	v2              v2.Client
 	v3or4           v3or4.Client
+	v4              v3or4.Client
 }
 
 // V1 returns a client for the ECS metadata API v1, also called introspection
@@ -125,7 +127,7 @@ func V4FromCurrentTask() (v3or4.Client, error) {
 		return nil, fmt.Errorf("Cloud Provider %s is disabled by configuration", common.CloudProviderName)
 	}
 
-	globalUtil.initV3orV4.Do(func() {
+	globalUtil.initV4.Do(func() {
 		globalUtil.initRetryV4.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "ecsutil-meta-v4",
 			AttemptMethod:     initV4,
@@ -138,7 +140,7 @@ func V4FromCurrentTask() (v3or4.Client, error) {
 		log.Debugf("ECS metadata v4 client init error: %s", err)
 		return nil, err
 	}
-	return globalUtil.v3or4, nil
+	return globalUtil.v4, nil
 }
 
 // newAutodetectedClientV1 detects the metadata v1 API endpoint and creates a new
@@ -208,7 +210,7 @@ func initV3orV4() error {
 func initV4() error {
 	client, err := newClientV4ForCurrentTask()
 	if err == nil {
-		globalUtil.v3or4 = client
+		globalUtil.v4 = client
 		return nil
 	}
 	return err

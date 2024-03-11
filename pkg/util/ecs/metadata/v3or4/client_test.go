@@ -22,13 +22,13 @@ func TestGetV4TaskWithTags(t *testing.T) {
 	dummyECS, err := testutil.NewDummyECS(
 		testutil.FileHandlerOption("/v4/1234-1/taskWithTags", testDataPath),
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	ts := dummyECS.Start()
 	defer ts.Close()
 
 	client := NewClient(fmt.Sprintf("%s/v4/1234-1", ts.URL), "v4")
 	task, err := client.GetTaskWithTags(context.Background())
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	require.Equal(t, *expected(), *task)
 }
