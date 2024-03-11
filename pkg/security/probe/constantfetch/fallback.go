@@ -306,14 +306,14 @@ func getTTYNameOffset(kv *kernel.Version) uint64 {
 }
 
 func getCredsUIDOffset(kv *kernel.Version) uint64 {
-	size := uint64(4)
-
 	switch {
 	case kv.IsCOSKernel():
-		size += 16
+		return 20
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() > 250:
+		return 8
+	default:
+		return 4
 	}
-
-	return size
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {
