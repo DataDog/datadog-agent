@@ -180,7 +180,7 @@ func (r *runnerImpl) start() error {
 
 	go func() {
 		for _, priorityProvider := range r.priorityProviders {
-			// Execute syncronously the priority provider
+			// Execute synchronously the priority provider
 			priorityProvider(context.Background())
 
 			go r.handleProvider(priorityProvider)
