@@ -128,14 +128,13 @@ func cStringArrayToSlice(a **C.char) []string {
 		return nil
 	}
 
-	si := sharedStringInternerPool.Get()
-	defer sharedStringInternerPool.Put(si)
-
 	var length int
 	forEachCString(a, func(_ *C.char) {
 		length++
 	})
 	res := make([]string, 0, length)
+	si, release := acquireInterner()
+	defer release()
 	forEachCString(a, func(s *C.char) {
 		bytes := unsafe.Slice((*byte)(unsafe.Pointer(s)), cstrlen(s))
 		res = append(res, si.intern(bytes))

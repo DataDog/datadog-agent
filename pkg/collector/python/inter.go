@@ -9,6 +9,8 @@ package python
 
 import "sync"
 
+const maxInternerStrings = 1000
+
 type stringInterner struct {
 	m map[string]string
 }
@@ -26,31 +28,15 @@ func (si *stringInterner) intern(s []byte) string {
 	return ss
 }
 
-func newStringInternerPool(maxStrings int) *stringInternerPool {
-	return &stringInternerPool{
-		maxStrings: maxStrings,
-		p: &sync.Pool{
-			New: func() interface{} {
-				return newStringInterner()
-			},
-		},
+var sharedInternerMu sync.Mutex
+var sharedInterner = newStringInterner()
+
+func acquireInterner() (*stringInterner, func()) {
+	sharedInternerMu.Lock()
+	return sharedInterner, func() {
+		if len(sharedInterner.m) > maxInternerStrings {
+			sharedInterner = newStringInterner()
+		}
+		sharedInternerMu.Unlock()
 	}
 }
-
-type stringInternerPool struct {
-	maxStrings int
-	p          *sync.Pool
-}
-
-func (s stringInternerPool) Get() *stringInterner {
-	return s.p.Get().(*stringInterner)
-}
-
-func (s stringInternerPool) Put(si *stringInterner) {
-	if len(si.m) > s.maxStrings {
-		si.m = make(map[string]string)
-	}
-	s.p.Put(si)
-}
-
-var sharedStringInternerPool = newStringInternerPool(1000)
