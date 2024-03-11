@@ -135,8 +135,32 @@ func cStringArrayToSlice(array **C.char) []string {
 			str := C.GoString(strPtr)
 			res = append(res, str)
 		}
+		return res
 	}
 	return nil
+}
+
+// sliceToCStringArray converts a slice of Go strings to an array of C strings.
+// It's a test helper, but it can't be declared in a _test.go file because cgo
+// is not allowed there.
+func sliceToCStringArray(s []string) **C.char {
+	cArray := (**C.char)(C.malloc(C.size_t(len(s) + 1)))
+	for i, str := range s {
+		*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), i*8)) = C.CString(str)
+	}
+	*(**C.char)(unsafe.Add(unsafe.Pointer(cArray), len(s)*8)) = nil
+	return cArray
+}
+
+// freeCStringArray frees the memory of a null-terminated array of C strings.
+// It's a test helper, but it can't be declared in a _test.go file because cgo
+// is not allowed there.
+func freeCStringArray(cArray **C.char) {
+	for i := 0; cArray != nil && *cArray != nil; i++ {
+		C._free(unsafe.Pointer(*cArray))
+		cArray = (**C.char)(unsafe.Add(unsafe.Pointer(cArray), unsafe.Sizeof(cArray)))
+	}
+	C._free(unsafe.Pointer(cArray))
 }
 
 // GetPythonIntegrationList collects python datadog installed integrations list
