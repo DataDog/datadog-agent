@@ -311,6 +311,14 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 		return 20
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() > 250:
 		return 8
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() > 200:
+		return 8
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_19, kernel.Kernel4_20) && kv.Code.Patch() > 250:
+		return 8
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() > 200:
+		return 8
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2) && kv.Code.Patch() > 70:
+		return 8
 	default:
 		return 4
 	}
