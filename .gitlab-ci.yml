@@ -59,6 +59,7 @@ default:
 stages:
   - .pre
   - setup
+  - notify
   - maintenance_jobs
   - deps_build
   - deps_fetch
@@ -104,7 +105,6 @@ stages:
   - internal_kubernetes_deploy
   - post_rc_build
   - check_merge
-  - notify
 
 variables:
   # Directory in which we execute the omnibus build.
