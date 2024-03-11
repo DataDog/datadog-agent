@@ -146,7 +146,13 @@ func (p *WindowsProbe) initEtwFIM() error {
 		*/
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
-		cfg.MatchAnyKeyword = 0x10A0
+		// only doing
+		// create(12) (not handling)
+		// createnewfile(30)   KERNEL_FILE_KEYWORD_CREATE_NEW_FILE 0x1000
+		// cleanup(13) (not handling) keyword_KERNEL_FILE_KEYWORD_FILEIO
+		// close(14) <<-- must have for file path resolver keyword_KERNEL_FILE_KEYWORD_FILEIO 0x20
+		// flush(21)  (not handling)
+		cfg.MatchAnyKeyword = 0x1020
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -172,9 +178,15 @@ func (p *WindowsProbe) initEtwFIM() error {
 					<keyword name="QueryKey" message="$(string.keyword_QueryKey)" mask="0x8000"/>
 		    	</keywords>
 		*/
-		// try masking on create & create_new_file
-		// given the current requirements, I think we can _probably_ just do create_new_file
-		cfg.MatchAnyKeyword = 0xF7E3
+
+		// only processing
+		// createKeyArgs    0x1000
+		// openKeyArgs      0x2000
+		// deleteKeyArgs    0x4000
+		// setValueKeyArgs  0x0100
+		// closeKeyArgs     0x0001   <<-- must have to clean up path resolver map
+
+		cfg.MatchAnyKeyword = 0x7101
 	})
 
 	err = p.fimSession.EnableProvider(p.fileguid)
