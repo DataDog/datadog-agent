@@ -42,7 +42,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		}
 		selfTests = []SelfTest{
 			&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
-			&WindowsOpenRegistryKeyTest{keyPah: keyPath},
+			&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 		}
 	}
 
