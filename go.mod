@@ -199,7 +199,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.7.7
-	github.com/mdlayher/netlink v1.6.2
+	github.com/mdlayher/netlink v1.7.2
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/miekg/dns v1.1.58
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
@@ -443,7 +443,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.3.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/josharian/native v1.0.0 // indirect
+	github.com/josharian/native v1.1.0 // indirect
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
 	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
@@ -471,7 +471,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
-	github.com/mdlayher/socket v0.2.3 // indirect
+	github.com/mdlayher/socket v0.4.1 // indirect
 	github.com/microsoft/go-rustaudit v0.0.0-20220808201409-204dfee52032 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
