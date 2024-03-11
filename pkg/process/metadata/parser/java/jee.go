@@ -155,7 +155,7 @@ func vfsAndTypeFromAppPath(appPath string, fs afero.Fs) (*fileSystemCloser, bool
 		isEar = true
 	} else if ext != ".war" {
 		// only ear and war are supported
-		return nil, isEar, errUnhandledDeployment
+		return nil, false, errUnhandledDeployment
 	}
 	fi, err := fs.Stat(appPath)
 	if err != nil {
