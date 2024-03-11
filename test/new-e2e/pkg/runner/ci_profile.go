@@ -42,9 +42,9 @@ func NewCIProfile() (Profile, error) {
 
 	// Building name prefix
 	pipelineID := os.Getenv("CI_PIPELINE_ID")
-	runnerID := os.Getenv("CI_RUNNER_ID")
-	if pipelineID == "" || runnerID == "" {
-		return nil, fmt.Errorf("unable to compute name prefix, missing variables pipeline id: %s, runner id: %s", pipelineID, runnerID)
+	jobID := os.Getenv("CI_JOB_ID")
+	if pipelineID == "" || jobID == "" {
+		return nil, fmt.Errorf("unable to compute name prefix, missing variables pipeline id: %s, job id: %s", pipelineID, jobID)
 	}
 
 	store := parameters.NewEnvStore(EnvPrefix)
@@ -68,7 +68,7 @@ func NewCIProfile() (Profile, error) {
 
 	return ciProfile{
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
-		ciUniqueID:  "ci-" + pipelineID + "-" + runnerID,
+		ciUniqueID:  "ci-" + pipelineID + "-" + jobID,
 	}, nil
 }
 
