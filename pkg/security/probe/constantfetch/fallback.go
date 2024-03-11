@@ -864,6 +864,8 @@ func getIoKcbCtxOffset(kv *kernel.Version) uint64 {
 		return 80
 	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		return 96
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() > 250:
+		return 96
 	case kv.Code >= kernel.Kernel5_16:
 		return 88
 	default:
