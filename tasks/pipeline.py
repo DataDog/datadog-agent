@@ -829,7 +829,7 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     # Commands to push the branch
     commands = [
         # Fetch
-        f"git remote add '{owner}' 'git@github.com:{owner}/datadog-agent.git'",
+        f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
         f"git fetch '{owner}'",
         # Create branch
         f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
@@ -863,6 +863,5 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
     pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
 
-    print()
-    print(f'Branch {owner}/{branch} pushed to repo: {repo}')
-    print(f'Pipeline: {pipeline}')
+    print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
+    print(f'CI-Visibility pipeline link: {pipeline}')
