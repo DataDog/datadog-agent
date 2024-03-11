@@ -97,7 +97,16 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		dynamicTags map[string]struct{}
 	)
 	staticTags, dynamicTags = httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
-	_, _ = http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
+	staticTags2, dynamicTags2 := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
+
+	staticTags |= staticTags2
+	if dynamicTags == nil {
+		dynamicTags = dynamicTags2
+	} else {
+		for k, v := range dynamicTags2 {
+			dynamicTags[k] = v
+		}
+	}
 
 	// TODO: optimize kafkEncoder to take a writer and use gostreamer
 	if dsa := kafkaEncoder.GetKafkaAggregations(conn); dsa != nil {
