@@ -7,6 +7,7 @@ package apm
 
 import (
 	"fmt"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"os"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +27,13 @@ type DockerFakeintakeSuite struct {
 }
 
 func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
+	opts = append(opts,
+		// The LoadBalancer is an https endpoint while the raw fakeintake is http
+		// The Agent is configured to use HTTPS. Thus, using the load balancer is mandatory.
+		// Moreover, if the Fakeintake is killed and replaced, the fakeintake IP can change but
+		// the load balancer IP will not. Thus it should be more robust.
+		awsdocker.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()),
+	)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
@@ -40,6 +49,11 @@ func TestDockerFakeintakeSuiteUDS(t *testing.T) {
 			"DD_APM_RECEIVER_SOCKET",
 			pulumi.String("/var/run/datadog/apm.socket")),
 		// Optional: UDS is more reliable for statsd metrics
+		// Set DD_DOGSTATSD_SOCKET to enable the UDS statsd listener in the core-agent
+		dockeragentparams.WithAgentServiceEnvVariable(
+			"DD_DOGSTATSD_SOCKET",
+			pulumi.String("/var/run/datadog/dsd.socket")),
+		// Set STATSD_URL to instruct the statsd client in the trace-agent to send metrics through UDS
 		dockeragentparams.WithAgentServiceEnvVariable(
 			"STATSD_URL",
 			pulumi.String("unix:///var/run/datadog/dsd.socket")),
@@ -60,12 +74,18 @@ func (s *DockerFakeintakeSuite) TestTraceAgentMetrics() {
 	}, 2*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics")
 }
 
+func (s *DockerFakeintakeSuite) TestTraceAgentMetricTags() {
+	service := fmt.Sprintf("tracegen-metric-tags-%s", s.transport)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testTraceAgentMetricTags(s.T(), c, service, s.Env().FakeIntake)
+	}, 3*time.Minute, 10*time.Second, "Failed finding datadog.trace_agent.* metrics with tags")
+}
+
 func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
-	if s.transport != uds {
-		// TODO: Container tagging with cgroup v2 currently only works over UDS
-		// We should update this to run over TCP as well once that is implemented.
-		s.T().Skip("Container Tagging with Cgroup v2 only works on UDS")
-	}
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 

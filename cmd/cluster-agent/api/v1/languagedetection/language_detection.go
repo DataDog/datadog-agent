@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -23,6 +24,13 @@ import (
 )
 
 const pldHandlerName = "language-detection-handler"
+
+var (
+	// statusSuccess is the value for the "status" tag that represents a successful operation
+	statusSuccess = "success"
+	// statusError is the value for the "status" tag that represents an error
+	statusError = "error"
+)
 
 // InstallLanguageDetectionEndpoints installs language detection endpoints
 func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Component) {
@@ -36,27 +44,41 @@ func InstallLanguageDetectionEndpoints(r *mux.Router, wmeta workloadmeta.Compone
 	r.HandleFunc("/languagedetection", api.WithTelemetryWrapper(pldHandlerName, handler)).Methods("POST")
 }
 
-var ownersLanguage OwnersLanguages
+var ownersLanguages OwnersLanguages
+var languageTTL time.Duration
 var ownersLanguagesOnce sync.Once
 
-func loadOwnersLanguages() *OwnersLanguages {
+func loadOwnersLanguages(wlm workloadmeta.Component) *OwnersLanguages {
 	ownersLanguagesOnce.Do(func() {
-		ownersLanguage = *newOwnersLanguages()
+		ownersLanguages = *newOwnersLanguages()
+		languageTTL = config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.language_ttl")
+		cleanupPeriod := config.Datadog.GetDuration("cluster_agent.language_detection.cleanup.period")
+
+		// Launch periodic cleanup mechanism
+		go func() {
+			cleanupTicker := time.NewTicker(cleanupPeriod)
+			for range cleanupTicker.C {
+				ownersLanguages.cleanExpiredLanguages(wlm)
+			}
+		}()
+
+		// Remove any owner when its corresponding resource is deleted
+		go ownersLanguages.cleanRemovedOwners(wlm)
 	})
-	return &ownersLanguage
+	return &ownersLanguages
 }
 
 // preHandler is called by both leader and followers and returns true if the request should be forwarded or handled by the leader
 func preHandler(w http.ResponseWriter, r *http.Request) bool {
 	if !config.Datadog.GetBool("language_detection.enabled") {
-		ErrorResponses.Inc()
+		ProcessedRequests.Inc(statusError)
 		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusServiceUnavailable)
 		return false
 	}
 
 	// Reject if no body
 	if r.Body == nil {
-		ErrorResponses.Inc()
+		ProcessedRequests.Inc(statusError)
 		http.Error(w, "Request body is empty", http.StatusBadRequest)
 		return false
 	}
@@ -69,7 +91,7 @@ func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Comp
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		ErrorResponses.Inc()
+		ProcessedRequests.Inc(statusError)
 		return
 	}
 
@@ -80,19 +102,20 @@ func leaderHandler(w http.ResponseWriter, r *http.Request, wlm workloadmeta.Comp
 	err = proto.Unmarshal(body, requestData)
 	if err != nil {
 		http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
-		ErrorResponses.Inc()
+		ProcessedRequests.Inc(statusError)
 		return
 	}
 
-	ownersLanguagesFromRequest := getOwnersLanguages(requestData)
+	ownersLanguagesFromRequest := getOwnersLanguages(requestData, time.Now().Add(languageTTL))
 
-	err = loadOwnersLanguages().mergeAndFlush(ownersLanguagesFromRequest, wlm)
+	ownersLanguage := loadOwnersLanguages(wlm)
+	err = ownersLanguage.mergeAndFlush(ownersLanguagesFromRequest, wlm)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to store some (or all) languages in workloadmeta store: %s", err), http.StatusInternalServerError)
-		ErrorResponses.Inc()
+		ProcessedRequests.Inc(statusError)
 		return
 	}
 
-	OkResponses.Inc()
+	ProcessedRequests.Inc(statusSuccess)
 	w.WriteHeader(http.StatusOK)
 }

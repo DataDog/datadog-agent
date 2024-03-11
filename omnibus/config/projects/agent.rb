@@ -67,6 +67,7 @@ else
     if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
+      conflict "glibc-common < 2.17"
     else
       runtime_script_dependency :pre, "glibc"
       runtime_script_dependency :pre, "shadow"
@@ -185,6 +186,7 @@ package :ociru do
   skip_packager !BUILD_OCIRU
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+  compression_algorithm "gzip"
 end
 
 # ------------------------------------

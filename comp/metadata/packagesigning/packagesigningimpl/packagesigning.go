@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"go.uber.org/fx"
 )
 
@@ -42,6 +45,7 @@ type Payload struct {
 	Hostname  string           `json:"hostname"`
 	Timestamp int64            `json:"timestamp"`
 	Metadata  *signingMetadata `json:"signing_metadata"`
+	UUID      string           `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -108,8 +112,8 @@ func newPackageSigningProvider(deps dependencies) provides {
 	is.InventoryPayload.MaxInterval = defaultCollectInterval
 	is.InventoryPayload.MinInterval = defaultCollectInterval
 	is.InventoryPayload.Enabled = isPackageSigningEnabled(deps.Config, is.log)
-	provider := runnerimpl.NewEmptyProvider()
-	if runtime.GOOS == "linux" {
+	var provider runnerimpl.Provider
+	if is.InventoryPayload.Enabled {
 		if getPkgManager() != "" {
 			// Package signing telemetry is only valid on Linux and DEB/RPM based distros (including SUSE)
 			provider = is.MetadataProvider()
@@ -126,11 +130,30 @@ func newPackageSigningProvider(deps dependencies) provides {
 }
 
 func isPackageSigningEnabled(conf config.Reader, logger log.Component) bool {
-	if !conf.GetBool("enable_signing_metadata_collection") {
-		logger.Debug("Signing metadata collection disabled: linux package signing keys will not be collected nor sent")
+	installTool, err := installinfo.Get(conf)
+	if err != nil {
+		logger.Debugf("Failed to get install_info file information: %v", err)
 		return false
 	}
-	logger.Debug("Signing metadata collection enabled")
+	isInConfigurationFile := conf.GetBool("enable_signing_metadata_collection")
+	isEnabled := isInConfigurationFile && runtime.GOOS == "linux" && isAllowedInstallationTool(installTool.Tool)
+	if !isEnabled {
+		logger.Debugf("Package-signing metadata collection disabled: config %t, OS %s, install tool %s", isInConfigurationFile, runtime.GOOS, installTool.Tool)
+		logger.Debug("Package-signing metadata must be enabled in datadog.yaml, and running on a non-containerized Linux system to collect data")
+	} else {
+		logger.Debug("Package-signing metadata collection enabled")
+	}
+	return isEnabled
+}
+
+// isAllowedInstallationTool returns false if we detect a container-like installation method
+func isAllowedInstallationTool(installTool string) bool {
+	forbiddenMethods := []string{"helm", "docker", "operator", "kube"}
+	for _, method := range forbiddenMethods {
+		if strings.Contains(installTool, method) {
+			return false
+		}
+	}
 	return true
 }
 
@@ -156,5 +179,6 @@ func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
 		Hostname:  is.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  &signingMetadata{is.getData()},
+		UUID:      uuid.GetUUID(),
 	}
 }

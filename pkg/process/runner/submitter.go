@@ -15,19 +15,18 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+
 	//nolint:revive // TODO(PROC) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -35,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -56,17 +54,18 @@ type CheckSubmitter struct {
 	rtProcessResults   *api.WeightedQueue
 	eventResults       *api.WeightedQueue
 	connectionsResults *api.WeightedQueue
-	podResults         *api.WeightedQueue
 
 	// Forwarders
 	processForwarder     defaultforwarder.Component
 	rtProcessForwarder   defaultforwarder.Component
 	connectionsForwarder defaultforwarder.Component
-	podForwarder         *forwarder.DefaultForwarder
 	eventForwarder       defaultforwarder.Component
 
-	orchestrator *oconfig.OrchestratorConfig
-	hostname     string
+	// Endpoints for logging purposes
+	processAPIEndpoints       []apicfg.Endpoint
+	processEventsAPIEndpoints []apicfg.Endpoint
+
+	hostname string
 
 	exit chan struct{}
 	wg   *sync.WaitGroup
@@ -113,13 +112,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	connectionsResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating connections queue with max_size=%d and max_weight=%d", connectionsResults.MaxSize(), connectionsResults.MaxWeight())
 
-	orchestrator := oconfig.NewDefaultOrchestratorConfig()
-	if err := orchestrator.Load(); err != nil {
-		return nil, err
-	}
-	podResults := api.NewWeightedQueue(queueSize, int64(orchestrator.PodQueueBytes))
-	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
-
 	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
 
@@ -135,33 +127,27 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		return nil, err
 	}
 
-	podForwarderOpts := forwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(orchestrator.OrchestratorEndpoints)))
-	podForwarderOpts.DisableAPIKeyChecking = true
-	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
-	podForwarder := forwarder.NewDefaultForwarder(config, log, podForwarderOpts)
-
 	processEventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
 	if err != nil {
 		return nil, err
 	}
 
-	printStartMessage(log, hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
 	return &CheckSubmitter{
 		log:                log,
 		processResults:     processResults,
 		rtProcessResults:   rtProcessResults,
 		eventResults:       eventResults,
 		connectionsResults: connectionsResults,
-		podResults:         podResults,
 
 		processForwarder:     forwarders.GetProcessForwarder(),
 		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
 		connectionsForwarder: forwarders.GetConnectionsForwarder(),
-		podForwarder:         podForwarder,
 		eventForwarder:       forwarders.GetEventForwarder(),
 
-		orchestrator: orchestrator,
-		hostname:     hostname,
+		processAPIEndpoints:       processAPIEndpoints,
+		processEventsAPIEndpoints: processEventsAPIEndpoints,
+
+		hostname: hostname,
 
 		dropCheckPayloads: dropCheckPayloads,
 
@@ -176,39 +162,29 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	}, nil
 }
 
-func printStartMessage(log log.Component, hostname string, processAPIEndpoints, processEventsAPIEndpoints, orchestratorEndpoints []apicfg.Endpoint) {
+func printStartMessage(log log.Component, hostname string, processAPIEndpoints []apicfg.Endpoint, processEventsAPIEndpoints []apicfg.Endpoint) {
 	eps := make([]string, 0, len(processAPIEndpoints))
 	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
-	}
-	orchestratorEps := make([]string, 0, len(orchestratorEndpoints))
-	for _, e := range orchestratorEndpoints {
-		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
 	eventsEps := make([]string, 0, len(processEventsAPIEndpoints))
 	for _, e := range processEventsAPIEndpoints {
 		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
-	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
+	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s, events endpoints=%s", hostname, eps, eventsEps)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
 	results := s.resultsQueueForCheck(name)
-	if name == checks.PodCheckName {
-		s.messagesToResultsQueue(start, checks.PodCheckName, messages.Message[:len(messages.Message)/2], results)
-		if s.orchestrator.IsManifestCollectionEnabled {
-			s.messagesToResultsQueue(start, checks.PodCheckManifestName, messages.Message[len(messages.Message)/2:], results)
-		}
-		return
-	}
-
 	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Start() error {
+	printStartMessage(s.log, s.hostname, s.processAPIEndpoints, s.processEventsAPIEndpoints)
+
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}
@@ -219,10 +195,6 @@ func (s *CheckSubmitter) Start() error {
 
 	if err := s.connectionsForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting connections forwarder: %s", err)
-	}
-
-	if err := s.podForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting pod forwarder: %s", err)
 	}
 
 	if err := s.eventForwarder.Start(); err != nil {
@@ -245,12 +217,6 @@ func (s *CheckSubmitter) Start() error {
 	go func() {
 		defer s.wg.Done()
 		s.consumePayloads(s.connectionsResults, s.connectionsForwarder)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.podResults, s.podForwarder)
 	}()
 
 	s.wg.Add(1)
@@ -287,12 +253,10 @@ func (s *CheckSubmitter) Start() error {
 					RtProcessQueueSize:    s.rtProcessResults.Len(),
 					ConnectionsQueueSize:  s.connectionsResults.Len(),
 					EventQueueSize:        s.eventResults.Len(),
-					PodQueueSize:          s.podResults.Len(),
 					ProcessQueueBytes:     s.processResults.Weight(),
 					RtProcessQueueBytes:   s.rtProcessResults.Weight(),
 					ConnectionsQueueBytes: s.connectionsResults.Weight(),
 					EventQueueBytes:       s.eventResults.Weight(),
-					PodQueueBytes:         s.podResults.Weight(),
 				})
 			case <-queueLogTicker.C:
 				s.logQueuesSize()
@@ -312,7 +276,6 @@ func (s *CheckSubmitter) Stop() {
 	s.processResults.Stop()
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
-	s.podResults.Stop()
 	s.eventResults.Stop()
 
 	s.wg.Wait()
@@ -320,7 +283,6 @@ func (s *CheckSubmitter) Stop() {
 	s.processForwarder.Stop()
 	s.rtProcessForwarder.Stop()
 	s.connectionsForwarder.Stop()
-	s.podForwarder.Stop()
 	s.eventForwarder.Stop()
 
 	close(s.rtNotifierChan)
@@ -366,12 +328,6 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.ConnectionsCheckName:
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-			// Pod check metadata
-			case checks.PodCheckName:
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
-			// Pod check manifest data
-			case checks.PodCheckManifestName:
-				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.DiscoveryCheckName:
 				// A Process Discovery check does not change the RT mode
 				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
@@ -397,8 +353,6 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 
 func (s *CheckSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
 	switch name {
-	case checks.PodCheckName:
-		return s.podResults
 	case checks.RTProcessCheckName, checks.RTContainerCheckName:
 		return s.rtProcessResults
 	case checks.ConnectionsCheckName:
@@ -415,24 +369,21 @@ func (s *CheckSubmitter) logQueuesSize() {
 		rtProcessSize   = s.rtProcessResults.Len()
 		connectionsSize = s.connectionsResults.Len()
 		eventsSize      = s.eventResults.Len()
-		podSize         = s.podResults.Len()
 	)
 
 	if processSize == 0 &&
 		rtProcessSize == 0 &&
 		connectionsSize == 0 &&
-		eventsSize == 0 &&
-		podSize == 0 {
+		eventsSize == 0 {
 		return
 	}
 
 	s.log.Infof(
-		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
+		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d]",
 		processSize, s.processResults.Weight(),
 		rtProcessSize, s.rtProcessResults.Weight(),
 		connectionsSize, s.connectionsResults.Weight(),
 		eventsSize, s.eventResults.Weight(),
-		podSize, s.podResults.Weight(),
 	)
 }
 
@@ -469,14 +420,6 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 		extraHeaders.Set(headers.AgentStartTime, strconv.FormatInt(s.agentStartTime, 10))
-
-		if s.orchestrator.OrchestrationCollectionEnabled {
-			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
-				extraHeaders.Set(headers.ClusterIDHeader, cid)
-			}
-			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
-			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-		}
 
 		switch name {
 		case checks.ProcessEventsCheckName:

@@ -20,9 +20,10 @@ import (
 
 func TestWindowsExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
-		name               string
-		cmdline            []string
-		expectedServiceTag string
+		name                 string
+		cmdline              []string
+		useImprovedAlgorithm bool
+		expectedServiceTag   string
 	}{
 		{
 			name: "CDPSvc",
@@ -52,20 +53,35 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:myService",
 		},
+		{
+			name: "dotnet with exe extension and with improved algorithm",
+			cmdline: []string{
+				"C:\\Program Files\\dotnet\\dotnet.exe", "-v", "myapp.DLL",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:myapp",
+		},
+		{
+			name: "dotnet with exe extension without improved algorithm",
+			cmdline: []string{
+				"C:\\Program Files\\dotnet\\dotnet.exe", "-v", "myapp.DLL",
+			},
+			expectedServiceTag: "process_context:dotnet",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := ddconfig.MockSystemProbe(t)
-			mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-
+			enabled := true
+			useWindowsServiceName := false
+			useImprovedAlgorithm := tt.useImprovedAlgorithm
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 
-			se := NewServiceExtractor(mockConfig)
+			se := NewServiceExtractor(enabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -74,7 +90,10 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 
 func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	makeServiceExtractor := func(t *testing.T, sysprobeConfig ddconfig.Reader) (*ServiceExtractor, *mockSCM) {
-		se := NewServiceExtractor(sysprobeConfig)
+		enabled := sysprobeConfig.GetBool("system_probe_config.process_service_inference.enabled")
+		useWindowsServiceName := sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+		useImprovedAlgorithm := sysprobeConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
+		se := NewServiceExtractor(enabled, useWindowsServiceName, useImprovedAlgorithm)
 		procsByPid := map[int32]*procutil.Process{1: {
 			Pid:     1,
 			Cmdline: []string{"C:\\nginx-1.23.2\\nginx.exe"},

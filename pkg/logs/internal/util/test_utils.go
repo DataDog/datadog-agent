@@ -7,7 +7,7 @@
 
 package util
 
-import "github.com/DataDog/datadog-agent/pkg/logs/internal/util/testutils"
+import "github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 
 // CreateSources creates sources
 // TODO: This alias will be removed once logs agent module refactor is complete.

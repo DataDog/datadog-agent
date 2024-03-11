@@ -12,11 +12,10 @@ package pod
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -40,6 +39,8 @@ var includeContainerStateReason = map[string][]string{
 	},
 	"terminated": {"oomkilled", "containercannotrun", "error"},
 }
+
+const kubeNamespaceTag = "kube_namespace"
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
@@ -117,7 +118,8 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 
 	tags, _ := tagger.Tag(containerID, collectors.HighCardinality)
-	if len(tags) == 0 {
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
@@ -136,7 +138,8 @@ func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kub
 	}
 
 	tags, _ := tagger.Tag(containerID, collectors.OrchestratorCardinality)
-	if len(tags) == 0 {
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	tags = utils.ConcatenateTags(tags, p.config.Tags)
@@ -179,7 +182,8 @@ func (r *runningAggregator) recordContainer(p *Provider, pod *kubelet.Pod, cStat
 	}
 	r.podHasRunningContainers[pod.Metadata.UID] = true
 	tags, _ := tagger.Tag(containerID, collectors.LowCardinality)
-	if len(tags) == 0 {
+	// Skip recording containers without kubelet information in tagger or if there are no tags
+	if !isTagKeyPresent(kubeNamespaceTag, tags) || len(tags) == 0 {
 		return
 	}
 	hashTags := generateTagHash(tags)
@@ -229,4 +233,13 @@ func generateTagHash(tags []string) string {
 	copy(sortedTags, tags)
 	sort.Strings(sortedTags)
 	return strings.Join(sortedTags, ",")
+}
+
+func isTagKeyPresent(key string, tags []string) bool {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, key+":") {
+			return true
+		}
+	}
+	return false
 }

@@ -131,6 +131,11 @@ func (agent *agentCommandRunner) IsReady() bool {
 	return err == nil
 }
 
+// RemoteConfig runs remote-config command and returns the output
+func (agent *agentCommandRunner) RemoteConfig(commandArgs ...agentclient.AgentArgsOption) string {
+	return agent.executeCommand("remote-config", commandArgs...)
+}
+
 // Status runs status command and returns a Status struct
 func (agent *agentCommandRunner) Status(commandArgs ...agentclient.AgentArgsOption) *agentclient.Status {
 	return &agentclient.Status{

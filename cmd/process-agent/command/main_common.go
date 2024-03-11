@@ -8,6 +8,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -19,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -27,13 +30,16 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -54,6 +60,9 @@ process_config:
 to your datadog.yaml file.
 Exiting.`
 )
+
+// errAgentDisabled indicates that the process-agent wasn't enabled through environment variable or config.
+var errAgentDisabled = errors.New("process-agent not enabled")
 
 func runAgent(ctx context.Context, globalParams *GlobalParams) error {
 	if globalParams.PidFilePath != "" {
@@ -107,6 +116,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				LogParams:    DaemonLogParams,
 			},
 		),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: python.GetPythonVersion,
+			},
+		),
 		// Populate dependencies required for initialization in this function
 		fx.Populate(&appInitDeps),
 
@@ -116,8 +130,18 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),
 
-		// Provide remote config client module
-		rcclient.Module(),
+		// Provide remote config client bundle
+		remoteconfig.Bundle(),
+
+		// Provide workloadmeta module
+		workloadmeta.Module(),
+
+		// Provide tagger module
+		tagger.Module(),
+
+		// Provide status modules
+		statusimpl.Module(),
+		coreStatusImpl.Module(),
 
 		// Provide statsd client module
 		compstatsd.Module(),
@@ -155,11 +179,18 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Invoke the components that we want to start
 		fx.Invoke(func(
-			runner.Component,
-			profiler.Component,
-			expvars.Component,
-			apiserver.Component,
-		) {
+			_ profiler.Component,
+			_ expvars.Component,
+			_ apiserver.Component,
+			// TODO: This is needed by the container-provider which is not currently a component.
+			// We should ensure the tagger is a dependency when converting to a component.
+			_ tagger.Component,
+			processAgent agent.Component,
+		) error {
+			if !processAgent.Enabled() {
+				return errAgentDisabled
+			}
+			return nil
 		}),
 
 		// Initialize the remote-config client to update the runtime settings
@@ -173,6 +204,12 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	)
 
 	if err := app.Err(); err != nil {
+
+		if errors.Is(err, errAgentDisabled) {
+			log.Info("process-agent is not enabled, exiting...")
+			return nil
+		}
+
 		// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
 		// stdout just in case.
 		if appInitDeps.Logger == nil {
@@ -235,6 +272,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
+	Logger       logComponent.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -242,17 +280,17 @@ type miscDeps struct {
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
-		log.Criticalf("Error configuring statsd: %s", err)
+		deps.Logger.Criticalf("Error configuring statsd: %s", err)
 		return err
 	}
 
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
-		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		deps.Logger.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
-	// TODO(components): still unclear how the initialization of workoadmeta
+	// TODO(components): still unclear how the initialization of workloadmeta
 	//                   store and tagger should be performed.
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
@@ -261,7 +299,7 @@ func initMisc(deps miscDeps) error {
 
 			err := manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
-				log.Criticalf("Unable to configure auto-exit, err: %w", err)
+				deps.Logger.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
 			}
 

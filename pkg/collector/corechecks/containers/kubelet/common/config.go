@@ -11,12 +11,12 @@ package common
 import (
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 )
 
 const (
 	// KubeletMetricsPrefix is the prefix included in the metrics emitted by the kubernetes_core check.
-	KubeletMetricsPrefix = "kubernetes_core."
+	KubeletMetricsPrefix = "kubernetes."
 )
 
 // KubeletConfig is the config of the Kubelet.

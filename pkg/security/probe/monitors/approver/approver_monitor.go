@@ -11,15 +11,17 @@ package approver
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // Stats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
@@ -43,7 +45,7 @@ func (d *Monitor) SendStats() error {
 	buffer := d.stats[1-d.activeStatsBuffer]
 	iterator := buffer.Iterate()
 	statsAcrossAllCPUs := make([]Stats, d.numCPU)
-	statsByEventType := make([]Stats, model.LastApproverEventType)
+	statsByEventType := make([]Stats, model.LastApproverEventType+1)
 
 	var eventType uint32
 	for iterator.Next(&eventType, &statsAcrossAllCPUs) {
