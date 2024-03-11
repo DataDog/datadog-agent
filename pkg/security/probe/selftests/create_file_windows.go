@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
 // Package selftests holds selftests related files
 package selftests
 
 import (
 	"fmt"
-	"os/exec"
+	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -18,41 +16,43 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WindowsSetRegistryKeyTest defines a windows set registry value self test
-type WindowsSetRegistryKeyTest struct {
+// WindowsCreateFileSelfTest defines a windows create file self test
+type WindowsCreateFileSelfTest struct {
 	ruleID    eval.RuleID
 	isSuccess bool
-	keyName   string
+	filename  string
 }
 
 // GetRuleDefinition returns the rule
-func (o *WindowsSetRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_windows_set_registry_key_value", ruleIDPrefix)
+func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
+	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`set.registry.key_name == "%s"`, filepath.Base(o.keyName)),
+		Expression: fmt.Sprintf(`create.file.name == "%s"`, filepath.Base(o.filename)),
 	}
 }
 
 // GenerateEvent generate an event
-func (o *WindowsSetRegistryKeyTest) GenerateEvent() error {
+func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 	o.isSuccess = false
-	psCommand := fmt.Sprintf(`Set-ItemProperty "%s" -Name 'tmp_self_test_value_name' -Value 'tmp_self_test_value'`, o.keyName)
-	cmd := exec.Command("powershell", "-Command", psCommand)
-	if err := cmd.Run(); err != nil {
-		log.Debugf("error running command: %v", err)
+
+	file, err := os.Create(o.filename)
+	if err != nil {
+		log.Debugf("error creating file: %v", err)
 		return err
 	}
+	defer file.Close()
+	o.isSuccess = true
 	return nil
 }
 
 // HandleEvent handles self test events
-func (o *WindowsSetRegistryKeyTest) HandleEvent(event selfTestEvent) {
+func (o *WindowsCreateFileSelfTest) HandleEvent(event selfTestEvent) {
 	o.isSuccess = event.RuleID == o.ruleID
 }
 
 // IsSuccess return the state of the test
-func (o *WindowsSetRegistryKeyTest) IsSuccess() bool {
+func (o *WindowsCreateFileSelfTest) IsSuccess() bool {
 	return o.isSuccess
 }
