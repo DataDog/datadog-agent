@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -70,15 +69,4 @@ func createTargetFile() (string, string, error) {
 	}
 
 	return targetFile.Name(), tmpDir, targetFile.Close()
-}
-
-func Cleanup(tmpDir string, tmpKey string) error {
-	if tmpDir != "" {
-		err := os.RemoveAll(tmpDir)
-		if err != nil {
-			log.Debugf("Error while deleting temporary file", err)
-		}
-		return err
-	}
-	return nil
 }
