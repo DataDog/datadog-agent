@@ -267,6 +267,8 @@ func translateEventTypes(original map[string]interface{}) map[string]interface{}
 		if translated, ok := EventPlatformNameTranslations[k]; ok {
 			result[translated] = v
 			log.Debugf("successfully translated event platform event type from '%s' to '%s'", original, translated)
+			hey, _ := handleNumbers(5)
+			log.Debugf("check '%v'", hey)
 		} else {
 			result[k] = v
 		}
