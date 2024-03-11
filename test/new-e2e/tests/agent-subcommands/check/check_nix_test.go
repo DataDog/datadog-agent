@@ -31,7 +31,7 @@ func TestLinuxCheckSuite(t *testing.T) {
 	e2e.Run(t, &linuxCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
 		agentparams.WithFile("/etc/datadog-agent/conf.d/hello.yaml", string(customCheckYaml), true),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/hello.py", string(customCheckPython), true),
-	))), e2e.WithDevMode())
+	))))
 }
 
 func (v *linuxCheckSuite) TestCheckFlare() {
