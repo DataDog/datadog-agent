@@ -135,6 +135,26 @@ def get_embedded_path(ctx):
     return embedded_path
 
 
+def get_xcode_version(ctx):
+    """
+    Get the version of XCode used depending on how it's installed.
+    """
+    if sys.platform != "darwin":
+        raise ValueError("The get_xcode_version function is only available on macOS")
+    xcode_path = ctx.run("xcode-select -p", hide=True).stdout.strip()
+    if xcode_path == "/Library/Developer/CommandLineTools":
+        xcode_version = ctx.run("pkgutil --pkg-info=com.apple.pkg.CLTools_Executables", hide=True).stdout.strip()
+        xcode_version = re.search(r"version: ([0-9.]+)", xcode_version).group(1)
+        xcode_version = re.search(r"([0-9]+.[0-9]+)", xcode_version).group(1)
+    elif xcode_path.startswith("/Applications/Xcode.app"):
+        xcode_version = ctx.run(
+            "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
+        ).stdout.strip()
+    else:
+        raise ValueError(f"Unknown XCode installation at {xcode_path}.")
+    return xcode_version
+
+
 def get_build_flags(
     ctx,
     static=False,
@@ -237,14 +257,13 @@ def get_build_flags(
         # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
         # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
         # See https://indiestack.com/2023/10/xcode-15-duplicate-library-linker-warnings/
-        xcode_version = ctx.run(
-            "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
-        ).stdout.strip()
-        if xcode_version and int(xcode_version.split('.')[0]) >= 15:
-            extldflags += ",-no_warn_duplicate_libraries "
-        else:
+        try:
+            xcode_version = get_xcode_version(ctx)
+            if int(xcode_version.split('.')[0]) >= 15:
+                extldflags += ",-no_warn_duplicate_libraries "
+        except ValueError:
             print(
-                "Could not determine XCode version with 'xcodebuild -version', not adding -no_warn_duplicate_libraries to extldflags",
+                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
                 file=sys.stderr,
             )
 
