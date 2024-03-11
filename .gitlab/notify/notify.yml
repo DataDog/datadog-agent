@@ -87,6 +87,10 @@ notify_github:
     # Pinned version of pr-commenter taken from https://github.com/DataDog/dogweb/blob/b249c0815f70e71e07846f5e42fb6504c17a7c3e/tasks/gitlab/k8s-diff-helper.sh#L22
     dd-package --bucket binaries.ddbuild.io --package devtools/pr-commenter --distribution "20.04" --version "16841676-368d2e2d"
     # Command
-    command="inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu"
-    echo "command: '$command'"
-    echo "$command" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
+    messagefile="$(mktemp)"
+    echo "Use this command to run CI on your branch:" >> "$messagefile"
+    echo "```sh" >> "$messagefile"
+    echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
+    echo "```" >> "$messagefile"
+    echo "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
+    rm "$messagefile"
