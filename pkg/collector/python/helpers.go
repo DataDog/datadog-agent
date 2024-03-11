@@ -24,8 +24,6 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
-
-char *getStringAddr(char **array, unsigned int idx);
 */
 import "C"
 
