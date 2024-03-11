@@ -5,7 +5,7 @@ import itertools
 import json
 import os
 import platform
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, List, Optional, Set, Union, cast
 from urllib.parse import urlparse
 
 from invoke.context import Context
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         Platforms,
         Recipe,
         VMConfig,
+        VMDef,
         VMSetDict,
     )
 
@@ -194,9 +195,6 @@ def list_possible() -> List[str]:
         result.append(f"{p[0]}-{p[1]}-{p[2]}")
 
     return result
-
-
-VMDef = Tuple[Recipe, str, ArchOrLocal]
 
 
 # normalize_vm_def converts the detected user provider vm-def

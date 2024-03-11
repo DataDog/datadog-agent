@@ -4,7 +4,7 @@ extra packages that might not be available in runtime.
 """
 
 import os
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 
 from typing_extensions import Literal, TypedDict
 
@@ -71,3 +71,4 @@ class VMConfig(TypedDict):  # noqa: F841
 
 
 Recipe = Literal["distro", "custom"]
+VMDef = Tuple[Recipe, str, ArchOrLocal]
