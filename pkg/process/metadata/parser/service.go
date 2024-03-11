@@ -415,7 +415,7 @@ func advancedGuessJavaServiceName(se *ServiceExtractor, process *procutil.Proces
 	contextRoots := javaparser.ExtractServiceNamesForJEEServer(args, process.Cwd, afero.NewOsFs())
 	if len(contextRoots) > 0 {
 		// use a `;` separated list to surface multiple service names found
-		return strings.Join(contextRoots, ";"), true
+		return contextRoots, true
 	}
 	// try to introspect the jar to get service name from spring application name
 	// TODO: pass process envs

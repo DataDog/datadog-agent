@@ -360,7 +360,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"weblogic.Server",
 			},
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:weblogic",
+			expectedServiceTags:  []string{"process_context:weblogic"},
 		},
 		{
 			name: "weblogic with multiple services found",
@@ -372,7 +372,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			cwd:                  "java/testdata/weblogic",
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:my_context;some_context_root",
+			expectedServiceTags:  []string{"process_context:my_context", "process_context:some_context_root"},
 		},
 		{
 			name: "tomcat - old naming for backward compatibility",
@@ -381,7 +381,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Dcatalina.base=somewhere",
 				"org.apache.catalina.startup.Bootstrap",
 			},
-			expectedServiceTag: "process_context:catalina",
+			expectedServiceTags: []string{"process_context:catalina"},
 		},
 		{
 			name: "tomcat - improved algorithm",
@@ -391,7 +391,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"org.apache.catalina.startup.Bootstrap",
 			},
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:tomcat",
+			expectedServiceTags:  []string{"process_context:tomcat"},
 		},
 	}
 
