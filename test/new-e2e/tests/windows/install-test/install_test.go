@@ -31,6 +31,7 @@ import (
 
 type agentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.Host]
+	beforeInstall *windowsCommon.FileSystemSnapshot
 }
 
 func TestMSI(t *testing.T) {
@@ -81,6 +82,14 @@ func (is *agentMSISuite) prepareHost() {
 	}
 }
 
+func (is *agentMSISuite) BeforeTest(_, _ string) {
+	vm := is.Env().RemoteHost
+	var err error
+	// If necessary (for example for parallelization), store the snapshot per suite/test in a map
+	is.beforeInstall, err = windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
+	is.Require().NoError(err)
+}
+
 func (is *agentMSISuite) TestInstall() {
 	vm := is.Env().RemoteHost
 	is.prepareHost()
@@ -90,6 +99,15 @@ func (is *agentMSISuite) TestInstall() {
 
 	// install the agent
 	remoteMSIPath := is.installAgentPackage(vm, is.AgentPackage)
+
+	is.T().Run("install Agent only modify Agent related paths", func(tt *testing.T) {
+		afterInstall, err := windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
+		is.Require().NoError(err)
+		results, err := is.beforeInstall.CompareSnapshots(vm, afterInstall)
+		is.Require().NoError(err)
+		// TODO: compare files to ensure they all start with Agent paths ("%PROGRAMDATA%\Datadog" "%PROGRAMFILES%\Datadog Agent")
+		is.Require().NotEmpty(results)
+	})
 
 	// run tests
 	if !t.TestInstallExpectations(is.T()) {
@@ -110,6 +128,9 @@ func (is *agentMSISuite) TestInstall() {
 	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
 
 	is.uninstallAgentAndRunUninstallTests(t)
+
+	// Do uninstall tests here, but could/should be in its own test
+	AssertDoesNotChangeSystemFiles(is.T(), vm, is.beforeInstall)
 }
 
 func (is *agentMSISuite) TestUpgrade() {
@@ -275,7 +296,6 @@ func (is *agentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
 func (is *agentMSISuite) newTester(vm *components.RemoteHost, options ...TesterOption) *Tester {
 	testerOpts := []TesterOption{
 		WithAgentPackage(is.AgentPackage),
-		WithSystemFileIntegrityTester(NewSystemFileIntegrityTester(vm)),
 	}
 	testerOpts = append(testerOpts, options...)
 	t, err := NewTester(is.T(), vm, testerOpts...)
