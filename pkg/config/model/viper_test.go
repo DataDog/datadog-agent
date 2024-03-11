@@ -346,3 +346,10 @@ func TestNotificationNoChange(t *testing.T) {
 	config.Set("foo", "bar", SourceFile)
 	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
 }
+
+func TestCheckKnownKey(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetWithoutSource("foo", "bar")
+	config.Get("foo")
+	assert.True(t, config.IsKnown("foo"))
+}
