@@ -211,6 +211,15 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
     return best_teams
 
 
+def _get_team_labels():
+    import toml
+
+    with open('.ddqa/config.toml', 'r') as f:
+        data = toml.loads(f.read())
+
+    return [label for team in data['teams'].values() for label in team['github_labels']]
+
+
 @task
 def assign_team_label(_, pr_id=-1):
     """
@@ -240,11 +249,17 @@ def assign_team_label(_, pr_id=-1):
         print('No team found')
         return
 
-    # Assign label
+    # Get labels
+    all_team_labels = _get_team_labels()
     team_labels = [f"team{team.removeprefix('@DataDog')}" for team in teams if team.startswith("@DataDog/")]
+
+    # Assign label
     for label_name in team_labels:
-        try:
-            gh.add_pr_label(pr_id, label_name)
-            print(label_name, 'label assigned to the pull request')
-        except github.GithubException.GithubException:
-            print(f'Failed to assign label {label_name}')
+        if label_name not in all_team_labels:
+            print(label_name, 'cannot be found in .ddqa/config.toml, skipping')
+        else:
+            try:
+                gh.add_pr_label(pr_id, label_name)
+                print(label_name, 'label assigned to the pull request')
+            except github.GithubException.GithubException:
+                print(f'Failed to assign label {label_name}')
