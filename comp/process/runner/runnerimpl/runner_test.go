@@ -6,7 +6,6 @@
 package runnerimpl
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -96,6 +95,7 @@ func TestRunnerRealtime(t *testing.T) {
 			processcheckimpl.Module(),
 			hostinfoimpl.MockModule(),
 			core.MockBundle(),
+		))
 
 		rtChan <- types.RTResponse{
 			&model.CollectorStatus{
