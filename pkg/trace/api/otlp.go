@@ -526,16 +526,16 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		setMetaOTLP(span, k, v)
 	}
 
-	spanKind := spanKindName(in.Kind())
-	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == "server" || spanKind == "consumer") {
+	spanKind := in.Kind()
+	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer) {
 		traceutil.SetTopLevel(span, true)
 	}
-	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == "client" || spanKind == "producer") {
+	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		traceutil.SetMeasured(span, true)
 	}
 
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
-	setMetaOTLP(span, "span.kind", spanKind)
+	setMetaOTLP(span, "span.kind", spanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
