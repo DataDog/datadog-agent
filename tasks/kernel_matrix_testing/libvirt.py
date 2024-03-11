@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Callable, Iterable, List
 
 from tasks.kernel_matrix_testing.tool import info
