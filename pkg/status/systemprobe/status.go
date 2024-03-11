@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
@@ -45,10 +45,16 @@ type Provider struct {
 }
 
 // GetProvider if system probe is enabled returns status.Provider otherwise returns nil
-func GetProvider(conf config.Component) status.Provider {
-	return Provider{
-		SocketPath: conf.GetString("system_probe_config.sysprobe_socket"),
+func GetProvider(config sysprobeconfig.Component) status.Provider {
+	systemProbeConfig := config.SysProbeObject()
+
+	if systemProbeConfig.Enabled {
+		return Provider{
+			SocketPath: systemProbeConfig.SocketAddress,
+		}
 	}
+
+	return nil
 }
 
 //go:embed status_templates
