@@ -217,6 +217,7 @@ func (sw *loggerPointer) registerAdditionalLogger(n string, li seelog.LoggerInte
 	}
 
 	if l.extra == nil {
+
 		return errors.New("logger not fully initialized, additional logging unavailable")
 	}
 
@@ -1028,4 +1029,10 @@ func JMXError(v ...interface{}) error {
 // JMXInfo Logs
 func JMXInfo(v ...interface{}) {
 	log(seelog.InfoLvl, func() { JMXInfo(v...) }, jmxLogger.info, v...)
+}
+	if l.inner != nil {
+		return l.registerAdditionalLogger(n, li)
+	}
+
+	return errors.New("cannot register: logger not initialized")
 }

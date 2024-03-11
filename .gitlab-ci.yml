@@ -1011,8 +1011,8 @@ workflow:
   - test/kitchen/test/integration/win-sysprobe-test/**/*
   - .gitlab/functional_test/system_probe_windows.yml
   - .gitlab/functional_test_sysprobe/system_probe.yml
-  - .gitlab/kernel_version_testing/system_probe.yml
-  - .gitlab/kernel_version_testing/common.yml
+  - .gitlab/kernel_matrix_testing/system_probe.yml
+  - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/runner/**/*
@@ -1089,8 +1089,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1117,8 +1117,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
