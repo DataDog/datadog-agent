@@ -88,8 +88,10 @@ notify_github:
     # Command
     messagefile="$(mktemp)"
     echo "Use this command to run CI on your branch:" >> "$messagefile"
-    echo "```sh" >> "$messagefile"
+    echo '```sh' >> "$messagefile"
     echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
-    echo "```" >> "$messagefile"
+    echo '```' >> "$messagefile"
+    echo "Message:"
+    cat "$messagefile"
     cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
     rm "$messagefile"
