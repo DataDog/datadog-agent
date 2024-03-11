@@ -794,6 +794,8 @@ func getFlowi4SAddrOffset(kv *kernel.Version) uint64 {
 		offset = 56
 	case kv.IsOracleUEKKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
 		offset = 56
+	case kv.IsDebianKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2) && kv.Code.Patch() > 70:
+		offset = 40
 
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_0, kernel.Kernel5_1):
 		offset = 32
