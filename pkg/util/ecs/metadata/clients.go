@@ -207,11 +207,7 @@ func initV3orV4() error {
 	return nil
 }
 
-func initV4() error {
-	client, err := newClientV4ForCurrentTask()
-	if err == nil {
-		globalUtil.v4 = client
-		return nil
-	}
+func initV4() (err error) {
+	globalUtil.v4, err = newClientV4ForCurrentTask()
 	return err
 }
