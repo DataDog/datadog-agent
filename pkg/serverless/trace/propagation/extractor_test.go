@@ -41,9 +41,9 @@ var (
 		priority: intItem{2, "2"},
 	}
 	w3c = context{
-		trace:    uintItem{3, "0000000000000003"},
-		span:     uintItem{4, "0000000000000004"},
-		priority: intItem{3, "3"},
+		trace:    uintItem{1, "0000000000000001"},
+		span:     uintItem{2, "0000000000000002"},
+		priority: intItem{2, "2"},
 	}
 	ddx = context{
 		trace:    uintItem{5, "0000000000000000005"},
