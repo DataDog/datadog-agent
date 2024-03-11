@@ -186,7 +186,11 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	case kv.IsCOSKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		sizeOf = 704
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5):
-		sizeOf = 584
+		if kv.Code.Patch() > 250 {
+			sizeOf = 592
+		} else {
+			sizeOf = 584
+		}
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11):
 		if kv.Code.Patch() > 100 {
 			sizeOf = 592
