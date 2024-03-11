@@ -62,6 +62,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		tmpDir:          tmpDir,
 		tmpKey:          tmpKey,
 		done:            make(chan bool),
+		config:          cfg,
 	}
 
 	return s, nil
@@ -71,7 +72,7 @@ func createTempRegistryKey() (string, error) {
 
 	keyName := fmt.Sprintf("datadog_agent_cws_self_test_temp_registry_key_%s", strconv.FormatInt(time.Now().UnixNano(), 10))
 
-	baseKey, err := registry.OpenKey(registry.LOCAL_MACHINE, "Software/Datadog", registry.WRITE)
+	baseKey, err := registry.OpenKey(registry.LOCAL_MACHINE, "Software\\Datadog", registry.WRITE)
 	if err != nil {
 		return "", fmt.Errorf("failed to open base key: %v", err)
 	}
@@ -90,7 +91,7 @@ func createTempRegistryKey() (string, error) {
 
 func deleteRegistryKey(path string) error {
 	// Open base key
-	baseKey, err := registry.OpenKey(registry.LOCAL_MACHINE, "Software/Datadog", registry.WRITE)
+	baseKey, err := registry.OpenKey(registry.LOCAL_MACHINE, "Software\\Datadog", registry.WRITE)
 	if err != nil {
 		return fmt.Errorf("failed to open base key: %v", err)
 	}

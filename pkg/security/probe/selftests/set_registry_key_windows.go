@@ -51,8 +51,6 @@ func (o *WindowsSetRegistryKeyTest) GenerateEvent() error {
 		log.Debugf("error setting registry value: %v", err)
 		return err
 	}
-
-	o.isSuccess = true
 	return nil
 }
 

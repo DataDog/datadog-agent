@@ -43,7 +43,6 @@ func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 		return err
 	}
 	defer file.Close()
-	o.isSuccess = true
 	return nil
 }
 
