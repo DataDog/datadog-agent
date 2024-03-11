@@ -8,9 +8,8 @@ package parser
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
@@ -20,101 +19,101 @@ func TestExtractServiceMetadata(t *testing.T) {
 		name                 string
 		cmdline              []string
 		useImprovedAlgorithm bool
-		expectedServiceTag   string
+		expectedServiceTags  []string
 	}{
 		{
-			name:               "empty",
-			cmdline:            []string{},
-			expectedServiceTag: "",
+			name:                "empty",
+			cmdline:             []string{},
+			expectedServiceTags: nil,
 		},
 		{
-			name:               "blank",
-			cmdline:            []string{""},
-			expectedServiceTag: "",
+			name:                "blank",
+			cmdline:             []string{""},
+			expectedServiceTags: nil,
 		},
 		{
 			name: "single arg executable",
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			expectedServiceTag: "process_context:my-server",
+			expectedServiceTags: []string{"process_context:my-server"},
 		},
 		{
 			name: "single arg executable with envs",
 			cmdline: []string{
 				"SOME=THING", "./my-server.sh",
 			},
-			expectedServiceTag: "process_context:my-server",
+			expectedServiceTags: []string{"process_context:my-server"},
 		},
 		{
 			name: "sudo",
 			cmdline: []string{
 				"sudo", "-E", "-u", "dog", "/usr/local/bin/myApp", "-items=0,1,2,3", "-foo=bar",
 			},
-			expectedServiceTag: "process_context:myApp",
+			expectedServiceTags: []string{"process_context:myApp"},
 		},
 		{
 			name: "python flask argument",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
-			expectedServiceTag: "process_context:flask",
+			expectedServiceTags: []string{"process_context:flask"},
 		},
 		{
 			name: "python - flask argument in path",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "/opt/dogweb/bin/flask", "run", "--host=0.0.0.0", "--without-threads",
 			},
-			expectedServiceTag: "process_context:flask",
+			expectedServiceTags: []string{"process_context:flask"},
 		},
 		{
 			name: "python flask in single argument",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
-			expectedServiceTag: "process_context:flask",
+			expectedServiceTags: []string{"process_context:flask"},
 		},
 		{
 			name: "python flask in single argument with envs",
 			cmdline: []string{
 				"ENV=VALUE /opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
-			expectedServiceTag: "process_context:flask",
+			expectedServiceTags: []string{"process_context:flask"},
 		},
 		{
 			name: "python flask in single argument with DD_SERVICE",
 			cmdline: []string{
 				"DD_SERVICE=svc /opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
-			expectedServiceTag: "process_context:svc",
+			expectedServiceTags: []string{"process_context:svc"},
 		},
 		{
 			name: "python - module hello",
 			cmdline: []string{
 				"python3", "-m", "hello",
 			},
-			expectedServiceTag: "process_context:hello",
+			expectedServiceTags: []string{"process_context:hello"},
 		},
 		{
 			name: "python - module hello with unrelated env",
 			cmdline: []string{
 				"SOME=THING", "python3", "-m", "hello",
 			},
-			expectedServiceTag: "process_context:hello",
+			expectedServiceTags: []string{"process_context:hello"},
 		},
 		{
 			name: "python - module hello with DD_SERVICE",
 			cmdline: []string{
 				"SOME=THING", "DD_SERVICE=myservice", "python3", "-m", "hello",
 			},
-			expectedServiceTag: "process_context:myservice",
+			expectedServiceTags: []string{"process_context:myservice"},
 		},
 		{
 			name: "python - zip file",
 			cmdline: []string{
 				"python3", "./hello.zip",
 			},
-			expectedServiceTag: "process_context:hello.zip",
+			expectedServiceTags: []string{"process_context:hello.zip"},
 		},
 		{
 			name: "python - zip file - improved algorithm",
@@ -122,49 +121,49 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"python3", "./hello.zip",
 			},
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:hello",
+			expectedServiceTags:  []string{"process_context:hello"},
 		},
 		{
 			name: "python .py",
 			cmdline: []string{
 				"python3", "hello.py",
 			},
-			expectedServiceTag: "process_context:hello.py",
+			expectedServiceTags: []string{"process_context:hello.py"},
 		},
 		{
 			name: "ruby - td-agent",
 			cmdline: []string{
 				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
-			expectedServiceTag: "process_context:td-agent",
+			expectedServiceTags: []string{"process_context:td-agent"},
 		},
 		{
 			name: "java with envs",
 			cmdline: []string{
 				"DD_TAGS=a:b,c:d,service:mytag,e:f", "java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
 			},
-			expectedServiceTag: "process_context:mytag",
+			expectedServiceTags: []string{"process_context:mytag"},
 		},
 		{
 			name: "java using the -jar flag to define the service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
 			},
-			expectedServiceTag: "process_context:myservice",
+			expectedServiceTags: []string{"process_context:myservice"},
 		},
 		{
 			name: "java class name as service",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
 			},
-			expectedServiceTag: "process_context:HelloWorld",
+			expectedServiceTags: []string{"process_context:HelloWorld"},
 		},
 		{
 			name: "java kafka",
 			cmdline: []string{
 				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
 			},
-			expectedServiceTag: "process_context:Kafka",
+			expectedServiceTags: []string{"process_context:Kafka"},
 		},
 		{
 			name: "java parsing for org.apache projects with cassandra as the service",
@@ -174,7 +173,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-cp", "/etc/cassandra:/usr/share/cassandra/lib/HdrHistogram-2.1.9.jar:/usr/share/cassandra/lib/cassandra-driver-core-3.0.1-shaded.jar",
 				"org.apache.cassandra.service.CassandraDaemon",
 			},
-			expectedServiceTag: "process_context:cassandra",
+			expectedServiceTags: []string{"process_context:cassandra"},
 		},
 		{
 			name: "java with -m flag",
@@ -190,7 +189,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--module-path", "/usr/share/elasticsearch/lib", "--add-modules=jdk.net", "--add-modules=org.elasticsearch.preallocate", "-m",
 				"org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch",
 			},
-			expectedServiceTag: "process_context:Elasticsearch",
+			expectedServiceTags: []string{"process_context:Elasticsearch"},
 		},
 		{
 			name: "java with --module flag",
@@ -206,7 +205,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--module-path", "/usr/share/elasticsearch/lib", "--add-modules=jdk.net", "--add-modules=org.elasticsearch.preallocate", "--module",
 				"org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch",
 			},
-			expectedServiceTag: "process_context:Elasticsearch",
+			expectedServiceTags: []string{"process_context:Elasticsearch"},
 		},
 		{
 			name: "java with --module flag without main class",
@@ -215,14 +214,14 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--module-path", "/usr/share/elasticsearch/lib", "--add-modules=jdk.net", "--add-modules=org.elasticsearch.preallocate", "--module",
 				"org.elasticsearch.server",
 			},
-			expectedServiceTag: "process_context:server",
+			expectedServiceTags: []string{"process_context:server"},
 		},
 		{
 			name: "java space in java executable path",
 			cmdline: []string{
 				"/home/dd/my java dir/java", "com.dog.cat",
 			},
-			expectedServiceTag: "process_context:cat",
+			expectedServiceTags: []string{"process_context:cat"},
 		},
 		{
 			name: "java jar with dd.Service",
@@ -234,7 +233,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Ddd.rabbitmq.legacy.tracing.enabled=false", "-Ddd.service=myservice", "-jar",
 				"/usr/local/test/app/myservice-core-1.1.15-SNAPSHOT.jar", "--spring.profiles.active=test",
 			},
-			expectedServiceTag: "process_context:myservice",
+			expectedServiceTags: []string{"process_context:myservice"},
 		},
 		{
 			name: "java with unknown flags",
@@ -242,7 +241,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"java", "-Des.networkaddress.cache.ttl=60", "-Des.networkaddress.cache.negative.ttl=10",
 				"-Djava.security.manager=allow", "-XX:+AlwaysPreTouch", "-Xss1m",
 			},
-			expectedServiceTag: "process_context:java",
+			expectedServiceTags: []string{"process_context:java"},
 		},
 		{
 			name: "java jar with snapshot",
@@ -254,7 +253,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Ddd.rabbitmq.legacy.tracing.enabled=false", "-jar",
 				"/usr/local/test/app/myservice-core-1.1.15-SNAPSHOT.jar", "--spring.profiles.active=test",
 			},
-			expectedServiceTag: "process_context:myservice-core",
+			expectedServiceTags: []string{"process_context:myservice-core"},
 		},
 		{
 			name: "java jar with snapshot with another version",
@@ -266,7 +265,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Ddd.rabbitmq.legacy.tracing.enabled=false", "-jar",
 				"/usr/local/test/app/myservice-core-1-SNAPSHOT.jar", "--spring.profiles.active=test",
 			},
-			expectedServiceTag: "process_context:myservice-core",
+			expectedServiceTags: []string{"process_context:myservice-core"},
 		},
 		{
 			name: "java jar with snapshot without version",
@@ -278,7 +277,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Ddd.rabbitmq.legacy.tracing.enabled=false", "-jar",
 				"/usr/local/test/app/myservice-core-SNAPSHOT.jar", "--spring.profiles.active=test",
 			},
-			expectedServiceTag: "process_context:myservice-core",
+			expectedServiceTags: []string{"process_context:myservice-core"},
 		},
 		{
 			name: "node js with advanced guess disabled",
@@ -290,7 +289,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"/somewhere/index.js",
 			},
-			expectedServiceTag: "process_context:node",
+			expectedServiceTags: []string{"process_context:node"},
 		},
 		{
 			name:                 "node js with advanced guess enabled with a broken package.json",
@@ -299,7 +298,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/node",
 				"./nodejs/testData/inner/index.js",
 			},
-			expectedServiceTag: "process_context:node",
+			expectedServiceTags: []string{"process_context:node"},
 		},
 		{
 			name:                 "node js with advanced guess enabled and found a valid package.json",
@@ -312,7 +311,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"./nodejs/testData/index.js",
 			},
-			expectedServiceTag: "process_context:my-awesome-package",
+			expectedServiceTags: []string{"process_context:my-awesome-package"},
 		},
 		{
 			name: "dotnet cmd with dll",
@@ -320,7 +319,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/dotnet", "./myservice.dll",
 			},
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:myservice",
+			expectedServiceTags:  []string{"process_context:myservice"},
 		},
 		{
 			name: "dotnet cmd with dll and options",
@@ -328,7 +327,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
 			},
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:myservice",
+			expectedServiceTags:  []string{"process_context:myservice"},
 		},
 		{
 			name: "dotnet cmd with unrecognized options",
@@ -336,21 +335,21 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
 			},
 			useImprovedAlgorithm: true,
-			expectedServiceTag:   "process_context:dotnet",
+			expectedServiceTags:  []string{"process_context:dotnet"},
 		},
 		{
 			name: "dotnet cmd with improved algorithm disabled",
 			cmdline: []string{
 				"/usr/bin/dotnet", "./myservice.dll",
 			},
-			expectedServiceTag: "process_context:dotnet",
+			expectedServiceTags: []string{"process_context:dotnet"},
 		},
 		{
 			name: "envs but no command",
 			cmdline: []string{
 				"ENV=VALUE",
 			},
-			expectedServiceTag: "",
+			expectedServiceTags: nil,
 		},
 	}
 
@@ -366,7 +365,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			useImprovedAlgorithm := tt.useImprovedAlgorithm
 			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
-			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
+			assert.Equal(t, tt.expectedServiceTags, se.GetServiceContext(proc.Pid))
 		})
 	}
 }
