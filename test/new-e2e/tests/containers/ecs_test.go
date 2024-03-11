@@ -181,7 +181,7 @@ func (suite *ecsSuite) TestNginxECS() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
-			Tags: []string{"ecs_launch_type:ec2"},
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -243,7 +243,7 @@ func (suite *ecsSuite) TestRedisECS() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
-			Tags: []string{"ecs_launch_type:ec2"},
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -303,7 +303,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
-			Tags: []string{"ecs_launch_type:fargate"},
+			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -336,7 +336,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
-			Tags: []string{"ecs_launch_type:fargate"},
+			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -371,7 +371,7 @@ func (suite *ecsSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
-				"ecs_container_name:stress-ng",
+				"^ecs_container_name:stress-ng$",
 			},
 		},
 		Expect: testMetricExpectArgs{

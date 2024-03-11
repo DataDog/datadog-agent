@@ -298,8 +298,8 @@ func (suite *k8sSuite) TestNginx() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
-				"kube_deployment:nginx",
-				"kube_namespace:workload-nginx",
+				"^kube_deployment:nginx$",
+				"^kube_namespace:workload-nginx$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -391,8 +391,8 @@ func (suite *k8sSuite) TestRedis() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
-				"kube_deployment:redis",
-				"kube_namespace:workload-redis",
+				"^kube_deployment:redis$",
+				"^kube_namespace:workload-redis$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -450,8 +450,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -487,8 +487,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.limit",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -524,8 +524,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.usage.total",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -560,8 +560,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.limits",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -607,8 +607,8 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"kube_deployment:dogstatsd-uds",
-				"kube_namespace:" + kubeNamespace,
+				"^kube_deployment:dogstatsd-uds$",
+				"^kube_namespace:" + kubeNamespace + "$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -641,8 +641,8 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"kube_deployment:dogstatsd-udp",
-				"kube_namespace:" + kubeNamespace,
+				"^kube_deployment:dogstatsd-udp$",
+				"^kube_namespace:" + kubeNamespace + "$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -667,8 +667,8 @@ func (suite *k8sSuite) TestPrometheus() {
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge",
 			Tags: []string{
-				"kube_deployment:prometheus",
-				"kube_namespace:workload-prometheus",
+				"^kube_deployment:prometheus$",
+				"^kube_namespace:workload-prometheus$",
 			},
 		},
 		Expect: testMetricExpectArgs{
