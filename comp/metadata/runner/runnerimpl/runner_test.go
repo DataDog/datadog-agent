@@ -8,6 +8,7 @@ package runnerimpl
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,44 +21,37 @@ import (
 	"go.uber.org/fx/fxtest"
 )
 
+var orderedResult []int
+
 type provider struct {
-	called chan struct{}
+	wg    *sync.WaitGroup
+	index int
 }
 
-func (provider) Index() int {
-	return 0
+func (p provider) Index() int {
+	return p.index
 }
 
-func (r provider) SendInformation(_ context.Context) time.Duration {
-	r.called <- struct{}{}
+func (p provider) SendInformation(_ context.Context) time.Duration {
+	orderedResult = append(orderedResult, p.index)
+	p.wg.Done()
 	return 1 * time.Minute // Long timeout to block
 }
 
-func TestHandleProvider(t *testing.T) {
-	called := make(chan struct{})
-	provider := provider{
-		called: called,
-	}
-
-	r := createRunner(
-		fxutil.Test[dependencies](
-			t,
-			logimpl.MockModule(),
-			config.MockModule(),
-			fx.Supply(NewProvider(provider)),
-		))
-
-	r.start()
-	// either called receive a value or the test will fail as a timeout
-	<-called
-	assert.NoError(t, r.stop())
-}
-
 func TestRunnerCreation(t *testing.T) {
-	called := make(chan struct{})
+	defer func() {
+		// reset orderedResult
+		orderedResult = []int{}
+	}()
+
+	waitGroup := &sync.WaitGroup{}
+
 	provider := provider{
-		called: called,
+		wg:    waitGroup,
+		index: 0,
 	}
+
+	waitGroup.Add(1)
 
 	lc := fxtest.NewLifecycle(t)
 	fxutil.Test[runner.Component](
@@ -73,8 +67,55 @@ func TestRunnerCreation(t *testing.T) {
 	ctx := context.Background()
 	lc.Start(ctx)
 
-	// either called receive a value or the test will fail as a timeout
-	<-called
+	// either the provider SendInformation function is called or the test will fail as a timeout
+	waitGroup.Wait()
+	assert.Equal(t, []int{0}, orderedResult)
+	assert.NoError(t, lc.Stop(ctx))
+}
 
+func TestOrderExcutionOfProviders(t *testing.T) {
+	defer func() {
+		// reset orderedResult
+		orderedResult = []int{}
+	}()
+
+	waitGroup := &sync.WaitGroup{}
+
+	provider0 := provider{
+		wg:    waitGroup,
+		index: 0,
+	}
+
+	provider1 := provider{
+		wg:    waitGroup,
+		index: 1,
+	}
+
+	provider2 := provider{
+		wg:    waitGroup,
+		index: 2,
+	}
+
+	waitGroup.Add(3)
+
+	lc := fxtest.NewLifecycle(t)
+	fxutil.Test[runner.Component](
+		t,
+		fx.Supply(lc),
+		logimpl.MockModule(),
+		config.MockModule(),
+		Module(),
+		// Supplying our provider by using the helper function
+		fx.Supply(NewProvider(provider2)),
+		fx.Supply(NewProvider(provider0)),
+		fx.Supply(NewProvider(provider1)),
+	)
+
+	ctx := context.Background()
+	lc.Start(ctx)
+
+	// either the providers SendInformation function is called or the test will fail as a timeout
+	waitGroup.Wait()
+	assert.Equal(t, []int{0, 1, 2}, orderedResult)
 	assert.NoError(t, lc.Stop(ctx))
 }

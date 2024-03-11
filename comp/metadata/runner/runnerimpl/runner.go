@@ -77,23 +77,23 @@ func NewEmptyProvider() Provider {
 
 // createRunner instantiates a runner object
 func createRunner(deps dependencies) *runnerImpl {
-	nonOptionalProviders := []MetadataProvider{}
+	sortedProviders := []MetadataProvider{}
 	providers := fxutil.GetAndFilterGroup(deps.Providers)
 
 	for _, optionaP := range providers {
 		if p, isSet := optionaP.Get(); isSet {
-			nonOptionalProviders = append(nonOptionalProviders, p)
+			sortedProviders = append(sortedProviders, p)
 		}
 	}
 
-	sort.SliceStable(nonOptionalProviders, func(i, j int) bool {
-		return nonOptionalProviders[i].Index() < nonOptionalProviders[j].Index()
+	sort.SliceStable(sortedProviders, func(i, j int) bool {
+		return sortedProviders[i].Index() < sortedProviders[j].Index()
 	})
 
 	return &runnerImpl{
 		log:       deps.Log,
 		config:    deps.Config,
-		providers: nonOptionalProviders,
+		providers: sortedProviders,
 		stopChan:  make(chan struct{}),
 	}
 }
