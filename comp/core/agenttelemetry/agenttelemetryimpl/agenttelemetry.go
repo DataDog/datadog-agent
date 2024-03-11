@@ -450,6 +450,23 @@ func (a *atel) addAgentStatusExtra(p *Profile, fullStatus map[string]interface{}
 	}
 }
 
+// Render Agent Status JSON object (using template if needed and adding extra attributes if specified in
+// the profile). The rendered JSON object is then sent to the telemetry server. The "rendering" of the
+// Agent Status JSON object may appear odd and flawed. For example ...
+//   - Agent Status, generally speaking, is moving into direction when multitudes of its providers are
+//     starting self-"rendering". Accordingly, its JSON representation is not fixed and certainly
+//     not-public and is subject to change, which may break both template and JQ style of rendering
+//     of Agent Telemetry (and which is implemented in this function). It is certainly a concern but
+//     its potential impact is minimized since Agent Telemetry is an internal feature. It is also
+//     the price of flexibility and decoupling rendering from the code.
+//   - There are a number of inefficiencies in the current implementation massaging Agent Status JSON
+//     object into JSON, then to bytes and JSON again. It should not be a big issue since the operations
+//     will be very infrequent and resulting objects relatively small.
+//   - In some way, the current implementation can be thought of as an architectural shortcut since
+//     Agent Status, arguably is not purely telemetry data (however it can be argue that it is also can
+//     be think of as quintessential Agent telemetry data) and perhaps more explicit Agent telemetry
+//     interfaces should be implemented where its loosely coupled "providers" supply their own internal
+//     telemetry to be emitted.
 func (a *atel) reportAgentStatus(session *senderSession, p *Profile) {
 	// If no status is configured nothing to report
 	if p.Status == nil {
