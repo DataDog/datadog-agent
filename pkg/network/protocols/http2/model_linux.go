@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
+var oversizedLogLimit = log.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
 func validatePath(str string) error {
