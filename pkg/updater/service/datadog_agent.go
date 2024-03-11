@@ -8,6 +8,8 @@
 // Package service provides a way to interact with os services
 package service
 
+import "github.com/DataDog/datadog-agent/pkg/util/log"
+
 const (
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
@@ -39,68 +41,74 @@ var (
 )
 
 // SetupAgentUnits installs and starts the agent units
-func SetupAgentUnits() error {
+func SetupAgentUnits() (err error) {
+	defer func() {
+		if err != nil {
+			log.Errorf("Failed to setup agent units: %s, reverting", err)
+			RemoveAgentUnits()
+		}
+	}()
+
 	for _, unit := range stableUnits {
-		if err := loadUnit(unit); err != nil {
-			return err
+		if err = loadUnit(unit); err != nil {
+			return
 		}
 	}
 	for _, unit := range experimentalUnits {
-		if err := loadUnit(unit); err != nil {
-			return err
+		if err = loadUnit(unit); err != nil {
+			return
 		}
 	}
 
-	if err := systemdReload(); err != nil {
-		return err
+	if err = systemdReload(); err != nil {
+		return
 	}
 
 	for _, unit := range stableUnits {
-		if err := enableUnit(unit); err != nil {
-			return err
+		if err = enableUnit(unit); err != nil {
+			return
 		}
 	}
 	for _, unit := range stableUnits {
-		if err := startUnit(unit); err != nil {
-			return err
+		if err = startUnit(unit); err != nil {
+			return
 		}
 	}
-	return nil
+	return
 }
 
 // RemoveAgentUnits stops and removes the agent units
-func RemoveAgentUnits() error {
+func RemoveAgentUnits() {
 	// stop experiments, they can restart stable agent
 	for _, unit := range experimentalUnits {
 		if err := stopUnit(unit); err != nil {
-			return err
+			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// stop stable agents
 	for _, unit := range stableUnits {
 		if err := stopUnit(unit); err != nil {
-			return err
+			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
 	// purge experimental units
 	for _, unit := range experimentalUnits {
 		if err := disableUnit(unit); err != nil {
-			return err
+			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
 		if err := removeUnit(unit); err != nil {
-			return err
+			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
 	// purge stable units
 	for _, unit := range stableUnits {
 		if err := disableUnit(unit); err != nil {
-			return err
+			log.Warnf("Failed to disable %s: %s", unit, err)
 		}
 		if err := removeUnit(unit); err != nil {
-			return err
+			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
-	return nil
 }
 
 // StartAgentExperiment starts the agent experiment
