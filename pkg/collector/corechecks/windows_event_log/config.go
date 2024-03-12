@@ -10,7 +10,7 @@ package evtlog
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	yaml "gopkg.in/yaml.v2"
@@ -116,7 +116,7 @@ func (c *Config) unmarshal(instance integration.Data, initConfig integration.Dat
 }
 
 func (c *Config) genQuery() error {
-	if c.instance.Query.IsSet() {
+	if _, isSet := c.instance.Query.Get(); isSet {
 		return nil
 	}
 	filters, isSet := c.instance.Filters.Get()
@@ -133,19 +133,12 @@ func (c *Config) genQuery() error {
 }
 
 func setOptionalDefault[T any](optional *optional.Option[T], def T) {
-	if !optional.IsSet() {
-		optional.Set(def)
-	}
+	optional.SetIfNone(def)
 }
 
 func setOptionalDefaultWithInitConfig[T any](instance *optional.Option[T], shared optional.Option[T], def T) {
-	if !instance.IsSet() {
-		if val, isSet := shared.Get(); isSet {
-			instance.Set(val)
-		} else {
-			instance.Set(def)
-		}
-	}
+	instance.SetOptionIfNone(shared)
+	instance.SetIfNone(def)
 }
 
 // Sets default values for the instance configuration.
@@ -176,19 +169,11 @@ func (c *Config) setDefaults() {
 
 func (c *Config) processLegacyModeOptions() {
 	// use initConfig option if instance value is unset
-	if !c.instance.LegacyMode.IsSet() {
-		if val, isSet := c.init.LegacyMode.Get(); isSet {
-			c.instance.LegacyMode.Set(val)
-		}
-	}
-	if !c.instance.LegacyModeV2.IsSet() {
-		if val, isSet := c.init.LegacyModeV2.Get(); isSet {
-			c.instance.LegacyModeV2.Set(val)
-		}
-	}
+	c.instance.LegacyMode.SetOptionIfNone(c.init.LegacyMode)
+	c.instance.LegacyModeV2.SetOptionIfNone(c.init.LegacyModeV2)
 
 	// If legacy_mode and legacy_mode_v2 are unset, default to legacy mode for configuration backwards compatibility
-	if !c.instance.LegacyMode.IsSet() && !isaffirmative(c.instance.LegacyModeV2) {
+	if _, isSet := c.instance.LegacyMode.Get(); !isSet && !isaffirmative(c.instance.LegacyModeV2) {
 		c.instance.LegacyMode.Set(true)
 	}
 

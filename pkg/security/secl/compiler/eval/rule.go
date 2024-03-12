@@ -12,6 +12,7 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
 // RuleID - ID of a Rule
@@ -27,7 +28,7 @@ type Rule struct {
 	Tags        []string
 	Model       Model
 	Opts        *Opts
-	pprofLabels map[string]string
+	pprofLabels utils.LabelSet
 
 	evaluator *RuleEvaluator
 	ast       *ast.Rule
@@ -53,12 +54,17 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 		opts.WithVariableStore(&VariableStore{})
 	}
 
+	labelSet, err := utils.NewLabelSet("rule_id", id)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Rule{
 		ID:          id,
 		Expression:  expression,
 		Opts:        opts,
 		Tags:        tags,
-		pprofLabels: map[string]string{"rule_id": id},
+		pprofLabels: labelSet,
 	}
 }
 
@@ -136,7 +142,7 @@ func (r *Rule) GetFields() []Field {
 }
 
 // GetPprofLabels returns the pprof labels
-func (r *Rule) GetPprofLabels() map[string]string {
+func (r *Rule) GetPprofLabels() utils.LabelSet {
 	return r.pprofLabels
 }
 

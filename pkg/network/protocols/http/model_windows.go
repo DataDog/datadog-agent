@@ -10,6 +10,7 @@ package http
 import (
 	"encoding/binary"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -118,7 +119,19 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) String() string {
 	var output strings.Builder
+	var l netip.Addr
+	var r netip.Addr
+	if isIPV4(&tx.Txn.Tup) {
+		l = netip.AddrFrom4([4]byte(tx.Txn.Tup.LocalAddr[:4]))
+		r = netip.AddrFrom4([4]byte(tx.Txn.Tup.RemoteAddr[:4]))
+	} else {
+		l = netip.AddrFrom16(tx.Txn.Tup.LocalAddr)
+		r = netip.AddrFrom16(tx.Txn.Tup.RemoteAddr)
+	}
+	lap := netip.AddrPortFrom(l, tx.Txn.Tup.LocalPort)
+	rap := netip.AddrPortFrom(r, tx.Txn.Tup.RemotePort)
 	output.WriteString("httpTX{")
+	output.WriteString("\n LocalAddr: " + lap.String() + " RemoteAddr: " + rap.String())
 	output.WriteString("\n  Method: '" + tx.Method().String() + "', ")
 	output.WriteString("\n  MaxRequest: '" + strconv.Itoa(int(tx.Txn.MaxRequestFragment)) + "', ")
 	//output.WriteString("Fragment: '" + hex.EncodeToString(tx.RequestFragment[:]) + "', ")

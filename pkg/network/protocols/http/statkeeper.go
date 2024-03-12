@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,7 +34,7 @@ type StatKeeper struct {
 	// http path buffer
 	buffer []byte
 
-	oversizedLogLimit *util.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 // NewStatkeeper returns a new StatKeeper.
@@ -61,7 +60,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 		connectionAggregator:        connectionAggregator,
 		buffer:                      make([]byte, getPathBufferSize(c)),
 		telemetry:                   telemetry,
-		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
+		oversizedLogLimit:           log.NewLogLimit(10, time.Minute*10),
 	}
 }
 

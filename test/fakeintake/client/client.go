@@ -512,6 +512,8 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.connectionAggregator.Reset()
 	c.metricAggregator.Reset()
 	c.logAggregator.Reset()
+	c.apmStatsAggregator.Reset()
+	c.traceAggregator.Reset()
 	return nil
 }
 

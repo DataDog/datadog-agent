@@ -212,22 +212,6 @@ class GithubAPI:
             if content in comment.body:
                 return comment
 
-    def update_comment(self, pull_number, comment_id, new_comment):
-        """
-        Update a comment on a given PR.
-        """
-        pr = self._repository.get_pull(int(pull_number))
-        comment = pr.get_issue_comment(comment_id)
-        comment.edit(new_comment)
-
-    def delete_comment(self, pull_number, comment_id):
-        """
-        Delete a comment on a given PR.
-        """
-        pr = self._repository.get_pull(int(pull_number))
-        comment = pr.get_issue_comment(comment_id)
-        comment.delete()
-
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
@@ -277,3 +261,18 @@ class GithubAPI:
             "or export it from your .bashrc or equivalent.",
             code=1,
         )
+
+    @staticmethod
+    def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
+        app_id = os.environ.get(app_id_env)
+        app_key_b64 = os.environ.get(pkey_env)
+        app_key = base64.b64decode(app_key_b64).decode("ascii")
+
+        auth = Auth.AppAuth(app_id, app_key)
+        integration = GithubIntegration(auth=auth)
+        installations = integration.get_installations()
+        if installations.totalCount == 0:
+            raise RuntimeError("Failed to list app installations")
+        install_id = installations[0].id
+        auth_token = integration.get_access_token(install_id)
+        print(auth_token.token)

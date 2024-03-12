@@ -86,7 +86,7 @@ lint_windows-x64:
 
 .tests_windows_sysprobe:
   stage: source_test
-  needs: ["go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - $ErrorActionPreference = "Stop"
@@ -113,7 +113,7 @@ lint_windows-x64:
 
 .tests_windows_secagent:
   stage: source_test
-  needs: ["go_deps"]
+  needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
     - $ErrorActionPreference = "Stop"

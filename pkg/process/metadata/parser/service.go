@@ -17,6 +17,7 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
+	javaparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java"
 	nodejsparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/nodejs"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,25 +32,28 @@ const (
 	javaModuleFlagShort = "-m"
 	javaSnapshotSuffix  = "-SNAPSHOT"
 	javaApachePrefix    = "org.apache."
+	dllSuffix           = ".dll"
 )
 
 var (
 	javaAllowedFlags = []string{javaJarFlag, javaModuleFlag, javaModuleFlagShort}
 )
 
-// List of binaries that usually have additional process context of whats running
+// List of binaries that usually have additional process context of what's running
 var binsWithContext = map[string]serviceExtractorFn{
-	"python":    parseCommandContextPython,
-	"python2.7": parseCommandContextPython,
-	"python3":   parseCommandContextPython,
-	"python3.7": parseCommandContextPython,
-	"ruby2.3":   parseCommandContext,
-	"ruby":      parseCommandContext,
-	"java":      parseCommandContextJava,
-	"java.exe":  parseCommandContextJava,
-	"sudo":      parseCommandContext,
-	"node":      parseCommandContextNodeJs,
-	"node.exe":  parseCommandContextNodeJs,
+	"python":     parseCommandContextPython,
+	"python2.7":  parseCommandContextPython,
+	"python3":    parseCommandContextPython,
+	"python3.7":  parseCommandContextPython,
+	"ruby2.3":    parseCommandContext,
+	"ruby":       parseCommandContext,
+	"java":       parseCommandContextJava,
+	"java.exe":   parseCommandContextJava,
+	"sudo":       parseCommandContext,
+	"node":       parseCommandContextNodeJs,
+	"node.exe":   parseCommandContextNodeJs,
+	"dotnet":     parseCommandContextDotnet,
+	"dotnet.exe": parseCommandContextDotnet,
 }
 
 var _ metadata.Extractor = &ServiceExtractor{}
@@ -149,14 +153,28 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 		}
 	}
 
-	exe := cmd[0]
 	// check if all args are packed into the first argument
 	if len(cmd) == 1 {
-		if idx := strings.IndexRune(exe, ' '); idx != -1 {
-			exe = exe[0:idx]
-			cmd = strings.Split(cmd[0], " ")
+		cmd = strings.Split(cmd[0], " ")
+	}
+	cmdOrig := cmd
+	envs, cmd := extractEnvsFromCommand(cmd)
+	if len(envs) > 0 { // evaluate and skip the envs
+		svc, ok := chooseServiceNameFromEnvs(envs)
+		if ok {
+			return &serviceMetadata{
+				cmdline:        cmdOrig,
+				serviceContext: "process_context:" + svc,
+			}
 		}
 	}
+
+	if len(cmd) == 0 || len(cmd[0]) == 0 {
+		return &serviceMetadata{
+			cmdline: cmdOrig,
+		}
+	}
+	exe := cmd[0]
 
 	// trim any quotes from the executable
 	exe = strings.Trim(exe, "\"")
@@ -170,7 +188,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(d, process, cmd[1:])
 		return &serviceMetadata{
-			cmdline:        cmd,
+			cmdline:        cmdOrig,
 			serviceContext: "process_context:" + tag,
 		}
 	}
@@ -181,7 +199,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	}
 
 	return &serviceMetadata{
-		cmdline:        cmd,
+		cmdline:        cmdOrig,
 		serviceContext: "process_context:" + exe,
 	}
 }
@@ -224,6 +242,37 @@ func isRuneLetterAt(s string, position int) bool {
 	return len(s) > position && unicode.IsLetter(rune(s[position]))
 }
 
+// extractEnvsFromCommand separates the env var declaration from the command + args part
+func extractEnvsFromCommand(cmd []string) ([]string, []string) {
+	pos := 0
+	for _, arg := range cmd {
+		if !strings.ContainsRune(arg, '=') {
+			break
+		}
+		pos++
+	}
+	return cmd[:pos], cmd[pos:]
+}
+
+// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// returns the service name, true if found, otherwise "", false
+func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+	for _, env := range envs {
+		if strings.HasPrefix(env, "DD_SERVICE=") {
+			return strings.TrimPrefix(env, "DD_SERVICE="), true
+		}
+		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
+			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
+			for _, p := range parts {
+				if strings.HasPrefix(p, "service:") {
+					return strings.TrimPrefix(p, "service:"), true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
 // parseExeStartWithSymbol deals with exe that starts with special chars like "(", "-" or "["
 func parseExeStartWithSymbol(exe string) string {
 	if exe == "" {
@@ -258,7 +307,7 @@ func parseCommandContext(_ *ServiceExtractor, _ *procutil.Process, args []string
 	return ""
 }
 
-func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
+func parseCommandContextPython(se *ServiceExtractor, _ *procutil.Process, args []string) string {
 	var (
 		prevArgIsFlag bool
 		moduleFlag    bool
@@ -271,6 +320,9 @@ func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []
 
 		if !shouldSkipArg || moduleFlag {
 			if c := trimColonRight(removeFilePath(a)); isRuneLetterAt(c, 0) {
+				if se.useImprovedAlgorithm && !moduleFlag {
+					return strings.TrimSuffix(c, filepath.Ext(c))
+				}
 				return c
 			}
 		}
@@ -285,7 +337,7 @@ func parseCommandContextPython(_ *ServiceExtractor, _ *procutil.Process, args []
 	return ""
 }
 
-func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []string) string {
+func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, args []string) string {
 	prevArgIsFlag := false
 
 	// Look for dd.service
@@ -305,6 +357,11 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
 				if strings.HasSuffix(arg, javaJarExtension) {
+					value, ok := advancedGuessJavaServiceName(se, process, args, a)
+					if ok {
+						return value
+					}
+					// return the jar
 					jarName := arg[:len(arg)-len(javaJarExtension)]
 					if !strings.HasSuffix(jarName, javaSnapshotSuffix) {
 						return jarName
@@ -340,6 +397,23 @@ func parseCommandContextJava(_ *ServiceExtractor, _ *procutil.Process, args []st
 	}
 
 	return "java"
+}
+
+// advancedGuessJavaServiceName inspects a jvm process to extract framework specific metadata that could be used as service name
+// if found the function will return the service name and true. Otherwise, "",false
+func advancedGuessJavaServiceName(se *ServiceExtractor, process *procutil.Process, args []string, jarname string) (string, bool) {
+	if !se.useImprovedAlgorithm {
+		return "", false
+	}
+	// try to introspect the jar to get service name from spring application name
+	// TODO: pass process envs
+	springAppName, err := javaparser.GetSpringBootAppName(process.Cwd, jarname, args)
+	if err == nil {
+		return springAppName, true
+	}
+	log.Tracef("Error while trying to extract properties from potential spring boot application: %v", err)
+
+	return "", false
 }
 
 func parseCommandContextNodeJs(se *ServiceExtractor, process *procutil.Process, args []string) string {
@@ -380,4 +454,26 @@ func abs(path string, cwd string) string {
 		return filepath.Join(cwd, path)
 	}
 	return path
+}
+
+// parseCommandContextDotnet extracts metadata from a dotnet launcher command line
+func parseCommandContextDotnet(se *ServiceExtractor, _ *procutil.Process, args []string) string {
+	if !se.useImprovedAlgorithm {
+		return "dotnet"
+	}
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		// when running assembly's dll, the cli must be executed without command
+		// https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-run#description
+		if strings.HasSuffix(strings.ToLower(a), dllSuffix) {
+			_, file := filepath.Split(a)
+			return file[:len(file)-len(dllSuffix)]
+		}
+		// dotnet cli syntax is something like `dotnet <cmd> <args> <dll> <prog args>`
+		// if the first non arg (`-v, --something, ...) is not a dll file, exit early since nothing is matching a dll execute case
+		break
+	}
+	return "dotnet"
 }
