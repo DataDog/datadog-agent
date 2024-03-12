@@ -166,7 +166,7 @@ if ((Get-MpComputerStatus).IsTamperProtected) {
 ) | ForEach-Object { Set-MpPreference @_ }`)
 	// Even though Microsoft claims to have deprecated this option as of Platform Version 4.18.2108.4,
 	// it still works for me on Platform Version 4.18.23110.3 after a reboot, so set it anywawy.
-	ps.cmds = append(ps.cmds, `mkdir -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NewDefender`)
+	ps.cmds = append(ps.cmds, `mkdir -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NewDefender"`)
 	ps.cmds = append(ps.cmds, `Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NewDefender" -Name DisableAntiSpyware -Value 1`)
 	return ps
 }

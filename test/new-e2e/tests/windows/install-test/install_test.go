@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -32,13 +31,19 @@ import (
 
 var devMode = flag.Bool("devmode", false, "enable devmode")
 
+// Custom environment for the MSI tests
+type agentMSIEnv struct {
+	AwsEnvironment *aws.Environment
+	RemoteHost     *components.RemoteHost
+}
+
 type agentMSISuite struct {
-	windows.BaseAgentInstallerSuite[environments.Host]
+	windows.BaseAgentInstallerSuite[agentMSIEnv]
 }
 
 func TestMSI(t *testing.T) {
 	// TODO: JL, convert this to a dedicated Windows provider
-	provisioner := e2e.NewTypedPulumiProvisioner("aws-ec2", func(ctx *pulumi.Context, suite *agentMSISuite) error {
+	provisioner := e2e.NewTypedPulumiProvisioner("aws-ec2", func(ctx *pulumi.Context, env *agentMSIEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
@@ -47,7 +52,7 @@ func TestMSI(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		err = vm.Export(ctx, &suite.Env().RemoteHost.HostOutput)
+		err = vm.Export(ctx, &env.RemoteHost.HostOutput)
 		if err != nil {
 			return err
 		}
