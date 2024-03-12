@@ -20,7 +20,9 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
+	"github.com/davecgh/go-spew/spew"
 	gorilla "github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -28,6 +30,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -35,6 +39,7 @@ import (
 	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/pcap"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -289,52 +294,81 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	cfg := testConfig()
 	cfg.ProtocolClassificationEnabled = true
 	cfg.BPFDebug = true
-
 	if !classificationSupported(cfg) {
 		t.Skip("TLS classification platform not supported")
 	}
 
-	serverAddr := net.JoinHostPort("localhost", httpsPort)
-	portAsValue, err := strconv.ParseUint(httpsPort, 10, 16)
-	require.NoError(t, err)
-
-	_ = testutil.HTTPPythonServer(t, serverAddr, testutil.Options{
-		EnableKeepAlive: false,
-		EnableTLS:       true,
-	})
-
-	client := &nethttp.Client{
-		Transport: &nethttp.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	// Helper to make a request to the server, and discard the response.
-	makeRequest := func() {
-		resp, err := client.Get(fmt.Sprintf("https://%s/200/test", serverAddr))
+	t.Run("Already running python server", func(t *testing.T) {
+		serverAddr := net.JoinHostPort("localhost", httpsPort)
+		portAsValue, err := strconv.ParseUint(httpsPort, 10, 16)
 		require.NoError(t, err)
 
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}
+		_ = testutil.HTTPPythonServer(t, serverAddr, testutil.Options{
+			EnableKeepAlive: false,
+			EnableTLS:       true,
+		})
 
-	tr := setupTracer(t, cfg)
-	require.NoError(t, tr.ebpfTracer.Pause())
-
-	makeRequest()
-	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes")
-	makeRequest()
-
-	// Iterate through active connections until we find connection created above
-	require.Eventuallyf(t, func() bool {
-		payload := getConnections(t, tr)
-		for _, c := range payload.Conns {
-			if c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
-				return true
-			}
+		client := &nethttp.Client{
+			Transport: &nethttp.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
 		}
-		return false
-	}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", httpsPort)
+
+		// Helper to make a request to the server, and discard the response.
+		makeRequest := func() {
+			resp, err := client.Get(fmt.Sprintf("https://%s/200/test", serverAddr))
+			require.NoError(t, err)
+
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+		}
+
+		tr := setupTracer(t, cfg)
+		require.NoError(t, tr.ebpfTracer.Pause())
+
+		makeRequest()
+		require.NoError(t, tr.ebpfTracer.Resume(), "enable probes")
+		makeRequest()
+
+		// Iterate through active connections until we find connection created above
+		require.Eventuallyf(t, func() bool {
+			payload := getConnections(t, tr)
+			for _, c := range payload.Conns {
+				if c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
+					return true
+				}
+			}
+			return false
+		}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", httpsPort)
+	})
+
+	t.Run("From PCAP", func(t *testing.T) {
+		tr := setupTracer(t, cfg)
+
+		prog := tr.ebpfTracer.GetProg("socket__classifier_entry")
+		require.NotNil(t, prog)
+
+		curDir, _ := testutil.CurDir()
+		pktSource := pcap.GetPacketSourceFromPCAP(t, curDir+"/testdata/tls_already_running.pcap")
+
+		for packet := range pktSource.Packets() {
+			// HACK: For some reason, the first 14bytes are skipped, so we pad
+			// the front of the packet data to trick it.
+			data := make([]byte, 14)
+			data = append(data, packet.Data()...)
+
+			_, _, err := prog.Test(data)
+			require.NoError(t, err)
+		}
+
+		// Print connections tuples and protocol stacks
+		iter := tr.ebpfTracer.GetMap(probes.ConnectionProtocolMap).Iterate()
+		var key http.ConnTuple
+		var value ebpf.ProtocolStackWrapper
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Dump(key, value)
+		}
+	})
 }
 
 func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
