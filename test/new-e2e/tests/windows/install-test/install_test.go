@@ -9,7 +9,7 @@ package installtest
 import (
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/windows/defender"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"os"
