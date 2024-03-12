@@ -816,6 +816,11 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
 
+.on_main_or_release_branch_or_all_builds:
+  - <<: *if_main_branch
+  - <<: *if_release_branch
+  - <<: *if_run_all_builds
+
 .except_main_or_release_branch:
   - <<: *if_main_branch
     when: never

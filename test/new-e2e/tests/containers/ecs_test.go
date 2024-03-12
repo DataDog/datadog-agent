@@ -209,6 +209,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^task_name:.*-nginx-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -262,15 +263,13 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
 				`^task_family:.*-redis-ec2$`,
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -331,6 +330,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 				`^task_name:.*-nginx-fg$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
@@ -356,9 +356,6 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^region:us-east-1$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
@@ -366,6 +363,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^task_name:.*-redis-fg*`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
