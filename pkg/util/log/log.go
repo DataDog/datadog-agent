@@ -111,7 +111,6 @@ func (sw *DatadogLogger) scrub(s string) string {
 	if scrubbed, err := scrubBytesFunc([]byte(s)); err == nil {
 		return string(scrubbed)
 	}
-
 	return s
 }
 
@@ -123,7 +122,22 @@ func (sw *DatadogLogger) scrub(s string) string {
 // info, warn, error, critical and off, it requires a new seelog logger because
 // an existing one cannot be updated
 func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
-	l := logger.Load()
+	if err := logger.changeLogLevel(level); err != nil {
+		return err
+	}
+
+	// See detailed explanation in SetupLogger(...)
+	if err := li.SetAdditionalStackDepth(defaultStackDepth); err != nil {
+		return err
+	}
+
+	logger.replaceInnerLogger(li)
+	return nil
+
+	// need to return something, just set to Info (expected default)
+}
+func (sw *loggerPointer) changeLogLevel(level string) error {
+	l := sw.Load()
 	if l == nil {
 		return errors.New("cannot change loglevel: logger not initialized")
 	}
@@ -135,30 +149,11 @@ func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
 		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
 	}
 
-	err := l.changeLogLevel(level)
-	if err != nil {
-		return err
-	}
-
-	// See detailed explanation in SetupLogger(...)
-	err = li.SetAdditionalStackDepth(defaultStackDepth)
-	if err != nil {
-		return err
-	}
-
-	l.replaceInnerLogger(li)
-	return nil
-
-	// need to return something, just set to Info (expected default)
-}
-
-// This function should be called with `sw.l` held
-func (sw *DatadogLogger) changeLogLevel(level string) error {
 	lvl, ok := seelog.LogLevelFromString(strings.ToLower(level))
 	if !ok {
 		return errors.New("bad log level")
 	}
-	sw.level = lvl
+	l.level = lvl
 	return nil
 }
 
