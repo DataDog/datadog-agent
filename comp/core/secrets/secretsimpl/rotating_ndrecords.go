@@ -146,6 +146,7 @@ func (r *rotatingNDRecords) ensureDefaults() {
 	}
 	if r.firstEntry.IsZero() {
 		if f, err := os.OpenFile(r.filename, os.O_RDONLY, 0640); err == nil {
+			defer f.Close()
 			rd := bufio.NewReader(f)
 			if line, err := rd.ReadBytes('\n'); err == nil {
 				var rec ndRecord
