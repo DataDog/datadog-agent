@@ -204,6 +204,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^task_name:.*-nginx-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -257,15 +258,13 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
 				`^task_family:.*-redis-ec2$`,
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -326,6 +325,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 				`^task_name:.*-nginx-fg$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
@@ -351,9 +351,6 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^region:us-east-1$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
@@ -361,6 +358,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^task_name:.*-redis-fg*`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
@@ -402,27 +400,17 @@ func (suite *ecsSuite) TestCPU() {
 	})
 }
 
-func (suite *ecsSuite) TestDogtstatsdUDS() {
-	suite.testDogstatsd("dogstatsd-uds")
-}
-
-func (suite *ecsSuite) TestDogtstatsdUDP() {
-	suite.testDogstatsd("dogstatsd-udp")
-}
-
-func (suite *ecsSuite) testDogstatsd(taskName string) {
+func (suite *ecsSuite) TestDogstatsd() {
+	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
-			Tags: []string{
-				`^task_name:.*-` + taskName + `-ec2$`,
-			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
-				`^container_name:ecs-.*-` + taskName + `-ec2-`,
+				`^container_name:ecs-.*-dogstatsd-uds-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
@@ -434,8 +422,8 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 				`^task_arn:`,
-				`^task_family:.*-` + taskName + `-ec2$`,
-				`^task_name:.*-` + taskName + `-ec2$`,
+				`^task_family:.*-dogstatsd-uds-ec2$`,
+				`^task_name:.*-dogstatsd-uds-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
 		},

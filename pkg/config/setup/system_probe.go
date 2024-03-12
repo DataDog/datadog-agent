@@ -28,6 +28,7 @@ const (
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
 	pngNS                        = "ping"
+	tracerouteNS                 = "traceroute"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -356,6 +357,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Ping
 	cfg.BindEnvAndSetDefault(join(pngNS, "enabled"), false)
+
+	// Traceroute
+	cfg.BindEnvAndSetDefault(join(tracerouteNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

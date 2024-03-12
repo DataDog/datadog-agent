@@ -727,9 +727,10 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "validate various status codes",
-			// The purpose of this test is to verify that we support status codes that do not appear in the static table.
+			// The purpose of this test is to verify that we support status codes that both do and
+			// do not appear in the static table.
 			messageBuilder: func() [][]byte {
-				statusCodes := []int{http.StatusCreated, http.StatusMultipleChoices, http.StatusUnauthorized, http.StatusGatewayTimeout}
+				statusCodes := []int{200, 201, 204, 206, 300, 304, 400, 401, 404, 500, 504}
 				const iterationsPerStatusCode = 3
 				messages := make([][]byte, 0, len(statusCodes)*iterationsPerStatusCode)
 				for statusCodeIteration, statusCode := range statusCodes {
@@ -745,7 +746,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: map[usmhttp.Key]int{
 				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/200")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/201")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/204")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/206")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
@@ -753,7 +766,23 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/304")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/400")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/401")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/404")},
+					Method: usmhttp.MethodPost,
+				}: 3,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/status/500")},
 					Method: usmhttp.MethodPost,
 				}: 3,
 				{

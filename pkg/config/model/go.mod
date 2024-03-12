@@ -13,7 +13,7 @@ require (
 	github.com/DataDog/viper v1.13.0
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/pflag v1.0.3
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 )
 

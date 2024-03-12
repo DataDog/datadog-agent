@@ -51,7 +51,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/net v0.21.0
 )
 

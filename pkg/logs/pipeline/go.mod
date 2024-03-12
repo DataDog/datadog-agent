@@ -57,12 +57,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.52.0-rc.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.102 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.106 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.52.0-rc.3 // indirect
