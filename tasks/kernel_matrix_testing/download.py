@@ -133,7 +133,7 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def update_rootfs(ctx: Context, rootfs_dir: str, vmconfig_template: str):
+def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str):
     download_rootfs(ctx, rootfs_dir, vmconfig_template)
 
     info("[+] Root filesystem and bootables images updated")
