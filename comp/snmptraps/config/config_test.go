@@ -68,6 +68,13 @@ var usersV3 = []UserV3{
 		PrivKey:      "password",
 		PrivProtocol: "AES",
 	},
+	{
+		UsernameLegacy: "userlegacy",
+		AuthKey:        "password",
+		AuthProtocol:   "MD5",
+		PrivKey:        "password",
+		PrivProtocol:   "AES",
+	},
 }
 
 var usmUsers = []*gosnmp.UsmSecurityParameters{
@@ -87,6 +94,13 @@ var usmUsers = []*gosnmp.UsmSecurityParameters{
 	},
 	{
 		UserName:                 "user2",
+		AuthenticationProtocol:   gosnmp.MD5,
+		AuthenticationPassphrase: "password",
+		PrivacyProtocol:          gosnmp.AES,
+		PrivacyPassphrase:        "password",
+	},
+	{
+		UserName:                 "userlegacy",
 		AuthenticationProtocol:   gosnmp.MD5,
 		AuthenticationPassphrase: "password",
 		PrivacyProtocol:          gosnmp.AES,
@@ -185,6 +199,10 @@ func TestFullConfig(t *testing.T) {
 		{
 			"identifier: user2 has 1 entry",
 			"user2",
+		},
+		{
+			"identifier: userlegacy has 1 entry",
+			"userlegacy",
 		},
 	}
 	for _, usmConfigTest := range usmConfigTests {
