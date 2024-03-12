@@ -821,10 +821,23 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
     # Can checkout
     status_res = ctx.run('git status --porcelain')
     assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
+    branch_res = ctx.run('git branch', hide='stdout')
+    assert (
+        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
+    ), f'{owner_branch_name} branch already exists'
+    remote_res = ctx.run('git remote', hide='stdout')
+    assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
 
     # Get current branch
     curr_branch_res = ctx.run('git branch --show-current', hide='stdout')
     curr_branch = curr_branch_res.stdout.strip()
+
+    # Commands to restore current state
+    restore_commands = [
+        f"git remote remove '{owner}'",
+        f"git checkout '{curr_branch}'",
+        f"git branch -d '{owner}/{branch}'",
+    ]
 
     # Commands to push the branch
     commands = [
@@ -836,28 +849,18 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
         f"git checkout -b '{owner}/{branch}'",
         # Push
         f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
-    ]
-
-    # Restore current state
-    restore_commands = [
-        f"git remote remove '{owner}'",
-        f"git checkout '{curr_branch}'",
-        f"git branch -d '{owner}/{branch}'",
-    ]
+    ] + restore_commands
 
     # Run commands then restore commands
     ret_code = 0
     for command in commands:
         ret_code = ctx.run(command, warn=True, echo=True).exited
         if ret_code != 0:
-            break
+            print('The last command exited with code', ret_code)
+            print('You might want to run these commands to restore the current state:')
+            print('\n'.join(restore_commands))
 
-    # Restore current state
-    for command in restore_commands:
-        ctx.run(command, warn=True)
-
-    if ret_code != 0:
-        exit(1)
+            exit(1)
 
     # Show links
     repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
