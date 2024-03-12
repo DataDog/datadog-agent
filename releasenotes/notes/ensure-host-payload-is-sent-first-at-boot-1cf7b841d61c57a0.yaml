@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Reduced host tag delay by sending host metadata early at Agent startup.
