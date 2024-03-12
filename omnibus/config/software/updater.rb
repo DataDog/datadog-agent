@@ -53,21 +53,10 @@ build do
 
     copy 'bin/updater', "#{install_dir}/bin/"
 
-    # Add updater unit
-    systemdPath = "/lib/systemd/system/"
-    if not debian_target?
-      mkdir "/usr/lib/systemd/system/"
-      systemdPath = "/usr/lib/systemd/system/"
-    end
-    erb source: "datadog-updater.service.erb",
-       dest: systemdPath + "datadog-updater.service",
-       mode: 0644,
-       vars: { install_dir: install_dir, etc_dir: etc_dir}
-
-
     systemdPath = "#{install_dir}/systemd/"
-    # Add stable agent units
+    # Add stable units
     templateToFile = {
+      "datadog-updater.service.erb" => "datadog-updater.service",
       "datadog-agent.service.erb" => "datadog-agent.service",
       "datadog-agent-trace.service.erb" => "datadog-agent-trace.service",
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",

@@ -40,8 +40,9 @@ func (v *vmUpdaterSuite) TestUpdaterOwnership() {
 	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" /opt/datadog/updater`))
 }
 
-func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
+func (v *vmUpdaterSuite) TestUnitsLoaded() {
 	stableUnits := []string{
+		"datadog-updater.service",
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
 		"datadog-agent-process.service",
@@ -56,6 +57,7 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 func (v *vmUpdaterSuite) TestPurge() {
 	v.Env().RemoteHost.MustExecute("sudo /opt/datadog/updater/bin/updater/updater purge")
 	stableUnits := []string{
+		"datadog-updater.service",
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
 		"datadog-agent-process.service",

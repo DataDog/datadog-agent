@@ -101,11 +101,4 @@ chmod 750 ${UPDATER_HELPER}
 setcap cap_setuid+ep ${UPDATER_HELPER}
 
 $INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent
-# Bootstrap installs first agent with root ownership, overriding to dd-agent
-chown -R dd-agent:dd-agent ${PACKAGES_DIR}
-
-# start updater
-SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
-SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
-
 exit 0

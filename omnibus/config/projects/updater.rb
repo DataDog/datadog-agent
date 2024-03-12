@@ -99,7 +99,6 @@ if linux_target?
   if debian_target?
     systemd_directory = "/lib/systemd/system"
   end
-  extra_package_file "#{systemd_directory}/datadog-updater.service"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
   extra_package_file '/var/run/datadog-packages/'

@@ -42,6 +42,10 @@ var (
 
 // SetupAgentUnits installs and starts the agent units
 func SetupAgentUnits() (err error) {
+	if updaterErr := setupUpdater(); updaterErr != nil {
+		return updaterErr
+	}
+
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent units: %s, reverting", err)
