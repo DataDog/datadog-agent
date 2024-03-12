@@ -38,6 +38,7 @@
   variables:
     E2E_ARCH: x86_64
     E2E_OSVERS: "centos-610"
+    E2E_BRANCH_OSVERS: "centos-610"
     E2E_OVERRIDE_INSTANCE_TYPE: "t2.medium" # CentOS 6 does not support ENA, so we cannot use t3 instances
   needs: ["deploy_rpm_testing-a7_x64"]
 
