@@ -38,8 +38,15 @@ def get_active_branch_name() -> str:
     with head_dir.open("r") as f:
         content = f.read().splitlines()
 
+    # .git/HEAD will contain something like this
+    # ref: refs/heads/branchname
+    # For an automatic stack name based on the branch, we take the branch
+    # name from the ref line and replace any '/' with '-'
     for line in content:
         if line[0:4] == "ref:":
+            # partition returns a string separated in three: before the separator (the
+            # argument), the separator and after the separator. In our case, the branch
+            # name is what's after the separator.
             return line.partition("refs/heads/")[2].replace("/", "-")
 
     return ""
@@ -94,7 +101,10 @@ def local_vms_in_config(vmconfig: PathOrStr):
     data = get_vmconfig(vmconfig)
 
     for s in data["vmsets"]:
-        if s.get("arch") == "local":
+        if "arch" not in s:
+            raise Exit("Invalid VMSet, arch field not found")
+
+        if s["arch"] == "local":
             return True
 
     return False

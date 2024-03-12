@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import os
 import platform
 import tempfile
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from invoke.context import Context
 
@@ -15,8 +17,11 @@ try:
 except ImportError:
     requests = None
 
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import PathOrStr
 
-def requires_update(url_base: str, rootfs_dir: str, image: str, branch: str):
+
+def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str):
     if requests is None:
         raise Exit("requests module is not installed, please install it to continue")
 
@@ -36,7 +41,7 @@ def requires_update(url_base: str, rootfs_dir: str, image: str, branch: str):
     return False
 
 
-def download_rootfs(ctx: Context, rootfs_dir: str, vmconfig_template_name: str):
+def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str):
     platforms = get_platforms()
     vmconfig_template = get_vmconfig_template(vmconfig_template_name)
 
@@ -63,7 +68,10 @@ def download_rootfs(ctx: Context, rootfs_dir: str, vmconfig_template_name: str):
 
     disks_to_download: list[str] = list()
     for vmset in vmconfig_template["vmsets"]:
-        if vmset.get("arch") != arch:
+        if "arch" not in vmset:
+            raise Exit("arch is not defined in vmset")
+
+        if vmset["arch"] != arch:
             continue
 
         for disk in vmset.get("disks", []):

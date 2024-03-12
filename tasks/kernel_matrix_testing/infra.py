@@ -18,15 +18,15 @@ class LocalCommandRunner:
     @staticmethod
     def run_cmd(ctx: Context, _: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
         res = ctx.run(cmd.format(proxy_cmd=""), hide=(not verbose), warn=allow_fail)
-        if res is None or not res.ok:
-            error(f"[-] Failed: {cmd}")
-            if allow_fail:
-                return False
-            if res is not None:
-                print_failed(res.stderr)
-            raise Exit("command failed")
+        if res is not None and res.ok:
+            return True
 
-        return True
+        error(f"[-] Failed: {cmd}")
+        if allow_fail:
+            return False
+        if res is not None:
+            print_failed(res.stderr)
+        raise Exit("command failed")
 
     @staticmethod
     def move_to_shared_directory(ctx: Context, _: 'HostInstance', source: str, subdir: Optional[PathOrStr] = None):
@@ -51,15 +51,15 @@ class RemoteCommandRunner:
             hide=(not verbose),
             warn=allow_fail,
         )
-        if res is None or not res.ok:
-            error(f"[-] Failed: {cmd}")
-            if allow_fail:
-                return False
-            if res is not None:
-                print_failed(res.stderr)
-            raise Exit("command failed")
+        if res is not None and res.ok:
+            return True
 
-        return True
+        error(f"[-] Failed: {cmd}")
+        if allow_fail:
+            return False
+        if res is not None:
+            print_failed(res.stderr)
+        raise Exit("command failed")
 
     @staticmethod
     def move_to_shared_directory(
