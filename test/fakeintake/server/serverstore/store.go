@@ -11,6 +11,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
@@ -28,6 +30,10 @@ type Store interface {
 	GetRouteStats() map[string]int
 	// Flush flushes the store
 	Flush()
+	// GetMetrics returns the prometheus metrics for the store
+	GetMetrics() []prometheus.Collector
+	// Close closes the store
+	Close()
 }
 
 // NewStore returns a new store

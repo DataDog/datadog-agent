@@ -86,10 +86,15 @@ func NewServer(options ...func(*Server)) *Server {
 
 	registry := prometheus.NewRegistry()
 
+	storeMetrics := fi.store.GetMetrics()
 	registry.MustRegister(
-		collectors.NewBuildInfoCollector(),
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		append(
+			[]prometheus.Collector{
+				collectors.NewBuildInfoCollector(),
+				collectors.NewGoCollector(),
+				collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+			},
+			storeMetrics...)...,
 	)
 
 	mux := http.NewServeMux()

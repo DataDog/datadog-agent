@@ -130,3 +130,10 @@ func (s *InMemoryStore) Flush() {
 	s.jsonPayloads = map[string][]api.ParsedPayload{}
 	s.NbPayloads.Reset()
 }
+
+func (s *InMemoryStore) GetMetrics() []prometheus.Collector {
+	return []prometheus.Collector{s.NbPayloads}
+}
+
+// Close closes the store
+func (s *InMemoryStore) Close() {}

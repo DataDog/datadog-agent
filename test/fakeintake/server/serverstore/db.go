@@ -14,24 +14,65 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 
-	// Import sqlite3 driver
+	// import sqlite3 driver
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+const (
+	parsedPayloadsTable = "parsed_payloads"
+	payloadsTable       = "payloads"
+	defaultDBPath       = "./payloads.db"
 )
 
 // SQLStore implements a thread-safe storage for raw and json dumped payloads using SQLite
 type SQLStore struct {
 	db *sql.DB
+
+	stopCh  chan struct{}
+	metrics sqlMetrics
+}
+
+type sqlMetrics struct {
+	// nBPayloads is a prometheus metric to track the number of payloads collected by route
+	nBPayloads *prometheus.GaugeVec
+	// insertLatency is a prometheus metric to track the latency of inserting payloads
+	insertLatency *prometheus.HistogramVec
+	// ReadLatency is a prometheus metric to track the latency of reading payloads
+	readLatency *prometheus.HistogramVec
 }
 
 // NewSQLStore initializes a new payloads store with an SQLite DB
 func NewSQLStore() *SQLStore {
-	db, err := sql.Open("sqlite3", "./payloads.db")
+	path := os.Getenv("SQLITE_DB_PATH")
+	if path == "" {
+		path = defaultDBPath
+	}
+	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	s := &SQLStore{
-		db: db,
+		db:     db,
+		stopCh: make(chan struct{}),
+
+		metrics: sqlMetrics{
+			nBPayloads: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "payloads",
+				Help: "Number of payloads collected by route",
+			}, []string{"route"}),
+			insertLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Name:    "insert_latency",
+				Help:    "Latency of inserting payloads",
+				Buckets: prometheus.DefBuckets,
+			}, []string{"route", "table"}),
+			readLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Name:    "read_latency",
+				Help:    "Latency of reading payloads",
+				Buckets: prometheus.DefBuckets,
+			}, []string{"route", "table"}),
+		},
 	}
 
 	_, err = db.Exec(`
@@ -58,12 +99,19 @@ func NewSQLStore() *SQLStore {
 	return s
 }
 
+// Close closes the store
+func (s *SQLStore) Close() {
+	s.db.Close()
+}
+
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
 func (s *SQLStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
+	now := time.Now()
 	_, err := s.db.Exec("INSERT INTO payloads (timestamp, data, encoding, route) VALUES (?, ?, ?, ?)", collectTime.Unix(), data, encoding, route)
 	if err != nil {
 		return err
 	}
+	s.metrics.insertLatency.WithLabelValues(route, payloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
 
 	rawPayload := api.Payload{
 		Timestamp: collectTime,
@@ -87,10 +135,13 @@ func (s *SQLStore) tryParseAndAppendPayload(rawPayload api.Payload, route string
 	if err != nil {
 		return err
 	}
+
+	now := time.Now()
 	_, err = s.db.Exec("INSERT INTO parsed_payloads (timestamp, data, route) VALUES (?, ?, ?)", rawPayload.Timestamp.Unix(), data, route)
 	if err != nil {
 		return err
 	}
+	s.metrics.insertLatency.WithLabelValues(route, parsedPayloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
 
 	return nil
 }
@@ -126,12 +177,14 @@ func (s *SQLStore) CleanUpPayloadsOlderThan(time time.Time) {
 
 // GetRawPayloads returns all raw payloads for a given route
 func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
+	now := time.Now()
 	rows, err := s.db.Query("SELECT timestamp, data, encoding FROM payloads WHERE route = ?", route)
 	if err != nil {
 		log.Println("Error fetching raw payloads: ", err)
 		return nil
 	}
 	defer rows.Close()
+	s.metrics.readLatency.WithLabelValues(route, payloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
 
 	var timestamp int64
 	var data []byte
@@ -154,12 +207,14 @@ func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
 
 // GetJSONPayloads returns all parsed payloads for a given route
 func (s *SQLStore) GetJSONPayloads(route string) (payloads []api.ParsedPayload) {
+	now := time.Now()
 	rows, err := s.db.Query("SELECT timestamp, data FROM parsed_payloads WHERE route = ?", route)
 	if err != nil {
 		log.Println("Error fetching parsed payloads: ", err)
 		return nil
 	}
 	defer rows.Close()
+	s.metrics.readLatency.WithLabelValues(route, parsedPayloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
 
 	var timestamp int64
 	var data string
@@ -217,4 +272,12 @@ func (s *SQLStore) Flush() {
 		log.Println("Error flushing parsed payloads: ", err)
 	}
 	os.Remove("./payloads.db")
+}
+
+func (s *SQLStore) GetMetrics() []prometheus.Collector {
+	return []prometheus.Collector{
+		s.metrics.nBPayloads,
+		s.metrics.insertLatency,
+		s.metrics.readLatency,
+	}
 }
