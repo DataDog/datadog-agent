@@ -140,7 +140,7 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
@@ -163,7 +163,7 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
@@ -186,7 +186,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
@@ -209,7 +209,7 @@ func (s *VMFakeintakeSuite) TestAutoVersionStats() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
@@ -232,7 +232,7 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 

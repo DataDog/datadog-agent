@@ -7,10 +7,11 @@ package apm
 
 import (
 	"fmt"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -90,7 +91,7 @@ func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
@@ -102,7 +103,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionTraces() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-auto-version-traces-%s", s.transport)
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
@@ -114,7 +115,7 @@ func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-auto-version-stats-%s", s.transport)
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
@@ -126,7 +127,7 @@ func (s *DockerFakeintakeSuite) TestStatsForService() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
@@ -141,7 +142,7 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
-	defer eventuallyShutdown(&s.Suite, s.Env().FakeIntake)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 

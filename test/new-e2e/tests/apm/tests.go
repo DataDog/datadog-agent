@@ -271,17 +271,18 @@ func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) b
 	return false
 }
 
-func eventuallyShutdown(s *suite.Suite, intake *components.FakeIntake) {
+func waitTracegenShutdown(s *suite.Suite, intake *components.FakeIntake) {
 	// TODO(knusbaum): we can ideally assert the poison pill eventually arrives,
 	// but currently it seems it does not always.
 	//s.EventuallyWithTf(func(c *assert.CollectT) {
-	//	waitForPoisonPill(s.T(), c, intake)
+	//	hasPoisonPill(s.T(), c, intake)
 	//}, 20*time.Second, 1*time.Second, "Failed to find poison pill from tracegen shutdown.")
 
+	s.T().Helper()
 	begin := time.Now()
 	max := begin.Add(20 * time.Second)
 	for {
-		if waitForPoisonPill(s.T(), intake) {
+		if hasPoisonPill(s.T(), intake) {
 			// success
 			return
 		}
@@ -294,7 +295,8 @@ func eventuallyShutdown(s *suite.Suite, intake *components.FakeIntake) {
 	}
 }
 
-func waitForPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
+func hasPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
+	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
 	assert.NoError(t, err)
 	t.Log("Got apm stats", stats)
