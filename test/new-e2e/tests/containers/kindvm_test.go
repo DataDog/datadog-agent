@@ -10,10 +10,12 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
+	"github.com/Masterminds/semver"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
@@ -22,6 +24,7 @@ import (
 
 type kindSuite struct {
 	k8sSuite
+	kubernetesVersion semver.Version
 }
 
 func TestKindSuite(t *testing.T) {
@@ -38,16 +41,24 @@ func (suite *kindSuite) SetupSuite() {
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil)
+	stack, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kindcluster", stackConfig, kindvm.Run, false, nil)
 	if !suite.Assert().NoError(err) {
-		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+		stackName, err := infra.GetStackManager().GetPulumiStackName("kindcluster")
 		suite.Require().NoError(err)
 		suite.T().Log(dumpKindClusterState(ctx, stackName))
 		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
-			infra.GetStackManager().DeleteStack(ctx, "kind-cluster", nil)
+			infra.GetStackManager().DeleteStack(ctx, "kindcluster", nil)
 		}
 		suite.T().FailNow()
 	}
+
+	kubeVersionAsString, err := stack.GetConfig(ctx, "ddinfra:kubernetesVersion")
+	suite.Require().NoError(err)
+
+	kubeVersion, err := semver.NewVersion(kubeVersionAsString.Value)
+	suite.Require().NoError(err)
+
+	suite.kubernetesVersion = *kubeVersion
 
 	var fakeintake components.FakeIntake
 	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-kind"].Value)
@@ -76,7 +87,7 @@ func (suite *kindSuite) TearDownSuite() {
 	suite.k8sSuite.TearDownSuite()
 
 	ctx := context.Background()
-	stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+	stackName, err := infra.GetStackManager().GetPulumiStackName("kindcluster")
 	suite.Require().NoError(err)
 	suite.T().Log(dumpKindClusterState(ctx, stackName))
 }
@@ -110,8 +121,13 @@ func (suite *kindSuite) TestControlPlane() {
 				`^scope:(?:|cluster|namespace|resource)$`,
 				`^short_image:kube-apiserver$`,
 				`^subresource:`,
-				`^verb:(?:APPLY|DELETE|GET|LIST|PATCH|POST|PUT|PATCH)$`,
+				`^verb:(?:APPLY|DELETE|GET|LIST|PATCH|POST|PUT|PATCH|WATCH|TOTAL)$`,
 				`^version:`,
+			},
+		},
+		Optional: testMetricExpectArgs{
+			Tags: &[]string{
+				`^contentType:`,
 			},
 		},
 	})

@@ -325,9 +325,8 @@ func (s *server) start(context.Context) error {
 
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
-	err := s.tCapture.Configure()
 
-	if err != nil {
+	if err := s.tCapture.GetStartUpError(); err != nil {
 		return err
 	}
 

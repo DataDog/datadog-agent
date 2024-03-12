@@ -19,6 +19,7 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -51,8 +52,9 @@ func (suite *baseSuite) TearDownSuite() {
 }
 
 type testMetricArgs struct {
-	Filter testMetricFilterArgs
-	Expect testMetricExpectArgs
+	Filter   testMetricFilterArgs
+	Expect   testMetricExpectArgs
+	Optional testMetricExpectArgs
 }
 
 type testMetricFilterArgs struct {
@@ -90,6 +92,11 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 		var expectedTags []*regexp.Regexp
 		if args.Expect.Tags != nil {
 			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		var optionalTags []*regexp.Regexp
+		if args.Optional.Tags != nil {
+			optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 		}
 
 		sendEvent := func(alertType, text string) {
@@ -166,7 +173,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags)
+				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, optionalTags)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyMetricQuery)
 			}
 
@@ -291,7 +298,7 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags)
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{})
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 
