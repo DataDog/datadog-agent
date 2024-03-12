@@ -22,14 +22,15 @@ import (
 const (
 	parsedPayloadsTable = "parsed_payloads"
 	payloadsTable       = "payloads"
-	defaultDBPath       = "./payloads.db"
+	defaultDBPath       = "payloads.db"
 
 	metricsTicker = 30 * time.Second
 )
 
 // SQLStore implements a thread-safe storage for raw and json dumped payloads using SQLite
 type SQLStore struct {
-	db *sql.DB
+	db   *sql.DB
+	path string
 
 	stopCh  chan struct{}
 	metrics sqlMetrics
@@ -46,16 +47,21 @@ type sqlMetrics struct {
 
 // NewSQLStore initializes a new payloads store with an SQLite DB
 func NewSQLStore() *SQLStore {
-	path := os.Getenv("SQLITE_DB_PATH")
-	if path == "" {
-		path = defaultDBPath
+	p := os.Getenv("SQLITE_DB_PATH")
+	if p == "" {
+		f, err := os.CreateTemp("", defaultDBPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		p = f.Name()
 	}
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite3", p)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	s := &SQLStore{
+		path:   p,
 		db:     db,
 		stopCh: make(chan struct{}),
 
@@ -132,6 +138,7 @@ func NewSQLStore() *SQLStore {
 func (s *SQLStore) Close() {
 	s.db.Close()
 	s.stopCh <- struct{}{}
+	os.Remove(s.path)
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
@@ -301,7 +308,6 @@ func (s *SQLStore) Flush() {
 	if err != nil {
 		log.Println("Error flushing parsed payloads: ", err)
 	}
-	os.Remove("./payloads.db")
 }
 
 // GetMetrics returns the prometheus metrics for the store

@@ -24,6 +24,7 @@ import (
 func TestIntegrationClient(t *testing.T) {
 	t.Run("should get empty payloads from a server", func(t *testing.T) {
 		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
 
 		client := NewClient(fi.URL())
 		stats, err := client.RouteStats()
@@ -33,6 +34,7 @@ func TestIntegrationClient(t *testing.T) {
 
 	t.Run("should get all available payloads from a server on a given endpoint", func(t *testing.T) {
 		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
 
 		// post a test payloads to fakeintake
 		testEndpoint := "/foo/bar"
@@ -53,6 +55,7 @@ func TestIntegrationClient(t *testing.T) {
 
 	t.Run("should flush payloads from a server on flush request", func(t *testing.T) {
 		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
 
 		// post a test payloads to fakeintake
 		resp, err := http.Post(fmt.Sprintf("%s%s", fi.URL(), "/foo/bar"), "text/plain", strings.NewReader("totoro|5|tag:before,owner:pducolin"))
@@ -90,6 +93,7 @@ func TestIntegrationClient(t *testing.T) {
 
 	t.Run("should receive overridden response when configured on server", func(t *testing.T) {
 		fi, _ := server.InitialiseForTests(t)
+		defer fi.Stop()
 
 		client := NewClient(fi.URL())
 		err := client.ConfigureOverride(api.ResponseOverride{

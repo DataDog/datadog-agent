@@ -32,7 +32,7 @@ func jsonParser(p api.Payload) (interface{}, error) {
 
 func (suite *StoreTestSuite) TestAppendPayload() {
 	store := suite.StoreConstructor()
-	defer store.Flush()
+	defer store.Close()
 
 	data := []byte(`{"key":"value"}`)
 	parserMap["testRoute"] = jsonParser
@@ -50,7 +50,7 @@ func (suite *StoreTestSuite) TestAppendPayload() {
 
 func (suite *StoreTestSuite) TestCleanUpPayloadsOlderThan() {
 	store := suite.StoreConstructor()
-	defer store.Flush()
+	defer store.Close()
 
 	now := time.Now()
 
@@ -75,7 +75,7 @@ func (suite *StoreTestSuite) TestCleanUpPayloadsOlderThan() {
 
 func (suite *StoreTestSuite) TestGetRouteStats() {
 	store := suite.StoreConstructor()
-	defer store.Flush()
+	defer store.Close()
 
 	err := store.AppendPayload("routeA", []byte("{}"), "json", time.Now())
 	require.NoError(suite.T(), err)
@@ -91,6 +91,7 @@ func (suite *StoreTestSuite) TestGetRouteStats() {
 
 func (suite *StoreTestSuite) TestFlush() {
 	store := suite.StoreConstructor()
+	defer store.Close()
 
 	err := store.AppendPayload("testRoute", []byte("{}"), "json", time.Now())
 	require.NoError(suite.T(), err)
