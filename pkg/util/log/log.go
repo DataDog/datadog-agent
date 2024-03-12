@@ -229,25 +229,23 @@ func (sw *loggerPointer) registerAdditionalLogger(n string, li seelog.LoggerInte
 
 // ReplaceLogger allows replacing the internal logger, returns old logger
 func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
-	l := logger.Load()
+	return logger.replaceInnerLogger(li)
+}
+func (sw *loggerPointer) replaceInnerLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
+	l := sw.Load()
 	if l == nil {
 		return nil // Return nil if logger is not initialized
 	}
 
 	l.l.Lock()
 	defer l.l.Unlock()
+
 	if l.inner == nil {
 		return nil // Return nil if logger.inner is not initialized
 	}
 
-	return l.replaceInnerLogger(li)
-}
-
-// This function should be called with `sw.l` held
-func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
-
-	old := sw.inner
-	sw.inner = l
+	old := l.inner
+	l.inner = li
 
 	return old
 }
