@@ -7,7 +7,8 @@
 package selftests
 
 import (
-	"os"
+	"fmt"
+	"runtime"
 	"time"
 
 	"go.uber.org/atomic"
@@ -18,26 +19,30 @@ import (
 
 // NewSelfTester returns a new SelfTester, enabled or not
 func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
+
+	if !cfg.FIMEnabled {
+		return nil, fmt.Errorf("FIM is disabled")
+	}
 	var (
 		selfTests []SelfTest
 		tmpDir    string
 	)
 
-	if cfg.EBPFLessEnabled {
-		selfTests = []SelfTest{
-			&EBPFLessSelfTest{},
-		}
-	} else {
-		name, dir, err := createTargetFile()
+	if runtime.GOOS == "windows" {
+		dir, err := CreateTargetDir()
 		if err != nil {
 			return nil, err
 		}
 		tmpDir = dir
+		fileToCreate := "file.txt"
 
+		keyPath := "Software\\Datadog\\Datadog Agent"
+		if err != nil {
+			return nil, err
+		}
 		selfTests = []SelfTest{
-			&OpenSelfTest{filename: name},
-			&ChmodSelfTest{filename: name},
-			&ChownSelfTest{filename: name},
+			&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
+			&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 		}
 	}
 
@@ -53,20 +58,4 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	}
 
 	return s, nil
-}
-
-func createTargetFile() (string, string, error) {
-	// Create temp directory to put target file in
-	tmpDir, err := os.MkdirTemp("", "datadog_agent_cws_self_test")
-	if err != nil {
-		return "", "", err
-	}
-
-	// Create target file
-	targetFile, err := os.CreateTemp(tmpDir, "datadog_agent_cws_target_file")
-	if err != nil {
-		return "", "", err
-	}
-
-	return targetFile.Name(), tmpDir, targetFile.Close()
 }
