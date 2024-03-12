@@ -152,7 +152,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^container_name:kube-scheduler$`,
 				`^display_container_name:kube-scheduler_kube-scheduler-.*-control-plane$`,
 				`^image_id:`,
-				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-controller-manager$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-scheduler$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-scheduler$`,
 				`^kube_namespace:kube-system$`,
