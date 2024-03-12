@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -55,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -711,7 +713,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolver()
 	}
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
 	if err != nil {
 		return nil, err
 	}
