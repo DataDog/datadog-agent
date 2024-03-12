@@ -29,6 +29,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.junit_upload_core import enrich_junitxml, produce_junit_tar
+from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -909,3 +910,38 @@ def get_go_module(path):
             return path
         path = os.path.dirname(path)
     raise Exception(f"No go.mod file found for package at {path}")
+
+
+@task(iterable=['flavors'])
+def lint_go(
+    ctx,
+    module=None,
+    targets=None,
+    flavors=None,
+    build="lint",
+    build_tags=None,
+    build_include=None,
+    build_exclude=None,
+    rtloader_root=None,
+    arch="x64",
+    cpus=None,
+    timeout: int = None,
+    golangci_lint_kwargs="",
+    headless_mode=False,
+):
+    _lint_go(
+        ctx,
+        module,
+        targets,
+        flavors,
+        build,
+        build_tags,
+        build_include,
+        build_exclude,
+        rtloader_root,
+        arch,
+        cpus,
+        timeout,
+        golangci_lint_kwargs,
+        headless_mode,
+    )
