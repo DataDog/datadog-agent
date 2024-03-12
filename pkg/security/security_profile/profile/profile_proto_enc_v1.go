@@ -13,6 +13,7 @@ import (
 
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile/selector"
 )
 
 // SecurityProfileToProto incode a Security Profile to its protobuf representation
@@ -25,6 +26,7 @@ func SecurityProfileToProto(input *SecurityProfile) *proto.SecurityProfile {
 		Metadata:        mtdt.ToProto(&input.Metadata),
 		ProfileContexts: make(map[string]*proto.ProfileContext),
 		Tree:            activity_tree.ToProto(input.ActivityTree),
+		Selector:        selector.WorkloadSelectorToProto(&input.selector),
 	}
 
 	for key, ctx := range input.versionContexts {

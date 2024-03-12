@@ -539,8 +539,10 @@ func (m *SecurityProfileManager) protoToSecurityProfile(output *SecurityProfile,
 	output.ActivityTree.ComputeActivityTreeStats()
 	// prepare the profile for insertion
 	m.prepareProfile(output)
-	// override selector to a profile one
-	output.selector.Tag = "*"
+	// if the input is an activity dump then change the selector to a profile selector
+	if input.Selector.GetImageTag() != "*" {
+		output.selector.Tag = "*"
+	}
 }
 
 // OnNewProfileEvent handles the arrival of a new profile (or the new version of a profile) from a provider

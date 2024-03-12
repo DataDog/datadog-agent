@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile/selector"
 )
 
 // ProtoToSecurityProfile decodes a Security Profile from its protobuf representation
@@ -23,6 +24,7 @@ func ProtoToSecurityProfile(output *SecurityProfile, pathsReducer *activity_tree
 	}
 
 	output.Metadata = mtdt.ProtoMetadataToMetadata(input.Metadata)
+	output.selector = selector.ProtoToWorkloadSelector(input.Selector)
 
 	for key, ctx := range input.ProfileContexts {
 		outCtx := &VersionContext{
