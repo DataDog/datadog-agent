@@ -170,7 +170,7 @@ func (c *safeConfig) checkKnownKey(key string) {
 		c.RUnlock()
 		// set known to avoid logging again
 		c.SetKnown(key)
-		log.Warnf("config key %v is not known", key)
+		log.Warnf("config key %v is unknown", key)
 		c.RLock()
 	}
 }
