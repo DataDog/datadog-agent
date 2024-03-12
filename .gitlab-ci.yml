@@ -297,7 +297,10 @@ variables:
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
 
-# When RUN_E2E_TESTS is set to "auto", we run only a subset of installer tests on branch pipelines. For e2e tests it will run tests only if they are impacted by some modifications made on the PR.
+# When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
+# The behavior of each test will be defined by its rules.
+# For example for new-e2e tests created by each team, here is an example of such rules: https://github.com/DataDog/datadog-agent/blob/ba7079d92077ab5898378594dcafb9cd88a77e57/.gitlab-ci.yml#L1160-L1167
+# For the installer tests when RUN_E2E_TESTS is set to "auto", we run a subset of tests on branch pipelines and all the tests on main.
 .if_auto_e2e_tests: &if_auto_e2e_tests
   if: $RUN_E2E_TESTS == "auto"
 
