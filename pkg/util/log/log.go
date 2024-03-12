@@ -788,6 +788,30 @@ func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInter
 	return nil
 }
 
+// ReplaceLogger allows replacing the internal logger, returns old logger
+func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
+	l := logger.Load()
+	if l == nil {
+		return nil // Return nil if logger is not initialized
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+	if l.inner == nil {
+		return nil // Return nil if logger.inner is not initialized
+	}
+
+	return l.replaceInnerLogger(li)
+}
+// This function should be called with `sw.l` held
+func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
+
+	old := sw.inner
+	sw.inner = l
+
+	return old
+}
+
 // Flush flushes the underlying inner log
 func Flush() {
 	l := logger.Load()
@@ -808,30 +832,7 @@ func Flush() {
 	}
 }
 
-// ReplaceLogger allows replacing the internal logger, returns old logger
-func ReplaceLogger(li seelog.LoggerInterface) seelog.LoggerInterface {
-	l := logger.Load()
-	if l == nil {
-		return nil // Return nil if logger is not initialized
-	}
 
-	l.l.Lock()
-	defer l.l.Unlock()
-	if l.inner == nil {
-		return nil // Return nil if logger.inner is not initialized
-	}
-
-	return l.replaceInnerLogger(li)
-}
-
-// This function should be called with `sw.l` held
-func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.LoggerInterface {
-
-	old := sw.inner
-	sw.inner = l
-
-	return old
-}
 
 // log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
 // scrubAndLogFunc, and treating the variadic args as the message.
