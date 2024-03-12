@@ -23,6 +23,8 @@ const (
 	parsedPayloadsTable = "parsed_payloads"
 	payloadsTable       = "payloads"
 	defaultDBPath       = "./payloads.db"
+
+	metricsTicker = 30 * time.Second
 )
 
 // SQLStore implements a thread-safe storage for raw and json dumped payloads using SQLite
@@ -96,12 +98,40 @@ func NewSQLStore() *SQLStore {
 		log.Fatal("Failed to ensure table creation: ", err)
 	}
 
+	go func() {
+		ticker := time.NewTicker(metricsTicker)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.stopCh:
+				return
+			case <-ticker.C:
+				routes, err := s.db.Query("SELECT route, COUNT(*) FROM payloads GROUP BY route")
+				if err != nil {
+					log.Println("Error fetching route stats: ", err)
+					continue
+				}
+				defer routes.Close()
+				for routes.Next() {
+					var route string
+					var count int
+					if err := routes.Scan(&route, &count); err != nil {
+						log.Println("Error scanning route stat: ", err)
+						continue
+					}
+					s.metrics.nBPayloads.WithLabelValues(route).Set(float64(count))
+				}
+			}
+		}
+	}()
+
 	return s
 }
 
 // Close closes the store
 func (s *SQLStore) Close() {
 	s.db.Close()
+	s.stopCh <- struct{}{}
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
@@ -280,4 +310,47 @@ func (s *SQLStore) GetMetrics() []prometheus.Collector {
 		s.metrics.insertLatency,
 		s.metrics.readLatency,
 	}
+}
+
+// ExecuteQuery takes a SQLite query as a string, executes it, and returns the
+// result as a slice of maps. Each map represents a row with column names as keys.
+// It returns an error if the execution fails.
+func (s *SQLStore) ExecuteQuery(query string) ([]map[string]interface{}, error) {
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	var results []map[string]interface{}
+
+	for rows.Next() {
+		columnsMap := make([]interface{}, len(columns))
+		columnPointers := make([]interface{}, len(columns))
+		for i := 0; i < len(columns); i++ {
+			columnPointers[i] = &columnsMap[i]
+		}
+
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, err
+		}
+
+		resultMap := make(map[string]interface{})
+		for i, colName := range columns {
+			val := columnPointers[i].(*interface{})
+			resultMap[colName] = *val
+		}
+
+		results = append(results, resultMap)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }

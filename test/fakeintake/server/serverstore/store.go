@@ -20,12 +20,14 @@ import (
 type Store interface {
 	// AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
 	AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error
+	// ExecuteQuery executes a query on the store
+	ExecuteQuery(query string) ([]map[string]interface{}, error)
 	// CleanUpPayloadsOlderThan removes payloads older than the given time
-	CleanUpPayloadsOlderThan(time time.Time)
+	CleanUpPayloadsOlderThan(time.Time)
 	// GetRawPayloads returns all raw payloads for a given route
-	GetRawPayloads(route string) (payloads []api.Payload)
+	GetRawPayloads(route string) []api.Payload
 	// GetJSONPayloads returns all parsed payloads for a given route
-	GetJSONPayloads(route string) (payloads []api.ParsedPayload)
+	GetJSONPayloads(route string) []api.ParsedPayload
 	// GetRouteStats returns the number of payloads for each route
 	GetRouteStats() map[string]int
 	// Flush flushes the store
