@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -76,7 +75,7 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 		return fmt.Errorf("error marshalling device metadata: %s", err)
 	}
 	log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
-	sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
+	//sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
 	return nil
 }
 
