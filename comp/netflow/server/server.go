@@ -88,8 +88,6 @@ func newServer(lc fx.Lifecycle, deps dependencies) (provides, error) {
 
 	var statusProvider status.Provider
 
-	statusProvider = status.NoopProvider{}
-
 	if conf.Enabled {
 		statusProvider = Provider{}
 

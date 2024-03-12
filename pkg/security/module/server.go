@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -56,16 +56,12 @@ type pendingMsg struct {
 }
 
 func (p *pendingMsg) ToJSON() ([]byte, error) {
-	if len(p.actionReports) > 0 {
-		p.backendEvent.RuleActions = make(map[string][]json.RawMessage)
-	}
 	for _, report := range p.actionReports {
 		data, err := report.ToJSON()
 		if err != nil {
 			return nil, err
 		}
-		actionType := report.Type()
-		p.backendEvent.RuleActions[actionType] = append(p.backendEvent.RuleActions[actionType], data)
+		p.backendEvent.RuleActions = append(p.backendEvent.RuleActions, data)
 	}
 
 	backendEventJSON, err := easyjson.Marshal(p.backendEvent)
@@ -303,6 +299,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 			Version:     version.AgentVersion,
 			OS:          runtime.GOOS,
 			Arch:        utils.RuntimeArch(),
+			Origin:      a.probe.Origin(),
 		},
 	}
 
@@ -328,8 +325,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := e.GetTags()
 
+	ruleID := rule.Definition.ID
+	if rule.Definition.GroupID != "" {
+		ruleID = rule.Definition.GroupID
+	}
+
 	msg := &pendingMsg{
-		ruleID:        rule.Definition.ID,
+		ruleID:        ruleID,
 		backendEvent:  backendEvent,
 		eventJSON:     eventJSON,
 		extTagsCb:     extTagsCb,
@@ -339,7 +341,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		actionReports: e.GetActionReports(),
 	}
 
-	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
+	msg.tags = append(msg.tags, "rule_id:"+ruleID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, eventTags...)
 	msg.tags = append(msg.tags, common.QueryAccountIDTag())

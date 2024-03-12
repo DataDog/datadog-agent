@@ -23,7 +23,10 @@ func TestBasicTest(t *testing.T) {
 		ID:         "test_basic_rule",
 		Expression: `exec.file.name in ["at.exe","schtasks.exe"]`,
 	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
+	opts := testOpts{
+		enableFIM: true,
+	}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}

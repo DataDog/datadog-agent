@@ -44,11 +44,12 @@ const (
 func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
 		config:           config,
 		scrubber:         procutil.NewDefaultDataScrubber(),
 		lookupIdProbe:    NewLookupIDProbe(config),
-		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName),
+		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 	}
 
 	return check
@@ -90,7 +91,7 @@ type ProcessCheck struct {
 	realtimeLastProcs   map[int32]*procutil.Stats
 	realtimeLastRun     time.Time
 
-	notInitializedLogLimit *util.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
@@ -127,7 +128,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
 	p.containerProvider = proccontainers.GetSharedContainerProvider()
 
-	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
+	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {

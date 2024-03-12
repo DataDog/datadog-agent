@@ -10,6 +10,7 @@ package collectorimpl
 import (
 	"context"
 	"sort"
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -160,6 +161,20 @@ func (suite *CollectorTestSuite) TestCancelCheck_TimeoutIsApplied() {
 	ch.AssertNumberOfCalls(suite.T(), "Cancel", 1)
 }
 
+func (suite *CollectorTestSuite) TestCancelCheck_CheckIsCleanedUp() {
+	ch := NewCheckSlowCancel(10 * time.Second)
+
+	start := time.Now()
+	id, err := suite.c.RunCheck(ch)
+	assert.Nil(suite.T(), err)
+	assert.NotEmpty(suite.T(), suite.c.checks)
+
+	err = suite.c.StopCheck(id)
+	assert.NotNil(suite.T(), err)
+	assert.WithinDuration(suite.T(), start, time.Now(), 5*time.Second)
+	assert.Empty(suite.T(), suite.c.checks)
+}
+
 func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
@@ -252,4 +267,8 @@ func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
 	assert.Equal(suite.T(), killed, []checkid.ID{"baz", "qux"})
 
 	assert.Zero(suite.T(), len(suite.c.checks))
+}
+
+func TestCollectorSuite(t *testing.T) {
+	suite.Run(t, new(CollectorTestSuite))
 }

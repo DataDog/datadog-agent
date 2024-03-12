@@ -16,12 +16,12 @@ import (
 	"hash"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/glaslos/ssdeep"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"

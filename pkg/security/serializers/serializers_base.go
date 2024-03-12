@@ -59,8 +59,6 @@ type EventContextSerializer struct {
 	Async bool `json:"async,omitempty"`
 	// The list of rules that the event matched (only valid in the context of an anomaly)
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
-	// Origin of the event
-	Origin string `json:"origin,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -232,11 +230,13 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:      eventType.String(),
-			Origin:    event.Origin,
 			Variables: newVariablesContext(event, opts, ""),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, opts),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
+	}
+	if s.ProcessContextSerializer != nil {
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, opts, "process.")
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -269,6 +269,10 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 	if opts != nil && opts.VariableStore != nil {
 		store := opts.VariableStore
 		for name, variable := range store.Variables {
+			if _, found := model.SECLVariables[name]; found {
+				continue
+			}
+
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
 				continue

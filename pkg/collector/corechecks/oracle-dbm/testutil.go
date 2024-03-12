@@ -9,11 +9,13 @@ package oracle
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	oracle_common "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,4 +73,16 @@ service_name: %s
 	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
 
 	return c, sender
+}
+
+func skipGodror() bool {
+	return os.Getenv("SKIP_GODROR_TESTS") == "1"
+}
+
+func getDrivers() []string {
+	drivers := []string{oracle_common.GoOra}
+	if !skipGodror() {
+		drivers = append(drivers, oracle_common.Godror)
+	}
+	return drivers
 }

@@ -10,11 +10,9 @@
 package listeners
 
 import (
-	"encoding/binary"
 	"net"
 	"os"
 	"testing"
-	"time"
 
 	"golang.org/x/net/nettest"
 
@@ -115,59 +113,4 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 
 	_, err = net.Dial(transport, socketPath)
 	assert.NotNil(t, err)
-}
-
-func testUDSReceive(t *testing.T, listenerFactory udsListenerFactory, transport string) {
-	socketPath := testSocketPath(t)
-
-	mockConfig := map[string]interface{}{}
-	mockConfig[socketPathConfKey(transport)] = socketPath
-	mockConfig["dogstatsd_origin_detection"] = false
-
-	var contents0 = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
-	var contents1 = []byte("daemon:999|g|#sometag1:somevalue1")
-
-	packetsChannel := make(chan packets.Packets)
-
-	config := fulfillDepsWithConfig(t, mockConfig)
-	s, err := listenerFactory(packetsChannel, newPacketPoolManagerUDS(config), config)
-	assert.Nil(t, err)
-	assert.NotNil(t, s)
-
-	s.Listen()
-	defer s.Stop()
-	conn, err := net.Dial(transport, socketPath)
-	assert.Nil(t, err)
-	defer conn.Close()
-
-	if transport == "unix" {
-		binary.Write(conn, binary.LittleEndian, int32(len(contents0)))
-	}
-	conn.Write(contents0)
-
-	if transport == "unix" {
-		binary.Write(conn, binary.LittleEndian, int32(len(contents1)))
-	}
-	conn.Write(contents1)
-
-	select {
-	case pkts := <-packetsChannel:
-		assert.Equal(t, 2, len(pkts))
-
-		packet := pkts[0]
-		assert.NotNil(t, packet)
-		assert.Equal(t, packet.Contents, contents0)
-		assert.Equal(t, packet.Origin, "")
-		assert.Equal(t, packet.Source, packets.UDS)
-
-		packet = pkts[1]
-		assert.NotNil(t, packet)
-		assert.Equal(t, packet.Contents, contents1)
-		assert.Equal(t, packet.Origin, "")
-		assert.Equal(t, packet.Source, packets.UDS)
-
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
-
 }

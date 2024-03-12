@@ -47,6 +47,18 @@ def is_allowed_repo_nightly_branch(branch):
     return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
+def running_in_github_actions():
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def running_in_gitlab_ci():
+    return os.environ.get("GITLAB_CI") == "true"
+
+
+def running_in_circleci():
+    return os.environ.get("CIRCLECI") == "true"
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
@@ -123,6 +135,26 @@ def get_embedded_path(ctx):
     return embedded_path
 
 
+def get_xcode_version(ctx):
+    """
+    Get the version of XCode used depending on how it's installed.
+    """
+    if sys.platform != "darwin":
+        raise ValueError("The get_xcode_version function is only available on macOS")
+    xcode_path = ctx.run("xcode-select -p", hide=True).stdout.strip()
+    if xcode_path == "/Library/Developer/CommandLineTools":
+        xcode_version = ctx.run("pkgutil --pkg-info=com.apple.pkg.CLTools_Executables", hide=True).stdout.strip()
+        xcode_version = re.search(r"version: ([0-9.]+)", xcode_version).group(1)
+        xcode_version = re.search(r"([0-9]+.[0-9]+)", xcode_version).group(1)
+    elif xcode_path.startswith("/Applications/Xcode.app"):
+        xcode_version = ctx.run(
+            "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
+        ).stdout.strip()
+    else:
+        raise ValueError(f"Unknown XCode installation at {xcode_path}.")
+    return xcode_version
+
+
 def get_build_flags(
     ctx,
     static=False,
@@ -161,9 +193,9 @@ def get_build_flags(
 
     rtloader_lib, rtloader_headers, rtloader_common_headers = get_rtloader_paths(embedded_path, rtloader_root)
 
-    # setting the install path
+    # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
-        ldflags += f"-X {REPO_PATH}/pkg/config.InstallPath={install_path} "
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
 
     # setting python homes in the code
     if python_home_2:
@@ -216,10 +248,24 @@ def get_build_flags(
     elif os.environ.get("NO_GO_OPT"):
         gcflags = "-N -l"
 
-    # On macOS work around https://github.com/golang/go/issues/38824
-    # as done in https://go-review.googlesource.com/c/go/+/372798
     if sys.platform == "darwin":
-        extldflags += "-Wl,-bind_at_load "
+        # On macOS work around https://github.com/golang/go/issues/38824
+        # as done in https://go-review.googlesource.com/c/go/+/372798
+        extldflags += "-Wl,-bind_at_load"
+
+        # On macOS when using XCode 15 the -no_warn_duplicate_libraries linker flag is needed to avoid getting ld warnings
+        # for duplicate libraries: `ld: warning: ignoring duplicate libraries: '-ldatadog-agent-rtloader', '-ldl'`.
+        # Gotestsum sees the ld warnings as errors, breaking the test invoke task, so we have to remove them.
+        # See https://indiestack.com/2023/10/xcode-15-duplicate-library-linker-warnings/
+        try:
+            xcode_version = get_xcode_version(ctx)
+            if int(xcode_version.split('.')[0]) >= 15:
+                extldflags += ",-no_warn_duplicate_libraries "
+        except ValueError:
+            print(
+                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                file=sys.stderr,
+            )
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -318,6 +364,18 @@ def get_git_pretty_ref():
     """
     Return the name of the current Git branch or the tag if in a detached state
     """
+    # https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
+    if running_in_gitlab_ci():
+        return os.environ["CI_COMMIT_REF_NAME"]
+
+    # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
+    if running_in_github_actions():
+        return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
+
+    # https://circleci.com/docs/variables/#built-in-environment-variables
+    if running_in_circleci():
+        return os.environ.get("CIRCLE_TAG") or os.environ["CIRCLE_BRANCH"]
+
     current_branch = get_git_branch_name()
     if current_branch != "HEAD":
         return current_branch

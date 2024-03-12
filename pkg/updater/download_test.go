@@ -3,162 +3,154 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// for now the updater is not supported on windows
+//go:build !windows
+
 package updater
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path"
-	"path/filepath"
-	"runtime"
 	"testing"
 
+	oci "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	testAgentFileName        = "agent"
-	testNestedAgentFileName  = "nested/agent2"
-	testLargeFileName        = "large"
-	testLargeFileSize        = 1024 * 1024 * 20 // 20MB
-	testAgentArchiveFileName = "agent.tar.gz"
-	testDownloadDir          = "download"
+type fixture struct {
+	pkg         string
+	version     string
+	layoutPath  string
+	contentPath string
+}
+
+var (
+	fixtureSimpleV1 = fixture{
+		pkg:         "simple",
+		version:     "v1",
+		layoutPath:  "fixtures/oci-layout-simple-v1.tar",
+		contentPath: "fixtures/simple-v1",
+	}
+	fixtureSimpleV2 = fixture{
+		pkg:         "simple",
+		version:     "v2",
+		layoutPath:  "fixtures/oci-layout-simple-v2.tar",
+		contentPath: "fixtures/simple-v2",
+	}
+	fixtureSimpleV1Linux2Amd128 = fixture{
+		pkg:         "simple",
+		version:     "v1",
+		layoutPath:  "fixtures/oci-layout-simple-v1-linux2-amd128.tar",
+		contentPath: "fixtures/simple-v1",
+	}
 )
 
-func createTestArchive(t *testing.T, dir string) {
-	filePath := path.Join(dir, testAgentFileName)
-	err := os.WriteFile(filePath, []byte("test"), 0644)
-	assert.NoError(t, err)
-	nestedFilePath := path.Join(dir, testNestedAgentFileName)
-	err = os.MkdirAll(path.Dir(nestedFilePath), 0755)
-	assert.NoError(t, err)
-	err = os.WriteFile(nestedFilePath, []byte("test"), 0644)
-	assert.NoError(t, err)
-	largeFilePath := path.Join(dir, testLargeFileName)
-	largeFile, err := os.Create(largeFilePath)
-	assert.NoError(t, err)
-	defer largeFile.Close()
-	_, err = io.CopyN(largeFile, rand.Reader, testLargeFileSize)
-	assert.NoError(t, err)
-	archivePath := path.Join(dir, testAgentArchiveFileName)
-	files := []string{testAgentFileName, testNestedAgentFileName, testLargeFileName}
-	out, err := os.Create(archivePath)
-	assert.NoError(t, err)
-	defer out.Close()
-	err = createArchive(dir, files, out)
-	assert.NoError(t, err)
+//go:embed fixtures/*
+var fixturesFS embed.FS
+
+type testFixturesServer struct {
+	t *testing.T
+	s *httptest.Server
 }
 
-func createTestServer(t *testing.T, dir string) *httptest.Server {
-	createTestArchive(t, dir)
-	return httptest.NewServer(http.FileServer(http.Dir(dir)))
-}
-
-func agentArchiveHash(t *testing.T, dir string) string {
-	f, err := os.Open(path.Join(dir, testAgentArchiveFileName))
-	assert.NoError(t, err)
-	defer f.Close()
-	hash := sha256.New()
-	_, err = io.Copy(hash, f)
-	assert.NoError(t, err)
-	return hex.EncodeToString(hash.Sum(nil))
-}
-
-func createArchive(dir string, files []string, buf io.Writer) error {
-	// Create new Writers for gzip and tar
-	// These writers are chained. Writing to the tar writer will
-	// write to the gzip writer which in turn will write to
-	// the "buf" writer
-	gw := gzip.NewWriter(buf)
-	defer gw.Close()
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
-	// Iterate over files and add them to the tar archive
-	for _, file := range files {
-		err := addToArchive(dir, tw, file)
-		if err != nil {
-			return err
-		}
+func newTestFixturesServer(t *testing.T) *testFixturesServer {
+	return &testFixturesServer{
+		t: t,
+		s: httptest.NewServer(http.FileServer(http.FS(fixturesFS))),
 	}
-
-	return nil
 }
 
-func addToArchive(dir string, tw *tar.Writer, filename string) error {
-	file, err := os.Open(filepath.Join(dir, filename))
+func (s *testFixturesServer) Downloader() *downloader {
+	return newDownloader(s.s.Client())
+}
+
+func (s *testFixturesServer) Package(f fixture) Package {
+	file, err := fixturesFS.Open(f.layoutPath)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer file.Close()
-
-	info, err := file.Stat()
+	hash := sha256.New()
+	n, err := io.Copy(hash, file)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return Package{
+		Name:    f.pkg,
+		Version: f.version,
+		URL:     s.s.URL + "/" + f.layoutPath,
+		Size:    n,
+		SHA256:  fmt.Sprintf("%x", hash.Sum(nil)),
+	}
+}
 
-	header, err := tar.FileInfoHeader(info, info.Name())
+func (s *testFixturesServer) PackageFS(f fixture) fs.FS {
+	fs, err := fs.Sub(fixturesFS, f.contentPath)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return fs
+}
 
-	header.Name = filename
-
-	err = tw.WriteHeader(header)
+func (s *testFixturesServer) Image(f fixture) oci.Image {
+	tmpDir := s.t.TempDir()
+	image, err := s.Downloader().Download(context.Background(), tmpDir, s.Package(f))
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return image
+}
 
-	_, err = io.Copy(tw, file)
-	if err != nil {
-		return err
+func (s *testFixturesServer) Catalog() catalog {
+	return catalog{
+		Packages: []Package{
+			s.Package(fixtureSimpleV1),
+			s.Package(fixtureSimpleV2),
+		},
 	}
+}
 
-	return nil
+func (s *testFixturesServer) Close() {
+	s.s.Close()
 }
 
 func TestDownload(t *testing.T) {
-	dir := t.TempDir()
-	server := createTestServer(t, dir)
-	defer server.Close()
-	downloader := newDownloader(server.Client())
-	downloadPath := path.Join(dir, testDownloadDir)
-	err := os.MkdirAll(downloadPath, 0755)
-	assert.NoError(t, err)
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
 
-	pkg := Package{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: agentArchiveHash(t, dir)}
-	err = downloader.Download(context.Background(), pkg, downloadPath)
+	image, err := d.Download(context.Background(), t.TempDir(), s.Package(fixtureSimpleV1))
 	assert.NoError(t, err)
-	assert.FileExists(t, path.Join(downloadPath, testAgentFileName))
-	assert.FileExists(t, path.Join(downloadPath, testNestedAgentFileName))
-	assert.FileExists(t, path.Join(downloadPath, testLargeFileName))
-
-	// ensures the full archive or full individual files are not loaded in memory
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	assert.Less(t, m.TotalAlloc, uint64(testLargeFileSize))
+	tmpDir := t.TempDir()
+	err = extractPackageLayers(image, tmpDir)
+	assert.NoError(t, err)
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
 }
 
-func TestDownloadCheckHash(t *testing.T) {
-	dir := t.TempDir()
-	server := createTestServer(t, dir)
-	defer server.Close()
-	downloader := newDownloader(server.Client())
-	downloadPath := path.Join(dir, testDownloadDir)
-	err := os.MkdirAll(downloadPath, 0755)
-	assert.NoError(t, err)
+func TestDownloadInvalidHash(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
 
-	fakeHash := sha256.Sum256([]byte(`test`))
-	pkg := Package{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: hex.EncodeToString(fakeHash[:])}
-	err = downloader.Download(context.Background(), pkg, downloadPath)
+	pkg := s.Package(fixtureSimpleV1)
+	pkg.SHA256 = "2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
+	assert.Error(t, err)
+}
+
+func TestDownloadPlatformNotAvailable(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
+
+	pkg := s.Package(fixtureSimpleV1Linux2Amd128)
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
 	assert.Error(t, err)
 }

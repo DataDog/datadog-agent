@@ -13,7 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -58,6 +60,7 @@ type apiServer struct {
 	eventPlatformReceiver eventplatformreceiver.Component
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
+	authToken             authtoken.Component
 }
 
 type dependencies struct {
@@ -78,6 +81,7 @@ type dependencies struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
+	AuthToken             authtoken.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -99,6 +103,7 @@ func newAPIServer(deps dependencies) api.Component {
 		eventPlatformReceiver: deps.EventPlatformReceiver,
 		rcService:             deps.RcService,
 		rcServiceHA:           deps.RcServiceHA,
+		authToken:             deps.AuthToken,
 	}
 }
 
@@ -106,6 +111,7 @@ func newAPIServer(deps dependencies) api.Component {
 func (server *apiServer) StartServer(
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
+	ac autodiscovery.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
@@ -130,6 +136,7 @@ func (server *apiServer) StartServer(
 		server.statusComponent,
 		collector,
 		server.eventPlatformReceiver,
+		ac,
 	)
 }
 

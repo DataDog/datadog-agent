@@ -1,12 +1,8 @@
-import io
 import os
 import pprint
 import re
 import time
-import traceback
-from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Dict
 
 import yaml
 from invoke import task
@@ -24,18 +20,7 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.pipeline_data import get_failed_jobs
-from tasks.libs.pipeline_notifications import (
-    GITHUB_SLACK_MAP,
-    base_message,
-    check_for_missing_owners_slack_and_jira,
-    find_job_owners,
-    get_failed_tests,
-    read_owners,
-    send_slack_message,
-)
-from tasks.libs.pipeline_stats import get_failed_jobs_stats
+from tasks.libs.pipeline_notifications import read_owners, send_slack_message
 from tasks.libs.pipeline_tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
@@ -44,7 +29,6 @@ from tasks.libs.pipeline_tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
 
 
 class GitlabReference(yaml.YAMLObject):
@@ -237,8 +221,7 @@ def run(
     repo_branch="dev",
     deploy=False,
     all_builds=True,
-    kitchen_tests=True,
-    e2e_tests=False,
+    e2e_tests=True,
     rc_build=False,
     rc_k8s_deployments=False,
 ):
@@ -318,14 +301,14 @@ def run(
                 )
             )
             all_builds = True
-        if not kitchen_tests:
+        if not e2e_tests:
             print(
                 color_message(
-                    "WARNING: ignoring --no-kitchen-tests option, RUN_KITCHEN_TESTS is automatically set to true on deploy pipelines",
+                    "WARNING: ignoring --no-e2e-tests option, RUN_E2E_TESTS is automatically set to true on deploy pipelines",
                     "orange",
                 )
             )
-            kitchen_tests = True
+            e2e_tests = True
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
 
@@ -348,7 +331,6 @@ def run(
             repo_branch,
             deploy=deploy,
             all_builds=all_builds,
-            kitchen_tests=kitchen_tests,
             e2e_tests=e2e_tests,
             rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
@@ -407,41 +389,6 @@ def wait_for_pipeline_from_ref(gitlab, ref):
     else:
         print(f"No pipelines found for {ref}")
         raise Exit(code=1)
-
-
-# Tasks to trigger pipeline notifications
-
-UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
-Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
-"""
-
-
-def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
-    all_teams = "@DataDog/agent-all"
-
-    # Generate messages for each team
-    messages_to_send = defaultdict(TeamMessage)
-    messages_to_send[all_teams] = SlackMessage(jobs=failed_jobs)
-
-    failed_job_owners = find_job_owners(failed_jobs)
-    for owner, jobs in failed_job_owners.items():
-        if owner == "@DataDog/multiple":
-            for job in jobs.all_non_infra_failures():
-                for test in get_failed_tests(project_name, job):
-                    messages_to_send[all_teams].add_test_failure(test, job)
-                    for owner in test.owners:
-                        messages_to_send[owner].add_test_failure(test, job)
-        elif owner == "@DataDog/do-not-notify":
-            # Jobs owned by @DataDog/do-not-notify do not send team messages
-            pass
-        elif owner == all_teams:
-            # Jobs owned by @DataDog/agent-all will already be in the global
-            # message, do not overwrite the failed jobs list
-            pass
-        else:
-            messages_to_send[owner].failed_jobs = jobs
-
-    return messages_to_send
 
 
 @task(iterable=['variable'])
@@ -549,15 +496,23 @@ def is_system_probe(owners, files):
     return False
 
 
-EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "U01009CUG9X"}
+EMAIL_SLACK_ID_MAP = {
+    "guy20495@gmail.com": "U03LJSCAPK2",
+    "safchain@gmail.com": "U01009CUG9X",
+    "usamasaqib.96@live.com": "U03D807V94J",
+    "leeavital@gmail.com": "UDG2223C1",
+}
 
 
 @task
 def changelog(ctx, new_commit_sha):
+    # Environment variable to deal with both local and CI environments
+    if "CI_PROJECT_DIR" in os.environ:
+        parent_dir = os.environ["CI_PROJECT_DIR"]
+    else:
+        parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        "aws ssm get-parameter --region us-east-1 --name "
-        "ci.datadog-agent.gitlab_changelog_commit_sha --with-decryption --query "
-        "\"Parameter.Value\" --out text",
+        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_changelog_commit_sha",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:
@@ -626,149 +581,6 @@ def changelog(ctx, new_commit_sha):
         "--type \"SecureString\" --region us-east-1 --overwrite",
         hide=True,
     )
-
-
-@task
-def check_notify_teams(_):
-    if check_for_missing_owners_slack_and_jira():
-        print(
-            "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
-            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP map in tasks/libs/pipeline_notifications.py."
-        )
-        raise Exit(code=1)
-    else:
-        print("All CODEOWNERS teams have their slack notification channel and jira project specified !!")
-
-
-@task
-def notify(_, notification_type="merge", print_to_stdout=False):
-    """
-    Send notifications for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
-    real slack messages.
-    """
-    project_name = "DataDog/datadog-agent"
-
-    try:
-        failed_jobs = get_failed_jobs(project_name, os.getenv("CI_PIPELINE_ID"))
-        messages_to_send = generate_failure_messages(project_name, failed_jobs)
-    except Exception as e:
-        buffer = io.StringIO()
-        print(base_message("datadog-agent", "is in an unknown state"), file=buffer)
-        print("Found exception when generating notification:", file=buffer)
-        traceback.print_exc(limit=-1, file=buffer)
-        print("See the notify job log for the full exception traceback.", file=buffer)
-
-        messages_to_send = {
-            "@DataDog/agent-all": SlackMessage(base=buffer.getvalue()),
-        }
-        # Print traceback on job log
-        print(e)
-        traceback.print_exc()
-        raise Exit(code=1)
-
-    # From the job failures, set whether the pipeline succeeded or failed and craft the
-    # base message that will be sent.
-    if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
-        header_icon = ":host-red:"
-        state = "failed"
-        coda = "If there is something wrong with the notification please contact #agent-platform"
-    else:
-        header_icon = ":host-green:"
-        state = "succeeded"
-        coda = ""
-
-    header = ""
-    if notification_type == "merge":
-        header = f"{header_icon} :merged: datadog-agent merge"
-    elif notification_type == "deploy":
-        header = f"{header_icon} :rocket: datadog-agent deploy"
-    base = base_message(header, state)
-
-    # Send messages
-    for owner, message in messages_to_send.items():
-        channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
-        message.base_message = base
-        if channel is None:
-            channel = "#datadog-agent-pipelines"
-            message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
-        message.coda = coda
-        if print_to_stdout:
-            print(f"Would send to {channel}:\n{str(message)}")
-        else:
-            send_slack_message(channel, str(message))  # TODO: use channel variable
-
-
-@task
-def send_stats(_, print_to_stdout=False):
-    """
-    Send statistics to Datadog for the current pipeline. CI-only task.
-    Use the --print-to-stdout option to test this locally, without sending
-    data points to Datadog.
-    """
-    project_name = "DataDog/datadog-agent"
-
-    try:
-        global_failure_reason, job_failure_stats = get_failed_jobs_stats(project_name, os.getenv("CI_PIPELINE_ID"))
-    except Exception as e:
-        print("Found exception when generating statistics:")
-        print(e)
-        traceback.print_exc(limit=-1)
-        raise Exit(code=1)
-
-    if not (print_to_stdout or os.environ.get("DD_API_KEY")):
-        print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
-        raise Exit(code=1)
-
-    timestamp = int(datetime.now().timestamp())
-    series = []
-
-    for failure_tags, count in job_failure_stats.items():
-        # This allows getting stats on the number of jobs that fail due to infrastructure
-        # issues vs. other failures, and have a per-pipeline ratio of infrastructure failures.
-        series.append(
-            create_count(
-                metric_name="datadog.ci.job_failures",
-                timestamp=timestamp,
-                value=count,
-                tags=list(failure_tags)
-                + [
-                    "repository:datadog-agent",
-                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                ],
-            )
-        )
-
-    if job_failure_stats:  # At least one job failed
-        pipeline_state = "failed"
-    else:
-        pipeline_state = "succeeded"
-
-    pipeline_tags = [
-        "repository:datadog-agent",
-        f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-        f"status:{pipeline_state}",
-    ]
-    if global_failure_reason:  # Only set the reason if the pipeline fails
-        pipeline_tags.append(f"reason:{global_failure_reason}")
-
-    series.append(
-        create_count(
-            metric_name="datadog.ci.pipelines",
-            timestamp=timestamp,
-            value=1,
-            tags=pipeline_tags,
-        )
-    )
-
-    if not print_to_stdout:
-        response = send_metrics(series)
-        if response["errors"]:
-            print(f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}")
-            raise Exit(code=1)
-        print(f"Sent pipeline metrics: {series}")
-    else:
-        print(f"Would send: {series}")
 
 
 def _init_pipeline_schedule_task():
