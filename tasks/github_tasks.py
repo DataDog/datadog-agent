@@ -207,6 +207,7 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
 
     _, best_count = team_count[0]
     best_teams = [team for (team, count) in team_count if count == best_count]
+    best_teams = [team.casefold() for team in best_teams]
 
     return best_teams
 
@@ -254,7 +255,7 @@ def assign_team_label(_, pr_id=-1):
 
     # Get labels
     all_team_labels = _get_team_labels()
-    team_labels = [f"team{team.removeprefix('@DataDog')}" for team in teams if team.startswith("@DataDog/")]
+    team_labels = [f"team{team.removeprefix('@datadog')}" for team in teams]
 
     # Assign label
     for label_name in team_labels:
