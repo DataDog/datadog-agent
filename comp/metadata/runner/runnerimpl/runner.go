@@ -163,7 +163,7 @@ func (r *runnerImpl) start() error {
 	go func() {
 		for _, optionaP := range r.priorityProviders {
 			if p, isSet := optionaP.Get(); isSet {
-				// Execute syncronously the priority provider
+				// Execute synchronously the priority provider
 				p(context.Background())
 
 				go r.handleProvider(p)
