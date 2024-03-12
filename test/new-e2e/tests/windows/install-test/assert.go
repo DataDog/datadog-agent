@@ -92,3 +92,18 @@ func AssertGroupMembership(t *testing.T, host *components.RemoteHost, user strin
 	}
 	return true
 }
+
+// AssertUserRights checks the user has the expected user rights
+func AssertUserRights(t *testing.T, host *components.RemoteHost, username string) bool {
+	expectedRights := []string{
+		"SeServiceLogonRight",
+		"SeDenyInteractiveLogonRight",
+		"SeDenyNetworkLogonRight",
+		"SeDenyRemoteInteractiveLogonRight",
+	}
+	actualRights, err := windows.GetUserRightsForUser(host, username)
+	if !assert.NoError(t, err, "should get user rights") {
+		return false
+	}
+	return assert.ElementsMatch(t, expectedRights, actualRights, "user %s should have user rights", username)
+}
