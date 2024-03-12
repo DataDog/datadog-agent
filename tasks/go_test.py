@@ -743,6 +743,8 @@ def parse_test_log(log_file):
 
 @task
 def get_impacted_packages(ctx, build_tags=None):
+    if build_tags is None:
+        build_tags = []
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
 
@@ -751,6 +753,18 @@ def get_impacted_packages(ctx, build_tags=None):
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
+
+    # Modification to go.mod and go.sum should force the tests of the whole module to run
+    for file in files:
+        if file.endswith(".mod") or file.endswith(".sum"):
+            print("FILE: ", file)
+            print("RUNNING: ", f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(file)}/...')
+            with ctx.cd(os.path.dirname(file)):
+                all_packages = ctx.run(
+                    f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
+                ).stdout.splitlines()
+                print("ADDING PACKAGES: ", all_packages)
+                modified_packages.update(set(all_packages))
 
     # Modification to fixture folders count as modification to their parent package
     for file in files:
@@ -816,7 +830,7 @@ def format_packages(ctx, impacted_packages):
 
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
-    go_mod_modified_modules = set()
+
     for package in packages:
         match_precision = 0
         best_module_path = None
@@ -835,10 +849,6 @@ def format_packages(ctx, impacted_packages):
                 targeted = True
                 break
         if not targeted:
-            continue
-
-        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
-        if best_module_path in go_mod_modified_modules:
             continue
 
         # If the package has been deleted we do not try to run tests
