@@ -157,11 +157,12 @@ func (sw *loggerPointer) changeLogLevel(level string) error {
 	return nil
 }
 
-// GetLogLevel returns a seelog native representation of the current
-// log level
+// GetLogLevel returns a seelog native representation of the current log level
 func GetLogLevel() (seelog.LogLevel, error) {
-	l := logger.Load()
-
+	return logger.getLogLevel()
+}
+func (sw *loggerPointer) getLogLevel() (seelog.LogLevel, error) {
+	l := sw.Load()
 	if l == nil {
 		return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
@@ -169,17 +170,11 @@ func GetLogLevel() (seelog.LogLevel, error) {
 	l.l.RLock()
 	defer l.l.RUnlock()
 
-	if l.inner != nil {
-		return l.getLogLevel(), nil
+	if l.inner == nil {
+		return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 	}
 
-	// need to return something, just set to Info (expected default)
-	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
-}
-
-// getLogLevel returns the current log level
-func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
-	return sw.level
+	return l.level, nil
 }
 
 // ShouldLog returns whether a given log level should be logged by the default logger
