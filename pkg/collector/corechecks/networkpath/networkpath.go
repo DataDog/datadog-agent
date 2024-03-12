@@ -69,7 +69,7 @@ func (c *Check) Run() error {
 }
 
 // SendNetPathMDToEP sends a traced network path to EP
-func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkPath) error {
+func (c *Check) SendNetPathMDToEP(_ sender.Sender, path traceroute.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
 		return fmt.Errorf("error marshalling device metadata: %s", err)
