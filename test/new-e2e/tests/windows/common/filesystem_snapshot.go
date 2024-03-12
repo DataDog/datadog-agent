@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"os"
 	"strings"
 )
 
@@ -62,7 +61,10 @@ func (fs *FileSystemSnapshot) CompareSnapshots(host *components.RemoteHost, othe
 // NewFileSystemSnapshot takes a snapshot of the system files that can be used to compare against later.
 // The snapshot is overridden if it already exists.
 func NewFileSystemSnapshot(host *components.RemoteHost, pathsToIgnore []string) (*FileSystemSnapshot, error) {
-	path, err := os.CreateTemp("", "snapshot")
+	tempFile, err := GetTemporaryFile(host)
+	if err != nil {
+		return nil, err
+	}
 
 	// quote each path and join with commas
 	pattern := ""
@@ -74,7 +76,7 @@ func NewFileSystemSnapshot(host *components.RemoteHost, pathsToIgnore []string) 
 	pattern = fmt.Sprintf(`@(%s)`, strings.Trim(pattern, ","))
 	// Recursively list Windows directory and ignore the paths above
 	// Compare-Object is case insensitive by default
-	cmd := fmt.Sprintf(`cmd /c dir C:\Windows /b /s | Out-String -Stream | Select-String -NotMatch -SimpleMatch -Pattern %s | Select -ExpandProperty Line > "%s"`, pattern, path.Name())
+	cmd := fmt.Sprintf(`cmd /c dir C:\Windows /b /s | Out-String -Stream | Select-String -NotMatch -SimpleMatch -Pattern %s | Select -ExpandProperty Line > "%s"`, pattern, tempFile)
 	if len(cmd) > 8192 {
 		return nil, fmt.Errorf("command length %d exceeds max command length: '%s'", len(cmd), cmd)
 	}
@@ -82,5 +84,5 @@ func NewFileSystemSnapshot(host *components.RemoteHost, pathsToIgnore []string) 
 	if err != nil {
 		return nil, fmt.Errorf("snapshot system files command failed: %s", err)
 	}
-	return &FileSystemSnapshot{host: host, path: path.Name()}, nil
+	return &FileSystemSnapshot{host: host, path: tempFile}, nil
 }

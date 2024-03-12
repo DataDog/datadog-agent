@@ -100,7 +100,7 @@ func (is *agentMSISuite) TestInstall() {
 	// install the agent
 	remoteMSIPath := is.installAgentPackage(vm, is.AgentPackage)
 
-	is.T().Run("install Agent only modify Agent related paths", func(tt *testing.T) {
+	is.Run("install Agent only modify Agent related paths", func() {
 		afterInstall, err := windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
 		is.Require().NoError(err)
 		results, err := is.beforeInstall.CompareSnapshots(vm, afterInstall)
