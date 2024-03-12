@@ -92,19 +92,10 @@ func setup(secretsManager secrets.Component) (cloudservice.CloudService, *server
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), config.Datadog.GetString("confd_path"))
-	ctx := context.Background()
-	common.AC.LoadAndRun(ctx)
+	ctx := setupConfigAutoDiscovery(secretsManager)
 	logsAgent := serverlessInitLog.SetupLog(logConfig, tags)
 
-	healthPort := pkgconfig.Datadog.GetInt("health_port")
-	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
-		if err != nil {
-			log.Errorf("Error starting health port, exiting: %v", err)
-		}
-		log.Debugf("Health check listening on port %d", healthPort)
-	}
+	setupHealthCheck(ctx)
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
@@ -116,6 +107,25 @@ func setup(secretsManager secrets.Component) (cloudservice.CloudService, *server
 
 	go flushMetricsAgent(metricAgent)
 	return cloudService, logConfig, traceAgent, metricAgent, logsAgent
+}
+
+func setupConfigAutoDiscovery(secretsManager secrets.Component) context.Context {
+	// AD is needed to find the config to tail the log files
+	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), config.Datadog.GetString("confd_path"))
+	ctx := context.Background()
+	common.AC.LoadAndRun(ctx)
+	return ctx
+}
+
+func setupHealthCheck(ctx context.Context) {
+	healthPort := pkgconfig.Datadog.GetInt("health_port")
+	if healthPort > 0 {
+		err := healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
+		if err != nil {
+			log.Errorf("Error starting health port, exiting: %v", err)
+		}
+		log.Debugf("Health check listening on port %d", healthPort)
+	}
 }
 
 func setupLogger() {
