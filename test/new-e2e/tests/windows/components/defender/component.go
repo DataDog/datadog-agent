@@ -52,7 +52,7 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 	}
 
 	if params.Uninstall {
-		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("disable-defender"), &command.Args{
+		cmd, err := host.OS.Runner().Command(manager.namer.ResourceName("uninstall-defender"), &command.Args{
 			Create: pulumi.String(powershell.PsHost().
 				UninstallWindowsDefender().
 				Compile()),
