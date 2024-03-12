@@ -46,7 +46,7 @@ func (api *testLocalAPI) Stop() {
 	api.s.Stop(context.Background())
 }
 
-func TestLocalAPIBootstrap(t *testing.T) {
+func TestLocalAPI(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
 	api := newTestLocalAPI(t, s)
