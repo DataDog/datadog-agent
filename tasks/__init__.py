@@ -64,6 +64,7 @@ from tasks.go_test import (
     get_impacted_packages,
     get_modified_packages,
     integration_tests,
+    lint_go,
     send_unit_tests_stats,
     test,
 )
@@ -89,6 +90,7 @@ ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
+ns.add_task(lint_go)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
