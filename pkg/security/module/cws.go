@@ -55,9 +55,16 @@ type CWSConsumer struct {
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	selfTester, err := selftests.NewSelfTester(cfg, evm.Probe)
-	if err != nil {
-		seclog.Errorf("unable to instantiate self tests: %s", err)
+	var (
+		selfTester *selftests.SelfTester
+		err        error
+	)
+
+	if cfg.SelfTestEnabled {
+		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
+		if err != nil {
+			seclog.Errorf("unable to instantiate self tests: %s", err)
+		}
 	}
 
 	family, address := config.GetFamilyAddress(cfg.SocketPath)
@@ -163,7 +170,7 @@ func (c *CWSConsumer) Start() error {
 
 // PostProbeStart is called after the event stream is started
 func (c *CWSConsumer) PostProbeStart() error {
-	if c.selfTester != nil && c.config.SelfTestEnabled {
+	if c.selfTester != nil {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
