@@ -480,18 +480,8 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 		{
-			ID:         "test_autosuppression_exec_2",
-			Expression: `exec.file.name == "getent"`,
-			Tags:       map[string]string{"allow_autosuppression": "true"},
-		},
-		{
 			ID:         "test_autosuppression_dns",
 			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
-			Tags:       map[string]string{"allow_autosuppression": "true"},
-		},
-		{
-			ID:         "test_autosuppression_dns_2",
-			Expression: `dns.question.type == A && dns.question.name == "foo.baz"`,
 			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 	}
