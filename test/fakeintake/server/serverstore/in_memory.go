@@ -132,6 +132,7 @@ func (s *InMemoryStore) Flush() {
 	s.NbPayloads.Reset()
 }
 
+// GetMetrics returns the prometheus metrics for the store
 func (s *InMemoryStore) GetMetrics() []prometheus.Collector {
 	return []prometheus.Collector{s.NbPayloads}
 }

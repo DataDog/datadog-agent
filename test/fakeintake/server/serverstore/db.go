@@ -304,6 +304,7 @@ func (s *SQLStore) Flush() {
 	os.Remove("./payloads.db")
 }
 
+// GetMetrics returns the prometheus metrics for the store
 func (s *SQLStore) GetMetrics() []prometheus.Collector {
 	return []prometheus.Collector{
 		s.metrics.nBPayloads,
