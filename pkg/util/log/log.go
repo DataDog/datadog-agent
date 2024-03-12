@@ -707,6 +707,7 @@ func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
 
 	// need to return something, just set to Info (expected default)
 }
+
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) changeLogLevel(level string) error {
 	lvl, ok := seelog.LogLevelFromString(strings.ToLower(level))
@@ -736,6 +737,7 @@ func GetLogLevel() (seelog.LogLevel, error) {
 	// need to return something, just set to Info (expected default)
 	return seelog.InfoLvl, errors.New("cannot get loglevel: logger not initialized")
 }
+
 // getLogLevel returns the current log level
 func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
 	return sw.level
@@ -751,9 +753,39 @@ func ShouldLog(lvl seelog.LogLevel) bool {
 	}
 	return false
 }
+
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
 	return level >= sw.level
+}
+
+// RegisterAdditionalLogger registers an additional logger for logging
+func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
+	l := logger.Load()
+	if l == nil {
+		return errors.New("cannot register: logger not initialized")
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner != nil {
+		return l.registerAdditionalLogger(n, li)
+	}
+
+	return errors.New("cannot register: logger not initialized")
+}
+func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
+	if sw.extra == nil {
+		return errors.New("logger not fully initialized, additional logging unavailable")
+	}
+
+	if _, ok := sw.extra[n]; ok {
+		return errors.New("logger already registered with that name")
+	}
+	sw.extra[n] = l
+
+	return nil
 }
 
 // Flush flushes the underlying inner log
@@ -800,41 +832,6 @@ func (sw *DatadogLogger) replaceInnerLogger(l seelog.LoggerInterface) seelog.Log
 
 	return old
 }
-
-// RegisterAdditionalLogger registers an additional logger for logging
-func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
-	l := logger.Load()
-	if l == nil {
-		return errors.New("cannot register: logger not initialized")
-	}
-
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	if l.inner != nil {
-		return l.registerAdditionalLogger(n, li)
-	}
-
-	return errors.New("cannot register: logger not initialized")
-}
-func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
-	if sw.extra == nil {
-		return errors.New("logger not fully initialized, additional logging unavailable")
-	}
-
-	if _, ok := sw.extra[n]; ok {
-		return errors.New("logger already registered with that name")
-	}
-	sw.extra[n] = l
-
-	return nil
-}
-
-
-
-
-
-
 
 // log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
 // scrubAndLogFunc, and treating the variadic args as the message.
