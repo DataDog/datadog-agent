@@ -13,6 +13,7 @@ type Payload struct {
 	Timestamp time.Time `json:"timestamp"`
 	Data      []byte    `json:"data"`
 	Encoding  string    `json:"encoding"`
+	APIKey    string    `json:"api_key"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter
@@ -20,6 +21,7 @@ type ParsedPayload struct {
 	Timestamp time.Time   `json:"timestamp"`
 	Data      interface{} `json:"data"`
 	Encoding  string      `json:"encoding"`
+	APIKey    string      `json:"api_key"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter

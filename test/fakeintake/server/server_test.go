@@ -133,10 +133,12 @@ func TestServer(t *testing.T) {
 			{
 				Endpoint: "/totoro",
 				Data:     "totoro|7|tag:valid,owner:pducolin",
+				Headers:  map[string][]string{"DD-API-KEY": {"abc123"}, "Content-Type": {"text/plain"}},
 			},
 			{
 				Endpoint: "/totoro",
 				Data:     "totoro|5|tag:valid,owner:kiki",
+				Headers:  map[string][]string{"DD-API-KEY": {"def456"}, "Content-Type": {"text/plain"}},
 			},
 			{
 				Endpoint: "/kiki",
@@ -160,11 +162,13 @@ func TestServer(t *testing.T) {
 					Timestamp: clock.Now().UTC(),
 					Encoding:  "text/plain",
 					Data:      []byte("totoro|7|tag:valid,owner:pducolin"),
+					APIKey:    "abc123",
 				},
 				{
 					Timestamp: clock.Now().UTC(),
 					Encoding:  "text/plain",
 					Data:      []byte("totoro|5|tag:valid,owner:kiki"),
+					APIKey:    "def456",
 				},
 			},
 		}
@@ -529,6 +533,7 @@ func TestServer(t *testing.T) {
 type TestTextPayload struct {
 	Endpoint string
 	Data     string
+	Headers  http.Header
 }
 
 // PostSomeFakePayloads posts some fake payloads to the given url
@@ -536,7 +541,12 @@ func PostSomeFakePayloads(t *testing.T, url string, payloads []TestTextPayload) 
 	t.Helper()
 	for _, payload := range payloads {
 		url := url + payload.Endpoint
-		response, err := http.Post(url, "text/plain", strings.NewReader(payload.Data))
+		req, err := http.NewRequest("POST", url, strings.NewReader(payload.Data))
+		require.NoError(t, err, fmt.Sprintf("Error on creating request to url %s with data: %s", url, payload.Data))
+
+		client := &http.Client{}
+		req.Header = payload.Headers
+		response, err := client.Do(req)
 		require.NoError(t, err, fmt.Sprintf("Error on POST request to url %s with data: %s", url, payload.Data))
 		defer response.Body.Close()
 	}

@@ -9,6 +9,7 @@ package serverstore
 
 import (
 	"log"
+	"net/http"
 	"sync"
 	"time"
 
@@ -40,13 +41,20 @@ func NewStore() *Store {
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-func (s *Store) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
+func (s *Store) AppendPayload(route string, data []byte, header http.Header, collectTime time.Time) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+
+	encoding := header.Get("Content-Encoding")
+	if route == "/support/flare" || encoding == "" {
+		encoding = header.Get("Content-Type")
+	}
+
 	rawPayload := api.Payload{
 		Timestamp: collectTime,
 		Data:      data,
 		Encoding:  encoding,
+		APIKey:    header.Get("DD-API-KEY"),
 	}
 	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload)
 	s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
@@ -64,6 +72,7 @@ func (s *Store) tryParseAndAppendPayload(rawPayload api.Payload, route string) e
 			Timestamp: rawPayload.Timestamp,
 			Data:      data,
 			Encoding:  rawPayload.Encoding,
+			APIKey:    rawPayload.APIKey,
 		}
 
 		s.jsonPayloads[route] = append(s.jsonPayloads[route], parsedPayload)

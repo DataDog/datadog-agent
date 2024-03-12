@@ -304,12 +304,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		return nil
 	}
 
-	encoding := req.Header.Get("Content-Encoding")
-	if req.URL.Path == "/support/flare" || encoding == "" {
-		encoding = req.Header.Get("Content-Type")
-	}
-
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, payload, req.Header, fi.clock.Now().UTC())
 	if err != nil {
 		log.Printf("Error caching payload: %v", err.Error())
 		response := buildErrorResponse(err)
