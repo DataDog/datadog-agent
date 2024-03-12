@@ -105,11 +105,10 @@ class CodecovWorkaround:
     We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
     """
 
-    def __init__(self, ctx, module_path, coverage, coverage_script_template, packages, args):
+    def __init__(self, ctx, module_path, coverage, packages, args):
         self.ctx = ctx
         self.module_path = module_path
         self.coverage = coverage
-        self.coverage_script_template = coverage_script_template
         self.packages = packages
         self.args = args
         self.cov_test_path_sh = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".sh"
@@ -118,15 +117,25 @@ class CodecovWorkaround:
         self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
 
     def __enter__(self):
+        coverage_script = ""
         if self.coverage:
-            coverage_script = self.coverage_script_template.format(packages=self.packages, **self.args)
+            if platform.system() == 'Windows':
+                coverage_script = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
+go test $($args | select -skip 1) -json -coverprofile="$tempFile" {self.packages}
+exit $LASTEXITCODE
+"""
+            else:
+                coverage_script = f"""#!/usr/bin/env bash
+set -eu
+go test "${{@:2}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {self.packages}
+"""
             with open(self.cov_test_path, 'w', encoding='utf-8') as f:
                 f.write(coverage_script)
 
             with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
                 f.write(
-                    """@echo off
-powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+                    f"""@echo off
+powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
                 )
 
             os.chmod(self.cov_test_path, 0o755)
@@ -176,7 +185,6 @@ def test_flavor(
     save_result_json: str,
     test_profiler: TestProfiler,
     coverage: bool = False,
-    coverage_script_template: str = "",
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -191,9 +199,7 @@ def test_flavor(
         module_path = module.full_path()
         with ctx.cd(module_path):
             packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
-            with CodecovWorkaround(
-                ctx, module_path, coverage, coverage_script_template, packages, args
-            ) as cov_test_path:
+            with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
                 res = ctx.run(
                     command=cmd.format(
                         packages=packages,
@@ -386,18 +392,6 @@ def test(
     govet_flags = '-vet=off'
     gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
-    if coverage:
-        if platform.system() == 'Windows':
-            coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" {{packages}}
-exit $LASTEXITCODE"""
-        else:
-            coverage_script_template = f"""#!/usr/bin/env bash
-set -eu
-go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
-"""
-    else:
-        coverage_script_template = ""
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -443,7 +437,6 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
             save_result_json=save_result_json,
             test_profiler=test_profiler,
             coverage=coverage,
-            coverage_script_template=coverage_script_template,
         )
 
     # Output

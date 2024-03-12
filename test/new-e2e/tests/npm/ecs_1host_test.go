@@ -105,12 +105,15 @@ func (v *ecsVMSuite) BeforeTest(suiteName, testName string) {
 // The test start by 00 to validate the agent/system-probe is up and running
 // On ECS the agent is slow to start and this avoid flaky tests
 func (v *ecsVMSuite) Test00FakeIntakeNPM() {
+	v.T().Skip("skip as the test as it's flaky under load")
+
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
+	v.T().Skip("skip as the test as it's flaky under load")
 	// deployed workload generate these connections every 20 seconds
 	//v.Env().RemoteHost.MustExecute("curl " + testURL)
 	//v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")

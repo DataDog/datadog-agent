@@ -332,3 +332,17 @@ func TestNotification(t *testing.T) {
 	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
 	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
 }
+
+func TestNotificationNoChange(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	updatedKeyCB1 := []string{}
+
+	config.OnUpdate(func(key string) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+}

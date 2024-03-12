@@ -264,3 +264,9 @@ Warning: On pipeline {pipeline_id} the following jobs did not run any unit tests
     msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs, if you think tests should have been executed reach out #agent-platform"
 
     return msg
+
+
+def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
+    from .libs.common.github_api import GithubAPI
+
+    GithubAPI.get_token_from_app(app_id_env, pkey_env)
