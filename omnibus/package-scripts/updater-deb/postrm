@@ -4,11 +4,11 @@
 #
 # .deb: STEP 3 of 5
 
-readonly INSTALL_DIR=/opt/datadog/updater
-readonly PACKAGES_DIR=/opt/datadog-packages
-readonly LOG_DIR=/var/log/datadog
-readonly CONFIG_DIR=/etc/datadog-agent
-readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
+INSTALL_DIR=/opt/datadog
+PACKAGES_DIR=/opt/datadog-packages
+LOG_DIR=/var/log/datadog
+CONFIG_DIR=/etc/datadog-agent
+PACKAGES_LOCK_DIR=/var/run/datadog-packages
 
 set -e
 
@@ -19,7 +19,6 @@ case "$1" in
         echo "Deleting dd-agent group"
         (getent group dd-agent >/dev/null && delgroup dd-agent --quiet) || true
         echo "Force-deleting $INSTALL_DIR"
-        $INSTALL_DIR/bin/updater/updater purge
         rm -rf $INSTALL_DIR
         rm -rf $LOG_DIR
         rm -rf $CONFIG_DIR
@@ -28,7 +27,6 @@ case "$1" in
     ;;
     remove)
         rm "$CONFIG_DIR/install_info" || true
-        $INSTALL_DIR/bin/updater/updater purge
     ;;
     *)
     ;;
