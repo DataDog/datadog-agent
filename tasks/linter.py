@@ -116,7 +116,41 @@ def go(
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
+    _lint_go(
+        ctx=ctx,
+        module=module,
+        targets=targets,
+        flavors=flavors,
+        build=build,
+        build_tags=build_tags,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        rtloader_root=rtloader_root,
+        arch=arch,
+        cpus=cpus,
+        timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
+    )
 
+
+# Temporary method to duplicate go linter task not to impact macos jobs.
+def _lint_go(
+    ctx,
+    module,
+    targets,
+    flavors,
+    build,
+    build_tags,
+    build_include,
+    build_exclude,
+    rtloader_root,
+    arch,
+    cpus,
+    timeout,
+    golangci_lint_kwargs,
+    headless_mode,
+):
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
@@ -317,4 +351,3 @@ def is_get_parameter_call(file):
                         return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
         except UnicodeDecodeError:
             pass
-    return None
