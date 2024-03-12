@@ -40,6 +40,9 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 }
 
 func TestConnectionsCheckLinux(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+
 	// Make sure the connections check is disabled on the core agent
 	// and enabled in the process agent when process checks run in core agent
 	t.Run("run in core agent", func(t *testing.T) {
@@ -60,6 +63,9 @@ func TestConnectionsCheckLinux(t *testing.T) {
 }
 
 func TestProcessCheckLinux(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+
 	// Make sure process checks run on the core agent only
 	// when run in core agent mode is enabled
 	t.Run("run in core agent", func(t *testing.T) {

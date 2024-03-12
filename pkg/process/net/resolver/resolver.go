@@ -22,6 +22,7 @@ import (
 )
 
 const defaultTTL = 10 * time.Second
+const cacheValidityNoRT = 2 * time.Second
 
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
@@ -61,7 +62,6 @@ func (l *LocalResolver) pullContainers(ticker *clock.Ticker) {
 			var pidToCid map[int]string
 			var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 
-			cacheValidityNoRT := 2 * time.Second
 			containers, lastContainerRates, pidToCid, err := l.ContainerProvider.GetContainers(cacheValidityNoRT, l.lastContainerRates)
 			if err == nil {
 				l.lastContainerRates = lastContainerRates

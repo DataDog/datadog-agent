@@ -123,8 +123,13 @@ func (c *ConnectionsCheck) IsEnabled() bool {
 		return false
 	}
 
+	// connections check is only supported on the process agent
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		return false
+	}
+
 	_, npmModuleEnabled := c.syscfg.EnabledModules[sysconfig.NetworkTracerModule]
-	return npmModuleEnabled && c.syscfg.Enabled && flavor.GetFlavor() == flavor.ProcessAgent
+	return npmModuleEnabled && c.syscfg.Enabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions
