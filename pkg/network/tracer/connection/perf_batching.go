@@ -12,12 +12,12 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
+	cebpf "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -177,7 +177,7 @@ func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get map %s: %s", probes.ConnCloseBatchMap, err)
 	}
-	numCPUs, err := utils.NumCPU()
+	numCPUs, err := cebpf.PossibleCPU()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get number of CPUs: %s", err)
 	}

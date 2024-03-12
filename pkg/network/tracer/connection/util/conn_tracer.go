@@ -20,7 +20,6 @@ import (
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,7 +32,7 @@ func toPowerOf2(x int) int {
 // computeDefaultClosedConnRingBufferSize is the default buffer size of the ring buffer for closed connection events.
 // Must be a power of 2 and a multiple of the page size
 func computeDefaultClosedConnRingBufferSize() int {
-	numCPUs, err := utils.NumCPU()
+	numCPUs, err := cebpf.PossibleCPU()
 	if err != nil {
 		numCPUs = 1
 	}
