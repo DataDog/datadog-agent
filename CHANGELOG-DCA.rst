@@ -2,6 +2,48 @@
 Release Notes
 =============
 
+.. _Release Notes_7.51.0:
+
+7.51.0 / 6.51.0
+======
+
+.. _Release Notes_7.51.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-02-19
+Pinned to datadog-agent v7.51.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7510>`_.
+
+.. _Release Notes_7.51.0_New Features:
+
+New Features
+------------
+
+- Enable Horizontal Pod Autoscaler collection for the Orchestrator by default
+
+- Add isolate command to clusterchecks to make it easier to pinpoint
+  a check that that is causing high CPU/memory usage. Command can be
+  run in the cluster agent with:
+  `datadog-cluster-agent clusterchecks isolate --checkID=<checkID>`
+
+
+.. _Release Notes_7.51.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Enable CRD collection by default in the orchestrator check.
+
+
+.. _Release Notes_7.51.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug that would trigger unnecessary APIServer `List` requests from the Cluster Agent or Cluster Checks Runner.
+
+
 .. _Release Notes_7.50.1:
 
 7.50.1 / 6.50.1

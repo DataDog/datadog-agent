@@ -89,13 +89,13 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     empty_tgzs = []
     for tgz, count in xmlcounts.items():
         print(f"Submitted results for {count} JUnit XML files from {tgz}")
-        if count == 0 and not tgz.endswith(
-            "-fast.tgz"
-        ):  # *-fast.tgz contains only tests related to the modified code, they can be empty
+        if (
+            count == 0 and "-fast" not in tgz
+        ):  # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
             empty_tgzs.append(tgz)
 
     if empty_tgzs:
-        raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
+        raise Exit(f"[ERROR] No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
 
 
 def get_flaky_from_test_output():

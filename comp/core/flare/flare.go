@@ -15,14 +15,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -35,49 +38,36 @@ type dependencies struct {
 	Log                   log.Component
 	Config                config.Component
 	Diagnosesendermanager diagnosesendermanager.Component
-	InvAgent              inventoryagent.Component // TODO: (components) - Temporary dependencies until the status page is a Component and we don't need to call it in 'CompleteFlare'.
 	Params                Params
 	Providers             []types.FlareCallback `group:"flare"`
 	Collector             optional.Option[collector.Component]
+	Secrets               secrets.Component
+	AC                    optional.Option[autodiscovery.Component]
 }
 
 type flare struct {
-	log                   log.Component
-	config                config.Component
-	diagnosesendermanager diagnosesendermanager.Component
-	invAgent              inventoryagent.Component
-	params                Params
-	providers             []types.FlareCallback
-	collector             optional.Option[collector.Component]
+	log          log.Component
+	config       config.Component
+	params       Params
+	providers    []types.FlareCallback
+	diagnoseDeps diagnose.SuitesDeps
 }
 
-func newFlare(deps dependencies) (Component, rcclient.TaskListenerProvider, error) {
+func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
+	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.AC)
 	f := &flare{
-		log:                   deps.Log,
-		config:                deps.Config,
-		params:                deps.Params,
-		diagnosesendermanager: deps.Diagnosesendermanager,
-		invAgent:              deps.InvAgent,
-		collector:             deps.Collector,
+		log:          deps.Log,
+		config:       deps.Config,
+		params:       deps.Params,
+		providers:    fxutil.GetAndFilterGroup(deps.Providers),
+		diagnoseDeps: diagnoseDeps,
 	}
 
-	// We filder nil elements from the providers list. FX doesn't filter nil elements from groups and some
-	// components register a provider conditionally.
-	for _, p := range deps.Providers {
-		if p != nil {
-			f.providers = append(f.providers, p)
-		}
-	}
-
-	rcListener := rcclient.TaskListenerProvider{
-		Listener: f.onAgentTaskEvent,
-	}
-
-	return f, rcListener, nil
+	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
-func (f *flare) onAgentTaskEvent(taskType rcclient.TaskType, task rcclient.AgentTaskConfig) (bool, error) {
-	if taskType != rcclient.TaskFlare {
+func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
 	caseID, found := task.Config.TaskArgs["case_id"]
@@ -132,7 +122,7 @@ func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	providers := append(
 		f.providers,
 		func(fb types.FlareBuilder) error {
-			return pkgFlare.CompleteFlare(fb, f.diagnosesendermanager, f.invAgent, f.collector)
+			return pkgFlare.CompleteFlare(fb, f.diagnoseDeps)
 		},
 		f.collectLogsFiles,
 		f.collectConfigFiles,

@@ -558,6 +558,9 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
             break;
         }
 
+        // We are not checking for frame splits in the previous condition due to a verifier issue.
+        check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame);
+
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
@@ -567,11 +570,6 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
             iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
             iteration_value->frames_count++;
-        }
-
-        // We are not checking for frame splits in the previous condition due to a verifier issue.
-        if (is_headers_or_rst_frame || is_data_end_of_stream) {
-            check_frame_split(http2_tel, skb_info->data_off,skb_info->data_end, current_frame.length);
         }
 
         skb_info->data_off += current_frame.length;
@@ -656,10 +654,10 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
 
+    check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame);
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
-        check_frame_split(http2_tel, dispatcher_args_copy.skb_info.data_off, dispatcher_args_copy.skb_info.data_end, current_frame.length);
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = dispatcher_args_copy.skb_info.data_off;
         iteration_value->frames_count = 1;
@@ -772,7 +770,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
 // The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
 // than the maximum number of frames we can process in a single tail call.
 // The program is being called after socket__http2_filter, and it is being called only if we have interesting frames.
-// The program calls socket__http2_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
+// The program calls socket__http2_dynamic_table_cleaner to clean the dynamic table if needed.
 SEC("socket/http2_headers_parser")
 int socket__http2_headers_parser(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
@@ -860,6 +858,8 @@ delete_iteration:
     return 0;
 }
 
+// The program is responsible for cleaning the dynamic table.
+// The program calls socket__http2_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
 SEC("socket/http2_dynamic_table_cleaner")
 int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;
@@ -909,7 +909,7 @@ next:
 // We consider a frame as marking the end of a stream if it is either:
 //  - An headers or data frame with END_STREAM flag set.
 //  - An RST_STREAM frame.
-// The program is being called after socket__http2_headers_parser, and it finalizes the streams and enqueue them
+// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
 // to be sent to the user mode.
 // The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
 // process than the maximum number of frames we can process in a single tail call.

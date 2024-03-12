@@ -551,6 +551,8 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
             break;
         }
 
+        check_frame_split(http2_tel, info->data_off, info->data_end, current_frame);
+
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
@@ -560,11 +562,6 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
             iteration_value->frames_array[iteration_value->frames_count].offset = info->data_off;
             iteration_value->frames_count++;
-        }
-
-        // We are not checking for frame splits in the previous condition due to a verifier issue.
-        if (is_headers_or_rst_frame || is_data_end_of_stream) {
-            check_frame_split(http2_tel, info->data_off, info->data_end, current_frame.length);
         }
 
         info->data_off += current_frame.length;
@@ -642,10 +639,10 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
 
+    check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame);
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
-        check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame.length);
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = dispatcher_args_copy.data_off;
         iteration_value->frames_count = 1;
@@ -743,9 +740,13 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     return 0;
 }
 
-// http2_tls_headers_parser parses the headers of the interesting HTTP2 frames
-// found in http2_tls_filter. We are trying to find the request path, status code,
-// and method of the request.
+
+// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
+// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
+// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
+// than the maximum number of frames we can process in a single tail call.
+// The program is being called after uprobe__http2_tls_filter, and it is being called only if we have interesting frames.
+// The program calls uprobe__http2_dynamic_table_cleaner to clean the dynamic table if needed.
 SEC("uprobe/http2_tls_headers_parser")
 int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -834,6 +835,8 @@ delete_iteration:
     return 0;
 }
 
+// The program is responsible for cleaning the dynamic table.
+// The program calls uprobe__http2_tls_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
 SEC("uprobe/http2_dynamic_table_cleaner")
 int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -884,8 +887,14 @@ next:
     return 0;
 }
 
-// http2_tls_eos_parser parses the EOS HTTP2 frames similar to
-// http2_tls_headers_parser.
+// The program is responsible for parsing all frames that mark the end of a stream.
+// We consider a frame as marking the end of a stream if it is either:
+//  - An headers or data frame with END_STREAM flag set.
+//  - An RST_STREAM frame.
+// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
+// to be sent to the user mode.
+// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
+// process than the maximum number of frames we can process in a single tail call.
 SEC("uprobe/http2_tls_eos_parser")
 int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;

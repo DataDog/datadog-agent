@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	compcorecfg "github.com/DataDog/datadog-agent/comp/core/config"
 	comptracecfg "github.com/DataDog/datadog-agent/comp/trace/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -101,6 +102,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanCh
 			s.spanModifier = &spanModifier{
 				coldStartSpanId: coldStartSpanId,
 				lambdaSpanChan:  lambdaSpanChan,
+				ddOrigin:        getDDOrigin(),
 			}
 
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
@@ -207,4 +209,13 @@ func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
 		return true
 	}
 	return false
+}
+
+// getDDOrigin returns the value for the _dd.origin tag based on the cloud service type
+func getDDOrigin() string {
+	origin := ddOriginTagValue
+	if cloudServiceOrigin := cloudservice.GetCloudServiceType().GetOrigin(); cloudServiceOrigin != "local" {
+		origin = cloudServiceOrigin
+	}
+	return origin
 }

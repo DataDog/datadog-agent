@@ -17,16 +17,33 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/verifier"
 	"github.com/cilium/ebpf/rlimit"
 )
 
-var debug = flag.Bool("debug", false, "Calculate statistics of debug builds")
+type filters []string
+
+func (f *filters) Set(value string) error {
+	*f = append(*f, value)
+	return nil
+}
+
+func (f *filters) String() string {
+	return fmt.Sprintf("%s", *f)
+}
 
 func main() {
 	var err error
+	var filterFiles filters
+	var filterPrograms filters
+
+	debug := flag.Bool("debug", false, "Calculate statistics of debug builds")
+	flag.Var(&filterFiles, "filter-file", "Files to load ebpf programs from")
+	flag.Var(&filterPrograms, "filter-prog", "Only return statistics for programs matching one of these regex pattern")
+	flag.Parse()
 
 	skipDebugBuilds := func(path string) bool {
 		debugBuild := strings.Contains(path, "-debug")
@@ -56,6 +73,20 @@ func main() {
 		if skipDebugBuilds(path) || !strings.HasSuffix(path, ".o") {
 			return nil
 		}
+
+		if len(filterFiles) > 0 {
+			found := false
+			for _, f := range filterFiles {
+				if d.Name() == f {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil
+			}
+		}
+
 		coreFile := filepath.Join(directory, "co-re", d.Name())
 		if _, err := os.Stat(coreFile); err == nil {
 			objectFiles[d.Name()] = coreFile
@@ -97,7 +128,13 @@ func main() {
 
 		files = append(files, dstPath)
 	}
-	stats, _, err := verifier.BuildVerifierStats(files)
+
+	var filterRegexp []*regexp.Regexp
+	for _, filter := range filterPrograms {
+		filterRegexp = append(filterRegexp, regexp.MustCompile(filter))
+	}
+
+	stats, _, err := verifier.BuildVerifierStats(files, filterRegexp)
 	if err != nil {
 		log.Fatalf("failed to build verifier stats: %v", err)
 	}
