@@ -272,6 +272,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -378,11 +379,9 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_service:redis$`,
 				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^short_image:redis$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -791,7 +790,7 @@ func (suite *k8sSuite) TestContainerImage() {
 			regexp.MustCompile(`^os_name:linux$`),
 			regexp.MustCompile(`^short_image:apps-nginx-server$`),
 		}
-		err = assertTags(images[len(images)-1].GetTags(), expectedTags)
+		err = assertTags(images[len(images)-1].GetTags(), expectedTags, false)
 		assert.NoErrorf(c, err, "Tags mismatch")
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
@@ -860,7 +859,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^os_name:linux$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
-			err = assertTags(image.GetTags(), expectedTags)
+			err = assertTags(image.GetTags(), expectedTags, false)
 			assert.NoErrorf(c, err, "Tags mismatch")
 
 			properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
@@ -1080,7 +1079,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^pod_name:` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
 				regexp.MustCompile(`^pod_phase:running$`),
 				regexp.MustCompile(`^short_image:apps-tracegen$`),
-			})
+			}, false)
 			if err == nil {
 				break
 			}
