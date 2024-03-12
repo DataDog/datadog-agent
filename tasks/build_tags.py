@@ -43,6 +43,7 @@ ALL_TAGS = {
     "trivy",
     "zk",
     "zlib",
+    "zstd",
     "test",  # used for unit-tests
 }
 
@@ -73,6 +74,7 @@ AGENT_TAGS = {
     "trivy",
     "zk",
     "zlib",
+    "zstd",
 }
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
@@ -97,16 +99,16 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 AGENTLESS_SCANNER_TAGS = {""}
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
-CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "zlib", "ec2", "gce"}
+CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib"}
+DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib"}
+IOT_AGENT_TAGS = {"jetson", "otlp", "systemd", "zlib", "zstd"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = AGENT_TAGS.union({"fargateprocess"}).difference({"otlp", "python", "trivy"})
@@ -117,7 +119,7 @@ PROCESS_AGENT_HEROKU_TAGS = PROCESS_AGENT_TAGS.difference(
 )
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
-SECURITY_AGENT_TAGS = {"netcgo", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "ec2"}
+SECURITY_AGENT_TAGS = {"netcgo", "docker", "containerd", "kubeapiserver", "kubelet", "podman", "zlib", "zstd", "ec2"}
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
 SERVERLESS_TAGS = {"serverless", "otlp"}

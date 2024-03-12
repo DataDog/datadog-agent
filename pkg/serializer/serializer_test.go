@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && zlib && zstd
 
 package serializer
 
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	strategy "github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -62,8 +63,8 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 		kind             string
 		expectedEncoding string
 	}{
-		"zlib": {kind: strategy.ZlibKind, expectedEncoding: strategy.ZlibEncoding},
-		"zstd": {kind: strategy.ZstdKind, expectedEncoding: strategy.ZstdEncoding},
+		"zlib": {kind: strategyUtils.ZlibKind, expectedEncoding: strategyUtils.ZlibEncoding},
+		"zstd": {kind: strategyUtils.ZstdKind, expectedEncoding: strategyUtils.ZstdEncoding},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -110,7 +111,7 @@ var (
 )
 
 type testPayload struct {
-	compressor strategy.Compressor
+	compressor strategyUtils.Compressor
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -248,8 +249,8 @@ func TestSendV1Events(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -274,8 +275,8 @@ func TestSendV1EventsCreateMarshalersBySourceType(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -313,8 +314,8 @@ func TestSendV1ServiceChecks(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -338,8 +339,8 @@ func TestSendV1Series(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -365,8 +366,8 @@ func TestSendSeries(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -394,8 +395,8 @@ func TestSendSketch(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -424,8 +425,8 @@ func TestSendMetadata(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -458,8 +459,8 @@ func TestSendProcessesMetadata(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {
@@ -492,8 +493,8 @@ func TestSendWithDisabledKind(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategy.ZlibKind},
-		"zstd": {kind: strategy.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 
 	for name, tc := range tests {

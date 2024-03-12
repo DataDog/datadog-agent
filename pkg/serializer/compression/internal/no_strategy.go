@@ -57,7 +57,7 @@ func (s NoopZipper) Close() error {
 	return nil
 }
 
-// NewNoopZipper returns a new NoopZipper when serializer_compressor_kind is neither zlib or zstd
-func NewNoopZipper(_ *bytes.Buffer) NoopZipper {
+// NewNoopStreamCompressor returns a new NoopZipper when serializer_compressor_kind is neither zlib or zstd
+func NewNoopStreamCompressor(_ *bytes.Buffer) NoopZipper {
 	return NoopZipper{}
 }

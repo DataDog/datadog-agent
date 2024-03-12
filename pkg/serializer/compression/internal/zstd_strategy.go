@@ -10,10 +10,9 @@ import (
 	"bytes"
 
 	"github.com/DataDog/zstd"
-)
 
-// ZstdEncoding is the content-encoding value for Zstd
-const ZstdEncoding = "zstd"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
+)
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
@@ -41,10 +40,10 @@ func (s *ZstdStrategy) CompressBound(sourceLen int) int {
 
 // ContentEncoding returns the content encoding value for zstd
 func (s *ZstdStrategy) ContentEncoding() string {
-	return ZstdEncoding
+	return utils.ZstdEncoding
 }
 
-// NewZstdZipper returns a new zstd Writer
-func NewZstdZipper(output *bytes.Buffer) *zstd.Writer {
+// NewZstdStreamCompressor returns a new zstd Writer
+func NewZstdStreamCompressor(output *bytes.Buffer) *zstd.Writer {
 	return zstd.NewWriter(output)
 }

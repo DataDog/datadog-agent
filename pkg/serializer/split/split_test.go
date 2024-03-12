@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && zlib && zstd
 
 package split
 
@@ -23,6 +23,7 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
@@ -54,8 +55,8 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -193,8 +194,8 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -274,8 +275,8 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
