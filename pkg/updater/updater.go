@@ -21,6 +21,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -79,6 +80,17 @@ func Bootstrap(ctx context.Context, pkg string) error {
 	rc := newNoopRemoteConfig()
 	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
 	return u.Bootstrap(ctx, pkg)
+}
+
+// Purge removes files installed by the updater
+func Purge() {
+	service.RemoveAgentUnits()
+	if os.RemoveAll(defaultLocksPath) != nil {
+		log.Warnf("updater: could not purge directory %s", defaultLocksPath)
+	}
+	if os.RemoveAll(defaultRepositoriesPath) != nil {
+		log.Warnf("updater: could not purge directory %s", defaultRepositoriesPath)
+	}
 }
 
 // NewUpdater returns a new Updater.
