@@ -85,7 +85,8 @@ func Bootstrap(ctx context.Context, pkg string) error {
 // Purge removes files installed by the updater
 func Purge() {
 	// golanci on windows somehow expects a return value
-	service.RemoveAgentUnits() // nolint:errcheck
+	service.RemoveAgentUnits()   // nolint:errcheck
+	service.RemoveUpdaterUnits() // nolint:errcheck
 	if os.RemoveAll(defaultLocksPath) != nil {
 		log.Warnf("updater: could not purge directory %s", defaultLocksPath)
 	}

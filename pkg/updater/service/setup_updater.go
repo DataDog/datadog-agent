@@ -17,7 +17,7 @@ func setupUpdater() (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup updater: %s", err)
-			RemoveUpdater()
+			RemoveUpdaterUnits()
 		}
 	}()
 	if err = loadUnit(updaterUnit); err != nil {
@@ -35,8 +35,8 @@ func setupUpdater() (err error) {
 	return nil
 }
 
-// RemoveUpdater stops and removes updater units
-func RemoveUpdater() {
+// RemoveUpdaterUnits stops and removes updater units
+func RemoveUpdaterUnits() {
 	if err := stopUnit(updaterUnit); err != nil {
 		log.Warnf("Failed to stop %s: %s", updaterUnit, err)
 	}
