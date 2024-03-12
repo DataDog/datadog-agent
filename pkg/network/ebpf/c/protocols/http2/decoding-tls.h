@@ -467,7 +467,7 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
     //  4. We failed reading any frame. Aborting.
 
     // Frame-header-remainder.
-    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
+    if (frame_state == NULL) {
         // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
         // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
         // and continue to the next tail call.
