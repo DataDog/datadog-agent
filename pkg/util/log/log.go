@@ -857,7 +857,6 @@ func log(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 		addLogToBuffer(bufferFunc)
 	}
 }
-
 func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, fallbackStderr bool, v ...interface{}) error {
 	l := logger.Load()
 
@@ -914,7 +913,6 @@ func logFormat(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func
 		addLogToBuffer(bufferFunc)
 	}
 }
-
 func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string, ...interface{}) error, format string, fallbackStderr bool, params ...interface{}) error {
 	l := logger.Load()
 
@@ -974,7 +972,6 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc fun
 		addLogToBuffer(bufferFunc)
 	}
 }
-
 func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string) error, message string, fallbackStderr bool, depth int, context ...interface{}) error {
 	l := logger.Load()
 
