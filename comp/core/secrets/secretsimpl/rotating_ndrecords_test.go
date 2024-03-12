@@ -15,6 +15,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func setupRecordsTest(t *testing.T) (string, *clock.Mock, func()) {
@@ -87,6 +88,20 @@ func TestAppendNameWithValue(t *testing.T) {
 	data, _ := os.ReadFile(tmpFileName)
 	expect := `{"time":"2014-02-04T10:30:00Z","data":[{"handle":"apple","value":"red"}]}
 {"time":"2014-02-04T10:30:10Z","data":[{"handle":"banana","value":"yellow"}]}
+`
+	assert.Equal(t, expect, string(data))
+}
+
+// Test append multiple records
+func TestAppendMultipleRecords(t *testing.T) {
+	tmpFileName, mockClock, cleanupFunc := setupRecordsTest(t)
+	defer cleanupFunc()
+
+	records := newRotatingNDRecords(tmpFileName, config{})
+	records.Add(mockClock.Now(), []auditRecord{{Handle: "apple"}, {Handle: "banana"}})
+
+	data, _ := os.ReadFile(tmpFileName)
+	expect := `{"time":"2014-02-04T10:30:00Z","data":[{"handle":"apple"},{"handle":"banana"}]}
 `
 	assert.Equal(t, expect, string(data))
 }
@@ -345,51 +360,50 @@ func TestOldFilesGetRemovedOverTime(t *testing.T) {
 // Test the regex and fmt pattern that gets built from config
 func TestBuildRotationRegexAndName(t *testing.T) {
 	type testCase struct {
-		description  string
-		filename     string
-		spacer       int
-		num          int
-		expectRegex  string
-		expectFmtPat string
+		description string
+		filename    string
+		spacer      int
+		num         int
+		expectRegex string
+		expectFile  string
 	}
 
 	testCases := []testCase{
 		{
-			description:  "build regexp with spacer 4",
-			filename:     "/tmp/file.txt",
-			spacer:       4,
-			num:          7,
-			expectRegex:  `file\.(\d{4})\.txt`,
-			expectFmtPat: "/tmp/file.0007.txt",
+			description: "build regexp with spacer 4",
+			filename:    "/tmp/file.txt",
+			spacer:      4,
+			num:         7,
+			expectRegex: `file\.(\d{4})\.txt`,
+			expectFile:  "/tmp/file.0007.txt",
 		},
 		{
-			description:  "build regexp with spacer 8",
-			filename:     "/tmp/file.txt",
-			spacer:       8,
-			num:          19,
-			expectRegex:  `file\.(\d{8})\.txt`,
-			expectFmtPat: "/tmp/file.00000019.txt",
+			description: "build regexp with spacer 8",
+			filename:    "/tmp/file.txt",
+			spacer:      8,
+			num:         19,
+			expectRegex: `file\.(\d{8})\.txt`,
+			expectFile:  "/tmp/file.00000019.txt",
 		},
 		{
-			description:  "build regexp with no file extension",
-			filename:     "/tmp/file",
-			spacer:       4,
-			num:          121,
-			expectRegex:  `file\.(\d{4})`,
-			expectFmtPat: "/tmp/file.0121",
+			description: "build regexp with no file extension",
+			filename:    "/tmp/file",
+			spacer:      4,
+			num:         121,
+			expectRegex: `file\.(\d{4})`,
+			expectFile:  "/tmp/file.0121",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			re, err := buildRotationRegex(tc.filename, tc.spacer)
-			if err != nil {
-				t.Error(err)
-			}
+			require.NoError(t, err)
 			assert.Equal(t, tc.expectRegex, re.String())
 			rotName, err := buildRotationName(tc.filename, tc.spacer, tc.num)
 			assert.NoError(t, err)
-			assert.Equal(t, tc.expectFmtPat, rotName)
+			assert.Equal(t, tc.expectFile, rotName)
+			assert.True(t, re.MatchString(rotName))
 		})
 	}
 }

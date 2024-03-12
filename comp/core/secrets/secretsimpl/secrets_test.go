@@ -808,7 +808,6 @@ func TestIsLikelyAPIOrAppKey(t *testing.T) {
 		expect      bool
 	}
 
-	currentTest := t
 	testCases := []testCase{
 		{
 			name:        "looks like an api_key",
@@ -870,9 +869,8 @@ func TestIsLikelyAPIOrAppKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			currentTest = t
 			result := isLikelyAPIOrAppKey(tc.handle, tc.secretValue, tc.origin)
-			assert.Equal(currentTest, tc.expect, result)
+			assert.Equal(t, tc.expect, result)
 		})
 	}
 }
