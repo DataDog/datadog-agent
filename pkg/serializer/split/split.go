@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
-	// "github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

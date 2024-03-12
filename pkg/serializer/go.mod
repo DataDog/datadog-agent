@@ -32,7 +32,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../util/backoff/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/common => ../util/common
-	github.com/DataDog/datadog-agent/pkg/util/compression => ../util/compression
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../util/executable/
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../util/filesystem/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/
