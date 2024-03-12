@@ -536,7 +536,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
-/test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/cws                       @DataDog/agent-security
