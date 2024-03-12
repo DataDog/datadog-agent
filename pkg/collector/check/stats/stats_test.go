@@ -175,6 +175,12 @@ func Test_handleNumbers(t *testing.T) {
 	}{
 		{"Less than zero", -1, -1, errors.New("Input is less than 0")},
 		{"Zero", 0, 0, nil},
+		{"One", 1, 1, nil},
+		{"Two", 2, 2, nil},
+		{"Three", 3, 3, nil},
+		{"Four", 4, 4, nil},
+		{"Five", 5, 5, nil},
+		{"Six", 6, 6, nil},
 	}
 
 	for _, tt := range tests {
