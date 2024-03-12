@@ -757,13 +757,10 @@ def get_impacted_packages(ctx, build_tags=None):
     # Modification to go.mod and go.sum should force the tests of the whole module to run
     for file in files:
         if file.endswith(".mod") or file.endswith(".sum"):
-            print("FILE: ", file)
-            print("RUNNING: ", f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(file)}/...')
             with ctx.cd(os.path.dirname(file)):
                 all_packages = ctx.run(
                     f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
                 ).stdout.splitlines()
-                print("ADDING PACKAGES: ", all_packages)
                 modified_packages.update(set(all_packages))
 
     # Modification to fixture folders count as modification to their parent package
