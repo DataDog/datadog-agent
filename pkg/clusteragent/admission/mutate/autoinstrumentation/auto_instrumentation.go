@@ -333,7 +333,7 @@ func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
 }
 
 func injectEnvVarIfConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
-	if config.Datadog.Get(configKey) != nil {
+	if config.Datadog.IsSet(configKey) {
 		enabledValue := config.Datadog.GetBool(configKey)
 		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
 			Name:  envVarKey,
