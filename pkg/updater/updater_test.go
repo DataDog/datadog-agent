@@ -99,6 +99,28 @@ func TestUpdaterBootstrap(t *testing.T) {
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 }
 
+func TestUpdaterBootstrapWithRC(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	rc := newTestRemoteConfigClient()
+	updater := newTestUpdater(t, s, rc, fixtureSimpleV1)
+
+	rc.SubmitRequest(remoteAPIRequest{
+		ID:      uuid.NewString(),
+		Package: fixtureSimpleV2.pkg,
+		Method:  methodBootstrap,
+		Params:  json.RawMessage(`{"version":"` + fixtureSimpleV2.version + `"}`),
+	})
+	updater.requestsWG.Wait()
+
+	r := updater.repositories.Get(fixtureSimpleV2.pkg)
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
+	assert.False(t, state.HasExperiment())
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
+}
+
 func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
 	s := newTestFixturesServer(t)
 	defer s.Close()
