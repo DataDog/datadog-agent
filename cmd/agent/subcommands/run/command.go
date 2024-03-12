@@ -317,8 +317,8 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
 		}),
-		fx.Provide(func(config config.Component) status.InformationProvider {
-			return status.NewInformationProvider(systemprobeStatus.GetProvider(config))
+		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) status.InformationProvider {
+			return status.NewInformationProvider(systemprobeStatus.GetProvider(sysprobeconfig))
 		}),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
