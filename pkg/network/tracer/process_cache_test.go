@@ -13,7 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
+
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 )
@@ -29,6 +30,8 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		ddVersion: "version",
 		ddEnv:     "env",
 	}
+
+	var si = intern.NewStringInterner()
 
 	tests := []struct {
 		envs        []string
@@ -71,14 +74,13 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 				entry.Envs = values
 
 				p := pc.processEvent(entry)
-				if (entry.ContainerID == nil || entry.ContainerID.Get().(string) == "") && len(te.filter) > 0 && len(te.filtered) == 0 {
+				if (entry.ContainerID == nil || entry.ContainerID.Get() == "") && len(te.filter) > 0 && len(te.filtered) == 0 {
 					assert.Nil(t, p)
 				} else {
 					assert.NotNil(t, p)
 					assert.Equal(t, entry.Pid, p.Pid)
 					if entry.ContainerID != nil {
-						containerID, ok := p.ContainerID.Get().(string)
-						assert.True(t, ok)
+						containerID := p.ContainerID.Get()
 						assert.Equal(t, entry.ContainerID.Get(), containerID)
 					}
 					l := te.envs
@@ -103,7 +105,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	t.Run("with container id", func(t *testing.T) {
 		entry := events.Process{
 			Pid:         1234,
-			ContainerID: intern.GetByString("container"),
+			ContainerID: si.GetString("container"),
 		}
 
 		testFunc(t, &entry)
@@ -112,7 +114,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 	t.Run("empty container id", func(t *testing.T) {
 		entry := events.Process{
 			Pid:         1234,
-			ContainerID: intern.GetByString(""),
+			ContainerID: si.GetString(""),
 		}
 
 		testFunc(t, &entry)
