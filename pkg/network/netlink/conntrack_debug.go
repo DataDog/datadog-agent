@@ -36,7 +36,7 @@ type DebugConntrackAddress struct {
 }
 
 // DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace
-func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
+func (ctr *RealConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
 	table := make(map[uint32][]DebugConntrackEntry)
 	keys := ctr.cache.cache.Keys()
 	if len(keys) == 0 {

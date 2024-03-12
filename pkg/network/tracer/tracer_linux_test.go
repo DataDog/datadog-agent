@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -2119,6 +2120,7 @@ func TestConntrackerFallback(t *testing.T) {
 	}
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
+	require.IsType(t, &netlink.RealConntracker{}, conntracker)
 }
 
 func testConfig() *config.Config {
