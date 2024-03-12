@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,7 +28,14 @@ import (
 )
 
 func TestServer(t *testing.T) {
+	for _, driver := range []string{"memory", "sql"} {
+		os.Setenv("STORAGE_DRIVER", driver)
+		testServer(t)
+		os.Unsetenv("STORAGE_DRIVER")
+	}
+}
 
+func testServer(t *testing.T) {
 	t.Run("should not run before start", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()))
 		assert.False(t, fi.IsRunning())
@@ -194,7 +202,6 @@ func TestServer(t *testing.T) {
 						"status":    "Info",
 						"ddtags":    "singer:adele",
 						"timestamp": float64(0)}},
-					Encoding: "gzip",
 				},
 			},
 		}

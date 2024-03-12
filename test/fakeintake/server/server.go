@@ -214,6 +214,7 @@ func (fi *Server) Stop() error {
 	}
 
 	fi.setURL("")
+	fi.store.Flush()
 	return nil
 }
 

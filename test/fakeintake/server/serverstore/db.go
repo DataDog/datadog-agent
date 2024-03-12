@@ -9,10 +9,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 
+	// Import sqlite3 driver
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -32,7 +34,6 @@ func NewSQLStore() *SQLStore {
 		db: db,
 	}
 
-	// To handle situation where the tables might not exist, attempt to create them
 	_, err = db.Exec(`
 	CREATE TABLE IF NOT EXISTS payloads (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,6 +42,7 @@ func NewSQLStore() *SQLStore {
 		encoding VARCHAR(10) NOT NULL,
 		route VARCHAR(20) NOT NULL
 	);
+
 	CREATE TABLE IF NOT EXISTS parsed_payloads (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		timestamp INTEGER NOT NULL,
@@ -60,12 +62,6 @@ func NewSQLStore() *SQLStore {
 func (s *SQLStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
 	_, err := s.db.Exec("INSERT INTO payloads (timestamp, data, encoding, route) VALUES (?, ?, ?, ?)", collectTime.Unix(), data, encoding, route)
 	if err != nil {
-		return err
-	}
-
-	count := 0
-	row := s.db.QueryRow("SELECT COUNT(*) FROM payloads WHERE route = ?", route)
-	if err := row.Scan(&count); err != nil {
 		return err
 	}
 
@@ -125,18 +121,11 @@ func (s *SQLStore) CleanUpPayloadsOlderThan(time time.Time) {
 			log.Println("Error scanning route: ", err)
 			continue
 		}
-
-		count := 0
-		row := s.db.QueryRow("SELECT COUNT(*) FROM payloads WHERE route = ?", route)
-		if err := row.Scan(&count); err != nil {
-			log.Println("Error fetching payload count for route: ", route, " - ", err)
-			continue
-		}
 	}
 }
 
 // GetRawPayloads returns all raw payloads for a given route
-func (s *SQLStore) GetRawPayloads(route string) (payloads []api.Payload) {
+func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
 	rows, err := s.db.Query("SELECT timestamp, data, encoding FROM payloads WHERE route = ?", route)
 	if err != nil {
 		log.Println("Error fetching raw payloads: ", err)
@@ -147,6 +136,7 @@ func (s *SQLStore) GetRawPayloads(route string) (payloads []api.Payload) {
 	var timestamp int64
 	var data []byte
 	var encoding string
+	payloads := []api.Payload{}
 	for rows.Next() {
 		err := rows.Scan(&timestamp, &data, &encoding)
 		if err != nil {
@@ -179,9 +169,14 @@ func (s *SQLStore) GetJSONPayloads(route string) (payloads []api.ParsedPayload) 
 			log.Println("Error scanning parsed payload: ", err)
 			continue
 		}
+		var v interface{}
+		err = json.Unmarshal([]byte(data), &v)
+		if err != nil {
+			log.Println("Error unmarshaling parsed payload: ", err)
+		}
 		payloads = append(payloads, api.ParsedPayload{
 			Timestamp: time.Unix(timestamp, 0),
-			Data:      data,
+			Data:      v,
 		})
 	}
 	return payloads
@@ -221,4 +216,5 @@ func (s *SQLStore) Flush() {
 	if err != nil {
 		log.Println("Error flushing parsed payloads: ", err)
 	}
+	os.Remove("./payloads.db")
 }

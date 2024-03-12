@@ -19,7 +19,6 @@ type Payload struct {
 type ParsedPayload struct {
 	Timestamp time.Time   `json:"timestamp"`
 	Data      interface{} `json:"data"`
-	Encoding  string      `json:"encoding"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter

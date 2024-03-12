@@ -59,6 +59,5 @@ func tryParse(rawPayload api.Payload, route string) (*api.ParsedPayload, error) 
 	return &api.ParsedPayload{
 		Timestamp: rawPayload.Timestamp,
 		Data:      data,
-		Encoding:  rawPayload.Encoding,
 	}, nil
 }

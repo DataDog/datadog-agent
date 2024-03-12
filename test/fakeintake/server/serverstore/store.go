@@ -8,6 +8,7 @@
 package serverstore
 
 import (
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -29,6 +30,10 @@ type Store interface {
 	Flush()
 }
 
+// NewStore returns a new store
 func NewStore() Store {
+	if os.Getenv("STORAGE_DRIVER") == "memory" {
+		return NewInMemoryStore()
+	}
 	return NewSQLStore()
 }
