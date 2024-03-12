@@ -1317,9 +1317,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
 
 	// config for products implemented in the client libraries
-	config.BindEnv("asm.enabled", "DD_APPSEC_ENABLED_PROPAGATE")
-	config.BindEnv("iast.enabled", "DD_IAST_ENABLED_PROPAGATE")
-	config.BindEnv("sca.enabled", "DD_SCA_ENABLED_PROPAGATE")
+	config.BindEnv("admission_controller.auto_instrumentation.asm.enabled", "DD_APPSEC_ENABLED_PROPAGATE")
+	config.BindEnv("admission_controller.auto_instrumentation.iast.enabled", "DD_IAST_ENABLED_PROPAGATE")
+	config.BindEnv("admission_controller.auto_instrumentation.sca.enabled", "DD_SCA_ENABLED_PROPAGATE")
 
 	setupAPM(config)
 	OTLP(config)

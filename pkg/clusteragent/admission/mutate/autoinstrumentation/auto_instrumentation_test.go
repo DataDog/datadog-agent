@@ -1881,7 +1881,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			expectedInjectedLibraries: map[string]string{},
 			wantErr:                   false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("asm.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm.enabled", true)
 			},
 		},
 		{
@@ -1910,7 +1910,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			expectedInjectedLibraries: map[string]string{},
 			wantErr:                   false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("iast.enabled", true)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.iast.enabled", true)
 			},
 		},
 		{
@@ -1939,7 +1939,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			expectedInjectedLibraries: map[string]string{},
 			wantErr:                   false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("sca.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.sca.enabled", false)
 			},
 		},
 	}
