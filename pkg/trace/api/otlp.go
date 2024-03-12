@@ -66,7 +66,7 @@ type OTLPReceiver struct {
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
 	computeTopLevelBySpanKindVal := 0.0
-	if cfg.OTLPReceiver.ComputeTopLevelBySpanKind {
+	if !cfg.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
 		computeTopLevelBySpanKindVal = 1.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
@@ -527,10 +527,10 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 
 	spanKind := in.Kind()
-	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer) {
+	if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") && (spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer) {
 		traceutil.SetTopLevel(span, true)
 	}
-	if o.conf.OTLPReceiver.ComputeTopLevelBySpanKind && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
+	if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
 		traceutil.SetMeasured(span, true)
 	}
 
