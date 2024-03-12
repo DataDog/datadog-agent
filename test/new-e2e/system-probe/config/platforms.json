@@ -20,7 +20,9 @@
         "oracle_8.9": "master/oracle-8.9-x86_64.qcow.xz",
         "oracle_9.3": "master/oracle-9.3-x86_64.qcow.xz",
         "rocky_8.5": "master/rocky-8.5-x86_64.qcow2.xz",
-        "rocky_9.3": "master/rocky-9.3-x86_64.qcow2.xz"
+        "rocky_9.3": "master/rocky-9.3-x86_64.qcow2.xz",
+        "opensuse_15.3": "guillermo.julian/suse-linux/opensuse-15.3-x86_64.qcow2.xz",
+        "opensuse_15.5": "guillermo.julian/suse-linux/opensuse-15.5-x86_64.qcow2.xz"
     },
     "arm64": {
         "ubuntu_18.04": "master/ubuntu-18-arm64.qcow2.xz",
@@ -40,6 +42,8 @@
         "oracle_8.9": "master/oracle-8.9-arm64.qcow.xz",
         "oracle_9.3": "master/oracle-9.3-arm64.qcow.xz",
         "rocky_8.5": "master/rocky-8.5-arm64.qcow2.xz",
-        "rocky_9.3": "master/rocky-9.3-arm64.qcow2.xz"
+        "rocky_9.3": "master/rocky-9.3-arm64.qcow2.xz",
+        "opensuse_15.3": "guillermo.julian/suse-linux/opensuse-15.3-arm64.qcow2.xz",
+        "opensuse_15.5": "guillermo.julian/suse-linux/opensuse-15.5-arm64.qcow2.xz"
     }
 }
