@@ -217,7 +217,10 @@ def _get_team_labels():
     with open('.ddqa/config.toml', 'r') as f:
         data = toml.loads(f.read())
 
-    return [label for team in data['teams'].values() for label in team['github_labels']]
+    labels = []
+    for team in data['teams'].values():
+        labels.extend(team.get('github_labels', []))
+    return labels
 
 
 @task

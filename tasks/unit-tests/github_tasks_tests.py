@@ -44,7 +44,7 @@ class TestAssignTeamLabelMock(unittest.TestCase):
             read_owners_mock.return_value = fake_codeowners
             team_labels_mock.return_value = possible_labels
 
-            assign_team_label(Context(), -1)
+            assign_team_label(Context())
 
             self.assertEqual(sorted(gh.assigned_labels), sorted(expected_labels))
 
