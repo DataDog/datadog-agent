@@ -298,7 +298,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		go func() {
 			defer wg.Done()
 
-			scanProcfs(ctx, send, every, logger)
+			scanProcfs(ctx, tracer.PID, send, every, logger)
 		}()
 	}
 

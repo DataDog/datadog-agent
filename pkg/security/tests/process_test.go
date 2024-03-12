@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -93,25 +94,32 @@ func TestProcessEBPFLess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ruleDef := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.args_flags in ["-trace"]`, path.Base(executable)),
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
 	t.Run("proc-scan", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
-			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
-			if rule.ID != "datadog_agent_cws_self_test_rule_exec" && rule.ID != "test_rule" {
-				t.Skip("wrong rule triggered")
+		err := retry.Do(func() error {
+			var found bool
+			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+				if entry.FileEvent.BasenameStr == path.Base(executable) && slices.Contains(entry.ArgsEntry.Values, "-trace") {
+					found = true
+				}
+			})
+
+			if !found {
+				return errors.New("not found")
 			}
-		})
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		assert.Nil(t, err)
 	})
 }
 

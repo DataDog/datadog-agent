@@ -12,12 +12,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/shirou/gopsutil/v3/process"
+
+	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 )
 
 func isKThread(ppid, pid int32) bool {
@@ -30,7 +32,7 @@ type ProcProcess struct {
 	CreateTime int64
 }
 
-func collectProcesses(tracerPID int32, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
+func collectProcesses(traceePID int32, cache map[int32]int64) ([]*ProcProcess, []int32, error) {
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, nil, err
@@ -56,8 +58,17 @@ func collectProcesses(tracerPID int32, cache map[int32]int64) ([]*ProcProcess, [
 	}
 
 	toIgnore := func(proc *ProcProcess) bool {
+		var deja []int32
+
+		// loop to check if proc is not a child of the tracee
 		for {
-			if proc.Pid == tracerPID {
+			// protection against infinite loop
+			if slices.Contains(deja, proc.Pid) {
+				return true
+			}
+			deja = append(deja, proc.Pid)
+
+			if proc.Pid == traceePID {
 				return true
 			}
 
@@ -75,6 +86,7 @@ func collectProcesses(tracerPID int32, cache map[int32]int64) ([]*ProcProcess, [
 				return true
 			}
 
+			// loop with the parent
 			if proc = processes[ppid]; proc == nil {
 				return true
 			}
@@ -233,9 +245,7 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	}, nil
 }
 
-func scanProcfs(ctx context.Context, sendFnc func(msg *ebpfless.Message), every time.Duration, logger Logger) {
-	tracerPID := os.Getpid()
-
+func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.Message), every time.Duration, logger Logger) {
 	cache := make(map[int32]int64)
 
 	ticker := time.NewTicker(every)
@@ -243,7 +253,7 @@ func scanProcfs(ctx context.Context, sendFnc func(msg *ebpfless.Message), every 
 	for {
 		select {
 		case <-ticker.C:
-			add, del, err := collectProcesses(int32(tracerPID), cache)
+			add, del, err := collectProcesses(int32(traceePID), cache)
 			if err != nil {
 				logger.Errorf("unable to collect processes: %v", err)
 				continue
