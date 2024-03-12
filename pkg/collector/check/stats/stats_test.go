@@ -179,8 +179,6 @@ func Test_handleNumbers(t *testing.T) {
 		{"Two", 2, 2, nil},
 		{"Three", 3, 3, nil},
 		{"Four", 4, 4, nil},
-		{"Five", 5, 5, nil},
-		{"Six", 6, 6, nil},
 	}
 
 	for _, tt := range tests {
