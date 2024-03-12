@@ -135,7 +135,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 					return ""
 				}
 				if len(apiKey) == 32 {
-					return "***************************" + apiKey[len(apiKey)-5:]
+					return HideKeyExceptLastFiveChars(apiKey)
 				}
 			}
 			return defaultReplacement
@@ -151,7 +151,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 					return ""
 				}
 				if len(appKey) == 40 {
-					return "***********************************" + appKey[len(appKey)-5:]
+					return HideKeyExceptLastFiveChars(appKey)
 				}
 			}
 			return defaultReplacement
@@ -325,6 +325,16 @@ func ScrubString(data string) (string, error) {
 // inputs.
 func ScrubLine(url string) string {
 	return DefaultScrubber.ScrubLine(url)
+}
+
+// HideKeyExceptLastFiveChars replaces all characters in the key with "*", except
+// for the last 5 characters. If the key is an unrecognized length, replace
+// all of it with the default string of "*"s instead.
+func HideKeyExceptLastFiveChars(key string) string {
+	if len(key) != 32 && len(key) != 40 {
+		return defaultReplacement
+	}
+	return strings.Repeat("*", len(key)-5) + key[len(key)-5:]
 }
 
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies

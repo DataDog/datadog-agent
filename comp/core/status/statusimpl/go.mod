@@ -38,7 +38,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 	golang.org/x/text v0.14.0
 )

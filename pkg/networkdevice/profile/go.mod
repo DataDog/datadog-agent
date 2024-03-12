@@ -5,7 +5,7 @@ go 1.21.8
 require (
 	github.com/invopop/jsonschema v0.10.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 
