@@ -1932,14 +1932,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: uuid,
 				},
 				{
-					Name:  "DD_SCA_ENABLED",
+					Name:  "DD_APPSEC_SCA_ENABLED",
 					Value: "false",
 				},
 			},
 			expectedInjectedLibraries: map[string]string{},
 			wantErr:                   false,
 			setupConfig: func() {
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.sca.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm_sca.enabled", false)
 			},
 		},
 	}
