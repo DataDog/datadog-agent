@@ -34,7 +34,6 @@ var devMode = flag.Bool("devmode", false, "enable devmode")
 
 type agentMSISuite struct {
 	windows.BaseAgentInstallerSuite[environments.Host]
-	Defender *defender.Output
 }
 
 func TestMSI(t *testing.T) {
@@ -52,11 +51,7 @@ func TestMSI(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		def, err := defender.NewDefender(awsEnv.CommonEnvironment, vm, defender.WithDefenderDisabled())
-		if err != nil {
-			return err
-		}
-		err = def.Export(ctx, suite.Defender)
+		_, err = defender.NewDefender(awsEnv.CommonEnvironment, vm, defender.WithDefenderDisabled())
 		if err != nil {
 			return err
 		}
