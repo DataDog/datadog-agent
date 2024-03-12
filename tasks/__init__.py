@@ -51,6 +51,7 @@ from tasks.go import (
     generate_licenses,
     generate_protobuf,
     go_fix,
+    go_mod_diffs,
     golangci_lint,
     internal_deps_checker,
     lint_licenses,
@@ -97,6 +98,7 @@ ns.add_task(lint_releasenote)
 ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
+ns.add_task(go_mod_diffs)
 ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
