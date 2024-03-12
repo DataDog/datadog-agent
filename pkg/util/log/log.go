@@ -188,6 +188,7 @@ func ShouldLog(lvl seelog.LogLevel) bool {
 	}
 	return false
 }
+
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
 	return level >= sw.level
