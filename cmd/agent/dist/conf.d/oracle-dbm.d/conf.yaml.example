@@ -16,7 +16,12 @@ init_config:
   #   - query: <QUERY>
   #     columns: <COLUMNS>
   #     tags: <TAGS>
-
+  #
+  ## @param service - string - optional
+  ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+  ##
+  #
+  # service: <SERVICE>
 
 ## Every instance is scheduled independent of the others.
 #
@@ -112,6 +117,13 @@ instances:
   # tags:
   #   - <KEY_1>:<VALUE_1>
   #   - <KEY_2>:<VALUE_2>
+
+  ## @param service - string - optional
+  ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+  ##
+  ## Overrides any `service` defined in the `init_config` section.
+  #
+  # service: <SERVICE>
 
   ## Configure collection of query samples
   #

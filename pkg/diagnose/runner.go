@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -340,7 +341,6 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 
 // Run runs diagnoses.
 func Run(diagCfg diagnosis.Config, deps SuitesDeps) ([]diagnosis.Diagnoses, error) {
-
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
 		return requestDiagnosesFromAgentProcess(diagCfg)
@@ -413,6 +413,7 @@ type SuitesDeps struct {
 	collector      optional.Option[collector.Component]
 	secretResolver secrets.Component
 	wmeta          optional.Option[workloadmeta.Component]
+	AC             optional.Option[autodiscovery.Component]
 }
 
 // NewSuitesDeps returns a new SuitesDeps.
@@ -420,12 +421,13 @@ func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component]) SuitesDeps {
+	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component]) SuitesDeps {
 	return SuitesDeps{
 		senderManager:  senderManager,
 		collector:      collector,
 		secretResolver: secretResolver,
 		wmeta:          wmeta,
+		AC:             ac,
 	}
 }
 
@@ -433,7 +435,7 @@ func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
 
 	catalog.Register("check-datadog", func() []diagnosis.Diagnosis {
-		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.wmeta)
+		return getDiagnose(diagCfg, deps.senderManager, deps.collector, deps.secretResolver, deps.wmeta, deps.AC)
 	})
 	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)

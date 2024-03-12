@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -39,6 +40,7 @@ func TestFlareCreation(t *testing.T) {
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),
 			fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+			fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 			// provider a nil FlareCallback
 			fx.Provide(fx.Annotate(
 				func() types.FlareCallback { return nil },

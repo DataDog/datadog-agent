@@ -154,7 +154,7 @@ func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 		return nil, err
 	}
 
-	containerRegistry := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
+	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
 
 	return &Webhook{
 		name:              webhookName,
