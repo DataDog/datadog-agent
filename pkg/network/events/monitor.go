@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	// justify the use of the intern package
 	_ "go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
