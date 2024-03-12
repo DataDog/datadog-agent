@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import sys
-from os import PathLike
-from typing import Optional, Union, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import info
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import PathOrStr
 
 
 def compiler_built(ctx: Context):
@@ -13,7 +17,7 @@ def compiler_built(ctx: Context):
     return res is not None and res.ok
 
 
-def docker_exec(ctx: Context, cmd: str, user="compiler", verbose=True, run_dir: Optional[Union[PathLike, str]] = None):
+def docker_exec(ctx: Context, cmd: str, user="compiler", verbose=True, run_dir: Optional[PathOrStr] = None):
     if run_dir:
         cmd = f"cd {run_dir} && {cmd}"
 
