@@ -25,6 +25,8 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    setenv("DD_BUNDLED_AGENT", DD_AGENT, 0);
+
     execvp(DD_AGENT_PATH, argv);
     return 1;
 }
