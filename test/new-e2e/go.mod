@@ -15,7 +15,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.103-0.20240118142331-3069f58aa284
+	github.com/DataDog/agent-payload/v5 v5.0.106
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
@@ -44,7 +44,7 @@ require (
 	github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13
 	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-retry v0.2.4
-	github.com/stretchr/testify v1.8.5-0.20231013065317-89920137cdfa
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.21.0
 	golang.org/x/sys v0.18.0
 	golang.org/x/term v0.18.0
@@ -195,7 +195,7 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7 // indirect

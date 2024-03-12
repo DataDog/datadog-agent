@@ -48,7 +48,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
 	github.com/benbjohnson/clock v1.3.5
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (

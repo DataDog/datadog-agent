@@ -199,7 +199,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.7.7
-	github.com/mdlayher/netlink v1.6.2
+	github.com/mdlayher/netlink v1.7.2
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/miekg/dns v1.1.58
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
@@ -224,7 +224,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.39.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil/v3 v3.24.1
+	github.com/shirou/gopsutil/v3 v3.24.2
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skydive-project/go-debouncer v1.0.0
@@ -270,12 +270,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.6.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
-	golang.org/x/net v0.21.0
+	golang.org/x/net v0.22.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.18.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.5.0
-	golang.org/x/tools v0.18.0
+	golang.org/x/tools v0.19.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20231212172506-995d672761c0 // indirect
 	google.golang.org/grpc v1.61.0
@@ -443,7 +443,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jonboulle/clockwork v0.3.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/josharian/native v1.0.0 // indirect
+	github.com/josharian/native v1.1.0 // indirect
 	github.com/justincormack/go-memfd v0.0.0-20170219213707-6e4af0518993
 	github.com/karrick/godirwalk v1.17.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
@@ -471,7 +471,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
-	github.com/mdlayher/socket v0.2.3 // indirect
+	github.com/mdlayher/socket v0.5.0 // indirect
 	github.com/microsoft/go-rustaudit v0.0.0-20220808201409-204dfee52032 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -547,7 +547,7 @@ require (
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7 // indirect
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
-	github.com/yusufpapurcu/wmi v1.2.3 // indirect
+	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.6.0-alpha.0 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.0-alpha.0.0.20220522111935-c3bc4116dcd1 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.0-alpha.0 // indirect
@@ -568,10 +568,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/trace v1.23.1 // indirect
 	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
-	golang.org/x/crypto v0.19.0 // indirect
-	golang.org/x/mod v0.15.0
+	golang.org/x/crypto v0.21.0 // indirect
+	golang.org/x/mod v0.16.0
 	golang.org/x/oauth2 v0.16.0 // indirect
-	golang.org/x/term v0.17.0 // indirect
+	golang.org/x/term v0.18.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/api v0.156.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
@@ -670,6 +670,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
 	github.com/DataDog/go-libddwaf/v2 v2.2.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3
+	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240212231818-6a2ed8bdfe76
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/rds v1.73.0
@@ -849,6 +850,9 @@ replace github.com/moby/buildkit => github.com/moby/buildkit v0.13.0
 
 // Fixes a panic in trivy, see gitlab.com/cznic/libc/-/issues/25
 replace modernc.org/sqlite => modernc.org/sqlite v1.19.3
+
+// Fixes eBPF ring buffer corruption, to remove when this is merged upstream
+replace github.com/cilium/ebpf => github.com/paulcacheux/ebpf v0.11.1-0.20240309154158-cb664e155bd2
 
 // Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
 // https://github.com/open-telemetry/opentelemetry-collector/issues/8127

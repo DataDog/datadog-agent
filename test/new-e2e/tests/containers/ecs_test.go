@@ -29,6 +29,11 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+const (
+	taskNameDogstatsdUDS = "dogstatsd-uds"
+	taskNameDogstatsdUDP = "dogstatsd-udp"
+)
+
 type ecsSuite struct {
 	baseSuite
 
@@ -403,11 +408,11 @@ func (suite *ecsSuite) TestCPU() {
 }
 
 func (suite *ecsSuite) TestDogtstatsdUDS() {
-	suite.testDogstatsd("dogstatsd-uds")
+	suite.testDogstatsd(taskNameDogstatsdUDS)
 }
 
 func (suite *ecsSuite) TestDogtstatsdUDP() {
-	suite.testDogstatsd("dogstatsd-udp")
+	suite.testDogstatsd(taskNameDogstatsdUDP)
 }
 
 func (suite *ecsSuite) testDogstatsd(taskName string) {

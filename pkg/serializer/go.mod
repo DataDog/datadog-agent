@@ -52,7 +52,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.102
+	github.com/DataDog/agent-payload/v5 v5.0.106
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.52.0-rc.3
@@ -73,7 +73,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	google.golang.org/protobuf v1.32.0
 )
 
@@ -147,7 +147,7 @@ require (
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/objx v0.5.1 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect

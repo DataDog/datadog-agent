@@ -154,7 +154,9 @@ func (c *CWSConsumer) Start() error {
 
 		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 	}
-	go c.selfTester.WaitForResult(cb)
+	if c.selfTester != nil {
+		go c.selfTester.WaitForResult(cb)
+	}
 
 	return nil
 }

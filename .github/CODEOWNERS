@@ -176,6 +176,7 @@
 /cmd/system-probe/modules/process*      @DataDog/processes
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
+/cmd/system-probe/modules/traceroute*   @DataDog/network-device-monitoring @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/network-device-monitoring
 /cmd/system-probe/windows/              @DataDog/windows-kernel-integrations
 /cmd/system-probe/windows_resources/    @DataDog/windows-kernel-integrations
@@ -464,6 +465,8 @@
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations
 /pkg-config/                            @DataDog/agent-build-and-releases
+/pkg/networkpath/                       @DataDog/network-device-monitoring @DataDog/Networks
+/pkg/collector/corechecks/networkpath/  @DataDog/network-device-monitoring @DataDog/Networks
 
 /releasenotes/                          @DataDog/documentation
 /releasenotes-installscript/            @DataDog/documentation
@@ -517,6 +520,7 @@
 /test/kitchen/test/integration/win-install-fail/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-installopts/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-no-subservices/ @DataDog/windows-agent
+/test/kitchen/test/integration/win-sysprobe-test/ @DataDog/windows-kernel-integrations
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
