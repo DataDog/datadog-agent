@@ -61,5 +61,4 @@
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.agent-linux-install-script.datadog_api_key)
-    - echo "Running new-e2e-tests.run with the following parameters - $TARGETS $EXTRA_PARAMS"
     - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
