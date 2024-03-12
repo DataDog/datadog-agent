@@ -675,6 +675,48 @@ func SetupJMXLogger(i seelog.LoggerInterface, level string) {
 	jmxLogger.Store(setupCommonLogger(i, level))
 }
 
+// ChangeLogLevel changes the current log level, valid levels are trace, debug,
+// info, warn, error, critical and off, it requires a new seelog logger because
+// an existing one cannot be updated
+func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
+	l := logger.Load()
+	if l == nil {
+		return errors.New("cannot change loglevel: logger not initialized")
+	}
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner == nil {
+		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
+	}
+
+	err := l.changeLogLevel(level)
+	if err != nil {
+		return err
+	}
+
+	// See detailed explanation in SetupLogger(...)
+	err = li.SetAdditionalStackDepth(defaultStackDepth)
+	if err != nil {
+		return err
+	}
+
+	l.replaceInnerLogger(li)
+	return nil
+
+	// need to return something, just set to Info (expected default)
+}
+// This function should be called with `sw.l` held
+func (sw *DatadogLogger) changeLogLevel(level string) error {
+	lvl, ok := seelog.LogLevelFromString(strings.ToLower(level))
+	if !ok {
+		return errors.New("bad log level")
+	}
+	sw.level = lvl
+	return nil
+}
+
 // Flush flushes the underlying inner log
 func Flush() {
 	l := logger.Load()
@@ -790,48 +832,7 @@ func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
 	return sw.level
 }
 
-// ChangeLogLevel changes the current log level, valid levels are trace, debug,
-// info, warn, error, critical and off, it requires a new seelog logger because
-// an existing one cannot be updated
-func ChangeLogLevel(li seelog.LoggerInterface, level string) error {
-	l := logger.Load()
-	if l == nil {
-		return errors.New("cannot change loglevel: logger not initialized")
-	}
 
-	l.l.Lock()
-	defer l.l.Unlock()
-
-	if l.inner == nil {
-		return errors.New("cannot change loglevel: logger is initialized however logger.inner is nil")
-	}
-
-	err := l.changeLogLevel(level)
-	if err != nil {
-		return err
-	}
-
-	// See detailed explanation in SetupLogger(...)
-	err = li.SetAdditionalStackDepth(defaultStackDepth)
-	if err != nil {
-		return err
-	}
-
-	l.replaceInnerLogger(li)
-	return nil
-
-	// need to return something, just set to Info (expected default)
-}
-
-// This function should be called with `sw.l` held
-func (sw *DatadogLogger) changeLogLevel(level string) error {
-	lvl, ok := seelog.LogLevelFromString(strings.ToLower(level))
-	if !ok {
-		return errors.New("bad log level")
-	}
-	sw.level = lvl
-	return nil
-}
 
 // log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
 // scrubAndLogFunc, and treating the variadic args as the message.
