@@ -438,7 +438,7 @@ static __always_inline void tls_fix_header_frame(tls_dispatcher_arguments_t *inf
 
 static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
     // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
-    if (frame_state == NULL || (frame_state->remainder == 0 && frame_state->header_length == 0)) {
+    if (frame_state == NULL) {
         // Checking we have enough bytes in the packet to read a frame header.
         if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
             // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
@@ -467,7 +467,7 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
     //  4. We failed reading any frame. Aborting.
 
     // Frame-header-remainder.
-    if (frame_state == NULL) {
+    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
         // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
         // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
         // and continue to the next tail call.
