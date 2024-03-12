@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cenkalti/backoff"
@@ -213,7 +215,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
 				if ca, err := parseCreateHandleArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
+					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 
@@ -228,7 +230,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 			case idClose:
 				if ca, err := parseCloseArgs(e); err == nil {
-					//fmt.Printf("Received Close event %d %v\n", e.EventHeader.EventDescriptor.ID, ca.string())
+					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
 						delete(filePathResolver, ca.fileObject)
@@ -250,7 +252,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				fallthrough
 			case idRename29:
 				if sia, err := parseInformationArgs(e); err == nil {
-					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia.string())
+					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia)
 				}
 			}
 
@@ -258,28 +260,28 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			switch e.EventHeader.EventDescriptor.ID {
 			case idRegCreateKey:
 				if cka, err := parseCreateRegistryKey(e); err == nil {
-					log.Tracef("Got idRegCreateKey %s", cka.string())
+					log.Tracef("Got idRegCreateKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 			case idRegOpenKey:
 				if cka, err := parseOpenRegistryKey(e); err == nil {
-					log.Debugf("Got idRegOpenKey %s", cka.string())
+					log.Tracef("Got idRegOpenKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 
 			case idRegDeleteKey:
 				if dka, err := parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegDeleteKey %v", dka.string())
+					log.Tracef("Got idRegDeleteKey %v", dka)
 					ecb(dka, e.EventHeader.ProcessID)
 
 				}
 			case idRegFlushKey:
 				if dka, err := parseFlushKey(e); err == nil {
-					log.Tracef("Got idRegFlushKey %v", dka.string())
+					log.Tracef("Got idRegFlushKey %v", dka)
 				}
 			case idRegCloseKey:
 				if dka, err := parseCloseKeyArgs(e); err == nil {
-					log.Debugf("Got idRegCloseKey %s", dka.string())
+					log.Tracef("Got idRegCloseKey %s", dka)
 					delete(regPathResolver, dka.keyObject)
 				}
 			case idQuerySecurityKey:
@@ -292,7 +294,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 			case idRegSetValueKey:
 				if svk, err := parseSetValueKey(e); err == nil {
-					log.Tracef("Got idRegSetValueKey %s", svk.string())
+					log.Tracef("Got idRegSetValueKey %s", svk)
 					ecb(svk, e.EventHeader.ProcessID)
 
 				}
@@ -626,7 +628,7 @@ func (p *Probe) Origin() string {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
 	p := &Probe{

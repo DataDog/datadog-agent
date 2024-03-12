@@ -1,34 +1,14 @@
 {
   "packages": [
     {
-      "name": "datadog-agent",
-      "package": "datadog-agent",
-      "version": "7.53.0-devel.git.142.5f0ff76.pipeline.29207608-1",
-      "platform": "linux",
-      "arch": "amd64",
-      "url": "https://storage.googleapis.com/updater-dev/7.53.0-devel.git.142.5f0ff76.pipeline.29207608.tar",
-      "sha256": "1648cec536615e88dd9ea13a422c735bee775c20e40a667a019c4dd0baa0dcd5",
-      "size": 231945216
+      "package": "dd-trace-java",
+      "version": "1.32.0-SNAPSHOT~09be0fb775~pipeline.29892278.beta.09be0fb7",
+      "url": "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/auto_inject-java@sha256:7235bf68d0a44afc97f5c0c720c0ad3c7be1e6099cf437546633c46ae35f30f4"
     },
     {
-      "name": "datadog-agent",
       "package": "datadog-agent",
       "version": "7.53.0-devel.git.156.4681fd9.pipeline.29311299-1",
-      "platform": "linux",
-      "arch": "amd64",
-      "url": "https://storage.googleapis.com/updater-dev/datadog-agent-7.53.0-devel.git.156.4681fd9.pipeline.29311299-1-x86_64.tar",
-      "sha256": "7c32c90cbd82b714f96e95cc772b25444b038d4dd45f9f7d80b3acb4aaed8180",
-      "size": 231900160
-    },
-    {
-      "name": "datadog-agent",
-      "package": "datadog-agent",
-      "version": "7.53.0-devel.git.156.4681fd9.pipeline.29311299-1",
-      "platform": "linux",
-      "arch": "arm64",
-      "url": "https://storage.googleapis.com/updater-dev/datadog-agent-7.53.0-devel.git.156.4681fd9.pipeline.29311299-1-aarch64.tar",
-      "sha256": "d9f2250520770be6ea8c7a88ffe3c08051db2dba050888eec8d3a61020eeb6e5",
-      "size": 203648512
+      "url": "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"
     }
   ]
 }

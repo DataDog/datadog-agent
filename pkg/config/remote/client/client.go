@@ -387,6 +387,7 @@ func (c *Client) pollLoop() {
 		successfulFirstRun = true
 	}
 
+	logLimit := log.NewLogLimit(5, time.Minute)
 	for {
 		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		if !successfulFirstRun && interval > time.Second {
@@ -414,7 +415,9 @@ func (c *Client) pollLoop() {
 				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
-					log.Infof("retrying the first update of remote-config state (%v)", err)
+					if logLimit.ShouldLog() {
+						log.Infof("retrying the first update of remote-config state (%v)", err)
+					}
 				} else {
 					c.lastUpdateError = err
 					c.backoffPolicy.IncError(c.backoffErrorCount)

@@ -1,8 +1,16 @@
 Datadog Updater v{{ .Version }}
 {{ range $name, $package := .Packages }}
-{{ $name }}
-  State: {{ yellowText "unknown (unimplemented)" }}
+{{ boldText $name }}
+  State: {{ if $package.Stable }}{{ yellowText "unknown (unimplemented)" }}{{ else }} {{ redText "no stable version" }}{{ end }}
   Installed versions:
-  {{ yellowText "●" }} stable v{{ $package.Stable }}
-  {{ yellowText "●" }} expermiment v{{ $package.Experiment }}
+  {{ if $package.Stable -}}
+    {{ yellowText "●" }} stable: v{{$package.Stable}}
+  {{- else -}}
+    {{ redText "●" }} stable: none
+  {{- end }}
+  {{ if $package.Experiment -}}
+    {{ yellowText "●" }} experiment: v{{$package.Experiment}}
+  {{- else -}}
+    ● experiment: none
+  {{- end }}
 {{ end -}}

@@ -60,7 +60,7 @@ var securityAgentConfig string
 func TestAgentSuite(t *testing.T) {
 	testID := uuid.NewString()[:4]
 
-	e2e.Run(t, &agentSuite{testID: testID},
+	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithAgentOptions(

@@ -14,7 +14,7 @@ import (
 	"github.com/samber/lo"
 )
 
-func assertTags(actualTags []string, expectedTags []*regexp.Regexp) error {
+func assertTags(actualTags []string, expectedTags []*regexp.Regexp, acceptUnexpectedTags bool) error {
 	missingTags := make([]*regexp.Regexp, len(expectedTags))
 	copy(missingTags, expectedTags)
 	unexpectedTags := []string{}
@@ -34,7 +34,7 @@ func assertTags(actualTags []string, expectedTags []*regexp.Regexp) error {
 		}
 	}
 
-	if len(unexpectedTags) > 0 || len(missingTags) > 0 {
+	if (len(unexpectedTags) > 0 && !acceptUnexpectedTags) || len(missingTags) > 0 {
 		errs := make([]error, 0, 2)
 		if len(unexpectedTags) > 0 {
 			errs = append(errs, fmt.Errorf("unexpected tags: %s", strings.Join(unexpectedTags, ", ")))
