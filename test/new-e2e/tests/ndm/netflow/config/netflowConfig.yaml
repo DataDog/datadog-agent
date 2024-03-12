@@ -1,0 +1,15 @@
+init_config:
+  loader: core
+  use_device_id_as_hostname: true
+network_devices:
+  netflow:
+    enabled: "true"
+    listeners:
+    - flow_type: netflow9
+      port: 2055
+    - flow_type: netflow5
+      port: 2056
+    - flow_type: ipfix
+      port: 4739
+    - flow_type: sflow5
+      port: 6343

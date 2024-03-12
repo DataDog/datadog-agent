@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  netflow:
+    image: "networkstatic/nflow-generator"
+    ports:
+      - "2056:2056/udp"
+    command: /go/bin/nflow-generator -t datadog-agent -p 2056
+    container_name: dd-netflow
+  agent:
+    volumes:
+      - ${CONFIG_DIR}/snmp.yaml:/etc/datadog-agent/conf.d/snmp.d/snmp.yaml
