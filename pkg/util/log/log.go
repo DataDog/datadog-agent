@@ -252,21 +252,20 @@ func (sw *loggerPointer) replaceInnerLogger(li seelog.LoggerInterface) seelog.Lo
 
 // Flush flushes the underlying inner log
 func Flush() {
-	l := logger.Load()
-	if l != nil {
-		l.l.Lock()
-		if l.inner != nil {
-			l.inner.Flush()
-		}
-		l.l.Unlock()
+	logger.flush()
+	jmxLogger.flush()
+}
+func (sw *loggerPointer) flush() {
+	l := sw.Load()
+	if l == nil {
+		return
 	}
-	l = jmxLogger.Load()
-	if l != nil {
-		l.l.Lock()
-		if l.inner != nil {
-			l.inner.Flush()
-		}
-		l.l.Unlock()
+
+	l.l.Lock()
+	defer l.l.Unlock()
+
+	if l.inner != nil {
+		l.inner.Flush()
 	}
 }
 
