@@ -124,6 +124,7 @@ variables:
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
+  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
@@ -165,23 +166,24 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_WINBUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_ARMBUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v29603376-40fa78c0
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v29603376-40fa78c0
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 180d0c3c5d44
+  # Make sure to update test-infra-definitions version in go.mod as well
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a1d921006e35
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -280,24 +282,25 @@ variables:
 .if_not_run_all_builds: &if_not_run_all_builds
   if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
-# Rule to trigger installer tests
+# Rule to trigger test setup, run, and cleanup.
 # By default:
 # - on main and deploy pipelines, installer tests are run
 # - on branch pipelines, installer tests are run on a subset of the OSes we test
 # RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "true") && $RUN_E2E_TESTS != "false"
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on") && $RUN_E2E_TESTS != "off"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
-.if_run_e2e_tests: &if_run_e2e_tests
+.if_run_all_e2e_tests: &if_run_all_e2e_tests
   if: $RUN_E2E_TESTS == "on"
 
-# When RUN_E2E_TESTS is set to "auto", we run: 
-# - a subset of installer tests on branch pipelines. 
-# - agent-related e2e tests based on files changed in the PR.
+# When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
+# The behavior of each test will be defined by its rules.
+# For example for new-e2e tests created by each team, here is an example of such rules: https://github.com/DataDog/datadog-agent/blob/ba7079d92077ab5898378594dcafb9cd88a77e57/.gitlab-ci.yml#L1160-L1167
+# For the installer tests when RUN_E2E_TESTS is set to "auto", we run a subset of tests on branch pipelines and all the tests on main.
 .if_auto_e2e_tests: &if_auto_e2e_tests
   if: $RUN_E2E_TESTS == "auto"
 
@@ -911,6 +914,8 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
+  - <<: *if_disable_e2e_tests
+    when: never
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
@@ -1000,8 +1005,8 @@ workflow:
   - test/kitchen/test/integration/win-sysprobe-test/**/*
   - .gitlab/functional_test/system_probe_windows.yml
   - .gitlab/functional_test_sysprobe/system_probe.yml
-  - .gitlab/kernel_version_testing/system_probe.yml
-  - .gitlab/kernel_version_testing/common.yml
+  - .gitlab/kernel_matrix_testing/system_probe.yml
+  - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/runner/**/*
@@ -1042,7 +1047,7 @@ workflow:
     when: never
   - <<: *if_mergequeue
     when: never
-  - <<: *if_run_e2e_tests
+  - <<: *if_run_all_e2e_tests
     when: on_success
   - <<: *if_main_branch
     when: on_success
@@ -1061,7 +1066,7 @@ workflow:
     when: never
   - <<: *if_mergequeue
     when: never
-  - <<: *if_run_e2e_tests
+  - <<: *if_run_all_e2e_tests
     when: always
   - <<: *if_main_branch
     when: always
@@ -1078,8 +1083,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1106,8 +1111,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1135,6 +1140,7 @@ workflow:
         - pkg/config/remote/**/*
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1159,17 +1165,19 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
-    allow_failure: true
 
 .on_subcommands_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for subcommands
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
-    allow_failure: true
 
 .on_language-detection_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1177,6 +1185,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1186,6 +1195,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1195,6 +1205,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1204,6 +1215,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for CWS
         - test/new-e2e/tests/cws/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1213,6 +1225,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for process
         - test/new-e2e/tests/process/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1222,6 +1235,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for orchestrator
         - test/new-e2e/tests/orchestrator/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 

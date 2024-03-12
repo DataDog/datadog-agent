@@ -41,6 +41,8 @@ const (
 	cwsInstrumentationPodAnotationReady  = "ready"
 	cwsInjectorInitContainerName         = "cws-instrumentation"
 	cwsUserSessionDataMaxSize            = 1024
+	cwsInjectorInitContainerUser         = int64(10000)
+	cwsInjectorInitContainerGroup        = int64(10000)
 
 	// PodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
 	PodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
@@ -233,7 +235,8 @@ func NewCWSInstrumentation() (*CWSInstrumentation, error) {
 	// Parse init container image
 	cwsInjectorImageName := config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")
 	cwsInjectorImageTag := config.Datadog.GetString("admission_controller.cws_instrumentation.image_tag")
-	cwsInjectorContainerRegistry := config.Datadog.GetString("admission_controller.cws_instrumentation.container_registry")
+
+	cwsInjectorContainerRegistry := common.ContainerRegistry("admission_controller.cws_instrumentation.container_registry")
 
 	if len(cwsInjectorImageName) == 0 {
 		return nil, fmt.Errorf("can't initialize CWS Instrumentation without an image_name")
@@ -448,6 +451,9 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 		}
 	}
 
+	runAsUser := cwsInjectorInitContainerUser
+	runAsGroup := cwsInjectorInitContainerGroup
+
 	initContainer := corev1.Container{
 		Name:    cwsInjectorInitContainerName,
 		Image:   image,
@@ -457,6 +463,11 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 				Name:      cwsVolumeName,
 				MountPath: cwsMountPath,
 			},
+		},
+		// Set a default user and group to support pod deployments with a `runAsNonRoot` security context
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser:  &runAsUser,
+			RunAsGroup: &runAsGroup,
 		},
 	}
 	if resources != nil {

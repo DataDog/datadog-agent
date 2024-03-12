@@ -1959,7 +1959,10 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	mapsTelemetry := tr.bpfErrorsCollector.T.GetMapsTelemetry()
+	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
+	require.True(t, ok)
+
+	mapsTelemetry := ebpfTelemetryCollector.T.GetMapsTelemetry()
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
@@ -2012,8 +2015,10 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	t.Cleanup(func() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
+	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
+	require.True(t, ok)
 
-	helperTelemetry := tr.bpfErrorsCollector.T.GetHelpersTelemetry()
+	helperTelemetry := ebpfTelemetryCollector.T.GetHelpersTelemetry()
 	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
 
 	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
@@ -2028,7 +2033,8 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "trace")
+	skipEbpfConntrackerTestOnUnsupportedKernel(t)
+
 	type testCase struct {
 		enableRuntimeCompiler    bool
 		allowPrecompiledFallback bool

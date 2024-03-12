@@ -8,6 +8,7 @@ package module
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -144,6 +146,18 @@ func (c *CWSConsumer) Start() error {
 
 	seclog.Infof("runtime security started")
 
+	// we can now wait for self test events
+	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+		if c.config.SelfTestSendReport {
+			ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
+		}
+
+		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
+	}
+	if c.selfTester != nil {
+		go c.selfTester.WaitForResult(cb)
+	}
+
 	return nil
 }
 
@@ -158,7 +172,7 @@ func (c *CWSConsumer) PostProbeStart() error {
 			case <-c.ctx.Done():
 
 			case <-time.After(15 * time.Second):
-				if _, err := c.RunSelfTest(c.config.SelfTestSendReport); err != nil {
+				if _, err := c.RunSelfTest(false); err != nil {
 					seclog.Warnf("failed to run self test: %s", err)
 				}
 			}
@@ -169,28 +183,24 @@ func (c *CWSConsumer) PostProbeStart() error {
 }
 
 // RunSelfTest runs the self tests
-func (c *CWSConsumer) RunSelfTest(sendLoadedReport bool) (bool, error) {
+func (c *CWSConsumer) RunSelfTest(gRPC bool) (bool, error) {
+	if c.config.EBPFLessEnabled && gRPC {
+		return false, errors.New("self-tests through gRPC are not supported with eBPF less")
+	}
+
 	if c.selfTester == nil {
 		return false, nil
 	}
 
-	success, fails, testEvents, err := c.selfTester.RunSelfTest()
-	if err != nil {
+	if err := c.selfTester.RunSelfTest(selftests.DefaultTimeout); err != nil {
 		return true, err
-	}
-
-	seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
-
-	// send the report
-	if sendLoadedReport {
-		ReportSelfTest(c.eventSender, c.statsdClient, success, fails, testEvents)
 	}
 
 	return true, nil
 }
 
 // ReportSelfTest reports to Datadog that a self test was performed
-func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []string, fails []string, testEvents map[string]*serializers.EventSerializer) {
+func ReportSelfTest(sender events.EventSender, statsdClient statsd.ClientInterface, success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
 	// send metric with number of success and fails
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
@@ -211,10 +221,6 @@ func (c *CWSConsumer) Stop() {
 
 	if c.apiServer != nil {
 		c.apiServer.Stop()
-	}
-
-	if c.selfTester != nil {
-		_ = c.selfTester.Close()
 	}
 
 	c.ruleEngine.Stop()

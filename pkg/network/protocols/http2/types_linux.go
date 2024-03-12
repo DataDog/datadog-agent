@@ -62,28 +62,31 @@ type http2Path struct {
 	Finalized          bool
 }
 type HTTP2Stream struct {
-	Response_last_seen    uint64
-	Request_started       uint64
-	Status_code           http2StatusCode
-	Request_method        http2requestMethod
-	Path                  http2Path
-	Request_end_of_stream bool
-	Pad_cgo_0             [2]byte
+	Response_last_seen uint64
+	Request_started    uint64
+	Status_code        http2StatusCode
+	Request_method     http2requestMethod
+	Path               http2Path
+	End_of_stream_seen bool
+	Pad_cgo_0          [2]byte
 }
 type EbpfTx struct {
 	Tuple  connTuple
 	Stream HTTP2Stream
 }
 type HTTP2Telemetry struct {
-	Request_seen                     uint64
-	Response_seen                    uint64
-	End_of_stream                    uint64
-	End_of_stream_rst                uint64
-	Literal_value_exceeds_frame      uint64
-	Exceeding_max_interesting_frames uint64
-	Exceeding_max_frames_to_filter   uint64
-	Path_size_bucket                 [8]uint64
-	Fragmented_frame_count           uint64
+	Request_seen                       uint64
+	Response_seen                      uint64
+	End_of_stream                      uint64
+	End_of_stream_rst                  uint64
+	Literal_value_exceeds_frame        uint64
+	Exceeding_max_interesting_frames   uint64
+	Exceeding_max_frames_to_filter     uint64
+	Path_size_bucket                   [8]uint64
+	Fragmented_frame_count_headers     uint64
+	Fragmented_frame_count_rst         uint64
+	Fragmented_frame_count_data_eos    uint64
+	Fragmented_frame_count_headers_eos uint64
 }
 
 type StaticTableEnumValue = uint8

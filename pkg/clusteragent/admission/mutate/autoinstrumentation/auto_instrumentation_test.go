@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 )
 
+const commonRegistry = "gcr.io/datadoghq"
+
 func TestInjectAutoInstruConfig(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -311,6 +313,17 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
+			name:              "java from common registry",
+			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.version", "v1"),
+			containerRegistry: "",
+			expectedLibsToInject: []libInfo{
+				{
+					lang:  "java",
+					image: fmt.Sprintf("%s/dd-lib-java-init:v1", commonRegistry),
+				},
+			},
+		},
+		{
 			name:              "js",
 			pod:               common.FakePodWithAnnotation("admission.datadoghq.com/js-lib.version", "v1"),
 			containerRegistry: "registry",
@@ -572,7 +585,11 @@ func TestExtractLibInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
-			mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", tt.containerRegistry)
+			mockConfig.SetWithoutSource("admission_controller.container_registry", commonRegistry)
+			if tt.containerRegistry != "" {
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", tt.containerRegistry)
+			}
+
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}

@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
@@ -81,7 +83,7 @@ type Tracer struct {
 	reverseDNS         dns.ReverseDNS
 	usmMonitor         *usm.Monitor
 	ebpfTracer         connection.Tracer
-	bpfErrorsCollector *ebpftelemetry.EBPFErrorsCollector
+	bpfErrorsCollector prometheus.Collector
 	lastCheck          *atomic.Int64
 
 	bufferLock sync.Mutex
@@ -158,23 +160,14 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	// pointer to embedded ebpfTelemetry struct within the bpfErrorsCollector,
-	// to avoid possible nil pointer dereference when accessing it via the bpfErrorsCollector pointer
-	var bpfTelemetry *ebpftelemetry.EBPFTelemetry
+	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
+		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
 
-	if eec := ebpftelemetry.NewEBPFErrorsCollector(); eec != nil {
-		coretelemetry.GetCompatComponent().RegisterCollector(eec)
-
-		//this is a patch for now, until ebpfTelemetry is fully encapsulated in the ebpf/telemetry pkg
-		if errorsCollector, ok := eec.(*ebpftelemetry.EBPFErrorsCollector); ok {
-			tr.bpfErrorsCollector = errorsCollector
-			bpfTelemetry = tr.bpfErrorsCollector.T
-		}
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg, bpfTelemetry)
+	tr.ebpfTracer, err = connection.NewTracer(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -687,6 +680,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"tracer": map[string]interface{}{
 			"last_check": t.lastCheck.Load(),
 		},
+		"universal_service_monitoring": t.usmMonitor.GetUSMStats(),
 	}, nil
 }
 
