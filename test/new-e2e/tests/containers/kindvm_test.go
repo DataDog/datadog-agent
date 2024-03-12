@@ -98,7 +98,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^dry_run:$`,
 				`^group:`,
 				`^image_id:`,
-				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-controller-manager$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-apiserver$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-apiserver$`,
 				`^kube_namespace:kube-system$`,
