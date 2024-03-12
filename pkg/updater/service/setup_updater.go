@@ -12,7 +12,7 @@ import "github.com/DataDog/datadog-agent/pkg/util/log"
 
 const updaterUnit = "datadog-updater.service"
 
-// todo: make this independant of agent bootstrap
+// todo: make this independent of agent bootstrap
 func setupUpdater() (err error) {
 	defer func() {
 		if err != nil {
