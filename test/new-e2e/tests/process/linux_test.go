@@ -31,7 +31,7 @@ func TestLinuxTestSuite(t *testing.T) {
 	}
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
 	}
 
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
