@@ -3,3 +3,4 @@
 -r show_linters_issues/requirements.txt
 -r requirements_release_tasks.txt
 -r requirements_docs.txt
+-r requirements_codecov.txt
