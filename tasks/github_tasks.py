@@ -206,8 +206,7 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
         return []
 
     _, best_count = team_count[0]
-    best_teams = [team for (team, count) in team_count if count == best_count]
-    best_teams = [team.casefold() for team in best_teams]
+    best_teams = [team.casefold() for (team, count) in team_count if count == best_count]
 
     return best_teams
 
