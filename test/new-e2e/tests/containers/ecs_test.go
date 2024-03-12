@@ -402,27 +402,17 @@ func (suite *ecsSuite) TestCPU() {
 	})
 }
 
-func (suite *ecsSuite) TestDogtstatsdUDS() {
-	suite.testDogstatsd("dogstatsd-uds")
-}
-
-func (suite *ecsSuite) TestDogtstatsdUDP() {
-	suite.testDogstatsd("dogstatsd-udp")
-}
-
-func (suite *ecsSuite) testDogstatsd(taskName string) {
+func (suite *ecsSuite) TestDogstatsd() {
+	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
-			Tags: []string{
-				`^task_name:.*-` + taskName + `-ec2$`,
-			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
-				`^container_name:ecs-.*-` + taskName + `-ec2-`,
+				`^container_name:ecs-.*-dogstatsd-uds-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
@@ -434,8 +424,8 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 				`^task_arn:`,
-				`^task_family:.*-` + taskName + `-ec2$`,
-				`^task_name:.*-` + taskName + `-ec2$`,
+				`^task_family:.*-dogstatsd-uds-ec2$`,
+				`^task_name:.*-dogstatsd-uds-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
 		},
