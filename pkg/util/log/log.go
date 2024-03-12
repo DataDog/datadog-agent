@@ -179,6 +179,7 @@ func (sw *loggerPointer) getLogLevel() (seelog.LogLevel, error) {
 
 // ShouldLog returns whether a given log level should be logged by the default logger
 func ShouldLog(lvl seelog.LogLevel) bool {
+	// The lock stay in the exported function due to the use of `shouldLog` in function that already hold the lock
 	l := logger.Load()
 	if l != nil {
 		l.l.RLock()
@@ -187,7 +188,6 @@ func ShouldLog(lvl seelog.LogLevel) bool {
 	}
 	return false
 }
-
 // This function should be called with `sw.l` held
 func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
 	return level >= sw.level
