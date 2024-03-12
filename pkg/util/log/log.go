@@ -59,6 +59,10 @@ type DatadogLogger struct {
 	l     sync.RWMutex
 }
 
+/*
+*	Setup and initialization of the logger
+ */
+
 // SetupLogger setup agent wide logger
 func SetupLogger(i seelog.LoggerInterface, level string) {
 	logger.Store(setupCommonLogger(i, level))
@@ -660,6 +664,10 @@ func CriticalStackDepth(depth int, v ...interface{}) error {
 	}, true, v...)
 }
 
+/*
+*	JMX Logger Section
+ */
+
 // JMXError Logs for JMX check
 func JMXError(v ...interface{}) error {
 	return logWithError(seelog.ErrorLvl, func() { JMXError(v...) }, jmxLogger.error, true, v...)
@@ -674,6 +682,10 @@ func JMXInfo(v ...interface{}) {
 func SetupJMXLogger(i seelog.LoggerInterface, level string) {
 	jmxLogger.Store(setupCommonLogger(i, level))
 }
+
+/*
+*	Operation on the **logger level**
+ */
 
 // ChangeLogLevel changes the current log level, valid levels are trace, debug,
 // info, warn, error, critical and off, it requires a new seelog logger because
@@ -759,6 +771,10 @@ func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
 	return level >= sw.level
 }
 
+/*
+*	Operation on the **logger**
+ */
+
 // RegisterAdditionalLogger registers an additional logger for logging
 func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
 	l := logger.Load()
@@ -832,7 +848,9 @@ func Flush() {
 	}
 }
 
-
+/*
+*	log functions
+ */
 
 // log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
 // scrubAndLogFunc, and treating the variadic args as the message.
@@ -894,6 +912,10 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 	return err
 }
 
+/*
+*	logFormat functions
+ */
+
 func logFormat(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string, ...interface{}), format string, params ...interface{}) {
 	l := logger.Load()
 
@@ -948,6 +970,10 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 	}
 	return err
 }
+
+/*
+*	logContext functions
+ */
 
 func logContext(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(string), message string, depth int, context ...interface{}) {
 	l := logger.Load()
