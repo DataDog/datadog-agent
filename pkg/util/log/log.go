@@ -741,6 +741,21 @@ func (sw *DatadogLogger) getLogLevel() seelog.LogLevel {
 	return sw.level
 }
 
+// ShouldLog returns whether a given log level should be logged by the default logger
+func ShouldLog(lvl seelog.LogLevel) bool {
+	l := logger.Load()
+	if l != nil {
+		l.l.RLock()
+		defer l.l.RUnlock()
+		return l.shouldLog(lvl)
+	}
+	return false
+}
+// This function should be called with `sw.l` held
+func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
+	return level >= sw.level
+}
+
 // Flush flushes the underlying inner log
 func Flush() {
 	l := logger.Load()
@@ -815,21 +830,7 @@ func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInter
 	return nil
 }
 
-// ShouldLog returns whether a given log level should be logged by the default logger
-func ShouldLog(lvl seelog.LogLevel) bool {
-	l := logger.Load()
-	if l != nil {
-		l.l.RLock()
-		defer l.l.RUnlock()
-		return l.shouldLog(lvl)
-	}
-	return false
-}
 
-// This function should be called with `sw.l` held
-func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
-	return level >= sw.level
-}
 
 
 
