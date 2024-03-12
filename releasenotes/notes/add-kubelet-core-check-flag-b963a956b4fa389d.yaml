@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add `kubelet_core_check` flag to Agent config to control whether 
-    the kubelet core check should be loaded.
+    Add `kubelet_core_check_enabled` flag to Agent config to control  
+    whether the kubelet core check should be loaded.
