@@ -37,6 +37,7 @@ type fixture struct {
 	version     string
 	layoutPath  string
 	contentPath string
+	configPath  string
 	indexDigest string
 }
 
@@ -46,12 +47,14 @@ var (
 		version:     "v1",
 		layoutPath:  "fixtures/oci-layout-simple-v1.tar",
 		contentPath: "fixtures/simple-v1",
+		configPath:  "fixtures/simple-v1-config",
 	}
 	fixtureSimpleV2 = fixture{
 		pkg:         "simple",
 		version:     "v2",
 		layoutPath:  "fixtures/oci-layout-simple-v2.tar",
 		contentPath: "fixtures/simple-v2",
+		configPath:  "fixtures/simple-v2-config",
 	}
 	fixtureSimpleV1Linux2Amd128 = fixture{
 		pkg:         "simple",
@@ -152,6 +155,17 @@ func (s *testFixturesServer) PackageFS(f fixture) fs.FS {
 	return fs
 }
 
+func (s *testFixturesServer) ConfigFS(f fixture) fs.FS {
+	if f.configPath == "" {
+		return os.DirFS(s.t.TempDir())
+	}
+	fs, err := fs.Sub(fixturesFS, f.configPath)
+	if err != nil {
+		panic(err)
+	}
+	return fs
+}
+
 func (s *testFixturesServer) Image(f fixture) oci.Image {
 	tmpDir := s.t.TempDir()
 	image, err := s.Downloader().Download(context.Background(), tmpDir, s.Package(f))
@@ -183,7 +197,7 @@ func TestDownload(t *testing.T) {
 	image, err := d.Download(context.Background(), t.TempDir(), s.Package(fixtureSimpleV1))
 	assert.NoError(t, err)
 	tmpDir := t.TempDir()
-	err = extractPackageLayers(image, tmpDir, tmpDir)
+	err = extractPackageLayers(image, t.TempDir(), tmpDir)
 	assert.NoError(t, err)
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
 }
@@ -217,7 +231,7 @@ func TestDownloadRegistry(t *testing.T) {
 	image, err := d.Download(context.Background(), t.TempDir(), s.PackageOCI(fixtureSimpleV1))
 	assert.NoError(t, err)
 	tmpDir := t.TempDir()
-	err = extractPackageLayers(image, tmpDir, tmpDir)
+	err = extractPackageLayers(image, t.TempDir(), tmpDir)
 	assert.NoError(t, err)
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
 }

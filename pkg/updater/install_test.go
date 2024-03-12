@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -70,9 +72,22 @@ func fsContainsAll(a fs.FS, b fs.FS) error {
 	})
 }
 
-func newTestInstaller(t *testing.T) *installer {
+type testInstaller struct {
+	installer
+}
+
+func newTestInstaller(t *testing.T) *testInstaller {
 	repositories := repository.NewRepositories(t.TempDir(), t.TempDir())
-	return newInstaller(repositories)
+	return &testInstaller{
+		installer{
+			repositories: repositories,
+			configsDir:   t.TempDir(),
+		},
+	}
+}
+
+func (i *testInstaller) ConfigFS(f fixture) fs.FS {
+	return os.DirFS(filepath.Join(i.configsDir, f.pkg))
 }
 
 func TestInstallStable(t *testing.T) {
@@ -88,6 +103,7 @@ func TestInstallStable(t *testing.T) {
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
 	assert.False(t, state.HasExperiment())
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	assertEqualFS(t, s.ConfigFS(fixtureSimpleV1), installer.ConfigFS(fixtureSimpleV1))
 }
 
 func TestInstallExperiment(t *testing.T) {
@@ -106,6 +122,7 @@ func TestInstallExperiment(t *testing.T) {
 	assert.Equal(t, fixtureSimpleV2.version, state.Experiment)
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.ExperimentFS())
+	assertEqualFS(t, s.ConfigFS(fixtureSimpleV2), installer.ConfigFS(fixtureSimpleV2))
 }
 
 func TestPromoteExperiment(t *testing.T) {
@@ -125,6 +142,7 @@ func TestPromoteExperiment(t *testing.T) {
 	assert.Equal(t, fixtureSimpleV2.version, state.Stable)
 	assert.False(t, state.HasExperiment())
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV2), r.StableFS())
+	assertEqualFS(t, s.ConfigFS(fixtureSimpleV2), installer.ConfigFS(fixtureSimpleV2))
 }
 
 func TestUninstallExperiment(t *testing.T) {
@@ -144,4 +162,6 @@ func TestUninstallExperiment(t *testing.T) {
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
 	assert.False(t, state.HasExperiment())
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	// we do not rollback configuration examples to their previous versions currently
+	assertEqualFS(t, s.ConfigFS(fixtureSimpleV2), installer.ConfigFS(fixtureSimpleV2))
 }
