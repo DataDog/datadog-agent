@@ -153,6 +153,7 @@ func TestGetPayload(t *testing.T) {
 		IPv6Address:                  "fe80::20c:29ff:feb6:d232",
 		MacAddress:                   "00:0c:29:b6:d2:32",
 		AgentVersion:                 version.AgentVersion,
+		AgentStartupTime:             pkgconfigsetup.StartTime.UnixNano(),
 		CloudProvider:                "some_cloud_provider",
 		CloudProviderAccountID:       "some_host_id",
 		CloudProviderSource:          "test_source",
