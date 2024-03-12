@@ -66,7 +66,7 @@ func (l *LocalResolver) pullContainers(ticker *clock.Ticker) {
 			if err == nil {
 				l.lastContainerRates = lastContainerRates
 			} else {
-				log.Debugf("Unable to gather stats for containers, err: %v", err)
+				log.Warnf("Unable to gather stats for containers, err: %v", err)
 			}
 
 			// Keep track of containers addresses
