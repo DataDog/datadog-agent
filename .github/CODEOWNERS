@@ -199,6 +199,11 @@
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
+/docs/public/                                                @DataDog/agent-platform
+/docs/public/architecture/components/                        @DataDog/agent-shared-components
+/docs/public/guidelines/components/                          @DataDog/agent-shared-components
+/docs/public/how-to/components/                              @DataDog/agent-shared-components
+
 /google-marketplace/                    @DataDog/container-ecosystems
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
