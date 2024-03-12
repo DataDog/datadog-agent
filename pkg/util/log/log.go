@@ -199,7 +199,10 @@ func (sw *DatadogLogger) shouldLog(level seelog.LogLevel) bool {
 
 // RegisterAdditionalLogger registers an additional logger for logging
 func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
-	l := logger.Load()
+	return logger.registerAdditionalLogger(n, li)
+}
+func (sw *loggerPointer) registerAdditionalLogger(n string, li seelog.LoggerInterface) error {
+	l := sw.Load()
 	if l == nil {
 		return errors.New("cannot register: logger not initialized")
 	}
@@ -207,21 +210,19 @@ func RegisterAdditionalLogger(n string, li seelog.LoggerInterface) error {
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	if l.inner != nil {
-		return l.registerAdditionalLogger(n, li)
+	if l.inner == nil {
+		return errors.New("cannot register: logger not initialized")
 	}
 
-	return errors.New("cannot register: logger not initialized")
-}
-func (sw *DatadogLogger) registerAdditionalLogger(n string, l seelog.LoggerInterface) error {
-	if sw.extra == nil {
+	if l.extra == nil {
+
 		return errors.New("logger not fully initialized, additional logging unavailable")
 	}
 
-	if _, ok := sw.extra[n]; ok {
+	if _, ok := l.extra[n]; ok {
 		return errors.New("logger already registered with that name")
 	}
-	sw.extra[n] = l
+	l.extra[n] = li
 
 	return nil
 }
