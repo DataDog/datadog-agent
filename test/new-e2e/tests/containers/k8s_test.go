@@ -619,13 +619,13 @@ func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
 			Name: "custom.metric",
 			Tags: []string{
 				"kube_deployment:dogstatsd-udp",
-				"kube_namespace:" + kubeNamespace,
+				"kube_namespace:" + regexp.QuoteMeta(kubeNamespace),
 			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_deployment:dogstatsd-udp$`,
-				"^kube_namespace:" + kubeNamespace + "$",
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
@@ -643,8 +643,8 @@ func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment st
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"kube_deployment:" + kubeDeployment,
-				"kube_namespace:" + kubeNamespace,
+				"kube_deployment:" + regexp.QuoteMeta(kubeDeployment),
+				"kube_namespace:" + regexp.QuoteMeta(kubeNamespace),
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -658,13 +658,13 @@ func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment st
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,
 				`^kube_container_name:dogstatsd$`,
-				`^kube_deployment:` + kubeDeployment + `$`,
-				"^kube_namespace:" + kubeNamespace + "$",
+				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:` + kubeDeployment + `-[[:alnum:]]+$`,
+				`^kube_ownerref_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
-				`^kube_replica_set:` + kubeDeployment + `-[[:alnum:]]+$`,
-				`^pod_name:` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^kube_replica_set:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
