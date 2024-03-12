@@ -93,7 +93,7 @@ func ChildrenMap(t pb.Trace) map[uint64][]*pb.Span {
 //   - OR its parent belongs to another service (in that case it's a "local root"
 //     being the highest ancestor of other spans belonging to this service and
 //     attached to it).
-func ComputeTopLevel(trace pb.Trace, useOTLPSpanKindLogic bool) {
+func ComputeTopLevel(trace pb.Trace) {
 	spanIDToIndex := make(map[uint64]int, len(trace))
 	for i, span := range trace {
 		spanIDToIndex[span.SpanID] = i
@@ -104,12 +104,6 @@ func ComputeTopLevel(trace pb.Trace, useOTLPSpanKindLogic bool) {
 			SetTopLevel(span, true)
 			continue
 		}
-		_, isOtelTrace := span.Meta["otel.trace_id"]
-		if useOTLPSpanKindLogic && isOtelTrace {
-			// the following conditions are not applicable to OTel traces, and are covered by span kind logic
-			continue
-		}
-
 		parentIndex, ok := spanIDToIndex[span.ParentID]
 		if !ok {
 			// span has no parent in chunk

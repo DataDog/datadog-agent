@@ -269,7 +269,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	p := Payload{
 		Source:                 tagstats,
 		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedTopLevel: !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -527,11 +527,8 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	}
 
 	spanKind := in.Kind()
-	if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") && (spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer) {
-		traceutil.SetTopLevel(span, true)
-	}
-	if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") && (spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer) {
-		traceutil.SetMeasured(span, true)
+	if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelAndMeasured(span, spanKind)
 	}
 
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
@@ -732,4 +729,23 @@ func spanKindName(k ptrace.SpanKind) string {
 		return "unknown"
 	}
 	return name
+}
+
+// computeTopLevelAndMeasured updates the span's top-level and measured attributes.
+//
+// An OTLP span is considered top-level if it is a root span or has a span kind of server or consumer.
+// An OTLP span is marked as measured if it has a span kind of client or producer.
+func computeTopLevelAndMeasured(span *pb.Span, spanKind ptrace.SpanKind) {
+	if span.ParentID == 0 {
+		// span is a root span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer {
+		// span is a server-side span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer {
+		// span is a client-side span, not top-level but we still want stats
+		traceutil.SetMeasured(span, true)
+	}
 }

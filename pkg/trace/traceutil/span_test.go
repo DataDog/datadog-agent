@@ -25,7 +25,7 @@ func TestTopLevelTypical(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Service: "mcnulty", Type: ""},
 	}
 
-	ComputeTopLevel(tr, false)
+	ComputeTopLevel(tr)
 
 	assert.True(HasTopLevel(tr[0]), "root span should be top-level")
 	assert.False(HasTopLevel(tr[1]), "main service, and not a root span, not top-level")
@@ -69,7 +69,7 @@ func TestTopLevelSingle(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: "web"},
 	}
 
-	ComputeTopLevel(tr, false)
+	ComputeTopLevel(tr)
 
 	assert.True(HasTopLevel(tr[0]), "root span should be top-level")
 }
@@ -79,7 +79,7 @@ func TestTopLevelEmpty(t *testing.T) {
 
 	tr := pb.Trace{}
 
-	ComputeTopLevel(tr, false)
+	ComputeTopLevel(tr)
 
 	assert.Equal(0, len(tr), "trace should still be empty")
 }
@@ -95,7 +95,7 @@ func TestTopLevelOneService(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Service: "mcnulty", Type: "web"},
 	}
 
-	ComputeTopLevel(tr, false)
+	ComputeTopLevel(tr)
 
 	assert.False(HasTopLevel(tr[0]), "just a sub-span, not top-level")
 	assert.False(HasTopLevel(tr[1]), "just a sub-span, not top-level")
@@ -117,7 +117,7 @@ func TestTopLevelLocalRoot(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 7, ParentID: 4, Service: "redis", Type: "redis"},
 	}
 
-	ComputeTopLevel(tr, false)
+	ComputeTopLevel(tr)
 
 	assert.True(HasTopLevel(tr[0]), "root span should be top-level")
 	assert.False(HasTopLevel(tr[1]), "main service, and not a root span, not top-level")
@@ -136,7 +136,7 @@ func TestTopLevelWithTag(t *testing.T) {
 		&pb.Span{TraceID: 1, SpanID: 2, ParentID: 1, Service: "mcnulty", Type: "web", Metrics: map[string]float64{"custom": 42}},
 	}
 
-	ComputeTopLevel(tr, false)
+	ComputeTopLevel(tr)
 
 	t.Logf("%v\n", tr[1].Metrics)
 
@@ -144,59 +144,6 @@ func TestTopLevelWithTag(t *testing.T) {
 	assert.Equal(float64(42), tr[0].Metrics["custom"], "custom metric should still be here")
 	assert.False(HasTopLevel(tr[1]), "not a top-level span")
 	assert.Equal(float64(42), tr[1].Metrics["custom"], "custom metric should still be here")
-}
-
-func TestTopLevelOTLP(t *testing.T) {
-	type want struct {
-		hasTopLevel bool
-		msgAndArgs  string
-	}
-	testCases := []struct {
-		trace pb.Trace
-		want  []want
-	}{
-		{
-			trace: pb.Trace{
-				&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: "web"},
-				&pb.Span{TraceID: 1, SpanID: 2, ParentID: 1, Service: "mcnulty", Type: "sql"},
-				&pb.Span{TraceID: 1, SpanID: 3, ParentID: 2, Service: "master-db", Type: "sql"},
-				&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Service: "redis", Type: "redis"},
-				&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Service: "mcnulty", Type: ""},
-			},
-			want: []want{
-				{hasTopLevel: true, msgAndArgs: "root span should be top-level"},
-				{hasTopLevel: false, msgAndArgs: "main service, and not a root span, not top-level"},
-				{hasTopLevel: true, msgAndArgs: "only 1 span for this service, should be top-level"},
-				{hasTopLevel: true, msgAndArgs: "only 1 span for this service, should be top-level"},
-				{hasTopLevel: false, msgAndArgs: "yet another sup span, not top-level"},
-			},
-		},
-		{
-			trace: pb.Trace{
-				&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: "web", Meta: map[string]string{"otel.trace_id": "1"}},
-				&pb.Span{TraceID: 1, SpanID: 2, ParentID: 1, Service: "mcnulty", Type: "sql", Meta: map[string]string{"otel.trace_id": "1"}},
-				&pb.Span{TraceID: 1, SpanID: 3, ParentID: 2, Service: "master-db", Type: "sql"},
-				&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Service: "redis", Type: "redis", Meta: map[string]string{"otel.trace_id": "1"}},
-				&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Service: "mcnulty", Type: "", Meta: map[string]string{"otel.trace_id": "1"}},
-			},
-			want: []want{
-				{hasTopLevel: true, msgAndArgs: "root span should be top-level"},
-				{hasTopLevel: false, msgAndArgs: "not a root span, OTLP trace, and OTLPSpanKindLogic enabled, not top-level"},
-				{hasTopLevel: true, msgAndArgs: "only 1 span for this service, should be top-level"},
-				{hasTopLevel: false, msgAndArgs: "not a root span, OTLP trace, and OTLPSpanKindLogic enabled, not top-level"},
-				{hasTopLevel: false, msgAndArgs: "not a root span, OTLP trace, and OTLPSpanKindLogic enabled, not top-level"},
-			},
-		},
-	}
-
-	assert := assert.New(t)
-	for _, tc := range testCases {
-		ComputeTopLevel(tc.trace, true)
-		for i, span := range tc.trace {
-			curWant := tc.want[i]
-			assert.Equal(curWant.hasTopLevel, HasTopLevel(span), curWant.msgAndArgs)
-		}
-	}
 }
 
 func TestTopLevelGetSetBlackBox(t *testing.T) {

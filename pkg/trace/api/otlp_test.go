@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
@@ -493,23 +494,23 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		})
 	}
 
-	t.Run("ClientComputedStats", func(t *testing.T) {
-		// testAndExpect tests the ReceiveResourceSpans method by feeding it the given spans and header and running
-		// the fn function on the outputted payload. It waits for the payload up to 500ms after which it times out.
-		testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
-			return func(t *testing.T) {
-				rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
-				rcv.ReceiveResourceSpans(context.Background(), rspans, header)
-				timeout := time.After(500 * time.Millisecond)
-				select {
-				case <-timeout:
-					t.Fatal("timed out")
-				case p := <-out:
-					fn(p)
-				}
+	// testAndExpect tests the ReceiveResourceSpans method by feeding it the given spans and header and running
+	// the fn function on the outputted payload. It waits for the payload up to 500ms after which it times out.
+	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
+		return func(t *testing.T) {
+			rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, header)
+			timeout := time.After(500 * time.Millisecond)
+			select {
+			case <-timeout:
+				t.Fatal("timed out")
+			case p := <-out:
+				fn(p)
 			}
 		}
+	}
 
+	t.Run("ClientComputedStats", func(t *testing.T) {
 		testSpans := [...][]testutil.OTLPResourceSpan{
 			{
 				{
@@ -544,6 +545,37 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 
 		t.Run("resource", testAndExpect(testSpans[1], http.Header{}, func(p *Payload) {
 			require.True(p.ClientComputedStats)
+		}))
+	})
+
+	t.Run("ClientComputedTopLevel", func(t *testing.T) {
+		testSpans := []testutil.OTLPResourceSpan{{
+			LibName:    "libname",
+			LibVersion: "1.2",
+			Attributes: map[string]interface{}{},
+			Spans:      []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}}},
+		}}
+
+		t.Run("default", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
+		}))
+
+		t.Run("header", testAndExpect(testSpans, http.Header{
+			header.ComputedTopLevel: []string{"true"},
+		}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
+		}))
+
+		cfg.Features["disable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+
+		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+			require.False(p.ClientComputedTopLevel)
+		}))
+
+		t.Run("headerWithFeatureFlag", testAndExpect(testSpans, http.Header{
+			header.ComputedTopLevel: []string{"true"},
+		}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
 		}))
 	})
 }
@@ -1326,6 +1358,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"span.kind":                       "unspecified",
 				},
 				Metrics: map[string]float64{
+					"_top_level":                           1,
 					"approx":                               1.2,
 					"count":                                2,
 					sampler.KeySamplingRateEventExtraction: 1,
@@ -1557,6 +1590,7 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 				},
 				Type: "db",
 				Metrics: map[string]float64{
+					"_top_level":   1,
 					"_dd.measured": 1,
 				},
 			},
@@ -1605,6 +1639,7 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 				},
 				Type: "http",
 				Metrics: map[string]float64{
+					"_top_level":   1,
 					"_dd.measured": 1,
 				},
 			},
@@ -2072,6 +2107,65 @@ func TestMarshalSpanLinks(t *testing.T) {
 		},
 	} {
 		assert.Equal(t, trimSpaces(tt.out), marshalLinks(tt.in))
+	}
+}
+
+func TestComputeTopLevelAndMeasured(t *testing.T) {
+	testCases := []struct {
+		span        *pb.Span
+		spanKind    ptrace.SpanKind
+		hasTopLevel bool
+		hasMeasured bool
+	}{
+		{
+			&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: "web"},
+			ptrace.SpanKindServer,
+			true,
+			false,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 2, ParentID: 1, Service: "mcnulty", Type: "sql"},
+			ptrace.SpanKindClient,
+			false,
+			true,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 3, ParentID: 2, Service: "master-db", Type: "sql"},
+			ptrace.SpanKindConsumer,
+			true,
+			false,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Service: "redis", Type: "redis"},
+			ptrace.SpanKindProducer,
+			false,
+			true,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: ""},
+			ptrace.SpanKindClient,
+			true,
+			true,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 1, ParentID: 0, Service: "mcnulty", Type: ""},
+			ptrace.SpanKindInternal,
+			true,
+			false,
+		},
+		{
+			&pb.Span{TraceID: 1, SpanID: 4, ParentID: 1, Service: "mcnulty", Type: ""},
+			ptrace.SpanKindInternal,
+			false,
+			false,
+		},
+	}
+
+	assert := assert.New(t)
+	for _, tc := range testCases {
+		computeTopLevelAndMeasured(tc.span, tc.spanKind)
+		assert.Equal(tc.hasTopLevel, traceutil.HasTopLevel(tc.span))
+		assert.Equal(tc.hasMeasured, traceutil.IsMeasured(tc.span))
 	}
 }
 
