@@ -70,7 +70,6 @@ kitchen_*_system_probe*                        @DataDog/ebpf-platform
 kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
 kitchen_*_security_agent*                      @DataDog/agent-security
 kitchen_*_process_agent*                       @DataDog/processes
-pull_test_dockers*                             @DataDog/universal-service-monitoring
 cleanup_kitchen_functional_test                @DataDog/ebpf-platform @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 
@@ -88,16 +87,22 @@ new-e2e-language-detection*       @DataDog/processes
 new-e2e-process*                  @DataDog/processes
 new-e2e-agent-platform*           @DataDog/agent-platform
 new-e2e-aml*                      @DataDog/agent-metrics-logs
+new-e2e-apm*                      @DataDog/agent-apm
 new-e2e-npm*                      @DataDog/Networks
 new-e2e-cws*                      @DataDog/agent-security
 new-e2e-windows-agent*            @DataDog/windows-agent
 new-e2e-orchestrator*             @DataDog/container-app
 e2e_pre_test*                     @DataDog/agent-platform
 new-e2e-remote-config*            @DataDog/remote-config
+new-e2e-updater*                  @DataDog/fleet
 
-# Kernel version testing
-package_dependencies*             @DataDog/ebpf-platform
+# Kernel matrix testing
+upload_dependencies*              @DataDog/ebpf-platform
+upload_minimized_btfs*            @DataDog/ebpf-platform
 kernel_matrix_testing*            @DataDog/ebpf-platform
+upload_security_agent_tests*      @DataDog/ebpf-platform
+upload_system_probe_tests*        @DataDog/ebpf-platform
+pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance
 single_machine_performance*       @DataDog/single-machine-performance
