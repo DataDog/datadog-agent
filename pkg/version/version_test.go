@@ -14,7 +14,7 @@ import (
 func TestNew(t *testing.T) {
 	// full fledge
 	v, err := New("1.2.3-pre+☢", "deadbeef")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, int64(1), v.Major)
 	assert.Equal(t, int64(2), v.Minor)
 	assert.Equal(t, int64(3), v.Patch)
@@ -24,12 +24,12 @@ func TestNew(t *testing.T) {
 
 	// only pre
 	v, err = New("1.2.3-pre-pre.1", "")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "pre-pre.1", v.Pre)
 
 	// only meta
 	v, err = New("1.2.3+☢.1+", "")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "☢.1+", v.Meta)
 
 	_, err = New("", "")

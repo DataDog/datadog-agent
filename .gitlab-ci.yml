@@ -8,6 +8,7 @@ include:
   - /.gitlab/choco_build/choco_build.yml
   - /.gitlab/choco_deploy/choco_deploy.yml
   - /.gitlab/common/shared.yml
+  - /.gitlab/common/pr_commenter.yml
   - /.gitlab/container_build/include.yml
   - /.gitlab/container_scan/container_scan.yml
   - /.gitlab/deploy_containers/deploy_containers.yml
@@ -815,6 +816,11 @@ workflow:
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
+
+.on_main_or_release_branch_or_all_builds:
+  - <<: *if_main_branch
+  - <<: *if_release_branch
+  - <<: *if_run_all_builds
 
 .except_main_or_release_branch:
   - <<: *if_main_branch

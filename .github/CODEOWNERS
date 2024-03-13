@@ -195,7 +195,6 @@
 
 /docs/                                  @DataDog/documentation @DataDog/agent-platform
 /docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
-/docs/components/                       @DataDog/documentation @DataDog/agent-shared-components
 /docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
@@ -541,7 +540,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
-/test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/windows-kernel-integrations
+/test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-kernel-integrations
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
 /test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/cws                       @DataDog/agent-security

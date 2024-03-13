@@ -10,6 +10,7 @@ package envvars
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -36,5 +37,5 @@ func NewEnvVarsResolver(cfg *config.Config) *Resolver {
 
 // ResolveEnvVars resolves a pid
 func (r *Resolver) ResolveEnvVars(pid uint32) ([]string, bool, error) {
-	return utils.EnvVars(r.priorityEnvs, pid)
+	return utils.EnvVars(r.priorityEnvs, pid, model.MaxArgsEnvsSize)
 }

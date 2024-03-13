@@ -124,7 +124,7 @@ float_list:
 	config.ReadConfig(bytes.NewBuffer(yamlExample))
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 
 	yamlExample = []byte(`---
@@ -157,7 +157,7 @@ float_list:
 	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 

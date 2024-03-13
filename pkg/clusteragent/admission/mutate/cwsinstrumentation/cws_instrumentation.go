@@ -41,8 +41,6 @@ const (
 	cwsInstrumentationPodAnotationReady  = "ready"
 	cwsInjectorInitContainerName         = "cws-instrumentation"
 	cwsUserSessionDataMaxSize            = 1024
-	cwsInjectorInitContainerUser         = int64(10000)
-	cwsInjectorInitContainerGroup        = int64(10000)
 
 	// PodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
 	PodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
@@ -451,9 +449,6 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 		}
 	}
 
-	runAsUser := cwsInjectorInitContainerUser
-	runAsGroup := cwsInjectorInitContainerGroup
-
 	initContainer := corev1.Container{
 		Name:    cwsInjectorInitContainerName,
 		Image:   image,
@@ -463,11 +458,6 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 				Name:      cwsVolumeName,
 				MountPath: cwsMountPath,
 			},
-		},
-		// Set a default user and group to support pod deployments with a `runAsNonRoot` security context
-		SecurityContext: &corev1.SecurityContext{
-			RunAsUser:  &runAsUser,
-			RunAsGroup: &runAsGroup,
 		},
 	}
 	if resources != nil {

@@ -133,7 +133,9 @@ runtime_security_config:
     min_timeout: {{ .ActivityDumpLoadControllerTimeout }}
     {{end}}
     traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
-	cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
+    cgroup_differentiate_args: {{ .ActivityDumpCgroupDifferentiateArgs }}
+    auto_suppression:
+      enabled: {{ .ActivityDumpAutoSuppressionEnabled }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
     {{end}}
