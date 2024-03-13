@@ -1,12 +1,7 @@
-from typing import Optional
-
 try:
     from termcolor import colored
 except ImportError:
-
-    def colored(text: str, color: Optional[str]) -> str:  # noqa: U100
-        return text
-
+    colored = None
 
 import invoke.exceptions as ie
 
@@ -33,9 +28,3 @@ def error(msg: str):
 
 def Exit(msg: str):
     return ie.Exit(colored(msg, "red"))
-
-
-def NoLibvirt():
-    return Exit(
-        "libvirt python module not installed. Install with 'pip install -r tasks/kernel_matrix_testing/requirements.txt'"
-    )

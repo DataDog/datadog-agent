@@ -4,11 +4,11 @@ import sys
 from tasks.kernel_matrix_testing.tool import Exit
 
 
-def get_home_linux() -> str:
+def get_home_linux():
     return os.path.join("/", "/home", "kernel-version-testing")
 
 
-def get_home_macos() -> str:
+def get_home_macos():
     return os.path.join(os.path.expanduser('~'), "kernel-version-testing")
 
 
