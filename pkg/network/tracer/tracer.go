@@ -680,6 +680,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"tracer": map[string]interface{}{
 			"last_check": t.lastCheck.Load(),
 		},
+		"universal_service_monitoring": t.usmMonitor.GetUSMStats(),
 	}, nil
 }
 

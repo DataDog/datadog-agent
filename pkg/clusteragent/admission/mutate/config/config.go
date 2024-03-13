@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
@@ -93,10 +94,11 @@ type Webhook struct {
 	resources  []string
 	operations []admiv1.OperationType
 	mode       string
+	wmeta      workloadmeta.Component
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook() *Webhook {
+func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
 		name:       webhookName,
 		isEnabled:  config.Datadog.GetBool("admission_controller.inject_config.enabled"),
@@ -104,6 +106,7 @@ func NewWebhook() *Webhook {
 		resources:  []string{"pods"},
 		operations: []admiv1.OperationType{admiv1.Create},
 		mode:       config.Datadog.GetString("admission_controller.inject_config.mode"),
+		wmeta:      wmeta,
 	}
 }
 
@@ -162,7 +165,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		return errors.New("cannot inject config into nil pod")
 	}
 
-	if !autoinstrumentation.ShouldInject(pod) {
+	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
 		return nil
 	}
 

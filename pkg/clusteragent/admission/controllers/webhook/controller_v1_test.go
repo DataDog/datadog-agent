@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -23,9 +24,12 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
 
@@ -279,7 +283,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -302,7 +306,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -367,7 +371,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 						"admission.datadoghq.com/enabled": "true",
 					},
 				}, nil, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
-				webhookTags := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -395,7 +399,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 						},
 					},
 				}, nil, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
-				webhookTags := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -424,7 +428,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 						"admission.datadoghq.com/enabled": "true",
 					},
 				}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
-				webhookTags := webhook("datadog.webhook.tags", "/injecttags", nil, &metav1.LabelSelector{
+				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", nil, &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -899,7 +903,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 	}
 
 	mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
-
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
@@ -907,7 +911,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
-			c.mutatingWebhooks = mutatingWebhooks()
+			c.mutatingWebhooks = mutatingWebhooks(wmeta)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)
@@ -1033,7 +1037,7 @@ func newFixtureV1(t *testing.T) *fixtureV1 {
 
 func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerFactory) {
 	factory := informers.NewSharedInformerFactory(f.client, time.Duration(0))
-
+	wmeta := fxutil.Test[workloadmeta.Component](f.t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	return NewControllerV1(
 		f.client,
 		factory.Core().V1().Secrets(),
@@ -1041,6 +1045,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 		func() bool { return true },
 		make(chan struct{}),
 		v1Cfg,
+		wmeta,
 	), factory
 }
 
