@@ -689,7 +689,7 @@ require (
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.6
 	github.com/stormcat24/protodep v0.1.8
-	github.com/swaggest/jsonschema-go v0.3.64
+	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/vibrantbyte/go-antpath v1.1.1
 	go.opentelemetry.io/collector/extension v0.91.0
 	go.opentelemetry.io/collector/otelcol v0.91.0
