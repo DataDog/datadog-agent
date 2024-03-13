@@ -24,6 +24,4 @@ func StopAgentExperiment() error {
 }
 
 // RemoveAgentUnits noop
-func RemoveAgentUnits() error {
-	return nil
-}
+func RemoveAgentUnits() {}
