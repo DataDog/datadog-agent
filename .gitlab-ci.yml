@@ -209,7 +209,7 @@ variables:
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
   RUN_E2E_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for new-e2e tests on branch != main
-  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for new-unit tests on branch != main
+  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
