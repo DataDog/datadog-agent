@@ -8,6 +8,7 @@ package updater
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -15,24 +16,30 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	datadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
-	datadogPackageMaxSize                        = 3 << 30 // 3GiB
+	datadogPackageLayerMediaType       types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
+	datadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
+	datadogPackageMaxSize                              = 3 << 30 // 3GiB
 
 	updaterSystemdCommandsPath                = "/opt/datadog/updater/systemd_commands"
 	updaterSystemdCommandsStartExperimentPath = updaterSystemdCommandsPath + "/start_experiment"
 	updaterSystemdCommandsStopExperimentPath  = updaterSystemdCommandsPath + "/stop_experiment"
+
+	defaultConfigsDir = "/etc"
 )
 
 type installer struct {
 	repositories *repository.Repositories
+	configsDir   string
 }
 
 func newInstaller(repositories *repository.Repositories) *installer {
 	return &installer{
 		repositories: repositories,
+		configsDir:   defaultConfigsDir,
 	}
 }
 
@@ -42,7 +49,8 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = extractPackageLayers(image, tmpDir)
+	configDir := filepath.Join(i.configsDir, pkg)
+	err = extractPackageLayers(image, configDir, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
@@ -55,7 +63,8 @@ func (i *installer) installExperiment(pkg string, version string, image oci.Imag
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	err = extractPackageLayers(image, tmpDir)
+	configDir := filepath.Join(i.configsDir, pkg)
+	err = extractPackageLayers(image, configDir, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
@@ -111,7 +120,7 @@ func (i *installer) stopExperiment(pkg string) error {
 	return os.WriteFile(updaterSystemdCommandsStopExperimentPath, content, 0644)
 }
 
-func extractPackageLayers(image oci.Image, dir string) error {
+func extractPackageLayers(image oci.Image, configDir string, packageDir string) error {
 	layers, err := image.Layers()
 	if err != nil {
 		return fmt.Errorf("could not get image layers: %w", err)
@@ -121,15 +130,27 @@ func extractPackageLayers(image oci.Image, dir string) error {
 		if err != nil {
 			return fmt.Errorf("could not get layer media type: %w", err)
 		}
-		if mediaType == datadogPackageLayerMediaType {
+		switch mediaType {
+		case datadogPackageLayerMediaType:
 			uncompressedLayer, err := layer.Uncompressed()
 			if err != nil {
 				return fmt.Errorf("could not uncompress layer: %w", err)
 			}
-			err = extractTarArchive(uncompressedLayer, dir, datadogPackageMaxSize)
+			err = extractTarArchive(uncompressedLayer, packageDir, datadogPackageMaxSize)
 			if err != nil {
 				return fmt.Errorf("could not extract layer: %w", err)
 			}
+		case datadogPackageConfigLayerMediaType:
+			uncompressedLayer, err := layer.Uncompressed()
+			if err != nil {
+				return fmt.Errorf("could not uncompress layer: %w", err)
+			}
+			err = extractTarArchive(uncompressedLayer, configDir, datadogPackageMaxSize)
+			if err != nil {
+				return fmt.Errorf("could not extract layer: %w", err)
+			}
+		default:
+			log.Warnf("can't install unsupported layer media type: %s", mediaType)
 		}
 	}
 	return nil

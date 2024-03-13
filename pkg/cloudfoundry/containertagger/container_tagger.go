@@ -41,7 +41,7 @@ type ContainerTagger struct {
 
 // NewContainerTagger creates a new container tagger.
 // Call Start to start the container tagger.
-func NewContainerTagger() (*ContainerTagger, error) {
+func NewContainerTagger(wmeta workloadmeta.Component) (*ContainerTagger, error) {
 	gu, err := cloudfoundry.GetGardenUtil()
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func NewContainerTagger() (*ContainerTagger, error) {
 	return &ContainerTagger{
 		gardenUtil: gu,
 		// TODO)components): stop using global and rely instead on injected workloadmeta component.
-		store:                 workloadmeta.GetGlobalStore(),
+		store:                 wmeta,
 		seen:                  make(map[string]struct{}),
 		tagsHashByContainerID: make(map[string]string),
 		retryCount:            retryCount,

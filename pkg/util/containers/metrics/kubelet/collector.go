@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,6 +85,28 @@ func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
 			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):                                     collectors,
 		},
 	}, nil
+}
+
+// ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
+// and container name. Returns ("", nil) if the containerd ID was not found.
+func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+	pod, err := kc.metadataStore.GetKubernetesPod(podUID)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	containers := pod.Containers
+	if initCont {
+		containers = pod.InitContainers
+	}
+	for _, container := range containers {
+		if container.Name == contName {
+			return container.ID, nil
+		}
+	}
+	return "", nil
 }
 
 // GetContainerStats returns stats by container ID.

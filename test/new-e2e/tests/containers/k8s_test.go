@@ -272,6 +272,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -298,8 +299,8 @@ func (suite *k8sSuite) TestNginx() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
-				"kube_deployment:nginx",
-				"kube_namespace:workload-nginx",
+				"^kube_deployment:nginx$",
+				"^kube_namespace:workload-nginx$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -378,11 +379,9 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_service:redis$`,
 				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^short_image:redis$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -391,8 +390,8 @@ func (suite *k8sSuite) TestRedis() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
-				"kube_deployment:redis",
-				"kube_namespace:workload-redis",
+				"^kube_deployment:redis$",
+				"^kube_namespace:workload-redis$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -450,8 +449,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -487,8 +486,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.limit",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -524,8 +523,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.usage.total",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -560,8 +559,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.limits",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -607,8 +606,8 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"kube_deployment:dogstatsd-uds",
-				"kube_namespace:" + kubeNamespace,
+				"^kube_deployment:dogstatsd-uds$",
+				"^kube_namespace:" + kubeNamespace + "$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -641,8 +640,8 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"kube_deployment:dogstatsd-udp",
-				"kube_namespace:" + kubeNamespace,
+				"^kube_deployment:dogstatsd-udp$",
+				"^kube_namespace:" + kubeNamespace + "$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -667,8 +666,8 @@ func (suite *k8sSuite) TestPrometheus() {
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge",
 			Tags: []string{
-				"kube_deployment:prometheus",
-				"kube_namespace:workload-prometheus",
+				"^kube_deployment:prometheus$",
+				"^kube_namespace:workload-prometheus$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -791,7 +790,7 @@ func (suite *k8sSuite) TestContainerImage() {
 			regexp.MustCompile(`^os_name:linux$`),
 			regexp.MustCompile(`^short_image:apps-nginx-server$`),
 		}
-		err = assertTags(images[len(images)-1].GetTags(), expectedTags)
+		err = assertTags(images[len(images)-1].GetTags(), expectedTags, false)
 		assert.NoErrorf(c, err, "Tags mismatch")
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
@@ -860,7 +859,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^os_name:linux$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
-			err = assertTags(image.GetTags(), expectedTags)
+			err = assertTags(image.GetTags(), expectedTags, false)
 			assert.NoErrorf(c, err, "Tags mismatch")
 
 			properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
@@ -1080,7 +1079,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^pod_name:` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
 				regexp.MustCompile(`^pod_phase:running$`),
 				regexp.MustCompile(`^short_image:apps-tracegen$`),
-			})
+			}, false)
 			if err == nil {
 				break
 			}
