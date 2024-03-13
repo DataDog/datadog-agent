@@ -328,13 +328,14 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	}
 
 	config.OnUpdate(func(setting string, oldValue, newValue any) {
-		if setting == "api_key" {
-			oldAPIKey, ok1 := oldValue.(string)
-			newAPIKey, ok2 := newValue.(string)
-			if ok1 && ok2 {
-				for _, dr := range f.domainResolvers {
-					dr.UpdateAPIKey(oldAPIKey, newAPIKey)
-				}
+		if setting != "api_key" {
+			return
+		}
+		oldAPIKey, ok1 := oldValue.(string)
+		newAPIKey, ok2 := newValue.(string)
+		if ok1 && ok2 {
+			for _, dr := range f.domainResolvers {
+				dr.UpdateAPIKey(oldAPIKey, newAPIKey)
 			}
 		}
 	})
@@ -453,15 +454,6 @@ func (f *DefaultForwarder) State() uint32 {
 	defer f.m.Unlock()
 
 	return f.internalState.Load()
-}
-
-// domainAPIKeyMap used by tests to get API keys from each domain resolver
-func (f *DefaultForwarder) domainAPIKeyMap() map[string][]string {
-	apiKeyMap := map[string][]string{}
-	for domain, dr := range f.domainResolvers {
-		apiKeyMap[domain] = dr.GetAPIKeys()
-	}
-	return apiKeyMap
 }
 
 func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, kind transaction.Kind, extra http.Header) []*transaction.HTTPTransaction {

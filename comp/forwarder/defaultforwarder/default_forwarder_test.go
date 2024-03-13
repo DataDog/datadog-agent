@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package defaultforwarder
 
 import (
@@ -13,16 +11,25 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// domainAPIKeyMap used by tests to get API keys from each domain resolver
+func (f *DefaultForwarder) domainAPIKeyMap() map[string][]string {
+	apiKeyMap := map[string][]string{}
+	for domain, dr := range f.domainResolvers {
+		apiKeyMap[domain] = dr.GetAPIKeys()
+	}
+	return apiKeyMap
+}
+
 func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	// Test default values
-	mockConfig := pkgconfigsetup.Conf()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 

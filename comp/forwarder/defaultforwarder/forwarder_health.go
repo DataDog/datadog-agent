@@ -257,8 +257,8 @@ func (fh *forwarderHealth) checkValidAPIKey() bool {
 	apiError := false
 
 	// mutex just to copy the map, to avoid holding onto it for too long
-	fh.keyMapMutex.Lock()
 	keysPerDomain := make(map[string][]string)
+	fh.keyMapMutex.Lock()
 	for domain, apiKeys := range fh.keysPerAPIEndpoint {
 		keysPerDomain[domain] = slices.Clone(apiKeys)
 	}
