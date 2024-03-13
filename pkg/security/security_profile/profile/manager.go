@@ -460,7 +460,11 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
 	// lookup the profile
-	profile := m.GetProfile(workload.WorkloadSelector)
+	selector := cgroupModel.WorkloadSelector{
+		Image: workload.WorkloadSelector.Image,
+		Tag:   "*",
+	}
+	profile := m.GetProfile(selector)
 	if profile == nil {
 		// nothing to do, leave
 		return
