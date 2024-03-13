@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    Cluster agent now supports activiting Application Security Managment, Code Vulnerabilities, and
-    Software Composition Analysis via helm charts.
+    Cluster Agent now supports activating Application Security Management, Code Vulnerabilities, and
+    Software Composition Analysis via Helm charts.
     
