@@ -50,11 +50,12 @@ import (
 const (
 	cleanupTimeout = 30 * time.Second
 
-	OSAnalyzers         = "os"        // OSAnalyzers defines an OS analyzer
-	LanguagesAnalyzers  = "languages" // LanguagesAnalyzers defines a language analyzer
-	SecretAnalyzers     = "secret"    // SecretAnalyzers defines a secret analyzer
-	ConfigFileAnalyzers = "config"    // ConfigFileAnalyzers defines a configuration file analyzer
-	LicenseAnalyzers    = "license"   // LicenseAnalyzers defines a license analyzers
+	OSAnalyzers         = "os"                 // OSAnalyzers defines an OS analyzer
+	LanguagesAnalyzers  = "languages"          // LanguagesAnalyzers defines a language analyzer
+	SecretAnalyzers     = "secret"             // SecretAnalyzers defines a secret analyzer
+	ConfigFileAnalyzers = "config"             // ConfigFileAnalyzers defines a configuration file analyzer
+	LicenseAnalyzers    = "license"            // LicenseAnalyzers defines a license analyzers
+	HistoryDockerfile   = "history-dockerfile" // HistoryDockerfile defines a history-dockerfile analyzers
 )
 
 // ContainerdAccessor is a function that should return a containerd client
@@ -168,6 +169,9 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	}
 	if analyzersDisabled(LicenseAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLicenseFile)
+	}
+	if analyzersDisabled(HistoryDockerfile) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeHistoryDockerfile)
 	}
 
 	return disabledAnalyzers
