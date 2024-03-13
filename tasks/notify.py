@@ -2,6 +2,7 @@ import io
 import json
 import os
 import re
+import tempfile
 import traceback
 from collections import defaultdict
 from datetime import datetime
@@ -327,9 +328,9 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
         gh.publish_comment(pr.number, msg)
         return
 
-    previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)[0]
+    previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)
     # An older pipeline should not edit a message corresponding to a newer pipeline
-    if previous_comment_pipeline_id > pipeline_id:
+    if previous_comment_pipeline_id and previous_comment_pipeline_id[0] > pipeline_id:
         return
 
     if len(no_tests_executed_jobs) > 0:
@@ -355,18 +356,15 @@ Warning: On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not
 
 def process_unit_tests_tarballs(ctx):
     tarballs = ctx.run("ls junit-tests_*.tgz", hide=True).stdout.split()
-    no_tests_executed_jobs = []
+    jobs_with_no_tests_run = []
     for tarball in tarballs:
-        ctx.run("mkdir -p extract_folder")
-        ctx.run(f"tar -xzf {tarball} -C extract_folder")
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            ctx.run(f"tar -xzf {tarball} -C {unpack_dir}")
 
-        # We check if the folder contains at least one junit.xml file if not we consider no tests were executed
-        junit_files = ctx.run("ls extract_folder/*.xml", hide=True, warn=True)
-        if junit_files.exited != 0:
-            no_tests_executed_jobs.append(
-                tarball.replace("junit-", "").replace(".tgz", "").replace("-repacked", "")
-            )  # We remove -repacked to have a correct job name macos
+            # We check if the folder contains at least one junit.xml file. Otherwise we consider no tests were executed
+            if not any(f.endswith(".xml") for f in os.listdir(unpack_dir)):
+                jobs_with_no_tests_run.append(
+                    tarball.replace("junit-", "").replace(".tgz", "").replace("-repacked", "")
+                )  # We remove -repacked to have a correct job name macos
 
-        ctx.run("rm -rf extract_folder")
-
-    return no_tests_executed_jobs
+    return jobs_with_no_tests_run
