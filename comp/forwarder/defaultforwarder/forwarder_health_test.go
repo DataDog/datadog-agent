@@ -167,10 +167,7 @@ func TestUpdateAPIKey(t *testing.T) {
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
-	// domainResolvers and keysPerAPIEndpoint have the given API Keys
-	for domain, expectedKeys := range keysPerDomains {
-		assert.Equal(t, expectedKeys, fh.domainResolvers[domain].GetAPIKeys())
-	}
+	// forwardHealth's keysPerAPIEndpoint has the given API Keys
 	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
 	assert.Equal(t, expect, string(data))
@@ -178,13 +175,7 @@ func TestUpdateAPIKey(t *testing.T) {
 	// update the main API Key
 	fh.updateAPIKey("api_key4")
 
-	// ensure that domainResolvers and keysPerAPIEndpoint have the new API Key
-	for domain, expectedKeys := range keysPerDomains {
-		if domain == ts1.URL {
-			expectedKeys = []string{"api_key4", "api_key2"}
-		}
-		assert.Equal(t, expectedKeys, fh.domainResolvers[domain].GetAPIKeys())
-	}
+	// ensure that keysPerAPIEndpoint has the new API Key
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key4","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
 	assert.Equal(t, expect, string(data))

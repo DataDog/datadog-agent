@@ -42,7 +42,7 @@ var (
 	apiKeyFailure = expvar.Map{}
 
 	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
-	// with 'api.' (see computeDomainsKeyMap).
+	// with 'api.' (see computeDomainURLAPIKeyMap).
 	domainURLRegexp = regexp.MustCompile(`([a-z]{2}\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
 )
 
@@ -83,7 +83,8 @@ func (fh *forwarderHealth) init() {
 	fh.stopped = make(chan struct{})
 
 	// build map of keys based upon the domain resolvers
-	fh.computeDomainsKeyMap()
+	fh.keysPerAPIEndpoint = make(map[string][]string)
+	fh.computeDomainURLAPIKeyMap()
 
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
@@ -158,21 +159,27 @@ func (fh *forwarderHealth) healthCheckLoop() {
 }
 
 func (fh *forwarderHealth) updateAPIKey(newKey string) {
-	for _, dr := range fh.domainResolvers {
-		dr.UpdateAPIKey(fh.mainAPIKey, newKey)
-	}
-	fh.computeDomainsKeyMap()
 	fh.keyMapMutex.Lock()
+	for domainURL, keyList := range fh.keysPerAPIEndpoint {
+		replaceList := make([]string, 0, len(keyList))
+		for _, oldKey := range keyList {
+			if oldKey == fh.mainAPIKey {
+				replaceList = append(replaceList, newKey)
+			} else {
+				replaceList = append(replaceList, oldKey)
+			}
+		}
+		fh.keysPerAPIEndpoint[domainURL] = replaceList
+	}
 	fh.mainAPIKey = newKey
 	fh.keyMapMutex.Unlock()
 	// check apiKey validity and update the messages
 	fh.checkValidAPIKey()
 }
 
-// computeDomainKeyMap populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
-func (fh *forwarderHealth) computeDomainsKeyMap() {
+// computeDomainURLAPIKeyMap populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
+func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
 	fh.keyMapMutex.Lock()
-	fh.keysPerAPIEndpoint = make(map[string][]string)
 	for domain, dr := range fh.domainResolvers {
 		if domainURLRegexp.MatchString(domain) {
 			domain = "https://api." + domainURLRegexp.FindString(domain)
