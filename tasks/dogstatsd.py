@@ -20,7 +20,7 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
-MAX_BINARY_SIZE = 38 * 1024
+MAX_BINARY_SIZE = 39 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 

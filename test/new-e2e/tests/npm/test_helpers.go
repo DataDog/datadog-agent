@@ -7,6 +7,7 @@ package npm
 
 import (
 	"net"
+	"strings"
 	"testing"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -25,6 +26,10 @@ func helperCleanup(t *testing.T) {
 	})
 }
 
+func isWindows(cc *agentmodel.CollectorConnections) bool {
+	return strings.Contains(cc.Platform, "Windows")
+}
+
 func validateAddr(t *testing.T, addr *agentmodel.Addr) {
 	assert.NotEmpty(t, addr.Ip, "addr.Ip = 0")
 	assert.GreaterOrEqualf(t, addr.Port, int32(1), "addr.Port < 1 %d", addr.Port)
@@ -38,7 +43,12 @@ func validateConnection(t *testing.T, c *agentmodel.Connection, cc *agentmodel.C
 	helperCurrentConnection = c
 
 	assert.NotZero(t, c.Pid, "Pid = 0")
-	assert.NotZero(t, c.NetNS, "network namespace = 0")
+
+	if isWindows(cc) {
+		assert.Zero(t, c.NetNS, "network namespace != 0")
+	} else {
+		assert.NotZero(t, c.NetNS, "network namespace = 0")
+	}
 	assert.NotNil(t, c.Laddr, "Laddr is nil")
 	assert.NotNil(t, c.Raddr, "Raddr is nil")
 

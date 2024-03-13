@@ -105,11 +105,10 @@ class CodecovWorkaround:
     We use the --raw-command flag to tell each `go test` iteration to write coverage in a different file.
     """
 
-    def __init__(self, ctx, module_path, coverage, coverage_script_template, packages, args):
+    def __init__(self, ctx, module_path, coverage, packages, args):
         self.ctx = ctx
         self.module_path = module_path
         self.coverage = coverage
-        self.coverage_script_template = coverage_script_template
         self.packages = packages
         self.args = args
         self.cov_test_path_sh = os.path.join(self.module_path, GO_COV_TEST_PATH) + ".sh"
@@ -118,15 +117,25 @@ class CodecovWorkaround:
         self.cov_test_path = self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
 
     def __enter__(self):
+        coverage_script = ""
         if self.coverage:
-            coverage_script = self.coverage_script_template.format(packages=self.packages, **self.args)
+            if platform.system() == 'Windows':
+                coverage_script = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
+go test $($args | select -skip 1) -json -coverprofile="$tempFile" {self.packages}
+exit $LASTEXITCODE
+"""
+            else:
+                coverage_script = f"""#!/usr/bin/env bash
+set -eu
+go test "${{@:2}}" -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {self.packages}
+"""
             with open(self.cov_test_path, 'w', encoding='utf-8') as f:
                 f.write(coverage_script)
 
             with open(self.call_ps1_from_bat, 'w', encoding='utf-8') as f:
                 f.write(
-                    """@echo off
-powershell.exe -executionpolicy Bypass -file test_with_coverage.ps1"""
+                    f"""@echo off
+powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
                 )
 
             os.chmod(self.cov_test_path, 0o755)
@@ -176,7 +185,6 @@ def test_flavor(
     save_result_json: str,
     test_profiler: TestProfiler,
     coverage: bool = False,
-    coverage_script_template: str = "",
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -191,9 +199,7 @@ def test_flavor(
         module_path = module.full_path()
         with ctx.cd(module_path):
             packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
-            with CodecovWorkaround(
-                ctx, module_path, coverage, coverage_script_template, packages, args
-            ) as cov_test_path:
+            with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
                 res = ctx.run(
                     command=cmd.format(
                         packages=packages,
@@ -386,18 +392,6 @@ def test(
     govet_flags = '-vet=off'
     gotest_flags = '{verbose} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache}'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
-    if coverage:
-        if platform.system() == 'Windows':
-            coverage_script_template = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
-go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile="$tempFile" {{packages}}
-exit $LASTEXITCODE"""
-        else:
-            coverage_script_template = f"""#!/usr/bin/env bash
-set -eu
-go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mktemp {TMP_PROFILE_COV_PREFIX}.XXXXXXXXXX)\" {{packages}}
-"""
-    else:
-        coverage_script_template = ""
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -442,7 +436,6 @@ go test {gobuild_flags} {govet_flags} {gotest_flags} -json -coverprofile=\"$(mkt
             save_result_json=save_result_json,
             test_profiler=test_profiler,
             coverage=coverage,
-            coverage_script_template=coverage_script_template,
         )
 
     # Output
@@ -750,6 +743,8 @@ def parse_test_log(log_file):
 
 @task
 def get_impacted_packages(ctx, build_tags=None):
+    if build_tags is None:
+        build_tags = []
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
 
@@ -758,6 +753,15 @@ def get_impacted_packages(ctx, build_tags=None):
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
+
+    # Modification to go.mod and go.sum should force the tests of the whole module to run
+    for file in files:
+        if file.endswith("go.mod") or file.endswith("go.sum"):
+            with ctx.cd(os.path.dirname(file)):
+                all_packages = ctx.run(
+                    f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
+                ).stdout.splitlines()
+                modified_packages.update(set(all_packages))
 
     # Modification to fixture folders count as modification to their parent package
     for file in files:
@@ -823,7 +827,7 @@ def format_packages(ctx, impacted_packages):
 
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
-    go_mod_modified_modules = set()
+
     for package in packages:
         match_precision = 0
         best_module_path = None
@@ -842,10 +846,6 @@ def format_packages(ctx, impacted_packages):
                 targeted = True
                 break
         if not targeted:
-            continue
-
-        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
-        if best_module_path in go_mod_modified_modules:
             continue
 
         # If the package has been deleted we do not try to run tests

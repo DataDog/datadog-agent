@@ -24,11 +24,14 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -86,7 +89,7 @@ var ebpfConntrackerRCCreator func(cfg *config.Config) (runtime.CompiledOutput, e
 var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) = getPrebuiltConntracker
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
-func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	if !cfg.EnableEbpfConntracker {
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
@@ -117,7 +120,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *ebpftelemetry.EBPFTele
 
 	defer buf.Close()
 
-	m, err := getManager(cfg, buf, bpfTelemetry, constants)
+	m, err := getManager(cfg, buf, constants)
 	if err != nil {
 		return nil, err
 	}
@@ -390,8 +393,8 @@ func (e *ebpfConntracker) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry.EBPFTelemetry, constants []manager.ConstantEditor) (*manager.Manager, error) {
-	mgr := ebpftelemetry.NewManager(&manager.Manager{
+func getManager(cfg *config.Config, buf io.ReaderAt, constants []manager.ConstantEditor) (*manager.Manager, error) {
+	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
 			{Name: probes.ConntrackTelemetryMap},
@@ -412,7 +415,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry
 				MatchFuncName: "^ctnetlink_fill_info(\\.constprop\\.0)?$",
 			},
 		},
-	}, bpfTelemetry)
+	}, &ebpftelemetry.ErrorsTelemetryModifier{})
 
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
@@ -459,7 +462,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry
 		me.EditorFlag |= manager.EditType
 	}
 
-	err = mgr.InitWithOptions(buf, opts)
+	err = mgr.InitWithOptions(buf, &opts)
 	if err != nil {
 		return nil, err
 	}
@@ -468,6 +471,14 @@ func getManager(cfg *config.Config, buf io.ReaderAt, bpfTelemetry *ebpftelemetry
 }
 
 func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager.ConstantEditor, error) {
+	supportedOnKernel, err := ebpfConntrackerSupportedOnKernel()
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not check if ebpf conntracker is supported on kernel: %w", err)
+	}
+	if !supportedOnKernel {
+		return nil, nil, fmt.Errorf("ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
+	}
+
 	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %s", err)
@@ -487,4 +498,16 @@ func getPrebuiltConntracker(cfg *config.Config) (bytecode.AssetReader, []manager
 	}
 
 	return buf, constants, nil
+}
+
+func ebpfConntrackerSupportedOnKernel() (bool, error) {
+	kv, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		return false, fmt.Errorf("could not get kernel version: %s", err)
+	}
+
+	if kv.Code >= ebpfkernel.Kernel4_14 || kv.IsRH7Kernel() {
+		return true, nil
+	}
+	return false, nil
 }

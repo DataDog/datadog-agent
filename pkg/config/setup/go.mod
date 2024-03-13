@@ -38,7 +38,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )
 

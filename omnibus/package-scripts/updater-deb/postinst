@@ -37,7 +37,9 @@ enable_stable_agents() {
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-trace || true
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-security || true
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent.path || true
         # experiment agents are not enabled as we don't systemctl enable them
+        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-exp.path || true
     fi
 
 
@@ -122,5 +124,7 @@ SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
 enable_stable_agents
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent.path || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent-exp.path || true
 
 exit 0

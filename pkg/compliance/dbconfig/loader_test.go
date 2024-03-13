@@ -60,7 +60,7 @@ func TestDBConfLoader(t *testing.T) {
 
 		proc2, err := process.NewProcessWithContext(ctx, int32(proc.Pid))
 		assert.NoError(t, err)
-		resourceType, ok := getProcResourceType(proc2)
+		resourceType, ok := GetProcResourceType(proc2)
 		assert.True(t, ok)
 		assert.Equal(t, postgresqlResourceType, resourceType)
 

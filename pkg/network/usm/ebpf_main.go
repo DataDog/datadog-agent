@@ -78,7 +78,7 @@ const (
 )
 
 type ebpfProgram struct {
-	*ebpftelemetry.Manager
+	*ddebpf.Manager
 	cfg                   *config.Config
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
@@ -91,7 +91,7 @@ type ebpfProgram struct {
 	buildMode  buildmode.Type
 }
 
-func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTelemetry *ebpftelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -150,12 +150,12 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map, bpfTeleme
 	}
 
 	program := &ebpfProgram{
-		Manager:               ebpftelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:               ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
 
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, bpfTelemetry)
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr)
 	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr)
 
 	if err := program.initProtocols(c); err != nil {
@@ -450,7 +450,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	err := e.InitWithOptions(buf, options)
+	err := e.InitWithOptions(buf, &options)
 	if err != nil {
 		cleanup()
 	} else {

@@ -144,16 +144,17 @@ type Webhook struct {
 	filter            *containers.Filter
 	containerRegistry string
 	pinnedLibraries   []libInfo
+	wmeta             workloadmeta.Component
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook() (*Webhook, error) {
+func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 	filter, err := apmSSINamespaceFilter()
 	if err != nil {
 		return nil, err
 	}
 
-	containerRegistry := config.Datadog.GetString("admission_controller.auto_instrumentation.container_registry")
+	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
 
 	return &Webhook{
 		name:              webhookName,
@@ -164,14 +165,15 @@ func NewWebhook() (*Webhook, error) {
 		filter:            filter,
 		containerRegistry: containerRegistry,
 		pinnedLibraries:   getPinnedLibraries(containerRegistry),
+		wmeta:             wmeta,
 	}, nil
 }
 
 // GetWebhook returns the Webhook instance, creating it if it doesn't exist
-func GetWebhook() (*Webhook, error) {
+func GetWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 	initOnce.Do(func() {
 		if apmInstrumentationWebhook == nil {
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook()
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
 		}
 	})
 
@@ -427,7 +429,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
 	var autoDetected = false
 
 	// The library version specified via annotation on the Pod takes precedence over libraries injected with Single Step Instrumentation
-	if ShouldInject(pod) {
+	if ShouldInject(pod, w.wmeta) {
 		libInfoList = w.extractLibrariesFromAnnotations(pod)
 		if len(libInfoList) > 0 {
 			return libInfoList, autoDetected
@@ -468,8 +470,7 @@ func (w *Webhook) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 		return libList
 	}
 
-	// TODO [Workloadmeta][Component Framework]: Use workloadmeta store as a component
-	store := workloadmeta.GetGlobalStore()
+	store := w.wmeta
 	if store == nil {
 		return libList
 	}
@@ -534,7 +535,7 @@ func (w *Webhook) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 }
 
 // ShouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
-func ShouldInject(pod *corev1.Pod) bool {
+func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component) bool {
 	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
 	if val, found := pod.GetLabels()[common.EnabledLabelKey]; found {
 		switch val {
@@ -547,7 +548,7 @@ func ShouldInject(pod *corev1.Pod) bool {
 		}
 	}
 
-	apmWebhook, err := GetWebhook()
+	apmWebhook, err := GetWebhook(wmeta)
 	if err != nil {
 		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
 	}

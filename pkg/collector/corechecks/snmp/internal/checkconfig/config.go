@@ -20,7 +20,7 @@ import (
 	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
