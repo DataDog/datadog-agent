@@ -32,8 +32,11 @@ import (
 )
 
 const (
-	tracegenUDSTaskName = "tracegen-uds"
-	tracegenTCPTaskName = "tracegen-tcp"
+  taskNameDogstatsdUDS = "dogstatsd-uds"
+	taskNameDogstatsdUDP = "dogstatsd-udp"
+
+	taskNameTracegenUDS = "tracegen-uds"
+	taskNameTracegenTCP = "tracegen-tcp"
 )
 
 type ecsSuite struct {
@@ -188,7 +191,7 @@ func (suite *ecsSuite) TestNginxECS() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
-			Tags: []string{"ecs_launch_type:ec2"},
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -251,7 +254,7 @@ func (suite *ecsSuite) TestRedisECS() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
-			Tags: []string{"ecs_launch_type:ec2"},
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -309,7 +312,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
-			Tags: []string{"ecs_launch_type:fargate"},
+			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -343,7 +346,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
-			Tags: []string{"ecs_launch_type:fargate"},
+			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -376,7 +379,7 @@ func (suite *ecsSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
-				"ecs_container_name:stress-ng",
+				"^ecs_container_name:stress-ng$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -407,17 +410,27 @@ func (suite *ecsSuite) TestCPU() {
 	})
 }
 
-func (suite *ecsSuite) TestDogstatsd() {
-	// Test dogstatsd origin detection with UDS
+func (suite *ecsSuite) TestDogtstatsdUDS() {
+	suite.testDogstatsd(taskNameDogstatsdUDS)
+}
+
+func (suite *ecsSuite) TestDogtstatsdUDP() {
+	suite.testDogstatsd(taskNameDogstatsdUDP)
+}
+
+func (suite *ecsSuite) testDogstatsd(taskName string) {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
+			Tags: []string{
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
-				`^container_name:ecs-.*-dogstatsd-uds-ec2-`,
+				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
@@ -429,8 +442,8 @@ func (suite *ecsSuite) TestDogstatsd() {
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 				`^task_arn:`,
-				`^task_family:.*-dogstatsd-uds-ec2$`,
-				`^task_name:.*-dogstatsd-uds-ec2$`,
+				`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
 		},
@@ -469,11 +482,11 @@ func (suite *ecsSuite) TestPrometheus() {
 }
 
 func (suite *ecsSuite) TestTraceUDS() {
-	suite.testTrace(tracegenUDSTaskName)
+	suite.testTrace(taskNameTracegenUDS)
 }
 
 func (suite *ecsSuite) TestTraceTCP() {
-	suite.testTrace(tracegenTCPTaskName)
+	suite.testTrace(taskNameTracegenTCP)
 }
 
 // testTrace verifies that traces are tagged with container and pod tags.
