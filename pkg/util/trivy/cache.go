@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
-	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
@@ -44,58 +43,23 @@ func defaultCacheDir() string {
 
 // NewCustomBoltCache returns a BoltDB cache using an LRU algorithm with a
 // maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
+func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (*ScannerCache, *ScannerCacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = defaultCacheDir()
 	}
 	db, err := NewBoltDB(cacheDir)
 	if err != nil {
-		return nil, &StubCacheCleaner{}, err
+		return nil, nil, err
 	}
 	cache, err := NewPersistentCache(
 		maxDiskSize,
 		db,
 	)
 	if err != nil {
-		return nil, &StubCacheCleaner{}, err
+		return nil, nil, err
 	}
 	trivyCache := &ScannerCache{Cache: cache}
 	return trivyCache, NewScannerCacheCleaner(trivyCache, wmeta), nil
-}
-
-// CacheCleaner interface
-type CacheCleaner interface {
-	Clean() error
-	setKeysForEntity(entity string, cachedKeys []string)
-}
-
-// StubCacheCleaner is a stub
-type StubCacheCleaner struct{}
-
-// Clean does nothing
-func (c *StubCacheCleaner) Clean() error { return nil }
-
-// setKeysForEntity does nothing
-func (c *StubCacheCleaner) setKeysForEntity(string, []string) {}
-
-// Cache describes an interface for a key-value cache.
-type Cache interface {
-	// Clear removes all entries from the cache and closes it.
-	Clear() error
-	// Close closes the cache.
-	Close() error
-	// Contains returns true if the given key exists in the cache.
-	Contains(key string) bool
-	// Remove deletes the entries associated with the given keys from the cache.
-	Remove(keys []string) error
-	// Set inserts or updates an entry in the cache with the given key-value pair.
-	Set(key string, value []byte) error
-	// Get returns the value associated with the given key. It returns an error if the key was not found.
-	Get(key string) ([]byte, error)
-	// Keys returns the cached keys. Required for the cache cleaning logic.
-	Keys() []string
-	// Len returns the length of the cache. Required for the cache cleaning logic.
-	Len() int
 }
 
 // ScannerCacheCleaner is a cache cleaner for a ScannerCache instance. It holds a map
@@ -115,8 +79,8 @@ func NewScannerCacheCleaner(target *ScannerCache, wmeta optional.Option[workload
 	}
 }
 
-// Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
-func (c *ScannerCacheCleaner) Clean() error {
+// clean removes unused cached entries from the cache.
+func (c *ScannerCacheCleaner) clean() error {
 	instance, ok := c.wmeta.Get()
 	if !ok {
 		return nil
@@ -143,7 +107,7 @@ func (c *ScannerCacheCleaner) Clean() error {
 	return nil
 }
 
-// setKeysForEntity implements CacheCleaner#setKeysForEntity.
+// setKeysForEntity sets keys to .
 func (c *ScannerCacheCleaner) setKeysForEntity(entity string, cachedKeys []string) {
 	c.cachedKeysForEntity[entity] = cachedKeys
 }
@@ -179,7 +143,7 @@ func trivyCacheGet[T cachedObject](cache *ScannerCache, id string) (T, error) {
 // ScannerCache wraps a generic Cache and implements trivy.Cache.
 type ScannerCache struct {
 	// Cache is the underlying cache
-	Cache Cache
+	Cache *PersistentCache
 }
 
 // MissingBlobs implements cache.Cache#MissingBlobs
@@ -291,7 +255,7 @@ func NewPersistentCache(
 	return persistentCache, nil
 }
 
-// Contains implements Cache#Contains. It only performs an in-memory check.
+// Contains returns true if the key is found in the cache. It only performs an in-memory check.
 func (c *PersistentCache) Contains(key string) bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -319,7 +283,7 @@ func (c *PersistentCache) Len() int {
 	return c.lruCache.Len()
 }
 
-// Clear implements Cache#Clear.
+// Clear deletes all the entries in the cache and closes the db.
 func (c *PersistentCache) Clear() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -375,7 +339,7 @@ func (c *PersistentCache) reduceSize(target int) error {
 	return nil
 }
 
-// Close implements Cache#Close
+// Close closes the database.
 func (c *PersistentCache) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -437,7 +401,7 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 	return res, nil
 }
 
-// remove removes an entry from the cache.
+// remove removes an entry from the cache, returning an error if an I/O error occurs.
 func (c *PersistentCache) remove(keys []string) error {
 	removedSize := 0
 	if err := c.db.Delete(keys, func(_ string, value []byte) error {
@@ -455,7 +419,7 @@ func (c *PersistentCache) remove(keys []string) error {
 	return nil
 }
 
-// Remove implements Cache#Remove. It is a thread safe version of remove.
+// Remove removes an entry from the cache.
 func (c *PersistentCache) Remove(keys []string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

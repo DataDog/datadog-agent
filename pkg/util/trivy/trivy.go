@@ -70,7 +70,7 @@ type Collector struct {
 	config           CollectorConfig
 	cacheInitialized sync.Once
 	cache            cache.Cache
-	cacheCleaner     CacheCleaner
+	cacheCleaner     *ScannerCacheCleaner
 	osScanner        ospkg.Scanner
 	langScanner      langpkg.Scanner
 	vulnClient       vulnerability.Client
@@ -206,14 +206,14 @@ func (c *Collector) Close() error {
 // CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
 	if c.cacheCleaner != nil {
-		return c.cacheCleaner.Clean()
+		return c.cacheCleaner.clean()
 	}
 	return nil
 }
 
 // getCache returns the cache with the cache Cleaner. It should initializes the cache
 // only once to avoid blocking the CLI with the `flock` file system.
-func (c *Collector) getCache() (cache.Cache, CacheCleaner, error) {
+func (c *Collector) getCache() (cache.Cache, *ScannerCacheCleaner, error) {
 	var err error
 	c.cacheInitialized.Do(func() {
 		c.cache, c.cacheCleaner, err = NewCustomBoltCache(

@@ -72,6 +72,7 @@ func (b BoltDB) Close() error {
 }
 
 // Delete deletes the given keys from the database and calls the callback for each deleted key-value pair.
+// It returns an error if the transaction fails and returns nil if the key doesn't exist.
 func (b BoltDB) Delete(keys []string, callback onDeleteCallback) error {
 	err := b.db.Update(func(tx *bolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(boltBucket))

@@ -146,7 +146,7 @@ func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 	}
 
 	// Check that the currentCachedObjectTotalSize is equal to the size of the two artifacts
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.Cache
 	require.Equal(t, len(serializedArtifactInfo)*len(artifactIDs), persistentCache.GetCurrentCachedObjectTotalSize())
 
 	// Remove one artifact and check that currentCachedObjectTotalSize is the size of 1 artifact
@@ -184,7 +184,7 @@ func TestCustomBoltCache_Eviction(t *testing.T) {
 	}
 
 	// Make sure the first artifact is evicted while others are still there
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.Cache
 	require.Equal(t, totalSize-artifactSize["key0"], persistentCache.GetCurrentCachedObjectTotalSize())
 
 	for i := 1; i < cacheSize+1; i++ {
@@ -225,7 +225,7 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 	_, err = cache.GetArtifact("key1")
 	require.Error(t, err)
 
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.Cache
 	require.Equal(t, len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
 }
 
@@ -284,7 +284,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	go func() {
 		cleanTicker := time.NewTicker(500 * time.Millisecond)
 		for range cleanTicker.C {
-			cacheCleaner.Clean()
+			cacheCleaner.clean()
 		}
 	}()
 
@@ -360,7 +360,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	serializedBlobInfo, err := json.Marshal(newTestBlobInfo())
 	require.NoError(t, err)
 
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.Cache
 	require.Equal(t, 2*len(serializedBlobInfo)+len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
 }
 
