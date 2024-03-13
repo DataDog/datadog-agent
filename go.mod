@@ -852,7 +852,7 @@ replace github.com/moby/buildkit => github.com/moby/buildkit v0.13.0
 replace modernc.org/sqlite => modernc.org/sqlite v1.19.3
 
 // Fixes eBPF ring buffer corruption, to remove when this is merged upstream
-replace github.com/cilium/ebpf => github.com/paulcacheux/ebpf v0.11.1-0.20240309154158-cb664e155bd2
+replace github.com/cilium/ebpf => github.com/paulcacheux/ebpf v0.11.1-0.20240313120544-20f2f288e96f
 
 // Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
 // https://github.com/open-telemetry/opentelemetry-collector/issues/8127
