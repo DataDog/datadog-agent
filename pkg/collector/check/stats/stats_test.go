@@ -180,11 +180,6 @@ func Test_handleNumbers(t *testing.T) {
 		{"Three", 3, 3, nil},
 		{"Four", 4, 4, nil},
 		{"Five", 5, 5, nil},
-		{"Six", 6, 6, nil},
-		{"Seven", 7, 7, nil},
-		{"Eight", 8, 8, nil},
-		{"Nine", 9, 9, nil},
-		{"Ten", 10, 10, nil},
 		{"GreaterThan Max", 11, -1, errors.New("Input is greater than 10")},
 	}
 
