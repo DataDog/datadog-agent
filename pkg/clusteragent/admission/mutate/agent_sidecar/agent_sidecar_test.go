@@ -19,9 +19,9 @@ import (
 	"testing"
 )
 
-func TestInjectAgentSidecar(t *testing.T) {
-	mockConfig := config.Mock(t)
+const commonRegistry = "gcr.io/datadoghq"
 
+func TestInjectAgentSidecar(t *testing.T) {
 	tests := []struct {
 		Name                      string
 		Pod                       *corev1.Pod
@@ -61,7 +61,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(),
+							*getDefaultSidecarTemplate(commonRegistry),
 						},
 					},
 				}
@@ -106,7 +106,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{Name: "container-name"},
-						*getDefaultSidecarTemplate(),
+						*getDefaultSidecarTemplate(commonRegistry),
 					},
 				},
 			},
@@ -121,7 +121,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(),
+							*getDefaultSidecarTemplate(commonRegistry),
 						},
 					},
 				}
@@ -143,7 +143,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			profilesJSON: "[]",
 			ExpectError:  false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate()
+				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 				withEnvOverrides(&sidecar, corev1.EnvVar{
 					Name:  "DD_EKS_FARGATE",
 					Value: "true",
@@ -193,7 +193,7 @@ func TestInjectAgentSidecar(t *testing.T) {
     }]`,
 			ExpectError: false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate()
+				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 
 				withEnvOverrides(&sidecar, corev1.EnvVar{
 					Name:  "DD_EKS_FARGATE",
@@ -225,10 +225,13 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(tt *testing.T) {
+			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
 
-			err := injectAgentSidecar(test.Pod, "", nil)
+			webhook := NewWebhook()
+
+			err := webhook.injectAgentSidecar(test.Pod, "", nil)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
@@ -257,21 +260,23 @@ func TestInjectAgentSidecar(t *testing.T) {
 }
 
 func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
-	mockConfig := config.Mock(t)
-
 	tests := []struct {
-		name          string
-		setConfig     func()
-		expectedImage string
+		name              string
+		setConfig         func()
+		containerRegistry string
+		expectedImage     string
 	}{
 		{
-			name:          "no configuration set",
-			setConfig:     func() {},
-			expectedImage: "gcr.io/datadoghq/agent:latest",
+			name:              "no configuration set",
+			setConfig:         func() {},
+			containerRegistry: commonRegistry,
+			expectedImage:     fmt.Sprintf("%s/agent:latest", commonRegistry),
 		},
 		{
-			name: "setting custom registry, image and tag",
+			name:              "setting custom registry, image and tag",
+			containerRegistry: "my-registry",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", "my-registry")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_name", "my-image")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_tag", "my-tag")
@@ -283,14 +288,13 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate()
+			sidecar := getDefaultSidecarTemplate(test.containerRegistry)
 			assert.Equal(tt, test.expectedImage, sidecar.Image)
 		})
 	}
 }
 
 func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
-	mockConfig := config.Mock(t)
 
 	tests := []struct {
 		name              string
@@ -301,6 +305,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent not enabled",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
 			},
 			unexpectedEnvVars: []string{
@@ -313,6 +318,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent enabled with default values",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -344,6 +350,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent enabled with custom values",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
 				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")
@@ -379,7 +386,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate()
+			sidecar := getDefaultSidecarTemplate(commonRegistry)
 			envVarsMap := make(map[string]corev1.EnvVar)
 			for _, envVar := range sidecar.Env {
 				envVarsMap[envVar.Name] = envVar

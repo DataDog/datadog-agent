@@ -7,8 +7,6 @@
 package runner
 
 import (
-	"context"
-
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 )
@@ -19,5 +17,4 @@ import (
 type Component interface {
 	GetChecks() []checks.Check
 	GetProvidedChecks() []types.CheckComponent
-	Run(ctx context.Context) error
 }

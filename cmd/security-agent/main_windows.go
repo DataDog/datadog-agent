@@ -136,7 +136,7 @@ func (s *service) Run(svcctx context.Context) error {
 				AgentType: catalog,
 			}
 		}),
-		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, demultiplexer demultiplexer.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 			stopper := startstop.NewSerialStopper()
 
 			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
@@ -150,7 +150,7 @@ func (s *service) Run(svcctx context.Context) error {
 				return status.NewInformationProvider(nil), nil, err
 			}
 
-			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
+			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer, wmeta)
 			if err != nil {
 				return status.NewInformationProvider(nil), nil, err
 			}
