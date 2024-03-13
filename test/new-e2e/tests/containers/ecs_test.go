@@ -522,7 +522,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				regexp.MustCompile(`^task_family:.*-` + taskName + `-ec2$`),
 				regexp.MustCompile(`^task_name:.*-` + taskName + `-ec2$`),
 				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
-			})
+			}, false)
 			if err == nil {
 				break
 			}
