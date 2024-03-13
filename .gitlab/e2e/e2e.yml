@@ -176,7 +176,6 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxSecretSuite
       - EXTRA_PARAMS: --run TestWindowsSecretSuite
       - EXTRA_PARAMS: --run TestLinuxCheckSuite
-  allow_failure: true # TODO: To remove when the tests are stable
 
 new-e2e-language-detection:
   extends: .new_e2e_template
