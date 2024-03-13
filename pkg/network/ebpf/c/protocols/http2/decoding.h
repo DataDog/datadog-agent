@@ -606,14 +606,13 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
         // Deleting the entry for the original tuple.
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+        delete_frame_header(&dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
         terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
         // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
         flip_tuple(&dispatcher_args_copy.tup);
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
         return 0;
     }
 
@@ -638,7 +637,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
-    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    frame_header_remainder_t *frame_state = get_frame_remainder(&dispatcher_args_copy.tup);
 
     http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
     if (http2_tel == NULL) {
@@ -648,7 +647,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     bool has_valid_first_frame = get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame, http2_tel);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+        delete_frame_header(&dispatcher_args_copy.tup);
     }
 
     if (!has_valid_first_frame) {
@@ -679,7 +678,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         }
 
         iteration_value->frames_count = 0;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        save_frame_header(&dispatcher_args_copy.tup, &new_frame_state);
         // Not calling the next tail call as we have nothing to process.
         return 0;
     }
@@ -740,7 +739,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (local_skb_info.data_off > local_skb_info.data_end) {
         // We have a remainder
         new_frame_state.remainder = local_skb_info.data_off - local_skb_info.data_end;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        save_frame_header(&dispatcher_args_copy.tup, &new_frame_state);
     } else if (local_skb_info.data_off < local_skb_info.data_end && local_skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > local_skb_info.data_end) {
         // We have a frame header remainder
         new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (local_skb_info.data_end - local_skb_info.data_off);
@@ -750,7 +749,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
             bpf_skb_load_bytes(skb, local_skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
         }
         new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        save_frame_header(&dispatcher_args_copy.tup, &new_frame_state);
     }
 
     if (iteration_value->frames_count == 0) {

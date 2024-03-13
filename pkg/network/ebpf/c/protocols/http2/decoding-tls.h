@@ -623,7 +623,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         return 0;
     }
 
-    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    frame_header_remainder_t *frame_state = get_frame_remainder(&dispatcher_args_copy.tup);
 
     http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
     if (http2_tel == NULL) {
@@ -633,7 +633,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     bool has_valid_first_frame = tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+        delete_frame_header(&dispatcher_args_copy.tup);
     }
     if (!has_valid_first_frame) {
         return 0;
@@ -663,7 +663,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         }
 
         iteration_value->frames_count = 0;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        save_frame_header(&dispatcher_args_copy.tup, &new_frame_state);
         // Not calling the next tail call as we have nothing to process.
         return 0;
     }
@@ -712,7 +712,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     if (dispatcher_args_copy.data_off > dispatcher_args_copy.data_end) {
         // We have a remainder
         new_frame_state.remainder = dispatcher_args_copy.data_off - dispatcher_args_copy.data_end;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        save_frame_header(&dispatcher_args_copy.tup, &new_frame_state);
     } else if (dispatcher_args_copy.data_off < dispatcher_args_copy.data_end && dispatcher_args_copy.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.data_end) {
         // We have a frame header remainder
         new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.data_end - dispatcher_args_copy.data_off);
@@ -722,7 +722,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
             bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.data_off + iteration);
         }
         new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        save_frame_header(&dispatcher_args_copy.tup, &new_frame_state);
     }
 
     if (iteration_value->frames_count == 0) {
@@ -1012,13 +1012,12 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
 
     terminated_http2_batch_enqueue(&args->tup);
     // Deleting the entry for the original tuple.
-    bpf_map_delete_elem(&http2_remainder, &args->tup);
+    delete_frame_header(&args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
     // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
     // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
     flip_tuple(&args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
-    bpf_map_delete_elem(&http2_remainder, &args->tup);
 
     bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
