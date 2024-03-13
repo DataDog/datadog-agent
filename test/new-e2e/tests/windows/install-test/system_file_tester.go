@@ -6,106 +6,17 @@
 package installtest
 
 import (
-	"errors"
-	"fmt"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-
-	"testing"
-
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
-// SystemFileIntegrityTester is a test helper for testing that system files are not removed.
-type SystemFileIntegrityTester struct {
-	host *components.RemoteHost
-
-	firstSnapshotPath  string
-	secondSnapshotPath string
-}
-
-// NewSystemFileIntegrityTester creates a new SystemFileIntegrityTester
-func NewSystemFileIntegrityTester(host *components.RemoteHost) *SystemFileIntegrityTester {
-	t := &SystemFileIntegrityTester{}
-
-	t.host = host
-
-	t.firstSnapshotPath = `C:\Windows\SystemDirListBeforeInstall.txt`
-	t.secondSnapshotPath = `C:\Windows\SystemDirListAfterUninstall.txt`
-
-	return t
-}
-
-// FirstSnapshotTaken returns true if the first snapshot exists
-func (t *SystemFileIntegrityTester) FirstSnapshotTaken() (bool, error) {
-	return t.host.FileExists(t.firstSnapshotPath)
-}
-
-// TakeSnapshot takes a snapshot of the system files that can be used to compare against later.
-// The snapshot is overridden if it already exists.
-func (t *SystemFileIntegrityTester) TakeSnapshot() error {
-	return snapshotSystemfiles(t.host, t.firstSnapshotPath)
-}
-
-// RemoveSnapshots removes any snapshots if they exist
-func (t *SystemFileIntegrityTester) RemoveSnapshots() error {
-	// continue on error, return all errors
-	var combinedErr error
-	snapshots := []string{
-		t.firstSnapshotPath,
-		t.secondSnapshotPath,
-	}
-	for _, path := range snapshots {
-		exists, err := t.host.FileExists(path)
-		if err != nil {
-			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to check if snapshot exists %s: %w", path, err))
-			continue
-		}
-		if !exists {
-			continue
-		}
-		err = t.host.Remove(path)
-		if err != nil {
-			combinedErr = errors.Join(combinedErr, fmt.Errorf("failed to remove snapshot %s: %w", path, err))
-			continue
-		}
-	}
-	return combinedErr
-}
-
-// AssertDoesRemoveSystemFiles takes a new snapshot and compares it to the original snapshot taken
-// by TakeSnapshot(). If any files have been removes the test will fail.
-func (t *SystemFileIntegrityTester) AssertDoesRemoveSystemFiles(tt *testing.T) bool {
-	tt.Helper()
-
-	// ensure initial snapshot exists
-	err := validateSystemFileSnapshot(t.host, t.firstSnapshotPath)
-	if !assert.NoError(tt, err) {
-		return false
-	}
-
-	// take a new snapshot
-	err = snapshotSystemfiles(t.host, t.secondSnapshotPath)
-	if !assert.NoError(tt, err) {
-		return false
-	}
-	err = validateSystemFileSnapshot(t.host, t.secondSnapshotPath)
-	if !assert.NoError(tt, err) {
-		return false
-	}
-
-	// compare the two snapshots
-	return assertDoesRemoveSystemFiles(tt, t.host, t.firstSnapshotPath, t.secondSnapshotPath)
-}
-
-// snapshotSystemfiles saves a list of system files to a file on the remote host.
-// Some system paths are ignored because they are known to frequently change.
-func snapshotSystemfiles(host *components.RemoteHost, remotePath string) error {
+func SystemPaths() []string {
 	// Ignore these paths when collecting the list of files, they are known to frequently change
 	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
-	ignorePaths := []string{
+	return []string{
 		`C:\Windows\assembly\`,
 		`C:\Windows\Microsoft.NET\assembly\`,
 		`C:\windows\AppReadiness\`,
@@ -127,75 +38,19 @@ func snapshotSystemfiles(host *components.RemoteHost, remotePath string) error {
 		`c:\windows\ServiceProfiles\NetworkService\AppData\`,
 		`C:\Windows\System32\Tasks\`,
 	}
-	// quote each path and join with commas
-	pattern := ""
-	for _, ignorePath := range ignorePaths {
-		pattern += fmt.Sprintf(`'%s',`, ignorePath)
-	}
-	// PowerShell list syntax
-	pattern = fmt.Sprintf(`@(%s)`, strings.Trim(pattern, ","))
-	// Recursively list Windows directory and ignore the paths above
-	// Compare-Object is case insensitive by default
-	cmd := fmt.Sprintf(`cmd /c dir C:\Windows /b /s | Out-String -Stream | Select-String -NotMatch -SimpleMatch -Pattern %s | Select -ExpandProperty Line > "%s"`, pattern, remotePath)
-	if len(cmd) > 8192 {
-		return fmt.Errorf("command length %d exceeds max command length: '%s'", len(cmd), cmd)
-	}
-	_, err := host.Execute(cmd)
-	if err != nil {
-		return fmt.Errorf("snapshot system files command failed: %s", err)
-	}
-	return nil
 }
 
-// validateSystemFileSnapshot ensures the snapshot file exists and is a reasonable size
-func validateSystemFileSnapshot(host *components.RemoteHost, remotePath string) error {
-	// ensure file exists
-	_, err := host.Lstat(remotePath)
-	if err != nil {
-		return fmt.Errorf("system file snapshot %s does not exist: %w", remotePath, err)
-	}
-	// sanity check to ensure file contains a reasonable amount of output
-	stat, err := host.Lstat(remotePath)
-	if err != nil {
-		return fmt.Errorf("failed to stat %s: %w", remotePath, err)
-	}
-	if stat.Size() < int64(1024*1024) {
-		return fmt.Errorf("system file snapshot %s is too small: %d bytes", remotePath, stat.Size())
-	}
-	return nil
-}
+func AssertDoesNotChangeSystemFiles(t *testing.T, host *components.RemoteHost, beforeInstall *windowsCommon.FileSystemSnapshot) {
+	t.Run("does not change system files", func(tt *testing.T) {
+		afterUninstall, err := windowsCommon.NewFileSystemSnapshot(host, SystemPaths())
+		result, err := beforeInstall.CompareSnapshots(host, afterUninstall)
+		assert.NoError(tt, err)
 
-// getLinesMissingFromSecondSnapshot compares two system file snapshots and returns a list of files that are missing in the second snapshot
-func getLinesMissingFromSecondSnapshot(host *components.RemoteHost, beforeSnapshotPath string, afterSnapshotPath string) (string, error) {
-	// Diff the two files on the remote host, selecting missing items
-	// diffing remotely saves bandwidth and is faster than downloading the (relatively large) files
-	cmd := fmt.Sprintf(`Compare-Object -ReferenceObject (Get-Content "%s") -DifferenceObject (Get-Content "%s") | Where-Object -Property SideIndicator -EQ '<=' | Select -ExpandProperty InputObject`, beforeSnapshotPath, afterSnapshotPath)
-	output, err := host.Execute(cmd)
-	if err != nil {
-		return "", fmt.Errorf("compare system files command failed: %s", err)
-	}
-	output = strings.TrimSpace(output)
-	return output, nil
-}
-
-// assertDoesRemoveSystemFiles compares two system file snapshots and fails the test if any files are missing in the second snapshot
-func assertDoesRemoveSystemFiles(tt *testing.T, host *components.RemoteHost, beforeSnapshotPath string, afterSnapshotPath string) bool {
-	output, err := getLinesMissingFromSecondSnapshot(host, beforeSnapshotPath, afterSnapshotPath)
-	if !assert.NoError(tt, err) {
-		return false
-	}
-	if output != "" {
-		// Log result since flake.Mark may skip the test before the assertion is run
-		tt.Logf("should not remove system files: %s", output)
 		// Since the result of this test can depend on Windows behavior unrelated to the agent,
 		// we mark it as flaky so it doesn't block PRs.
 		// See WINA-624 for investigation into better ways to perform this test.
-		// If new Windows paths must be ignored, add them to the ignorePaths list in snapshotSystemfiles.
+		// If new Windows paths must be ignored, add them to the ignorePaths list in SystemPaths.
 		flake.Mark(tt)
-		// Skipping does not remove the failed test status, so we must run the assertion after flake.Mark.
-		if !assert.Empty(tt, output, "should not remove system files") {
-			return false
-		}
-	}
-	return true
+		assert.Empty(tt, result, "should not remove system files")
+	})
 }
