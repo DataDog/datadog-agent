@@ -28,16 +28,18 @@ const (
 	updaterSystemdCommandsStartExperimentPath = updaterSystemdCommandsPath + "/start_experiment"
 	updaterSystemdCommandsStopExperimentPath  = updaterSystemdCommandsPath + "/stop_experiment"
 
-	configsDir = "/etc"
+	defaultConfigsDir = "/etc"
 )
 
 type installer struct {
 	repositories *repository.Repositories
+	configsDir   string
 }
 
 func newInstaller(repositories *repository.Repositories) *installer {
 	return &installer{
 		repositories: repositories,
+		configsDir:   defaultConfigsDir,
 	}
 }
 
@@ -47,7 +49,7 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(configsDir, pkg)
+	configDir := filepath.Join(i.configsDir, pkg)
 	err = extractPackageLayers(image, configDir, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
@@ -61,7 +63,7 @@ func (i *installer) installExperiment(pkg string, version string, image oci.Imag
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(configsDir, pkg)
+	configDir := filepath.Join(i.configsDir, pkg)
 	err = extractPackageLayers(image, configDir, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
