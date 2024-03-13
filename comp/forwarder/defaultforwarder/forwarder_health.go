@@ -100,12 +100,13 @@ func (fh *forwarderHealth) init() {
 	// when the config updates the "api_key", process that change
 	if fh.config != nil {
 		fh.config.OnUpdate(func(setting string, oldValue, newValue any) {
-			if setting == "api_key" {
-				oldAPIKey, ok1 := oldValue.(string)
-				newAPIKey, ok2 := newValue.(string)
-				if ok1 && ok2 {
-					fh.updateAPIKey(oldAPIKey, newAPIKey)
-				}
+			if setting != "api_key" {
+				return
+			}
+			oldAPIKey, ok1 := oldValue.(string)
+			newAPIKey, ok2 := newValue.(string)
+			if ok1 && ok2 {
+				fh.updateAPIKey(oldAPIKey, newAPIKey)
 			}
 		})
 	}
