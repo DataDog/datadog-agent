@@ -663,8 +663,8 @@ github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:ma
 github.com/cpuguy83/go-md2man/v2 v2.0.0/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
 github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/cri-o/ocicni v0.4.0 h1:FKTiq4CESW5OfqM3M87KyHApcawtWw5EwufMiZyXYb0=
-github.com/cri-o/ocicni v0.4.0/go.mod h1:/L2k9zk6l2O1FbE4xY1qTqSWJBqobOvsoYlkghIhjmk=
+github.com/cri-o/ocicni v0.4.1 h1:B7pFAppK9uH2+SJcXaRsS66rDFkKN5JS4XTWSSdzG8Q=
+github.com/cri-o/ocicni v0.4.1/go.mod h1:DrssTsfNjqxATkG4BTaMg9EnE5dLIhpPXxrzsdh4QpY=
 github.com/csaf-poc/csaf_distribution/v3 v3.0.0 h1:ob9+Fmpff0YWgTP3dYaw7G2hKQ9cegh9l3zksc+q3sM=
 github.com/csaf-poc/csaf_distribution/v3 v3.0.0/go.mod h1:uilCTiNKivq+6zrDvjtZaUeLk70oe21iwKivo6ILwlQ=
 github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
