@@ -177,3 +177,30 @@ func TestSpanKindIsConsumerOrProducer(t *testing.T) {
 		assert.Equal(t, tc.res, clientOrProducer(tc.input))
 	}
 }
+
+func TestIsRootSpan(t *testing.T) {
+	for _, tt := range []struct {
+		in          *pb.Span
+		isTraceRoot bool
+	}{
+		{
+			&pb.Span{},
+			true,
+		},
+		{
+			&pb.Span{
+				ParentID: 0,
+			},
+			true,
+		},
+		{
+			&pb.Span{
+				ParentID: 123,
+			},
+			false,
+		},
+	} {
+		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, []string{})
+		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
+	}
+}

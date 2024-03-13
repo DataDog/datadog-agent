@@ -411,8 +411,8 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		// 2 buckets old, part of the first flush
 		testSpan(now, 1, 0, 24, 2, "A1", "resource1", 0, nil),
 		testSpan(now, 2, 0, 12, 2, "A1", "resource1", 2, nil),
-		testSpan(now, 3, 0, 40, 2, "A2", "resource2", 2, nil),
-		testSpan(now, 4, 0, 300000000000, 2, "A2", "resource2", 2, nil), // 5 minutes trace
+		testSpan(now, 3, 1, 40, 2, "A2", "resource2", 2, nil),
+		testSpan(now, 4, 1, 300000000000, 2, "A2", "resource2", 2, nil), // 5 minutes trace
 		testSpan(now, 5, 0, 30, 2, "A2", "resourcefoo", 0, nil),
 		// 1 bucket old, part of the second flush
 		testSpan(now, 6, 0, 24, 1, "A1", "resource2", 0, nil),
@@ -421,7 +421,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		testSpan(now, 9, 0, 30, 1, "A2", "resource2", 2, nil),
 		testSpan(now, 10, 0, 3600000000000, 1, "A2", "resourcefoo", 0, nil), // 1 hour trace
 		// present data, part of the third flush
-		testSpan(now, 6, 0, 24, 0, "A1", "resource2", 0, nil),
+		testSpan(now, 6, 100, 24, 0, "A1", "resource2", 0, nil),
 	}
 
 	expectedCountValByKeyByTime := make(map[int64][]*pb.ClientGroupedStats)
@@ -447,7 +447,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         2,
 			TopLevelHits: 2,
 			Errors:       2,
-			IsTraceRoot:  true,
+			IsTraceRoot:  false,
 		},
 		{
 			Service:      "A2",
@@ -554,7 +554,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  true,
+			IsTraceRoot:  false,
 		},
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
