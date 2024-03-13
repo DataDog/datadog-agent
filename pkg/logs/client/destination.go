@@ -10,6 +10,11 @@ import "github.com/DataDog/datadog-agent/pkg/logs/message"
 
 // Destination sends a payload to a specific endpoint over a given network protocol.
 type Destination interface {
+	// Whether or not destination is used for High Availability mode
+	IsHA() bool
+
+	// Destination target (e.g. https://agent-intake.logs.datadoghq.com)
+	Target() string
 
 	// Start starts the destination send loop. close the intput to stop listening for payloads. stopChan is
 	// signaled when the destination has fully shutdown and all buffered payloads have been flushed. isRetrying is
