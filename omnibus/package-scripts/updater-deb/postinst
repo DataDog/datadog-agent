@@ -37,7 +37,9 @@ enable_stable_agents() {
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-trace || true
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-security || true
         SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent || true
+        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent.path || true
         # experiment agents are not enabled as we don't systemctl enable them
+        SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-agent-exp.path || true
     fi
 
 
@@ -108,11 +110,6 @@ if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
     chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
 fi
 
-# todo remove this once in install script
-# a datadog.yaml file with an api_key is required for the agent bootstrap below
-if [ ! -f "$CONFIG_DIR/datadog.yaml" ]; then
-    echo "api_key: 00000000000000000000000000000000" > "$CONFIG_DIR/datadog.yaml"
-fi
 $INSTALL_DIR/updater/bin/updater/updater bootstrap -P datadog-agent
 # Bootstrap installs first agent with root ownership, overriding to dd-agent
 chown -R dd-agent:dd-agent ${PACKAGES_DIR}
@@ -122,5 +119,7 @@ SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
 enable_stable_agents
 SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent.path || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-agent-exp.path || true
 
 exit 0

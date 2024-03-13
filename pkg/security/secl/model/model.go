@@ -208,6 +208,11 @@ func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
 }
 
+// HasActiveActivityDump returns true if the event has an active activity dump associated to it
+func (e *Event) HasActiveActivityDump() bool {
+	return e.Flags&EventFlagsHasActiveActivityDump > 0
+}
+
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
@@ -313,7 +318,6 @@ type MatchedRule struct {
 
 // ActionReport defines an action report
 type ActionReport interface {
-	Type() string
 	ToJSON() ([]byte, error)
 }
 

@@ -437,7 +437,7 @@ static __always_inline void tls_fix_header_frame(tls_dispatcher_arguments_t *inf
 }
 
 static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
-    // No state, try reading a frame.
+    // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
     if (frame_state == NULL) {
         // Checking we have enough bytes in the packet to read a frame header.
         if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
@@ -483,33 +483,29 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
             frame_state->remainder = 0;
             return true;
         }
-
+        frame_state->remainder = 0;
         // We couldn't read frame header using the remainder.
         return false;
     }
 
-    // Checking if we can read a frame header.
-    if (info->data_off + HTTP2_FRAME_HEADER_SIZE <= info->data_end) {
-        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
-        if (format_http2_frame_header(current_frame)) {
-            // We successfully read a valid frame.
-            info->data_off += HTTP2_FRAME_HEADER_SIZE;
-            return true;
-        }
-    }
-
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
+        // To make a "best effort," if we are in a state where we are left with a remainder, and the length of it from
+        // our current position is larger than the data end, we will attempt to handle the remaining buffer as much as possible.
+        if (info->data_off + frame_state->remainder > info->data_end) {
+            frame_state->remainder -= info->data_end - info->data_off;
+            info->data_off = info->data_end;
+            return false;
+        }
         info->data_off += frame_state->remainder;
         // The remainders "ends" the current packet. No interesting frames were found.
+        frame_state->remainder = 0;
         if (info->data_off == info->data_end) {
-            frame_state->remainder = 0;
             return false;
         }
         reset_frame(current_frame);
         read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
         if (format_http2_frame_header(current_frame)) {
-            frame_state->remainder = 0;
             info->data_off += HTTP2_FRAME_HEADER_SIZE;
             return true;
         }
@@ -551,6 +547,8 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
             break;
         }
 
+        check_frame_split(http2_tel, info->data_off, info->data_end, current_frame);
+
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
@@ -560,11 +558,6 @@ static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t 
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
             iteration_value->frames_array[iteration_value->frames_count].offset = info->data_off;
             iteration_value->frames_count++;
-        }
-
-        // We are not checking for frame splits in the previous condition due to a verifier issue.
-        if (is_headers_or_rst_frame || is_data_end_of_stream) {
-            check_frame_split(http2_tel, info->data_off, info->data_end, current_frame.length);
         }
 
         info->data_off += current_frame.length;
@@ -625,6 +618,10 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
     // skip HTTP2 magic, if present
     tls_skip_preface(&dispatcher_args_copy);
+    if (dispatcher_args_copy.data_off == dispatcher_args_copy.data_end) {
+        // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
+        return 0;
+    }
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
 
@@ -633,7 +630,12 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         return 0;
     }
 
-    if (!tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel)) {
+    bool has_valid_first_frame = tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel);
+    // If we have a state and we consumed it, then delete it.
+    if (frame_state != NULL && frame_state->remainder == 0) {
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    }
+    if (!has_valid_first_frame) {
         return 0;
     }
 
@@ -642,10 +644,10 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
 
+    check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame);
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
-        check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame.length);
         iteration_value->frames_array[0].frame = current_frame;
         iteration_value->frames_array[0].offset = dispatcher_args_copy.data_off;
         iteration_value->frames_count = 1;
@@ -743,9 +745,13 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     return 0;
 }
 
-// http2_tls_headers_parser parses the headers of the interesting HTTP2 frames
-// found in http2_tls_filter. We are trying to find the request path, status code,
-// and method of the request.
+
+// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
+// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
+// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
+// than the maximum number of frames we can process in a single tail call.
+// The program is being called after uprobe__http2_tls_filter, and it is being called only if we have interesting frames.
+// The program calls uprobe__http2_dynamic_table_cleaner to clean the dynamic table if needed.
 SEC("uprobe/http2_tls_headers_parser")
 int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -834,6 +840,8 @@ delete_iteration:
     return 0;
 }
 
+// The program is responsible for cleaning the dynamic table.
+// The program calls uprobe__http2_tls_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
 SEC("uprobe/http2_dynamic_table_cleaner")
 int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -884,8 +892,14 @@ next:
     return 0;
 }
 
-// http2_tls_eos_parser parses the EOS HTTP2 frames similar to
-// http2_tls_headers_parser.
+// The program is responsible for parsing all frames that mark the end of a stream.
+// We consider a frame as marking the end of a stream if it is either:
+//  - An headers or data frame with END_STREAM flag set.
+//  - An RST_STREAM frame.
+// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
+// to be sent to the user mode.
+// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
+// process than the maximum number of frames we can process in a single tail call.
 SEC("uprobe/http2_tls_eos_parser")
 int uprobe__http2_tls_eos_parser(struct pt_regs *ctx) {
     const __u32 zero = 0;

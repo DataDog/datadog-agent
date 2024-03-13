@@ -16,21 +16,12 @@ var (
 )
 
 var (
-	// OkResponses tracks the number the request was processed successfully
-	OkResponses = telemetry.NewCounterWithOpts(
+	// ProcessedRequests tracks the number requests processed by the handler
+	ProcessedRequests = telemetry.NewCounterWithOpts(
 		subsystem,
-		"ok_response",
-		[]string{},
-		"Tracks the number of times request processing succeeds",
-		commonOpts,
-	)
-
-	// ErrorResponses tracks the number of times request processsing fails
-	ErrorResponses = telemetry.NewCounterWithOpts(
-		subsystem,
-		"fail_response",
-		[]string{},
-		"Tracks the number of times request processing fails",
+		"processed_requests",
+		[]string{"status"},
+		"Tracks the number of requests processed by the handler",
 		commonOpts,
 	)
 )
