@@ -18,12 +18,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -509,6 +509,10 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 
 	if ad.state != Running {
 		// this activity dump is not running, ignore event
+		return
+	}
+
+	if !ad.MatchesSelector(event.ProcessCacheEntry) {
 		return
 	}
 

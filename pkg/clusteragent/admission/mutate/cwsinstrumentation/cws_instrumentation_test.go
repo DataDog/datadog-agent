@@ -445,6 +445,8 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 }
 
 func Test_injectCWSPodInstrumentation(t *testing.T) {
+	commonRegistry := "gcr.io/datadoghq"
+
 	type args struct {
 		pod *corev1.Pod
 		ns  string
@@ -457,7 +459,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		cwsInjectorImageTag          string
 		cwsInjectorContainerRegistry string
 	}
-	mockConfig := config.Mock(t)
 	tests := []struct {
 		name                  string
 		args                  args
@@ -490,7 +491,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -513,7 +514,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:my-tag",
+				Image:   fmt.Sprintf("%s/my-image:my-tag", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -570,7 +571,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -630,7 +631,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -670,7 +671,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -684,11 +685,15 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_tag", tt.args.cwsInjectorImageTag)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
+			mockConfig.SetWithoutSource("admission_controller.container_registry", commonRegistry)
+			if tt.args.cwsInjectorContainerRegistry != "" {
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
+			}
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.cpu", "")
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.memory", "")
 

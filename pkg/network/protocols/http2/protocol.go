@@ -201,7 +201,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
-		dynamicTable:               NewDynamicTable(),
+		dynamicTable:               NewDynamicTable(cfg),
 	}, nil
 }
 
@@ -211,8 +211,7 @@ func (p *Protocol) Name() string {
 }
 
 const (
-	mapSizeValue        = 1024
-	dynamicMapSizeValue = 10240
+	mapSizeValue = 1024
 )
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
@@ -227,11 +226,11 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
-		MaxEntries: dynamicMapSizeValue,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
-		MaxEntries: dynamicMapSizeValue,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
@@ -246,7 +245,7 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	utils.EnableOption(opts, "terminated_http2_monitoring_enabled")
 	// Configure event stream
-	events.Configure(eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, mgr, opts)
 	p.dynamicTable.configureOptions(mgr, opts)
 }
 

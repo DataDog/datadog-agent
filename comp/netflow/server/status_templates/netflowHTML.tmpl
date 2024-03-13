@@ -5,7 +5,7 @@
         Total Listeners: {{.TotalListeners}}
         <br>Open Listeners: {{.OpenListeners}}
         <br>Closed Listeners: {{.ClosedListeners}}
-        {{ if .OpenListeners }}
+        {{- if .OpenListeners }}
         <span class="stat_subtitle">Open Listener Details</span>
         {{- range $index, $NetflowListenerStatus := .WorkingListenerDetails }}
         BindHost: {{$NetflowListenerStatus.Config.BindHost}}
@@ -17,9 +17,9 @@
         <br>
         <br>
         {{- end }}
-        {{ end }}
+        {{- end }}
         <br>
-        {{ if .ClosedListeners }}
+        {{- if .ClosedListeners }}
         <br>
         <span class="stat_subtitle">Closed Listener Details</span>
         {{- range $index, $NetflowListenerStatus := .ClosedListenerDetails }}
@@ -32,7 +32,7 @@
         <br>
         <br>
         {{- end }}
-        {{ end }}
+        {{- end }}
     </span>
   </div>
 {{- end -}}

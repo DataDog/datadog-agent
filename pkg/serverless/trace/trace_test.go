@@ -9,12 +9,14 @@ package trace
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -178,4 +180,18 @@ func TestFilterServerlessSpanFromTracer(t *testing.T) {
 		Resource: invocationSpanResource,
 	}
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&span))
+}
+
+func TestGetDDOriginCloudServices(t *testing.T) {
+	serviceToEnvVar := map[string]string{
+		"cloudrun":     cloudservice.ServiceNameEnvVar,
+		"appservice":   cloudservice.RunZip,
+		"containerapp": cloudservice.ContainerAppNameEnvVar,
+		"lambda":       functionNameEnvVar,
+	}
+	for service, envVar := range serviceToEnvVar {
+		t.Setenv(envVar, "myService")
+		assert.Equal(t, service, getDDOrigin())
+		os.Unsetenv(envVar)
+	}
 }

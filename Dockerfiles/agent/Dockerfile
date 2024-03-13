@@ -169,9 +169,9 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
   # - Remove the /var/run -> /run symlink and create a legit /var/run folder
   # as some docker versions re-create /run from zero at container start
   && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
-  && rm /var/run && mkdir -p /var/run/s6 \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
+  && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
+  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
   && chmod 755 /probe.sh /initlog.sh \
   && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh

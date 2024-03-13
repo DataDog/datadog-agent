@@ -7,9 +7,8 @@
 package model
 
 import (
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/slices"
 )
 
 const (
