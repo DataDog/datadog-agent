@@ -2119,6 +2119,7 @@ func TestConntrackerFallback(t *testing.T) {
 	}
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
+	require.Equal(t, "netlink", conntracker.GetType())
 }
 
 func testConfig() *config.Config {

@@ -222,6 +222,11 @@ func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.Conne
 	}
 }
 
+// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+func (e *ebpfConntracker) GetType() string {
+	return "ebpf"
+}
+
 func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *network.IPTranslation {
 	start := time.Now()
 	src := tuplePool.Get().(*netebpf.ConntrackTuple)

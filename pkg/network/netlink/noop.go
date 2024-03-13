@@ -22,6 +22,9 @@ func NewNoOpConntracker() Conntracker {
 	return &noOpConntracker{}
 }
 
+// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+func (*noOpConntracker) GetType() string { return "" }
+
 //nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	return nil
