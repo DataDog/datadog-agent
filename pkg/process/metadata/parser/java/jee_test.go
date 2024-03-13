@@ -71,19 +71,26 @@ func TestResolveAppServerFromCmdLine(t *testing.T) {
 			expectedVendor: weblogic,
 		},
 		{
-			name: "websphere",
-			rawCmd: `/opt/java/openjdk/bin/java -javaagent:/opt/ol/wlp/bin/tools/ws-javaagent.jar -Djava.awt.headless=true
--Djdk.attach.allowAttachSelf=true --add-exportsjava.base/sun.security.action=ALL-UNNAMED --add-exportsjava.naming/com.sun.jndi.ldap=ALL-UNNAMED
---add-exportsjava.naming/com.sun.jndi.url.ldap=ALL-UNNAMED --add-exportsjdk.naming.dns/com.sun.jndi.dns=ALL-UNNAMED
---add-exportsjava.security.jgss/sun.security.krb5.internal=ALL-UNNAMED --add-exportsjdk.attach/sun.tools.attach=ALL-UNNAMED
---add-opensjava.base/java.util=ALL-UNNAMED --add-opensjava.base/java.lang=ALL-UNNAMED --add-opensjava.base/java.util.concurrent=ALL-UNNAMED
---add-opensjava.base/java.io=ALL-UNNAMED --add-opensjava.naming/javax.naming.spi=ALL-UNNAMED --add-opensjdk.naming.rmi/com.sun.jndi.url.rmi=ALL-UNNAMED
---add-opensjava.naming/javax.naming=ALL-UNNAMED --add-opensjava.rmi/java.rmi=ALL-UNNAMED --add-opensjava.sql/java.sql=ALL-UNNAMED
---add-opensjava.management/javax.management=ALL-UNNAMED --add-opensjava.base/java.lang.reflect=ALL-UNNAMED --add-opensjava.desktop/java.awt.image=ALL-UNNAMED
---add-opensjava.base/java.security=ALL-UNNAMED --add-opensjava.base/java.net=ALL-UNNAMED --add-opensjava.base/java.text=ALL-UNNAMED
---add-opensjava.base/sun.net.www.protocol.https=ALL-UNNAMED --add-exportsjdk.management.agent/jdk.internal.agent=ALL-UNNAMED
---add-exportsjava.base/jdk.internal.vm=ALL-UNNAMED -jar /opt/ol/wlp/bin/tools/ws-server.jar defaultServer`,
-			expectedHome:   "",
+			name: "websphere traditional 9.x",
+			rawCmd: `/opt/IBM/WebSphere/AppServer/java/8.0/bin/java -Dosgi.install.area=/opt/IBM/WebSphere/AppServer
+-Dwas.status.socket=43471 -Dosgi.configuration.area=/opt/IBM/WebSphere/AppServer/profiles/AppSrv01/servers/server1/configuration
+-Djava.awt.headless=true -Dosgi.framework.extensions=com.ibm.cds,com.ibm.ws.eclipse.adaptors
+-Xshareclasses:name=webspherev9_8.0_64_%g,nonFatal -Dcom.ibm.xtq.processor.overrideSecureProcessing=true -Xcheck:dump
+-Djava.security.properties=/opt/IBM/WebSphere/AppServer/properties/java.security -Djava.security.policy=/opt/IBM/WebSphere/AppServer/properties/java.policy
+-Dcom.ibm.CORBA.ORBPropertyFilePath=/opt/IBM/WebSphere/AppServer/properties -Xbootclasspath/p:/opt/IBM/WebSphere/AppServer/java/8.0/jre/lib/ibmorb.jar
+-classpath /opt/IBM/WebSphere/AppServer/profiles/AppSrv01/properties:/opt/IBM/WebSphere/AppServer/properties:/opt/IBM/WebSphere/AppServer/lib/startup.jar:shortened.jar
+-Dibm.websphere.internalClassAccessMode=allow -Xms50m -Xmx1962m -Xcompressedrefs -Xscmaxaot12M -Xscmx90M
+-Dws.ext.dirs=/opt/IBM/WebSphere/AppServer/java/8.0/lib:/opt/IBM/WebSphere/AppServer/profiles/AppSrv01/classes:shortened
+-Dderby.system.home=/opt/IBM/WebSphere/AppServer/derby -Dcom.ibm.itp.location=/opt/IBM/WebSphere/AppServer/bin
+-Djava.util.logging.configureByServer=true -Duser.install.root=/opt/IBM/WebSphere/AppServer/profiles/AppSrv01
+-Djava.ext.dirs=/opt/IBM/WebSphere/AppServer/tivoli/tam:/opt/IBM/WebSphere/AppServer/javaext:/opt/IBM/WebSphere/AppServer/java/8.0/jre/lib/ext
+-Djavax.management.builder.initial=com.ibm.ws.management.PlatformMBeanServerBuilder -Dwas.install.root=/opt/IBM/WebSphere/AppServer
+-Djava.util.logging.manager=com.ibm.ws.bootstrap.WsLogManager -Dserver.root=/opt/IBM/WebSphere/AppServer/profiles/AppSrv01
+-Dcom.ibm.security.jgss.debug=off -Dcom.ibm.security.krb5.Krb5Debug=off -Djava.util.prefs.userRoot=/home/was/ -Xnoloa
+-Djava.library.path=/opt/IBM/WebSphere/AppServer/lib/native/linux/x86_64/:/opt/IBM/WebSphere/AppServer/java/8.0/jre/lib/amd64/compressedrefs:shortened
+com.ibm.wsspi.bootstrap.WSPreLauncher -nosplash -application com.ibm.ws.bootstrap.WSLauncher com.ibm.ws.runtime.WsServer
+/opt/IBM/WebSphere/AppServer/profiles/AppSrv01/config DefaultCell01 DefaultNode01 server1`,
+			expectedHome:   "/opt/IBM/WebSphere/AppServer/profiles/AppSrv01",
 			expectedVendor: websphere,
 		},
 		{

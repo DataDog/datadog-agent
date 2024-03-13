@@ -31,16 +31,16 @@ const (
 
 const (
 	// app servers hints
-	wlsServerMainClass  string = "weblogic.Server"
-	wlsHomeSysProp      string = "-Dwls.home="
-	websphereJar        string = "ws-server.jar"
-	websphereMainClass  string = "defaultServer"
-	tomcatMainClass     string = "org.apache.catalina.startup.Bootstrap"
-	tomcatSysProp       string = "-Dcatalina.base="
-	jbossStandaloneMain string = "org.jboss.as.standalone"
-	jbossDomainMain     string = "org.jboss.as.server"
-	jbossSysProp        string = "-Djboss.home.dir="
-	applicationXMLPath  string = "/META-INF/application.xml"
+	wlsServerMainClass   string = "weblogic.Server"
+	wlsHomeSysProp       string = "-Dwls.home="
+	websphereHomeSysProp string = "-Dserver.root="
+	websphereMainClass   string = "com.ibm.ws.runtime.WsServer"
+	tomcatMainClass      string = "org.apache.catalina.startup.Bootstrap"
+	tomcatSysProp        string = "-Dcatalina.base="
+	jbossStandaloneMain  string = "org.jboss.as.standalone"
+	jbossDomainMain      string = "org.jboss.as.server"
+	jbossSysProp         string = "-Djboss.home.dir="
+	applicationXMLPath   string = "/META-INF/application.xml"
 )
 
 var (
@@ -111,9 +111,9 @@ func resolveAppServerFromCmdLine(args []string) (serverVendor, string) {
 			} else if strings.HasPrefix(a, jbossSysProp) {
 				hint1 = jboss
 				baseDir = strings.TrimPrefix(a, jbossSysProp)
-			} else if strings.HasSuffix(a, websphereJar) {
-				// Use the CWD of the process as websphere baseDir
+			} else if strings.HasPrefix(a, websphereHomeSysProp) {
 				hint1 = websphere
+				baseDir = strings.TrimPrefix(a, websphereHomeSysProp)
 			}
 		}
 		if hint2 == unknown {
