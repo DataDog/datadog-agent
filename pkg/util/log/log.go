@@ -451,7 +451,7 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLo
 	l.l.Unlock()
 
 	err := formatErrorc(message, context...)
-	if fallbackStderr && isInnerNil {
+	if fallbackStderr {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
