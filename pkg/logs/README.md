@@ -56,7 +56,7 @@ The remaining components of the logs agent subscribe to these stores and take ap
 
 Schedulers can be implemented outside of the logs-agent, but some built-in schedulers are in sub-packages of `pkg/logs/schedulers`.
 One particularly important scheduler is the *AD scheduler* in `pkg/logs/schedulers/ad`.
-The Autodiscovery component (`pkg/autodiscovery`) provides a sequence of configs (`integration.Config`) to the AD scheduler.
+The Autodiscovery component (`comp/core/autodiscovery`) provides a sequence of configs (`integration.Config`) to the AD scheduler.
 The AD scheduler categorizes each config as either a source or a service and submits it accordingly.
 
 #### Launchers

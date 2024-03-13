@@ -84,6 +84,24 @@ var windowsFiles = []string{
 	"datadog.reg",
 }
 
+var profilingFiles = []string{
+	"profiles/core-1st-heap.pprof",
+	"profiles/core-2nd-heap.pprof",
+	"profiles/core-block.pprof",
+	"profiles/core-cpu.pprof",
+	"profiles/core-mutex.pprof",
+	"profiles/process-1st-heap.pprof",
+	"profiles/process-2nd-heap.pprof",
+	"profiles/process-block.pprof",
+	"profiles/process-cpu.pprof",
+	"profiles/process-mutex.pprof",
+	"profiles/trace-1st-heap.pprof",
+	"profiles/trace-2nd-heap.pprof",
+	"profiles/trace-block.pprof",
+	"profiles/trace-cpu.pprof",
+	"profiles/trace-mutex.pprof",
+}
+
 // untestedFiles contains some untested files that needs specific scenario which should be added later.
 //
 //nolint:unused

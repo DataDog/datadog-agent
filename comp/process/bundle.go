@@ -12,7 +12,7 @@
 package process
 
 import (
-	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/profiler/profilerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -33,6 +32,8 @@ import (
 // team: processes
 
 // Bundle defines the fx options for this bundle.
+// Do not add modules not owned by the processes team here as it breaks fx best practices
+// See: https://uber-go.github.io/fx/modules.html#don-t-provide-what-you-don-t-own
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runnerimpl.Module(),
@@ -47,10 +48,10 @@ func Bundle() fxutil.BundleOptions {
 		rtcontainercheckimpl.Module(),
 		processdiscoverycheckimpl.Module(),
 
+		agentimpl.Module(),
+
 		hostinfoimpl.Module(),
 		expvarsimpl.Module(),
-		statusimpl.Module(),
-		coreStatusImpl.Module(),
 
 		apiserver.Module(),
 		forwardersimpl.Module(),

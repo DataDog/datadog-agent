@@ -14,7 +14,7 @@ const (
 	Http2MaxHeadersCountPerFiltering = 0x21
 )
 
-type connTuple = struct {
+type ConnTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
 	Daddr_h  uint64
@@ -27,7 +27,7 @@ type connTuple = struct {
 }
 type HTTP2DynamicTableIndex struct {
 	Index uint64
-	Tup   connTuple
+	Tup   ConnTuple
 }
 type HTTP2DynamicTableEntry struct {
 	Buffer             [160]int8
@@ -37,7 +37,7 @@ type HTTP2DynamicTableEntry struct {
 	Pad_cgo_0          [2]byte
 }
 type HTTP2StreamKey struct {
-	Tup       connTuple
+	Tup       ConnTuple
 	Id        uint32
 	Pad_cgo_0 [4]byte
 }
@@ -71,19 +71,28 @@ type HTTP2Stream struct {
 	Pad_cgo_0          [2]byte
 }
 type EbpfTx struct {
-	Tuple  connTuple
+	Tuple  ConnTuple
 	Stream HTTP2Stream
 }
 type HTTP2Telemetry struct {
-	Request_seen                     uint64
-	Response_seen                    uint64
-	End_of_stream                    uint64
-	End_of_stream_rst                uint64
-	Literal_value_exceeds_frame      uint64
-	Exceeding_max_interesting_frames uint64
-	Exceeding_max_frames_to_filter   uint64
-	Path_size_bucket                 [8]uint64
-	Fragmented_frame_count           uint64
+	Request_seen                       uint64
+	Response_seen                      uint64
+	End_of_stream                      uint64
+	End_of_stream_rst                  uint64
+	Literal_value_exceeds_frame        uint64
+	Exceeding_max_interesting_frames   uint64
+	Exceeding_max_frames_to_filter     uint64
+	Path_size_bucket                   [8]uint64
+	Fragmented_frame_count_headers     uint64
+	Fragmented_frame_count_rst         uint64
+	Fragmented_frame_count_data_eos    uint64
+	Fragmented_frame_count_headers_eos uint64
+}
+type HTTP2RemainderEntry struct {
+	Remainder uint32
+	Length    uint32
+	Buf       [9]byte
+	Pad_cgo_0 [3]byte
 }
 
 type StaticTableEnumValue = uint8
