@@ -67,8 +67,7 @@ type orphanEntry struct {
 	expires time.Time
 }
 
-// RealConntracker is the netlink implementation of the Conntracker interface
-type RealConntracker struct {
+type realConntracker struct {
 	sync.RWMutex
 	consumer *Consumer
 	cache    *conntrackCache
@@ -133,7 +132,7 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 		return nil, err
 	}
 
-	ctr := &RealConntracker{
+	ctr := &realConntracker{
 		consumer:      consumer,
 		cache:         newConntrackCache(cfg.ConntrackMaxStateSize, defaultOrphanTimeout),
 		maxStateSize:  cfg.ConntrackMaxStateSize,
@@ -158,7 +157,7 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 	return ctr, nil
 }
 
-func (ctr *RealConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	then := time.Now()
 	defer func() {
 		conntrackerTelemetry.getsDuration.Observe(float64(time.Since(then).Nanoseconds()))
@@ -183,18 +182,18 @@ func (ctr *RealConntracker) GetTranslationForConn(c network.ConnectionStats) *ne
 }
 
 // Describe returns all descriptions of the collector
-func (ctr *RealConntracker) Describe(ch chan<- *prometheus.Desc) {
+func (ctr *realConntracker) Describe(ch chan<- *prometheus.Desc) {
 	ch <- conntrackerTelemetry.stateSize
 	ch <- conntrackerTelemetry.orphanSize
 }
 
 // Collect returns the current state of all metrics of the collector
-func (ctr *RealConntracker) Collect(ch chan<- prometheus.Metric) {
+func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.stateSize, prometheus.CounterValue, float64(ctr.cache.cache.Len()))
 	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
 }
 
-func (ctr *RealConntracker) DeleteTranslation(c network.ConnectionStats) {
+func (ctr *realConntracker) DeleteTranslation(c network.ConnectionStats) {
 	then := time.Now()
 
 	ctr.Lock()
@@ -212,14 +211,14 @@ func (ctr *RealConntracker) DeleteTranslation(c network.ConnectionStats) {
 	}
 }
 
-func (ctr *RealConntracker) Close() {
+func (ctr *realConntracker) Close() {
 	ctr.consumer.Stop()
 	ctr.compactTicker.Stop()
 	ctr.cache.Purge()
 	close(ctr.exit)
 }
 
-func (ctr *RealConntracker) loadInitialState(events <-chan Event) {
+func (ctr *realConntracker) loadInitialState(events <-chan Event) {
 	for e := range events {
 		conns := ctr.decoder.DecodeAndReleaseEvent(e)
 		for _, c := range conns {
@@ -239,7 +238,7 @@ func (ctr *RealConntracker) loadInitialState(events <-chan Event) {
 
 // register is registered to be called whenever a conntrack update/create is called.
 // it will keep being called until it returns nonzero.
-func (ctr *RealConntracker) register(c Con) int {
+func (ctr *realConntracker) register(c Con) int {
 	// don't bother storing if the connection is not NAT
 	if !IsNAT(c) {
 		conntrackerTelemetry.registersDropped.Inc()
@@ -259,7 +258,7 @@ func (ctr *RealConntracker) register(c Con) int {
 	return 0
 }
 
-func (ctr *RealConntracker) run() error {
+func (ctr *realConntracker) run() error {
 	events, err := ctr.consumer.Events()
 	if err != nil {
 		return err
@@ -289,7 +288,7 @@ func (ctr *RealConntracker) run() error {
 	return nil
 }
 
-func (ctr *RealConntracker) compact() {
+func (ctr *realConntracker) compact() {
 	var removed int64
 	defer func() {
 		conntrackerTelemetry.unregistersTotal.Add(float64(removed))

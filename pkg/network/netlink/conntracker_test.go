@@ -426,8 +426,8 @@ func crossCheckCacheOrphans(t *testing.T, cc *conntrackCache) {
 	}
 }
 
-func newConntracker(maxSize int) *RealConntracker {
-	rt := &RealConntracker{
+func newConntracker(maxSize int) *realConntracker {
+	rt := &realConntracker{
 		maxStateSize: maxSize,
 		cache:        newConntrackCache(maxSize, defaultOrphanTimeout),
 	}
