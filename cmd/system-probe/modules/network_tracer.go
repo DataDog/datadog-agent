@@ -9,6 +9,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -333,6 +334,8 @@ func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
 	log.Warnf("%s monitoring is disabled", protocolName)
 	w.WriteHeader(404)
 	// Writing JSON to ensure compatibility when using the jq bash utility for output
-	outputString := fmt.Sprintf("{\"error\": \"%s monitoring is disabled\"}\n", protocolName)
-	w.Write([]byte(outputString))
+	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
+	// We are marshaling a static string, so we can ignore the error
+	buf, _ := json.Marshal(outputString)
+	w.Write(buf)
 }
