@@ -63,7 +63,6 @@ from tasks.go_test import (
     get_impacted_packages,
     get_modified_packages,
     integration_tests,
-    notify_unit_tests,
     send_unit_tests_stats,
     test,
 )
@@ -117,7 +116,6 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
-ns.add_task(notify_unit_tests)
 ns.add_task(modules.go_work)
 
 ns.add_task(get_modified_packages)
