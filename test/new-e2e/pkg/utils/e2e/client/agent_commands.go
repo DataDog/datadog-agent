@@ -73,6 +73,20 @@ func (agent *agentCommandRunner) Hostname(commandArgs ...agentclient.AgentArgsOp
 	return strings.Trim(output, "\n")
 }
 
+// Check runs check command and returns the runtime Agent check
+func (agent *agentCommandRunner) Check(commandArgs ...agentclient.AgentArgsOption) string {
+	return agent.executeCommand("check", commandArgs...)
+}
+
+// Check runs check command and returns the runtime Agent check or an error
+func (agent *agentCommandRunner) CheckWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+	args, err := optional.MakeParams(commandArgs...)
+	require.NoError(agent.t, err)
+
+	arguments := append([]string{"check"}, args.Args...)
+	return agent.executor.execute(arguments)
+}
+
 // Config runs config command and returns the runtime agent config
 func (agent *agentCommandRunner) Config(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)

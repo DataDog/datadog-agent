@@ -341,12 +341,16 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 		p.buf = make([]byte, size)
 	}
 
-	n, err = conn.Read(p.buf[:size])
-	if err != nil {
-		return err
+	var read uint32
+	for read < size {
+		n, err = conn.Read(p.buf[read:size])
+		if err != nil {
+			return err
+		}
+		read += uint32(n)
 	}
 
-	return msgpack.Unmarshal(p.buf[0:n], msg)
+	return msgpack.Unmarshal(p.buf[0:size], msg)
 }
 
 // GetClientsCount returns the number of connected clients
