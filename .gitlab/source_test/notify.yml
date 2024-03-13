@@ -18,7 +18,6 @@ unit_tests_notify:
     - tests_deb-arm64-py3
     - tests_rpm-x64-py3
     - tests_rpm-arm64-py3
-    - tests_macos
     - tests_windows-x64
     - tests_flavor_iot_deb-x64
     - tests_flavor_dogstatsd_deb-x64

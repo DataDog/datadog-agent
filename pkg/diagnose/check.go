@@ -25,12 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
+func getDiagnose(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], acOpt optional.Option[autodiscovery.Component]) []diagnosis.Diagnosis {
 	if coll, ok := collector.Get(); diagCfg.RunningInAgentProcess && ok {
 		return diagnoseChecksInAgentProcess(coll)
 	}
 	if ac, ok := acOpt.Get(); ok {
-		return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, ac)
+		return diagnoseChecksInCLIProcess(diagCfg, senderManager, secretResolver, wmeta, ac)
 	}
 	return []diagnosis.Diagnosis{
 		{
@@ -90,7 +90,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go
@@ -108,8 +108,20 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 		}
 	}
 
+	wmetaInstance, ok := wmeta.Get()
+	if !ok {
+		errMsg := "Workload Meta is not available"
+		return []diagnosis.Diagnosis{
+			{
+				Result:      diagnosis.DiagnosisFail,
+				Name:        errMsg,
+				Diagnosis:   errMsg,
+				Remediation: errMsg,
+			},
+		}
+	}
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(secretResolver, workloadmeta.GetGlobalStore(), ac, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

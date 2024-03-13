@@ -153,18 +153,6 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultInputChanSize: 10000,
 	},
 	{
-		eventType:                     eventplatform.EventTypeNetworkPath,
-		category:                      "Network Path",
-		contentType:                   logshttp.JSONContentType,
-		endpointsConfigPrefix:         "network_path.forwarder.",
-		hostnameEndpointPrefix:        "netpath-intake.",
-		intakeTrackType:               "netpath",
-		defaultBatchMaxConcurrentSend: 10,
-		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
-		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
-		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
-	},
-	{
 		eventType:                     eventplatform.EventTypeContainerLifecycle,
 		category:                      "Container",
 		contentType:                   logshttp.ProtobufContentType,

@@ -1,7 +1,9 @@
 import os
 import re
 import time
+from collections import Counter
 from functools import lru_cache
+from typing import List
 
 from invoke import Exit, task
 
@@ -16,6 +18,7 @@ from tasks.libs.github_actions_tools import (
     trigger_macos_workflow,
 )
 from tasks.libs.junit_upload_core import repack_macos_junit_tar
+from tasks.libs.pipeline_notifications import read_owners
 from tasks.release import _get_release_json_value
 
 
@@ -190,3 +193,78 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     from .libs.common.github_api import GithubAPI
 
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
+
+
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
+    codeowners = read_owners(owners_file)
+
+    team_counter = Counter()
+    for file in changed_files:
+        owners = [name for (kind, name) in codeowners.of(file) if kind == 'TEAM']
+        team_counter.update(owners)
+
+    team_count = team_counter.most_common()
+    if team_count == []:
+        return []
+
+    _, best_count = team_count[0]
+    best_teams = [team.casefold() for (team, count) in team_count if count == best_count]
+
+    return best_teams
+
+
+def _get_team_labels():
+    import toml
+
+    with open('.ddqa/config.toml', 'r') as f:
+        data = toml.loads(f.read())
+
+    labels = []
+    for team in data['teams'].values():
+        labels.extend(team.get('github_labels', []))
+    return labels
+
+
+@task
+def assign_team_label(_, pr_id=-1):
+    """
+    Assigns the github team label name if teams can
+    be deduced from the changed files
+    """
+    import github
+
+    from tasks.libs.common.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+
+    labels = gh.get_pr_labels(pr_id)
+
+    # Skip if necessary
+    if 'qa/done' in labels or 'qa/no-code-change' in labels:
+        print('Qa done or no code change, skipping')
+        return
+
+    if any(label.startswith('team/') for label in labels):
+        print('This PR already has a team label, skipping')
+        return
+
+    # Find team
+    teams = _get_teams(gh.get_pr_files(pr_id))
+    if teams == []:
+        print('No team found')
+        return
+
+    # Get labels
+    all_team_labels = _get_team_labels()
+    team_labels = [f"team{team.removeprefix('@datadog')}" for team in teams]
+
+    # Assign label
+    for label_name in team_labels:
+        if label_name not in all_team_labels:
+            print(label_name, 'cannot be found in .ddqa/config.toml, skipping')
+        else:
+            try:
+                gh.add_pr_label(pr_id, label_name)
+                print(label_name, 'label assigned to the pull request')
+            except github.GithubException.GithubException:
+                print(f'Failed to assign label {label_name}')

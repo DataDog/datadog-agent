@@ -62,7 +62,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.102 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.106 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.52.0-rc.3 // indirect

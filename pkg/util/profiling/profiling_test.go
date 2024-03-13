@@ -26,7 +26,7 @@ func TestProfiling(t *testing.T) {
 		Tags:                 []string{"1.0.0"},
 	}
 	err := Start(settings)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	Stop()
 }
