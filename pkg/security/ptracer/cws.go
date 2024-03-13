@@ -140,8 +140,54 @@ func sendMsgData(client net.Conn, data []byte) error {
 	return nil
 }
 
-// StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) error {
+func registerSyscallHandlers() (map[int]syscallHandler, []string) {
+	handlers := make(map[int]syscallHandler)
+
+	syscalls := registerFIMHandlers(handlers)
+	syscalls = append(syscalls, registerProcessHandlers(handlers)...)
+	syscalls = append(syscalls, registerSpanHandlers(handlers)...)
+
+	return handlers, syscalls
+}
+
+// Attach attach the ptracer
+func Attach(pid int, probeAddr string, opts Opts) error {
+	logger := Logger{opts.Verbose}
+
+	mode := "seccomp"
+	if opts.SeccompDisabled {
+		mode = "standard"
+	}
+
+	logger.Debugf("Attach %d [%s] using `%s` mode ", pid, os.Getenv("DD_CONTAINER_ID"), mode)
+
+	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
+		passwdPath = path
+	}
+	if path := os.Getenv(EnvGroupPathOverride); path != "" {
+		groupPath = path
+	}
+
+	syscallHandlers, _ := registerSyscallHandlers()
+
+	tracerOpts := TracerOpts{
+		Creds:           opts.Creds,
+		Logger:          logger,
+		SeccompDisabled: true, // force to true, can't use seccomp with the attach mode
+	}
+
+	tracer, err := AttachTracer(pid, tracerOpts)
+	if err != nil {
+		return err
+	}
+
+	return ptrace(tracer, probeAddr, syscallHandlers, logger, opts)
+}
+
+// Wrap the executable
+func Wrap(args []string, envs []string, probeAddr string, opts Opts) error {
+	logger := Logger{opts.Verbose}
+
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
 	}
@@ -150,10 +196,39 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		return err
 	}
 
-	logger := Logger{opts.Verbose}
+	mode := "seccomp"
+	if opts.SeccompDisabled {
+		mode = "standard"
+	}
 
-	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
+	logger.Debugf("Run %s %v [%s] using `%s` mode ", entry, args, os.Getenv("DD_CONTAINER_ID"), mode)
 
+	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
+		passwdPath = path
+	}
+	if path := os.Getenv(EnvGroupPathOverride); path != "" {
+		groupPath = path
+	}
+
+	syscallHandlers, syscalls := registerSyscallHandlers()
+
+	tracerOpts := TracerOpts{
+		Syscalls:        syscalls,
+		Creds:           opts.Creds,
+		Logger:          logger,
+		SeccompDisabled: opts.SeccompDisabled,
+	}
+
+	tracer, err := NewTracer(entry, args, envs, tracerOpts)
+	if err != nil {
+		return err
+	}
+
+	return ptrace(tracer, probeAddr, syscallHandlers, logger, opts)
+}
+
+// startPtracer start the ptracer
+func ptrace(tracer *Tracer, probeAddr string, syscallHandlers map[int]syscallHandler, logger Logger, opts Opts) error {
 	if path := os.Getenv(EnvPasswdPathOverride); path != "" {
 		passwdPath = path
 	}
@@ -165,6 +240,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		client      net.Conn
 		clientReady = make(chan bool, 1)
 		wg          sync.WaitGroup
+		err         error
 	)
 
 	connectClient := func() error {

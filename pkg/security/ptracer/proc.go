@@ -258,7 +258,7 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 	}, nil
 }
 
-func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.Message), every time.Duration, logger Logger) {
+func scanProcfs(ctx context.Context, traceePID int, msgCb func(msg *ebpfless.Message), every time.Duration, logger Logger) {
 	cache := make(map[int32]int64)
 
 	ticker := time.NewTicker(every)
@@ -274,7 +274,7 @@ func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.M
 
 			for _, proc := range add {
 				if msg, err := procToMsg(proc); err == nil {
-					sendFnc(msg)
+					msgCb(msg)
 				}
 				cache[proc.Pid] = proc.CreateTime
 			}
@@ -292,7 +292,7 @@ func scanProcfs(ctx context.Context, traceePID int, sendFnc func(msg *ebpfless.M
 						Exit:      &ebpfless.ExitSyscallMsg{},
 					},
 				}
-				sendFnc(msg)
+				msgCb(msg)
 			}
 		case <-ctx.Done():
 			return
