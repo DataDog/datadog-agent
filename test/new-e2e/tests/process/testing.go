@@ -31,6 +31,9 @@ var processCheckInCoreAgentConfigStr string
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
+//go:embed config/npm.yaml
+var systemProbeNPMConfigStr string
+
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
 func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks []string, withSystemProbe bool, command string) {
 	status := vm.MustExecute(command)
