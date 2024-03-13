@@ -62,7 +62,6 @@ type ContainerdAccessor func() (cutil.ContainerdItf, error)
 
 // CollectorConfig allows to pass configuration
 type CollectorConfig struct {
-	CacheProvider     CacheProvider
 	ClearCacheOnClose bool
 }
 
@@ -76,6 +75,7 @@ type Collector struct {
 	langScanner      langpkg.Scanner
 	vulnClient       vulnerability.Client
 	marshaler        *cyclonedx.Marshaler
+	wmeta            optional.Option[workloadmeta.Component]
 }
 
 var globalCollector *Collector
@@ -119,29 +119,9 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 
 // defaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func defaultCollectorConfig(wmeta optional.Option[workloadmeta.Component], cacheLocation string) CollectorConfig {
-	collectorConfig := CollectorConfig{
+func defaultCollectorConfig() CollectorConfig {
+	return CollectorConfig{
 		ClearCacheOnClose: true,
-	}
-
-	collectorConfig.CacheProvider = cacheProvider(wmeta, cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"))
-
-	return collectorConfig
-}
-
-func cacheProvider(wmeta optional.Option[workloadmeta.Component], cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
-	if useCustomCache {
-		return func() (cache.Cache, CacheCleaner, error) {
-			return NewCustomBoltCache(
-				wmeta,
-				cacheLocation,
-				config.Datadog.GetInt("sbom.cache.max_disk_size"),
-			)
-		}
-	}
-
-	return func() (cache.Cache, CacheCleaner, error) {
-		return NewBoltCache(cacheLocation)
 	}
 }
 
@@ -180,15 +160,16 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 
 // NewCollector returns a new collector
 func NewCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
-	config := defaultCollectorConfig(wmeta, cfg.GetString("sbom.cache_directory"))
-	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
+	conf := defaultCollectorConfig()
+	conf.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
 	return &Collector{
-		config:      config,
+		config:      conf,
 		osScanner:   ospkg.NewScanner(),
 		langScanner: langpkg.NewScanner(),
 		vulnClient:  vulnerability.NewClient(db.Config{}),
 		marshaler:   cyclonedx.NewMarshaler(""),
+		wmeta:       wmeta,
 	}, nil
 }
 
@@ -235,7 +216,11 @@ func (c *Collector) CleanCache() error {
 func (c *Collector) getCache() (cache.Cache, CacheCleaner, error) {
 	var err error
 	c.cacheInitialized.Do(func() {
-		c.cache, c.cacheCleaner, err = c.config.CacheProvider()
+		c.cache, c.cacheCleaner, err = NewCustomBoltCache(
+			c.wmeta,
+			defaultCacheDir(),
+			config.Datadog.GetInt("sbom.cache.max_disk_size"),
+		)
 	})
 
 	if err != nil {

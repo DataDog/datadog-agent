@@ -33,10 +33,6 @@ const cacheSize = 1600
 // telemetryTick is the frequency at which the cache usage metrics are collected.
 var telemetryTick = 1 * time.Minute
 
-// CacheProvider describes a function that provides a type implementing the trivy cache interface
-// and a cache cleaner
-type CacheProvider func() (cache.Cache, CacheCleaner, error)
-
 // defaultCacheDir returns/creates the default cache-dir to be used for trivy operations
 func defaultCacheDir() string {
 	tmpDir, err := os.UserCacheDir()
@@ -46,8 +42,8 @@ func defaultCacheDir() string {
 	return filepath.Join(tmpDir, "trivy")
 }
 
-// NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
-// maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
+// NewCustomBoltCache returns a BoltDB cache using an LRU algorithm with a
+// maximum disk size and garbage collection of unused images with its custom cleaner.
 func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = defaultCacheDir()
@@ -67,15 +63,6 @@ func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir 
 	return trivyCache, NewScannerCacheCleaner(trivyCache, wmeta), nil
 }
 
-// NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy and an empty cleaner.
-func NewBoltCache(cacheDir string) (cache.Cache, CacheCleaner, error) {
-	if cacheDir == "" {
-		cacheDir = defaultCacheDir()
-	}
-	cache, err := cache.NewFSCache(cacheDir)
-	return cache, &StubCacheCleaner{}, err
-}
-
 // CacheCleaner interface
 type CacheCleaner interface {
 	Clean() error
@@ -89,14 +76,7 @@ type StubCacheCleaner struct{}
 func (c *StubCacheCleaner) Clean() error { return nil }
 
 // setKeysForEntity does nothing
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *StubCacheCleaner) setKeysForEntity(entity string, keys []string) {}
-
-// GetKeysForEntity does nothing
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *StubCacheCleaner) GetKeysForEntity(entity string) []string { return nil }
+func (c *StubCacheCleaner) setKeysForEntity(string, []string) {}
 
 // Cache describes an interface for a key-value cache.
 type Cache interface {
