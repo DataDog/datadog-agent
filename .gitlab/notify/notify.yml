@@ -62,7 +62,7 @@ notify_github:
   tags: ["runner:docker"]
   rules:
     - !reference [.except_mergequeue]
-  when: always
+    - when: on_success
   needs: ["deploy_deb_testing-a7_x64"]
   dependencies: []
   allow_failure: true
