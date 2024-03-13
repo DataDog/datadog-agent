@@ -55,7 +55,7 @@
 /.run/docker/                                       @DataDog/container-integrations
 
 # Gitlab files
-# Files containing job contents are owned by teams in charge of the jobs + agent-ci-experience
+# Files containing job contents are owned by teams in charge of the jobs + agent-ci-experience or agent-build-and-releases
 # Files that only describe structure (eg. includes, rules) are owned by agent-ci-experience
 
 /.gitlab/                                            @DataDog/agent-ci-experience
