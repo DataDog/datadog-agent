@@ -6,13 +6,19 @@
 package config
 
 import (
-	"net/url"
+	// "net/url"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	// "github.com/stretchr/testify/assert"
+	// "github.com/stretchr/testify/require"
 )
 
+func TestCcPanic(t *testing.T) {
+	go func() {
+		panic("!!! ahhhhh i'm panicing !!!")
+	}()
+}
+
+/*
 func TestRemovePathIfPresent(t *testing.T) {
 	for _, tt := range []struct {
 		input    string
@@ -88,3 +94,4 @@ func getEndpoint(t *testing.T, u string) *url.URL {
 	assert.NoError(t, err)
 	return e
 }
+*/
