@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -75,8 +76,9 @@ type safeConfig struct {
 	configEnvVars map[string]struct{}
 }
 
-// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
+// OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
+// Callbacks are only called if the value is effectively changed.
 func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
@@ -90,18 +92,21 @@ func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 		return
 	}
 
-	// get the old value before locking to avoid deadlock (Get also locks)
-	oldValue := c.Get(key)
 	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
 	c.Lock()
+	previousValue := c.Viper.Get(key)
 	c.configSources[source].Set(key, newValue)
 	c.mergeViperInstances(key)
-	receivers := slices.Clone(c.notificationReceivers)
+	if !reflect.DeepEqual(previousValue, newValue) {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, oldValue, newValue)
+		receiver(key, previousValue, newValue)
 	}
 }
 

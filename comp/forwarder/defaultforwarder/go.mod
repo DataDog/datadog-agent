@@ -74,10 +74,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.52.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.52.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.52.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3 // indirect
@@ -102,28 +98,18 @@ require (
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
-	github.com/knadh/koanf/maps v0.1.1 // indirect
-	github.com/knadh/koanf/providers/confmap v0.1.0 // indirect
-	github.com/knadh/koanf/v2 v2.0.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
-	github.com/mitchellh/reflectwalk v1.0.2 // indirect
-	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
-	github.com/philhofer/fwd v1.1.2 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/client_golang v1.18.0 // indirect
@@ -156,6 +142,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/trace v1.23.1 // indirect
 	go.uber.org/dig v1.17.0 // indirect
+	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect

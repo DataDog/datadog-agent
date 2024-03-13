@@ -10,4 +10,6 @@ package agent
 
 // Component is the process agent component type
 type Component interface {
+	// Enabled returns whether the process agent is enabled
+	Enabled() bool
 }

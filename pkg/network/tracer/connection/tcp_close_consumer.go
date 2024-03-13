@@ -108,12 +108,14 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 			}
 		}()
 
+		dataChannel := c.perfHandler.DataChannel()
+		lostChannel := c.perfHandler.LostChannel()
 		for {
 			select {
 			case <-c.closed:
 				return
 			case <-health.C:
-			case batchData, ok := <-c.perfHandler.DataChannel:
+			case batchData, ok := <-dataChannel:
 				if !ok {
 					return
 				}
@@ -135,7 +137,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 				batchData.Done()
-			case lc, ok := <-c.perfHandler.LostChannel:
+			case lc, ok := <-lostChannel:
 				if !ok {
 					return
 				}

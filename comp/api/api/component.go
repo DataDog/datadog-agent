@@ -10,6 +10,7 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -29,6 +30,7 @@ type Component interface {
 	StartServer(
 		wmeta workloadmeta.Component,
 		tagger tagger.Component,
+		ac autodiscovery.Component,
 		logsAgent optional.Option[logsAgent.Component],
 		senderManager sender.DiagnoseSenderManager,
 		collector optional.Option[collector.Component],

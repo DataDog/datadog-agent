@@ -10,8 +10,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -63,7 +63,7 @@ func GetPayload(ctx context.Context) *Payload {
 		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
 
-	configErrors := autodiscovery.GetConfigErrors()
+	configErrors := autodiscoveryimpl.GetConfigErrors()
 
 	for check, e := range configErrors {
 		status := []interface{}{
