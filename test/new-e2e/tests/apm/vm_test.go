@@ -140,6 +140,7 @@ func (s *VMFakeintakeSuite) TestTracesHaveContainerTag() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
@@ -162,12 +163,59 @@ func (s *VMFakeintakeSuite) TestStatsForService() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+}
+
+func (s *VMFakeintakeSuite) TestAutoVersionTraces() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
+		s.logJournal()
+	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
+}
+
+func (s *VMFakeintakeSuite) TestAutoVersionStats() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+
+	// Wait for agent to be live
+	s.T().Log("Waiting for Trace Agent to be live.")
+	s.Require().NoError(waitRemotePort(s, 8126))
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		s.logStatus()
+		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
 		s.logJournal()
 	}, 3*time.Minute, 10*time.Second, "Failed finding stats")
 }
@@ -184,6 +232,7 @@ func (s *VMFakeintakeSuite) TestBasicTrace() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 

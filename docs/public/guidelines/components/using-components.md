@@ -2,8 +2,7 @@
 
 ## Component Dependencies
 
-Component dependencies are automatically determined from the arguments to a component constructor.
-Most components have a few dependencies, and use a struct named `dependencies` to represent them:
+Component dependencies are automatically determined from the arguments to a component constructor. Most components have a few dependencies, and use a struct named `dependencies` to represent them:
 
 ```go
 type dependencies struct {
@@ -28,9 +27,7 @@ func newThing(deps dependencies) Component {
 
 ## Testing
 
-Testing for a component should use `fxtest` to create the component.
-This focuses testing on the API surface of the component against which other components will be built.
-Per-function unit tests are, of course, also great where appropriate!
+Testing for a component should use `fxtest` to create the component. This focuses testing on the API surface of the component against which other components will be built. Per-function unit tests are, of course, also great where appropriate!
 
 Here's an example testing a component with a mocked dependency on `other`:
 
@@ -40,7 +37,7 @@ func TestMyComponent(t *testing.T) {
     var other other.Component
     app := fxtest.New(t,
         Module,              // use the real version of this component
-        other.MockModule(),    // use the mock version of other
+        other.MockModule(),  // use the mock version of other
         fx.Populate(&comp),  // get the instance of this component
         fx.Populate(&other), // get the (mock) instance of the other component
     )

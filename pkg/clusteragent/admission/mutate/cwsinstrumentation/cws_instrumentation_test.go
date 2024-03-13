@@ -446,8 +446,6 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 
 func Test_injectCWSPodInstrumentation(t *testing.T) {
 	commonRegistry := "gcr.io/datadoghq"
-	runAsUser := cwsInjectorInitContainerUser
-	runAsGroup := cwsInjectorInitContainerGroup
 
 	type args struct {
 		pod *corev1.Pod
@@ -501,10 +499,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						MountPath: cwsMountPath,
 					},
 				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
-				},
 			},
 			wantInstrumentation: true,
 		},
@@ -528,10 +522,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						MountPath: cwsMountPath,
 					},
 				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
-				},
 			},
 			wantInstrumentation: true,
 		},
@@ -554,10 +544,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						Name:      cwsVolumeName,
 						MountPath: cwsMountPath,
 					},
-				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
 				},
 			},
 			wantInstrumentation: true,
@@ -592,10 +578,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						Name:      cwsVolumeName,
 						MountPath: cwsMountPath,
 					},
-				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
 				},
 			},
 			wantInstrumentation: true,
@@ -657,10 +639,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						MountPath: cwsMountPath,
 					},
 				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
-				},
 			},
 			wantInstrumentation: true,
 		},
@@ -700,10 +678,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						Name:      cwsVolumeName,
 						MountPath: cwsMountPath,
 					},
-				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
 				},
 			},
 			wantInstrumentation: true,
