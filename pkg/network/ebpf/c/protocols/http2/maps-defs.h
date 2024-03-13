@@ -1,10 +1,11 @@
 #ifndef __HTTP2_MAPS_DEFS_H
 #define __HTTP2_MAPS_DEFS_H
 
+// TODO: work on documentation
 // http2_remainder maps a connection tuple to the remainder from the previous packet.
 // It is possible for frames to be split to multiple tcp packets, so we need to associate the remainder from the previous
 // packet, to the current one.
-BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t, 2048)
+BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t[DIRECTIONS_PER_CONNECTION], 2048)
 
 /* http2_dynamic_table is the map that holding the supported dynamic values - the index is the static index and the
    conn tuple and it is value is the buffer which contains the dynamic string. */

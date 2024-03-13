@@ -185,4 +185,37 @@ static __always_inline void check_frame_split(http2_telemetry_t *http2_tel, __u3
     }
 }
 
+static __always_inline frame_header_remainder_t* get_frame_remainder(conn_tuple_t *t) {
+    conn_tuple_t normalized_tuple = *t;
+    const bool flipped = normalize_tuple(&normalized_tuple);
+    frame_header_remainder_t *frame_remainder = bpf_map_lookup_elem(&http2_remainder, &normalized_tuple);
+    if (frame_remainder == NULL) {
+        return NULL;
+    }
+    const int index = flipped ? 1 : 0;
+    return &frame_remainder[index];
+}
+
+static __always_inline void save_frame_header(conn_tuple_t *t, frame_header_remainder_t *remainder) {
+    conn_tuple_t normalized_tuple = *t;
+    const bool flipped = normalize_tuple(&normalized_tuple);
+    const int index = flipped ? 1 : 0;
+
+    frame_header_remainder_t *frame_remainder = bpf_map_lookup_elem(&http2_remainder, &normalized_tuple);
+    if (frame_remainder != NULL) {
+        frame_remainder[index] = *remainder;
+        return;
+    }
+
+    frame_header_remainder_t new_entry[DIRECTIONS_PER_CONNECTION] = { 0 };
+    new_entry[index] = *remainder;
+    bpf_map_update_elem(&http2_remainder, &normalized_tuple, &new_entry, BPF_ANY);
+}
+
+static __always_inline void delete_frame_header(conn_tuple_t *t) {
+    conn_tuple_t normalized_tuple = *t;
+    normalize_tuple(&normalized_tuple);
+    bpf_map_delete_elem(&http2_remainder, &normalized_tuple);
+}
+
 #endif

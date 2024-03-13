@@ -100,6 +100,9 @@
 
 #define MAX_FRAME_SIZE 16384
 
+// Each connection (a <-> b) has 2 directions (a -> b, b -> a).
+#define DIRECTIONS_PER_CONNECTION 2
+
 typedef enum {
     kGET = 2,
     kPOST = 3,
