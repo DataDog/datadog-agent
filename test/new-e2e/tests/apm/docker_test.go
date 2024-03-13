@@ -11,9 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +28,13 @@ type DockerFakeintakeSuite struct {
 }
 
 func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
+	opts = append(opts,
+		// The LoadBalancer is an https endpoint while the raw fakeintake is http
+		// The Agent is configured to use HTTPS. Thus, using the load balancer is mandatory.
+		// Moreover, if the Fakeintake is killed and replaced, the fakeintake IP can change but
+		// the load balancer IP will not. Thus it should be more robust.
+		awsdocker.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()),
+	)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),
@@ -81,10 +91,35 @@ func (s *DockerFakeintakeSuite) TestTracesHaveContainerTag() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-container-tag-%s", s.transport)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testTracesHaveContainerTag(s.T(), c, service, s.Env().FakeIntake)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with container tags")
+}
+
+func (s *DockerFakeintakeSuite) TestAutoVersionTraces() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-auto-version-traces-%s", s.transport)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testAutoVersionTraces(s.T(), c, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
+}
+
+func (s *DockerFakeintakeSuite) TestAutoVersionStats() {
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-auto-version-stats-%s", s.transport)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testAutoVersionStats(s.T(), c, s.Env().FakeIntake)
+	}, 2*time.Minute, 10*time.Second, "Failed finding version tags")
 }
 
 func (s *DockerFakeintakeSuite) TestStatsForService() {
@@ -92,6 +127,7 @@ func (s *DockerFakeintakeSuite) TestStatsForService() {
 	s.Require().NoError(err)
 
 	service := fmt.Sprintf("tracegen-stats-%s", s.transport)
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	defer runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})()
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		testStatsForService(s.T(), c, service, s.Env().FakeIntake)
@@ -106,6 +142,7 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 
 	// Run Trace Generator
 	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
 	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
 	defer shutdown()
 
