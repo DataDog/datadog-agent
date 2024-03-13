@@ -1019,6 +1019,8 @@ workflow:
   - test/new-e2e-utils/**/*
   - test/new-e2e/go.mod
   - tasks/system_probe.py
+  - tasks/kmt.py
+  - tasks/kernel_matrix_testing/*
 
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
