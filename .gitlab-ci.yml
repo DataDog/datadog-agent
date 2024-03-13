@@ -211,6 +211,7 @@ variables:
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
@@ -307,6 +308,10 @@ variables:
 
 .if_disable_e2e_tests: &if_disable_e2e_tests
   if: $RUN_E2E_TESTS == "off"
+
+# Enable forcing all KMT tests to run
+.if_run_all_kmt_tests: &if_run_all_kmt_tests
+  if: $RUN_KMT_TESTS == 'on'
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -962,10 +967,13 @@ workflow:
   - test/new-e2e-utils/**/*
   - test/new-e2e/go.mod
   - tasks/security_agent.py
+  - tasks/kmt.py
+  - tasks/kernel_matrix_testing/*
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
+  - <<: *if_run_all_kmt_tests
   - <<: *if_mergequeue
     when: never
   - changes:
@@ -1026,6 +1034,7 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
+  - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
@@ -1154,6 +1163,7 @@ workflow:
 
 .on_any_kmt_test_component_or_manual:
   - <<: *if_main_branch
+  - <<: *if_run_all_kmt_tests
   - <<: *if_mergequeue
     when: never
   - changes:
