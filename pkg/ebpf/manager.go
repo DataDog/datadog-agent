@@ -71,7 +71,7 @@ type Modifier interface {
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
 	for _, mod := range m.EnabledModifiers {
-		log.Tracef("Running %s manager modifier", mod)
+		log.Tracef("Running %s manager modifier BeforeInit", mod)
 		if err := mod.BeforeInit(m.Manager, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
@@ -82,7 +82,7 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 	}
 
 	for _, mod := range m.EnabledModifiers {
-		log.Tracef("Running %s manager modifier AfterInit for %s", mod)
+		log.Tracef("Running %s manager modifier AfterInit", mod)
 		if err := mod.AfterInit(m.Manager, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
