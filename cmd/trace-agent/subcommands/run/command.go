@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -74,7 +75,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		fx.Provide(func() corelogimpl.Params {
 			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		corelogimpl.TraceModule(),
+		tracelogimpl.Module(),
 		// setup workloadmeta
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.Params{

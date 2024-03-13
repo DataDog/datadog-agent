@@ -84,7 +84,7 @@ func (p *protocol) Name() string {
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	events.Configure(eventStreamName, mgr, opts)
+	events.Configure(p.cfg, eventStreamName, mgr, opts)
 	utils.EnableOption(opts, "kafka_monitoring_enabled")
 }
 

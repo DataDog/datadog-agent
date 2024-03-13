@@ -27,18 +27,18 @@ arch_mapping = {
 }
 
 
-def requires_update(url_base, rootfs_dir, image):
-    sum_url = os.path.join(url_base, "master", image + ".sum")
+def requires_update(url_base, rootfs_dir, image, branch):
+    sum_url = os.path.join(url_base, branch, image + ".sum")
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
-    debug(f"[debug] new_sum: {new_sum}")
+    debug(f"[debug] {branch}/{image} new_sum: {new_sum}")
 
     if not os.path.exists(os.path.join(rootfs_dir, f"{image}.sum")):
         return True
 
     with open(os.path.join(rootfs_dir, f"{image}.sum")) as f:
         original_sum = f.read().rstrip().split(' ')[0]
-        debug(f"[debug] original_sum: {original_sum}")
+        debug(f"[debug] {image} original_sum: {original_sum}")
     if new_sum != original_sum:
         return True
     return False
@@ -56,11 +56,14 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
     arch = arch_mapping[platform.machine()]
     to_download = list()
     file_ls = list()
+    branch_mapping: dict[str, str] = dict()
+
     for tag in platforms[arch]:
         path = os.path.basename(platforms[arch][tag])
         if path.endswith(".xz"):
             path = path[: -len(".xz")]
 
+        branch_mapping[path] = os.path.dirname(platforms[arch][tag]) or "master"
         file_ls.append(os.path.basename(path))
 
     # if file does not exist download it.
@@ -82,7 +85,7 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
     # download and compare hash sums
     present_files = list(set(file_ls) - set(to_download)) + disks_to_download
     for f in present_files:
-        if requires_update(url_base, rootfs_dir, f):
+        if requires_update(url_base, rootfs_dir, f, branch_mapping.get(f, "master")):
             debug(f"[debug] updating {f} from S3.")
             ctx.run(f"rm -f {f}")
             ctx.run(f"rm -f {f}.sum")
@@ -97,19 +100,21 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
     try:
         with os.fdopen(fd, 'w') as tmp:
             for f in to_download:
-                info(f"[+] {f} needs to be downloaded")
+                branch = branch_mapping.get(f, "master")
+                info(f"[+] {f} needs to be downloaded, using branch {branch}")
                 xz = ".xz" if f not in disks_to_download else ""
                 filename = f"{f}{xz}"
                 sum_file = f"{f}.sum"
                 # remove this file and sum
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, f)} || true")  # remove old file if it exists
                 # download package entry
-                tmp.write(os.path.join(url_base, "master", filename) + "\n")
+                tmp.write(os.path.join(url_base, branch, filename) + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={filename}\n")
                 # download sum entry
-                tmp.write(os.path.join(url_base, "master", f"{sum_file}") + "\n")
+                tmp.write(os.path.join(url_base, branch, f"{sum_file}") + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={sum_file}\n")
             tmp.write("\n")

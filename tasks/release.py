@@ -419,7 +419,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format(  # noqa: FS002
+        r'(v)?({})[.]({})([.](\d+))+(-devel)?(-rc\.(\d+))?(?!-\w)'.format(  # noqa: FS002
             "|".join(allowed_major_versions), minor_version
         )
     )

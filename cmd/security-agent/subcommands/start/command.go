@@ -137,13 +137,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 					return statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
-					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
+					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer, wmeta)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -155,14 +155,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, demultiplexer demultiplexer.Component, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
 					hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
 					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
+					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer, wmeta)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -199,7 +199,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams, statusComponent status.Component) error {
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, params *cliParams, statusComponent status.Component) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
