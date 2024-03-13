@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -178,6 +179,8 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
+	recvWithoutTimeout := pkgconfig.Datadog.GetBool("workloadmeta.remote.recv_without_timeout")
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -192,7 +195,19 @@ func (c *GenericCollector) Run() {
 			}
 		}
 
-		response, err := c.stream.Recv()
+		var (
+			response interface{}
+			err      error
+		)
+		if recvWithoutTimeout {
+			response, err = c.stream.Recv()
+		} else {
+			err = grpcutil.DoWithTimeout(func() error {
+				var err error
+				response, err = c.stream.Recv()
+				return err
+			}, streamRecvTimeout)
+		}
 		if err != nil {
 			// at the end of stream, but its OK
 			if err == io.EOF {
