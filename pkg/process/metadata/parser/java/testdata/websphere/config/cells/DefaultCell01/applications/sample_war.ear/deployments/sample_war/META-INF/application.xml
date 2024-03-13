@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?><application id="Application_ID" version="1.4" xmlns="http://java.sun.com/xml/ns/j2ee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://java.sun.com/xml/ns/j2ee http://java.sun.com/xml/ns/j2ee/application_1_4.xsd">
+    <display-name>sample_war</display-name>
+    <module>
+        <web>
+            <web-uri>sample1.war</web-uri>
+            <context-root>/context1</context-root>
+        </web>
+    </module>
+    <module>
+        <web>
+            <web-uri>sample2.war</web-uri>
+            <context-root>/context2</context-root>
+        </web>
+    </module>
+</application>
