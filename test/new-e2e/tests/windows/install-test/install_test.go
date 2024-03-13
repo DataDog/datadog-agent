@@ -11,12 +11,12 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,14 +25,8 @@ import (
 
 var devMode = flag.Bool("devmode", false, "enable devmode")
 
-// Custom environment for the MSI tests
-type agentMSIEnv struct {
-	AwsEnvironment *aws.Environment
-	RemoteHost     *components.RemoteHost
-}
-
 type agentMSISuite struct {
-	windows.BaseAgentInstallerSuite[agentMSIEnv]
+	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 }
 
 func TestMSI(t *testing.T) {
