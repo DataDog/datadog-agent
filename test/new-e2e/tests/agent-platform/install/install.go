@@ -65,6 +65,12 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		_, err := client.ExecuteWithRetry(downdloadCmd)
 		require.NoError(tt, err, "failed to download install script from %s: ", source, err)
 
+		/* If we "just run" the install script on CentOS 6, it won't install the Agent, because it
+		wants to install "7.51.1". In order to install whatever is in the yum testing repository,
+		we change /etc/redhat-release to make it look like this is CentOS 7. This is a terrible hack,
+		but it's the easiest way to make it work on an Agent stable branch. */
+		_, _ = client.Host.Execute("sudo sed -i 's/6.[0-9]*/7.10/' /etc/redhat-release")
+
 		cmd := fmt.Sprintf(`DD_API_KEY="%s" %v DD_SITE="datadoghq.eu" bash installscript.sh`, apikey, commandLine)
 		output, err := client.Host.Execute(cmd)
 		tt.Log(output)
