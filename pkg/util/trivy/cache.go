@@ -98,11 +98,6 @@ type Cache interface {
 	Len() int
 }
 
-// ScannerCache holds a generic Cache and implements cache.Cache from Trivy.
-type ScannerCache struct {
-	Cache Cache
-}
-
 // ScannerCacheCleaner is a cache cleaner for a ScannerCache instance. It holds a map
 // that keeps track of all the entities using a given key.
 type ScannerCacheCleaner struct {
@@ -158,13 +153,6 @@ type cachedObject interface {
 	types.ArtifactInfo | types.BlobInfo
 }
 
-// NewScannerCache creates a new ScannerCache instance with the provided Cache.
-func NewScannerCache(cache Cache) *ScannerCache {
-	return &ScannerCache{
-		Cache: cache,
-	}
-}
-
 // trivyCachePut stores the provided cachedObject in the ScannerCache with the provided key.
 func trivyCachePut[T cachedObject](cache *ScannerCache, id string, info T) error {
 	objectBytes, err := json.Marshal(info)
@@ -178,17 +166,20 @@ func trivyCachePut[T cachedObject](cache *ScannerCache, id string, info T) error
 func trivyCacheGet[T cachedObject](cache *ScannerCache, id string) (T, error) {
 	rawValue, err := cache.Cache.Get(id)
 	var empty T
-
 	if err != nil {
 		return empty, fmt.Errorf("error getting object with ID %q from cache: %w", id, err)
 	}
-
 	var res T
 	if err := json.Unmarshal(rawValue, &res); err != nil {
 		return empty, fmt.Errorf("JSON unmarshal error: %w", err)
 	}
-
 	return res, nil
+}
+
+// ScannerCache wraps a generic Cache and implements trivy.Cache.
+type ScannerCache struct {
+	// Cache is the underlying cache
+	Cache Cache
 }
 
 // MissingBlobs implements cache.Cache#MissingBlobs
@@ -217,7 +208,7 @@ func (c *ScannerCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 
 // DeleteBlobs implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
 // managed by CacheCleaner
-func (c *ScannerCache) DeleteBlobs(blobIDs []string) error { //nolint:revive // TODO fix revive unusued-parameter
+func (c *ScannerCache) DeleteBlobs([]string) error { //nolint:revive // TODO fix revive unusued-parameter
 	return nil
 }
 
@@ -293,6 +284,7 @@ func NewPersistentCache(
 			for range ticker.C {
 				persistentCache.collectTelemetry()
 			}
+			// TODO: add database compaction. BoltDB deletes the old pages but does not shrink the file.
 		}
 	}()
 
