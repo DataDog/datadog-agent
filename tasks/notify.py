@@ -314,10 +314,12 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
 
     no_tests_executed_jobs = process_unit_tests_tarballs(ctx)
     gh = GithubAPI("DataDog/datadog-agent")
-    pr = gh.get_pr_for_branch(branch_name)[0]
-    # If the branch is not linked to any PR we stop here
-    if pr is None:
+    prs = gh.get_pr_for_branch(branch_name)
+
+    if prs.totalCount == 0:
+        # If the branch is not linked to any PR we stop here
         return
+    pr = prs[0]
 
     comment = gh.find_comment(pr.number, "[Fast Unit Tests Report]")
     if comment is None and len(no_tests_executed_jobs) > 0:
