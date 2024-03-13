@@ -23,7 +23,6 @@ type DestinationSender struct {
 	destination       client.Destination
 	retryReader       chan bool
 	stopChan          <-chan struct{}
-	haLock            sync.Mutex
 	retryLock         sync.Mutex
 	lastRetryState    bool
 	cancelSendChan    chan struct{}
@@ -43,7 +42,6 @@ func NewDestinationSender(config pkgconfigmodel.Reader, destination client.Desti
 		destination:       destination,
 		retryReader:       retryReader,
 		stopChan:          stopChan,
-		haLock:            sync.Mutex{},
 		retryLock:         sync.Mutex{},
 		lastRetryState:    false,
 		cancelSendChan:    nil,
@@ -81,20 +79,14 @@ func (d *DestinationSender) canSend() bool {
 	if d.destination.IsHA() {
 		if !d.sendEnabled {
 			if d.config.GetBool("ha.enabled") && d.config.GetBool("ha.failover") {
-				d.haLock.Lock()
 				d.sendEnabled = true
-				d.haLock.Unlock()
-
 				log.Infof("Forwarder for domain %v has been failed over to, enabling it for HA.", d.destination.Target())
 			} else {
 				log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", d.destination.Target())
 			}
 		} else {
 			if !d.config.GetBool("ha.enabled") || !d.config.GetBool("ha.failover") {
-				d.haLock.Lock()
 				d.sendEnabled = false
-				d.haLock.Unlock()
-
 				log.Infof("Forwarder for domain %v was disabled; transactions will be dropped for this domain.", d.destination.Target())
 			}
 		}
