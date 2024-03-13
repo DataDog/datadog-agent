@@ -165,6 +165,10 @@ type Config struct {
 	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
 	MaxUSMConcurrentRequests uint32
 
+	// MaxHTTP2ConcurrentRequests represents the maximum number of HTTP/2 requests
+	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
+	MaxHTTP2ConcurrentRequests uint32
+
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxHTTPStatsBuffered int
@@ -321,14 +325,15 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
-		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
-		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
-		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
-		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
-		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
-		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
-		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		EnableHTTPMonitoring:       cfg.GetBool(join(smNS, "enable_http_monitoring")),
+		EnableHTTP2Monitoring:      cfg.GetBool(join(smNS, "enable_http2_monitoring")),
+		EnableKafkaMonitoring:      cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
+		EnableNativeTLSMonitoring:  cfg.GetBool(join(smNS, "tls", "native", "enabled")),
+		EnableIstioMonitoring:      cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
+		MaxUSMConcurrentRequests:   uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
+		MaxHTTP2ConcurrentRequests: uint32(cfg.GetInt(join(smNS, "max_http2_concurrent_requests"))),
+		MaxHTTPStatsBuffered:       cfg.GetInt(join(smNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:      cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),

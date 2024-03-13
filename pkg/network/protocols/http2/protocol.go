@@ -221,16 +221,16 @@ const (
 // We also configure the http2 event stream with the manager and its options.
 func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		MaxEntries: p.cfg.MaxHTTP2ConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		MaxEntries: p.cfg.MaxHTTP2ConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		MaxEntries: p.cfg.MaxHTTP2ConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
