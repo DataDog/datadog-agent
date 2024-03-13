@@ -165,8 +165,8 @@ type Config struct {
 	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
 	MaxUSMConcurrentRequests uint32
 
-	// MaxHTTP2ConcurrentRequests represents the maximum number of HTTP/2 requests
-	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
+	// MaxHTTP2ConcurrentRequests represents the maximum number of HTTP/2 requests.
+	// This parameter is used for sizing our eBPF maps.
 	MaxHTTP2ConcurrentRequests uint32
 
 	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory. These stats
