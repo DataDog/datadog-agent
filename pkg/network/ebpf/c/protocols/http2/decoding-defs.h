@@ -245,6 +245,7 @@ typedef struct {
     __u64 fragmented_frame_count_rst;
     __u64 fragmented_frame_count_data_eos;
     __u64 fragmented_frame_count_headers_eos;
+    __u64 large_payload;
 } http2_telemetry_t;
 
 typedef struct {

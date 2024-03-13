@@ -87,6 +87,7 @@ type HTTP2Telemetry struct {
 	Fragmented_frame_count_rst         uint64
 	Fragmented_frame_count_data_eos    uint64
 	Fragmented_frame_count_headers_eos uint64
+	Large_payload                      uint64
 }
 type HTTP2RemainderEntry struct {
 	Remainder uint32
