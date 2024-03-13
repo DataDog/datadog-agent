@@ -85,6 +85,9 @@ func TestProcessCheck(t *testing.T) {
 }
 
 func TestConnectionsCheck(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+
 	t.Run("enabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", true)

@@ -49,12 +49,9 @@ func Enabled(config config.Component, checkComponents []types.CheckComponent, lo
 
 		return !runInCoreAgent
 	case flavor.DefaultAgent:
-		if npmEnabled {
-			if runInCoreAgent {
-				log.Info("Network Performance Monitoring is not supported in the core agent. " +
-					"The process-agent will be enabled as a standalone agent to collect network performance metrics.")
-			}
-			return true
+		if npmEnabled && runInCoreAgent {
+			log.Info("Network Performance Monitoring is not supported in the core agent. " +
+				"The process-agent will be enabled as a standalone agent to collect network performance metrics.")
 		}
 		return runInCoreAgent
 	default:

@@ -45,7 +45,8 @@ func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock 
 }
 
 func (l *LocalResolver) Run() {
-	ticker := l.Clock.Ticker(10 * time.Second)
+	pullContainerFrequency := 10 * time.Second
+	ticker := l.Clock.Ticker(pullContainerFrequency)
 	go l.pullContainers(ticker)
 }
 
