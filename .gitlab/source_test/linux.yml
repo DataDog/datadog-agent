@@ -18,7 +18,7 @@
   rules:
     - !reference [.except_mergequeue]
     - !reference [.except_disable_unit_tests]
-    - !reference [.fast_on_dev_branch]
+    - !reference [.fast_on_dev_branch_only]
   variables:
     FLAVORS: '--flavors base'
     KUBERNETES_CPU_REQUEST: 16

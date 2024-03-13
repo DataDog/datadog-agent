@@ -1366,7 +1366,7 @@ workflow:
   - <<: *on_fakeintake_changes
     if: $CI_COMMIT_BRANCH == "main"
 
-.fast_on_dev_branch:
+.fast_on_dev_branch_only:
   - <<: *if_main_branch
     variables:
       FAST_TESTS: "false"
