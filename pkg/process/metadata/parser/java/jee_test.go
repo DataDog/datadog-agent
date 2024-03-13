@@ -237,3 +237,34 @@ func TestWeblogicExtractServiceNamesForJEEServer(t *testing.T) {
 		"app3",         // derived from the war filename
 	}, extractedContextRoots)
 }
+
+// TestNormalizeContextRoot runs tests cases for context root normalization.
+func TestNormalizeContextRoot(t *testing.T) {
+	tests := []struct {
+		name     string
+		arg      []string
+		expected []string
+	}{
+		{
+			name: "Should strip / from context roots",
+			arg: []string{
+				"/test1",
+				"test2",
+				"/test3/test4",
+			},
+			expected: []string{
+				"test1",
+				"test2",
+				"test3/test4",
+			},
+		},
+		{
+			name: "should handle empty slices",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, normalizeContextRoot(tt.arg...))
+		})
+	}
+}

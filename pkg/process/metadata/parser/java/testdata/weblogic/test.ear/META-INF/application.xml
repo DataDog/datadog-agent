@@ -7,7 +7,7 @@
     <module>
         <web>
             <web-uri>some-webapp.war</web-uri>
-            <context-root>some_context_root</context-root>
+            <context-root>/some_context_root</context-root>
         </web>
     </module>
 </application>

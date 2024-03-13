@@ -197,6 +197,18 @@ func defaultIfNoContextRoots(s serverVendor) []string {
 	return nil
 }
 
+// normalizeContextRoot applies the same normalization the java tracer does by removing the first / on the context-root if present.
+func normalizeContextRoot(contextRoots ...string) []string {
+	if len(contextRoots) == 0 {
+		return contextRoots
+	}
+	normalized := make([]string, len(contextRoots))
+	for i, s := range contextRoots {
+		normalized[i] = strings.TrimPrefix(s, "/")
+	}
+	return normalized
+}
+
 // ExtractServiceNamesForJEEServer takes args, cws and the fs (for testability reasons) and, after having determined the vendor,
 // If the vendor can be determined, it returns the context roots if found, otherwise the server name.
 // If the vendor is unknown, it returns a nil slice
@@ -227,7 +239,7 @@ func ExtractServiceNamesForJEEServer(args []string, cwd string, fs afero.Fs) []s
 		if ear {
 			value, err := extractContextRootFromApplicationXML(fsCloser.fs)
 			if err == nil {
-				contextRoots = append(contextRoots, value...)
+				contextRoots = append(contextRoots, normalizeContextRoot(value...)...)
 			}
 			_ = fsCloser.Close()
 			continue
@@ -237,7 +249,7 @@ func ExtractServiceNamesForJEEServer(args []string, cwd string, fs afero.Fs) []s
 			value, ok := vendorWarFinder(fsCloser.fs)
 			_ = fsCloser.Close()
 			if ok {
-				contextRoots = append(contextRoots, value)
+				contextRoots = append(contextRoots, normalizeContextRoot(value)...)
 				continue
 			}
 		} else {
@@ -245,7 +257,7 @@ func ExtractServiceNamesForJEEServer(args []string, cwd string, fs afero.Fs) []s
 		}
 		defaultFinder, ok := defaultContextNameExtractors[vendor]
 		if ok {
-			contextRoots = append(contextRoots, defaultFinder(app))
+			contextRoots = append(contextRoots, normalizeContextRoot(defaultFinder(app))...)
 		}
 	}
 	if len(contextRoots) == 0 {
