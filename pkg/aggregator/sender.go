@@ -308,6 +308,8 @@ func (s *checkSender) Distribution(metric string, value float64, hostname string
 	s.sendMetricSample(metric, value, hostname, tags, metrics.DistributionType, false, false, 0)
 }
 
+// GaugeWithTimestamp measures the value of a metric at a given time.
+// The value will bypass any aggregation agent side, this is useful when sending points in the past.
 func (s *checkSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error {
 	if timestamp.IsZero() || timestamp.Unix() <= 0 {
 		return fmt.Errorf("invalid timestamp")
@@ -316,6 +318,8 @@ func (s *checkSender) GaugeWithTimestamp(metric string, value float64, hostname 
 	return nil
 }
 
+// CountWithTimestamp tracks how many times something happened at the given second.
+// The value will bypass any aggregation agent side, this is useful when sending points in the past.
 func (s *checkSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error {
 	if timestamp.IsZero() || timestamp.Unix() <= 0 {
 		return fmt.Errorf("invalid timestamp")
