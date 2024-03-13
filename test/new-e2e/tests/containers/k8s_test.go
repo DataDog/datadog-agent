@@ -1059,7 +1059,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
 				return k + ":" + v
 			})
-			// Assert origin detection is working properly
+			// Assert origin detection is working properly.
 			err = assertTags(tags, []*regexp.Regexp{
 				regexp.MustCompile(`^container_id:`),
 				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
