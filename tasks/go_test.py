@@ -756,7 +756,7 @@ def get_impacted_packages(ctx, build_tags=None):
 
     # Modification to go.mod and go.sum should force the tests of the whole module to run
     for file in files:
-        if file.endswith(".mod") or file.endswith(".sum"):
+        if file.endswith("go.mod") or file.endswith("go.sum"):
             with ctx.cd(os.path.dirname(file)):
                 all_packages = ctx.run(
                     f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
