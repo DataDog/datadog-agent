@@ -1,9 +1,6 @@
-init_config:
-  loader: core
-  use_device_id_as_hostname: true
 network_devices:
   netflow:
-    enabled: "true"
+    enabled: true
     listeners:
     - flow_type: netflow9
       port: 2055
