@@ -5,6 +5,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -28,6 +29,7 @@ type ProvisionerParams struct {
 	agentOptions           []agentparams.Option
 	fakeintakeOptions      []fakeintake.Option
 	activeDirectoryOptions []activedirectory.Option
+	defenderoptions        []defender.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -73,6 +75,14 @@ func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOptio
 	}
 }
 
+// WithDefenderOptions configures Windows Defender on an EC2 VM.
+func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.defenderoptions = append(params.defenderoptions, opts...)
+		return nil
+	}
+}
+
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
 	// Suite inits all fields by default, so we need to explicitly set it to nil
@@ -93,6 +103,17 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	err = host.Export(ctx, &env.RemoteHost.HostOutput)
 	if err != nil {
 		return err
+	}
+
+	if params.defenderoptions != nil {
+		defender, err := defender.NewDefender(awsEnv.CommonEnvironment, host, params.defenderoptions...)
+		if err != nil {
+			return err
+		}
+		// Active Directory setup needs to happen after Windows Defender setup
+		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
+			activedirectory.WithPulumiResourceOptions(
+				pulumi.DependsOn(defender.Resources)))
 	}
 
 	if params.activeDirectoryOptions != nil {
@@ -147,10 +168,13 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 
 func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
-		name:              "",
-		instanceOptions:   []ec2.VMOption{},
-		agentOptions:      []agentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
+		name:                   "",
+		instanceOptions:        []ec2.VMOption{},
+		agentOptions:           []agentparams.Option{},
+		fakeintakeOptions:      []fakeintake.Option{},
+		activeDirectoryOptions: []activedirectory.Option{},
+		// Disable Windows Defender on VMs by default
+		defenderoptions: []defender.Option{defender.WithDefenderDisabled()},
 	}
 	err := optional.ApplyOptions(params, opts)
 	if err != nil {

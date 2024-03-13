@@ -9,23 +9,17 @@ package installtest
 import (
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	"os"
-	"path/filepath"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-	componentsos "github.com/DataDog/test-infra-definitions/components/os"
-
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-
+	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -42,27 +36,7 @@ type agentMSISuite struct {
 }
 
 func TestMSI(t *testing.T) {
-	// TODO: JL, convert this to a dedicated Windows provider
-	provisioner := e2e.NewTypedPulumiProvisioner("aws-ec2", func(ctx *pulumi.Context, env *agentMSIEnv) error {
-		awsEnv, err := aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-		vm, err := ec2.NewVM(awsEnv, "vm", ec2.WithOS(componentsos.WindowsDefault))
-		if err != nil {
-			return err
-		}
-		err = vm.Export(ctx, &env.RemoteHost.HostOutput)
-		if err != nil {
-			return err
-		}
-		_, err = defender.NewDefender(awsEnv.CommonEnvironment, vm, defender.WithDefenderDisabled())
-		if err != nil {
-			return err
-		}
-		return err
-	}, nil)
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(provisioner)}
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.Provisioner())}
 	if *devMode {
 		opts = append(opts, e2e.WithDevMode())
 	}
