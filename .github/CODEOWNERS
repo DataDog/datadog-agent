@@ -336,7 +336,7 @@
 /pkg/config/setup/apm.go                @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
-/pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-ci-experience
+/pkg/config/logs                        @Datadog/agent-shared-components
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/setup                            @DataDog/agent-shared-components
 /pkg/config/setup/process*.go                 @DataDog/processes
