@@ -235,7 +235,7 @@ func (c *ScannerCache) GetBlob(id string) (types.BlobInfo, error) {
 // PersistentCache is a cache that uses a persistent database for storage.
 type PersistentCache struct {
 	lruCache                     *simplelru.LRU[string, struct{}]
-	db                           PersistentDB
+	db                           BoltDB
 	mutex                        sync.RWMutex
 	currentCachedObjectTotalSize int
 	maximumCachedObjectSize      int
@@ -245,7 +245,7 @@ type PersistentCache struct {
 // NewPersistentCache creates a new instance of PersistentCache and returns a pointer to it.
 func NewPersistentCache(
 	maxCachedObjectSize int,
-	localDB PersistentDB,
+	localDB BoltDB,
 ) (*PersistentCache, error) {
 
 	persistentCache := &PersistentCache{
