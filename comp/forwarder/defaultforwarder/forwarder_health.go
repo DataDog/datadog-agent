@@ -174,7 +174,8 @@ func (fh *forwarderHealth) updateAPIKey(oldKey, newKey string) {
 		fh.keysPerAPIEndpoint[domainURL] = replaceList
 	}
 	fh.keyMapMutex.Unlock()
-	// check apiKey validity and update the messages
+	// remove old key messages, then check apiKey validity and update the messages
+	fh.setAPIKeyStatus(oldKey, "", &apiKeyRemove)
 	fh.checkValidAPIKey()
 }
 
