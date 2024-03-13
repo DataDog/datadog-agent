@@ -378,7 +378,7 @@ func (c ContainerNetwork) String(_ bool) string {
 
 // ContainerVolume is a volume mounted in the container.
 type ContainerVolume struct {
-	DockerName  string
+	Name        string
 	Source      string
 	Destination string
 }
@@ -386,7 +386,7 @@ type ContainerVolume struct {
 // String returns a string representation of ContainerVolume.
 func (c ContainerVolume) String(_ bool) string {
 	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "Name:", c.DockerName)
+	_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
 	_, _ = fmt.Fprintln(&sb, "Source:", c.Source)
 	_, _ = fmt.Fprintln(&sb, "Destination:", c.Destination)
 
@@ -418,7 +418,9 @@ func (c ContainerHealthStatus) String(verbose bool) string {
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
 	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
-	MemoryRequest *uint64  // Bytes
+	CPULimit      *float64
+	MemoryRequest *uint64 // Bytes
+	MemoryLimit   *uint64
 }
 
 // String returns a string representation of ContainerPort.
@@ -427,8 +429,14 @@ func (cr ContainerResources) String(bool) string {
 	if cr.CPURequest != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetCPUUsage:", *cr.CPURequest)
 	}
+	if cr.CPULimit != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetCPULimit:", *cr.CPULimit)
+	}
 	if cr.MemoryRequest != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetMemoryUsage:", *cr.MemoryRequest)
+	}
+	if cr.MemoryLimit != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetMemoryLimit:", *cr.MemoryLimit)
 	}
 	return sb.String()
 }
@@ -446,10 +454,60 @@ func (o OrchestratorContainer) String(_ bool) string {
 	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
 }
 
+// ECSContainer is a reference to a container running in ECS
+type ECSContainer struct {
+	DisplayName   string
+	Networks      []ContainerNetwork
+	Volumes       []ContainerVolume
+	Health        *ContainerHealthStatus
+	DesiredStatus string
+	KnownStatus   string
+	Type          string
+	LogDriver     string
+	LogOptions    map[string]string
+	ContainerARN  string
+	Snapshotter   string
+}
+
+// String returns a string representation of ECSContainer.
+func (e ECSContainer) String(verbose bool) string {
+	var sb strings.Builder
+
+	if len(e.Volumes) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Volumes -----------")
+		for _, v := range e.Volumes {
+			_, _ = fmt.Fprint(&sb, v.String(verbose))
+		}
+	}
+
+	if len(e.Networks) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Networks -----------")
+		for _, n := range e.Networks {
+			_, _ = fmt.Fprint(&sb, n.String(verbose))
+		}
+	}
+
+	if e.Health != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- ECS Container Health -----------")
+		_, _ = fmt.Fprint(&sb, e.Health.String(verbose))
+	}
+	_, _ = fmt.Fprintln(&sb, "----------- ECS Container Priorities -----------")
+	_, _ = fmt.Fprintln(&sb, "DesiredStatus:", e.DesiredStatus)
+	_, _ = fmt.Fprintln(&sb, "KnownStatus:", e.KnownStatus)
+	_, _ = fmt.Fprintln(&sb, "Type:", e.Type)
+	_, _ = fmt.Fprintln(&sb, "LogDriver:", e.LogDriver)
+	_, _ = fmt.Fprintln(&sb, "LogOptions:", e.LogOptions)
+	_, _ = fmt.Fprintln(&sb, "Snapshotter:", e.Snapshotter)
+
+	return sb.String()
+}
+
 // Container is an Entity representing a containerized workload.
 type Container struct {
 	EntityID
 	EntityMeta
+	// ECSContainer contains properties specific to container running in ECS
+	*ECSContainer
 	// EnvVars are limited to variables included in pkg/util/containers/env_vars_filter.go
 	EnvVars       map[string]string
 	Hostname      string
@@ -466,20 +524,6 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
-
-	// ECS specific fields
-	ContainerName string
-	Limits        map[string]uint64
-	Networks      []ContainerNetwork
-	Volumes       []ContainerVolume
-	Health        *ContainerHealthStatus
-	DesiredStatus string
-	KnownStatus   string
-	Type          string
-	LogDriver     string
-	LogOptions    map[string]string
-	ContainerARN  string
-	Snapshotter   string
 }
 
 // GetID implements Entity#GetID.
@@ -556,45 +600,8 @@ func (c Container) String(verbose bool) string {
 		}
 	}
 
-	if c.Owner != nil && c.Owner.Kind == KindECSTask && verbose {
-		if len(c.Volumes) > 0 && verbose {
-			_, _ = fmt.Fprintln(&sb, "----------- Volumes -----------")
-			for _, v := range c.Volumes {
-				_, _ = fmt.Fprint(&sb, v.String(verbose))
-			}
-		}
-
-		if len(c.Networks) > 0 && verbose {
-			_, _ = fmt.Fprintln(&sb, "----------- Networks -----------")
-			for _, n := range c.Networks {
-				_, _ = fmt.Fprint(&sb, n.String(verbose))
-			}
-		}
-
-		if c.Health != nil {
-			_, _ = fmt.Fprintln(&sb, "----------- ECS Container Health -----------")
-			_, _ = fmt.Fprint(&sb, c.Health.String(true))
-		}
-		_, _ = fmt.Fprintln(&sb, "----------- Container Priorities On ECS -----------")
-		if !c.State.CreatedAt.IsZero() {
-			_, _ = fmt.Fprintln(&sb, "CreatedAt:", c.State.CreatedAt)
-		}
-		if !c.State.StartedAt.IsZero() {
-			_, _ = fmt.Fprintln(&sb, "StartedAt:", c.State.StartedAt)
-		}
-		if !c.State.FinishedAt.IsZero() {
-			_, _ = fmt.Fprintln(&sb, "FinishedAt:", c.State.FinishedAt)
-		}
-		if c.State.ExitCode != nil {
-			_, _ = fmt.Fprintln(&sb, "ExitCode:", c.State.ExitCode)
-		}
-		_, _ = fmt.Fprintln(&sb, "DesiredStatus:", c.DesiredStatus)
-		_, _ = fmt.Fprintln(&sb, "KnownStatus:", c.KnownStatus)
-		_, _ = fmt.Fprintln(&sb, "Type:", c.Type)
-		_, _ = fmt.Fprintln(&sb, "Limits:", c.Limits)
-		_, _ = fmt.Fprintln(&sb, "LogDriver:", c.LogDriver)
-		_, _ = fmt.Fprintln(&sb, "LogOptions:", c.LogOptions)
-		_, _ = fmt.Fprintln(&sb, "Snapshotter:", c.Snapshotter)
+	if c.ECSContainer != nil {
+		_, _ = fmt.Fprint(&sb, c.ECSContainer.String(verbose))
 	}
 
 	return sb.String()
@@ -900,18 +907,15 @@ var _ Entity = &KubernetesDeployment{}
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"
 
-// ECSTaskTags is a map of tags for an ECS task.
-type ECSTaskTags map[string]string
-
-// ContainerInstanceTags is a map of tags for an ECS container instance.
-type ContainerInstanceTags map[string]string
+// MapTags is a map of tags
+type MapTags map[string]string
 
 // ECSTask is an Entity representing an ECS Task.
 type ECSTask struct {
 	EntityID
 	EntityMeta
-	Tags                    ECSTaskTags
-	ContainerInstanceTags   ContainerInstanceTags
+	Tags                    MapTags
+	ContainerInstanceTags   MapTags
 	ClusterName             string
 	AWSAccountID            int
 	Region                  string
