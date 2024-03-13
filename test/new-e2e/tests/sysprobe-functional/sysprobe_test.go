@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/agent"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	componentsos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
@@ -101,13 +102,13 @@ func (v *vmSuite) TestSystemProbeSuite() {
 	// install the agent (just so we can get the driver(s) installed)
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	require.NoError(t, err)
-	remoteMSIPath, err := windows.GetTemporaryFile(vm)
+	remoteMSIPath, err := windowsCommon.GetTemporaryFile(vm)
 	require.NoError(t, err)
 	t.Log("Getting install package...")
-	err = windows.PutOrDownloadFile(vm, agentPackage.URL, remoteMSIPath)
+	err = windowsCommon.PutOrDownloadFile(vm, agentPackage.URL, remoteMSIPath)
 	require.NoError(t, err)
 
-	err = windows.InstallMSI(vm, remoteMSIPath, "", "")
+	err = windowsCommon.InstallMSI(vm, remoteMSIPath, "", "")
 	t.Log("Install complete")
 	require.NoError(t, err)
 
