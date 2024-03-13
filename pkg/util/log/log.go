@@ -287,9 +287,7 @@ func log(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func(strin
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	isInnerNil := l.inner == nil
-
-	if isInnerNil {
+	if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		s := BuildLogEntry(v...)
@@ -311,9 +309,7 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 
 	l.l.Lock()
 
-	isInnerNil := l.inner == nil
-
-	if isInnerNil {
+	if l.inner == nil && !fallbackStderr {
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		defer l.l.Unlock()
@@ -328,7 +324,7 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 	// where error messages had been lost before Logger had been initialized. Adjusting
 	// just for that case because if the error log should not be logged - because it has
 	// been suppressed then it should be taken into account.
-	if fallbackStderr && isInnerNil {
+	if fallbackStderr {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
@@ -349,9 +345,7 @@ func logFormat(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc func
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	isInnerNil := l.inner == nil
-
-	if isInnerNil {
+	if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		scrubAndLogFunc(format, params...)
@@ -371,9 +365,7 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 
 	l.l.Lock()
 
-	isInnerNil := l.inner == nil
-
-	if isInnerNil {
+	if l.inner == nil && !fallbackStderr {
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		defer l.l.Unlock()
@@ -387,7 +379,7 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 	// where error messages had been lost before Logger had been initialized. Adjusting
 	// just for that case because if the error log should not be logged - because it has
 	// been suppressed then it should be taken into account.
-	if fallbackStderr && isInnerNil {
+	if fallbackStderr {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
@@ -408,9 +400,7 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc fun
 	l.l.Lock()
 	defer l.l.Unlock()
 
-	isInnerNil := l.inner == nil
-
-	if isInnerNil {
+	if l.inner == nil {
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
@@ -434,9 +424,7 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLo
 
 	l.l.Lock()
 
-	isInnerNil := l.inner == nil
-
-	if isInnerNil {
+	if l.inner == nil && !fallbackStderr {
 		addLogToBuffer(bufferFunc)
 	} else if l.shouldLog(logLevel) {
 		l.inner.SetContext(context)
@@ -912,7 +900,7 @@ func ErrorfStackDepth(depth int, format string, params ...interface{}) error {
 	msg := fmt.Sprintf(format, params...)
 	return logWithError(seelog.ErrorLvl, func() { ErrorStackDepth(depth, msg) }, func(s string) error {
 		return logger.errorStackDepth(s, depth)
-	}, false, msg)
+	}, true, msg)
 }
 
 // ErrorcStackDepth logs at the error level with context and the current stack depth plus the additional given one and returns an error containing the formated log message
