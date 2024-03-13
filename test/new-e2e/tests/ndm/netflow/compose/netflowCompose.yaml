@@ -10,3 +10,5 @@ services:
     volumes:
       - ${CONFIG_DIR}/snmp.yaml:/etc/datadog-agent/conf.d/snmp.d/snmp.yaml
     container_name: datadog-agent
+    ports:
+      - "2056:2056/udp"
