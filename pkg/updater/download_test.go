@@ -129,7 +129,7 @@ func TestDownload(t *testing.T) {
 	image, err := d.Download(context.Background(), t.TempDir(), s.Package(fixtureSimpleV1))
 	assert.NoError(t, err)
 	tmpDir := t.TempDir()
-	err = extractPackageLayers(image, tmpDir)
+	err = extractPackageLayers(image, tmpDir, tmpDir)
 	assert.NoError(t, err)
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
 }
