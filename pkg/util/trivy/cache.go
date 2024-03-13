@@ -107,7 +107,7 @@ func (c *ScannerCacheCleaner) clean() error {
 	return nil
 }
 
-// setKeysForEntity sets keys to .
+// setKeysForEntity sets keys of items stored in the cache for the given entity.
 func (c *ScannerCacheCleaner) setKeysForEntity(entity string, cachedKeys []string) {
 	c.cachedKeysForEntity[entity] = cachedKeys
 }
@@ -172,7 +172,7 @@ func (c *ScannerCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 
 // DeleteBlobs implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
 // managed by CacheCleaner
-func (c *ScannerCache) DeleteBlobs([]string) error { //nolint:revive // TODO fix revive unusued-parameter
+func (c *ScannerCache) DeleteBlobs([]string) error {
 	return nil
 }
 
