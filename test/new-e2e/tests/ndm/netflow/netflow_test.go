@@ -63,7 +63,7 @@ func netflowDockerProvisioner() e2e.Provisioner {
 		}
 		// edit config file
 		dontUseSudo := false
-		configCommand, err := filemanager.CopyInlineFile(pulumi.String(netflowConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo, // JMWNAME
+		configCommand, err := filemanager.CopyInlineFile(pulumi.String(netflowConfig), path.Join(configPath, "netflow.yaml"), dontUseSudo,
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err
@@ -98,9 +98,10 @@ type netflowDockerSuite struct {
 
 // TestNetflowSuite runs the netflow e2e suite
 func TestNetflowSuite(t *testing.T) {
-	e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()))
-	//JMW e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithSkipDeleteOnFailure())
-	//JMW e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithDevMode())
+	//JMWORIG e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()))
+	//JMWWED e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithSkipDeleteOnFailure())
+	//JMWWED
+	e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithDevMode())
 }
 
 // TestNetflow tests that the netflow-generator container is running and that the agent container
@@ -112,27 +113,6 @@ func (s *netflowDockerSuite) TestNetflow() {
 		s.T().Logf("JMW fakeintake.GetMetricNames(): %v", metrics)
 		assert.NoError(c, err)
 
-		/* JMW test currently fails with this check for datadog.netflow.aggregator.flow_flushed
-
-				ssh ec2-user@10.1.60.188
-				[ec2-user@ip-10-1-60-188 ~]$ docker ps -a
-				CONTAINER ID   IMAGE                            COMMAND                  CREATED          STATUS                      PORTS                                                                                  NAMES
-				a5f2bd923984   networkstatic/nflow-generator    "/usr/local/bin/nflo…"   2 minutes ago    Exited (1) 2 minutes ago                                                                                           dd-netflow
-
-				[ec2-user@ip-10-1-60-188 ~]$ docker logs dd-netflow
-				time="2024-03-13T01:17:24Z" level=info msg="sending netflow data to a collector ip: datadog-agent and port: 2056. \nUse ctrl^c to terminate the app."
-				time="2024-03-13T01:17:25Z" level=fatal msg="Error connecting to the target collector: write udp 172.18.0.3:52712->172.18.0.2:2056: write: connection refused"
-
-				1) do we need to expose port 2056 from the agent???
-
-				AND/OR
-
-				2) why is netflow not enabled?
-
-				[ec2-user@ip-10-1-60-188 ~]$ docker exec datadog-agent agent config | grep -A1 netflow
-		        netflow:
-		          enabled: "false"
-		*/
 		assert.Contains(c, metrics, "datadog.netflow.aggregator.flows_flushed", "metrics %v doesn't contain datadog.netflow.aggregator.flows_flushed", metrics)
 		assert.Contains(c, metrics, "datadog.agent.running", "metrics %v doesn't contain datadog.agent.running", metrics)
 	}, 5*time.Minute, 10*time.Second)
