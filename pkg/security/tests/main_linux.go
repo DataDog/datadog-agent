@@ -26,13 +26,29 @@ const (
 	fakeGroupPath  = "/tmp/fake_group"
 )
 
-func SkipIfNotEBPFLess(t *testing.T) {
-	if !ebpfLessEnabled {
-		t.Skip("only supports ebpfless")
-	}
-}
-
 func SkipIfNotAvailable(t *testing.T) {
+	match := func(list []string) bool {
+		var match bool
+
+		for _, value := range list {
+			if value[0] == '~' {
+				if strings.HasPrefix(t.Name(), value[1:]) {
+					match = true
+					break
+				}
+			} else if value == t.Name() {
+				match = true
+				break
+			}
+		}
+
+		return match
+	}
+
+	isAvailable := func(available []string, exclude []string) bool {
+		return match(available) && !match(exclude)
+	}
+
 	if ebpfLessEnabled {
 		if testEnvironment == DockerEnvironment {
 			t.Skip("skipping ebpfless test in docker")
@@ -77,26 +93,20 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestChown32",
 		}
 
-		match := func(list []string) bool {
-			var match bool
-
-			for _, value := range list {
-				if value[0] == '~' {
-					if strings.HasPrefix(t.Name(), value[1:]) {
-						match = true
-						break
-					}
-				} else if value == t.Name() {
-					match = true
-					break
-				}
-			}
-
-			return match
+		if !isAvailable(available, exclude) {
+			t.Skip("test not available for ebpfless")
+		}
+	} else {
+		available := []string{
+			"~Test",
 		}
 
-		if !match(available) || match(exclude) {
-			t.Skip("test not available for ebpfless")
+		exclude := []string{
+			"TestChownUserGroup", // the user/group overrides only work with the ptracer for now
+		}
+
+		if !isAvailable(available, exclude) {
+			t.Skip("test not available for ebpf")
 		}
 	}
 }
@@ -115,7 +125,7 @@ func preTestsHook() {
 
 		opts := ptracer.Opts{
 			Async:          true,
-			DisableSeccomp: seccompDisabled,
+			DisableSeccomp: disableSeccomp,
 		}
 
 		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
@@ -139,7 +149,7 @@ var (
 	withProfile      bool
 	trace            bool
 	disableTracePipe bool
-	seccompDisabled  bool
+	disableSeccomp   bool
 )
 
 var testSuitePid uint32
@@ -150,7 +160,7 @@ func init() {
 	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
 	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
 	flag.BoolVar(&disableTracePipe, "no-trace-pipe", false, "disable the trace pipe log")
-	flag.BoolVar(&seccompDisabled, "seccomp-disabled", false, "disable seccomp in the ptracer")
+	flag.BoolVar(&disableSeccomp, "disable-seccomp", false, "disable seccomp in the ptracer")
 	flag.BoolVar(&ebpfLessEnabled, "ebpfless", false, "enabled the ebpfless mode")
 
 	testSuitePid = utils.Getpid()

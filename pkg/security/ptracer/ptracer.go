@@ -244,6 +244,37 @@ func isExited(waitStatus syscall.WaitStatus) bool {
 	return waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled()
 }
 
+// SyscallStateTracker defines a syscall state tracker
+type SyscallStateTracker struct {
+	entry map[int]bool
+}
+
+// NewSyscallStateTracker returns a new syscall state tracker
+func NewSyscallStateTracker() *SyscallStateTracker {
+	return &SyscallStateTracker{
+		entry: make(map[int]bool),
+	}
+}
+
+// IsSyscallEntry returns true is the pid is at a syscall entry
+func (st *SyscallStateTracker) IsSyscallEntry(pid int) bool {
+	return st.entry[pid]
+}
+
+// NextStop update the state for the given pid
+func (st *SyscallStateTracker) NextStop(pid int) {
+	if state, exists := st.entry[pid]; exists {
+		st.entry[pid] = !state
+	} else {
+		st.entry[pid] = true
+	}
+}
+
+// Exit delete the pid from the tracker
+func (st *SyscallStateTracker) Exit(pid int) {
+	delete(st.entry, pid)
+}
+
 func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
@@ -252,8 +283,9 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 	}
 
 	var (
-		regs   syscall.PtraceRegs
-		prevNr int
+		tracker = NewSyscallStateTracker()
+		regs    syscall.PtraceRegs
+		prevNr  int
 	)
 
 	for {
@@ -264,6 +296,8 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 		}
 
 		if isExited(waitStatus) {
+			tracker.Exit(pid)
+
 			if pid == t.PID {
 				break
 			}
@@ -299,10 +333,12 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
 				default:
-					if ret := t.ReadRet(regs); ret != -int64(syscall.ENOSYS) {
-						cb(CallbackPostType, nr, pid, 0, regs, nil)
-					} else {
+					tracker.NextStop(pid)
+
+					if tracker.IsSyscallEntry(pid) {
 						cb(CallbackPreType, nr, pid, 0, regs, nil)
+					} else {
+						cb(CallbackPostType, nr, pid, 0, regs, nil)
 					}
 				}
 			}
@@ -467,7 +503,7 @@ func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tra
 	var prog *syscall.SockFprog
 
 	// syscalls specified then we generate a seccomp filter
-	if len(opts.Syscalls) > 0 {
+	if !opts.DisableSeccomp {
 		prog, err = traceFilterProg(opts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to compile bpf prog: %w", err)
