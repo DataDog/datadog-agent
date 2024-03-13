@@ -84,23 +84,24 @@ func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
 }
 
 // Set wraps Viper for concurrent access
-func (c *safeConfig) Set(key string, value interface{}, source Source) {
+func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 	if source == SourceDefault {
-		c.SetDefault(key, value)
+		c.SetDefault(key, newValue)
 		return
 	}
 
-	// modify the config then release the lock to avoid deadlocks
-	var receivers []NotificationReceiver
+	// get the old value before locking to avoid deadlock (Get also locks)
+	oldValue := c.Get(key)
+	// modify the config then release the lock to avoid deadlocks while notifying
 	c.Lock()
-	c.configSources[source].Set(key, value)
+	c.configSources[source].Set(key, newValue)
 	c.mergeViperInstances(key)
-	receivers = slices.Clone(c.notificationReceivers)
+	receivers := slices.Clone(c.notificationReceivers)
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key)
+		receiver(key, oldValue, newValue)
 	}
 }
 

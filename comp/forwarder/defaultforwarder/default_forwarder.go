@@ -201,7 +201,6 @@ type DefaultForwarder struct {
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
 
-	mainAPIKey       string
 	domainForwarders map[string]*domainForwarder
 	domainResolvers  map[string]resolver.DomainResolver
 	healthChecker    *forwarderHealth
@@ -223,7 +222,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		config:           config,
 		log:              log,
 		NumberOfWorkers:  options.NumberOfWorkers,
-		mainAPIKey:       config.GetString("api_key"),
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]resolver.DomainResolver{},
 		internalState:    atomic.NewUint32(Stopped),
@@ -329,15 +327,15 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		}
 	}
 
-	config.OnUpdate(func(key string) {
-		if key == "api_key" {
-			f.m.Lock()
-			defer f.m.Unlock()
-			newAPIKey := f.config.GetString(key)
-			for _, dr := range f.domainResolvers {
-				dr.UpdateAPIKey(f.mainAPIKey, newAPIKey)
+	config.OnUpdate(func(setting string, oldValue, newValue any) {
+		if setting == "api_key" {
+			oldAPIKey, ok1 := oldValue.(string)
+			newAPIKey, ok2 := newValue.(string)
+			if ok1 && ok2 {
+				for _, dr := range f.domainResolvers {
+					dr.UpdateAPIKey(oldAPIKey, newAPIKey)
+				}
 			}
-			f.mainAPIKey = newAPIKey
 		}
 	})
 

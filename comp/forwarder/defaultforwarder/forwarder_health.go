@@ -70,7 +70,6 @@ type forwarderHealth struct {
 	stop                  chan bool
 	stopped               chan struct{}
 	timeout               time.Duration
-	mainAPIKey            string
 	domainResolvers       map[string]resolver.DomainResolver
 	keysPerAPIEndpoint    map[string][]string
 	disableAPIKeyChecking bool
@@ -100,10 +99,13 @@ func (fh *forwarderHealth) init() {
 
 	// when the config updates the "api_key", process that change
 	if fh.config != nil {
-		fh.mainAPIKey = fh.config.GetString("api_key")
-		fh.config.OnUpdate(func(key string) {
-			if key == "api_key" {
-				fh.updateAPIKey(fh.config.GetString(key))
+		fh.config.OnUpdate(func(setting string, oldValue, newValue any) {
+			if setting == "api_key" {
+				oldAPIKey, ok1 := oldValue.(string)
+				newAPIKey, ok2 := newValue.(string)
+				if ok1 && ok2 {
+					fh.updateAPIKey(oldAPIKey, newAPIKey)
+				}
 			}
 		})
 	}
@@ -158,20 +160,19 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	}
 }
 
-func (fh *forwarderHealth) updateAPIKey(newKey string) {
+func (fh *forwarderHealth) updateAPIKey(oldKey, newKey string) {
 	fh.keyMapMutex.Lock()
 	for domainURL, keyList := range fh.keysPerAPIEndpoint {
 		replaceList := make([]string, 0, len(keyList))
-		for _, oldKey := range keyList {
-			if oldKey == fh.mainAPIKey {
+		for _, currKey := range keyList {
+			if currKey == oldKey {
 				replaceList = append(replaceList, newKey)
 			} else {
-				replaceList = append(replaceList, oldKey)
+				replaceList = append(replaceList, currKey)
 			}
 		}
 		fh.keysPerAPIEndpoint[domainURL] = replaceList
 	}
-	fh.mainAPIKey = newKey
 	fh.keyMapMutex.Unlock()
 	// check apiKey validity and update the messages
 	fh.checkValidAPIKey()

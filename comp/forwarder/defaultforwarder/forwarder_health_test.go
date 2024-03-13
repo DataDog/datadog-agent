@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -158,10 +157,6 @@ func TestUpdateAPIKey(t *testing.T) {
 
 	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
-	// updating the API Key requires that the config contains a value for the "api_key" field
-	if config, ok := cfg.(pkgconfigmodel.Config); ok {
-		config.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
-	}
 
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
@@ -172,8 +167,8 @@ func TestUpdateAPIKey(t *testing.T) {
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
 	assert.Equal(t, expect, string(data))
 
-	// update the main API Key
-	fh.updateAPIKey("api_key4")
+	// update the API Key
+	fh.updateAPIKey("api_key1", "api_key4")
 
 	// ensure that keysPerAPIEndpoint has the new API Key
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
