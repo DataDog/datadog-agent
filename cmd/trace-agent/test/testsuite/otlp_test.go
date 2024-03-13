@@ -286,7 +286,9 @@ apm_config:
 					producerStats = cgs
 				}
 			}
-			assert.True(t, serverStats != nil && clientStats != nil && producerStats != nil)
+			if serverStats == nil || clientStats == nil || producerStats == nil {
+				t.Fatalf("Expected stats are missing from payload. serverStats: %v, clientStats: %v, producerStats: %v", serverStats, clientStats, producerStats)
+			}
 			assert.Equal(t, "/path", serverStats.Resource)
 			assert.Equal(t, "server", serverStats.SpanKind)
 			assert.EqualValues(t, 1, serverStats.TopLevelHits)
@@ -348,7 +350,9 @@ apm_config:
 					producerStats = cgs
 				}
 			}
-			assert.True(t, serverStats != nil && producerStats != nil)
+			if serverStats == nil || producerStats == nil {
+				t.Fatalf("Expected stats are missing from payload. serverStats: %v, producerStats: %v", serverStats, producerStats)
+			}
 			assert.Equal(t, "/path", serverStats.Resource)
 			assert.Equal(t, "server", serverStats.SpanKind)
 			assert.EqualValues(t, 1, serverStats.TopLevelHits)
@@ -368,17 +372,13 @@ func waitForStatsAndTraces(t *testing.T, runner *test.Runner, wait time.Duration
 	for {
 		select {
 		case p := <-out:
-			switch p.(type) {
-			case *pb.StatsPayload:
-				if v, ok := p.(*pb.StatsPayload); ok {
-					statsFn(v)
-					gots = true
-				}
-			case *pb.AgentPayload:
-				if v, ok := p.(*pb.AgentPayload); ok {
-					agentFn(v)
-					gott = true
-				}
+			if v, ok := p.(*pb.StatsPayload); ok {
+				statsFn(v)
+				gots = true
+			}
+			if v, ok := p.(*pb.AgentPayload); ok {
+				agentFn(v)
+				gott = true
 			}
 			if gott && gots {
 				return
