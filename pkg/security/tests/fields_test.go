@@ -17,6 +17,8 @@ import (
 )
 
 func TestFieldsResolver(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_fields_open",
