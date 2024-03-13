@@ -1864,23 +1864,32 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				[]corev1.EnvVar{},
 				"replicaset", "test-app-123",
 			),
-			expectedEnvs: []corev1.EnvVar{
-				{
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar {
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar {
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar {
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
-				{
+				corev1.EnvVar {
 					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
 					Value: uuid,
 				},
-				{
+				corev1.EnvVar {
 					Name:  "DD_APPSEC_ENABLED",
 					Value: "true",
 				},
-			},
-			expectedInjectedLibraries: map[string]string{},
+			),
+			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
 			wantErr:                   false,
 			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm.enabled", true)
 			},
 		},
@@ -1893,23 +1902,32 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				[]corev1.EnvVar{},
 				"replicaset", "test-app-123",
 			),
-			expectedEnvs: []corev1.EnvVar{
-				{
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar {
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar {
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar {
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
-				{
+				corev1.EnvVar {
 					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
 					Value: uuid,
 				},
-				{
+				corev1.EnvVar {
 					Name:  "DD_IAST_ENABLED",
 					Value: "true",
 				},
-			},
-			expectedInjectedLibraries: map[string]string{},
+			),
+			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
 			wantErr:                   false,
 			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.iast.enabled", true)
 			},
 		},
@@ -1922,23 +1940,32 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				[]corev1.EnvVar{},
 				"replicaset", "test-app-123",
 			),
-			expectedEnvs: []corev1.EnvVar{
-				{
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar {
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+				corev1.EnvVar {
+					Name:  "DD_SERVICE",
+					Value: "test-app",
+				},
+				corev1.EnvVar {
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
-				{
+				corev1.EnvVar {
 					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
 					Value: uuid,
 				},
-				{
+				corev1.EnvVar {
 					Name:  "DD_APPSEC_SCA_ENABLED",
 					Value: "false",
 				},
-			},
-			expectedInjectedLibraries: map[string]string{},
+			),
+			expectedInjectedLibraries: map[string]string{"java": "latest", "python": "latest", "js": "latest", "ruby": "latest", "dotnet": "latest"},
 			wantErr:                   false,
 			setupConfig: func() {
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.asm_sca.enabled", false)
 			},
 		},
