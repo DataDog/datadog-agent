@@ -50,6 +50,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -362,6 +363,17 @@ func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
 		}
 		// TODO return similarity error score
 		return false, nil
+	}
+}
+
+// WithMatchingTags filters by `tags` where tags is an array of regex strings
+func WithMatchingTags[P aggregator.PayloadItem](tags []*regexp.Regexp) MatchOpt[P] {
+	return func(payload P) (bool, error) {
+		return lo.EveryBy(tags, func(regTag *regexp.Regexp) bool {
+			return lo.SomeBy(payload.GetTags(), func(t string) bool {
+				return regTag.MatchString(t)
+			})
+		}), nil
 	}
 }
 

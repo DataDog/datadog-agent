@@ -82,11 +82,25 @@ func (d *downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 	}
-	image, err := remote.Image(digest, remote.WithContext(ctx), remote.WithPlatform(platform))
+	index, err := remote.Index(digest, remote.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("could not download image: %w", err)
 	}
-	return image, nil
+	indexManifest, err := index.IndexManifest()
+	if err != nil {
+		return nil, fmt.Errorf("could not get index manifest: %w", err)
+	}
+	for _, manifest := range indexManifest.Manifests {
+		if manifest.Platform != nil && !manifest.Platform.Satisfies(platform) {
+			continue
+		}
+		image, err := index.Image(manifest.Digest)
+		if err != nil {
+			return nil, fmt.Errorf("could not get image: %w", err)
+		}
+		return image, nil
+	}
+	return nil, fmt.Errorf("no matching image found in the index")
 }
 
 func (d *downloader) downloadHTTP(ctx context.Context, url string, sha256hash string, size int64, tmpDir string) (oci.Image, error) {
@@ -165,7 +179,6 @@ func (d *downloader) downloadHTTP(ctx context.Context, url string, sha256hash st
 			return nil, fmt.Errorf("could not get image: %w", err)
 		}
 		return image, nil
-
 	}
 	return nil, fmt.Errorf("no matching image found in the index")
 }
