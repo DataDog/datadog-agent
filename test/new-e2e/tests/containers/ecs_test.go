@@ -32,7 +32,7 @@ import (
 )
 
 const (
-  taskNameDogstatsdUDS = "dogstatsd-uds"
+	taskNameDogstatsdUDS = "dogstatsd-uds"
 	taskNameDogstatsdUDP = "dogstatsd-udp"
 
 	taskNameTracegenUDS = "tracegen-uds"
