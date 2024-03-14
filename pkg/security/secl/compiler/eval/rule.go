@@ -242,14 +242,13 @@ func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext) error {
 	return nil
 }
 
-func (r *Rule) genMacroPartials(field Field) (map[Field]map[MacroID]*MacroEvaluator, error) {
-	partials := make(map[Field]map[MacroID]*MacroEvaluator)
-
+func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error) {
 	// check that field in this rule fields
 	if !slices.Contains(r.GetFields(), field) {
-		return partials, nil
+		return nil, nil
 	}
 
+	macroEvaluators := make(map[MacroID]*MacroEvaluator)
 	for _, macro := range r.Opts.MacroStore.List() {
 		var err error
 		var evaluator *MacroEvaluator
@@ -267,20 +266,15 @@ func (r *Rule) genMacroPartials(field Field) (map[Field]map[MacroID]*MacroEvalua
 			evaluator = macro.GetEvaluator()
 		}
 
-		macroEvaluators, exists := partials[field]
-		if !exists {
-			macroEvaluators = make(map[MacroID]*MacroEvaluator)
-			partials[field] = macroEvaluators
-		}
 		macroEvaluators[macro.ID] = evaluator
 	}
 
-	return partials, nil
+	return macroEvaluators, nil
 }
 
 // GenPartials - Compiles and generates partial Evaluators
 func (r *Rule) genPartials(field Field) error {
-	macroPartials, err := r.genMacroPartials(field)
+	macroPartial, err := r.genMacroPartials(field)
 	if err != nil {
 		return err
 	}
@@ -289,7 +283,7 @@ func (r *Rule) genPartials(field Field) error {
 		return nil
 	}
 
-	state := NewState(r.Model, field, macroPartials[field])
+	state := NewState(r.Model, field, macroPartial)
 	pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
