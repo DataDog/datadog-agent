@@ -11,8 +11,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
-	"strconv"
 	"strings"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
@@ -150,23 +148,20 @@ func (w *Webhook) MutateFunc() admission.WebhookFunc {
 
 // mutate adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
 func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, w.inject, request.DynamicClient)
+	return common.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient)
 }
 
 // inject injects DD_AGENT_HOST and DD_ENTITY_ID into a pod template if needed
-func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	var injectedConfig, injectedEntity bool
-	defer func() {
-		metrics.MutationAttempts.Inc(w.Name(), strconv.FormatBool(injectedConfig || injectedEntity), "", "")
-	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(w.Name(), "nil pod", "", "")
-		return errors.New("cannot inject config into nil pod")
+		return false, errors.New(metrics.NilPod)
+
 	}
 
 	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
-		return nil
+		return false, nil
 	}
 
 	switch injectionMode(pod, w.mode) {
@@ -181,13 +176,13 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
-		metrics.MutationErrors.Inc(w.Name(), "unknown mode", "", "")
-		return fmt.Errorf("invalid injection mode %q", w.mode)
+		log.Errorf("invalid injection mode %q", w.mode)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	injectedEntity = common.InjectEnv(pod, ddEntityIDEnvVar)
 
-	return nil
+	return injectedConfig || injectedEntity, nil
 }
 
 // injectionMode returns the injection mode based on the global mode and pod labels

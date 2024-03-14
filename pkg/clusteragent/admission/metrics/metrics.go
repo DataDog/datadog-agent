@@ -20,6 +20,16 @@ const (
 	WebhooksControllerName = "webhooks"
 )
 
+// Mutation errors
+const (
+	NilPod               = "nil_pod"
+	InvalidInput         = "invalid_input"
+	EmptyNamespace       = "empty_namespace"
+	InternalError        = "internal_error"
+	UnsupportedLanguage  = "unsupported_language"
+	ConfigInjectionError = "config_injection_error"
+)
+
 // Telemetry metrics
 var (
 	ReconcileSuccess = telemetry.NewGaugeWithOpts("admission_webhooks", "reconcile_success",
@@ -32,10 +42,10 @@ var (
 		[]string{}, "Time left before the certificate expires in hours.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationAttempts = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
-		[]string{"mutation_type", "injected", "language", "auto_detected"}, "Number of pod mutation attempts by mutation type (agent config, standard tags, lib injection).",
+		[]string{"mutation_type", "injected"}, "Number of pod mutation attempts by mutation type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
-		[]string{"mutation_type", "reason", "language", "auto_detected"}, "Number of mutation failures by mutation type (agent config, standard tags, lib injection).",
+		[]string{"mutation_type", "reason"}, "Number of mutation failures by mutation type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{"mutation_type"}, "Number of mutation webhook requests received.",

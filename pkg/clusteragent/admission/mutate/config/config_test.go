@@ -74,8 +74,9 @@ func TestInjectHostIP(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
-	err := webhook.inject(pod, "", nil)
+	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
+	assert.True(t, injected)
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithFieldRefValue("DD_AGENT_HOST", "status.hostIP"))
 }
 
@@ -84,8 +85,9 @@ func TestInjectService(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
-	err := webhook.inject(pod, "", nil)
+	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
+	assert.True(t, injected)
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_AGENT_HOST", "datadog."+common.GetMyNamespace()+".svc.cluster.local"))
 }
 
@@ -94,8 +96,9 @@ func TestInjectSocket(t *testing.T) {
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
-	err := webhook.inject(pod, "", nil)
+	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
+	assert.True(t, injected)
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_TRACE_AGENT_URL", "unix:///var/run/datadog/apm.socket"))
 	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_DOGSTATSD_URL", "unix:///var/run/datadog/dsd.socket"))
 	assert.Equal(t, pod.Spec.Containers[0].VolumeMounts[0].MountPath, "/var/run/datadog")
@@ -148,7 +151,8 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
-	err := webhook.inject(pod, "", nil)
+	injected, err := webhook.inject(pod, "", nil)
+	assert.True(t, injected)
 	assert.Nil(t, err)
 	assert.Equal(t, len(pod.Spec.InitContainers), 1)
 	assert.Equal(t, pod.Spec.InitContainers[0].VolumeMounts[0].Name, "datadog")
