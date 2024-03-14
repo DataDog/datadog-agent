@@ -157,7 +157,7 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		var key netebpf.ConnTuple
 		var value EbpfTx
-		protocols.WriteMapDumpHeader(w, mapName, key, value)
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)

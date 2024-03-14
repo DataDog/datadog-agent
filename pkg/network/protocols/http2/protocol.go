@@ -371,7 +371,7 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == InFlightMap {
 		var key HTTP2StreamKey
 		var value EbpfTx
-		protocols.WriteMapDumpHeader(w, mapName, key, value)
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
@@ -379,7 +379,7 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	} else if mapName == dynamicTable {
 		var key HTTP2DynamicTableIndex
 		var value HTTP2DynamicTableEntry
-		protocols.WriteMapDumpHeader(w, mapName, key, value)
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
