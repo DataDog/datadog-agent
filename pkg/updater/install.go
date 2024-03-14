@@ -22,12 +22,7 @@ const (
 	datadogPackageLayerMediaType       types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
 	datadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
 	datadogPackageMaxSize                              = 3 << 30 // 3GiB
-
-	updaterSystemdCommandsPath                = "/opt/datadog/updater/systemd_commands"
-	updaterSystemdCommandsStartExperimentPath = updaterSystemdCommandsPath + "/start_experiment"
-	updaterSystemdCommandsStopExperimentPath  = updaterSystemdCommandsPath + "/stop_experiment"
-
-	defaultConfigsDir = "/etc"
+	defaultConfigsDir                                  = "/etc"
 )
 
 type installer struct {
