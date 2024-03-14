@@ -284,6 +284,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, perfHandlerT
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
+		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
 		m, closeFn, err = loadTracerFromAsset(ar, false, true, config, o, perfHandlerTCP)
 		return err
 	})
