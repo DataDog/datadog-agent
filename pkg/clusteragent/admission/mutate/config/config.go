@@ -41,8 +41,8 @@ const (
 	socket  = "socket"
 	service = "service"
 
-	// Volume name
-	datadogVolumeName = "datadog"
+	// DatadogVolumeName is the name of the volume used to mount the socket
+	DatadogVolumeName = "datadog"
 
 	webhookName = "agent_config"
 )
@@ -170,7 +170,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	case service:
 		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
+		volume, volumeMount := buildVolume(DatadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
 		injectedVol := common.InjectVolume(pod, volume, volumeMount)
 		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
