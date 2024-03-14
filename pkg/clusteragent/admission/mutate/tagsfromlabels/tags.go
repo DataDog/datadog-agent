@@ -42,7 +42,7 @@ var labelsToEnv = map[string]string{
 	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
 }
 
-const webhookName = "tags"
+const webhookName = "standard_tags"
 
 // Webhook is the webhook that injects DD_ENV, DD_VERSION, DD_SERVICE env vars
 type Webhook struct {
@@ -127,20 +127,20 @@ func (o *ownerInfo) buildID(ns string) string {
 // the pod template from pod and higher-level resource labels
 func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
 	return common.Mutate(request.Raw, request.Namespace, func(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
-		return injectTags(pod, ns, dc, w.wmeta)
+		return w.injectTags(pod, ns, dc, w.wmeta)
 	}, request.DynamicClient)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed
-func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workloadmeta.Component) error {
+func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workloadmeta.Component) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected), "", "")
+		metrics.MutationAttempts.Inc(w.Name(), strconv.FormatBool(injected), "", "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "nil pod", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "nil pod", "", "")
 		return errors.New("cannot inject tags into nil pod")
 	}
 
@@ -160,7 +160,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workload
 		if pod.GetNamespace() != "" {
 			ns = pod.GetNamespace()
 		} else {
-			metrics.MutationErrors.Inc(metrics.TagsMutationType, "empty namespace", "", "")
+			metrics.MutationErrors.Inc(w.Name(), "empty namespace", "", "")
 			return errors.New("cannot get standard tags from parent object: empty namespace")
 		}
 	}
@@ -173,7 +173,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workload
 
 	owner, err := getOwner(owners[0], ns, dc)
 	if err != nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "cannot get owner", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "cannot get owner", "", "")
 		return err
 	}
 
