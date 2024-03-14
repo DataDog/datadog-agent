@@ -309,9 +309,10 @@ network_config:
 func TestIgnoreConntrackInitFailure(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreCTInitFailure.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  ignore_conntrack_init_failure: true
+`)
 
 		assert.True(t, cfg.IgnoreConntrackInitFailure)
 	})
