@@ -1125,9 +1125,10 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBufferedDeprecated.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  max_http_stats_buffered: 513
+`)
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
 	})
@@ -1143,9 +1144,10 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBuffered.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_http_stats_buffered: 513
+`)
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
 	})
