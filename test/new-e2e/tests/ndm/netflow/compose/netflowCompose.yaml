@@ -12,4 +12,5 @@ services:
       - "4739:4739"
       - "6343:6343/udp"
     volumes:
-      - ${CONFIG_DIR}/netflow.yaml:/etc/datadog-agent/conf.d/snmp.d/netflow.yaml
+      # this is a hack to enable netflow in the docker agent since there is not currently an env var to do so
+      - ${CONFIG_DIR}/netflow.yaml:/etc/datadog-agent/datadog.yaml
