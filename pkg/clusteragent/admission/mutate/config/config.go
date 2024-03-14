@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
@@ -45,7 +46,7 @@ const (
 	// Volume name
 	datadogVolumeName = "datadog"
 
-	webhookName = "config"
+	webhookName = "agent_config"
 )
 
 var (
@@ -93,10 +94,11 @@ type Webhook struct {
 	resources  []string
 	operations []admiv1.OperationType
 	mode       string
+	wmeta      workloadmeta.Component
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook() *Webhook {
+func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
 		name:       webhookName,
 		isEnabled:  config.Datadog.GetBool("admission_controller.inject_config.enabled"),
@@ -104,6 +106,7 @@ func NewWebhook() *Webhook {
 		resources:  []string{"pods"},
 		operations: []admiv1.OperationType{admiv1.Create},
 		mode:       config.Datadog.GetString("admission_controller.inject_config.mode"),
+		wmeta:      wmeta,
 	}
 }
 
@@ -154,15 +157,15 @@ func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
 func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	var injectedConfig, injectedEntity bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.ConfigMutationType, strconv.FormatBool(injectedConfig || injectedEntity), "", "")
+		metrics.MutationAttempts.Inc(w.Name(), strconv.FormatBool(injectedConfig || injectedEntity), "", "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "nil pod", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "nil pod", "", "")
 		return errors.New("cannot inject config into nil pod")
 	}
 
-	if !autoinstrumentation.ShouldInject(pod) {
+	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
 		return nil
 	}
 
@@ -178,7 +181,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
-		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "unknown mode", "", "")
 		return fmt.Errorf("invalid injection mode %q", w.mode)
 	}
 

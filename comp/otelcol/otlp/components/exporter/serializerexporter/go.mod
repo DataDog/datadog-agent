@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path
@@ -50,9 +50,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../../../../pkg/util/testutil/
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../../../pkg/version
-
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes => ../../../../../../../../dd/opentelemetry-mapping-go/pkg/otlp/attributes
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics => ../../../../../../../../dd/opentelemetry-mapping-go/pkg/otlp/metrics
 )
 
 require (
@@ -82,7 +79,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.102 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.106 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.52.0-rc.3 // indirect

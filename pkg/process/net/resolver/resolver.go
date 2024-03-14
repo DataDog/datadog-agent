@@ -12,20 +12,71 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultTTL = 10 * time.Second
+const cacheValidityNoRT = 2 * time.Second
 
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
-	mux         sync.RWMutex
-	addrToCtrID map[model.ContainerAddr]string
-	ctrForPid   map[int]string
-	updated     time.Time
+	mux                sync.RWMutex
+	addrToCtrID        map[model.ContainerAddr]string
+	ctrForPid          map[int]string
+	updated            time.Time
+	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
+	Clock              clock.Clock
+	ContainerProvider  proccontainers.ContainerProvider
+	done               chan bool
+}
+
+func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock clock.Clock) *LocalResolver {
+	return &LocalResolver{
+		ContainerProvider: containerProvider,
+		Clock:             clock,
+		done:              make(chan bool),
+	}
+}
+
+func (l *LocalResolver) Run() {
+	pullContainerFrequency := 10 * time.Second
+	ticker := l.Clock.Ticker(pullContainerFrequency)
+	go l.pullContainers(ticker)
+}
+
+func (l *LocalResolver) Stop() {
+	l.done <- true
+}
+
+func (l *LocalResolver) pullContainers(ticker *clock.Ticker) {
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			var containers []*model.Container
+			var pidToCid map[int]string
+			var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
+
+			containers, lastContainerRates, pidToCid, err := l.ContainerProvider.GetContainers(cacheValidityNoRT, l.lastContainerRates)
+			if err == nil {
+				l.lastContainerRates = lastContainerRates
+			} else {
+				log.Warnf("Unable to gather stats for containers, err: %v", err)
+			}
+
+			// Keep track of containers addresses
+			l.LoadAddrs(containers, pidToCid)
+
+		case <-l.done:
+			return
+		}
+	}
 }
 
 // LoadAddrs generates a map of network addresses to container IDs
