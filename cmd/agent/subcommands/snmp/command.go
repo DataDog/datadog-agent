@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,38 @@ type connectionParams struct {
 	SecurityLevel           string
 	UseUnconnectedUDPSocket bool
 }
+
+var authOpts = NewOptions(OptPairs[gosnmp.SnmpV3AuthProtocol]{
+	{"", gosnmp.NoAuth},
+	{"MD5", gosnmp.MD5},
+	{"SHA", gosnmp.SHA},
+	{"SHA-224", gosnmp.SHA224},
+	{"SHA-256", gosnmp.SHA256},
+	{"SHA-384", gosnmp.SHA384},
+	{"SHA-512", gosnmp.SHA512},
+})
+
+var privOpts = NewOptions(OptPairs[gosnmp.SnmpV3PrivProtocol]{
+	{"", gosnmp.NoPriv},
+	{"DES", gosnmp.DES},
+	{"AES", gosnmp.AES},
+	{"AES192", gosnmp.AES192},
+	{"AES192C", gosnmp.AES192C},
+	{"AES256", gosnmp.AES256},
+	{"AES256C", gosnmp.AES256C},
+})
+
+var versionOpts = NewOptions(OptPairs[gosnmp.SnmpVersion]{
+	{"1", gosnmp.Version1},
+	{"2c", gosnmp.Version2c},
+	{"3", gosnmp.Version3},
+})
+
+var levelOpts = NewOptions(OptPairs[gosnmp.SnmpV3MsgFlags]{
+	{"noAuthNoPriv", gosnmp.NoAuthNoPriv},
+	{"authNoPriv", gosnmp.AuthNoPriv},
+	{"authPriv", gosnmp.AuthPriv},
+})
 
 // argsType is an alias so we can inject the args via fx.
 type argsType []string
@@ -83,8 +116,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	snmpWalkCmd := &cobra.Command{
 		Use:   "walk <IP Address>[:Port] [OID]",
-		Short: "Perform an snmpwalk, if only a valid IP address is provided with the oid then the agent default snmp config will be used",
-		Long:  ``,
+		Short: "Perform an snmpwalk.",
+		Long: `Walk the SNMP tree for a device, printing every OID found. If OID is specified, only show that OID and its children.
+		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			err := fxutil.OneShot(snmpwalk,
@@ -106,18 +140,18 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return nil
 		},
 	}
-	snmpWalkCmd.Flags().StringVarP(&connParams.Version, "snmp-version", "v", "", "Specify SNMP version to use")
+	snmpWalkCmd.Flags().VarP(versionOpts.Flag(&connParams.Version), "snmp-version", "v", fmt.Sprintf("Specify SNMP version to use (%s)", versionOpts.OptsStr()))
 
 	// snmp v1 or v2c specific
 	snmpWalkCmd.Flags().StringVarP(&connParams.CommunityString, "community-string", "C", "", "Set the community string")
 
 	// snmp v3 specific
-	snmpWalkCmd.Flags().StringVarP(&connParams.AuthProtocol, "auth-protocol", "a", "", "Set authentication protocol (MD5|SHA|SHA-224|SHA-256|SHA-384|SHA-512)")
+	snmpWalkCmd.Flags().VarP(authOpts.Flag(&connParams.AuthProtocol), "auth-protocol", "a", fmt.Sprintf("Set authentication protocol (%s)", authOpts.OptsStr()))
 	snmpWalkCmd.Flags().StringVarP(&connParams.AuthKey, "auth-key", "A", "", "Set authentication protocol pass phrase")
-	snmpWalkCmd.Flags().StringVarP(&connParams.SecurityLevel, "security-level", "l", "", "set security level (noAuthNoPriv|authNoPriv|authPriv)")
+	snmpWalkCmd.Flags().VarP(levelOpts.Flag(&connParams.SecurityLevel), "security-level", "l", fmt.Sprintf("Set security level (%s)", levelOpts.OptsStr()))
 	snmpWalkCmd.Flags().StringVarP(&connParams.Context, "context", "N", "", "Set context name")
 	snmpWalkCmd.Flags().StringVarP(&connParams.Username, "user-name", "u", "", "Set security name")
-	snmpWalkCmd.Flags().StringVarP(&connParams.PrivProtocol, "priv-protocol", "x", "", "Set privacy protocol (DES|AES|AES192|AES192C|AES256|AES256C)")
+	snmpWalkCmd.Flags().VarP(privOpts.Flag(&connParams.PrivProtocol), "priv-protocol", "x", fmt.Sprintf("Set privacy protocol (%s)", privOpts.OptsStr()))
 	snmpWalkCmd.Flags().StringVarP(&connParams.PrivKey, "priv-key", "X", "", "Set privacy protocol pass phrase")
 
 	// general communication options
@@ -206,23 +240,21 @@ func newSNMP(connParams *connectionParams) (*gosnmp.GoSNMP, error) {
 	if connParams.Timeout == 0 {
 		return nil, fmt.Errorf("timeout cannot be 0")
 	}
-
 	var version gosnmp.SnmpVersion
-	// Set the snmp version
-	if connParams.Version == "1" {
-		version = gosnmp.Version1
-	} else if connParams.Version == "3" || (connParams.Version == "" && connParams.Username != "") {
-		// Use version 3 if no version was specified but a username was.
-		version = gosnmp.Version3
-	} else if connParams.Version == "2c" || connParams.Version == "2" || connParams.Version == "" {
-		// Default to 2c if nothing was specified.
-		version = gosnmp.Version2c
-	} else {
-		return nil, fmt.Errorf("SNMP version not supported: %s", connParams.Version)
+	var ok bool
+	if connParams.Version == "" {
+		// Assume v3 if a username was set, otherwise assume v2c.
+		if connParams.Username != "" {
+			version = gosnmp.Version3
+		} else {
+			version = gosnmp.Version2c
+		}
+	} else if version, ok = versionOpts.getVal(connParams.Version); !ok {
+		return nil, fmt.Errorf("SNMP version %q not supported; must be %s", connParams.Version, versionOpts.OptsStr())
 	}
 
+	// Set default community string if version 1 or 2c and no given community string
 	if version != gosnmp.Version3 && connParams.CommunityString == "" {
-		// Set default community string if version 1 or 2c and no given community string
 		connParams.CommunityString = defaultCommunityString
 	}
 
@@ -244,64 +276,26 @@ func newSNMP(connParams *connectionParams) (*gosnmp.GoSNMP, error) {
 		securityParams.AuthenticationPassphrase = connParams.AuthKey
 		securityParams.PrivacyPassphrase = connParams.PrivKey
 
-		// Authentication Protocol
-		switch strings.ToLower(connParams.AuthProtocol) {
-		case "":
-			securityParams.AuthenticationProtocol = gosnmp.NoAuth
-		case "md5":
-			securityParams.AuthenticationProtocol = gosnmp.MD5
-		case "sha":
-			securityParams.AuthenticationProtocol = gosnmp.SHA
-		case "sha224", "sha-224":
-			securityParams.AuthenticationProtocol = gosnmp.SHA224
-		case "sha256", "sha-256":
-			securityParams.AuthenticationProtocol = gosnmp.SHA256
-		case "sha384", "sha-384":
-			securityParams.AuthenticationProtocol = gosnmp.SHA384
-		case "sha512", "sha-512":
-			securityParams.AuthenticationProtocol = gosnmp.SHA512
-		default:
-			return nil, fmt.Errorf("unsupported authentication protocol: %s", connParams.AuthProtocol)
+		if securityParams.AuthenticationProtocol, ok = authOpts.getVal(connParams.AuthProtocol); !ok {
+			return nil, fmt.Errorf("authentication protocol %q not supported; must be %s", connParams.AuthProtocol, authOpts.OptsStr())
 		}
 
-		// Privacy Protocol
-		switch strings.ToLower(connParams.PrivProtocol) {
-		case "":
-			securityParams.PrivacyProtocol = gosnmp.NoPriv
-		case "des":
-			securityParams.PrivacyProtocol = gosnmp.DES
-		case "aes":
-			securityParams.PrivacyProtocol = gosnmp.AES
-		case "aes192":
-			securityParams.PrivacyProtocol = gosnmp.AES192
-		case "aes192c":
-			securityParams.PrivacyProtocol = gosnmp.AES192C
-		case "aes256":
-			securityParams.PrivacyProtocol = gosnmp.AES256
-		case "aes256c":
-			securityParams.PrivacyProtocol = gosnmp.AES256C
-		default:
-			return nil, fmt.Errorf("unsupported privacy protocol: %s", connParams.PrivProtocol)
+		if securityParams.PrivacyProtocol, ok = privOpts.getVal(connParams.PrivProtocol); !ok {
+			return nil, fmt.Errorf("privacy protocol %q not supported; must be %s", connParams.PrivProtocol, privOpts.OptsStr())
 		}
 
-		// MsgFlags
-		switch strings.ToLower(connParams.SecurityLevel) {
-		case "":
+		if connParams.SecurityLevel == "" {
 			msgFlags = gosnmp.NoAuthNoPriv
 			if connParams.PrivKey != "" {
 				msgFlags = gosnmp.AuthPriv
 			} else if connParams.AuthKey != "" {
 				msgFlags = gosnmp.AuthNoPriv
 			}
-
-		case "noauthnopriv":
-			msgFlags = gosnmp.NoAuthNoPriv
-		case "authpriv":
-			msgFlags = gosnmp.AuthPriv
-		case "authnopriv":
-			msgFlags = gosnmp.AuthNoPriv
-		default:
-			return nil, fmt.Errorf("unsupported security level: %s", connParams.SecurityLevel)
+		} else {
+			var ok bool // can't use := below because it'll make a new msgFlags instead of setting the one in the parent scope.
+			if msgFlags, ok = levelOpts.getVal(connParams.SecurityLevel); !ok {
+				return nil, fmt.Errorf("security level %q not supported; must be %s", connParams.SecurityLevel, levelOpts.OptsStr())
+			}
 		}
 	}
 	// Set SNMP parameters
@@ -341,7 +335,7 @@ func snmpwalk(connParams *connectionParams, args argsType, conf config.Component
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
-		fmt.Printf("Warning: %v\n", agentErr)
+		fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
 	}
 	// Establish connection
 	snmp, err := newSNMP(connParams)
