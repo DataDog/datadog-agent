@@ -57,7 +57,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 
 		device := file.Sys().(*syscall.Stat_t).Dev
 		inode := file.Sys().(*syscall.Stat_t).Ino
-		ringbufferEnabled := config.RingBufferSupported()
+		ringbufferEnabled := config.RingBufferSupportedNPM()
 
 		o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{
 			Name:  "systemprobe_device",

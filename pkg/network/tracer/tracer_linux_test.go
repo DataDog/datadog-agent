@@ -1864,16 +1864,16 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
 	t.Run("ringbuf_enabled", func(t *testing.T) {
-		c := testConfig()
-		c.RingbuffersEnabled = true
-		testPreexistingEmptyIncomingConnectionDirection(t, c)
-	})
-	t.Run("ringbuf_disabled", func(t *testing.T) {
 		if features.HaveMapType(ebpf.RingBuf) != nil {
 			t.Skip("skipping test as ringbuffers are not supported on this kernel")
 		}
 		c := testConfig()
-		c.RingbuffersEnabled = false
+		c.NPMRingbuffersEnabled = true
+		testPreexistingEmptyIncomingConnectionDirection(t, c)
+	})
+	t.Run("ringbuf_disabled", func(t *testing.T) {
+		c := testConfig()
+		c.NPMRingbuffersEnabled = false
 		testPreexistingEmptyIncomingConnectionDirection(t, c)
 	})
 }
