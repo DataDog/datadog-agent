@@ -569,9 +569,10 @@ service_monitoring_config:
 func TestMaxTrackedHTTPConnections(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnectionsDeprecated.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  max_tracked_http_connections: 1025
+`)
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
 	})
@@ -587,9 +588,10 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnections.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_tracked_http_connections: 1025
+`)
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
 	})
