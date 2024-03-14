@@ -19,10 +19,6 @@
 #define GRPC_ENCODED_CONTENT_TYPE "\x1d\x75\xd0\x62\x0d\x26\x3d\x4c\x4d\x65\x64"
 #define GRPC_CONTENT_TYPE_LEN (sizeof(GRPC_ENCODED_CONTENT_TYPE) - 1)
 
-static __always_inline bool is_encoded_grpc_content_type(const char *content_type_buf) {
-    return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN);
-}
-
 static __always_inline grpc_status_t is_content_type_grpc(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     // We only care about indexed names
     if (idx != HTTP2_CONTENT_TYPE_IDX) {
@@ -48,7 +44,7 @@ static __always_inline grpc_status_t is_content_type_grpc(struct __sk_buff *skb,
     bpf_skb_load_bytes(skb, skb_info->data_off, content_type_buf, GRPC_CONTENT_TYPE_LEN);
     skb_info->data_off += len.length;
 
-    return is_encoded_grpc_content_type(content_type_buf) ? PAYLOAD_GRPC : PAYLOAD_NOT_GRPC;
+    return bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0? PAYLOAD_GRPC : PAYLOAD_NOT_GRPC;
 }
 
 // skip_header increments skb_info->data_off so that it skips the remainder of
