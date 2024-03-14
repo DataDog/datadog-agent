@@ -287,9 +287,10 @@ func TestDisableGatewayLookup(t *testing.T) {
 		assert.True(t, cfg.EnableGatewayLookup)
 
 		aconfig.ResetSystemProbeConfig(t)
-		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableGwLookup.yaml")
-		require.NoError(t, err)
-		cfg = New()
+		cfg = configurationFromYAML(t, `
+network_config:
+  enable_gateway_lookup: false
+`)
 
 		assert.False(t, cfg.EnableGatewayLookup)
 	})
