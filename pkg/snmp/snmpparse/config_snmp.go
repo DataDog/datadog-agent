@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"reflect"
 
 	yaml "gopkg.in/yaml.v2"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
+	"github.com/DataDog/viper"
 )
 
 var configCheckURLSnmp string
@@ -78,9 +80,25 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 	snmpconfigs := []SNMPConfig{}
 	configs := []snmplistener.Config{}
+	opt := viper.DecodeHook(
+		func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+			// Turn an array into a map for ignored addresses
+			if rf != reflect.Slice {
+				return data, nil
+			}
+			if rt != reflect.Map {
+				return data, nil
+			}
+			newData := map[interface{}]bool{}
+			for _, i := range data.([]interface{}) {
+				newData[i] = true
+			}
+			return newData, nil
+		},
+	)
 	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
 	//so for each result of the Unmarshal key we storre the result in a tmp SNMPConfig{} object
-	err := conf.UnmarshalKey("snmp_listener.configs", &configs)
+	err := conf.UnmarshalKey("snmp_listener.configs", &configs, opt)
 	if err != nil {
 		fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
 		return nil, err
