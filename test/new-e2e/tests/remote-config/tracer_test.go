@@ -28,6 +28,8 @@ var rcEnabledConfig string
 //go:embed fixtures/tracer-payload.json
 var tracerPayloadJSON string
 
+// TestRcTracerSuite tests the remote-config service by attempting to retrieve RC payloads as if a tracer were calling it
+// Requires a valid Datadog API key
 func TestRcTracerSuite(t *testing.T) {
 	e2e.Run(t, &tracerSuite{},
 		e2e.WithProvisioner(
