@@ -9,7 +9,7 @@
 #include "protocols/http2/skb-common.h"
 #include "protocols/grpc/defs.h"
 
-#define GRPC_MAX_FRAMES_TO_FILTER 10
+#define GRPC_MAX_FRAMES_TO_FILTER 90
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
 
 // The HPACK specification defines the specific Huffman encoding used for string
