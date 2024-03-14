@@ -76,7 +76,7 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
         header_icon = ":host-red:"
         state = "failed"
-        coda = "If there is something wrong with the notification please contact #agent-platform"
+        coda = "If there is something wrong with the notification please contact #agent-developer-experience"
     else:
         header_icon = ":host-green:"
         state = "succeeded"
