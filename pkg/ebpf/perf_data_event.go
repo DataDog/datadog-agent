@@ -22,7 +22,6 @@ type EventHandler interface {
 
 // DataEvent encapsulates a single event read from a perf buffer
 type DataEvent struct {
-	CPU  int
 	Data []byte
 
 	pr *perf.Record
