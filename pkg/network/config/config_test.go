@@ -105,9 +105,10 @@ service_monitoring_config:
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DeprecatedEnableHTTP.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  enable_http_monitoring: true
+`)
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
@@ -125,9 +126,10 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_http_monitoring: true
+`)
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
