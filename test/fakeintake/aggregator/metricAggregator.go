@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-//nolint:revive // TODO(APL) Fix revive linter
+// MetricSeries represents a metric series payload
 type MetricSeries struct {
 	// embed proto Metric Series struct
 	metricspb.MetricPayload_MetricSeries
@@ -60,12 +60,12 @@ func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error)
 	return metrics, err
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
+// MetricAggregator is an Aggregator for metric series payloads
 type MetricAggregator struct {
 	Aggregator[*MetricSeries]
 }
 
-//nolint:revive // TODO(APL) Fix revive linter
+// NewMetricAggregator returns a new MetricAggregator
 func NewMetricAggregator() MetricAggregator {
 	return MetricAggregator{
 		Aggregator: newAggregator(ParseMetricSeries),
