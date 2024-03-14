@@ -6,7 +6,16 @@
 // Package protocols provides the implementation of the network tracer protocols
 package protocols
 
-import "math"
+import (
+	"fmt"
+	"io"
+	"math"
+)
+
+// WriteMapDumpHeader writes a header for a map dump
+func WriteMapDumpHeader(w io.Writer, mapName string, key interface{}, value interface{}) {
+	_, _ = io.WriteString(w, fmt.Sprintf("Map: %q, key: %T, value: %T\n", mapName, key, value))
+}
 
 // below is copied from pkg/trace/stats/statsraw.go
 
