@@ -323,15 +323,21 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 	makeRequest()
 
 	// Iterate through active connections until we find connection created above
+	var foundIncoming, foundOutgoing bool
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
+
 		for _, c := range payload.Conns {
-			if c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
-				return true
+			if !foundIncoming && c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
+				foundIncoming = true
+			}
+
+			if !foundOutgoing && c.SPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
+				foundOutgoing = true
 			}
 		}
-		return false
-	}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", httpsPort)
+		return foundIncoming && foundOutgoing
+	}, 4*time.Second, 100*time.Millisecond, "couldn't find matching TLS connection")
 }
 
 func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
