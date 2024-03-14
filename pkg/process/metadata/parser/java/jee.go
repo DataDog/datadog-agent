@@ -9,7 +9,7 @@ package javaparser
 import (
 	"archive/zip"
 	"encoding/xml"
-	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -41,10 +41,6 @@ const (
 	jbossDomainMain      string = "org.jboss.as.server"
 	jbossSysProp         string = "-Djboss.home.dir="
 	applicationXMLPath   string = "/META-INF/application.xml"
-)
-
-var (
-	errUnhandledDeployment = errors.New("unhandled deployment type")
 )
 
 type (
@@ -155,7 +151,7 @@ func vfsAndTypeFromAppPath(appPath string, fs afero.Fs) (*fileSystemCloser, bool
 		isEar = true
 	} else if ext != ".war" {
 		// only ear and war are supported
-		return nil, false, errUnhandledDeployment
+		return nil, false, fmt.Errorf("unhandled deployment type %s", ext)
 	}
 	fi, err := fs.Stat(appPath)
 	if err != nil {
