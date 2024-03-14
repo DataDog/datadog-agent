@@ -27,30 +27,22 @@ JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
 
 
-def add_flavor_to_junitxml(xml_path: str, flavor: AgentFlavor):
+def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
     """
-    Takes a JUnit XML file and adds a flavor field to it, to allow tagging
-    tests by flavor.
-    """
-    tree = ET.parse(xml_path)
-
-    # Create a new element containing the flavor and append it to the tree
-    flavor_element = ET.Element('flavor')
-    flavor_element.text = flavor.name
-    tree.getroot().append(flavor_element)
-
-    # Write back to the original file
-    tree.write(xml_path)
-
-
-def fix_timeouts_to_junitxml(xml_path: str):
-    """
-    Test cases that timeout do not have a classname, this function sets the
-    empty class names to the test suite name
+    Modifies the JUnit XML file:
+    1. Adds a flavor field to it, to allow tagging tests by flavor.
+    2. Assigns empty classname attributes for each test case given the name
+       of the parent test suite (timeouts do not have classnames).
     """
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
+    # 1. Create a new element containing the flavor and append it to the tree
+    flavor_element = ET.Element('flavor')
+    flavor_element.text = flavor.name
+    root.append(flavor_element)
+
+    # 2. Assign empty test cases
     for testsuite in root.findall('.//testsuite'):
         testsuite_name = testsuite.get('name')
         for testcase in testsuite.findall('.//testcase'):
@@ -58,6 +50,7 @@ def fix_timeouts_to_junitxml(xml_path: str):
             if testcase.get('classname') == '':
                 testcase.set('classname', testsuite_name)
 
+    # Write back to the original file
     tree.write(xml_path)
 
 
