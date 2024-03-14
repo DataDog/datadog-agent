@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/samber/lo"
 )
 
 //go:embed compose/netflowCompose.yaml
@@ -81,7 +83,6 @@ func netflowDockerProvisioner() e2e.Provisioner {
 			dockeragentparams.WithExtraComposeManifest("netflow-generator", pulumi.String(netflowCompose)),
 			dockeragentparams.WithEnvironmentVariables(envVars),
 			dockeragentparams.WithPulumiDependsOn(pulumi.DependsOn(composeDependencies)),
-			// JMW add dependency on netflow-generator container starting?
 		)
 		if err != nil {
 			return err
@@ -98,10 +99,10 @@ type netflowDockerSuite struct {
 
 // TestNetflowSuite runs the netflow e2e suite
 func TestNetflowSuite(t *testing.T) {
-	//JMWORIG e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()))
-	//JMWWED e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithSkipDeleteOnFailure())
-	//JMWWED
-	e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithDevMode())
+	//JMW
+	e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()))
+	//JMW e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithSkipDeleteOnFailure())
+	//JMW e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithDevMode())
 }
 
 // TestNetflow tests that the netflow-generator container is running and that the agent container
@@ -109,11 +110,25 @@ func TestNetflowSuite(t *testing.T) {
 func (s *netflowDockerSuite) TestNetflow() {
 	fakeintake := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := fakeintake.GetMetricNames()
-		s.T().Logf("JMW fakeintake.GetMetricNames(): %v", metrics)
-		assert.NoError(c, err)
+		//JMWRMmetricNames, err := fakeintake.GetMetricNames()
+		//JMWRMassert.NoError(c, err)
+		//JMWRMs.T().Logf("JMW fakeintake.GetMetricNames(): %v", metricNames)
+		//JMWRMassert.Contains(c, metricNames, "datadog.agent.running", "metricNames %v doesn't contain datadog.agent.running", metricNames)
+		//JMWRMassert.Contains(c, metricNames, "datadog.netflow.aggregator.flows_flushed", "metricNames %v doesn't contain datadog.netflow.aggregator.flows_flushed", metricNames)
 
-		assert.Contains(c, metrics, "datadog.netflow.aggregator.flows_flushed", "metrics %v doesn't contain datadog.netflow.aggregator.flows_flushed", metrics)
-		assert.Contains(c, metrics, "datadog.agent.running", "metrics %v doesn't contain datadog.agent.running", metrics)
+		metrics, err := fakeintake.FilterMetrics("datadog.netflow.aggregator.flows_flushed")
+		assert.NoError(c, err)
+		s.T().Logf("JMW fakeintake.FilterMetrics('datadog.netflow.aggregator.flows_flushed') returned: %v", metrics)
+		assert.Greater(c, len(metrics), 0, "no 'datadog.netflow.aggregator.flows_flushed' metrics yet")
+		// Check value
+		assert.NotEmptyf(c, lo.Filter(metrics[len(metrics)-1].GetPoints(), func(v *gogen.MetricPayload_MetricPoint, _ int) bool {
+			return v.GetValue() > 0
+		}), "No non-zero value of `datadog.netflow.aggregator.flows_flushed` in the last metric: %v", metrics[len(metrics)-1])
+
+		//JMWRM
+		//metric, err := fakeintake.FilterMetrics("system.net.bytes_rcvd")
+		//assert.NoError(c, err)
+		//s.T().Logf("JMW fakeintake.FilterMetrics('system.net.bytes_rcvd') returned: %v", metric)
+		//assert.Greater(c, len(metric), 0, "no 'system.net.bytes_rcvd' metrics yet")
 	}, 5*time.Minute, 10*time.Second)
 }
