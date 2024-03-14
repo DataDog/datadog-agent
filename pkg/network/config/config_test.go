@@ -457,9 +457,15 @@ func TestHTTPReplaceRules(t *testing.T) {
 
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRulesDeprecated.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  http_replace_rules:
+    - pattern: "/users/(.*)"
+      repl: "/users/?"
+    - pattern: "foo"
+      repl: "bar"
+    - pattern: "payment_id"
+`)
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
 		for i, r := range expected {
@@ -481,10 +487,15 @@ func TestHTTPReplaceRules(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRules.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_replace_rules:
+    - pattern: "/users/(.*)"
+      repl: "/users/?"
+    - pattern: "foo"
+      repl: "bar"
+    - pattern: "payment_id"
+`)
 		require.Len(t, cfg.HTTPReplaceRules, 3)
 		for i, r := range expected {
 			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
