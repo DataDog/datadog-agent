@@ -40,8 +40,6 @@ include:
   - /.gitlab/setup/setup.yml
   - /.gitlab/software_composition_analysis/software_composition_analysis.yml
   - /.gitlab/source_test/include.yml
-  - /.gitlab/source_test_junit_upload/source_test_junit_upload.yml
-  - /.gitlab/source_test_stats/include.yml
   - /.gitlab/trigger_release/trigger_release.yml
 
 default:

@@ -10,7 +10,6 @@ unit_tests_arm64_windows_junit_upload:
     - tests_deb-arm64-py3
     - tests_rpm-arm64-py3
     - tests_windows-x64
-    - tests_windows-x64-fast-v2
     - integration_tests_windows-x64
   script:
     - source /root/.bashrc

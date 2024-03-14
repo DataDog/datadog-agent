@@ -7,7 +7,7 @@ $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 if ($Env:TARGET_ARCH -eq "x64") {
     & ridk enable
 }
-& $Env:Python3_ROOT_DIR\python.exe -m  pip install -r c:\mnt\requirements.txt
+& $Env:Python3_ROOT_DIR\python.exe -m pip install -r c:\mnt\requirements.txt
 
 $UT_BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$UT_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"

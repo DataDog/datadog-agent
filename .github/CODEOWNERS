@@ -58,11 +58,11 @@
 # Files containing job contents are owned by teams in charge of the jobs + agent-ci-experience or agent-build-and-releases
 # Files that only describe structure (eg. includes, rules) are owned by agent-ci-experience
 
-/.gitlab/                                                                @DataDog/agent-platform
+/.gitlab/                                            @DataDog/agent-ci-experience
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-build-and-releases
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build-and-releases
-/.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing
+/.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-developer-tools
 /.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-build-and-releases
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build-and-releases
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-build-and-releases @DataDog/windows-agent
