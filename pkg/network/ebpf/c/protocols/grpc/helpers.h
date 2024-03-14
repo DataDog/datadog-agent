@@ -10,9 +10,6 @@
 #include "protocols/grpc/defs.h"
 
 #define GRPC_MAX_FRAMES_TO_FILTER 10
-// We only try to process one frame at the moment. Trying to process more yields
-// a verifier issue due to the way clang manages a pointer to the stack.
-#define GRPC_MAX_FRAMES_TO_PROCESS 1
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
 
 // The HPACK specification defines the specific Huffman encoding used for string
@@ -132,12 +129,10 @@ static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_inf
 //.- a GET method. GRPC only uses POST methods, the presence of any other methods
 //   means this is not GRPC.
 static __always_inline grpc_status_t is_grpc(struct __sk_buff *skb, const skb_info_t *skb_info) {
-    grpc_status_t status = PAYLOAD_UNDETERMINED;
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
     http2_frame_t current_frame;
 
-    frame_info_t frames[GRPC_MAX_FRAMES_TO_PROCESS];
-    u32 frames_count = 0;
+    bool found_headers = false;
 
     // Make a mutable copy of skb_info
     skb_info_t info = *skb_info;
@@ -148,7 +143,7 @@ static __always_inline grpc_status_t is_grpc(struct __sk_buff *skb, const skb_in
 
     // Loop through the HTTP2 frames in the packet
 #pragma unroll(GRPC_MAX_FRAMES_TO_FILTER)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_FILTER && frames_count < GRPC_MAX_FRAMES_TO_PROCESS; ++i) {
+    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_FILTER; ++i) {
         if (info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
             break;
         }
@@ -161,24 +156,17 @@ static __always_inline grpc_status_t is_grpc(struct __sk_buff *skb, const skb_in
         }
 
         if (current_frame.type == kHeadersFrame) {
-            frames[frames_count++] = (frame_info_t){ .offset = info.data_off, .length = current_frame.length };
+            found_headers = true;
+            break;
         }
 
         info.data_off += current_frame.length;
     }
 
-#pragma unroll(GRPC_MAX_FRAMES_TO_PROCESS)
-    for (__u8 i = 0; i < GRPC_MAX_FRAMES_TO_PROCESS && status == PAYLOAD_UNDETERMINED; ++i) {
-        if (i >= frames_count) {
-            break;
-        }
-
-        info.data_off = frames[i].offset;
-
-        status = scan_headers(skb, &info, frames[i].length);
+    if (!found_headers) {
+        return PAYLOAD_UNDETERMINED;
     }
-
-    return status;
+    return scan_headers(skb, &info, current_frame.length);
 }
 
 #endif
