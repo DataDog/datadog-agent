@@ -92,9 +92,9 @@ func (s *Server) initDecoder() {
 
 // Register adds an admission webhook handler.
 // Register must be called to register the desired webhook handlers before calling Run.
-func (s *Server) Register(uri string, f WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+func (s *Server) Register(uri string, webhookName string, f WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
 	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
-		s.mutateHandler(w, r, f, dc, apiClient)
+		s.mutateHandler(w, r, webhookName, f, dc, apiClient)
 	})
 }
 
@@ -136,12 +136,12 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 
 // mutateHandler contains the main logic responsible for handling mutation requests.
 // It supports both v1 and v1beta1 requests.
-func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
-	metrics.WebhooksReceived.Inc()
+func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, webhookName string, mutateFunc WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+	metrics.WebhooksReceived.Inc(webhookName)
 
 	start := time.Now()
 	defer func() {
-		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds())
+		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds(), webhookName)
 	}()
 
 	if r.Method != http.MethodPost {
