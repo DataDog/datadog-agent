@@ -45,32 +45,6 @@ func newDummyKubelet() *dummyKubelet {
 	return &dummyKubelet{}
 }
 
-/*
-  convert the following to json:
-  initContainers:
-    - name: init
-      image: alpine:latest
-      command:
-        - /bin/sh
-        - '-c'
-        - sleep 10s
-      env:
-        - name: DD_INSTRUMENTATION_INSTALL_ID
-          value: c4aecf29-52c0-4d37-a6f0-3d9c31cdb17d
-        - name: DD_INSTRUMENTATION_INSTALL_TIME
-          value: '1709061991'
-        - name: DD_ENTITY_ID
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: metadata.uid
-        - name: DD_DOGSTATSD_URL
-          value: unix:///var/run/datadog/dsd.socket
-        - name: DD_TRACE_AGENT_URL
-          value: unix:///var/run/datadog/apm.socket
-      resources: {}
-*/
-
 func (d *dummyKubelet) loadPodList(podListJSONPath string) error {
 	d.Lock()
 	defer d.Unlock()
