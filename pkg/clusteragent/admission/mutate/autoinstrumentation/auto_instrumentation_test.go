@@ -1865,23 +1865,23 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"replicaset", "test-app-123",
 			),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
 					Value: uuid,
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_APPSEC_ENABLED",
 					Value: "true",
 				},
@@ -1903,23 +1903,23 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"replicaset", "test-app-123",
 			),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
 					Value: uuid,
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_IAST_ENABLED",
 					Value: "true",
 				},
@@ -1941,23 +1941,23 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"replicaset", "test-app-123",
 			),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
 					Value: uuid,
 				},
-				corev1.EnvVar {
+				corev1.EnvVar{
 					Name:  "DD_APPSEC_SCA_ENABLED",
 					Value: "false",
 				},
