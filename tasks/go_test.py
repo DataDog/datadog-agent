@@ -200,6 +200,11 @@ def test_flavor(
         with ctx.cd(module_path):
             packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
             with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
+                print(cmd.format(
+                        packages=packages,
+                        cov_test_path=cov_test_path,
+                        **args,
+                    ))
                 res = ctx.run(
                     command=cmd.format(
                         packages=packages,
@@ -313,7 +318,7 @@ def test(
     cpus=None,
     major_version='7',
     python_runtimes='3',
-    timeout=180,
+    timeout=2, # TODO : 180,
     arch="x64",
     cache=True,
     test_run_name="",
@@ -424,6 +429,17 @@ def test(
             modules = get_modified_packages(ctx, build_tags=build_tags)
         if only_impacted_packages:
             modules = get_impacted_packages(ctx, build_tags=build_tags)
+
+        print()
+        modules = [mod for mod in modules if mod.path == 'pkg/process/util/api']
+        print('MODULE', modules[0].path)
+        print('JUNIT', junit_tar)
+        print()
+        # exit()
+
+        print('CMD', cmd)
+        print()
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,

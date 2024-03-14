@@ -18,10 +18,12 @@ func TestEverythingIsFine(t *testing.T) {
 }
 
 func TestCcPanic(t *testing.T) {
-	go func() {
-		panic("!!! ahhhhh i'm panicing !!!")
-	}()
-	time.Sleep(10 * time.Millisecond)
+	// go func() {
+	// 	panic("!!! ahhhhh i'm panicing !!!")
+	// }()
+	// time.Sleep(10 * time.Millisecond)
+	println("Waiting")
+	time.Sleep(3 * time.Minute)
 }
 
 func TestEverythingIsFine2(t *testing.T) {
