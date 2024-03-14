@@ -43,6 +43,24 @@ def add_flavor_to_junitxml(xml_path: str, flavor: AgentFlavor):
     tree.write(xml_path)
 
 
+def fix_timeouts_to_junitxml(xml_path: str):
+    """
+    Test cases that timeout do not have a classname, this function sets the
+    empty class names to the test suite name
+    """
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    for testsuite in root.findall('.//testsuite'):
+        testsuite_name = testsuite.get('name')
+        for testcase in testsuite.findall('.//testcase'):
+            # The class name cannot be found, set it to the testsuite name
+            if testcase.get('classname') == '':
+                testcase.set('classname', testsuite_name)
+
+    tree.write(xml_path)
+
+
 def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     """
     Upload all JUnit XML files contained in given tgz archive.
