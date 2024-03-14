@@ -570,6 +570,14 @@ func (w *Worker) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *t
 func (w *Worker) scanLambda(ctx context.Context, scan *types.ScanTask, root string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
 	assert(scan.Type == types.TaskTypeLambda)
 
+	serviceName := scan.TargetID.ResourceName()
+	for _, tag := range scan.TargetTags {
+		if strings.HasPrefix(tag, "service:") {
+			serviceName = strings.TrimPrefix(tag, "service:")
+			break
+		}
+	}
+
 	tags := append([]string{
 		fmt.Sprintf("runtime_id:%s", scan.TargetID.AsText()),
 		fmt.Sprintf("service_version:%s", scan.TargetName),
@@ -577,7 +585,7 @@ func (w *Worker) scanLambda(ctx context.Context, scan *types.ScanTask, root stri
 
 	resultsCh <- pool.launchScannerVulns(ctx,
 		sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: sbommodel.SBOMSourceType_LAMBDA
-		scan.TargetID.AsText(),
+		serviceName,
 		tags,
 		types.ScannerOptions{
 			Action:    types.ScanActionAppVulns,
