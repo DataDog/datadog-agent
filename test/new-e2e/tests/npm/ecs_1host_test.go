@@ -118,7 +118,6 @@ func (v *ecsVMSuite) Test00FakeIntakeNPM() {
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ecsVMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
-	v.T().Skip("temporary skip as the test as it's flaky under load")
 	// deployed workload generate these connections every 20 seconds
 	//v.Env().RemoteHost.MustExecute("curl " + testURL)
 	//v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")
