@@ -776,7 +776,7 @@ logs_config:
 	config := ConfFromYAML(datadogYaml)
 	err := checkConflictingOptions(config)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestSetupFipsEndpoints(t *testing.T) {

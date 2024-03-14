@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -54,6 +55,10 @@ func (d *ProcessDiscoveryCheck) Init(syscfg *SysProbeConfig, info *HostInfo, _ b
 
 // IsEnabled returns true if the check is enabled by configuration
 func (d *ProcessDiscoveryCheck) IsEnabled() bool {
+	if d.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	// The Process and Process Discovery checks are mutually exclusive
 	if d.config.GetBool("process_config.process_collection.enabled") {
 		return false
