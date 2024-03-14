@@ -10,6 +10,7 @@ package kubelet
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
@@ -182,6 +183,17 @@ type Status struct {
 // the list is created lazily assuming container statuses are not modified
 func (s *Status) GetAllContainers() []ContainerStatus {
 	return s.AllContainers
+}
+
+func (pod *Pod) UpdateLastSeenReady(idx int, lastSeenReady time.Time) {
+	pod.Status.AllContainers[idx].LastSeenReady = lastSeenReady
+	if idx < len(pod.Status.InitContainers) && pod.Status.InitContainers[idx].ID == pod.Status.AllContainers[idx].ID {
+		pod.Status.InitContainers[idx].LastSeenReady = lastSeenReady
+	} else if idx < len(pod.Status.Containers) && pod.Status.Containers[idx-len(pod.Status.InitContainers)].ID == pod.Status.AllContainers[idx].ID {
+		pod.Status.Containers[idx-len(pod.Status.InitContainers)].LastSeenReady = lastSeenReady
+	} else {
+		log.Debugf("Encountered invalid container index when trying to update LastSeenReady for pod %s", pod.Metadata.Name)
+	}
 }
 
 // Conditions contains fields for unmarshalling a Pod.Status.Conditions

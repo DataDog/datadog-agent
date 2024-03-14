@@ -86,7 +86,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 		updatedContainer := false
 		isPodReady := IsPodReady(pod)
 
-		for _, container := range pod.Status.GetAllContainers() {
+		for idx, container := range pod.Status.GetAllContainers() {
 			if container.IsPending() {
 				// We don't check container readiness as init
 				// containers are never ready. We check if the
@@ -112,7 +112,8 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 			w.oldReadiness[container.ID] = isPodReady
 
 			if isPodReady {
-				container.LastSeenReady = now
+				pod.UpdateLastSeenReady(idx, now)
+				updatedContainer = true
 			}
 		}
 

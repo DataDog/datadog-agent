@@ -328,6 +328,7 @@ func (c ContainerState) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Created At:", c.CreatedAt)
 		_, _ = fmt.Fprintln(&sb, "Started At:", c.StartedAt)
 		_, _ = fmt.Fprintln(&sb, "Finished At:", c.FinishedAt)
+		_, _ = fmt.Fprintln(&sb, "Last Seen Ready:", c.LastSeenReady)
 		if c.ExitCode != nil {
 			_, _ = fmt.Fprintln(&sb, "Exit Code:", *c.ExitCode)
 		}

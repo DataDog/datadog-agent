@@ -135,7 +135,7 @@ func (l *KubeletListener) createContainerService(
 		}
 	}
 
-	if time.Since(container.LastSeenReady) > unreadinessTimeout {
+	if !container.LastSeenReady.IsZero() && time.Since(container.LastSeenReady) > unreadinessTimeout {
 		log.Debugf("container %q last seen ready exceeds the unreadiness timeout, skipping", container.ID)
 		return
 	}
