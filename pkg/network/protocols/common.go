@@ -7,17 +7,8 @@
 package protocols
 
 import (
-	"fmt"
-	"io"
 	"math"
-
-	"github.com/cilium/ebpf"
 )
-
-// WriteMapDumpHeader writes a header for a map dump
-func WriteMapDumpHeader(w io.Writer, mapObj *ebpf.Map, mapName string, key interface{}, value interface{}) {
-	_, _ = io.WriteString(w, fmt.Sprintf("Map: %q, type: %s, key: %T (%d bytes), value: %T (%d bytes)\n", mapName, mapObj.Type(), key, mapObj.KeySize(), value, mapObj.ValueSize()))
-}
 
 // below is copied from pkg/trace/stats/statsraw.go
 
