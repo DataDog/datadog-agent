@@ -78,6 +78,8 @@ static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_inf
     // Check that frame_end does not go beyond the skb
     frame_end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
 
+    handle_dynamic_table_update(skb, skb_info);
+
 #pragma unroll(GRPC_MAX_HEADERS_TO_PROCESS)
     for (__u8 i = 0; i < GRPC_MAX_HEADERS_TO_PROCESS; ++i) {
         if (skb_info->data_off >= frame_end) {
