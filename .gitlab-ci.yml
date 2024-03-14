@@ -831,6 +831,7 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
   - <<: *if_run_all_builds
+  - <<: *if_run_all_unit_tests
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
