@@ -26,7 +26,7 @@ static __always_inline bool is_encoded_grpc_content_type(const char *content_typ
     return !bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN);
 }
 
-static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
+static __always_inline grpc_status_t is_content_type_grpc(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     // We only care about indexed names
     if (idx != HTTP2_CONTENT_TYPE_IDX) {
         return PAYLOAD_UNDETERMINED;
@@ -56,7 +56,7 @@ static __always_inline grpc_status_t is_content_type_grpc(const struct __sk_buff
 
 // skip_header increments skb_info->data_off so that it skips the remainder of
 // the current header (of which we already parsed the index value).
-static __always_inline void skip_literal_header(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
+static __always_inline void skip_literal_header(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
     string_literal_header_t len;
     if (skb_info->data_off + sizeof(len) > frame_end) {
         return;
@@ -77,7 +77,7 @@ static __always_inline void skip_literal_header(const struct __sk_buff *skb, skb
 
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
-static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
+static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
     field_index_t idx;
     grpc_status_t status = PAYLOAD_UNDETERMINED;
 
@@ -131,7 +131,7 @@ static __always_inline grpc_status_t scan_headers(const struct __sk_buff *skb, s
 // - a "Content-type" header. If so, try to see if it begins with "application/grpc"
 //.- a GET method. GRPC only uses POST methods, the presence of any other methods
 //   means this is not GRPC.
-static __always_inline grpc_status_t is_grpc(const struct __sk_buff *skb, const skb_info_t *skb_info) {
+static __always_inline grpc_status_t is_grpc(struct __sk_buff *skb, const skb_info_t *skb_info) {
     grpc_status_t status = PAYLOAD_UNDETERMINED;
     char frame_buf[HTTP2_FRAME_HEADER_SIZE];
     http2_frame_t current_frame;
