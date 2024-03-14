@@ -124,6 +124,10 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		}
 		tags = append(tags, container.CollectorTags...)
 
+		if container.Image.RepoDigest != "" {
+			tags = append(tags, "repo_digest:"+container.Image.RepoDigest)
+		}
+
 		outPreviousStats := NullContainerRates
 		// Name and Image fields exist but are never filled
 		processContainer := &model.Container{

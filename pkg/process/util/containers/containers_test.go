@@ -142,6 +142,9 @@ func TestGetContainers(t *testing.T) {
 			CreatedAt: testTime.Add(-10 * time.Minute),
 			StartedAt: testTime,
 		},
+		Image: workloadmeta.ContainerImage{
+			RepoDigest: "sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
+		},
 	})
 	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID3"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container3"}, nil)
 
@@ -364,6 +367,7 @@ func TestGetContainers(t *testing.T) {
 				"low:common",
 				"orch:orch1",
 				"id:container3",
+				"repo_digest:sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			},
 			Addresses: []*process.ContainerAddr{
 				{
@@ -569,6 +573,7 @@ func TestGetContainers(t *testing.T) {
 				"low:common",
 				"orch:orch1",
 				"id:container3",
+				"repo_digest:sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			},
 			Addresses: []*process.ContainerAddr{
 				{
