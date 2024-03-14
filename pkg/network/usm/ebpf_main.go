@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -368,6 +369,8 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 }
 
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
+	options.ConstantEditors = append(options.ConstantEditors, usmDebugFilters(e.cfg)...)
+
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
@@ -605,4 +608,32 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 	}
 
 	return nil
+}
+
+func usmDebugFilters(c *config.Config) []manager.ConstantEditor {
+	var (
+		saddrl uint64
+		saddrh uint64
+		daddrl uint64
+		daddrh uint64
+	)
+
+	if c.USMFilterSaddr != "" {
+		saddr := util.AddressFromString(c.USMFilterSaddr)
+		saddrl, saddrh = util.ToLowHigh(saddr)
+	}
+
+	if c.USMFilterDaddr != "" {
+		daddr := util.AddressFromString(c.USMFilterDaddr)
+		daddrl, daddrh = util.ToLowHigh(daddr)
+	}
+
+	return []manager.ConstantEditor{
+		{Name: "filter_sport", Value: uint64(c.USMFilterSport)},
+		{Name: "filter_dport", Value: uint64(c.USMFilterDport)},
+		{Name: "filter_saddr_l", Value: saddrl},
+		{Name: "filter_saddr_h", Value: saddrh},
+		{Name: "filter_daddr_l", Value: daddrl},
+		{Name: "filter_daddr_h", Value: daddrh},
+	}
 }
