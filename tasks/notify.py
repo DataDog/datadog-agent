@@ -313,7 +313,7 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
 
     pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
 
-    no_tests_executed_jobs = process_unit_tests_tarballs(ctx)
+    jobs_with_no_tests_run = process_unit_tests_tarballs(ctx)
     gh = GithubAPI("DataDog/datadog-agent")
     prs = gh.get_pr_for_branch(branch_name)
 
@@ -349,7 +349,7 @@ Warning: On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not
     for job in job_list:
         msg += f"  - {job}\n"
     msg += "\n"
-    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-platform"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
 
     return msg
 
