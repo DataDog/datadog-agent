@@ -508,7 +508,6 @@ func (dr *Resolver) computeSegmentCount() int {
 
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, error) {
-	var segment string
 	var resolutionErr error
 	depth := int64(0)
 
@@ -560,13 +559,13 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 			break
 		}
 
-		if dr.erpcSegment[i] != '/' {
-			segment = model.NullTerminatedString(dr.erpcSegment[i:])
-			filenameParts = append(filenameParts, segment)
-			i += len(segment) + 1
-		} else {
+		if dr.erpcSegment[i] == '/' {
 			break
 		}
+
+		segment := model.NullTerminatedString(dr.erpcSegment[i:])
+		filenameParts = append(filenameParts, segment)
+		i += len(segment) + 1
 
 		if !IsFakeInode(pathKey.Inode) && cache {
 			keys = append(keys, pathKey)
