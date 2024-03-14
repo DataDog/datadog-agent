@@ -16,7 +16,7 @@ from tasks.libs.common.utils import DEFAULT_BRANCH
 
 def trigger_macos_workflow(
     workflow_name="macos.yaml",
-    github_action_ref="kfairise/fast-unit-tests",
+    github_action_ref="master",
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version=None,
     major_version=None,
