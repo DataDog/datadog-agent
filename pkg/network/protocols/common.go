@@ -8,9 +8,10 @@ package protocols
 
 import (
 	"fmt"
-	"github.com/cilium/ebpf"
 	"io"
 	"math"
+
+	"github.com/cilium/ebpf"
 )
 
 // WriteMapDumpHeader writes a header for a map dump
