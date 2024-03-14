@@ -17,7 +17,6 @@ import (
 	"github.com/containerd/typeurl/v2"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd"
 
@@ -45,9 +44,8 @@ func init() {
 }
 
 type containerdCollector struct {
-	client            cutil.ContainerdItf
-	workloadmetaStore workloadmeta.Component
-	pidCache          *provider.Cache
+	client   cutil.ContainerdItf
+	pidCache *provider.Cache
 }
 
 func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
@@ -63,10 +61,8 @@ func newContainerdCollector(cache *provider.Cache) (provider.CollectorMetadata, 
 	}
 
 	collector := &containerdCollector{
-		client: client,
-		// TODO(components): remove use of glbal, rely on injected component instead
-		workloadmetaStore: workloadmeta.GetGlobalStore(),
-		pidCache:          provider.NewCache(pidCacheGCInterval),
+		client:   client,
+		pidCache: provider.NewCache(pidCacheGCInterval),
 	}
 
 	collectors := &provider.Collectors{
