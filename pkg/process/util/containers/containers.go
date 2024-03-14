@@ -61,9 +61,9 @@ type ContainerProvider interface {
 }
 
 // GetSharedContainerProvider returns a shared ContainerProvider
-func GetSharedContainerProvider() ContainerProvider {
+func GetSharedContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
 	initContainerProvider.Do(func() {
-		sharedContainerProvider = NewDefaultContainerProvider()
+		sharedContainerProvider = NewDefaultContainerProvider(wmeta)
 	})
 	return sharedContainerProvider
 }
@@ -85,14 +85,14 @@ func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.
 }
 
 // NewDefaultContainerProvider returns a ContainerProvider built with default metrics provider and metadata provider
-func NewDefaultContainerProvider() ContainerProvider {
+func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	// TODO(components): stop relying on globals and use injected components instead whenever possible.
-	return NewContainerProvider(metrics.GetProvider(), workloadmeta.GetGlobalStore(), containerFilter)
+	return NewContainerProvider(metrics.GetProvider(), wmeta, containerFilter)
 }
 
 // GetContainers returns containers found on the machine

@@ -16,6 +16,7 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
+	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -41,7 +42,7 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader) *ProcessCheck {
+func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader, wmeta workloadmetacomp.Component) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
@@ -50,6 +51,7 @@ func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader)
 		scrubber:         procutil.NewDefaultDataScrubber(),
 		lookupIdProbe:    NewLookupIDProbe(config),
 		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
+		wmeta:            wmeta,
 	}
 
 	return check
@@ -117,6 +119,8 @@ type ProcessCheck struct {
 	workloadMetaServer    *workloadmeta.GRPCServer
 
 	serviceExtractor *parser.ServiceExtractor
+
+	wmeta workloadmetacomp.Component
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -126,7 +130,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 	p.probe = newProcessProbe(p.config,
 		procutil.WithPermission(syscfg.ProcessModuleEnabled),
 		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
-	p.containerProvider = proccontainers.GetSharedContainerProvider()
+	p.containerProvider = proccontainers.GetSharedContainerProvider(p.wmeta)
 
 	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 

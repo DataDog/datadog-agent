@@ -82,6 +82,8 @@ func TestBundleOneShot(t *testing.T) {
 			"hostname": "testhost",
 		}}),
 		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module(),
 		Bundle(),
 	)
 	require.NoError(t, err)
