@@ -318,7 +318,7 @@ type MatchedRule struct {
 
 // ActionReport defines an action report
 type ActionReport interface {
-	ToJSON() ([]byte, error)
+	ToJSON() ([]byte, bool, error)
 }
 
 // NewMatchedRule return a new MatchedRule instance
