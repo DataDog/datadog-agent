@@ -6,12 +6,8 @@
 // Package statusinterface describes status methods required in logs agent modules
 package statusinterface
 
-import "github.com/DataDog/datadog-agent/comp/core/status"
-
 // Status is the type for status methods
 type Status interface {
-	status.Provider
-
 	// AddGlobalWarning keeps track of a warning message to display on the status.
 	AddGlobalWarning(key string, warning string)
 

@@ -577,6 +577,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	// Autoconfig
+	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
+	config.BindEnvAndSetDefault("autoconf_template_url_timeout", 5)
+	// Where to look for check templates if no custom path is defined
 	config.BindEnvAndSetDefault("autoconf_template_dir", "/datadog/check_configs")
 	config.BindEnvAndSetDefault("autoconf_config_files_poll", false)
 	config.BindEnvAndSetDefault("autoconf_config_files_poll_interval", 60)
@@ -639,6 +642,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
+	config.BindEnvAndSetDefault("kubelet_core_check_enabled", false)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
@@ -704,6 +708,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.SetKnown("network_devices.netflow.aggregator_rollup_tracker_refresh_interval")
 	config.BindEnvAndSetDefault("network_devices.netflow.enabled", "false")
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
+
+	// Network Path
+	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
@@ -1052,6 +1059,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
 	config.BindEnvAndSetDefault("admission_controller.port", 8000)
+	config.BindEnvAndSetDefault("admission_controller.container_registry", "gcr.io/datadoghq")
 	config.BindEnvAndSetDefault("admission_controller.timeout_seconds", 10) // in seconds (see kubernetes/kubernetes#71508)
 	config.BindEnvAndSetDefault("admission_controller.service_name", "datadog-admission-controller")
 	config.BindEnvAndSetDefault("admission_controller.certificate.validity_bound", 365*24)             // validity bound of the certificate created by the controller (in hours, default 1 year)
@@ -1074,7 +1082,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.add_aks_selectors", false) // adds in the webhook some selectors that are required in AKS
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnv("admission_controller.auto_instrumentation.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
@@ -1087,7 +1095,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnv("admission_controller.cws_instrumentation.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
@@ -1099,7 +1107,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.selectors", "[]")
 	// Should be able to parse it to a list of env vars and resource limits
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.profiles", "[]")
-	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.container_registry", "gcr.io/datadoghq")
+	config.BindEnv("admission_controller.agent_sidecar.container_registry")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
@@ -1510,17 +1518,42 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_PROXY_HTTPS":    {},
 		"DD_PROXY_NO_PROXY": {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":              {},
-		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
-		"DD_DOTNET_TRACER_HOME":              {},
-		"DD_FLUSH_TO_LOG":                    {},
-		"DD_KMS_API_KEY":                     {},
-		"DD_LAMBDA_HANDLER":                  {},
-		"DD_LOGS_INJECTION":                  {},
-		"DD_MERGE_XRAY_TRACES":               {},
-		"DD_SERVERLESS_APPSEC_ENABLED":       {},
-		"DD_SERVICE":                         {},
-		"DD_VERSION":                         {},
+		"DD_AAS_DOTNET_EXTENSION_VERSION":          {},
+		"DD_AAS_EXTENSION_VERSION":                 {},
+		"DD_AAS_JAVA_EXTENSION_VERSION":            {},
+		"DD_AGENT_PIPE_NAME":                       {},
+		"DD_API_KEY_SECRET_ARN":                    {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS":       {},
+		"DD_APPSEC_ENABLED":                        {},
+		"DD_AZURE_APP_SERVICES":                    {},
+		"DD_DOGSTATSD_ARGS":                        {},
+		"DD_DOGSTATSD_PATH":                        {},
+		"DD_DOGSTATSD_WINDOWS_PIPE_NAME":           {},
+		"DD_DOTNET_TRACER_HOME":                    {},
+		"DD_EXTENSION_PATH":                        {},
+		"DD_FLUSH_TO_LOG":                          {},
+		"DD_KMS_API_KEY":                           {},
+		"DD_INTEGRATIONS":                          {},
+		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
+		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
+		"DD_LAMBDA_HANDLER":                        {},
+		"DD_LOGS_INJECTION":                        {},
+		"DD_MERGE_XRAY_TRACES":                     {},
+		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
+		"DD_PROFILING_LOG_DIR":                     {},
+		"DD_RUNTIME_METRICS_ENABLED":               {},
+		"DD_SERVERLESS_APPSEC_ENABLED":             {},
+		"DD_SERVERLESS_FLUSH_STRATEGY":             {},
+		"DD_SERVICE":                               {},
+		"DD_TRACE_AGENT_ARGS":                      {},
+		"DD_TRACE_AGENT_PATH":                      {},
+		"DD_TRACE_AGENT_URL":                       {},
+		"DD_TRACE_LOG_DIRECTORY":                   {},
+		"DD_TRACE_LOG_PATH":                        {},
+		"DD_TRACE_METRICS_ENABLED":                 {},
+		"DD_TRACE_PIPE_NAME":                       {},
+		"DD_TRACE_TRANSPORT":                       {},
+		"DD_VERSION":                               {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
@@ -1797,15 +1830,17 @@ func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url 
 func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
-	secretResolver.Configure(
-		config.GetString("secret_backend_command"),
-		config.GetStringSlice("secret_backend_arguments"),
-		config.GetInt("secret_backend_timeout"),
-		config.GetInt("secret_backend_output_max_size"),
-		config.GetInt("secret_refresh_interval"),
-		config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		config.GetBool("secret_backend_remove_trailing_line_break"),
-	)
+	secretResolver.Configure(secrets.ConfigParams{
+		Command:          config.GetString("secret_backend_command"),
+		Arguments:        config.GetStringSlice("secret_backend_arguments"),
+		Timeout:          config.GetInt("secret_backend_timeout"),
+		MaxSize:          config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:  config.GetInt("secret_refresh_interval"),
+		GroupExecPerm:    config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:  config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:          config.GetString("run_path"),
+		AuditFileMaxSize: config.GetInt("secret_audit_file_max_size"),
+	})
 
 	if config.GetString("secret_backend_command") != "" {
 		// Viper doesn't expose the final location of the file it

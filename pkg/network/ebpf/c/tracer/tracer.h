@@ -91,6 +91,7 @@ typedef struct {
     conn_t c2;
     conn_t c3;
     __u64 id;
+    __u32 cpu;
     __u16 len;
 } batch_t;
 

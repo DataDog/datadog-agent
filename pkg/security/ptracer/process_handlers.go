@@ -151,11 +151,13 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateEnvs(envs)
+
+	it := NewStringArrayIterator(envs)
+	envs, envsTruncated := truncateEnvs(it)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		File: ebpfless.OpenSyscallMsg{
+		File: ebpfless.FileSyscallMsg{
 			Filename: filename,
 		},
 		Args:          args,
@@ -190,11 +192,13 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateEnvs(envs)
+
+	it := NewStringArrayIterator(envs)
+	envs, envsTruncated := truncateEnvs(it)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		File: ebpfless.OpenSyscallMsg{
+		File: ebpfless.FileSyscallMsg{
 			Filename: filename,
 		},
 		Args:          args,
@@ -388,7 +392,7 @@ func handleFInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMs
 	msg.Type = ebpfless.SyscallTypeLoadModule
 	msg.LoadModule = &ebpfless.LoadModuleSyscallMsg{
 		LoadedFromMemory: false,
-		File: ebpfless.OpenSyscallMsg{
+		File: ebpfless.FileSyscallMsg{
 			Filename: filename,
 		},
 		Args: args,

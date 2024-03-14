@@ -45,8 +45,9 @@ type Batch struct {
 	C2        Conn
 	C3        Conn
 	Id        uint64
+	Cpu       uint32
 	Len       uint16
-	Pad_cgo_0 [6]byte
+	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
 	Tcp_failed_connect  uint64

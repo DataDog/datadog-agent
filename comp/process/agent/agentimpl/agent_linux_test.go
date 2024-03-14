@@ -25,7 +25,6 @@ import (
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestProcessAgentComponentOnLinux(t *testing.T) {
@@ -97,13 +96,17 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			checksEnabled:        true,
 			checkName:            checks.ConnectionsCheckName,
 			runInCoreAgentConfig: true,
-			expected:             false,
+			expected:             true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			originalFlavor := flavor.GetFlavor()
 			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+			}()
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
@@ -133,9 +136,8 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				}))
 			}
 
-			agt := fxutil.Test[optional.Option[agent.Component]](t, fx.Options(opts...))
-			_, ok := agt.Get()
-			assert.Equal(t, tc.expected, ok)
+			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
+			assert.Equal(t, tc.expected, agentComponent.Enabled())
 		})
 	}
 }

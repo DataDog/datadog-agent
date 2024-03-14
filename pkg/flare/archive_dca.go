@@ -57,6 +57,7 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 			log.Errorf("Error getting the status of the DCA, %q", err)
 			return
 		}
+
 	}
 
 	getLogFiles(fb, logFilePath)

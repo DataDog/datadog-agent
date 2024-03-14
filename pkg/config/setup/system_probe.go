@@ -28,6 +28,7 @@ const (
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
 	pngNS                        = "ping"
+	tracerouteNS                 = "traceroute"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
@@ -191,6 +192,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "conntrack_rate_limit"), 500)
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_conntrack_all_namespaces"), true, "DD_SYSTEM_PROBE_ENABLE_CONNTRACK_ALL_NAMESPACES")
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_protocol_classification"), true, "DD_ENABLE_PROTOCOL_CLASSIFICATION")
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_ringbuffers"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_RINGBUFFERS")
 	cfg.BindEnvAndSetDefault(join(netNS, "ignore_conntrack_init_failure"), false, "DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE")
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
@@ -242,6 +244,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
 	cfg.BindEnv(join(smNS, "enable_quantization"))
 	cfg.BindEnv(join(smNS, "enable_connection_rollup"))
+	cfg.BindEnv(join(smNS, "enable_ring_buffers"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -357,6 +360,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Ping
 	cfg.BindEnvAndSetDefault(join(pngNS, "enabled"), false)
+
+	// Traceroute
+	cfg.BindEnvAndSetDefault(join(tracerouteNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

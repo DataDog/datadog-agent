@@ -15,8 +15,8 @@ import (
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 var currentStats = map[string]disk.IOCountersStat{
