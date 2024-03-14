@@ -62,6 +62,9 @@ notify_github:
   tags: ["runner:docker"]
   rules:
     - !reference [.except_mergequeue]
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.on_a7]
     - when: on_success
   needs:
     - job: "deploy_deb_testing-a7_x64"
