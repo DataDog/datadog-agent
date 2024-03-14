@@ -205,6 +205,34 @@ func normalizeContextRoot(contextRoots ...string) []string {
 	return normalized
 }
 
+// doExtractContextRoots tries to extract context roots for an app, given the vendor and the fs.
+func doExtractContextRoots(vendor serverVendor, app string, fs afero.Fs) []string {
+	fsCloser, ear, err := vfsAndTypeFromAppPath(app, fs)
+	if err != nil {
+		return nil
+	}
+	defer fsCloser.Close()
+	if ear {
+		value, err := extractContextRootFromApplicationXML(fsCloser.fs)
+		if err != nil {
+			return nil
+		}
+		return value
+	}
+	vendorWarFinder, ok := contextRootFinders[vendor]
+	if ok {
+		value, ok := vendorWarFinder(fsCloser.fs)
+		if ok {
+			return []string{value}
+		}
+	}
+	defaultFinder, ok := defaultContextNameExtractors[vendor]
+	if ok {
+		return []string{defaultFinder(app)}
+	}
+	return nil
+}
+
 // ExtractServiceNamesForJEEServer takes args, cws and the fs (for testability reasons) and, after having determined the vendor,
 // If the vendor can be determined, it returns the context roots if found, otherwise the server name.
 // If the vendor is unknown, it returns a nil slice
@@ -228,33 +256,7 @@ func ExtractServiceNamesForJEEServer(args []string, cwd string, fs afero.Fs) []s
 	}
 	var contextRoots []string
 	for _, app := range apps {
-		fsCloser, ear, err := vfsAndTypeFromAppPath(app, fs)
-		if err != nil {
-			continue
-		}
-		if ear {
-			value, err := extractContextRootFromApplicationXML(fsCloser.fs)
-			if err == nil {
-				contextRoots = append(contextRoots, normalizeContextRoot(value...)...)
-			}
-			_ = fsCloser.Close()
-			continue
-		}
-		vendorWarFinder, ok := contextRootFinders[vendor]
-		if ok {
-			value, ok := vendorWarFinder(fsCloser.fs)
-			_ = fsCloser.Close()
-			if ok {
-				contextRoots = append(contextRoots, normalizeContextRoot(value)...)
-				continue
-			}
-		} else {
-			_ = fsCloser.Close()
-		}
-		defaultFinder, ok := defaultContextNameExtractors[vendor]
-		if ok {
-			contextRoots = append(contextRoots, normalizeContextRoot(defaultFinder(app))...)
-		}
+		contextRoots = append(contextRoots, normalizeContextRoot(doExtractContextRoots(vendor, app, fs)...)...)
 	}
 	if len(contextRoots) == 0 {
 		return defaultIfNoContextRoots(vendor)
