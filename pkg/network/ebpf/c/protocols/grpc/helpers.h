@@ -71,9 +71,11 @@ static __always_inline void skip_literal_header(struct __sk_buff *skb, skb_info_
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
 static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
-    field_index_t idx;
+    __u8 current_ch;
     grpc_status_t status = PAYLOAD_UNDETERMINED;
 
+    __u64 index = 0;
+    __u64 max_bits = 0;
     __u32 frame_end = skb_info->data_off + frame_length;
     // Check that frame_end does not go beyond the skb
     frame_end = frame_end < skb->len + 1 ? frame_end : skb->len + 1;
@@ -86,33 +88,28 @@ static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_inf
             break;
         }
 
-        bpf_skb_load_bytes(skb, skb_info->data_off, &idx.raw, sizeof(idx.raw));
-        skb_info->data_off += sizeof(idx.raw);
+        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
+        skb_info->data_off++;
 
-        if (is_literal(idx.raw)) {
-            // Having a literal, with an index pointing to a ":method" key means a
-            // request method that is not POST or GET. gRPC only uses POST, so
-            // finding a :method here is an indicator of non-GRPC content.
-            if (idx.literal.index == kGET || idx.literal.index == kPOST) {
-                status = PAYLOAD_NOT_GRPC;
-                break;
-            }
-
-            status = is_content_type_grpc(skb, skb_info, frame_end, idx.literal.index);
-            if (status != PAYLOAD_UNDETERMINED) {
-                break;
-            }
-
-            skip_literal_header(skb, skb_info, frame_end, idx.literal.index);
-
+        if ((current_ch & 128) != 0) {
+            // indexed character, so we can skip it.
             continue;
         }
 
-        // The header is fully indexed, check if it is a :method GET header, in
-        // which case we can tell that this is not gRPC, as it uses only POST
-        // requests.
-        if (is_indexed(idx.raw) && idx.indexed.index == kGET) {
-            status = PAYLOAD_NOT_GRPC;
+        // We either have literal header with indexing, literal header without indexing or literal header never indexed.
+        // if it is literal header with indexing, the max bits are 6, for the other two, the max bits are 4.
+        max_bits = (current_ch & 192) == 64 ? MAX_6_BITS : MAX_4_BITS;
+        index = 0;
+        if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
+            break;
+        }
+
+        status = is_content_type_grpc(skb, skb_info, frame_end, index);
+        if (status != PAYLOAD_UNDETERMINED) {
+            break;
+        }
+
+        if (!handle_non_pseudo_headers(skb, skb_info, index)){
             break;
         }
     }
