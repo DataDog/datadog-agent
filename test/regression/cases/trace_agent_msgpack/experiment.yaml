@@ -11,7 +11,6 @@ target:
     DD_HOSTNAME: smp-regression
     DD_DD_URL: http://127.0.0.1:9092
 
-
   profiling_environment:
     DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
     DD_INTERNAL_PROFILING_CPU_DURATION: 1m
