@@ -57,7 +57,7 @@ func TestOptsFlag(t *testing.T) {
 	flag := m.Flag(&s)
 
 	assert.Equal(t, flag.String(), "")
-	assert.Equal(t, flag.Type(), "string")
+	assert.Equal(t, flag.Type(), "option")
 
 	for _, tc := range testCases {
 		if !tc.ok {
