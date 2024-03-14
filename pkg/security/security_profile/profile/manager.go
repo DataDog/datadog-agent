@@ -626,7 +626,7 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for imageName, nbVersions := range profileVersions {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileVersions, int64(nbVersions), []string{"image_name:" + imageName}, 1.0); err != nil {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileVersions, float64(nbVersions), []string{"image_name:" + imageName}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileVersions: %w", err)
 		}
 	}
