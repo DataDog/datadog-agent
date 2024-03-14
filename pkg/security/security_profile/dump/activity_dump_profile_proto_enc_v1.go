@@ -9,6 +9,7 @@
 package dump
 
 import (
+	"errors"
 	"time"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -19,13 +20,13 @@ import (
 )
 
 // ActivityDumpToSecurityProfileProto serializes an Activity Dump to a Security Profile protobuf representation
-func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProfile {
+func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityProfile, error) {
 	if input == nil {
-		return nil
+		return nil, errors.New("imput == nil")
 	}
 	selector := input.GetWorkloadSelector()
 	if selector == nil {
-		return nil
+		return nil, errors.New("can't get dump selector, tags shouldn't be resolved yet")
 	}
 
 	output := &proto.SecurityProfile{
@@ -35,7 +36,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	}
 	timeResolver, err := timeResolver.NewResolver()
 	if err != nil {
-		return nil
+		return nil, errors.New("can't init time resolver")
 	}
 	ts := uint64(timeResolver.ComputeMonotonicTimestamp(time.Now()))
 	ctx := &proto.ProfileContext{
@@ -47,5 +48,5 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProf
 	copy(ctx.Tags, input.Tags)
 	output.ProfileContexts[selector.Tag] = ctx
 
-	return output
+	return output, nil
 }

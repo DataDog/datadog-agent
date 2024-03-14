@@ -722,7 +722,10 @@ func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
-	profileProto := ActivityDumpToSecurityProfileProto(ad)
+	profileProto, err := ActivityDumpToSecurityProfileProto(ad)
+	if profileProto == nil {
+		return nil, fmt.Errorf("Error while encoding security dump: %v", err)
+	}
 	raw, err := profileProto.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode dump to `%s` format: %v", config.Profile, err)
