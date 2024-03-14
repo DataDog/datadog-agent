@@ -362,9 +362,11 @@ system_probe_config:
 func TestDisablingDNSDomainCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  collect_dns_domains: false
+  max_dns_stats: 100
+`)
 
 		assert.False(t, cfg.CollectDNSDomains)
 	})
@@ -391,9 +393,11 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 func TestSettingMaxDNSStats(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  collect_dns_domains: false
+  max_dns_stats: 100
+`)
 
 		assert.Equal(t, 100, cfg.MaxDNSStats)
 	})
