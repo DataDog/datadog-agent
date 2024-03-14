@@ -38,9 +38,11 @@ func makeYamlConfigString(section, entry string, val int) string {
 func TestDisablingDNSInspection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+    enabled: true
+    disable_dns_inspection: true
+`)
 
 		assert.False(t, cfg.DNSInspection)
 	})
@@ -1557,7 +1559,7 @@ system_probe_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := modelCfgFromYAML(t, `
 system_probe_config:
-  process_service_inference: 
+  process_service_inference:
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})
