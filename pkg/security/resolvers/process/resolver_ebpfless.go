@@ -225,6 +225,16 @@ func (p *EBPFLessResolver) UpdateGID(key CacheResolverKey, gid int32, egid int32
 	}
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFLessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
+}
+
 // getCacheSize returns the cache size of the process resolver
 func (p *EBPFLessResolver) getCacheSize() float64 {
 	p.RLock()

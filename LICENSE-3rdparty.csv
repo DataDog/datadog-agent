@@ -124,6 +124,7 @@ core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of D
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v2/internal/lib,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v2/internal/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/v2/internal/noopfree,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-sqllexer,MIT,"Copyright (c) 2023 Datadog, Inc"
 core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -176,6 +177,10 @@ core,github.com/DataDog/viper,MIT,Copyright (c) 2014 Steve Francia
 core,github.com/DataDog/watermarkpodautoscaler/api/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/zstd,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
 core,github.com/DataDog/zstd_0,BSD-3-Clause,"Copyright (c) 2016, Datadog <info@datadoghq.com>"
+core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/net,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
+core,github.com/Datadog/dublin-traceroute/go/dublintraceroute/results,BSD-2-Clause,Copyright (c) 2015-present Andrea Barberio
 core,github.com/DisposaBoy/JsonConfigReader,MIT,* Andreas Jaekle `https://github.com/ekle` | * DisposaBoy `https://github.com/DisposaBoy` | * Steven Osborn `https://github.com/steve918` | Copyright (c) 2012 The JsonConfigReader Authors | This is the official list of JsonConfigReader authors for copyright purposes.
 core,github.com/GoogleCloudPlatform/docker-credential-gcr/config,Apache-2.0,"Copyright 2016 Google, Inc."
 core,github.com/GoogleCloudPlatform/docker-credential-gcr/credhelper,Apache-2.0,"Copyright 2016 Google, Inc."
@@ -810,6 +815,7 @@ core,github.com/cilium/ebpf/btf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright
 core,github.com/cilium/ebpf/features,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/epoll,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
+core,github.com/cilium/ebpf/internal/kallsyms,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/kconfig,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sys,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sysenc,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -1853,8 +1859,8 @@ core,github.com/uptrace/bun/internal/tagparser,BSD-2-Clause,Copyright (c) 2021 V
 core,github.com/uptrace/bun/schema,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/urfave/negroni,MIT,Copyright (c) 2014 Jeremy Saenz
 core,github.com/vbatts/tar-split/archive/tar,BSD-3-Clause,"Copyright (c) 2015 Vincent Batts, Raleigh, NC, USA"
-core,github.com/vibrantbyte/go-antpath/antpath,Apache-2.0,UNKNOWN
-core,github.com/vibrantbyte/go-antpath/extend,Apache-2.0,UNKNOWN
+core,github.com/vibrantbyte/go-antpath/antpath,Apache-2.0,vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+core,github.com/vibrantbyte/go-antpath/extend,Apache-2.0,vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 core,github.com/vishvananda/netlink,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"
 core,github.com/vishvananda/netlink/nl,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"
 core,github.com/vishvananda/netns,Apache-2.0,"Copyright 2014 Docker, Inc | Copyright 2014 Vishvananda Ishaya"
@@ -2432,6 +2438,7 @@ core,google.golang.org/protobuf/encoding/protowire,BSD-3-Clause,Copyright (c) 20
 core,google.golang.org/protobuf/internal/descfmt,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/descopts,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/detrand,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/internal/editiondefaults,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/encoding/defval,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/encoding/json,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/encoding/messageset,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -2450,6 +2457,7 @@ core,google.golang.org/protobuf/internal/set,BSD-3-Clause,Copyright (c) 2018 The
 core,google.golang.org/protobuf/internal/strs,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/version,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/proto,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/protoadapt,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protodesc,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protopath,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protorange,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -2459,6 +2467,7 @@ core,google.golang.org/protobuf/runtime/protoiface,BSD-3-Clause,Copyright (c) 20
 core,google.golang.org/protobuf/runtime/protoimpl,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/descriptorpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/dynamicpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/types/gofeaturespb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/anypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/durationpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/emptypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -2474,11 +2483,10 @@ core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/internal,Apache-2.0,"Copyright 2016
 core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/config,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/grpcsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/httpsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
-core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/dyngo/instrumentation/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/emitter/sharedsec,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/appsec/listener,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/datastreams,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/hostname,Apache-2.0,"Copyright 2016-Present Datadog, Inc."

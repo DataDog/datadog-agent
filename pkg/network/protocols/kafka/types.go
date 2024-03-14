@@ -15,4 +15,4 @@ import "C"
 
 type ConnTuple C.conn_tuple_t
 
-type EbpfTx C.kafka_transaction_batch_entry_t
+type EbpfTx C.kafka_transaction_t

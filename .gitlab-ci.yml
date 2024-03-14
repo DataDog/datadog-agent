@@ -8,6 +8,7 @@ include:
   - /.gitlab/choco_build/choco_build.yml
   - /.gitlab/choco_deploy/choco_deploy.yml
   - /.gitlab/common/shared.yml
+  - /.gitlab/common/pr_commenter.yml
   - /.gitlab/container_build/include.yml
   - /.gitlab/container_scan/container_scan.yml
   - /.gitlab/deploy_containers/deploy_containers.yml
@@ -166,23 +167,24 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_BUILDIMAGES: v29737258-e0e63b8a
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_WINBUILDIMAGES: v29737258-e0e63b8a
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_ARMBUILDIMAGES: v29737258-e0e63b8a
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v29737258-e0e63b8a
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v29737258-e0e63b8a
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v29737258-e0e63b8a
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v27950662-17e84032
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v29737258-e0e63b8a
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 180d0c3c5d44
+  # Make sure to update test-infra-definitions version in go.mod as well
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a1d921006e35
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -208,7 +210,7 @@ variables:
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
-  RUN_E2E_TESTS: "manual" # Should be "auto", "manual", "off" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
@@ -281,31 +283,29 @@ variables:
 .if_not_run_all_builds: &if_not_run_all_builds
   if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
 
-# Rule to trigger test kitchen setup, run, and cleanup.
+# Rule to trigger test setup, run, and cleanup.
 # By default:
-# - on main and deploy pipelines, kitchen tests are run
-# - on branch pipelines, kitchen tests are not run
-# RUN_KITCHEN_TESTS can be set to true to force kitchen tests to be run on a branch pipeline.
-# RUN_KITCHEN_TESTS can be set to false to force kitchen tests to not run on main/deploy pipelines.
-.if_kitchen: &if_kitchen
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_KITCHEN_TESTS == "true") && $RUN_KITCHEN_TESTS != "false"
-
-# Rules to trigger default kitchen tests.
-# Some of the kitchen tests are run on all pipelines by default. They can only be disabled
-# by setting RUN_KITCHEN_TESTS to false.
-.if_default_kitchen: &if_default_kitchen
-  if: $RUN_KITCHEN_TESTS != "false"
+# - on main and deploy pipelines, installer tests are run
+# - on branch pipelines, installer tests are run on a subset of the OSes we test
+# RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
+# RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
+.if_installer_tests: &if_installer_tests
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on") && $RUN_E2E_TESTS != "off"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
 
-.if_not_e2e: &if_not_e2e
-  if: $RUN_KITCHEN_TESTS == "false"
+.if_run_all_e2e_tests: &if_run_all_e2e_tests
+  if: $RUN_E2E_TESTS == "on"
 
-.if_auto_e2e: &if_auto_e2e
+# When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
+# The behavior of each test will be defined by its rules.
+# For example for new-e2e tests created by each team, here is an example of such rules: https://github.com/DataDog/datadog-agent/blob/ba7079d92077ab5898378594dcafb9cd88a77e57/.gitlab-ci.yml#L1160-L1167
+# For the installer tests when RUN_E2E_TESTS is set to "auto", we run a subset of tests on branch pipelines and all the tests on main.
+.if_auto_e2e_tests: &if_auto_e2e_tests
   if: $RUN_E2E_TESTS == "auto"
 
-.if_disable_e2e: &if_disable_e2e
+.if_disable_e2e_tests: &if_disable_e2e_tests
   if: $RUN_E2E_TESTS == "off"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
@@ -796,7 +796,7 @@ workflow:
   - when: on_success
 
 .except_no_tests_no_deploy:
-  - if: $RUN_KITCHEN_TESTS == "false" && $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+  - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
     when: never
 
 .on_a6_except_deploy:
@@ -816,6 +816,11 @@ workflow:
 .on_main_or_release_branch:
   - <<: *if_main_branch
   - <<: *if_release_branch
+
+.on_main_or_release_branch_or_all_builds:
+  - <<: *if_main_branch
+  - <<: *if_release_branch
+  - <<: *if_run_all_builds
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
@@ -863,12 +868,12 @@ workflow:
 .on_kitchen_tests_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 .on_kitchen_tests_a6_always:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
     when: always
 
 .on_all_kitchen_builds_a6:
@@ -876,32 +881,26 @@ workflow:
     when: never
   - <<: *if_not_run_all_builds
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 .on_kitchen_tests_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
-
-.on_kitchen_tests_a7_always:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_kitchen
-    when: always
+  - <<: *if_installer_tests
 
 .on_all_kitchen_builds_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 .on_all_new-e2e_tests_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
 
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
@@ -911,8 +910,8 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
-  - <<: *if_default_kitchen
+  - <<: *if_installer_tests
+  - <<: *if_auto_e2e_tests
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
@@ -921,8 +920,10 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
-  - <<: *if_default_kitchen
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_installer_tests
+  - <<: *if_auto_e2e_tests
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
 
@@ -931,9 +932,9 @@ workflow:
     when: never
   - <<: *if_not_version_7
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
     when: always
-  - <<: *if_default_kitchen
+  - <<: *if_auto_e2e_tests
     when: always
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
@@ -985,7 +986,7 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_windows_installer_changes_or_manual:
-  - <<: *if_not_e2e
+  - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_main_branch
   - <<: *if_mergequeue
@@ -1010,8 +1011,8 @@ workflow:
   - test/kitchen/test/integration/win-sysprobe-test/**/*
   - .gitlab/functional_test/system_probe_windows.yml
   - .gitlab/functional_test_sysprobe/system_probe.yml
-  - .gitlab/kernel_version_testing/system_probe.yml
-  - .gitlab/kernel_version_testing/common.yml
+  - .gitlab/kernel_matrix_testing/system_probe.yml
+  - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/runner/**/*
@@ -1048,11 +1049,11 @@ workflow:
 
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
-  - <<: *if_disable_e2e
+  - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_mergequeue
     when: never
-  - <<: *if_auto_e2e
+  - <<: *if_run_all_e2e_tests
     when: on_success
   - <<: *if_main_branch
     when: on_success
@@ -1067,11 +1068,11 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .always_on_container_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
+  - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_mergequeue
     when: never
-  - <<: *if_auto_e2e
+  - <<: *if_run_all_e2e_tests
     when: always
   - <<: *if_main_branch
     when: always
@@ -1088,8 +1089,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1116,8 +1117,8 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-        - pkg/autodiscovery/listeners/**/*
-        - pkg/autodiscovery/providers/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
         - pkg/collector/corechecks/cluster/**/*
         - pkg/collector/corechecks/containers/**/*
         - pkg/collector/corechecks/containerimage/**/*
@@ -1145,6 +1146,7 @@ workflow:
         - pkg/config/remote/**/*
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1169,17 +1171,19 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
-    allow_failure: true
 
 .on_subcommands_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for subcommands
+        - cmd/**/*
+        - pkg/**/*
+        - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
-    allow_failure: true
 
 .on_language-detection_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
@@ -1187,6 +1191,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1196,6 +1201,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1205,6 +1211,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1214,6 +1221,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for CWS
         - test/new-e2e/tests/cws/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1223,6 +1231,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for process
         - test/new-e2e/tests/process/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1232,6 +1241,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for orchestrator
         - test/new-e2e/tests/orchestrator/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -1242,7 +1252,7 @@ workflow:
     when: never
   - <<: *if_not_main_branch
     when: never
-  - <<: *if_kitchen
+  - <<: *if_installer_tests
     when: manual
     allow_failure: true
 
@@ -1261,7 +1271,7 @@ workflow:
     allow_failure: true
 
 .on_updater_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e
+  - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_mergequeue
     when: never
@@ -1300,7 +1310,7 @@ workflow:
     allow_failure: true
 
 .on_main_or_rc_and_no_skip_e2e:
-  - <<: *if_not_e2e
+  - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_release_branch
     when: on_success
@@ -1312,11 +1322,6 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
-
-.if_run_e2e_tests:
-  - <<: *if_disable_e2e
-    when: never
-  - <<: *if_auto_e2e
 
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule

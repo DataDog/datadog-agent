@@ -18,6 +18,7 @@ import (
 type HeadersFrameOptions struct {
 	Headers                []hpack.HeaderField
 	DynamicTableUpdateSize uint32
+	EndStream              bool
 }
 
 // NewHeadersFrameMessage creates a new HTTP2 data frame message with the given header fields.

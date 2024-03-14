@@ -374,6 +374,12 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		)
 	})
 
+	tt.Run("user rights", func(tt *testing.T) {
+		AssertUserRights(tt, t.host,
+			windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+		)
+	})
+
 	t.testAgentCodeSignature(tt)
 	t.TestRuntimeExpectations(tt)
 }

@@ -101,11 +101,11 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]string, error) 
 
 	// populate with HA endpoints too
 	if c.GetBool("ha.enabled") {
-		site := c.GetString("ha.site")
-		if site != "" {
-			url := BuildURLWithPrefix(InfraURLPrefix, site)
-			additionalEndpoints[url] = []string{c.GetString("ha.api_key")}
+		haURL, err := GetHAInfraEndpoint(c)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse HA endpoint: %s", err)
 		}
+		additionalEndpoints[haURL] = []string{c.GetString("ha.api_key")}
 	}
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
@@ -127,14 +127,14 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 }
 
 // GetHAEndpoint returns the HA DD URL defined in the config, based on `ha.site` and the prefix, or ddHaURLKey
-func GetHAEndpoint(c pkgconfigmodel.Reader, prefix, ddHaURLKey string) string {
+func GetHAEndpoint(c pkgconfigmodel.Reader, prefix, ddHaURLKey string) (string, error) {
 	// value under ddURLKey takes precedence over 'ha.site'
 	if c.IsSet(ddHaURLKey) && c.GetString(ddHaURLKey) != "" {
-		return getResolvedHaDdURL(c, ddHaURLKey)
+		return getResolvedHaDdURL(c, ddHaURLKey), nil
 	} else if c.GetString("ha.site") != "" {
-		return prefix + strings.TrimSpace(c.GetString("ha.site"))
+		return BuildURLWithPrefix(prefix, c.GetString("ha.site")), nil
 	}
-	return prefix + pkgconfigsetup.DefaultSite
+	return "", fmt.Errorf("`ha.site` or `ha.dd_url` must be set when High Availability is enabled")
 }
 
 func getResolvedHaDdURL(c pkgconfigmodel.Reader, haURLKey string) string {
@@ -148,6 +148,11 @@ func getResolvedHaDdURL(c pkgconfigmodel.Reader, haURLKey string) string {
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`
 func GetInfraEndpoint(c pkgconfigmodel.Reader) string {
 	return GetMainEndpoint(c, InfraURLPrefix, "dd_url")
+}
+
+// GetHAInfraEndpoint returns the HA DD Infra URL defined in config, based on the value of `ha.site` and `ha.dd_url`
+func GetHAInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
+	return GetHAEndpoint(c, InfraURLPrefix, "ha.dd_url")
 }
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent

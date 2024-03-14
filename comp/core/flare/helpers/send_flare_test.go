@@ -53,7 +53,7 @@ func TestFlareHasRightForm(t *testing.T) {
 					w.Header().Set("Content-Type", "application/json")
 					lastRequest = r
 					err := lastRequest.ParseMultipartForm(1000000)
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 					io.WriteString(w, "{}")
 				} else {
 					w.WriteHeader(500)
@@ -94,7 +94,7 @@ func TestFlareHasRightForm(t *testing.T) {
 					" via redirects: 503 Service Unavailable"
 				assert.Equal(t, expectedErrorMessage, err.Error())
 			} else {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				av, _ := version.Agent()
 
 				assert.Equal(t, caseID, lastRequest.FormValue("case_id"))
