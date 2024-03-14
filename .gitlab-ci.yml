@@ -213,6 +213,7 @@ variables:
   RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
+  FAST_TESTS: "true"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -1385,5 +1386,4 @@ workflow:
   - <<: *if_run_all_unit_tests
     variables:
       FAST_TESTS: "false"
-  - variables:
-      FAST_TESTS: "true"
+  - when: on_success
