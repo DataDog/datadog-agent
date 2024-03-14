@@ -35,7 +35,7 @@ func TestGetInstanceID(t *testing.T) {
 	metadataURL = ts.URL
 
 	val, err := GetInstanceID(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/meta-data/instance-id")
 }

@@ -12,33 +12,49 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // OpenSelfTest defines an open self test
 type OpenSelfTest struct {
+	ruleID    eval.RuleID
+	filename  string
+	isSuccess bool
 }
 
 // GetRuleDefinition returns the rule
-func (o *OpenSelfTest) GetRuleDefinition(filename string) *rules.RuleDefinition {
+func (o *OpenSelfTest) GetRuleDefinition() *rules.RuleDefinition {
+	o.ruleID = fmt.Sprintf("%s_open", ruleIDPrefix)
+
 	return &rules.RuleDefinition{
-		ID:         fmt.Sprintf("%s_open", ruleIDPrefix),
-		Expression: fmt.Sprintf(`open.file.path == "%s" && open.flags & O_CREAT > 0`, filename),
+		ID:         o.ruleID,
+		Expression: fmt.Sprintf(`open.file.path == "%s" && open.flags & O_CREAT > 0`, o.filename),
 	}
 }
 
 // GenerateEvent generate an event
-func (o *OpenSelfTest) GenerateEvent(filename string) (EventPredicate, error) {
+func (o *OpenSelfTest) GenerateEvent() error {
+	o.isSuccess = false
+
 	// we need to use touch (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
-	cmd := exec.Command("touch", filename)
+	cmd := exec.Command("touch", o.filename)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running touch: %v", err)
-		return nil, err
+		return err
 	}
 
-	return func(event selfTestEvent) bool {
-		return event.Type == "open" && event.Filepath == filename
-	}, nil
+	return nil
+}
+
+// HandleEvent handles self test events
+func (o *OpenSelfTest) HandleEvent(event selfTestEvent) {
+	o.isSuccess = event.RuleID == o.ruleID
+}
+
+// IsSuccess return the state of the test
+func (o *OpenSelfTest) IsSuccess() bool {
+	return o.isSuccess
 }

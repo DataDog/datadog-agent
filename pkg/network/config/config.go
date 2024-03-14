@@ -123,6 +123,9 @@ type Config struct {
 	// JavaAgentBlockRegex define a regex, if matching /proc/pid/cmdline the java agent will not be injected
 	JavaAgentBlockRegex string
 
+	// JavaDir is the directory to load the java agent program from
+	JavaDir string
+
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
 	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
@@ -204,10 +207,6 @@ type Config struct {
 	// EnableEbpfConntracker enables the ebpf based network conntracker. Used only for testing at the moment
 	EnableEbpfConntracker bool
 
-	// AllowNetlinkConntrackerFallback enables falling back to the netlink conntracker if we
-	// can't load the ebpf-based conntracker
-	AllowNetlinkConntrackerFallback bool
-
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
 
@@ -264,6 +263,12 @@ type Config struct {
 
 	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
 	EnableUSMConnectionRollup bool
+
+	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on
+	// supported kernels.
+	// Defaults to true. Setting this to false on a Kernel that supports ring
+	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
+	EnableUSMRingBuffers bool
 }
 
 func join(pieces ...string) string {
@@ -325,15 +330,14 @@ func New() *Config {
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(join(smNS, "http_max_request_fragment")),
 
-		EnableConntrack:                 cfg.GetBool(join(spNS, "enable_conntrack")),
-		ConntrackMaxStateSize:           cfg.GetInt(join(spNS, "conntrack_max_state_size")),
-		ConntrackRateLimit:              cfg.GetInt(join(spNS, "conntrack_rate_limit")),
-		ConntrackRateLimitInterval:      3 * time.Second,
-		EnableConntrackAllNamespaces:    cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
-		IgnoreConntrackInitFailure:      cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
-		ConntrackInitTimeout:            cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
-		EnableEbpfConntracker:           true,
-		AllowNetlinkConntrackerFallback: cfg.GetBool(join(netNS, "allow_netlink_conntracker_fallback")),
+		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
+		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
+		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		ConntrackRateLimitInterval:   3 * time.Second,
+		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
+		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
+		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
+		EnableEbpfConntracker:        true,
 
 		EnableGatewayLookup: cfg.GetBool(join(netNS, "enable_gateway_lookup")),
 
@@ -357,11 +361,13 @@ func New() *Config {
 		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
 		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
 		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
+		JavaDir:                     cfg.GetString(join(smjtNS, "dir")),
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
 		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")

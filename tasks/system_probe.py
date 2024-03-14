@@ -367,9 +367,6 @@ def ninja_cgo_type_files(nw):
             "pkg/network/driver/types.go": [
                 "pkg/network/driver/ddnpmapi.h",
             ],
-            "pkg/util/winutil/etw/types.go": [
-                "pkg/util/winutil/etw/etw-provider.h",
-            ],
             "pkg/windowsdriver/procmon/types.go": [
                 "pkg/windowsdriver/include/procmonapi.h",
             ],

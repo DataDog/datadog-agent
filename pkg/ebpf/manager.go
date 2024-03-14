@@ -10,6 +10,7 @@ package ebpf
 import (
 	"fmt"
 	"io"
+	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -23,26 +24,28 @@ type Manager struct {
 	EnabledModifiers []Modifier // List of enabled modifiers
 }
 
-// defaultModifiers is a list of modifiers that are enabled by default when the callers don't provide
-// a specific list. This list is filled by the pkg/ebpf/ebpf.go:registerDefaultModifiers function.
+var modifiersSync sync.Once
+
+// defaultModifiers is a list of modifiers that are enabled by default when the manager wrapper is initialized using the relevant ctor (see NewManagerWithDefault).
+// This is a static list lazy-initialized once during the lifetime of the program, hence the modifiers in this list must be stateless.
 var defaultModifiers []Modifier
 
 // NewManager creates a manager wrapper.
-// If the modifiers list is empty, it will be initialized with the default modifiers.
-// Pass nil as the argument (example: mgr, err := NewManager(mgr, nil)) to disable all modifiers.
+// Optionally one can provide a list of modifiers to attach to the manager
 func NewManager(mgr *manager.Manager, modifiers ...Modifier) *Manager {
-	if len(modifiers) == 0 {
-		modifiers = defaultModifiers
-	} else if len(modifiers) == 1 && modifiers[0] == nil {
-		modifiers = nil
-	}
-
-	log.Debugf("Creating new manager with modifiers: %v", modifiers)
-
+	log.Tracef("Creating new manager with modifiers: %v", modifiers)
 	return &Manager{
 		Manager:          mgr,
 		EnabledModifiers: modifiers,
 	}
+}
+
+// NewManagerWithDefault creates a manager wrapper with default modifiers.
+func NewManagerWithDefault(mgr *manager.Manager, modifiers ...Modifier) *Manager {
+	modifiersSync.Do(func() {
+		defaultModifiers = []Modifier{&PrintkPatcherModifier{}}
+	})
+	return NewManager(mgr, append(defaultModifiers, modifiers...)...)
 }
 
 // Modifier is an interface that can be implemented by a package to
@@ -68,7 +71,7 @@ type Modifier interface {
 // InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) error {
 	for _, mod := range m.EnabledModifiers {
-		log.Debugf("Running %s manager modifier", mod)
+		log.Tracef("Running %s manager modifier BeforeInit", mod)
 		if err := mod.BeforeInit(m.Manager, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
@@ -79,7 +82,7 @@ func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts *manager.Options) e
 	}
 
 	for _, mod := range m.EnabledModifiers {
-		log.Debugf("Running %s manager modifier", mod)
+		log.Tracef("Running %s manager modifier AfterInit", mod)
 		if err := mod.AfterInit(m.Manager, opts); err != nil {
 			return fmt.Errorf("error running %s manager modifier: %w", mod, err)
 		}
