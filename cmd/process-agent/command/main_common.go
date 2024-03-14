@@ -16,8 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -48,6 +51,7 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -146,6 +150,12 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide statsd client module
 		compstatsd.Module(),
 
+		// Provide authtoken module
+		fetchonlyimpl.Module(),
+
+		// Provide configsync module
+		configsyncimpl.OptionalModule(),
+
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
 		fx.Provide(func(c config.Component) workloadmeta.Params {
@@ -182,6 +192,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ profiler.Component,
 			_ expvars.Component,
 			_ apiserver.Component,
+			_ optional.Option[configsync.Component],
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,
