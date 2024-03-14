@@ -8,14 +8,25 @@ package config
 import (
 	// "net/url"
 	"testing"
+	"time"
 	// "github.com/stretchr/testify/assert"
 	// "github.com/stretchr/testify/require"
 )
+
+func TestEverythingIsFine(t *testing.T) {
+	// Everything is fine
+}
 
 func TestCcPanic(t *testing.T) {
 	go func() {
 		panic("!!! ahhhhh i'm panicing !!!")
 	}()
+	time.Sleep(10 * time.Millisecond)
+}
+
+func TestEverythingIsFine2(t *testing.T) {
+	// Everything is fine
+	// Everything is fine
 }
 
 /*
