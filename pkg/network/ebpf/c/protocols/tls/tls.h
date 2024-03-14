@@ -67,11 +67,7 @@ static __always_inline bool is_valid_tls_app_data(tls_record_header_t *hdr, __u3
         return false;
     }
 
-    if (payload_len + sizeof(*hdr) > skb_len) {
-        return false;
-    }
-
-    return true;
+    return sizeof(*hdr) + payload_len <= skb_len;
 }
 
 // is_tls_handshake checks if the given TLS message header is a valid TLS

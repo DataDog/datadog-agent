@@ -317,11 +317,9 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 		_ = resp.Body.Close()
 	}
 
-	tr := setupTracer(t, cfg)
-	require.NoError(t, tr.ebpfTracer.Pause())
-
 	makeRequest()
-	require.NoError(t, tr.ebpfTracer.Resume(), "enable probes")
+	tr := setupTracer(t, cfg)
+	time.Sleep(100 * time.Millisecond)
 	makeRequest()
 
 	// Iterate through active connections until we find connection created above
