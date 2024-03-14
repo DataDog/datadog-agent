@@ -6,32 +6,13 @@
 package config
 
 import (
-	// "net/url"
+	"net/url"
 	"testing"
-	"time"
-	// "github.com/stretchr/testify/assert"
-	// "github.com/stretchr/testify/require"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestEverythingIsFine(t *testing.T) {
-	// Everything is fine
-}
-
-func TestCcPanic(t *testing.T) {
-	// go func() {
-	// 	panic("!!! ahhhhh i'm panicing !!!")
-	// }()
-	// time.Sleep(10 * time.Millisecond)
-	println("Waiting")
-	time.Sleep(3 * time.Minute)
-}
-
-func TestEverythingIsFine2(t *testing.T) {
-	// Everything is fine
-	// Everything is fine
-}
-
-/*
 func TestRemovePathIfPresent(t *testing.T) {
 	for _, tt := range []struct {
 		input    string
@@ -107,4 +88,3 @@ func getEndpoint(t *testing.T, u string) *url.URL {
 	assert.NoError(t, err)
 	return e
 }
-*/
