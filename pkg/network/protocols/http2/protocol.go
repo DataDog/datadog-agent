@@ -372,7 +372,7 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		io.WriteString(w, "Map: '"+mapName+"', key: 'HTTP2StreamKey', value: 'HTTP2Stream'\n")
 		iter := currentMap.Iterate()
 		var key HTTP2StreamKey
-		var value EbpfTx
+		var value HTTP2Stream
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
