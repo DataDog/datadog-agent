@@ -83,9 +83,10 @@ network_config:
 func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-EnableHTTPStatusCodeAggr.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_http_stats_by_status_code: true
+`)
 
 		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
 	})
