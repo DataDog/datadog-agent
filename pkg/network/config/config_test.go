@@ -332,9 +332,10 @@ network_config:
 func TestEnablingDNSStatsCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  collect_dns_stats: true
+`)
 
 		assert.True(t, cfg.CollectDNSStats)
 	})
