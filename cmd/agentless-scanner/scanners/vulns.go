@@ -59,6 +59,10 @@ func getTrivyDisabledAnalyzers(allowedAnalyzers []analyzer.Type) []analyzer.Type
 	trivyAnalyzersAll = append(trivyAnalyzersAll, analyzer.TypeSecret)
 	trivyAnalyzersAll = append(trivyAnalyzersAll, analyzer.TypeRedHatContentManifestType)
 	trivyAnalyzersAll = append(trivyAnalyzersAll, analyzer.TypeRedHatDockerfileType)
+	trivyAnalyzersAll = append(trivyAnalyzersAll, analyzer.TypeApkCommand)
+	trivyAnalyzersAll = append(trivyAnalyzersAll, analyzer.TypeHistoryDockerfile)
+	trivyAnalyzersAll = append(trivyAnalyzersAll, analyzer.TypeImageConfigSecret)
+
 	var disabledAnalyzers []analyzer.Type
 	for _, a := range trivyAnalyzersAll {
 		if !slices.Contains(allowedAnalyzers, a) {
