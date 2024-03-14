@@ -5,7 +5,7 @@
 
 //go:build python
 
-package gui
+package guiimpl
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"

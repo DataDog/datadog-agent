@@ -5,7 +5,7 @@
 
 //go:build !python
 
-package gui
+package guiimpl
 
 // stub: no python interprter
 func getPythonChecks() ([]string, error) {
