@@ -134,6 +134,41 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
 
 
 // This function is used to flush the conn_close_batch to the perf or ring buffer.
+static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, struct sock *sk) {
+    // Will hold the full connection data to send through the ring buffer
+    conn_t conn = { .tup = *tup };
+    conn_stats_ts_t *cst = NULL;
+    tcp_stats_t *tst = NULL;
+
+    tst = bpf_map_lookup_elem(&tcp_stats, &(conn.tup));
+    if (tst) {
+        conn.tcp_stats = *tst;
+        bpf_map_delete_elem(&tcp_stats, &(conn.tup));
+    }
+
+    conn.tup.pid = 0;
+    conn.tup.pid = tup->pid;
+
+    conn.tcp_stats.state_transitions |= (1 << TCP_CLOSE);
+
+    cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
+
+    if (cst) {
+        conn.conn_stats = *cst;
+        bpf_map_delete_elem(&conn_stats, &(conn.tup));
+    } else {
+        // we don't have any stats for the connection,
+        // so cookie is not set, set it here
+        conn.conn_stats.cookie = get_sk_cookie(sk);
+        // make sure direction is set correctly
+        determine_connection_direction(&conn.tup, &conn.conn_stats);
+    }
+
+    conn.conn_stats.timestamp = bpf_ktime_get_ns();
+
+    bpf_ringbuf_output(&tcp_failed_connections, &conn, sizeof(conn_t), 0);
+}
+
 static __always_inline void flush_conn_close_if_full(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);

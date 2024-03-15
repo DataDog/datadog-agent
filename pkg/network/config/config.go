@@ -257,6 +257,9 @@ type Config struct {
 	// classifying the L7 protocols being used.
 	ProtocolClassificationEnabled bool
 
+	// FailedConnectionsEnabled specifies whether the tracer will track & report TCP handshake failures
+	FailedConnectionsEnabled bool
+
 	// EnableHTTPStatsByStatusCode specifies if the HTTP stats should be aggregated by the actual status code
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
@@ -306,6 +309,7 @@ func New() *Config {
 		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(join(spNS, "source_excludes")),
 		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(join(spNS, "dest_excludes")),
 
+		FailedConnectionsEnabled:       cfg.GetBool(join(netNS, "enable_failed_connections")),
 		MaxTrackedConnections:          uint32(cfg.GetInt64(join(spNS, "max_tracked_connections"))),
 		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(join(spNS, "max_closed_connections_buffered"))),
 		ClosedConnectionFlushThreshold: cfg.GetInt(join(spNS, "closed_connection_flush_threshold")),

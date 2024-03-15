@@ -262,6 +262,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.SetEnvKeyTransformer(oldHTTPRules, httpRulesTransformer(oldHTTPRules))
 	cfg.SetEnvKeyTransformer(newHTTPRules, httpRulesTransformer(newHTTPRules))
 
+	cfg.BindEnvAndSetDefault(join(netNS, "process_config.enabled"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_FAILED_CONNECTIONS")
 	// Default value (1024) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "max_tracked_http_connections"))
 	cfg.BindEnv(join(smNS, "max_tracked_http_connections"))

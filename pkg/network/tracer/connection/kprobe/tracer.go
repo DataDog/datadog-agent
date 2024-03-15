@@ -10,6 +10,8 @@ package kprobe
 import (
 	"errors"
 	"fmt"
+	"math"
+	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -44,7 +46,8 @@ const (
 var (
 	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
 	// socket filter, and a tracepoint (4.7.0+).
-	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
+	classificationMinimumKernel    = kernel.VersionCode(4, 7, 0)
+	failedConnectionsMinimumKernel = kernel.VersionCode(5, 8, 0)
 
 	protocolClassificationTailCalls = []manager.TailCallRoute{
 		{
@@ -109,8 +112,24 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
+func FailedConnectionsSupported(config *config.Config) bool {
+	if !config.FailedConnectionsEnabled {
+		return false
+	}
+	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
+		return false
+	}
+	currentKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. failed connections monitoring disabled.")
+		return false
+	}
+
+	return currentKernelVersion >= failedConnectionsMinimumKernel
+}
+
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
-func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
+func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
@@ -127,7 +146,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 		var m *manager.Manager
 		var closeFn func()
 		if err == nil {
-			m, closeFn, err = coreTracerLoader(cfg, mgrOpts, connCloseEventHandler)
+			m, closeFn, err = coreTracerLoader(cfg, mgrOpts, connCloseEventHandler, failedConnsHandler)
 			// if it is a verifier error, bail always regardless of
 			// whether a fallback is enabled in config
 			var ve *ebpf.VerifierError
@@ -148,7 +167,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	}
 
 	if cfg.EnableRuntimeCompiler && (!cfg.EnableCORE || cfg.AllowRuntimeCompiledFallback) {
-		m, closeFn, err := rcTracerLoader(cfg, mgrOpts, connCloseEventHandler)
+		m, closeFn, err := rcTracerLoader(cfg, mgrOpts, connCloseEventHandler, failedConnsHandler)
 		if err == nil {
 			return m, closeFn, TracerTypeRuntimeCompiled, err
 		}
@@ -167,13 +186,30 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)
 
-	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler)
+	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler, failedConnsHandler)
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+// toPowerOf2 converts a number to its nearest power of 2
+func toPowerOf2(x int) int {
+	log2 := math.Log2(float64(x))
+	return int(math.Pow(2, math.Round(log2)))
+}
+
+// computeDefaultFailedConnectionsRingBufferSize is the default buffer size of the ring buffer for closed connection events.
+// Must be a power of 2 and a multiple of the page size
+func computeDefaultFailedConnectionsRingBufferSize() int {
+	numCPUs, err := ebpf.PossibleCPU()
+	if err != nil {
+		numCPUs = 1
+	}
+	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
+}
+
+func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	log.Errorf("adamk loadTracerFromAsset")
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, &ebpftelemetry.ErrorsTelemetryModifier{})
-	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
+	if err := initManager(m, connCloseEventHandler, failedConnsHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 
@@ -225,6 +261,19 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
+	failedConnectionsEnabled := FailedConnectionsSupported(config)
+	if failedConnectionsEnabled {
+		//addBoolConst(&mgrOpts, true, "failed_connections_enabled")
+		log.Errorf("adamk failed connections monitoring supported")
+		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
+			Type:       ebpf.RingBuf,
+			MaxEntries: uint32(computeDefaultFailedConnectionsRingBufferSize()),
+			KeySize:    0,
+			ValueSize:  0,
+			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+		}
+	}
+
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer)
 	if err != nil {
@@ -264,7 +313,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	return m.Manager, closeProtocolClassifierSocketFilterFn, nil
 }
 
-func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	var m *manager.Manager
 	var closeFn func()
 	var err error
@@ -273,24 +322,24 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
-		m, closeFn, err = loadTracerFromAsset(ar, false, true, config, o, connCloseEventHandler)
+		m, closeFn, err = loadTracerFromAsset(ar, false, true, config, o, connCloseEventHandler, failedConnsHandler)
 		return err
 	})
 
 	return m, closeFn, err
 }
 
-func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	buf, err := getRuntimeCompiledTracer(config)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer buf.Close()
 
-	return loadTracerFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler)
+	return loadTracerFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler, failedConnsHandler)
 }
 
-func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %w", err)
@@ -306,7 +355,7 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 		config.CollectUDPv6Conns = false
 	}
 
-	return loadTracerFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
+	return loadTracerFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler, failedConnsHandler)
 }
 
 func isCORETracerSupported() error {

@@ -225,6 +225,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
 	}
+	failedConnsHandler := ddebpf.NewRingBufferHandler(closedChannelSize)
 	var m *manager.Manager
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
@@ -239,7 +240,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler, failedConnsHandler)
 		if err != nil {
 			return nil, err
 		}
