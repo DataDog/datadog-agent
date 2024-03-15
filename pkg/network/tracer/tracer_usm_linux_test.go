@@ -64,7 +64,6 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.LogLevel(t, "debug")
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
@@ -72,6 +71,7 @@ func TestUSMSuite(t *testing.T) {
 
 func (s *USMSuite) TestEnableHTTPMonitoring() {
 	t := s.T()
+	ebpftest.LogLevel(t, "trace")
 	if !httpSupported() {
 		t.Skip("HTTP monitoring not supported")
 	}
