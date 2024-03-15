@@ -223,7 +223,7 @@ require (
 	golang.org/x/text v0.12.0 // indirect
 	golang.org/x/tools v0.12.0 // indirect
 	gonum.org/v1/gonum v0.7.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.6 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

@@ -17,7 +17,7 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tinylib/msgp v1.1.8
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (

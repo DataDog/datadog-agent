@@ -26,5 +26,5 @@ require (
 	golang.org/x/text v0.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1 // indirect
 	google.golang.org/grpc v1.51.0 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 )

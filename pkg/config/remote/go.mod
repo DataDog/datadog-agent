@@ -34,7 +34,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.7
 	go.uber.org/atomic v1.11.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
