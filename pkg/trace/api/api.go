@@ -355,6 +355,7 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header) *info.TagStat
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
 func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
+	log.Infof("test log")
 	switch v {
 	case v01:
 		var spans []*pb.Span

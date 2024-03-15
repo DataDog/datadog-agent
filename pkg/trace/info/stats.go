@@ -95,6 +95,7 @@ func (rs *ReceiverStats) LogAndResetStats() {
 	for k, ts := range rs.Stats {
 		if !ts.isEmpty() {
 			tags := ts.Tags.toArray()
+			log.Infof("using custom build")
 			log.Infof("%v -> %s\n", tags, ts.infoString())
 			warnString := ts.WarnString()
 			if len(warnString) > 0 {

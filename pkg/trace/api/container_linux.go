@@ -76,6 +76,7 @@ type IDProvider interface {
 type noCgroupsProvider struct{}
 
 func (i *noCgroupsProvider) GetContainerID(_ context.Context, h http.Header) string {
+	log.Infof("debuglog %+v", h)
 	return h.Get(header.ContainerID)
 }
 
@@ -122,6 +123,7 @@ type cgroupIDProvider struct {
 // GetContainerID returns the container ID in the http.Header,
 // otherwise looks for a PID in the ctx which is used to search cgroups for a container ID.
 func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
+	log.Infof("debuglog %+v", h)
 	// Retrieve the container-id from Datadog-Container-ID header
 	if id := h.Get(header.ContainerID); id != "" {
 		return id

@@ -106,9 +106,11 @@ func ConfigHandler(r *api.HTTPReceiver, client rcclient.ConfigUpdater, cfg *conf
 }
 
 func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.IDProvider) []string {
+	log.Infof("debuglog getContainerTags %v, req %+v", cfg, req)
 	if cfg == nil || cfg.ContainerTags == nil {
 		return nil
 	}
+
 	if cid := provider.GetContainerID(req.Context(), req.Header); cid != "" {
 		containerTags, err := cfg.ContainerTags(cid)
 		if err != nil {
