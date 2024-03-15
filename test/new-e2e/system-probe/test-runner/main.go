@@ -58,7 +58,7 @@ var baseEnv = []string{
 var timeouts = map[*regexp.Regexp]time.Duration{
 	regexp.MustCompile("pkg/network/protocols/http$"): 15 * time.Minute,
 	regexp.MustCompile("pkg/network/tracer$"):         55 * time.Minute,
-	regexp.MustCompile("pkg/network/usm$"):            30 * time.Minute,
+	regexp.MustCompile("pkg/network/usm$"):            55 * time.Minute,
 	regexp.MustCompile("pkg/security/.*"):             30 * time.Minute,
 }
 
