@@ -7,7 +7,6 @@ package serializerexporter
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
@@ -45,7 +44,6 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 		hostGetter: hostGetter,
 	}
 
-	fmt.Printf("######## creating new factory\n")
 	return exp.NewFactory(
 		TypeStr,
 		newDefaultConfig,
@@ -54,7 +52,6 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 }
 
 func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
-	fmt.Printf("######## creating metric exporter\n")
 	cfg := c.(*ExporterConfig)
 
 	// TODO: Ideally the attributes translator would be created once and reused
@@ -65,13 +62,11 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 		return nil, err
 	}
 
-	fmt.Printf("### created attributes translator\n")
 	newExp, err := NewExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Printf("### created new exporter\n")
 	exporter, err := exporterhelper.NewMetricsExporter(ctx, params, cfg, newExp.ConsumeMetrics,
 		exporterhelper.WithQueue(cfg.QueueSettings),
 		exporterhelper.WithTimeout(cfg.TimeoutSettings),
@@ -81,7 +76,6 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("### created metric exporter\n")
 
 	return resourcetotelemetry.WrapMetricsExporter(
 		resourcetotelemetry.Settings{Enabled: cfg.Metrics.ExporterConfig.ResourceAttributesAsTags}, exporter), nil

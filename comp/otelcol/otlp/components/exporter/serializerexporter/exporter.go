@@ -42,7 +42,7 @@ func newDefaultConfig() component.Config {
 				Mode:             "distributions",
 				SendAggregations: false,
 			},
-			SumConfig: sumConfig{
+			SumConfig: SumConfig{
 				CumulativeMonotonicMode:        CumulativeMonotonicSumModeToDelta,
 				InitialCumulativeMonotonicMode: InitialValueModeAuto,
 			},
@@ -131,13 +131,13 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 	return metrics.NewTranslator(set, attributesTranslator, options...)
 }
 
+// NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
 func NewExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*Exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
 	}
 
-	fmt.Printf("##### starting translatorFromConfig with attributesTranslator: %v\n", attributesTranslator)
 	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
@@ -161,14 +161,8 @@ func NewExporter(set component.TelemetrySettings, attributesTranslator *attribut
 	}, nil
 }
 
+// ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
-	fmt.Printf("##### starting ConsumeMetrics\n")
-	defer func() {
-		fmt.Printf("##### ending ConsumeMetrics\n")
-		if r := recover(); r != nil {
-			fmt.Printf("##### Recovered in ConsumeMetrics: %v\n", r)
-		}
-	}()
 	consumer := &serializerConsumer{enricher: e.enricher, extraTags: e.extraTags, apmReceiverAddr: e.apmReceiverAddr}
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer)
 	if err != nil {
@@ -181,9 +175,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 
 	consumer.addTelemetryMetric(hostname)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
-	fmt.Printf("##### starting Send\n")
 	if err := consumer.Send(e.s); err != nil {
-		fmt.Printf("##### error in Send: %v\n", err)
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil

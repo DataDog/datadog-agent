@@ -45,7 +45,7 @@ type MetricsConfig struct {
 	HistConfig HistogramConfig `mapstructure:"histograms"`
 
 	// SumConfig defines the export of OTLP Sums.
-	SumConfig sumConfig `mapstructure:"sums"`
+	SumConfig SumConfig `mapstructure:"sums"`
 
 	// SummaryConfig defines the export for OTLP Summaries.
 	SummaryConfig SummaryConfig `mapstructure:"summaries"`
@@ -137,8 +137,8 @@ func (iv *InitialValueMode) UnmarshalText(in []byte) error {
 	}
 }
 
-// sumConfig customizes export of OTLP Sums.
-type sumConfig struct {
+// SumConfig customizes export of OTLP Sums.
+type SumConfig struct {
 	// CumulativeMonotonicMode is the mode for exporting OTLP Cumulative Monotonic Sums.
 	// Valid values are 'to_delta' or 'raw_value'.
 	//  - 'to_delta' calculates delta for cumulative monotonic sums and sends it as a Datadog count.
