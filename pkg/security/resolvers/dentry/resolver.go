@@ -392,7 +392,7 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		if pathLeaf.Name[0] == '/' {
 			name = "/"
 		} else {
-			name = model.NullTerminatedString(pathLeaf.Name[:])
+			name = model.NullTerminatedString(pathLeaf.Name[:], nil)
 			filenameParts = append(filenameParts, name)
 		}
 
@@ -563,7 +563,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 			break
 		}
 
-		segment := model.NullTerminatedString(dr.erpcSegment[i:])
+		segment := model.NullTerminatedString(dr.erpcSegment[i:], nil)
 		filenameParts = append(filenameParts, segment)
 		i += len(segment) + 1
 

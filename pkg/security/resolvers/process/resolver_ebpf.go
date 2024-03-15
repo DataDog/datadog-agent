@@ -251,7 +251,7 @@ var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
 
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
-	values, err := model.UnmarshalStringArray(data)
+	values, err := model.UnmarshalStringArray(data, nil)
 	if err != nil || len(data) == model.MaxArgEnvSize {
 		if len(values) > 0 {
 			values[len(values)-1] += "..."
@@ -449,7 +449,7 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 	}
 
 	var fileFields model.FileFields
-	if _, err := fileFields.UnmarshalBinary(data); err != nil {
+	if _, err := fileFields.UnmarshalBinary(data, nil); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`", inode)
 	}
 
@@ -784,12 +784,12 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, ExecInode: inode})
 
 	var ctrCtx model.ContainerContext
-	read, err := ctrCtx.UnmarshalBinary(procCache)
+	read, err := ctrCtx.UnmarshalBinary(procCache, nil)
 	if err != nil {
 		return nil
 	}
 
-	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:]); err != nil {
+	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:], nil); err != nil {
 		return nil
 	}
 
@@ -798,7 +798,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 		return nil
 	}
 
-	if _, err := entry.UnmarshalPidCacheBinary(pidCache); err != nil {
+	if _, err := entry.UnmarshalPidCacheBinary(pidCache, nil); err != nil {
 		return nil
 	}
 

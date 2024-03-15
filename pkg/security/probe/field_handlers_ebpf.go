@@ -105,7 +105,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFieldsInUpperLayer(_ *model.Event, f *mo
 // ResolveXAttrName returns the string representation of the extended attribute name
 func (fh *EBPFFieldHandlers) ResolveXAttrName(_ *model.Event, e *model.SetXAttrEvent) string {
 	if len(e.Name) == 0 {
-		e.Name, _ = model.UnmarshalString(e.NameRaw[:], 200)
+		e.Name, _ = model.UnmarshalString(e.NameRaw[:], 200, nil)
 	}
 	return e.Name
 }

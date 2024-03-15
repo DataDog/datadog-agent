@@ -44,7 +44,7 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 	}
 
 	e.SessionType = usersession.Type(data[0])
-	e.RawData += model.NullTerminatedString(data[1:])
+	e.RawData += model.NullTerminatedString(data[1:], nil)
 	return nil
 }
 

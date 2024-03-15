@@ -23,10 +23,6 @@ func validateReadSize(size, read int) (int, error) {
 	return read, nil
 }
 
-type StringInterner interface {
-	DeduplicateBytes(value []byte) string
-}
-
 // BinaryUnmarshaler interface implemented by every event type
 type BinaryUnmarshaler interface {
 	UnmarshalBinary(data []byte, _ StringInterner) (int, error)
@@ -34,7 +30,7 @@ type BinaryUnmarshaler interface {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ContainerContext) UnmarshalBinary(data []byte, interner StringInterner) (int, error) {
-	id, err := UnmarshalString(data, ContainerIDLen)
+	id, err := UnmarshalString(data, ContainerIDLen, interner)
 	if err != nil {
 		return 0, err
 	}
@@ -168,7 +164,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte, interner StringInterner)
 
 	var ttyRaw [64]byte
 	SliceToArray(data[read:read+64], ttyRaw[:])
-	ttyName, err := UnmarshalString(ttyRaw[:], 64)
+	ttyName, err := UnmarshalString(ttyRaw[:], 64, interner)
 	if err != nil {
 		return 0, err
 	}
@@ -179,7 +175,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte, interner StringInterner)
 
 	var commRaw [16]byte
 	SliceToArray(data[read:read+16], commRaw[:])
-	e.Comm, err = UnmarshalString(commRaw[:], 16)
+	e.Comm, err = UnmarshalString(commRaw[:], 16, interner)
 	if err != nil {
 		return 0, err
 	}
@@ -412,7 +408,7 @@ func (m *Mount) UnmarshalBinary(data []byte, interner StringInterner) (int, erro
 
 	m.Device = binary.NativeEndian.Uint32(data[0:4])
 	m.BindSrcMountID = binary.NativeEndian.Uint32(data[4:8])
-	m.FSType, err = UnmarshalString(data[8:], 16)
+	m.FSType, err = UnmarshalString(data[8:], 16, interner)
 	if err != nil {
 		return 0, err
 	}
@@ -674,7 +670,7 @@ func (m *BPFMap) UnmarshalBinary(data []byte, interner StringInterner) (int, err
 	m.Type = binary.NativeEndian.Uint32(data[4:8])
 
 	var err error
-	m.Name, err = UnmarshalString(data[8:24], 16)
+	m.Name, err = UnmarshalString(data[8:24], 16, interner)
 	if err != nil {
 		return 0, err
 	}
@@ -697,7 +693,7 @@ func (p *BPFProgram) UnmarshalBinary(data []byte, interner StringInterner) (int,
 	p.Helpers = parseHelpers(helpers)
 
 	var err error
-	p.Name, err = UnmarshalString(data[40:56], 16)
+	p.Name, err = UnmarshalString(data[40:56], 16, interner)
 	if err != nil {
 		return 0, err
 	}
@@ -822,14 +818,14 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte, interner StringInterner) 
 		return 0, ErrNotEnoughData
 	}
 
-	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	e.Name, err = UnmarshalString(data[read:read+56], 56, interner)
 	read += 56
 
 	if err != nil {
 		return 0, err
 	}
 
-	e.Args, err = UnmarshalString(data[read:read+128], 128)
+	e.Args, err = UnmarshalString(data[read:read+128], 128, interner)
 	read += 128
 
 	e.ArgsTruncated = binary.NativeEndian.Uint32(data[read:read+4]) == uint32(1)
@@ -855,7 +851,7 @@ func (e *UnloadModuleEvent) UnmarshalBinary(data []byte, interner StringInterner
 		return 0, ErrNotEnoughData
 	}
 
-	e.Name, err = UnmarshalString(data[read:read+56], 56)
+	e.Name, err = UnmarshalString(data[read:read+56], 56, interner)
 	if err != nil {
 		return 0, err
 	}
@@ -1016,7 +1012,7 @@ func (d *NetDevice) UnmarshalBinary(data []byte, interner StringInterner) (int, 
 	}
 
 	var err error
-	d.Name, err = UnmarshalString(data[0:16], 16)
+	d.Name, err = UnmarshalString(data[0:16], 16, interner)
 	if err != nil {
 		return 0, err
 	}

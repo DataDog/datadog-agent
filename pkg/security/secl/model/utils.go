@@ -21,7 +21,7 @@ func SliceToArray(src []byte, dst []byte) {
 }
 
 // UnmarshalStringArray extract array of string for array of byte
-func UnmarshalStringArray(data []byte) ([]string, error) {
+func UnmarshalStringArray(data []byte, interner StringInterner) ([]string, error) {
 	var result []string
 	length := uint32(len(data))
 
@@ -38,11 +38,11 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 
 		if i+n > length {
 			// truncated
-			arg := NullTerminatedString(data[i:length])
+			arg := NullTerminatedString(data[i:length], interner)
 			return append(result, arg), ErrStringArrayOverflow
 		}
 
-		arg := NullTerminatedString(data[i : i+n])
+		arg := NullTerminatedString(data[i:i+n], interner)
 		i += n
 
 		result = append(result, arg)
@@ -51,21 +51,26 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 	return result, nil
 }
 
+// StringInterner represents any type that can deduplicate strings from bytes
+type StringInterner interface {
+	DeduplicateBytes(value []byte) string
+}
+
 // UnmarshalString unmarshal string
-func UnmarshalString(data []byte, size int) (string, error) {
+func UnmarshalString(data []byte, size int, interner StringInterner) (string, error) {
 	if len(data) < size {
 		return "", ErrNotEnoughData
 	}
 
-	return NullTerminatedString(data[:size]), nil
+	return NullTerminatedString(data[:size], interner), nil
 }
 
 // NullTerminatedString returns null-terminated string
-func NullTerminatedString(d []byte, interner func([]byte) string) string {
+func NullTerminatedString(d []byte, interner StringInterner) string {
 	b := nullTerminatedBytes(d)
 
 	if interner != nil {
-		return interner(b)
+		return interner.DeduplicateBytes(b)
 	}
 	return string(b)
 }
@@ -79,12 +84,12 @@ func nullTerminatedBytes(d []byte) []byte {
 }
 
 // UnmarshalPrintableString unmarshal printable string
-func UnmarshalPrintableString(data []byte, size int) (string, error) {
+func UnmarshalPrintableString(data []byte, size int, interner StringInterner) (string, error) {
 	if len(data) < size {
 		return "", ErrNotEnoughData
 	}
 
-	str, err := UnmarshalString(data, size)
+	str, err := UnmarshalString(data, size, interner)
 	if err != nil {
 		return "", err
 	}

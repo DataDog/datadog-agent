@@ -836,7 +836,7 @@ func (adm *ActivityDumpManager) SnapshotTracedCgroups() {
 			continue
 		}
 
-		if _, err = event.ContainerContext.UnmarshalBinary(containerIDB[:]); err != nil {
+		if _, err = event.ContainerContext.UnmarshalBinary(containerIDB[:], nil); err != nil {
 			seclog.Errorf("couldn't unmarshal container ID from traced_cgroups key: %v", err)
 			// remove invalid entry
 			_ = adm.tracedCgroupsMap.Delete(containerIDB)

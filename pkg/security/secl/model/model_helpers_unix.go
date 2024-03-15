@@ -326,7 +326,7 @@ type PathLeaf struct {
 
 // GetName returns the path value as a string
 func (pl *PathLeaf) GetName() string {
-	return NullTerminatedString(pl.Name[:])
+	return NullTerminatedString(pl.Name[:], nil)
 }
 
 // SetName sets the path name

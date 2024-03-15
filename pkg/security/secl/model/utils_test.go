@@ -15,7 +15,7 @@ import (
 
 func TestUnmarshalString(t *testing.T) {
 	array := []byte{65, 66, 67, 0, 0, 0, 65, 66}
-	str, err := UnmarshalString(array, 8)
+	str, err := UnmarshalString(array, 8, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func BenchmarkNullTerminatedString(b *testing.B) {
 	array := []byte{65, 66, 67, 0, 0, 0, 65, 66}
 	var s string
 	for i := 0; i < b.N; i++ {
-		s = NullTerminatedString(array)
+		s = NullTerminatedString(array, nil)
 	}
 	runtime.KeepAlive(s)
 }
