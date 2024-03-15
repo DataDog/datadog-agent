@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -34,6 +35,7 @@ type Component interface {
 		logsAgent optional.Option[logsAgent.Component],
 		senderManager sender.DiagnoseSenderManager,
 		collector optional.Option[collector.Component],
+		gui optional.Option[gui.Component],
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr
