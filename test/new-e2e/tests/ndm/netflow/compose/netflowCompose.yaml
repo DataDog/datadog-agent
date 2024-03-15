@@ -1,9 +1,5 @@
 version: "3.9"
 services:
-  netflow:
-    command: /go/bin/nflow-generator -t datadog-agent -p 2056
-    container_name: netflow-generator
-    image: "networkstatic/nflow-generator"
   agent:
     container_name: datadog-agent
     ports:
@@ -12,5 +8,11 @@ services:
       - "4739:4739"
       - "6343:6343/udp"
     volumes:
-      # this is a hack to enable netflow in the docker agent since there is not currently an env var to do so
-      - ${CONFIG_DIR}/netflow.yaml:/etc/datadog-agent/datadog.yaml
+      - ${CONFIG_DIR}/datadog.yaml:/etc/datadog-agent/datadog.yaml
+  netflow:
+    command: /go/bin/nflow-generator -t datadog-agent -p 2056
+    container_name: netflow-generator
+    depends_on:
+      agent:
+        condition: service_healthy
+    image: "networkstatic/nflow-generator"

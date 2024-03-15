@@ -2,7 +2,7 @@ network_devices:
   netflow:
     enabled: true
     forwarder:
-      logs_dd_url: http://<fakeintake-ip-address>:80
+      logs_dd_url: FAKEINTAKE_URL
     listeners:
     - flow_type: netflow9
       port: 2055

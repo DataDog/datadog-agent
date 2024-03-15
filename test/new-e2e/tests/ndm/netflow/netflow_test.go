@@ -34,7 +34,7 @@ import (
 var netflowCompose string
 
 //go:embed config/netflowConfig.yaml
-var netflowConfig string
+var datadogYaml string
 
 // netflowDockerProvisioner defines a stack with a docker agent on an AmazonLinuxECS VM
 // with the netflow-generator running and sending netflow payloads to the agent
@@ -58,20 +58,20 @@ func netflowDockerProvisioner() e2e.Provisioner {
 		}
 		fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
 
-		// update agent config content at fakeintake address resolution
-		agentConfigContent := fakeIntake.URL.ApplyT(func(url string) string {
-			return strings.ReplaceAll(netflowConfig, "FAKEINTAKE_URL", url)
-		}).(pulumi.StringOutput)
-
 		filemanager := host.OS.FileManager()
 
 		createConfigDirCommand, configPath, err := filemanager.TempDirectory("config")
 		if err != nil {
 			return err
 		}
-		// edit config file
+
+		// update agent datadog.yaml config content at fakeintake address resolution
+		datadogYamlContent := fakeIntake.URL.ApplyT(func(url string) string {
+			return strings.ReplaceAll(datadogYaml, "FAKEINTAKE_URL", url)
+		}).(pulumi.StringOutput)
+
 		dontUseSudo := false
-		configCommand, err := filemanager.CopyInlineFile(agentConfigContent, path.Join(configPath, "netflow.yaml"), dontUseSudo,
+		configCommand, err := filemanager.CopyInlineFile(datadogYamlContent, path.Join(configPath, "datadog.yaml"), dontUseSudo,
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err
@@ -116,12 +116,6 @@ func TestNetflowSuite(t *testing.T) {
 func (s *netflowDockerSuite) TestNetflow() {
 	fakeintake := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		//JMWRMmetricNames, err := fakeintake.GetMetricNames()
-		//JMWRMassert.NoError(c, err)
-		//JMWRMs.T().Logf("JMW fakeintake.GetMetricNames(): %v", metricNames)
-		//JMWRMassert.Contains(c, metricNames, "datadog.agent.running", "metricNames %v doesn't contain datadog.agent.running", metricNames)
-		//JMWRMassert.Contains(c, metricNames, "datadog.netflow.aggregator.flows_flushed", "metricNames %v doesn't contain datadog.netflow.aggregator.flows_flushed", metricNames)
-
 		metrics, err := fakeintake.FilterMetrics("datadog.netflow.aggregator.flows_flushed")
 		assert.NoError(c, err)
 		s.T().Logf("JMW fakeintake.FilterMetrics('datadog.netflow.aggregator.flows_flushed') returned: %v", metrics)
@@ -130,11 +124,5 @@ func (s *netflowDockerSuite) TestNetflow() {
 		assert.NotEmptyf(c, lo.Filter(metrics[len(metrics)-1].GetPoints(), func(v *gogen.MetricPayload_MetricPoint, _ int) bool {
 			return v.GetValue() > 0
 		}), "No non-zero value of `datadog.netflow.aggregator.flows_flushed` in the last metric: %v", metrics[len(metrics)-1])
-
-		//JMWRM
-		//metric, err := fakeintake.FilterMetrics("system.net.bytes_rcvd")
-		//assert.NoError(c, err)
-		//s.T().Logf("JMW fakeintake.FilterMetrics('system.net.bytes_rcvd') returned: %v", metric)
-		//assert.Greater(c, len(metric), 0, "no 'system.net.bytes_rcvd' metrics yet")
 	}, 5*time.Minute, 10*time.Second)
 }
