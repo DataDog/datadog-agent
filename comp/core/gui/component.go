@@ -6,7 +6,7 @@
 // Package gui provides the GUI server component for the Datadog Agent.
 package gui
 
-// team: agent-shared-component
+// team: agent-shared-components
 
 // Component is the component type.
 type Component interface {
