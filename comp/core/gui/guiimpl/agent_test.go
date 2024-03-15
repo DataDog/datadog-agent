@@ -75,28 +75,35 @@ func Test_getConfigSetting(t *testing.T) {
 	tests := []struct {
 		name          string
 		configSetting string
+		configValue   string
 		expectedBody  string
 	}{
 		{
 			name:          "Allowed setting",
 			configSetting: "apm_config.receiver_port",
+			configValue:   "8126",
 			expectedBody:  "{\"apm_config.receiver_port\":8126}\n",
 		},
 		{
 			name:          "Not allowed setting",
 			configSetting: "api_key",
+			configValue:   "",
 			expectedBody:  "\"error\": \"requested setting is not whitelisted\"",
 		},
 	}
 
 	fakeGuiStartTimestamp := time.Now().Unix()
 
-	config := fxutil.Test[config.Component](t,
+	c := fxutil.Test[config.Component](t,
 		config.MockModule(),
 	)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.configValue != "" {
+				c.SetWithoutSource(tt.configSetting, tt.configValue)
+			}
+
 			path := fmt.Sprintf("/getConfig/%s", tt.configSetting)
 			req, err := http.NewRequest("GET", path, nil)
 			require.NoError(t, err)
@@ -104,7 +111,7 @@ func Test_getConfigSetting(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := mux.NewRouter()
-			agentHandler(router, nil, nil, config, fakeGuiStartTimestamp)
+			agentHandler(router, nil, nil, c, fakeGuiStartTimestamp)
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()
