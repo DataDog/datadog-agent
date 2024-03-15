@@ -348,8 +348,16 @@ func TestNotificationNoChange(t *testing.T) {
 }
 
 func TestCheckKnownKey(t *testing.T) {
-	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	config.SetWithoutSource("foo", "bar")
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig)
+
+	config.SetKnown("foo")
 	config.Get("foo")
-	assert.True(t, config.IsKnown("foo"))
+	assert.Empty(t, config.unknownKeys)
+
+	assert.NotContains(t, config.unknownKeys, "foobar")
+	config.Get("foobar")
+	assert.Contains(t, config.unknownKeys, "foobar")
+
+	config.Get("foobar")
+	assert.Contains(t, config.unknownKeys, "foobar")
 }

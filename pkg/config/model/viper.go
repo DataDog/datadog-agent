@@ -74,6 +74,10 @@ type safeConfig struct {
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
 	configEnvVars map[string]struct{}
+
+	// keys that have been used but are unknown
+	// used to warn (a single time) on use
+	unknownKeys map[string]struct{}
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -160,19 +164,31 @@ func (c *safeConfig) IsKnown(key string) bool {
 	return c.Viper.IsKnown(key)
 }
 
-// checkKnown checks if a key is not known, and if so marks it as known and logs a warning
+// checkKnownKey checks if a key is known, and if not logs a warning
+// Only a single warning will be logged per unknown key.
 //
 // Must be called with the lock read-locked.
 // The lock can be released and re-locked.
 func (c *safeConfig) checkKnownKey(key string) {
-	isKnown := c.Viper.IsKnown(key)
-	if !isKnown {
-		c.RUnlock()
-		// set known to avoid logging again
-		c.SetKnown(key)
-		log.Warnf("config key %v is unknown", key)
-		c.RLock()
+	if c.Viper.IsKnown(key) {
+		return
 	}
+
+	if _, ok := c.unknownKeys[key]; ok {
+		return
+	}
+
+	// need to write-lock to add the key to the unknownKeys map
+	c.RUnlock()
+	// but we need to have the lock in the same state (RLocked) at the end of the function
+	defer c.RLock()
+
+	c.Lock()
+	c.unknownKeys[key] = struct{}{}
+	c.Unlock()
+
+	// log without holding the lock
+	log.Warnf("config key %v is unknown", key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
@@ -696,6 +712,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		Viper:         viper.New(),
 		configSources: map[Source]*viper.Viper{},
 		configEnvVars: map[string]struct{}{},
+		unknownKeys:   map[string]struct{}{},
 	}
 
 	// load one Viper instance per source of setting change
@@ -723,6 +740,7 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 		c.envPrefix = cfg.envPrefix
 		c.envKeyReplacer = cfg.envKeyReplacer
 		c.configEnvVars = cfg.configEnvVars
+		c.unknownKeys = cfg.unknownKeys
 		return
 	}
 	panic("Replacement config must be an instance of safeConfig")
