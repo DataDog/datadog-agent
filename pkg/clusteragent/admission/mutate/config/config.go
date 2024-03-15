@@ -156,7 +156,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	var injectedConfig, injectedEntity bool
 
 	if pod == nil {
-		return false, errors.New(metrics.NilPod)
+		return false, errors.New(metrics.InvalidInput)
 
 	}
 

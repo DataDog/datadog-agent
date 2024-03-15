@@ -35,9 +35,9 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutationFunc, dc dy
 	}
 
 	if injected, err := m(&pod, ns, dc); err != nil {
-		metrics.MutationErrors.Inc(mutationType, err.Error())
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(injected), err.Error())
 	} else {
-		metrics.MutationAttempts.Inc(mutationType, strconv.FormatBool(injected))
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 	}
 
 	bytes, err := json.Marshal(pod)

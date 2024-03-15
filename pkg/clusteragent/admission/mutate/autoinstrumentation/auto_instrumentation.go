@@ -285,7 +285,7 @@ func libImageName(registry string, lang language, tag string) string {
 
 func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
-		return false, errors.New(metrics.NilPod)
+		return false, errors.New(metrics.InvalidInput)
 	}
 	injectApmTelemetryConfig(pod)
 

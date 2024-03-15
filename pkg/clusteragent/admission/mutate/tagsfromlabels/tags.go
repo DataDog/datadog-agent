@@ -136,7 +136,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workload
 	var injected bool
 
 	if pod == nil {
-		return false, errors.New(metrics.NilPod)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	if !autoinstrumentation.ShouldInject(pod, wmeta) {
@@ -155,7 +155,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workload
 		if pod.GetNamespace() != "" {
 			ns = pod.GetNamespace()
 		} else {
-			return false, errors.New(metrics.EmptyNamespace)
+			return false, errors.New(metrics.InvalidInput)
 		}
 	}
 

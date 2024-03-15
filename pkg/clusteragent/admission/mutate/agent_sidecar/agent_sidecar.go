@@ -113,7 +113,7 @@ func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
 
 func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
-		return false, errors.New(metrics.NilPod)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	for _, container := range pod.Spec.Containers {
@@ -127,7 +127,8 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 
 	err := applyProviderOverrides(agentSidecarContainer)
 	if err != nil {
-		return false, err
+		log.Errorf("Failed to apply provider overrides: %v", err)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	// User-provided overrides should always be applied last in order to have highest override-priority

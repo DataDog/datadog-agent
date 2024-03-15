@@ -360,7 +360,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	var injected bool
 
 	if pod == nil {
-		return injected, errors.New(metrics.NilPod)
+		return injected, errors.New(metrics.InvalidInput)
 	}
 
 	// is the pod targeted by the instrumentation ?
@@ -502,14 +502,11 @@ func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, muta
 		return nil, err
 	}
 
-	injected, err := m(&exec, name, ns, userInfo, dc, apiClient)
-
-	if err != nil {
-		metrics.MutationErrors.Inc(mutationType, err.Error())
-		return nil, err
+	if injected, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(injected), err.Error())
+	} else {
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 	}
-
-	metrics.MutationAttempts.Inc(mutationType, strconv.FormatBool(injected))
 
 	bytes, err := json.Marshal(exec)
 	if err != nil {
