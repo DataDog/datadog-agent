@@ -12,7 +12,6 @@ import tempfile
 from pathlib import Path
 from subprocess import check_output
 
-import requests
 from invoke import task
 from invoke.exceptions import Exit
 
