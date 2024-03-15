@@ -1010,6 +1010,8 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
         return 0;
     }
 
+    bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
+
     terminated_http2_batch_enqueue(&args->tup);
     // Deleting the entry for the original tuple.
     bpf_map_delete_elem(&http2_remainder, &args->tup);
@@ -1019,8 +1021,6 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     flip_tuple(&args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
     bpf_map_delete_elem(&http2_remainder, &args->tup);
-
-    bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
     return 0;
 }
