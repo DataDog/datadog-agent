@@ -1,23 +1,14 @@
-from __future__ import annotations
-
 import sys
-from typing import TYPE_CHECKING, Optional, cast
-
-from invoke.context import Context
-from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import info
 
-if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import PathOrStr
 
-
-def compiler_built(ctx: Context):
+def compiler_built(ctx):
     res = ctx.run("docker images kmt:compile | grep -v REPOSITORY | grep kmt", warn=True)
-    return res is not None and res.ok
+    return res.ok
 
 
-def docker_exec(ctx: Context, cmd: str, user="compiler", verbose=True, run_dir: Optional[PathOrStr] = None):
+def docker_exec(ctx, cmd, user="compiler", verbose=True, run_dir=None):
     if run_dir:
         cmd = f"cd {run_dir} && {cmd}"
 
@@ -28,7 +19,7 @@ def docker_exec(ctx: Context, cmd: str, user="compiler", verbose=True, run_dir: 
     ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"", hide=(not verbose))
 
 
-def start_compiler(ctx: Context):
+def start_compiler(ctx):
     if not compiler_built(ctx):
         build_compiler(ctx)
 
@@ -39,8 +30,8 @@ def start_compiler(ctx: Context):
         "docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/datadog-agent kmt:compile sleep \"infinity\""
     )
 
-    uid = cast(Result, ctx.run("id -u")).stdout.rstrip()
-    gid = cast(Result, ctx.run("id -g")).stdout.rstrip()
+    uid = ctx.run("id -u").stdout.rstrip()
+    gid = ctx.run("id -g").stdout.rstrip()
     docker_exec(ctx, f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
     docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 
@@ -52,14 +43,14 @@ def start_compiler(ctx: Context):
     docker_exec(ctx, f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
 
-def compiler_running(ctx: Context):
+def compiler_running(ctx):
     res = ctx.run("docker ps -aqf \"name=kmt-compiler\"")
-    if res is not None and res.ok:
+    if res.ok:
         return res.stdout.rstrip() != ""
     return False
 
 
-def build_compiler(ctx: Context):
+def build_compiler(ctx):
     ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")", warn=True, hide=True)
     ctx.run("docker image rm kmt:compile", warn=True, hide=True)
 

@@ -5,7 +5,7 @@
 .new-e2e_install_script:
   variables:
     TARGETS: ./tests/agent-platform/install-script
-    TEAM: agent-platform
+    TEAM: agent-build-and-releases
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
 .new-e2e_suse_a6_x86_64:

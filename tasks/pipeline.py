@@ -795,3 +795,76 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
         print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
         time.sleep(10)
         run(ctx, here=True)
+
+
+@task(
+    help={
+        'owner-branch-name': 'Owner and branch names in the format <owner-name>/<branch-name>',
+        'no-verify': 'Adds --no-verify flag when git push',
+    }
+)
+def trigger_external(ctx, owner_branch_name: str, no_verify=False):
+    """
+    Trigger a pipeline from an external owner.
+    """
+    # Verify parameters
+    owner_branch_name = owner_branch_name.lower()
+
+    assert (
+        owner_branch_name.count('/') == 1
+    ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
+    assert "'" not in owner_branch_name
+
+    owner, branch = owner_branch_name.split('/')
+    no_verify_flag = ' --no-verify' if no_verify else ''
+
+    # Can checkout
+    status_res = ctx.run('git status --porcelain')
+    assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
+    branch_res = ctx.run('git branch', hide='stdout')
+    assert (
+        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
+    ), f'{owner_branch_name} branch already exists'
+    remote_res = ctx.run('git remote', hide='stdout')
+    assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
+
+    # Get current branch
+    curr_branch_res = ctx.run('git branch --show-current', hide='stdout')
+    curr_branch = curr_branch_res.stdout.strip()
+
+    # Commands to restore current state
+    restore_commands = [
+        f"git remote remove '{owner}'",
+        f"git checkout '{curr_branch}'",
+        f"git branch -d '{owner}/{branch}'",
+    ]
+
+    # Commands to push the branch
+    commands = [
+        # Fetch
+        f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
+        f"git fetch '{owner}'",
+        # Create branch
+        f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
+        f"git checkout -b '{owner}/{branch}'",
+        # Push
+        f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
+    ] + restore_commands
+
+    # Run commands then restore commands
+    ret_code = 0
+    for command in commands:
+        ret_code = ctx.run(command, warn=True, echo=True).exited
+        if ret_code != 0:
+            print('The last command exited with code', ret_code)
+            print('You might want to run these commands to restore the current state:')
+            print('\n'.join(restore_commands))
+
+            exit(1)
+
+    # Show links
+    repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
+    pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
+
+    print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
+    print(f'CI-Visibility pipeline link: {pipeline}')
