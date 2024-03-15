@@ -46,8 +46,12 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 				continue
 			}
 
-			cs.Log.Debug("Succeeded to fetch config from core agent")
-			connected = true
+			if connected {
+				cs.Log.Debug("Succeeded to fetch config from core agent")
+			} else {
+				cs.Log.Info("Succeeded to fetch config from core agent")
+				connected = true
+			}
 
 			for key, value := range cfg {
 				if updateConfig(cs.Config, key, value) {
