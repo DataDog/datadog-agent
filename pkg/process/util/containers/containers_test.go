@@ -357,17 +357,17 @@ func TestGetContainers(t *testing.T) {
 			ThreadLimit: 20,
 		},
 		{
-			Type:    "containerd",
-			Id:      "cID3",
-			State:   process.ContainerState_running,
-			Health:  process.ContainerHealth_healthy,
-			Created: testTime.Add(-10 * time.Minute).Unix(),
-			Started: testTime.Unix(),
+			Type:       "containerd",
+			Id:         "cID3",
+			State:      process.ContainerState_running,
+			Health:     process.ContainerHealth_healthy,
+			Created:    testTime.Add(-10 * time.Minute).Unix(),
+			Started:    testTime.Unix(),
+			RepoDigest: "sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			Tags: []string{
 				"low:common",
 				"orch:orch1",
 				"id:container3",
-				"repo_digest:sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			},
 			Addresses: []*process.ContainerAddr{
 				{
@@ -563,17 +563,17 @@ func TestGetContainers(t *testing.T) {
 			ThreadLimit: 20,
 		},
 		{
-			Type:    "containerd",
-			Id:      "cID3",
-			State:   process.ContainerState_running,
-			Health:  process.ContainerHealth_healthy,
-			Created: testTime.Add(-10 * time.Minute).Unix(),
-			Started: testTime.Unix(),
+			Type:       "containerd",
+			Id:         "cID3",
+			State:      process.ContainerState_running,
+			Health:     process.ContainerHealth_healthy,
+			Created:    testTime.Add(-10 * time.Minute).Unix(),
+			Started:    testTime.Unix(),
+			RepoDigest: "sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			Tags: []string{
 				"low:common",
 				"orch:orch1",
 				"id:container3",
-				"repo_digest:sha256:378e0fa5bc50e6707ec9eb03c511cc6a2a4741f0c345d88dedb2fb9247b19f94",
 			},
 			Addresses: []*process.ContainerAddr{
 				{

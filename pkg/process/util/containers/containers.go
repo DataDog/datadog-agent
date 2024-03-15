@@ -124,22 +124,20 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		}
 		tags = append(tags, container.CollectorTags...)
 
-		if container.Image.RepoDigest != "" {
-			tags = append(tags, "repo_digest:"+container.Image.RepoDigest)
-		}
-
 		outPreviousStats := NullContainerRates
 		// Name and Image fields exist but are never filled
 		processContainer := &model.Container{
-			Type:      convertContainerRuntime(container.Runtime),
-			Id:        container.ID,
-			Started:   container.State.StartedAt.Unix(),
-			Created:   container.State.CreatedAt.Unix(),
-			Tags:      tags,
-			State:     convertContainerStatus(container.State.Status),
-			Health:    convertHealthStatus(container.State.Health),
-			Addresses: computeContainerAddrs(container),
+			Type:       convertContainerRuntime(container.Runtime),
+			Id:         container.ID,
+			Started:    container.State.StartedAt.Unix(),
+			Created:    container.State.CreatedAt.Unix(),
+			Tags:       tags,
+			State:      convertContainerStatus(container.State.Status),
+			Health:     convertHealthStatus(container.State.Health),
+			Addresses:  computeContainerAddrs(container),
+			RepoDigest: container.Image.RepoDigest,
 		}
+
 		// Always adding container if we have metadata as we do want to report containers without stats
 		processContainers = append(processContainers, processContainer)
 
