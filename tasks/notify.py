@@ -323,8 +323,8 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
     pr = prs[0]
 
     comment = gh.find_comment(pr.number, "[Fast Unit Tests Report]")
-    if comment is None and len(no_tests_executed_jobs) > 0:
-        msg = create_msg(pipeline_id, pipeline_url, no_tests_executed_jobs)
+    if comment is None and len(jobs_with_no_tests_run) > 0:
+        msg = create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
         gh.publish_comment(pr.number, msg)
         return
 
@@ -333,8 +333,8 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
     if previous_comment_pipeline_id and previous_comment_pipeline_id[0] > pipeline_id:
         return
 
-    if len(no_tests_executed_jobs) > 0:
-        msg = create_msg(pipeline_id, pipeline_url, no_tests_executed_jobs)
+    if len(jobs_with_no_tests_run) > 0:
+        msg = create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
         comment.edit(msg)
     else:
         comment.delete()
