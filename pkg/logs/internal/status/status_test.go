@@ -43,6 +43,19 @@ func (s *LogStatusSuite) TestError() {
 	s.Equal("Error: bar", s.status.GetError())
 }
 
+func (s *LogStatusSuite) TesString() {
+	s.status = NewLogStatus()
+	s.Equal("pending", s.status.String())
+
+	s.status.Error(errors.New("bar"))
+
+	s.Equal("error", s.status.String())
+	s.Equal("Error: bar", s.status.GetError())
+
+	s.status.Success()
+	s.Equal("success", s.status.String())
+}
+
 func TestLogStatusSuite(t *testing.T) {
 	suite.Run(t, new(LogStatusSuite))
 }

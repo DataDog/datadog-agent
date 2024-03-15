@@ -12,7 +12,10 @@ To propose improvements, feel free to submit a PR.
 * [Pull Requests](#pull-requests)
 	- [Keep it small, focused](#keep-it-small-focused)
 	- [Commit Messages](#commit-messages)
-	- [Squash your commits](#squash-your-commits)
+	- [Pull request workflow](#pull-request-workflow)
+    + [Before the first PR review](#before-the-first-pr-review)
+    + [After the first review](#after-the-first-review)
+    + [How to merge to `main`](#how-to-merge-to-main)
 	- [Reno](#reno)
 		+ [Reno sections](#reno-sections)
 * [PR labels](#pr-labels)
@@ -22,10 +25,9 @@ To propose improvements, feel free to submit a PR.
 
 ## Submitting issues
 
-  * If you think you've found an issue, please search the [Troubleshooting][troubleshooting]
-    section of our [Knowledge base][kb] to see if it's known.
-  * If you can't find anything useful, please contact our [support][support] and
-    [send them your logs][flare].
+  * If you think you've found an issue, please search the [Agent Troubleshooting][troubleshooting]
+    section to see if it's known.
+  * If you’re still unsure about the issue, you may reach out to the [Datadog support][support] team with [a flare][flare] from your Agent.
   * Finally, you can open a Github issue.
 
 ## Pull Requests
@@ -35,7 +37,7 @@ Have you fixed a bug or written a new check and want to share it? Many thanks!
 In order to ease/speed up our review, here are some items you can check/improve
 when submitting your PR:
 
-  * have a [proper commit history](#commits) (we advise you to rebase if needed).
+  * have a proper commit history (we advise you to rebase if needed).
   * write tests for the code you wrote.
   * preferably make sure that all tests pass locally.
   * summarize your PR with an explanatory title and a message describing your
@@ -44,11 +46,11 @@ when submitting your PR:
   * open your PR against the `main` branch.
   * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
     + set the relevant `team/` label
-    + add a milestone to your PR (by default, use the highest milestone version available, ex: `6.8.0`)
+    + add a milestone to your PR (by default, use the highest milestone version available, ex: `7.49.0`)
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
-or send  us an email, and together we'll get it sorted out.
+or [send us an email][email], and together we'll get it sorted out.
 
 ### Keep it small, focused
 
@@ -95,7 +97,7 @@ The goals ordered by priority are:
 - Make PR reviews (both initial and follow-up reviews) easy for reviewers using
  GitHub
 - On the `main` branch, have a meaningful commit history that allows
- understanding (even years later) what each commit does, and why. 
+ understanding (even years later) what each commit does, and why.
 
 You must open the PR when the code is reviewable or you must set the PR as
  draft if you want to share code before it's ready for actual reviews.
@@ -121,10 +123,10 @@ Once reviews are complete, the merge to `main` should be done with either:
 - the squash-merge option, to keep the history of `main` clean (even though
  some context/details are lost in the squash). The commit message for this
  squash should always be edited to concisely describe the commit without
- extraneous “address review comments” text. 
+ extraneous “address review comments” text.
 - the “rebase-merge” option, after manually rewriting the PR’s commit history
  and force-pushing to the branch. When using this option, the branch must have
- a clean history. 
+ a clean history.
 
 ### Reno
 
@@ -256,8 +258,10 @@ labels that can be use:
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote
   (useful for PRs only changing documentation or tests).
-- `qa/skip-qa`: this will skip creating a QA card for the PR during the release
-  process (example: for a documentation only PRs).
+- `qa/skip-qa`, `qa/done`, `qa/no-code-change`: if the `qa/skip-qa` label is set with
+  an additional required `qa/done` or `qa/no-code-change`, it will skip the creation
+  of a QA card related to this PR during next release process (example:
+  documentation-only PRs).
 - `major_change`: to flag the PR as a major change impacting many/all teams
   working on the agent and will require deeper QA (example: when we change the
   Python version shipped in the agent).
@@ -270,10 +274,11 @@ or review the latest changes. For new integrations, please open a pull request
 in the [integrations-extras][extras] repo.
 
 
-[troubleshooting]: https://help.datadoghq.com/
+[troubleshooting]: https://docs.datadoghq.com/agent/troubleshooting/
 [kb]: https://datadog.zendesk.com/hc/en-us
-[support]: http://docs.datadoghq.com/help/
-[flare]: https://github.com/DataDog/dd-agent/wiki/Send-logs-to-support
+[support]: https://docs.datadoghq.com/help/
+[flare]: https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/
 [extras]: https://github.com/DataDog/integrations-extras
 [core]: https://github.com/DataDog/integrations-core
-[slack]: http://datadoghq.slack.com
+[slack]: https://chat.datadoghq.com/
+[email]: mailto:support@datadoghq.com

@@ -161,11 +161,6 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 		return nil, fmt.Errorf("failed to get build info: %w", err)
 	}
 
-	factories, err := getComponents(s, logsAgentChannel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get components: %w", err)
-	}
-
 	// Replace default core to use Agent logger
 	options := []zap.Option{zap.WrapCore(func(zapcore.Core) zapcore.Core {
 		return zapAgent.NewZapCore()
@@ -178,7 +173,9 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 	}
 
 	col, err := otelcol.NewCollector(otelcol.CollectorSettings{
-		Factories:               factories,
+		Factories: func() (otelcol.Factories, error) {
+			return getComponents(s, logsAgentChannel)
+		},
 		BuildInfo:               buildInfo,
 		DisableGracefulShutdown: true,
 		ConfigProvider:          configProvider,

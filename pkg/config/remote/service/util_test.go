@@ -19,7 +19,6 @@ import (
 	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestAuthKeys(t *testing.T) {
@@ -119,14 +118,14 @@ func TestRemoteConfigNewDB(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"))
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9")
 	require.NoError(t, err)
 	defer db.Close()
 
 	metadata, err := getVersion(db)
 	require.NoError(t, err)
 
-	assert.Equal(t, version.AgentVersion, metadata.Version)
+	assert.Equal(t, agentVersion, metadata.Version)
 }
 
 func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
@@ -135,17 +134,17 @@ func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"))
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion)
 	require.NoError(t, err)
 
 	metadata, err := getVersion(db)
 	require.NoError(t, err)
 
-	assert.Equal(t, version.AgentVersion, metadata.Version)
+	assert.Equal(t, agentVersion, metadata.Version)
 	require.NoError(t, addData(db))
 	require.NoError(t, db.Close())
 
-	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"))
+	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion)
 	require.NoError(t, err)
 	defer db.Close()
 	require.NoError(t, checkData(db))
@@ -159,7 +158,7 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	dbPath := filepath.Join(dir, "remote-config.db")
 
 	// create database with current version
-	db, err := openCacheDB(dbPath)
+	db, err := openCacheDB(dbPath, agentVersion)
 	require.NoError(t, err)
 
 	require.NoError(t, addData(db))
@@ -175,13 +174,13 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	require.NoError(t, db.Close())
 
 	// reopen database
-	db, err = openCacheDB(dbPath)
+	db, err = openCacheDB(dbPath, agentVersion)
 	require.NoError(t, err)
 
 	// check version after the database opens
 	parsedMeta, err := getVersion(db)
 	require.NoError(t, err)
 
-	assert.Equal(t, version.AgentVersion, parsedMeta.Version)
+	assert.Equal(t, agentVersion, parsedMeta.Version)
 	assert.Error(t, checkData(db))
 }

@@ -105,233 +105,42 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 		return err
 	}
 
-	var flows []*common.FlowMessageWithAdditionalFields
-	var flowMessageSet []*flowmessage.FlowMessage
-	var additionalFields []common.AdditionalFields
+	s.sendTelemetryMetrics(msgDec, key)
 
-	switch msgDecConv := msgDec.(type) {
-	case netflow.NFv9Packet:
-		utils.NetFlowStats.With(
+	flowMessageSet, err := producer.ProcessMessageNetFlowConfig(msgDec, sampling, s.configMapped)
+	if err != nil {
+		s.Logger.Errorf("failed to process netflow packet %s", err)
+	}
+
+	additionalFields, err := additionalfields.ProcessMessageNetFlowAdditionalFields(msgDec, s.mappedFieldsConfig)
+	if err != nil {
+		s.Logger.Errorf("failed to process additional fields %s", err)
+	}
+
+	for i, fmsg := range flowMessageSet {
+		fmsg.TimeReceived = ts
+		fmsg.SamplerAddress = samplerAddress
+		timeDiff := fmsg.TimeReceived - fmsg.TimeFlowEnd
+
+		message := common.FlowMessageWithAdditionalFields{
+			FlowMessage: fmsg,
+		}
+
+		if additionalFields != nil {
+			message.AdditionalFields = additionalFields[i]
+		}
+
+		utils.NetFlowTimeStatsSum.With(
 			prometheus.Labels{
 				"router":  key,
-				"version": "9",
+				"version": flowVersion(fmsg),
 			}).
-			Inc()
+			Observe(float64(timeDiff))
 
-		for _, fs := range msgDecConv.FlowSets {
-			switch fsConv := fs.(type) {
-			case netflow.TemplateFlowSet:
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "TemplateFlowSet",
-					}).
-					Inc()
+		_, _, err := s.Format.Format(&message)
 
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "TemplateFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-
-			case netflow.NFv9OptionsTemplateFlowSet:
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "OptionsTemplateFlowSet",
-					}).
-					Inc()
-
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "OptionsTemplateFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-
-			case netflow.OptionsDataFlowSet:
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "OptionsDataFlowSet",
-					}).
-					Inc()
-
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "OptionsDataFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-			case netflow.DataFlowSet:
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "DataFlowSet",
-					}).
-					Inc()
-
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "9",
-						"type":    "DataFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-			}
-		}
-		flowMessageSet, err = producer.ProcessMessageNetFlowConfig(msgDecConv, sampling, s.configMapped)
-		if err != nil {
-			s.Logger.Errorf("failed to process netflow packet %s", err)
-		}
-
-		additionalFields, err = additionalfields.ProcessMessageNetFlowAdditionalFields(msgDecConv, s.mappedFieldsConfig)
-		if err != nil {
-			s.Logger.Errorf("failed to process additional fields %s", err)
-		}
-
-		for i, fmsg := range flowMessageSet {
-			fmsg.TimeReceived = ts
-			fmsg.SamplerAddress = samplerAddress
-			timeDiff := fmsg.TimeReceived - fmsg.TimeFlowEnd
-
-			message := common.FlowMessageWithAdditionalFields{
-				FlowMessage: fmsg,
-			}
-
-			if additionalFields != nil {
-				message.AdditionalFields = additionalFields[i]
-			}
-
-			flows = append(flows, &message)
-
-			utils.NetFlowTimeStatsSum.With(
-				prometheus.Labels{
-					"router":  key,
-					"version": "9",
-				}).
-				Observe(float64(timeDiff))
-		}
-
-	case netflow.IPFIXPacket:
-		utils.NetFlowStats.With(
-			prometheus.Labels{
-				"router":  key,
-				"version": "10",
-			}).
-			Inc()
-
-		for _, fs := range msgDecConv.FlowSets {
-			switch fsConv := fs.(type) {
-			case netflow.TemplateFlowSet:
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "TemplateFlowSet",
-					}).
-					Inc()
-
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "TemplateFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-
-			case netflow.IPFIXOptionsTemplateFlowSet:
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "OptionsTemplateFlowSet",
-					}).
-					Inc()
-
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "OptionsTemplateFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-
-			case netflow.OptionsDataFlowSet:
-
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "OptionsDataFlowSet",
-					}).
-					Inc()
-
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "OptionsDataFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-
-			case netflow.DataFlowSet:
-				utils.NetFlowSetStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "DataFlowSet",
-					}).
-					Inc()
-
-				utils.NetFlowSetRecordsStatsSum.With(
-					prometheus.Labels{
-						"router":  key,
-						"version": "10",
-						"type":    "DataFlowSet",
-					}).
-					Add(float64(len(fsConv.Records)))
-			}
-		}
-		flowMessageSet, err = producer.ProcessMessageNetFlowConfig(msgDecConv, sampling, s.configMapped)
-		if err != nil {
-			s.Logger.Errorf("failed to process netflow packet %s", err)
-		}
-
-		additionalFields, err = additionalfields.ProcessMessageNetFlowAdditionalFields(msgDecConv, s.mappedFieldsConfig)
-		if err != nil {
-			s.Logger.Errorf("failed to process additional fields %s", err)
-		}
-
-		for i, fmsg := range flowMessageSet {
-			fmsg.TimeReceived = ts
-			fmsg.SamplerAddress = samplerAddress
-			timeDiff := fmsg.TimeReceived - fmsg.TimeFlowEnd
-
-			message := common.FlowMessageWithAdditionalFields{
-				FlowMessage: fmsg,
-			}
-
-			if additionalFields != nil {
-				message.AdditionalFields = additionalFields[i]
-			}
-
-			flows = append(flows, &message)
-
-			utils.NetFlowTimeStatsSum.With(
-				prometheus.Labels{
-					"router":  key,
-					"version": "10",
-				}).
-				Observe(float64(timeDiff))
+		if err != nil && s.Logger != nil {
+			s.Logger.Error(err)
 		}
 	}
 
@@ -341,22 +150,6 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 			"name": "NetFlow",
 		}).
 		Observe(float64((timeTrackStop.Sub(timeTrackStart)).Nanoseconds()) / 1000)
-
-	for _, flow := range flows {
-		if s.Format != nil {
-			key, data, err := s.Format.Format(flow)
-
-			if err != nil && s.Logger != nil {
-				s.Logger.Error(err)
-			}
-			if err == nil && s.Transport != nil {
-				err = s.Transport.Send(key, data)
-				if err != nil {
-					s.Logger.Error(err)
-				}
-			}
-		}
-	}
 
 	return nil
 }
@@ -380,4 +173,77 @@ func (s *StateNetFlow) FlowRoutine(workers int, addr string, port int, reuseport
 	}
 	s.initConfig()
 	return utils.UDPStoppableRoutine(s.stopCh, "NetFlow", s.DecodeFlow, workers, addr, port, reuseport, s.Logger)
+}
+
+func (s *StateNetFlow) sendTelemetryMetrics(msg any, exporterIP string) {
+	switch msgDec := msg.(type) {
+	case netflow.NFv9Packet:
+		utils.NetFlowStats.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": "9",
+			}).
+			Inc()
+		for _, fs := range msgDec.FlowSets {
+			s.sendFlowSetMetrics(fs, exporterIP, "9")
+		}
+	case netflow.IPFIXPacket:
+		utils.NetFlowStats.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": "10",
+			}).
+			Inc()
+		for _, fs := range msgDec.FlowSets {
+			s.sendFlowSetMetrics(fs, exporterIP, "10")
+		}
+	}
+}
+
+func (s *StateNetFlow) sendFlowSetMetrics(fs any, exporterIP string, version string) {
+	switch fsConv := fs.(type) {
+	case netflow.TemplateFlowSet:
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "TemplateFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
+	case netflow.NFv9OptionsTemplateFlowSet:
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "OptionsTemplateFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
+	case netflow.OptionsDataFlowSet:
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "OptionsDataFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
+	case netflow.DataFlowSet:
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "DataFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
+	}
+}
+
+func flowVersion(fmsg *flowmessage.FlowMessage) string {
+	switch fmsg.Type {
+	case flowmessage.FlowMessage_NETFLOW_V9:
+		return "9"
+	case flowmessage.FlowMessage_IPFIX:
+		return "10"
+	default:
+		return "unknown"
+	}
 }

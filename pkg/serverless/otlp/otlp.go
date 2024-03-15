@@ -5,6 +5,7 @@
 
 //go:build otlp
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package otlp
 
 import (

@@ -24,6 +24,8 @@ type NodeHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Node)
 	m.Yaml = yaml
@@ -50,6 +52,8 @@ func (h *NodeHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resour
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Node)
 	return k8sTransformers.ExtractNode(r)
@@ -57,6 +61,8 @@ func (h *NodeHandlers) ExtractResource(ctx *processors.ProcessorContext, resourc
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.Node)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -69,17 +75,23 @@ func (h *NodeHandlers) ResourceList(ctx *processors.ProcessorContext, list inter
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Node).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.Node).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Node)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
@@ -87,5 +99,7 @@ func (h *NodeHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, r
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
 }

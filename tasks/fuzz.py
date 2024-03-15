@@ -15,7 +15,7 @@ def fuzz(ctx, fuzztime="10s"):
     """
     for directory, func in search_fuzz_tests(os.getcwd()):
         with ctx.cd(directory):
-            cmd = f'go test -v . -run={func} -fuzz={func} -fuzztime={fuzztime}'
+            cmd = f'go test -v . -run={func} -fuzz={func}$ -fuzztime={fuzztime}'
             ctx.run(cmd)
 
 

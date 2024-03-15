@@ -24,6 +24,8 @@ type NamespaceHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Namespace)
 	m.Yaml = yaml
@@ -50,6 +52,8 @@ func (h *NamespaceHandlers) BuildMessageBody(ctx *processors.ProcessorContext, r
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (namespaceModel interface{}) {
 	r := resource.(*corev1.Namespace)
 	return k8sTransformers.ExtractNamespace(r)
@@ -57,6 +61,8 @@ func (h *NamespaceHandlers) ExtractResource(ctx *processors.ProcessorContext, re
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.Namespace)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -69,17 +75,23 @@ func (h *NamespaceHandlers) ResourceList(ctx *processors.ProcessorContext, list 
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Namespace).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.Namespace).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NamespaceHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Namespace)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)

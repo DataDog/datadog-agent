@@ -7,13 +7,14 @@ package invocationlifecycle
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"regexp"
 	"strconv"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -73,7 +74,7 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) {
+func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) *pb.Span {
 	executionContext := lp.GetExecutionInfo()
 	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
 
@@ -131,24 +132,12 @@ func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails)
 		}
 	}
 
-	traceChunk := &pb.TraceChunk{
-		Priority: int32(executionContext.SamplingPriority),
-		Spans:    []*pb.Span{executionSpan},
-	}
-
-	tracerPayload := &pb.TracerPayload{
-		Chunks: []*pb.TraceChunk{traceChunk},
-	}
-
-	lp.ProcessTrace(&api.Payload{
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
-		TracerPayload: tracerPayload,
-	})
+	return executionSpan
 }
 
 // completeInferredSpan finishes the inferred span and passes it
 // as an API payload to be processed by the trace agent
-func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.InferredSpan, endTime time.Time, isError bool) {
+func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.InferredSpan, endTime time.Time, isError bool) *pb.Span {
 	durationIsSet := inferredSpan.Span.Duration != 0
 	if inferredSpan.IsAsync {
 		// SNSSQS span duration is set in invocationlifecycle/init.go
@@ -164,9 +153,13 @@ func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.In
 
 	inferredSpan.Span.TraceID = lp.GetExecutionInfo().TraceID
 
+	return inferredSpan.Span
+}
+
+func (lp *LifecycleProcessor) processTrace(spans []*pb.Span) {
 	traceChunk := &pb.TraceChunk{
 		Origin:   "lambda",
-		Spans:    []*pb.Span{inferredSpan.Span},
+		Spans:    spans,
 		Priority: int32(lp.GetExecutionInfo().SamplingPriority),
 	}
 

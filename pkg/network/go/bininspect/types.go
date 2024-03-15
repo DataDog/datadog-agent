@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package bininspect provides tools to inspect a Go binary.
 package bininspect
 
 import (
@@ -16,31 +17,39 @@ import (
 )
 
 const (
+	// WriteGoTLSFunc is the name of the function that writes to the TLS connection.
 	WriteGoTLSFunc = "crypto/tls.(*Conn).Write"
-	ReadGoTLSFunc  = "crypto/tls.(*Conn).Read"
+	// ReadGoTLSFunc is the name of the function that reads from the TLS connection.
+	ReadGoTLSFunc = "crypto/tls.(*Conn).Read"
+	// CloseGoTLSFunc is the name of the function that closes the TLS connection.
 	CloseGoTLSFunc = "crypto/tls.(*Conn).Close"
 )
 
+// StructOffsetTLSConn is the offset of the `conn` field within `crypto/tls.Conn`.
 var StructOffsetTLSConn = FieldIdentifier{
 	StructName: "crypto/tls.Conn",
 	FieldName:  "conn",
 }
 
+// StructOffsetTCPConn is the offset of the `conn` field within `net.TCPConn`.
 var StructOffsetTCPConn = FieldIdentifier{
 	StructName: "net.TCPConn",
 	FieldName:  "conn",
 }
 
+// StructOffsetNetConnFd is the offset of the `fd` field within `net.conn`.
 var StructOffsetNetConnFd = FieldIdentifier{
 	StructName: "net.conn",
 	FieldName:  "fd",
 }
 
+// StructOffsetNetFdPfd is the offset of the `pdf` field within `net.netFD`.
 var StructOffsetNetFdPfd = FieldIdentifier{
 	StructName: "net.netFD",
 	FieldName:  "pfd",
 }
 
+// StructOffsetPollFdSysfd is the offset of the `sysfd` field within `internal/poll.FD`.
 var StructOffsetPollFdSysfd = FieldIdentifier{
 	StructName: "internal/poll.FD",
 	FieldName:  "Sysfd",

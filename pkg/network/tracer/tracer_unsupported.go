@@ -5,10 +5,12 @@
 
 //go:build (linux && !linux_bpf) || (windows && !npm) || (!linux && !windows)
 
+//nolint:revive // TODO(NET) Fix revive linter
 package tracer
 
 import (
 	"context"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -52,8 +54,8 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps is not implemented on this OS for Tracer
-func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) { //nolint:revive // TODO fix revive unused-parameter
-	return "", ebpf.ErrNotImplemented
+func (t *Tracer) DebugEBPFMaps(_ io.Writer, _ ...string) error {
+	return ebpf.ErrNotImplemented
 }
 
 // DebugCachedConntrack is not implemented on this OS for Tracer

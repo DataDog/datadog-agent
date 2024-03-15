@@ -18,6 +18,7 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	agentcrashdetectimpl.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		agentcrashdetectimpl.Module())
+}

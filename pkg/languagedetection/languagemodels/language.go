@@ -9,12 +9,19 @@ package languagemodels
 type LanguageName string
 
 const (
-	Go      LanguageName = "go"
-	Node    LanguageName = "node"
-	Dotnet  LanguageName = "dotnet"
-	Python  LanguageName = "python"
-	Java    LanguageName = "java"
-	Ruby    LanguageName = "ruby"
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Go LanguageName = "go"
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Node LanguageName = "node"
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Dotnet LanguageName = "dotnet"
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Python LanguageName = "python"
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Java LanguageName = "java"
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Ruby LanguageName = "ruby"
+	//nolint:revive // TODO(PROC) Fix revive linter
 	Unknown LanguageName = ""
 )
 

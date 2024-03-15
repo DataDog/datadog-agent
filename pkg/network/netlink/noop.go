@@ -22,26 +22,35 @@ func NewNoOpConntracker() Conntracker {
 	return &noOpConntracker{}
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
 	return nil
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) IsSampling() bool {
 	return false
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) Close() {}
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (c *noOpConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
 	return nil, nil
 }
 
 // Describe returns all descriptions of the collector
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) Describe(ch chan<- *prometheus.Desc) {}
 
 // Collect returns the current state of all metrics of the collector
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (*noOpConntracker) Collect(ch chan<- prometheus.Metric) {}

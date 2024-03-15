@@ -5,6 +5,7 @@
 
 //go:build orchestrator
 
+//nolint:revive // TODO(AML) Fix revive linter
 package types
 
 import (
@@ -16,4 +17,5 @@ import (
 // ProcessMessageBody is a type alias for processes proto message body
 type ProcessMessageBody = model.MessageBody
 
+//nolint:revive // TODO(AML) Fix revive linter
 var ProcessPayloadEncoder = api.EncodePayload

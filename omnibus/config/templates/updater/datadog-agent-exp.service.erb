@@ -1,0 +1,22 @@
+[Unit]
+Description=Datadog Agent Experiment
+After=network.target
+OnFailure=datadog-agent.service 
+Conflicts=datadog-agent.service 
+Before=datadog-agent.service 
+JobTimeoutSec=3000
+Wants=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
+
+[Service]
+Type=oneshot
+PIDFile=<%= install_dir %>/run/agent.pid
+User=dd-agent
+EnvironmentFile=-<%= etc_dir %>/environment
+ExecStart=<%= install_dir %>/agent_entrypoints/experiment_agent/agent run -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= install_dir %>/agent_entrypoints/experiment_agent/agent run -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= install_dir %>/agent_entrypoints/experiment_agent/agent run -p <%= install_dir %>/run/agent.pid
+ExecStart=/bin/false
+ExecStop=/bin/false
+
+[Install]
+WantedBy=multi-user.target

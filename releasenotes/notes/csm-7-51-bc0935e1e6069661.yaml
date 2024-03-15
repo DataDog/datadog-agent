@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    CWS: [BETA] early support based on ptrace for platforms with no eBPF support.
+    Only processes and files are currently supported.
+enhancements:
+  - |
+    CWS: Reloading the datadog-agent-sysprobe systemd service now reloads the runtime security policies.
+  - |
+    CWS: Added ssdeep file hashing algorithm support.

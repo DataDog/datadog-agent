@@ -13,9 +13,10 @@ import (
 
 // MetaCollector is a special collector that uses all available collectors, by priority order.
 type metaCollector struct {
-	lock                         sync.RWMutex
-	selfContainerIDcollectors    []CollectorRef[SelfContainerIDRetriever]
-	containerIDFromPIDcollectors []CollectorRef[ContainerIDForPIDRetriever]
+	lock                           sync.RWMutex
+	selfContainerIDcollectors      []CollectorRef[SelfContainerIDRetriever]
+	containerIDFromPIDcollectors   []CollectorRef[ContainerIDForPIDRetriever]
+	containerIDFromInodeCollectors []CollectorRef[ContainerIDForInodeRetriever]
 }
 
 func newMetaCollector() *metaCollector {
@@ -28,6 +29,7 @@ func (mc *metaCollector) collectorsUpdatedCallback(collectorsCatalog CollectorCa
 
 	mc.selfContainerIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[SelfContainerIDRetriever] { return c.SelfContainerID })
 	mc.containerIDFromPIDcollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForPIDRetriever] { return c.ContainerIDForPID })
+	mc.containerIDFromInodeCollectors = buildUniqueCollectors(collectorsCatalog, func(c *Collectors) CollectorRef[ContainerIDForInodeRetriever] { return c.ContainerIDForInode })
 }
 
 // GetSelfContainerID returns the container ID for current container.
@@ -56,6 +58,26 @@ func (mc *metaCollector) GetContainerIDForPID(pid int, cacheValidity time.Durati
 
 	for _, collectorRef := range mc.containerIDFromPIDcollectors {
 		val, err := collectorRef.Collector.GetContainerIDForPID(pid, cacheValidity)
+		if err != nil {
+			return "", err
+		}
+
+		if val != "" {
+			return val, nil
+		}
+	}
+
+	return "", nil
+}
+
+// GetContainerIDForInode returns a container ID for given Inode.
+// ("", nil) will be returned if no error but the containerd ID was not found.
+func (mc *metaCollector) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
+	mc.lock.RLock()
+	defer mc.lock.RUnlock()
+
+	for _, collectorRef := range mc.containerIDFromInodeCollectors {
+		val, err := collectorRef.Collector.GetContainerIDForInode(inode, cacheValidity)
 		if err != nil {
 			return "", err
 		}

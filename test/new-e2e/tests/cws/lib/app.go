@@ -15,14 +15,14 @@ import (
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 )
 
-// MyAPIClient represents the datadog API context
-type MyAPIClient struct {
+// APIClient represents the datadog API context
+type APIClient struct {
 	api *datadog.APIClient
 	ctx context.Context
 }
 
 // NewAPIClient initialise a client with the API and APP keys
-func NewAPIClient() MyAPIClient {
+func NewAPIClient() *APIClient {
 	apiKey, _ := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	appKey, _ := runner.GetProfile().SecretStore().Get(parameters.APPKey)
 	ctx := context.WithValue(
@@ -40,15 +40,14 @@ func NewAPIClient() MyAPIClient {
 
 	cfg := datadog.NewConfiguration()
 
-	apiClient := MyAPIClient{
+	return &APIClient{
 		api: datadog.NewAPIClient(cfg),
 		ctx: ctx,
 	}
-	return apiClient
 }
 
 // GetAppLog returns the logs corresponding to the query
-func (c MyAPIClient) GetAppLog(query string) (*datadog.LogsListResponse, error) {
+func (c *APIClient) GetAppLog(query string) (*datadog.LogsListResponse, error) {
 	sort := datadog.LOGSSORT_TIMESTAMP_ASCENDING
 
 	body := datadog.LogsListRequest{
@@ -75,7 +74,7 @@ func (c MyAPIClient) GetAppLog(query string) (*datadog.LogsListResponse, error) 
 }
 
 // GetAppSignal returns the signal corresponding to the query
-func (c MyAPIClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
+func (c *APIClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
 	now := time.Now().UTC()
 	queryFrom := now.Add(-15 * time.Minute)
 	sort := datadog.SECURITYMONITORINGSIGNALSSORT_TIMESTAMP_ASCENDING
@@ -105,7 +104,7 @@ func (c MyAPIClient) GetAppSignal(query string) (*datadog.SecurityMonitoringSign
 }
 
 // CreateCwsSignalRule creates a cws signal rule
-func (c MyAPIClient) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadog.SecurityMonitoringRuleResponse, error) {
+func (c *APIClient) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadog.SecurityMonitoringRuleResponse, error) {
 	if tags == nil {
 		tags = []string{}
 	}
@@ -157,8 +156,7 @@ func (c MyAPIClient) CreateCwsSignalRule(name string, msg string, agentRuleID st
 }
 
 // CreateCWSAgentRule creates a cws agent rule
-func (c MyAPIClient) CreateCWSAgentRule(name string, msg string, secl string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error) {
-
+func (c *APIClient) CreateCWSAgentRule(name string, msg string, secl string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error) {
 	body := datadog.CloudWorkloadSecurityAgentRuleCreateRequest{
 		Data: datadog.CloudWorkloadSecurityAgentRuleCreateData{
 			Attributes: datadog.CloudWorkloadSecurityAgentRuleCreateAttributes{
@@ -180,13 +178,13 @@ func (c MyAPIClient) CreateCWSAgentRule(name string, msg string, secl string) (*
 }
 
 // DeleteSignalRule deletes a signal rule
-func (c MyAPIClient) DeleteSignalRule(ruleID string) error {
+func (c *APIClient) DeleteSignalRule(ruleID string) error {
 	_, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleID)
 	return err
 }
 
 // DeleteAgentRule deletes an agent rule
-func (c MyAPIClient) DeleteAgentRule(ruleID string) error {
+func (c *APIClient) DeleteAgentRule(ruleID string) error {
 	_, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
 	return err
 }

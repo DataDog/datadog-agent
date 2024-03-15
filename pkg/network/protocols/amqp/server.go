@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	// User is the user to use for authentication
 	User = "guest"
+	// Pass is the password to use for authentication
 	Pass = "guest"
 )
 
+// RunServer runs an amqp server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,

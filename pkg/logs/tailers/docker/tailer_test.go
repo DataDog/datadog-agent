@@ -310,6 +310,7 @@ func (c *fakeDockerClient) AddEntry(testIOReader io.ReadCloser, err error) {
 	})
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *fakeDockerClient) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
 	if c.counter >= len(c.entries) {
 		c.counter = 0

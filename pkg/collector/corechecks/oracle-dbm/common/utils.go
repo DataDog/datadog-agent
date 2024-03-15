@@ -14,12 +14,14 @@ import (
 	"github.com/twmb/murmur3"
 )
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func GetQuerySignature(statement string) string {
 	h := fnv.New64a()
 	h.Write([]byte(statement))
 	return strconv.FormatUint(murmur3.Sum64([]byte(statement)), 16)
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ObfuscatedStatement struct {
 	Statement      string
 	QuerySignature string

@@ -5,6 +5,7 @@
 
 //go:build oracle
 
+//nolint:revive // TODO(DBM) Fix revive linter
 package common
 
 // IntegrationName is the name of the integration.
@@ -16,5 +17,8 @@ const IntegrationName = "oracle"
  */
 const IntegrationNameScheduler = "oracle-dbm"
 
+//nolint:revive // TODO(DBM) Fix revive linter
 const Godror = "godror"
+
+//nolint:revive // TODO(DBM) Fix revive linter
 const GoOra = "oracle"

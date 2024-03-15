@@ -203,16 +203,17 @@ func (o *OrchestratorCheck) Cancel() {
 }
 
 func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.OrchestratorInformerFactory {
-	of := &collectors.OrchestratorInformerFactory{
-		InformerFactory:        informers.NewSharedInformerFactory(apiClient.Cl, defaultResyncInterval),
-		CRDInformerFactory:     externalversions.NewSharedInformerFactory(apiClient.CRDClient, defaultResyncInterval),
-		DynamicInformerFactory: dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicCl, defaultResyncInterval),
-		VPAInformerFactory:     vpai.NewSharedInformerFactory(apiClient.VPAClient, defaultResyncInterval),
-	}
-
 	tweakListOptions := func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
-	of.UnassignedPodInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.Cl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions))
+
+	of := &collectors.OrchestratorInformerFactory{
+		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
+		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
+		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
+		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
+		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions)),
+	}
+
 	return of
 }

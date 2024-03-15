@@ -23,6 +23,7 @@ type Formatter interface {
 // logFormatter is the default Formatter which supports transforming log pipeline messages into a more useful format.
 type logFormatter struct{}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg []byte) string {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {

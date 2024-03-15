@@ -7,13 +7,14 @@ package containers
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
@@ -50,11 +51,16 @@ func (suite *ecsSuite) SetupSuite() {
 		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "ecs-cluster", stackConfig, ecs.Run, false)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil)
 	suite.Require().NoError(err)
 
-	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	fakeintake := &components.FakeIntake{}
+	fiSerialized, err := json.Marshal(stackOutput.Outputs["dd-Fakeintake-aws-ecs"].Value)
+	suite.Require().NoError(err)
+	suite.Require().NoError(fakeintake.Import(fiSerialized, fakeintake))
+	suite.Require().NoError(fakeintake.Init(suite))
+	suite.Fakeintake = fakeintake.Client()
+
 	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
 	suite.clusterName = suite.ecsClusterName
 
@@ -68,8 +74,9 @@ func (suite *ecsSuite) TearDownSuite() {
 	c := color.New(color.Bold).SprintfFunc()
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
-	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
 		suite.ecsClusterName,
+		strings.TrimSuffix(suite.ecsClusterName, "-ecs"),
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
 	))
@@ -196,6 +203,33 @@ func (suite *ecsSuite) TestNginx() {
 			},
 		},
 	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "apps-nginx-server",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-nginx-ec2-`,
+				`^docker_image:ghcr.io/datadog/apps-nginx-server:main$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:nginx$`,
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:sha256:`,
+				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^short_image:apps-nginx-server$`,
+				`^task_arn:arn:`,
+				`^task_family:.*-nginx-ec2$`,
+				`^task_name:.*-nginx-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Message: `GET / HTTP/1\.1`,
+		},
+	})
 }
 
 func (suite *ecsSuite) TestRedis() {
@@ -225,6 +259,31 @@ func (suite *ecsSuite) TestRedis() {
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+		},
+	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "redis",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-redis-ec2-`,
+				`^docker_image:redis:latest$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:redis$`,
+				`^image_id:sha256:`,
+				`^image_name:redis$`,
+				`^image_tag:latest$`,
+				`^short_image:redis$`,
+				`^task_arn:arn:`,
+				`^task_family:.*-redis-ec2$`,
+				`^task_name:.*-redis-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Message: `Accepted`,
 		},
 	})
 }

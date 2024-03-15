@@ -1,0 +1,913 @@
+{
+  "JMXStartupError": {
+    "LastError": "",
+    "Timestamp": 0
+  },
+  "JMXStatus": {
+    "info": null,
+    "checks": {
+      "initialized_checks": null,
+      "failed_checks": null
+    },
+    "timestamp": 0,
+    "errors": 0
+  },
+  "NoProxyChanged": [],
+  "NoProxyIgnoredWarningMap": [],
+  "NoProxyUsedInFuture": [],
+  "TransportWarnings": false,
+  "adEnabledFeatures": {
+    "docker": {}
+  },
+  "agent_metadata": {},
+  "agent_start_nano": 1701253052392961884,
+  "aggregatorStats": {
+    "ChecksHistogramBucketMetricSample": 0,
+    "ChecksMetricSample": 0,
+    "DogstatsdContexts": 0,
+    "DogstatsdContextsByMtype": {
+      "Count": 0,
+      "Counter": 0,
+      "Distribution": 0,
+      "Gauge": 0,
+      "Histogram": 0,
+      "Historate": 0,
+      "MonotonicCount": 0,
+      "Rate": 0,
+      "Set": 0
+    },
+    "DogstatsdMetricSample": 1,
+    "Event": 1,
+    "EventPlatformEvents": {},
+    "EventPlatformEventsErrors": {},
+    "EventsFlushErrors": 0,
+    "EventsFlushed": 1,
+    "Flush": {
+      "ChecksMetricSampleFlushTime": {
+        "FlushIndex": 2,
+        "Flushes": [
+          16788292,
+          1413375,
+          7895666,
+          3688167,
+          16294166,
+          1701875,
+          1876083,
+          3225208,
+          496750,
+          6249583,
+          1440334,
+          11195917,
+          1185875,
+          1397916,
+          323500,
+          268083,
+          5228292,
+          3378500,
+          12369292,
+          8481500,
+          4424875,
+          225959,
+          254208,
+          1949792,
+          3177625,
+          14756875,
+          1911209,
+          554875,
+          299833,
+          743208,
+          5745083,
+          8526000
+        ],
+        "LastFlush": 7895666,
+        "Name": "ChecksMetricSampleFlushTime"
+      },
+      "EventFlushTime": {
+        "FlushIndex": 0,
+        "Flushes": [
+          25612834,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "LastFlush": 25612834,
+        "Name": "EventFlushTime"
+      },
+      "MainFlushTime": {
+        "FlushIndex": 2,
+        "Flushes": [
+          16800625,
+          1419417,
+          7902958,
+          3772542,
+          16330083,
+          1708667,
+          1886833,
+          3233291,
+          500125,
+          6261083,
+          1451209,
+          11205125,
+          1190875,
+          1404375,
+          326208,
+          272041,
+          5237375,
+          3387417,
+          12374625,
+          8489875,
+          4432375,
+          228500,
+          256291,
+          1956625,
+          3186084,
+          14763833,
+          1918084,
+          561375,
+          302625,
+          748875,
+          5869291,
+          8536917
+        ],
+        "LastFlush": 7902958,
+        "Name": "MainFlushTime"
+      },
+      "ManifestsTime": {
+        "FlushIndex": -1,
+        "Flushes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "LastFlush": 0,
+        "Name": "ManifestsTime"
+      },
+      "MetricSketchFlushTime": {
+        "FlushIndex": -1,
+        "Flushes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "LastFlush": 0,
+        "Name": "MetricSketchFlushTime"
+      },
+      "ServiceCheckFlushTime": {
+        "FlushIndex": 2,
+        "Flushes": [
+          16755959,
+          716125,
+          1058750,
+          3396125,
+          14984125,
+          1017458,
+          1895166,
+          1522583,
+          489291,
+          5937542,
+          1782250,
+          12991542,
+          1182167,
+          660208,
+          329416,
+          258583,
+          9008542,
+          721042,
+          4216334,
+          5173959,
+          2696000,
+          235709,
+          262208,
+          1185875,
+          723959,
+          14414875,
+          959334,
+          531292,
+          314541,
+          771208,
+          900041,
+          3754917
+        ],
+        "LastFlush": 1058750,
+        "Name": "ServiceCheckFlushTime"
+      }
+    },
+    "FlushCount": {
+      "Events": {
+        "FlushIndex": 0,
+        "Flushes": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "LastFlush": 1,
+        "Name": "Events"
+      },
+      "Manifests": {
+        "FlushIndex": -1,
+        "Flushes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "LastFlush": 0,
+        "Name": "Manifests"
+      },
+      "Series": {
+        "FlushIndex": 2,
+        "Flushes": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        "LastFlush": 2,
+        "Name": "Series"
+      },
+      "ServiceChecks": {
+        "FlushIndex": 2,
+        "Flushes": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "LastFlush": 1,
+        "Name": "ServiceChecks"
+      },
+      "Sketches": {
+        "FlushIndex": -1,
+        "Flushes": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "LastFlush": 0,
+        "Name": "Sketches"
+      }
+    },
+    "HostnameUpdate": 0,
+    "MetricTags": {
+      "Series": {
+        "Above100": 0,
+        "Above90": 0
+      },
+      "Sketches": {
+        "Above100": 0,
+        "Above90": 0
+      }
+    },
+    "NumberOfFlush": 99,
+    "OrchestratorManifests": 0,
+    "OrchestratorManifestsErrors": 0,
+    "OrchestratorMetadata": 0,
+    "OrchestratorMetadataErrors": 0,
+    "SeriesFlushErrors": 0,
+    "SeriesFlushed": 199,
+    "ServiceCheck": 0,
+    "ServiceCheckFlushErrors": 0,
+    "ServiceCheckFlushed": 99,
+    "SketchesFlushErrors": 0,
+    "SketchesFlushed": 0
+  },
+  "autoConfigStats": {
+    "ConfigErrors": {},
+    "ResolveWarnings": {}
+  },
+  "build_arch": "arm64",
+  "checkSchedulerStats": {
+    "LoaderErrors": {},
+    "RunErrors": {}
+  },
+  "complianceChecks": null,
+  "conf_file": "/etc/datadog-agent/datadog.yaml",
+  "config": {
+    "additional_checksd": "/etc/datadog-agent/checks.d",
+    "confd_path": "/etc/datadog-agent/conf.d",
+    "fips_enabled": "false",
+    "fips_local_address": "localhost",
+    "fips_port_range_start": "9803",
+    "log_file": "",
+    "log_level": "info"
+  },
+  "endpointsInfos": {
+    "https://app.datadoghq.eu": [
+      "72724"
+    ]
+  },
+  "filterErrors": {},
+  "flavor": "security_agent",
+  "forwarderStats": {
+    "APIKeyFailure": {},
+    "APIKeyStatus": {
+      "API key ending with 72724": "API Key valid"
+    },
+    "FileStorage": {
+      "CurrentSizeInBytes": 0,
+      "DeserializeCount": 0,
+      "DeserializeErrorsCount": 0,
+      "DeserializeTransactionsCount": 0,
+      "FileSize": 0,
+      "FilesCount": 0,
+      "FilesRemovedCount": 0,
+      "PointsDroppedCount": 0,
+      "SerializeCount": 0,
+      "StartupReloadedRetryFilesCount": 0
+    },
+    "RemovalPolicy": {
+      "FilesFromUnknownDomainCount": 0,
+      "NewRemovalPolicyCount": 0,
+      "OutdatedFilesCount": 0,
+      "RegisteredDomainCount": 0
+    },
+    "TransactionContainer": {
+      "CurrentMemSizeInBytes": 0,
+      "ErrorsCount": 0,
+      "PointsDroppedCount": 0,
+      "TransactionsCount": 0,
+      "TransactionsDroppedCount": 0
+    },
+    "Transactions": {
+      "Cluster": 0,
+      "ClusterRole": 0,
+      "ClusterRoleBinding": 0,
+      "ConnectionEvents": {
+        "ConnectSuccess": 1,
+        "DNSSuccess": 1
+      },
+      "CronJob": 0,
+      "CustomResource": 0,
+      "CustomResourceDefinition": 0,
+      "DaemonSet": 0,
+      "Deployment": 0,
+      "Dropped": 0,
+      "DroppedByEndpoint": {},
+      "Errors": 0,
+      "ErrorsByType": {
+        "ConnectionErrors": 0,
+        "DNSErrors": 0,
+        "SentRequestErrors": 0,
+        "TLSErrors": 0,
+        "WroteRequestErrors": 0
+      },
+      "HTTPErrors": 0,
+      "HTTPErrorsByCode": {},
+      "HighPriorityQueueFull": 0,
+      "HorizontalPodAutoscaler": 0,
+      "Ingress": 0,
+      "InputBytesByEndpoint": {
+        "check_run_v1": 11727,
+        "intake": 188,
+        "series_v2": 16457
+      },
+      "InputCountByEndpoint": {
+        "check_run_v1": 99,
+        "intake": 1,
+        "series_v2": 99
+      },
+      "Job": 0,
+      "Namespace": 0,
+      "Node": 0,
+      "OrchestratorManifest": 0,
+      "PersistentVolume": 0,
+      "PersistentVolumeClaim": 0,
+      "Pod": 0,
+      "ReplicaSet": 0,
+      "Requeued": 0,
+      "RequeuedByEndpoint": {},
+      "Retried": 0,
+      "RetriedByEndpoint": {},
+      "RetryQueueSize": 0,
+      "Role": 0,
+      "RoleBinding": 0,
+      "Service": 0,
+      "ServiceAccount": 0,
+      "StatefulSet": 0,
+      "Success": 199,
+      "SuccessByEndpoint": {
+        "check_run_v1": 99,
+        "connections": 0,
+        "container": 0,
+        "events_v2": 0,
+        "host_metadata_v2": 0,
+        "intake": 1,
+        "orchestrator": 0,
+        "process": 0,
+        "rtcontainer": 0,
+        "rtprocess": 0,
+        "series_v1": 0,
+        "series_v2": 99,
+        "services_checks_v2": 0,
+        "sketches_v1": 0,
+        "sketches_v2": 0,
+        "validate_v1": 0
+      },
+      "SuccessBytesByEndpoint": {
+        "check_run_v1": 11727,
+        "intake": 188,
+        "series_v2": 16457
+      },
+      "VerticalPodAutoscaler": 0
+    }
+  },
+  "go_version": "go1.20.10",
+  "hostTags": [],
+  "hostinfo": {
+    "hostname": "52254030ab59",
+    "uptime": 2436,
+    "bootTime": 1701252098,
+    "procs": 210,
+    "os": "linux",
+    "platform": "ubuntu",
+    "platformFamily": "debian",
+    "platformVersion": "23.04",
+    "kernelVersion": "6.4.16-linuxkit",
+    "kernelArch": "aarch64",
+    "virtualizationSystem": "docker",
+    "virtualizationRole": "guest",
+    "hostId": "1714f7df-2eef-4fcc-9477-476137cc9918"
+  },
+  "hostnameStats": {
+    "errors": {
+      "'hostname' configuration/environment": "hostname is empty",
+      "'hostname_file' configuration/environment": "'hostname_file' configuration is not enabled",
+      "aws": "not retrieving hostname from AWS: the host is not an ECS instance and other providers already retrieve non-default hostnames",
+      "azure": "azure_hostname_style is set to 'os'",
+      "fargate": "agent is not runnning on Fargate",
+      "fqdn": "FQDN hostname is not usable",
+      "gce": "unable to retrieve hostname from GCE: GCE metadata API error: Get \"http://169.254.169.254/computeMetadata/v1/instance/hostname\": dial tcp 169.254.169.254:80: connect: connection refused",
+      "os": "OS hostname is not usable"
+    },
+    "provider": "container"
+  },
+  "inventories": {},
+  "logsStats": {
+    "is_running": false,
+    "endpoints": null,
+    "metrics": null,
+    "process_file_stats": null,
+    "integrations": null,
+    "tailers": null,
+    "errors": null,
+    "warnings": null,
+    "use_http": false
+  },
+  "metadata": {
+    "os": "linux",
+    "agent-flavor": "security_agent",
+    "python": "n/a",
+    "systemStats": {
+      "cpuCores": 1,
+      "machine": "arm64",
+      "platform": "linux",
+      "pythonV": "n/a",
+      "processor": "",
+      "macV": [
+        "",
+        "",
+        ""
+      ],
+      "nixV": [
+        "ubuntu",
+        "23.04",
+        ""
+      ],
+      "fbsdV": [
+        "",
+        "",
+        ""
+      ],
+      "winV": [
+        "",
+        "",
+        ""
+      ]
+    },
+    "meta": {
+      "socket-hostname": "52254030ab59",
+      "timezones": [
+        "UTC"
+      ],
+      "socket-fqdn": "52254030ab59",
+      "ec2-hostname": "",
+      "hostname": "docker-desktop",
+      "host_aliases": [],
+      "instance-id": ""
+    },
+    "host-tags": {
+      "system": []
+    },
+    "container-meta": {
+      "docker_swarm": "inactive",
+      "docker_version": "24.0.6"
+    },
+    "network": null,
+    "logs": {
+      "transport": "",
+      "auto_multi_line_detection_enabled": false
+    },
+    "install-method": {
+      "tool": "docker",
+      "tool_version": "docker",
+      "installer_version": "docker"
+    },
+    "proxy-info": {
+      "no-proxy-nonexact-match": false,
+      "proxy-behavior-changed": false,
+      "no-proxy-nonexact-match-explicitly-set": false
+    },
+    "otlp": {
+      "enabled": false
+    }
+  },
+  "otlp": {},
+  "pid": 23865,
+  "processAgentStatus": {
+    "core": {
+      "build_arch": "arm64",
+      "config": {
+        "log_level": "info"
+      },
+      "go_version": "go1.20.10",
+      "metadata": {
+        "agent-flavor": "process_agent",
+        "container-meta": {
+          "docker_swarm": "inactive",
+          "docker_version": "24.0.6"
+        },
+        "host-tags": {
+          "system": []
+        },
+        "install-method": {
+          "installer_version": "docker",
+          "tool": "docker",
+          "tool_version": "docker"
+        },
+        "logs": {
+          "auto_multi_line_detection_enabled": false,
+          "transport": ""
+        },
+        "meta": {
+          "ec2-hostname": "",
+          "host_aliases": [],
+          "hostname": "docker-desktop",
+          "instance-id": "",
+          "socket-fqdn": "52254030ab59",
+          "socket-hostname": "52254030ab59",
+          "timezones": [
+            "UTC"
+          ]
+        },
+        "network": null,
+        "os": "linux",
+        "otlp": {
+          "enabled": false
+        },
+        "proxy-info": {
+          "no-proxy-nonexact-match": false,
+          "no-proxy-nonexact-match-explicitly-set": false,
+          "proxy-behavior-changed": false
+        },
+        "python": "n/a",
+        "systemStats": {
+          "cpuCores": 1,
+          "fbsdV": [
+            "",
+            "",
+            ""
+          ],
+          "macV": [
+            "",
+            "",
+            ""
+          ],
+          "machine": "arm64",
+          "nixV": [
+            "ubuntu",
+            "23.04",
+            ""
+          ],
+          "platform": "linux",
+          "processor": "",
+          "pythonV": "n/a",
+          "winV": [
+            "",
+            "",
+            ""
+          ]
+        }
+      },
+      "version": "7.49.1"
+    },
+    "date": 1701254547319371000,
+    "expvars": {
+      "connections_queue_bytes": 0,
+      "connections_queue_size": 0,
+      "container_count": 1,
+      "container_id": "52254030ab598053a03b9bd474ac11d72486f640def81fc7be38ed3a5e864df3",
+      "docker_socket": "/var/run/docker.sock",
+      "drop_check_payloads": [],
+      "enabled_checks": [
+        "rtcontainer",
+        "container",
+        "process_discovery"
+      ],
+      "endpoints": {
+        "https://process.datadoghq.eu": [
+          "72724"
+        ]
+      },
+      "event_queue_bytes": 0,
+      "event_queue_size": 0,
+      "language_detection_enabled": false,
+      "last_collect_time": "2023-11-29 10:42:25",
+      "log_file": "",
+      "memstats": {
+        "alloc": 14060976
+      },
+      "pid": 23863,
+      "pod_queue_bytes": 0,
+      "pod_queue_size": 0,
+      "process_count": 0,
+      "process_queue_bytes": 0,
+      "process_queue_size": 0,
+      "proxy_url": "",
+      "rtprocess_queue_bytes": 0,
+      "rtprocess_queue_size": 0,
+      "system_probe_process_module_enabled": false,
+      "uptime": 1494,
+      "uptime_nano": 1701253052422544600,
+      "version": {
+        "BuildDate": "",
+        "GitBranch": "",
+        "GitCommit": "",
+        "GoVersion": "",
+        "Version": ""
+      },
+      "workloadmeta_extractor_cache_size": 0,
+      "workloadmeta_extractor_diffs_dropped": 0,
+      "workloadmeta_extractor_stale_diffs": 0
+    }
+  },
+  "pyLoaderStats": null,
+  "pythonInit": null,
+  "python_version": "n/a",
+  "remoteConfiguration": {},
+  "runnerStats": {
+    "Checks": {},
+    "Running": {},
+    "Workers": {
+      "Count": 0,
+      "Instances": {}
+    }
+  },
+  "runtimeSecurityStatus": {
+    "activityDumpReceived": 0,
+    "connected": false,
+    "endpoints": [
+      "Reliable: Sending compressed logs in HTTPS to runtime-security-http-intake.logs.datadoghq.eu on port 443"
+    ],
+    "eventReceived": 0
+  },
+  "snmpTrapsStats": {
+    "metrics": {
+      "Packets": 0,
+      "PacketsAuthErrors": 0
+    }
+  },
+  "systemProbeStats": {
+    "Errors": "System Probe is not supported on this system"
+  },
+  "time_nano": 1701254547317708590,
+  "verbose": false,
+  "version": "7.49.1"
+}

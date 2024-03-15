@@ -5,6 +5,7 @@
 
 //go:build linux_bpf || (windows && npm)
 
+// Package tracer contains implementation for NPM's tracer.
 package tracer
 
 import (
@@ -1501,7 +1502,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	http2ServerAddress := net.JoinHostPort(serverHost, http2Port)
 	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 
-	grpcServer, err := grpc.NewServer(grpcServerAddress)
+	grpcServer, err := grpc.NewServer(grpcServerAddress, false)
 	require.NoError(t, err)
 	grpcServer.Run()
 	t.Cleanup(grpcServer.Stop)
@@ -1557,14 +1558,14 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
-				})
+				}, false)
 				require.NoError(t, err)
 				defer c.Close()
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 		{
 			name:    "http2 traffic using gRPC - stream call",
@@ -1572,14 +1573,14 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
 					CustomDialer: defaultDialer,
-				})
+				}, false)
 				require.NoError(t, err)
 				defer c.Close()
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 		{
 			// This test checks if the classifier can properly skip literal
@@ -1615,7 +1616,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				resp.Body.Close()
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 	}
 	for _, tt := range tests {

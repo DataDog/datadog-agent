@@ -4,20 +4,20 @@
 // Copyright 2022-present Datadog, Inc.
 // Code generated - DO NOT EDIT.
 
-{{range .BuildTags }}// {{.}}{{end}}
+{{range .BuildTags }}//{{.}}{{end}}
 
 package {{.Name}}
 
 import (
-    "net"
+    {{range .Imports }}
+        "{{.}}"
+    {{end}}
     "time"
 
     "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-{{$combinedFieldMaps := CombineFieldMaps .Fields .GettersOnlyFields}}
-
-{{range $Name, $Field := $combinedFieldMaps}}
+{{range $Name, $Field := .Fields}}
 
 {{ $pascalCaseName := PascalCaseFieldName $Name }}
 
@@ -31,17 +31,14 @@ import (
 {{ end }}
 
 // Get{{$pascalCaseName}} returns the value of the field, resolving if necessary
-func (ev *Event) Get{{$pascalCaseName}}{{if NeedFiltered $Field.Handler }}(desiredKeys map[string]bool){{else}}(){{end}} {{ $accessorReturnType }} {
-    {{ if and (ne $Field.Handler "ResolveAsync") (and (ne $Field.Handler "ResolveEventTimestamp") (ne $Field.Handler "ResolveEventTime")) }}
-        zeroValue := {{ GetDefaultValueOfType $accessorReturnType}}
-	{{ end }}
+func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
     {{if ne $Field.Event "*"}}
         if ev.GetEventType().String() != "{{$Field.Event}}" {
-            return zeroValue
+            return {{ GetDefaultValueOfType $accessorReturnType}}
         }
     {{end}}
 
-    {{$Field | GeneratePrefixNilChecks $.AllFields}}
+    {{$Field | GeneratePrefixNilChecks $.AllFields $accessorReturnType}}
 
     {{if $Field.Iterator}}
         var values {{ $accessorReturnType }}
@@ -65,11 +62,7 @@ func (ev *Event) Get{{$pascalCaseName}}{{if NeedFiltered $Field.Handler }}(desir
             {{if $Field.Handler}}
                 {{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
                 {{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-				{{ if NeedScrubbed $Name }}
-                    {{$Return = print "ev.FieldHandlers." $Handler "Scrubbed(ev, &element" $SubName ")"}}
-                {{ else }}
-                    {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
-                {{ end }}
+                {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
             {{end}}
 
             {{if $Field.IsLength}}
@@ -89,9 +82,6 @@ func (ev *Event) Get{{$pascalCaseName}}{{if NeedFiltered $Field.Handler }}(desir
             {{if not $Field.GetArrayPrefix}}
             values = append(values, result)
             {{else}}
-            {{if NeedFiltered $Field.Handler }}
-                result = filterEnvs(result, desiredKeys)
-            {{ end }}
             values = append(values, result...)
             {{end}}
 
@@ -123,28 +113,16 @@ func (ev *Event) Get{{$pascalCaseName}}{{if NeedFiltered $Field.Handler }}(desir
             {{end}}
 
             {{$Prefix := $Field.Prefix}}
-            {{ if or (eq $Field.Handler "ResolveEventTime") (not $Prefix) }}
+            {{ if not $Prefix }}
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
             {{- else if $Field.IsLength }}
                 {{$Return = print "len(ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix "))"}}
-            {{- else if NeedScrubbed $Field.Handler }}
-                {{$Return = print "ev.FieldHandlers." $Field.Handler "Scrubbed(ev, " $Ptr "ev." $Prefix ")"}}
             {{ else }}
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
             {{end}}
         {{end}}
 
-        {{ if ($Field.IsArray) }}
-		    resolvedField := {{$Return}}
-            {{if NeedFiltered $Field.Handler }}
-			    resolvedField = filterEnvs(resolvedField, desiredKeys)
-            {{ end }}
-			fieldCopy := make({{$accessorReturnType}}, len(resolvedField))
-            copy(fieldCopy, resolvedField)
-            return fieldCopy
-        {{ else }}
-            return {{$Return}}
-        {{ end }}
+        return {{$Return}}
 
     {{end}}
 }

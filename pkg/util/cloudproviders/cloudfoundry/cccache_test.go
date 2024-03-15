@@ -154,6 +154,7 @@ func (t testCCClient) GetV3OrganizationByGUID(guid string) (*cfclient.V3Organiza
 	return nil, fmt.Errorf("could not find V3Organization with guid %s", guid)
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (t testCCClient) ListProcessByAppGUID(query url.Values, guid string) ([]cfclient.Process, error) {
 	globalCCClientCounter.UpdateHits("ListProcessByAppGUID")
 	if guid == v3App1.GUID {

@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"time"
 
-	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"

@@ -1,0 +1,31 @@
+suites:
+
+- name: win-agent-with-cws-option
+  run_list:
+    - "recipe[dd-agent-install]"
+  attributes:
+    datadog:
+      agent_major_version: 7
+      api_key: <%= api_key %>
+      <% if ENV['AGENT_FLAVOR'] == 'datadog-iot-agent' %>
+      agent_flavor: 'datadog-iot-agent'
+      <% end %>
+      enable_process_agent: true
+    dd-agent-install:
+      agent_major_version: 7
+      agent6: true
+      windows_agent_url: <%= windows_agent_url %>
+      <% if ENV['AGENT_VERSION'] %>
+      windows_version: "<%= ENV['AGENT_VERSION'] %>"
+      <% end %>
+      <% if ENV['WINDOWS_AGENT_FILE'] %>
+      windows_agent_filename: "<%= ENV['WINDOWS_AGENT_FILE'] %>"
+      <% end %>
+      agent_install_options: >
+        NPM=true
+      enable_testsigning: <%= ENV['WINDOWS_DDPROCMON_DRIVER'] == "testsigned" %>
+      
+    dd-agent-rspec:
+      agent_flavor: <%= ENV['AGENT_FLAVOR'] || "datadog-agent" %>
+      skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+      cws_included: &cws_included <%= ENV['WINDOWS_DDPROCMON_DRIVER'] || false %>

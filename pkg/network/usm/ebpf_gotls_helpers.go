@@ -305,7 +305,7 @@ func compositeLocation(
 				In_register: boolToBinary(true),
 				X_register:  int64(paramPiece.Register),
 			}
-			currentLocation += 1
+			currentLocation++
 		} else {
 			// If the parameter piece is longer than a word,
 			// divide it into multiple single-word locations
@@ -317,7 +317,7 @@ func compositeLocation(
 					In_register:  boolToBinary(false),
 					Stack_offset: paramPiece.StackOffset + currentOffset,
 				}
-				currentLocation += 1
+				currentLocation++
 				currentOffset += int64(arch.PointerSize())
 				if remainingLength >= int64(arch.PointerSize()) {
 					remainingLength -= int64(arch.PointerSize())

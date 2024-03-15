@@ -275,6 +275,7 @@ func (w *TraceWriter) serializer() {
 				"Content-Encoding": "gzip",
 				headerLanguages:    strings.Join(info.Languages(), "|"),
 			})
+			p.body.Grow(len(b) / 2)
 			gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
 			if err != nil {
 				// it will never happen, unless an invalid compression is chosen;

@@ -20,6 +20,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // variables for testing config options
@@ -611,6 +612,34 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 		cfg := New()
 		// Default value.
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1024))
+	})
+}
+
+func TestHTTP2DynamicTableMapCleanerInterval(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http2_dynamic_table_map_cleaner_interval_seconds: 1025
+`)
+
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 30*time.Second)
 	})
 }
 
@@ -1418,6 +1447,218 @@ service_monitoring_config:
 	})
 }
 
+func TestUSMTLSGoExcludeSelf(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    go:
+      exclude_self: false
+`)
+		require.False(t, cfg.GoTLSExcludeSelf)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_GO_EXCLUDE_SELF", "false")
+
+		cfg := New()
+
+		require.False(t, cfg.GoTLSExcludeSelf)
+	})
+
+	t.Run("Not disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.True(t, cfg.GoTLSExcludeSelf)
+	})
+}
+
+func TestProcessServiceInference(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    enabled: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
+		t.Setenv("DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED", "true")
+
+		cfg := aconfig.SystemProbe
+		sysconfig.Adjust(cfg)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, `
+network_config:
+  enabled: true
+system_probe_config:
+  process_service_inference:
+    enabled: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    enabled: true
+system_probe_config:
+  process_service_inference:
+    enabled: false`)
+
+		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    enabled: false
+system_probe_config:
+  process_service_inference:
+    enabled: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    enabled: true
+system_probe_config:
+  process_service_inference:
+    enabled: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, ``)
+		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+
+	t.Run("Enabled without net, dsm, sm enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, `
+system_probe_config:
+  process_service_inference: 
+    enabled: true`)
+		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
+	})
+}
+
+func TestProcessServiceInferenceWindows(t *testing.T) {
+	t.Run("via deprecated YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    use_windows_service_name: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
+		t.Setenv("DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME", "true")
+
+		cfg := aconfig.SystemProbe
+		sysconfig.Adjust(cfg)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, `
+network_config:
+  enabled: true
+system_probe_config:
+  process_service_inference:
+    use_windows_service_name: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+
+	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    use_windows_service_name: true
+system_probe_config:
+  process_service_inference:
+    use_windows_service_name: false`)
+
+		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+
+	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    use_windows_service_name: false
+system_probe_config:
+  process_service_inference:
+    use_windows_service_name: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+
+	t.Run("Both enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		// Setting a different value
+		cfg := modelCfgFromYAML(t, `
+service_monitoring_config:
+  enabled: true
+  process_service_inference:
+    use_windows_service_name: true
+system_probe_config:
+  process_service_inference:
+    use_windows_service_name: true`)
+
+		require.True(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := modelCfgFromYAML(t, `
+system_probe_config:
+  process_service_inference:
+    use_windows_service_name: false`)
+		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name"))
+	})
+}
+
 func configurationFromYAML(t *testing.T, yaml string) *Config {
 	f, err := os.CreateTemp("", "system-probe.*.yaml")
 	require.NoError(t, err)
@@ -1432,4 +1673,24 @@ func configurationFromYAML(t *testing.T, yaml string) *Config {
 	_, err = sysconfig.New(f.Name())
 	require.NoError(t, err)
 	return New()
+}
+
+func modelCfgFromYAML(t *testing.T, yaml string) model.Config {
+	f, err := os.CreateTemp("", "system-probe.*.yaml")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	b := []byte(yaml)
+	n, err := f.Write(b)
+	require.NoError(t, err)
+	require.Equal(t, len(b), n)
+	f.Sync()
+
+	_, err = sysconfig.New(f.Name())
+
+	require.NoError(t, err)
+	cfg := aconfig.SystemProbe
+	sysconfig.Adjust(cfg)
+
+	return cfg
 }

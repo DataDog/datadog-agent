@@ -9,7 +9,11 @@ ARCH=$4
 
 DD_AGENT_TESTING_DIR=/datadog-agent
 ROOT_DIR=kmt-deps
-DEPENDENCIES=$ROOT_DIR/$STACK/dependencies
+
+rm -rf $ROOT_DIR/$STACK/dependencies
+mkdir -p $ROOT_DIR/$STACK/dependencies
+DEPENDENCIES=$(realpath $ROOT_DIR/$STACK/dependencies)
+
 ARCHIVE_NAME=dependencies-x86_64.tar.gz
 CLANG_BPF=$DD_AGENT_TESTING_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
 LLC_BPF=$DD_AGENT_TESTING_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/default/llc-bpf
@@ -21,9 +25,6 @@ EMBEDDED_INC=opt/datadog-agent/embedded/include
 SYSTEM_PROBE_TESTS=/opt/system-probe-tests
 
 [ -f $TEST2JSON ] || sudo cp $(go env GOTOOLDIR)/test2json $TEST2JSON
-
-rm -rf $DEPENDENCIES
-mkdir -p $DEPENDENCIES
 
 pushd $DEPENDENCIES
 mkdir -p $EMBEDDED_BIN
@@ -37,8 +38,8 @@ cp $TEST2JSON $GO_BIN
 mkdir junit testjson pkgjson
 cp $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh ./
 
-GOOS=linux go build -o ./test-runner $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test-runner/main.go
-GOOS=linux go build -o ./test-json-review $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test-json-review/main.go
+pushd "${DD_AGENT_TESTING_DIR}/test/new-e2e/system-probe/test-runner" && GOOS=linux go build -o "${DEPENDENCIES}/test-runner" && popd
+pushd "${DD_AGENT_TESTING_DIR}/test/new-e2e/system-probe/test-json-review" && GOOS=linux go build -o "${DEPENDENCIES}/test-json-review" && popd
 
 popd
 

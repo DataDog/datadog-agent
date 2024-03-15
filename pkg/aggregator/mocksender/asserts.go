@@ -5,6 +5,7 @@
 
 //go:build test
 
+//nolint:revive // TODO(AML) Fix revive linter
 package mocksender
 
 import (

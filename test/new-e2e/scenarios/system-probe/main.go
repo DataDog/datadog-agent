@@ -4,8 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
+// Package main is the entrypoint for the system-probe e2e testing scenario
 package main
 
 import (
@@ -18,10 +18,9 @@ import (
 	systemProbe "github.com/DataDog/datadog-agent/test/new-e2e/system-probe"
 )
 
-var DD_AGENT_TESTING_DIR = os.Getenv("DD_AGENT_TESTING_DIR")
 var defaultVMConfigPath = filepath.Join(".", "system-probe", "config", "vmconfig.json")
 
-func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.SystemProbeEnvOpts) error {
+func run(envName, x86InstanceType, armInstanceType string, destroy bool, opts *systemProbe.EnvOpts) error {
 	if destroy {
 		return systemProbe.Destroy(envName)
 	}
@@ -49,9 +48,11 @@ func main() {
 	sshKeyFile := flag.String("ssh-key-path", "", "path of private ssh key for ec2 instances")
 	sshKeyName := flag.String("ssh-key-name", "", "name of ssh key pair to use for ec2 instances")
 	infraEnv := flag.String("infra-env", "", "name of infra env to use")
-	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
+	dependenciesDirectoryPtr := flag.String("dependencies-dir", os.Getenv("DD_AGENT_TESTING_DIR"), "directory where dependencies package is present")
 	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
 	local := flag.Bool("local", false, "is scenario running locally")
+	runAgentPtr := flag.Bool("run-agent", false, "Run datadog agent on the metal instance")
+	agentVersionPtr := flag.String("agent-version", "", "Version of datadog-agent")
 
 	flag.Parse()
 
@@ -60,7 +61,7 @@ func main() {
 		failOnMissing = true
 	}
 
-	opts := systemProbe.SystemProbeEnvOpts{
+	opts := systemProbe.EnvOpts{
 		X86AmiID:              *x86AmiIDPtr,
 		ArmAmiID:              *armAmiIDPtr,
 		ShutdownPeriod:        *shutdownPtr,
@@ -72,9 +73,9 @@ func main() {
 		DependenciesDirectory: *dependenciesDirectoryPtr,
 		VMConfigPath:          *vmconfigPathPtr,
 		Local:                 *local,
+		RunAgent:              *runAgentPtr,
+		AgentVersion:          *agentVersionPtr,
 	}
-
-	fmt.Printf("shutdown period: %d\n", opts.ShutdownPeriod)
 
 	err := run(*envNamePtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
 	if err != nil {

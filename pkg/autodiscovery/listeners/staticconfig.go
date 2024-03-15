@@ -36,6 +36,8 @@ func NewStaticConfigListener(Config) (ServiceListener, error) {
 }
 
 // Listen starts the goroutine to detect checks based on the config
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (l *StaticConfigListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 
@@ -110,15 +112,21 @@ func (s *StaticConfigService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter is not supported
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *StaticConfigService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig is not supported
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *StaticConfigService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }
 
 // FilterTemplates does nothing.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *StaticConfigService) FilterTemplates(configs map[string]integration.Config) {
 }

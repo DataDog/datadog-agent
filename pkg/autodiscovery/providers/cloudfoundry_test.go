@@ -33,14 +33,17 @@ func (b bbsCacheFake) UpdatedOnce() <-chan struct{} {
 	panic("implement me")
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (b bbsCacheFake) GetActualLRPsForCell(cellID string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (b bbsCacheFake) GetActualLRPsForProcessGUID(processGUID string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (b bbsCacheFake) GetDesiredLRPFor(processGUID string) (cloudfoundry.DesiredLRP, error) {
 	panic("implement me")
 }
@@ -49,6 +52,7 @@ func (b bbsCacheFake) GetAllLRPs() (map[string][]*cloudfoundry.ActualLRP, map[st
 	return b.ActualLRPs, b.DesiredLRPs
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (b bbsCacheFake) GetTagsForNode(nodename string) (map[string][]string, error) {
 	panic("implement me")
 }

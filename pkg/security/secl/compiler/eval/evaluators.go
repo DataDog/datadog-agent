@@ -195,7 +195,7 @@ func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
-func (s *StringValuesEvaluator) IsDeterministicFor(field Field) bool {
+func (s *StringValuesEvaluator) IsDeterministicFor(_ Field) bool {
 	return s.isDeterministic
 }
 
@@ -362,7 +362,7 @@ func (s *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
-func (s *CIDRValuesEvaluator) IsDeterministicFor(field Field) bool {
+func (s *CIDRValuesEvaluator) IsDeterministicFor(_ Field) bool {
 	return s.isDeterministic
 }
 

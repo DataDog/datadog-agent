@@ -13,12 +13,19 @@ import (
 )
 
 const (
-	ProcessCheckDefaultInterval          = 10 * time.Second
-	RTProcessCheckDefaultInterval        = 2 * time.Second
-	ContainerCheckDefaultInterval        = 10 * time.Second
-	RTContainerCheckDefaultInterval      = 2 * time.Second
-	ConnectionsCheckDefaultInterval      = 30 * time.Second
-	PodCheckDefaultInterval              = 10 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
+	ProcessCheckDefaultInterval = 10 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
+	RTProcessCheckDefaultInterval = 2 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
+	ContainerCheckDefaultInterval = 10 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
+	RTContainerCheckDefaultInterval = 2 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
+	ConnectionsCheckDefaultInterval = 30 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
+	PodCheckDefaultInterval = 10 * time.Second
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
 	discoveryMinInterval = 10 * time.Minute

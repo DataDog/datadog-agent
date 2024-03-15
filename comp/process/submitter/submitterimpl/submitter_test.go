@@ -11,7 +11,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,9 +19,9 @@ import (
 
 func TestSubmitterLifecycle(t *testing.T) {
 	_ = fxutil.Test[submitter.Component](t, fx.Options(
-		hostinfoimpl.MockModule,
-		core.MockBundle,
-		forwarders.MockModule,
-		Module,
+		hostinfoimpl.MockModule(),
+		core.MockBundle(),
+		forwardersimpl.MockModule(),
+		Module(),
 	))
 }

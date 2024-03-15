@@ -7,6 +7,7 @@ package cws
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
@@ -14,7 +15,8 @@ import (
 )
 
 // WaitAppLogs waits for the app log corresponding to the query
-func WaitAppLogs(apiClient MyAPIClient, query string) (*datadog.LogAttributes, error) {
+func WaitAppLogs(apiClient *APIClient, query string) (*datadog.LogAttributes, error) {
+	query = fmt.Sprintf("host:cws-new-e2e-test-host %s", query)
 	var resp *datadog.LogAttributes
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppLog(query)
@@ -31,7 +33,7 @@ func WaitAppLogs(apiClient MyAPIClient, query string) (*datadog.LogAttributes, e
 }
 
 // WaitAppSignal waits for the signal corresponding to the query
-func WaitAppSignal(apiClient MyAPIClient, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
+func WaitAppSignal(apiClient *APIClient, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
 	var resp *datadog.SecurityMonitoringSignalAttributes
 	err := backoff.Retry(func() error {
 		tmpResp, err := apiClient.GetAppSignal(query)

@@ -16,14 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(DBM) Fix revive linter
 const OSSTATS_QUERY = `SELECT stat_name, value
   FROM v$osstat WHERE stat_name in ('NUM_CPUS','PHYSICAL_MEMORY_BYTES')`
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type OSStatsRowDB struct {
 	StatName string  `db:"STAT_NAME"`
 	Value    float64 `db:"VALUE"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) OS_Stats() error {
 	s, err := c.GetSender()
 	if err != nil {

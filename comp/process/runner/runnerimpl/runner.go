@@ -23,9 +23,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newRunner),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newRunner))
+}
 
 // runner implements the Component.
 type runnerImpl struct {

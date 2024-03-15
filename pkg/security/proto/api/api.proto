@@ -93,9 +93,22 @@ message SelfTestsStatus {
     repeated string Fails = 3;
 }
 
+message RuleStatus {
+    string ID = 1;
+    string Status = 2;
+    string Error = 3;
+}
+
+message PolicyStatus {
+    string name = 1;
+    string source = 2;
+    repeated RuleStatus Status = 3;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
     SelfTestsStatus SelfTests = 2;
+    repeated PolicyStatus PoliciesStatus = 3;
 }
 
 message ConstantFetcherStatus {

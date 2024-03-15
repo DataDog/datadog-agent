@@ -37,7 +37,7 @@ func TestMetaCollector(t *testing.T) {
 
 	metaCollector := newMetaCollector()
 	metaCollector.collectorsUpdatedCallback(CollectorCatalog{
-		RuntimeNameContainerd: &Collectors{
+		RuntimeMetadata{runtime: RuntimeNameContainerd}: &Collectors{
 			ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 				Collector: actualCollector1,
 				Priority:  0,
@@ -47,7 +47,7 @@ func TestMetaCollector(t *testing.T) {
 				Priority:  0,
 			},
 		},
-		RuntimeNameDocker: &Collectors{
+		RuntimeMetadata{runtime: RuntimeNameDocker}: &Collectors{
 			ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 				Collector: actualCollector2,
 				Priority:  1,
@@ -74,7 +74,7 @@ func TestMetaCollector(t *testing.T) {
 	// Add the failing collector
 	metaCollector.collectorsUpdatedCallback(
 		CollectorCatalog{
-			RuntimeNameContainerd: &Collectors{
+			RuntimeMetadata{runtime: RuntimeNameContainerd}: &Collectors{
 				ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 					Collector: actualCollector1,
 					Priority:  0,
@@ -84,7 +84,7 @@ func TestMetaCollector(t *testing.T) {
 					Priority:  0,
 				},
 			},
-			RuntimeNameDocker: &Collectors{
+			RuntimeMetadata{runtime: RuntimeNameDocker}: &Collectors{
 				ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 					Collector: actualCollector2,
 					Priority:  1,
@@ -94,7 +94,7 @@ func TestMetaCollector(t *testing.T) {
 					Priority:  1,
 				},
 			},
-			RuntimeNameCRIO: &Collectors{
+			RuntimeMetadata{runtime: RuntimeNameCRIO}: &Collectors{
 				ContainerIDForPID: CollectorRef[ContainerIDForPIDRetriever]{
 					Collector: actualCollector3,
 					Priority:  2,

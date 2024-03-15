@@ -6,14 +6,23 @@ def linux_target?()
 end
 
 def redhat_target?()
+    if not Omnibus::Config.host_distribution().nil?
+      return %w(rhel fedora).include? Omnibus::Config.host_distribution()
+    end
     return %w(rhel fedora).include? ohai['platform_family']
 end
 
 def suse_target?()
+    if not Omnibus::Config.host_distribution().nil?
+      return Omnibus::Config.host_distribution() == 'suse'
+    end
     return %w(suse).include? ohai['platform_family']
 end
 
 def debian_target?()
+    if not Omnibus::Config.host_distribution().nil?
+      return Omnibus::Config.host_distribution() == 'debian'
+    end
     return ohai['platform_family'] == 'debian'
 end
 

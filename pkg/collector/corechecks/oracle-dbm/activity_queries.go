@@ -150,7 +150,7 @@ WHERE
 	)
 	AND status = 'ACTIVE'`
 
-const activityQueryDirect = `SELECT /* DD_ACTIVITY_SAMPLING */
+const activityQueryDirect = `SELECT /*+ push_pred(sq) push_pred(sq_prev) */ /* DD_ACTIVITY_SAMPLING */
 s.sid,
 s.serial#,
 s.username,

@@ -31,6 +31,7 @@ type MonotonicCount struct {
 	flushFirstValue bool
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp float64) {
 	if !mc.sampledSinceLastFlush {
 		mc.currentSample = sample.Value

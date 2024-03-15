@@ -1,0 +1,6 @@
+enhancements:
+- |
+  Always report the following telemetry metrics about the retry queue capacity:
+    * ``datadog.agent.retry_queue_duration.capacity_secs``
+    * ``datadog.agent.retry_queue_duration.bytes_per_sec``
+    * ``datadog.agent.retry_queue_duration.capacity_bytes``

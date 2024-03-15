@@ -8,7 +8,13 @@
 package tracer
 
 import (
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/features"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,5 +58,28 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 	if platform == "ubuntu" && kernelCode >= kernel.VersionCode(4, 4, 114) && kernelCode <= kernel.VersionCode(4, 4, 127) {
 		return false, fmt.Errorf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCode, platform)
 	}
-	return true, nil
+
+	var requiredFuncs = []asm.BuiltinFunc{
+		asm.FnMapLookupElem,
+		asm.FnMapUpdateElem,
+		asm.FnMapDeleteElem,
+		asm.FnPerfEventOutput,
+		asm.FnPerfEventRead,
+	}
+	var missingFuncs []string
+	for _, rf := range requiredFuncs {
+		if err := features.HaveProgramHelper(ebpf.Kprobe, rf); err != nil {
+			if errors.Is(err, ebpf.ErrNotSupported) {
+				missingFuncs = append(missingFuncs, rf.String())
+			} else {
+				return false, fmt.Errorf("error checking for ebpf helper %s support: %w", rf.String(), err)
+			}
+		}
+	}
+	if len(missingFuncs) == 0 {
+		return true, nil
+	}
+	errMsg := fmt.Sprintf("Kernel unsupported (%s) - ", kernelCode)
+	errMsg += fmt.Sprintf("required functions missing: %s", strings.Join(missingFuncs, ", "))
+	return false, fmt.Errorf(errMsg)
 }

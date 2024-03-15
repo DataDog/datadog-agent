@@ -1149,13 +1149,14 @@ api_key:
   ## By default, the Agent sends logs in HTTPS batches to port 443 if HTTPS connectivity can
   ## be established at Agent startup, and falls back to TCP otherwise. Set this parameter to `true` to
   ## always send logs with HTTPS (recommended).
+  ## Warning: force_use_http means HTTP over TCP, not HTTP over HTTPS. Please use logs_no_ssl for HTTP over HTTPS.
   #
   # force_use_http: true
 
   ## @param force_use_tcp - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
   ## By default, logs are sent through HTTPS if possible, set this parameter
-  ## to `true` to always send logs via TCP. If `use_http` is set to `true`, this parameter
+  ## to `true` to always send logs via TCP. If `force_use_http` is set to `true`, this parameter
   ## is ignored.
   #
   # force_use_tcp: true
@@ -1866,6 +1867,14 @@ api_key:
     ## [Beta] Enables language detection via binary analysis in the system probe.
     #
     # enabled: false
+
+  ## @param health_port - integer - optional - default: 0
+  ## @env DD_SYSTEM_PROBE_HEALTH_PORT - integer - optional - default: 0
+  ## The Agent can expose its health check on a dedicated HTTP port.
+  ## This is useful for orchestrators that support HTTP probes.
+  ## Default is 0 (disabled). Set a valid port number (example: 5558) to enable.
+  #
+  # health_port: 0
 
 {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
@@ -3798,10 +3807,26 @@ api_key:
     ##                            Binds to 0.0.0.0 by default (accepting all packets).
     ##  * workers      - string - (Optional) Number of workers to use for this listener.
     ##                            Defaults to 1.
+    ##  * mapping      - (Optional) List of NetflowV9/IPFIX fields to additionally collect.
+    ##                              Defaults to None.
+    ##     * field       - integer - The Netflow field type ID to collect.
+    ##     * destination - string  - Name of the collected field, is queryable under @<destination> in Datadog.
+    ##                              Default fields can be overridden, for example, `destination.port` overrides
+    ##                              the default destination port collected.
+    ##     * type        - string  - The field type.
+    ##                              Available options are: string, integer, hex.
+    ##                              Defaults to hex.
+    ##     * endianness  - string  - (Optional) If type is integer, endianness can be set using this parameter.
+    ##                              Available options are: big, little.
+    ##                              Defaults to big.
     #
     # listeners:
     # - flow_type: netflow9
     #   port: 2055
+    #   mapping:
+    #     - field: 1234
+    #       destination: transport_rtp_ssrc
+    #       type: integer
     # - flow_type: netflow5
     #   port: 2056
     # - flow_type: ipfix
@@ -3890,9 +3915,9 @@ api_key:
 
     ## @param resource_attributes_as_tags - boolean - optional - default: false
     ## @env DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS - boolean - optional - default: false
-    ## Set to true to add all resource attributes of a metric to its metric tags.
-    ## When set to false, only a small predefined subset of resource attributes is converted
-    ## to metric tags.
+    ## Set to true to add resource attributes of a metric to its metric tags. Please note that any of 
+    ## the subset of resource attributes in this list https://docs.datadoghq.com/opentelemetry/guide/semantic_mapping/ 
+    ## are converted to Datadog conventions and set to to metric tags whether this option is enabled or not.
     #
     # resource_attributes_as_tags: false
 
@@ -4151,10 +4176,12 @@ api_key:
   ##
   ## Example:
   ## - conditions:
-  ##     service_name: exampleService
+  ##     command_line_regex: executable_name.exe
   ##   configuration:
-  ##     version: 1
   ##     service_language: dotnet
+  ##     dd_env: staging
+  ##     dd_service: exampleService
+  ##     dd_version: 1.2.3
   ##
   ## To learn about all the available service matching conditions & configuration options, visit
   ## https://docs.datadoghq.com/tracing/trace_collection/library_injection_local

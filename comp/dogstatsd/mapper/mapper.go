@@ -5,6 +5,7 @@
 
 // Mapping feature is inspired by https://github.com/prometheus/statsd_exporter
 
+//nolint:revive // TODO(AML) Fix revive linter
 package mapper
 
 import (

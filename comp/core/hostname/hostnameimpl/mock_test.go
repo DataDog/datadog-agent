@@ -18,14 +18,14 @@ import (
 )
 
 func TestMockGet(t *testing.T) {
-	s := fxutil.Test[hostname.Mock](t, MockModule)
+	s := fxutil.Test[hostname.Mock](t, MockModule())
 	name, err := s.Get(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "my-hostname", name)
 }
 
 func TestMockGetWithProvider(t *testing.T) {
-	s := fxutil.Test[hostname.Mock](t, MockModule)
+	s := fxutil.Test[hostname.Mock](t, MockModule())
 	data, err := s.GetWithProvider(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "my-hostname", data.Hostname)
@@ -34,7 +34,7 @@ func TestMockGetWithProvider(t *testing.T) {
 
 func TestMockProvide(t *testing.T) {
 	s := fxutil.Test[hostname.Mock](t,
-		MockModule,
+		MockModule(),
 		fx.Replace(MockHostname("foo")),
 	)
 	assert.Equal(t, "foo", s.GetSafe(context.Background()))

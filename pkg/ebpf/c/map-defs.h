@@ -43,7 +43,7 @@
 #define BPF_PERCPU_HASH_MAP(name, key_type, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_PERCPU_HASH, key_type, value_type, max_entries, 0, 0)
 
-#define BPF_PERCPU_ARRAY_MAP(name, key_type, value_type, max_entries) \
-    BPF_MAP(name, BPF_MAP_TYPE_PERCPU_ARRAY, key_type, value_type, max_entries, 0, 0)
+#define BPF_PERCPU_ARRAY_MAP(name, value_type, max_entries) \
+    BPF_MAP(name, BPF_MAP_TYPE_PERCPU_ARRAY, u32, value_type, max_entries, 0, 0)
 
 #endif

@@ -1,4 +1,0 @@
-dd_url: https://test.datadoghq.com
-api_key: test_key
-hostname: test.hostname
-log_level: debug

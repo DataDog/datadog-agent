@@ -10,6 +10,7 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
@@ -19,18 +20,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
 type Provider struct {
 	filter *containers.Filter
-	store  workloadmeta.Store
+	store  workloadmeta.Component
 	prometheus.Provider
 }
 
-// NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
+// NewProvider returns a metrics prometheus kubelet provider and an error
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,
 		store:  store,

@@ -19,9 +19,10 @@ import (
 )
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMockServerDebug),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockServerDebug))
+}
 
 type mockServerDebug struct {
 	sync.Mutex

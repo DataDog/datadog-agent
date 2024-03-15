@@ -6,35 +6,39 @@
 package client
 
 import (
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
-// AgentClient is a type that provides methods to run remote commands on a test-infra-definition Agent.
-type AgentClient struct {
-	*agentCommandRunner
-}
+const (
+	agentReadyTimeout = 1 * time.Minute
+)
 
-// NewAgentClient creates a new instance of AgentClient
-func NewAgentClient(t *testing.T, vm VM, os os.OS, shouldWaitForReady bool) (*AgentClient, error) {
-	agent := &AgentClient{
-		agentCommandRunner: newAgentCommandRunner(t, func(arguments []string) (string, error) {
-			parameters := ""
-			if len(arguments) > 0 {
-				parameters = `"` + strings.Join(arguments, `" "`) + `"`
-			}
-			cmd := os.GetRunAgentCmd(parameters)
-			return vm.ExecuteWithError(cmd)
-		}),
-	}
+// NewHostAgentClient creates an Agent client for host install
+func NewHostAgentClient(t *testing.T, host *components.RemoteHost, waitForAgentReady bool) (agentclient.Agent, error) {
+	commandRunner := newAgentCommandRunner(t, newAgentHostExecutor(host))
 
-	if shouldWaitForReady {
-		if err := agent.waitForReadyTimeout(1 * time.Minute); err != nil {
+	if waitForAgentReady {
+		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
 			return nil, err
 		}
 	}
-	return agent, nil
+
+	return commandRunner, nil
+}
+
+// NewDockerAgentClient creates an Agent client for a Docker install
+func NewDockerAgentClient(t *testing.T, docker *Docker, agentContainerName string, waitForAgentReady bool) (agentclient.Agent, error) {
+	commandRunner := newAgentCommandRunner(t, newAgentDockerExecutor(docker, agentContainerName))
+
+	if waitForAgentReady {
+		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
+			return nil, err
+		}
+	}
+
+	return commandRunner, nil
 }

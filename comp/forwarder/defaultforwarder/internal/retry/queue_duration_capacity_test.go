@@ -90,7 +90,7 @@ type diskSpaceAvailabilityMock struct {
 	space int64
 }
 
-func (m *diskSpaceAvailabilityMock) computeAvailableSpace(extraSize int64) (int64, error) {
+func (m *diskSpaceAvailabilityMock) computeAvailableSpace(_ int64) (int64, error) {
 	return m.space, nil
 }
 

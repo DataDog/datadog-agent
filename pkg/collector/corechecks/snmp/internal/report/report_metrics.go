@@ -7,7 +7,6 @@ package report
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -22,10 +21,11 @@ import (
 
 // MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
-	sender           sender.Sender
-	hostname         string
-	submittedMetrics int
-	interfaceConfigs []snmpintegration.InterfaceConfig
+	sender                  sender.Sender
+	hostname                string
+	submittedMetrics        int
+	interfaceConfigs        []snmpintegration.InterfaceConfig
+	interfaceBandwidthState InterfaceBandwidthState
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -38,11 +38,12 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
 	return &MetricSender{
-		sender:           sender,
-		hostname:         hostname,
-		interfaceConfigs: interfaceConfigs,
+		sender:                  sender,
+		hostname:                hostname,
+		interfaceConfigs:        interfaceConfigs,
+		interfaceBandwidthState: interfaceBandwidthState,
 	}
 }
 

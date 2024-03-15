@@ -139,6 +139,8 @@ func (client *MockedContainerdClient) GetEvents() containerd.EventService {
 }
 
 // Spec is a mock method
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (client *MockedContainerdClient) Spec(namespace string, ctn containers.Container, maxSize int) (*oci.Spec, error) {
 	return client.MockSpec(namespace, ctn)
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package tags
 
 import (
@@ -10,6 +11,8 @@ import (
 	"math/bits"
 
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -29,6 +32,18 @@ type Entry struct {
 	// tags contains the cached tags in this entry.
 	tags []string
 }
+
+// SizeInBytes returns the size of the Entry in bytes.
+func (e *Entry) SizeInBytes() int {
+	return util.SizeOfStringSlice(e.tags) + 8
+}
+
+// DataSizeInBytes returns the size of the Entry data in bytes.
+func (e *Entry) DataSizeInBytes() int {
+	return util.DataSizeOfStringSlice(e.tags)
+}
+
+var _ util.HasSizeInBytes = (*Entry)(nil)
 
 // Tags returns the strings stored in the Entry. The slice may be
 // shared with other users and should not be modified. Users can keep
@@ -115,6 +130,7 @@ func (tc *Store) Shrink() {
 	}
 
 	if len(tc.tagsByKey) < tc.cap/2 {
+		//nolint:revive // TODO(AML) Fix revive linter
 		new := make(map[ckey.TagsKey]*Entry, len(tc.tagsByKey))
 		for k, v := range tc.tagsByKey {
 			new[k] = v
@@ -142,6 +158,8 @@ func (tc *Store) updateTelemetry(s *entryStats) {
 	tlmTagsetMinTags.Set(float64(s.minSize), t.name)
 	tlmTagsetMaxTags.Set(float64(s.maxSize), t.name)
 	tlmTagsetSumTags.Set(float64(s.sumSize), t.name)
+	tlmTagsetSumTagBytes.Set(float64(s.sumSizeBytes), t.name, util.BytesKindStruct)
+	tlmTagsetSumTagBytes.Set(float64(s.sumDataSizeBytes), t.name, util.BytesKindData)
 }
 
 func newCounter(name string, help string, tags ...string) telemetry.Counter {
@@ -155,14 +173,15 @@ func newGauge(name string, help string, tags ...string) telemetry.Gauge {
 }
 
 var (
-	tlmHits          = newCounter("hits_total", "number of times cache already contained the tags")
-	tlmMiss          = newCounter("miss_total", "number of times cache did not contain the tags")
-	tlmEntries       = newGauge("entries", "number of entries in the tags cache")
-	tlmMaxEntries    = newGauge("max_entries", "maximum number of entries since last shrink")
-	tlmTagsetMinTags = newGauge("tagset_min_tags", "minimum number of tags in a tagset")
-	tlmTagsetMaxTags = newGauge("tagset_max_tags", "maximum number of tags in a tagset")
-	tlmTagsetSumTags = newGauge("tagset_sum_tags", "total number of tags stored in all tagsets by the cache")
-	tlmTagsetRefsCnt = newGauge("tagset_refs_count", "distribution of usage count of tagsets in the cache", "ge")
+	tlmHits              = newCounter("hits_total", "number of times cache already contained the tags")
+	tlmMiss              = newCounter("miss_total", "number of times cache did not contain the tags")
+	tlmEntries           = newGauge("entries", "number of entries in the tags cache")
+	tlmMaxEntries        = newGauge("max_entries", "maximum number of entries since last shrink")
+	tlmTagsetMinTags     = newGauge("tagset_min_tags", "minimum number of tags in a tagset")
+	tlmTagsetMaxTags     = newGauge("tagset_max_tags", "maximum number of tags in a tagset")
+	tlmTagsetSumTags     = newGauge("tagset_sum_tags", "total number of tags stored in all tagsets by the cache")
+	tlmTagsetRefsCnt     = newGauge("tagset_refs_count", "distribution of usage count of tagsets in the cache", "ge")
+	tlmTagsetSumTagBytes = newGauge("tagset_sum_tags_bytes", "total number of bytes stored in all tagsets by the cache", util.BytesKindTelemetryKey)
 )
 
 type storeTelemetry struct {
@@ -180,11 +199,13 @@ func newStoreTelemetry(name string) storeTelemetry {
 }
 
 type entryStats struct {
-	refsFreq [8]uint64
-	minSize  int
-	maxSize  int
-	sumSize  int
-	count    int
+	refsFreq         [8]uint64
+	minSize          int
+	maxSize          int
+	sumSize          int
+	sumSizeBytes     int
+	sumDataSizeBytes int
+	count            int
 }
 
 func (s *entryStats) visit(e *Entry, r uint64) {
@@ -204,5 +225,7 @@ func (s *entryStats) visit(e *Entry, r uint64) {
 		s.maxSize = n
 	}
 	s.sumSize += n
+	s.sumSizeBytes += e.SizeInBytes()
+	s.sumDataSizeBytes += e.DataSizeInBytes()
 	s.count++
 }

@@ -8,7 +8,7 @@
 package tracer
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -26,7 +26,9 @@ import (
 	"testing"
 	"time"
 
+	gorilla "github.com/gorilla/mux"
 	krpretty "github.com/kr/pretty"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/slices"
@@ -41,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
@@ -49,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 func httpSupported() bool {
@@ -63,7 +67,7 @@ func httpsSupported() bool {
 	if isFentry() {
 		return false
 	}
-	return http.HTTPSSupported(testConfig())
+	return http.TLSSupported(testConfig())
 }
 
 func goTLSSupported() bool {
@@ -99,6 +103,16 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 	_ = setupTracer(t, cfg)
 }
 
+func generateTemporaryFile(t *testing.T) string {
+	tmpFile, err := os.CreateTemp("", "example")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.Remove(tmpFile.Name()) })
+
+	_, err = tmpFile.Write(bytes.Repeat([]byte("a"), 1024*4))
+	require.NoError(t, err)
+	return tmpFile.Name()
+}
+
 func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	t := s.T()
 	if !httpsSupported() {
@@ -110,9 +124,11 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	ldd, err := exec.LookPath("ldd")
 	lddFound := err == nil
 
+	tempFile := generateTemporaryFile(t)
+
 	tlsLibs := []*regexp.Regexp{
-		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
-		regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`),
+		regexp.MustCompile(`/[^ ]+libssl.so[^ ]*`),
+		regexp.MustCompile(`/[^ ]+libgnutls.so[^ ]*`),
 	}
 	tests := []struct {
 		name         string
@@ -122,11 +138,11 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	}{
 		{
 			name:     "wget",
-			fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null"},
+			fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null", "--post-data", tempFile},
 		},
 		{
 			name:     "curl",
-			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null"},
+			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile},
 		},
 	}
 
@@ -148,6 +164,18 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 		}
 	}
 
+	// Sharing the tracer in all tests, to reduce time takes for the test.
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
+	/* enable protocol classification : TLS */
+	cfg.ProtocolClassificationEnabled = true
+	cfg.CollectTCPv4Conns = true
+	cfg.CollectTCPv6Conns = true
+	tr := setupTracer(t, cfg)
+	tr.removeClient(clientID)
+	initTracerState(t, tr)
+
 	for _, keepAlive := range []struct {
 		name  string
 		value bool
@@ -163,9 +191,11 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	} {
 		t.Run(keepAlive.name, func(t *testing.T) {
 			// Spin-up HTTPS server
-			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:8443", testutil.Options{
 				EnableTLS:       true,
 				EnableKeepAlive: keepAlive.value,
+				// Having some sleep in the response, to allow us to ensure we hooked the process.
+				SlowResponse: time.Millisecond * 200,
 			})
 			t.Cleanup(serverDoneFn)
 
@@ -182,7 +212,9 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 					if len(test.prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
-					testHTTPSLibrary(t, test.fetchCmd, test.prefetchLibs)
+					require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+					testHTTPSLibrary(t, tr, test.fetchCmd, test.prefetchLibs)
+					require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
 				})
 			}
 		})
@@ -226,17 +258,7 @@ func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
 	return cmd
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
-	// Start tracer with HTTPS support
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableNativeTLSMonitoring = true
-	/* enable protocol classification : TLS */
-	cfg.ProtocolClassificationEnabled = true
-	cfg.CollectTCPv4Conns = true
-	cfg.CollectTCPv6Conns = true
-	tr := setupTracer(t, cfg)
-
+func testHTTPSLibrary(t *testing.T, tr *Tracer, fetchCmd, prefetchLibs []string) {
 	// not ideal but, short process are hard to catch
 	prefetchPid := uint32(prefetchLib(t, prefetchLibs...).Process.Pid)
 	require.Eventuallyf(t, func() bool {
@@ -253,26 +275,42 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL or GnuTLS
-	const targetURL = "https://127.0.0.1:443/200/foobar"
-	cmd := append(fetchCmd, targetURL)
+	const targetURL = "https://127.0.0.1:8443/200/foobar"
+	// Sending 3 requests to ensure we have enough time to hook the process.
+	cmd := append(fetchCmd, targetURL, targetURL, targetURL)
 
-	t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
-	fetchPids := make(map[uint32]struct{})
-	for i := 0; i < 3; i++ {
-		requestCmd := exec.Command(cmd[0], cmd[1:]...)
-		out, err := requestCmd.CombinedOutput()
-		require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
-		fetchPid := uint32(requestCmd.Process.Pid)
-		fetchPids[fetchPid] = struct{}{}
-		t.Logf("%s pid %d", cmd[0], fetchPid)
+	requestCmd := exec.Command(cmd[0], cmd[1:]...)
+	stdout, err := requestCmd.StdoutPipe()
+	require.NoError(t, err)
+	requestCmd.Stderr = requestCmd.Stdout
+	require.NoError(t, requestCmd.Start())
+
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("shared_libraries")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(requestCmd.Process.Pid)) {
+				return true
+			}
+		}
+
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by shared-libraries", requestCmd.Process.Pid)
+
+	if err := requestCmd.Wait(); err != nil {
+		output, err := io.ReadAll(stdout)
+		if err == nil {
+			t.Logf("output: %s", string(output))
+		}
+		t.FailNow()
 	}
 
+	fetchPid := uint32(requestCmd.Process.Pid)
+	t.Logf("%s pid %d", cmd[0], fetchPid)
 	var allConnections []network.ConnectionStats
-	httpKeys := make(map[uint16]http.Key)
-	require.Eventually(t, func() bool {
+	var httpKey http.Key
+	assert.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		allConnections = append(allConnections, payload.Conns...)
-		found := false
 		for key, stats := range payload.HTTP {
 			if key.Path.Content.Get() != "/200/foobar" {
 				continue
@@ -288,35 +326,22 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			// this make harder to map lib and tags, one set of tag should match but not both
 			if statsTags == network.ConnTagGnuTLS || statsTags == network.ConnTagOpenSSL {
 				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
-				httpKeys[key.SrcPort] = key
-				found = true
-				continue
-			} else {
-				s, _ := tr.getStats(allStats...)
-				t.Logf("==== %# v\n%# v", krpretty.Formatter(req), krpretty.Formatter(s))
-			}
-			if len(httpKeys) == 3 {
+				httpKey = key
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 		}
+		return false
+	}, 5*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
-		if !found {
-			s, _ := tr.getStats(allStats...)
-			t.Logf("=====loop= %# v", krpretty.Formatter(s))
-		}
-		return found
-	}, 15*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, tr.usmMonitor.DumpMaps, "http_in_flight")
+	}
 
 	// check NPM static TLS tag
 	found := false
 	for _, c := range allConnections {
-		httpKey, foundKey := httpKeys[c.SPort]
-		if !foundKey {
-			continue
-		}
-		_, foundPid := fetchPids[c.Pid]
-		if foundPid && c.DPort == httpKey.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
+		if c.Pid == fetchPid && c.SPort == httpKey.SrcPort && c.DPort == httpKey.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 			found = true
 			break
 		}
@@ -324,13 +349,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	if !found {
 		t.Errorf("NPM TLS tag not found")
 		for _, c := range allConnections {
-			httpKey, foundKey := httpKeys[c.SPort]
-			if !foundKey {
-				continue
-			}
-			_, foundPid := fetchPids[c.Pid]
-			if foundPid {
-				t.Logf("pid %d connection %# v \nhttp %# v\n", c.Pid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
+			if c.Pid == fetchPid {
+				t.Logf("pid %d connection %# v \nhttp %# v\n", fetchPid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
 			}
 		}
 	}
@@ -579,9 +599,6 @@ func (s *USMSuite) TestProtocolClassification() {
 
 func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
-		if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-			t.Skip("protocol classification not supported for fentry tracer")
-		}
 		t.Cleanup(func() { tr.ebpfTracer.Pause() })
 
 		dialer := &net.Dialer{
@@ -605,17 +622,21 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		initTracerState(t, tr)
 		require.NoError(t, tr.ebpfTracer.Resume())
 
-		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
-			r := bufio.NewReader(c)
-			input, err := r.ReadBytes(byte('\n'))
-			if err == nil {
-				c.Write(input)
-			}
-			c.Close()
+		mux := gorilla.NewRouter()
+		mux.Handle("/test", nethttp.DefaultServeMux)
+		grpcHandler := grpc.NewServerWithoutBind()
+
+		lis, err := net.Listen("tcp", serverHost)
+		require.NoError(t, err)
+		srv := grpc2.NewMuxedGRPCServer(serverHost, nil, grpcHandler.GetGRPCServer(), mux)
+		srv.Addr = lis.Addr().String()
+
+		go srv.Serve(lis)
+		t.Cleanup(func() {
+			_ = srv.Shutdown(context.Background())
+			_ = lis.Close()
 		})
-		t.Cleanup(HTTPServer.Shutdown)
-		require.NoError(t, HTTPServer.Run())
-		_, port, err := net.SplitHostPort(HTTPServer.address)
+		_, port, err := net.SplitHostPort(srv.Addr)
 		require.NoError(t, err)
 		targetAddr := net.JoinHostPort(targetHost, port)
 
@@ -625,28 +646,21 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 				DialContext: dialer.DialContext,
 			},
 		}
-		resp, err := client.Get("http://" + targetAddr + "/test")
-		if err == nil {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-		}
+		resp, err := client.Post("http://"+targetAddr+"/test", "text/plain", bytes.NewReader(bytes.Repeat([]byte("test"), 100)))
+		require.NoError(t, err)
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, &protocols.Stack{Application: protocols.HTTP})
-		HTTPServer.Shutdown()
-
-		gRPCServer, err := grpc.NewServer(HTTPServer.address)
-		require.NoError(t, err)
-		gRPCServer.Run()
+		waitForConnectionsWithProtocol(t, tr, targetAddr, srv.Addr, &protocols.Stack{Application: protocols.HTTP})
 
 		grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
 			CustomDialer: dialer,
-		})
+		}, false)
 		require.NoError(t, err)
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
-		gRPCServer.Stop()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, &protocols.Stack{Api: protocols.GRPC, Application: protocols.HTTP2})
+		waitForConnectionsWithProtocol(t, tr, targetAddr, srv.Addr, &protocols.Stack{API: protocols.GRPC, Application: protocols.HTTP2})
 	})
 }
 
@@ -671,26 +685,18 @@ func (s *USMSuite) TestJavaInjection() {
 	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
 	require.NoError(t, err)
 
-	// testContext shares the context of a given test.
-	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
-	// attributes to the `extras` map.
-	type testContext struct {
-		// A dynamic map that allows extending the context easily between phases of the test.
-		extras map[string]interface{}
-	}
-
 	tests := []struct {
 		name            string
 		context         testContext
-		preTracerSetup  func(t *testing.T, ctx testContext)
-		postTracerSetup func(t *testing.T, ctx testContext)
-		validation      func(t *testing.T, ctx testContext, tr *Tracer)
-		teardown        func(t *testing.T, ctx testContext)
+		preTracerSetup  func(t *testing.T)
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
+		teardown        func(t *testing.T)
 	}{
 		{
 			// Test the java jdk client https request is working
 			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
-			preTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T) {
 				cfg.JavaDir = legacyJavaDir
 				cfg.ProtocolClassificationEnabled = true
 				cfg.CollectTCPv4Conns = true
@@ -701,10 +707,10 @@ func (s *USMSuite) TestJavaInjection() {
 				})
 				t.Cleanup(serverDoneFn)
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			postTracerSetup: func(t *testing.T) {
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventually(t, func() bool {
 					payload := getConnections(t, tr)
@@ -747,16 +753,16 @@ func (s *USMSuite) TestJavaInjection() {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.teardown != nil {
 				t.Cleanup(func() {
-					tt.teardown(t, tt.context)
+					tt.teardown(t)
 				})
 			}
 			cfg = defaultCfg
 			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t, tt.context)
+				tt.preTracerSetup(t)
 			}
 			tr := setupTracer(t, cfg)
-			tt.postTracerSetup(t, tt.context)
-			tt.validation(t, tt.context, tr)
+			tt.postTracerSetup(t)
+			tt.validation(t, tr)
 		})
 	}
 }
@@ -782,10 +788,35 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, config.New())
+			testHTTPGoTLSCaptureNewProcess(t, config.New(), false)
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, config.New())
+			testHTTPGoTLSCaptureAlreadyRunning(t, config.New(), false)
+		})
+	})
+}
+
+func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
+		if !http2.Supported() {
+			t.Skip("HTTP2 not supported for this setup")
+		}
+		if !goTLSSupported() {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		// TODO fix TestHTTPGoTLSAttachProbes on these Fedora versions
+		if skipFedora(t) {
+			// TestHTTPGoTLSAttachProbes fails consistently in CI on Fedora 36,37
+			t.Skip("TestHTTP2GoTLSAttachProbes fails on this OS consistently")
+		}
+
+		t.Run("new process", func(t *testing.T) {
+			testHTTPGoTLSCaptureNewProcess(t, config.New(), true)
+		})
+		t.Run("already running process", func(t *testing.T) {
+			testHTTPGoTLSCaptureAlreadyRunning(t, config.New(), true)
 		})
 	})
 }
@@ -799,17 +830,17 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPsGoTLSCaptureNewProcessContainer(t, config.New())
+			testHTTPSGoTLSCaptureNewProcessContainer(t, config.New())
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPsGoTLSCaptureAlreadyRunningContainer(t, config.New())
+			testHTTPSGoTLSCaptureAlreadyRunningContainer(t, config.New())
 		})
 	})
 }
 
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
-func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
+func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config, isHTTP2 bool) {
 	const (
 		serverAddr          = "localhost:8081"
 		expectedOccurrences = 10
@@ -818,12 +849,17 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	// Setup
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
 		EnableTLS:       true,
-		EnableKeepAlive: true,
+		EnableKeepAlive: false,
+		EnableHTTP2:     isHTTP2,
 	})
 	t.Cleanup(closeServer)
 
 	cfg.EnableGoTLSSupport = true
-	cfg.EnableHTTPMonitoring = true
+	if isHTTP2 {
+		cfg.EnableHTTP2Monitoring = true
+	} else {
+		cfg.EnableHTTPMonitoring = true
+	}
 
 	tr := setupTracer(t, cfg)
 
@@ -836,7 +872,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	}
 
 	// spin-up goTLS client and issue requests after initialization
-	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
+	command, runRequests := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
 	require.Eventuallyf(t, func() bool {
 		traced := utils.GetTracedPrograms("go-tls")
 		for _, prog := range traced {
@@ -847,10 +883,10 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 		return false
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
 	runRequests()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, isHTTP2)
 }
 
-func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
+func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config, isHTTP2 bool) {
 	const (
 		serverAddr          = "localhost:8081"
 		expectedOccurrences = 10
@@ -858,16 +894,19 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 	// Setup
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS:       true,
-		EnableKeepAlive: true,
+		EnableTLS:   true,
+		EnableHTTP2: isHTTP2,
 	})
 	t.Cleanup(closeServer)
 
-	// spin-up goTLS client but don't issue requests yet
-	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences)
-
 	cfg.EnableGoTLSSupport = true
-	cfg.EnableHTTPMonitoring = true
+	if isHTTP2 {
+		cfg.EnableHTTP2Monitoring = true
+	} else {
+		cfg.EnableHTTPMonitoring = true
+	}
+	// spin-up goTLS client but don't issue requests yet
+	command, issueRequestsFn := gotlstestutil.NewGoTLSClient(t, serverAddr, expectedOccurrences, isHTTP2)
 
 	tr := setupTracer(t, cfg)
 
@@ -889,12 +928,10 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 		return false
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by gotls", command.Process.Pid)
 	issueRequestsFn()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, isHTTP2)
 }
 
-// Test that we can capture HTTPS traffic from Go processes started after the
-// tracer.
-func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
+func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
 		expectedOccurrences = 10
@@ -925,10 +962,10 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	}
 
 	client.CloseIdleConnections()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, false)
 }
 
-func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
+func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
 		expectedOccurrences = 10
@@ -959,7 +996,7 @@ func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Conf
 	}
 
 	client.CloseIdleConnections()
-	checkRequests(t, tr, expectedOccurrences, reqs)
+	checkRequests(t, tr, expectedOccurrences, reqs, false)
 }
 
 type tlsTestCommand struct {
@@ -1062,21 +1099,25 @@ func (s *USMSuite) TestTLSClassification() {
 	}
 }
 
-func checkRequests(t *testing.T, tr *Tracer, expectedOccurrences int, reqs requestsMap) {
+func checkRequests(t *testing.T, tr *Tracer, expectedOccurrences int, reqs requestsMap, isHTTP2 bool) {
 	t.Helper()
 
 	occurrences := PrintableInt(0)
 	require.Eventually(t, func() bool {
-		stats := getConnections(t, tr)
+		conns := getConnections(t, tr)
+		stats := conns.HTTP
+		if isHTTP2 {
+			stats = conns.HTTP2
+		}
 		occurrences += PrintableInt(countRequestsOccurrences(t, stats, reqs))
 		return int(occurrences) == expectedOccurrences
 	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured. Requests not found:\n%v", expectedOccurrences, &occurrences, reqs)
 }
 
-func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map[*nethttp.Request]bool) (occurrences int) {
+func countRequestsOccurrences(t *testing.T, conns map[http.Key]*http.RequestStats, reqs map[*nethttp.Request]bool) (occurrences int) {
 	t.Helper()
 
-	for key, stats := range conns.HTTP {
+	for key, stats := range conns {
 		for req, found := range reqs {
 			if found {
 				continue

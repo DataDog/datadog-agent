@@ -52,6 +52,7 @@ func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 
@@ -98,6 +99,7 @@ type ProcessCheck struct {
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe
 
 	extractors []metadata.Extractor
@@ -143,7 +145,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		err = p.workloadMetaServer.Start()
 		if err != nil {
 			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
-		} else {
+		} else { //nolint:revive // TODO(PROC) Fix revive linter
 			p.extractors = append(p.extractors, p.workloadMetaExtractor)
 		}
 	}
@@ -426,6 +428,7 @@ func fmtProcesses(
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	connRates ProcessConnRates,
+	//nolint:revive // TODO(PROC) Fix revive linter
 	lookupIdProbe *LookupIdProbe,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)

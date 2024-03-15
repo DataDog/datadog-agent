@@ -1,4 +1,5 @@
 using System;
+using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
@@ -252,6 +253,46 @@ namespace Datadog.CustomActions
         public static ActionResult UninstallWriteInstallState(Session session)
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).UninstallWriteInstallState();
+        }
+
+        public static SecurityIdentifier GetPreviousAgentUser(ISession session, IRegistryServices registryServices, INativeMethods nativeMethods)
+        {
+            try
+            {
+                using var subkey =
+                    registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                if (subkey == null)
+                {
+                    throw new Exception("Datadog registry key does not exist");
+                }
+                var domain = subkey.GetValue("installedDomain")?.ToString();
+                var user = subkey.GetValue("installedUser")?.ToString();
+                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
+                {
+                    throw new Exception("Agent user information is not in registry");
+                }
+
+                var accountName = $"{domain}\\{user}";
+                session.Log($"Found agent user information in registry {accountName}");
+                var userFound = nativeMethods.LookupAccountName(accountName,
+                    out _,
+                    out _,
+                    out var securityIdentifier,
+                    out _);
+                if (!userFound || securityIdentifier == null)
+                {
+                    throw new Exception($"Could not find account for user {accountName}.");
+                }
+
+                session.Log($"Found previous agent user {accountName} ({securityIdentifier})");
+                return securityIdentifier;
+            }
+            catch (Exception e)
+            {
+                session.Log($"Could not find previous agent user: {e}");
+            }
+
+            return null;
         }
     }
 }

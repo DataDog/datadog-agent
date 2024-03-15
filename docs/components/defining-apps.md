@@ -128,7 +128,7 @@ cmd := cobra.Command{
     RunE: func(cmd *cobra.Command, args []string) error {
         return fxutil.OneShot(run,
             fx.Supply(core.BundleParams{}),
-            core.Bundle,
+            core.Bundle(),
             ..., // any other bundles needed for this app
         )
     },
@@ -166,7 +166,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
             return fxutil.OneShot(run,
                 fx.Supply(cliParams),
                 fx.Supply(core.CreateaBundleParams()),
-                core.Bundle,
+                core.Bundle(),
                 ..., // any other bundles needed for this app
             )
         },
@@ -197,10 +197,10 @@ cmd := cobra.Command{
     RunE: func(cmd *cobra.Command, args []string) error {
         return fxutil.Run(
             fx.Supply(core.BundleParams{}),
-            core.Bundle,
+            core.Bundle(),
             ..., // any other bundles needed for this app
             fx.Supply(foo.BundleParams{}),
-            foo.Bundle, // the bundle implementing this app
+            foo.Bundle(), // the bundle implementing this app
         )
     },
 }

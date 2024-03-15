@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package fileprovider
 
 import (
@@ -174,7 +175,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 			if isWildcardSource {
 				wildcardSources = append(wildcardSources, source)
 				continue
-			} else {
+			} else { //nolint:revive // TODO(AML) Fix revive linter
 				files, err := p.CollectFiles(source)
 				if err != nil {
 					source.Status.Error(err)

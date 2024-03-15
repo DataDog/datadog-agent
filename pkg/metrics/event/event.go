@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package event
 
 import (
@@ -11,6 +12,8 @@ import (
 )
 
 // EventPriority represents the priority of an event
+//
+//nolint:revive // TODO(AML) Fix revive linter
 type EventPriority string
 
 // Enumeration of the existing event priorities, and their values
@@ -32,6 +35,8 @@ func GetEventPriorityFromString(val string) (EventPriority, error) {
 }
 
 // EventAlertType represents the alert type of an event
+//
+//nolint:revive // TODO(AML) Fix revive linter
 type EventAlertType string
 
 // Enumeration of the existing event alert types, and their values

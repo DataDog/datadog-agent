@@ -10,8 +10,9 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
-	"strings"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -78,7 +79,7 @@ type ebpfProgram struct {
 	disabledProtocols []*protocols.ProtocolSpec
 
 	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner
+	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 	buildMode  buildmode.Type
 }
 
@@ -170,6 +171,16 @@ func (e *ebpfProgram) Init() error {
 }
 
 func (e *ebpfProgram) Start() error {
+	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
+	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
+	// `e.connectionProtocolMap` field.
+	if e.connectionProtocolMap == nil {
+		m, _, err := e.GetMap(probes.ConnectionProtocolMap)
+		if err != nil {
+			return err
+		}
+		e.connectionProtocolMap = m
+	}
 	mapCleaner, err := e.setupMapCleaner()
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
@@ -220,6 +231,7 @@ func (e *ebpfProgram) Close() error {
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
+	ddebpf.UnregisterTelemetry(e.Manager.Manager)
 	return e.Stop(manager.CleanAll)
 }
 
@@ -281,11 +293,36 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
 	}
 	return func() {
-		for _, spec := range protocols {
-			e.Maps = e.Maps[:len(e.Maps)-len(spec.Maps)]
-			e.Probes = e.Probes[:len(e.Probes)-len(spec.Probes)]
-			e.tailCallRouter = e.tailCallRouter[:len(e.tailCallRouter)-len(spec.TailCalls)]
-		}
+		e.Maps = slices.DeleteFunc(e.Maps, func(m *manager.Map) bool {
+			for _, spec := range protocols {
+				for _, specMap := range spec.Maps {
+					if m.Name == specMap.Name {
+						return true
+					}
+				}
+			}
+			return false
+		})
+		e.Probes = slices.DeleteFunc(e.Probes, func(p *manager.Probe) bool {
+			for _, spec := range protocols {
+				for _, probe := range spec.Probes {
+					if p.EBPFFuncName == probe.EBPFFuncName {
+						return true
+					}
+				}
+			}
+			return false
+		})
+		e.tailCallRouter = slices.DeleteFunc(e.tailCallRouter, func(tc manager.TailCallRoute) bool {
+			for _, spec := range protocols {
+				for _, tailCall := range spec.TailCalls {
+					if tc.ProbeIdentificationPair.EBPFFuncName == tailCall.ProbeIdentificationPair.EBPFFuncName {
+						return true
+					}
+				}
+			}
+			return false
+		})
 	}
 }
 
@@ -357,6 +394,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	for _, p := range supported {
 		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
 	}
+	if e.cfg.InternalTelemetryEnabled {
+		for _, pm := range e.PerfMaps {
+			pm.TelemetryEnabled = true
+			ddebpf.ReportPerfMapTelemetry(pm)
+		}
+	}
 
 	// Add excluded functions from disabled protocols
 	for _, p := range notSupported {
@@ -379,15 +422,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	var undefinedProbes []manager.ProbeIdentificationPair
-	for _, tc := range e.tailCallRouter {
-		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
-
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
-	}
-
 	err := e.InitWithOptions(buf, options)
 	if err != nil {
 		cleanup()
@@ -403,21 +437,15 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
-	mapCleaner, err := ddebpf.NewMapCleaner(e.connectionProtocolMap, new(netebpf.ConnTuple), new(netebpf.ProtocolStackWrapper))
+func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
 	if err != nil {
 		return nil, err
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, func(now int64, key, val interface{}) bool {
-		protoStack, ok := val.(*netebpf.ProtocolStackWrapper)
-		if !ok {
-			return false
-		}
-
-		updated := int64(protoStack.Updated)
-		return (now - updated) > ttl
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+		return (now - int64(val.Updated)) > ttl
 	})
 
 	return mapCleaner, nil
@@ -431,25 +459,22 @@ func getAssetName(module string, debug bool) string {
 	return fmt.Sprintf("%s.o", module)
 }
 
-func (e *ebpfProgram) dumpMapsHandler(_ *manager.Manager, mapName string, currentMap *ebpf.Map) string {
-	var output strings.Builder
-
+func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 	case connectionStatesMap: // maps/connection_states (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.__u32
-		output.WriteString("Map: '" + mapName + "', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key http.ConnTuple
 		var value uint32
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
+			spew.Fdump(w, key, value)
 		}
 
 	default: // Go through enabled protocols in case one of them now how to handle the current map
 		for _, p := range e.enabledProtocols {
-			p.Instance.DumpMaps(&output, mapName, currentMap)
+			p.Instance.DumpMaps(w, mapName, currentMap)
 		}
 	}
-	return output.String()
 }
 
 func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {

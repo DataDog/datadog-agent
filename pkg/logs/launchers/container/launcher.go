@@ -5,21 +5,23 @@
 
 //go:build docker
 
+//nolint:revive // TODO(AML) Fix revive linter
 package container
 
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	//nolint:revive // TODO(AML) Fix revive linter
 	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // containerSourceTypes are the values of source.Config.Type for which this
@@ -66,6 +68,8 @@ func NewLauncher(sources *sourcesPkg.LogSources) *Launcher {
 }
 
 // Start starts the Launcher
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	// only start this launcher once it's determined that we should be logging containers, and not pods.
 	ctx, cancel := context.WithCancel(context.Background())

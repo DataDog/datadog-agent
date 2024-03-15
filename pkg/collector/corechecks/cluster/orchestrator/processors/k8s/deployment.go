@@ -24,6 +24,8 @@ type DeploymentHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Deployment)
 	m.Yaml = yaml
@@ -50,6 +52,8 @@ func (h *DeploymentHandlers) BuildMessageBody(ctx *processors.ProcessorContext, 
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*appsv1.Deployment)
 	return k8sTransformers.ExtractDeployment(r)
@@ -57,6 +61,8 @@ func (h *DeploymentHandlers) ExtractResource(ctx *processors.ProcessorContext, r
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*appsv1.Deployment)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -69,17 +75,23 @@ func (h *DeploymentHandlers) ResourceList(ctx *processors.ProcessorContext, list
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*appsv1.Deployment).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*appsv1.Deployment).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *DeploymentHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*appsv1.Deployment)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)

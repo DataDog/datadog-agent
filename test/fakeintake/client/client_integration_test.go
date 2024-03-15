@@ -9,12 +9,14 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/server"
 	"github.com/benbjohnson/clock"
 	"github.com/cenkalti/backoff"
@@ -114,5 +116,40 @@ func TestIntegrationClient(t *testing.T) {
 		assert.Equal(t, "ponyo|7|tag:after,owner:pducolin", string(payloads[0].Data))
 		assert.Equal(t, "text/plain", payloads[0].Encoding)
 		assert.Equal(t, mockClock.Now().UTC(), payloads[0].Timestamp)
+	})
+
+	t.Run("should receive overridden response when configured on server", func(t *testing.T) {
+		ready := make(chan bool, 1)
+		fi := server.NewServer(server.WithReadyChannel(ready))
+		fi.Start()
+		defer fi.Stop()
+		isReady := <-ready
+		require.True(t, isReady)
+
+		client := NewClient(fi.URL())
+		err := client.ConfigureOverride(api.ResponseOverride{
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		})
+		require.NoError(t, err, "failed to configure override")
+
+		resp, err := http.Post(
+			fmt.Sprintf("%s/totoro", fi.URL()),
+			"text/plain",
+			strings.NewReader("totoro|5|tag:valid,owner:mei"),
+		)
+		require.NoError(t, err, "failed to post test payload")
+
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, "text/plain", resp.Header.Get("Content-Type"))
+
+		buf := new(bytes.Buffer)
+		n, err := buf.ReadFrom(resp.Body)
+		require.NoError(t, err, "failed to read response body")
+		assert.Equal(t, len("catbus"), int(n))
+		assert.Equal(t, []byte("catbus"), buf.Bytes())
 	})
 }

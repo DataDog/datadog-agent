@@ -5,6 +5,7 @@
 
 //go:build zlib
 
+//nolint:revive // TODO(AML) Fix revive linter
 package stream
 
 import (

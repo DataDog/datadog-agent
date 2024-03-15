@@ -7,6 +7,7 @@
 
 package collector
 
+//nolint:revive // TODO(AML) Fix revive linter
 func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	return "", "", ""
 }

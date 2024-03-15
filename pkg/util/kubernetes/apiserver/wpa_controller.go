@@ -240,6 +240,7 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 	h.enqueueWPA(newAutoscaler)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
 	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -48,7 +47,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -78,7 +77,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              "hello",
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -108,7 +107,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -140,7 +139,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -155,7 +154,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              "something happened",
 					"env":                  "dev",
 					"customer":             "acme",
-					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",
@@ -183,7 +182,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              ld.Body().AsString(),
 					"app":                  "server",
 					"instance_num":         "1",
-					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"dd.span_id":           fmt.Sprintf("%d", spanIDToUint64(ld.SpanID())),
 					"dd.trace_id":          fmt.Sprintf("%d", traceIDToUint64(ld.TraceID())),
@@ -198,7 +197,7 @@ func TestLogsExporter(t *testing.T) {
 					"message":              "something happened",
 					"env":                  "dev",
 					"customer":             "acme",
-					"@timestamp":           testutil.TestLogTime.Format(time.RFC3339),
+					"@timestamp":           testutil.TestLogTime.Format("2006-01-02T15:04:05.000Z07:00"),
 					"status":               "Info",
 					"otel.severity_text":   "Info",
 					"otel.severity_number": "9",

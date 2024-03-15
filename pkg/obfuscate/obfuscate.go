@@ -165,6 +165,16 @@ type SQLConfig struct {
 	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
 	KeepPositionalParameter bool `json:"keep_positional_parameter" yaml:"keep_positional_parameter"`
 
+	// KeepTrailingSemicolon specifies whether to keep trailing semicolon.
+	// By default, trailing semicolon is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepTrailingSemicolon bool `json:"keep_trailing_semicolon" yaml:"keep_trailing_semicolon"`
+
+	// KeepIdentifierQuotation specifies whether to keep identifier quotation, e.g. "my_table" or [my_table].
+	// By default, identifier quotation is removed during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepIdentifierQuotation bool `json:"keep_identifier_quotation" yaml:"keep_identifier_quotation"`
+
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
 }

@@ -10,7 +10,11 @@ package cgroups
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"os"
+	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // UserHZToNano holds the divisor to convert HZ to Nanoseconds
@@ -25,4 +29,17 @@ func randToken(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(bytes), nil
+}
+
+func inodeForPath(path string) uint64 {
+	stat, err := os.Stat(path)
+	if err != nil {
+		log.Debugf("unable to retrieve the inode for path %s: %v", path, err)
+		return unknownInode
+	}
+	inode := stat.Sys().(*syscall.Stat_t).Ino
+	if inode > 2 {
+		return inode
+	}
+	return unknownInode
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,11 +19,17 @@ import (
 
 func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte) (dogstatsdMetricSample, error) {
 	cfg := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
-	parser := newParser(cfg, newFloat64ListPool(), 1)
-	return parser.parseMetricSample(rawSample)
+
+	p := newParser(cfg, newFloat64ListPool(), 1)
+	_, found := overrides["parser"]
+	if found {
+		p = overrides["parser"].(*parser)
+	}
+
+	return p.parseMetricSample(rawSample)
 }
 
 const epsilon = 0.00001
@@ -560,4 +567,29 @@ func TestParseManyPipes(t *testing.T) {
 		assert.Equal(t, "environment:dev", sample.tags[0])
 		assert.InEpsilon(t, 1.0, sample.sampleRate, epsilon)
 	})
+}
+
+func TestParseContainerID(t *testing.T) {
+	cfg := map[string]any{}
+	cfg["dogstatsd_origin_detection_client"] = true
+
+	// Testing with a container ID
+	sample, err := parseMetricSample(t, cfg, []byte("metric:1234|g|c:1234567890abcdef"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("1234567890abcdef"), sample.containerID)
+
+	// Testing with an Inode
+	p := newParser(fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: cfg})), newFloat64ListPool(), 1)
+	mockProvider := mock.NewMetricsProvider()
+	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
+		CIDFromInode: map[uint64]string{
+			1234567890: "1234567890abcdef",
+		},
+	})
+	p.provider = mockProvider
+	cfg["parser"] = p
+
+	sample, err = parseMetricSample(t, cfg, []byte("metric:1234|g|c:in-1234567890"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("1234567890abcdef"), sample.containerID)
 }

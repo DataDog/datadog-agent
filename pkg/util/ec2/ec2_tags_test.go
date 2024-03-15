@@ -139,11 +139,11 @@ func TestFetchEc2TagsFromIMDSError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func mockFetchTagsSuccess(ctx context.Context) ([]string, error) {
+func mockFetchTagsSuccess(_ context.Context) ([]string, error) {
 	return []string{"tag1", "tag2"}, nil
 }
 
-func mockFetchTagsFailure(ctx context.Context) ([]string, error) {
+func mockFetchTagsFailure(_ context.Context) ([]string, error) {
 	return nil, fmt.Errorf("could not fetch tags")
 }
 

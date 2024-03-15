@@ -55,7 +55,7 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	vpaClient := vpa.NewSimpleClientset()
 	crdClient := crd.NewSimpleClientset()
-	cl := &apiserver.APIClient{Cl: client, VPAClient: vpaClient, CRDClient: crdClient}
+	cl := &apiserver.APIClient{InformerCl: client, VPAInformerClient: vpaClient, CRDInformerClient: crdClient}
 	orchCheck := OrchestratorFactory().(*OrchestratorCheck)
 	orchCheck.apiClient = cl
 
@@ -85,7 +85,6 @@ func TestOrchestratorCheckSafeReSchedule(t *testing.T) {
 	writeNode(t, client, "2")
 
 	assert.True(t, waitTimeout(&wg, 2*time.Second))
-
 }
 
 func writeNode(t *testing.T, client *fake.Clientset, version string) {

@@ -28,12 +28,14 @@ FROM v$sgainfo s
 WHERE 
   s.name NOT IN ('Maximum SGA Size','Startup overhead in Shared Pool','Granule Size','Shared IO Pool Size')`
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SHMRow struct {
 	PdbName sql.NullString `db:"PDB_NAME"`
 	Memory  string         `db:"NAME"`
 	Size    float64        `db:"SIZE_"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SharedMemory() error {
 	rows := []SHMRow{}
 	var shmQuery string

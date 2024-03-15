@@ -45,21 +45,11 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
 ### Userspace Side
 
 Just create a `event.Consumer` and supply it with a callback argument of type
-`func([]byte)` that gets executed once for every eBPF "event".
+`func([]V)` that gets executed every time a batch of events is read..
 
-The slice of bytes corresponds to the memory layout of the struct used on Kernel
-side and it's the caller responsibility to make the unmarshaling/type conversion.
 Please also note that the callback *must*:
 1) copy the data it wishes to hold since the underlying byte array is reclaimed;
 2) be thread-safe, as the callback may be executed concurrently from multiple go-routines;
-As an example this is how HTTP integration does it:
-
-```go
-func callback(data []byte) {
-	event := (*EbpfTx)(unsafe.Pointer(&data[0]))
-	...
-}
-```
 
 Aside from that, it is _recommended_ (though not strictly necessary) to call
 `Consumer.Sync()` every time there is a connection check in system-probe, so

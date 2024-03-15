@@ -102,6 +102,16 @@ __maybe_unused static __always_inline void delete_protocol_stack(conn_tuple_t* n
         return;
     }
  deletion:
+    if (stack->flags&FLAG_SERVER_SIDE && stack->flags&FLAG_CLIENT_SIDE) {
+        // If we reach this code path it means both client and server are
+        // present in this host. To avoid a race condition where one side
+        // potentially deletes protocol information before the other gets a
+        // chance to retrieve it, we clear these flags and bail out, which
+        // defers the deletion of protocol data to the last one to reach this
+        // code path.
+        stack->flags = stack->flags & ~(FLAG_SERVER_SIDE|FLAG_CLIENT_SIDE);
+        return;
+    }
     bpf_map_delete_elem(&connection_protocol, normalized_tuple);
 }
 

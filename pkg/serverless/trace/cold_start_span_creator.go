@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package trace
 
 import (
@@ -47,6 +48,7 @@ type ColdStartSpanCreator struct {
 	initStartTime         time.Time
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (c *ColdStartSpanCreator) Run() {
 	go func() {
 		for {
@@ -64,6 +66,7 @@ func (c *ColdStartSpanCreator) Run() {
 	}()
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (c *ColdStartSpanCreator) Stop() {
 	log.Debugf("[ColdStartCreator] - sending shutdown msg")
 	c.StopChan <- struct{}{}

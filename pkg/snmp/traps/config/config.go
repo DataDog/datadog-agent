@@ -63,11 +63,6 @@ func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
 // SetDefaults sets all unset values to default values, and returns an error
 // if any fields are invalid.
 func (c *TrapsConfig) SetDefaults(host string, namespace string) error {
-	// gosnmp only supports one v3 user at the moment.
-	if len(c.Users) > 1 {
-		return errors.New("only one user is currently supported in SNMP Traps Listener configuration")
-	}
-
 	// Set defaults.
 	if c.Port == 0 {
 		c.Port = defaultPort
@@ -124,39 +119,38 @@ func (c *TrapsConfig) BuildSNMPParams(logger log.Component) (*gosnmp.GoSNMP, err
 			Logger:    snmpLogger,
 		}, nil
 	}
-	user := c.Users[0]
-	authProtocol, err := gosnmplib.GetAuthProtocol(user.AuthProtocol)
-	if err != nil {
-		return nil, err
-	}
 
-	privProtocol, err := gosnmplib.GetPrivProtocol(user.PrivProtocol)
-	if err != nil {
-		return nil, err
-	}
-
-	msgFlags := gosnmp.NoAuthNoPriv
-	if user.PrivKey != "" {
-		msgFlags = gosnmp.AuthPriv
-	} else if user.AuthKey != "" {
-		msgFlags = gosnmp.AuthNoPriv
-	}
-
-	return &gosnmp.GoSNMP{
-		Port:          c.Port,
-		Transport:     "udp",
-		Version:       gosnmp.Version3, // Always using version3 for traps, only option that works with all SNMP versions simultaneously
-		SecurityModel: gosnmp.UserSecurityModel,
-		MsgFlags:      msgFlags,
-		SecurityParameters: &gosnmp.UsmSecurityParameters{
+	// Set up user security params table from config
+	usmTable := gosnmp.NewSnmpV3SecurityParametersTable()
+	for _, user := range c.Users {
+		authProtocol, err := gosnmplib.GetAuthProtocol(user.AuthProtocol)
+		if err != nil {
+			return nil, err
+		}
+		privProtocol, err := gosnmplib.GetPrivProtocol(user.PrivProtocol)
+		if err != nil {
+			return nil, err
+		}
+		err = usmTable.Add(user.Username, &gosnmp.UsmSecurityParameters{
 			UserName:                 user.Username,
-			AuthoritativeEngineID:    c.authoritativeEngineID,
 			AuthenticationProtocol:   authProtocol,
 			AuthenticationPassphrase: user.AuthKey,
 			PrivacyProtocol:          privProtocol,
 			PrivacyPassphrase:        user.PrivKey,
-		},
-		Logger: snmpLogger,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &gosnmp.GoSNMP{
+		Port:                        c.Port,
+		Transport:                   "udp",
+		Version:                     gosnmp.Version3, // Always using version3 for traps, only option that works with all SNMP versions simultaneously
+		SecurityModel:               gosnmp.UserSecurityModel,
+		SecurityParameters:          &gosnmp.UsmSecurityParameters{AuthoritativeEngineID: c.authoritativeEngineID},
+		TrapSecurityParametersTable: usmTable,
+		Logger:                      snmpLogger,
 	}, nil
 }
 

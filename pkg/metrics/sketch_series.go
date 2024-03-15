@@ -9,9 +9,10 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // A SketchSeries is a timeseries of quantile sketches.
@@ -22,6 +23,8 @@ type SketchSeries struct {
 	Interval   int64                `json:"interval"`
 	Points     []SketchPoint        `json:"points"`
 	ContextKey ckey.ContextKey      `json:"-"`
+	NoIndex    bool                 `json:"-"` // This is only used by api V2
+	Source     MetricSource         `json:"-"` // This is only used by api V2
 }
 
 // String returns the JSON representation of a SketchSeries as a string

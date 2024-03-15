@@ -11,13 +11,11 @@ import re
 import shutil
 import sys
 import tempfile
-from distutils.dir_util import copy_tree
 
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
-from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
 from .process_agent import build as process_agent_build
@@ -68,11 +66,13 @@ AGENT_CORECHECKS = [
     "uptime",
     "winproc",
     "jetson",
+    "telemetry",
     "orchestrator_pod",
 ]
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "windows_registry",
     "winkmem",
     "wincrashdetect",
 ]
@@ -224,8 +224,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     os.mkdir(dist_folder)
 
     if "python" in build_tags:
-        copy_tree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"))
-        copy_tree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"))
+        shutil.copytree("./cmd/agent/dist/checks/", os.path.join(dist_folder, "checks"), dirs_exist_ok=True)
+        shutil.copytree("./cmd/agent/dist/utils/", os.path.join(dist_folder, "utils"), dirs_exist_ok=True)
         shutil.copy("./cmd/agent/dist/config.py", os.path.join(dist_folder, "config.py"))
     if not flavor.is_iot():
         shutil.copy("./cmd/agent/dist/dd-agent", os.path.join(dist_folder, "dd-agent"))
@@ -240,14 +240,14 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-        copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+        shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
     ## add additional windows-only corechecks, only on windows. Otherwise the check loader
     ## on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
-            copy_tree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir)
+            shutil.copytree(f"./cmd/agent/dist/conf.d/{check}.d/", check_dir, dirs_exist_ok=True)
 
     if "apm" in build_tags:
         shutil.copy("./cmd/agent/dist/conf.d/apm.yaml.default", os.path.join(dist_folder, "conf.d/apm.yaml.default"))
@@ -257,9 +257,9 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
+    shutil.copytree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
-        copy_tree("./dev/dist/", dist_folder)
+        shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
 
 @task
@@ -313,7 +313,7 @@ def system_tests(_):
 
 
 @task
-def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, signed_pull=True):
+def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_tests=False, tag=None, push=False):
     """
     Build the docker image
     """
@@ -335,9 +335,11 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
-    # Pull base image with content trust enabled
-    pull_base_images(ctx, dockerfile_path, signed_pull)
-    common_build_opts = f"-t {AGENT_TAG} -f {dockerfile_path}"
+
+    if tag is None:
+        tag = AGENT_TAG
+
+    common_build_opts = f"-t {tag} -f {dockerfile_path}"
     if python_version not in BOTH_VERSIONS:
         common_build_opts = f"{common_build_opts} --build-arg PYTHON_VERSION={python_version}"
 
@@ -347,6 +349,9 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
 
     # Build with the release target
     ctx.run(f"docker build {common_build_opts} --platform linux/{arch} --target release {build_context}")
+    if push:
+        ctx.run(f"docker push {tag}")
+
     ctx.run(f"rm {build_context}/{deb_glob}")
 
 
@@ -493,23 +498,27 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
     tests = [
         {
             # Run eventlog tests with the Windows API, which depend on the EventLog service
-            'prefix': './pkg/util/winutil/eventlog/...',
+            "dir": "./pkg/util/winutil/",
+            'prefix': './eventlog/...',
             'extra_args': '-evtapi Windows',
         },
         {
             # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
+            "dir": ".",
             'prefix': './pkg/logs/tailers/windowsevent/...',
             'extra_args': '-evtapi Windows',
         },
         {
             # Run eventlog check tests with the Windows API, which depend on the EventLog service
+            "dir": ".",
             'prefix': './pkg/collector/corechecks/windows_event_log/...',
             'extra_args': '-evtapi Windows',
         },
     ]
 
     for test in tests:
-        ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+        with ctx.cd(f"{test['dir']}"):
+            ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
 def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
@@ -605,15 +614,22 @@ def get_omnibus_env(
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
     if os.environ.get('KUBERNETES_CPU_REQUEST'):
         env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
+    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
+    if os.environ.get('DEPLOY_AGENT'):
+        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
 
     return env
 
 
-def omnibus_run_task(ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info"):
+def omnibus_run_task(
+    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
+):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
         if base_dir:
             overrides_cmd = f"--override=base_dir:{base_dir}"
+        if host_distribution:
+            overrides_cmd += f" --override=host_distribution:{host_distribution}"
 
         omnibus = "bundle exec omnibus"
         if sys.platform == 'win32':
@@ -641,7 +657,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, omnibus_s3_cache=
         ctx.run(cmd.format(**args), env=env)
 
 
-def bundle_install_omnibus(ctx, gem_path=None, env=None):
+def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
     with ctx.cd("omnibus"):
         # make sure bundle install starts from a clean state
         try:
@@ -652,7 +668,22 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None):
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
-        ctx.run(cmd, env=env)
+
+        for trial in range(max_try):
+            res = ctx.run(cmd, env=env, warn=True)
+            if res.ok:
+                return
+            if not should_retry_bundle_install(res):
+                return
+            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+
+
+def should_retry_bundle_install(res):
+    # We sometimes get a Net::HTTPNotFound error when fetching the
+    # license-scout gem. This is a transient error, so we retry the bundle install
+    if "Net::HTTPNotFound:" in res.stderr:
+        return True
+    return False
 
 
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
@@ -680,10 +711,12 @@ def omnibus_build(
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
+    host_distribution=None,
 ):
     """
     Build the Agent packages with Omnibus Installer.
     """
+
     flavor = AgentFlavor[flavor]
     if not skip_deps:
         with timed(quiet=True) as deps_elapsed:
@@ -738,6 +771,7 @@ def omnibus_build(
             env=env,
             omnibus_s3_cache=omnibus_s3_cache,
             log_level=log_level,
+            host_distribution=host_distribution,
         )
 
     # Delete the temporary pip.conf file once the build is done
@@ -906,6 +940,8 @@ def version(
     major_version='7',
     version_cached=False,
     pipeline_id=None,
+    include_git=True,
+    include_pre=True,
 ):
     """
     Get the agent version.
@@ -923,12 +959,13 @@ def version(
 
     version = get_version(
         ctx,
-        include_git=True,
+        include_git=include_git,
         url_safe=url_safe,
         git_sha_length=git_sha_length,
         major_version=major_version,
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
+        include_pre=include_pre,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

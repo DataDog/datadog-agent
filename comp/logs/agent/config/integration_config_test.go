@@ -57,7 +57,7 @@ func TestValidateShouldFailWithInvalidConfigs(t *testing.T) {
 func TestAutoMultilineEnabled(t *testing.T) {
 
 	mockConfig := fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 	)).(config.Mock)
 
 	decode := func(cfg string) *LogsConfig {
@@ -90,4 +90,20 @@ func TestConfigDump(t *testing.T) {
 	config := LogsConfig{Type: FileType, Path: "/var/log/foo.log"}
 	dump := config.Dump(true)
 	assert.Contains(t, dump, `Path: "/var/log/foo.log",`)
+}
+
+func TestPublicJSON(t *testing.T) {
+	config := LogsConfig{
+		Type:     FileType,
+		Path:     "/var/log/foo.log",
+		Encoding: "utf-8",
+		Service:  "foo",
+		Tags:     []string{"foo:bar"},
+		Source:   "bar",
+	}
+	ret, err := config.PublicJSON()
+	assert.NoError(t, err)
+
+	expectedJSON := `{"type":"file","path":"/var/log/foo.log","encoding":"utf-8","service":"foo","source":"bar","tags":["foo:bar"]}`
+	assert.Equal(t, expectedJSON, string(ret))
 }

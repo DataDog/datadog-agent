@@ -28,6 +28,7 @@ import (
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
+	//nolint:unused // TODO(SEC) Fix unused linter
 	hostname             string
 	reporter             common.RawReporter
 	client               *RuntimeSecurityClient
@@ -230,6 +231,7 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 				}
 				base["selfTests"] = selfTests
 			}
+			base["policiesStatus"] = cfStatus.PoliciesStatus
 		}
 	}
 

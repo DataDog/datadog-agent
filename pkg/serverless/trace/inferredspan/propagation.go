@@ -7,13 +7,14 @@ package inferredspan
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
+	json "github.com/json-iterator/go"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

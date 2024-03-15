@@ -27,8 +27,8 @@ var (
 	handleMap  = map[uintptr]windows.Handle{}
 )
 
-func (m *memoryMap) header() *reflect.SliceHeader {
-	return (*reflect.SliceHeader)(unsafe.Pointer(m))
+func (m *memoryMap) header() *reflect.SliceHeader { //nolint:staticcheck // TODO (AML) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
+	return (*reflect.SliceHeader)(unsafe.Pointer(m)) //nolint:staticcheck // TODO (AML) fix reflect.SliceHeader has been deprecated: Use unsafe.Slice or unsafe.SliceData instead
 }
 
 // getFileContent returns a slice of bytes with the contents of the file specified in the path.

@@ -5,6 +5,7 @@
 
 //go:build apm && !windows && !linux
 
+//nolint:revive // TODO(APM) Fix revive linter
 package embed
 
 import (
@@ -145,6 +146,8 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
+//
+//nolint:revive // TODO(APM) Fix revive linter
 func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
@@ -179,7 +182,7 @@ func (c *APMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	}
 
 	c.source = source
-	c.telemetry = utils.IsCheckTelemetryEnabled("apm")
+	c.telemetry = utils.IsCheckTelemetryEnabled("apm", config.Datadog)
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
 	return nil

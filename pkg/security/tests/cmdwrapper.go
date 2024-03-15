@@ -36,7 +36,7 @@ var dockerImageLibrary = map[string][]string{
 	},
 	"centos": {
 		"centos:7",
-		"public.ecr.aws/centos/centos:7",
+		"public.ecr.aws/docker/library/centos:7",
 	},
 	"alpine": {
 		"alpine",

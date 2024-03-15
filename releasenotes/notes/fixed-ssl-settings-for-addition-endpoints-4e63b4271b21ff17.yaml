@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed Logs Agent additional endpoints to respect their
+    logs_no_ssl setting.
+other:
+  - |
+    Added a warning when ``logs_no_ssl`` is set and ``dd_url``
+    contains an https prefix. ``logs_no_ssl`` will take precedence
+    over the prefix in a future version.

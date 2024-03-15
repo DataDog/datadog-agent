@@ -200,20 +200,6 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 					EBPFFuncName: "tail_call_target_dentry_resolver_erpc" + ebpfSuffix,
 				},
 			},
-			{
-				ProgArrayName: dentryResolverProgs,
-				Key:           DentryResolverParentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tail_call_target_dentry_resolver_parent_erpc" + ebpfSuffix,
-				},
-			},
-			{
-				ProgArrayName: dentryResolverProgs,
-				Key:           DentryResolverSegmentERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tail_call_target_dentry_resolver_segment_erpc" + ebpfSuffix,
-				},
-			},
 		}...)
 	}
 

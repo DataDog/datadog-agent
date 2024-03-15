@@ -62,11 +62,6 @@ issues:
     - text: "Temporary has been deprecated since Go 1.18"
       linters: [staticcheck]
 
-  # We're enabling the revive and the gosimple linters on the whole codebase
-  # TODO [After 7.48.0 freeze removal]: Remove the new-from-rev key
-  # TODO [After 7.48.0 freeze removal]: Tweak the KUBERNETES_MEMORY_LIMIT in .tests_linux_ebpf for runners not to fail running on the whole codebase (and not just the small diff induced by new-from-rev).
-  new-from-rev: f40667d3841c6339be0d00d53e54a4a63f43f11e
-
 linters:
   disable-all: true
   enable:

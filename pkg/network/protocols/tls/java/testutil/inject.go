@@ -5,6 +5,7 @@
 
 //go:build linux && test
 
+// Package testutil provides utilities for testing the java tracer.
 package testutil
 
 import (

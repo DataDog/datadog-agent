@@ -5,6 +5,7 @@
 
 //go:build linux || windows
 
+// Package main is the entrypoint for system-probe process
 package main
 
 import (

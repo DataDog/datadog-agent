@@ -101,6 +101,9 @@ tests_flavor_iot_deb-x64:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -120,6 +123,9 @@ tests_flavor_dogstatsd_deb-x64:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -139,6 +145,9 @@ tests_flavor_heroku_deb-x64:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -149,6 +158,9 @@ lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors heroku'

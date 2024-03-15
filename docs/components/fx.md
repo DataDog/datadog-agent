@@ -107,14 +107,16 @@ So a slightly more complex version of the example might be:
 
 ```go
 // scrubber/component.go
-var Module = fx.Module("scrubber",
+func Module() fxutil.Module {
+    return fx.Module("scrubber",
     fx.Provide(newScrubber))       // now newScrubber need not be exported
+}
 ```
 ```go
 // main.go
 someValue = "my password is hunter2"
 app := fx.New(
-    scrubber.Module,
+    scrubber.Module(),
     fx.Invoke(func(sc scrubber.Component) {
         fmt.Printf("scrubbed: %s", sc.ScrubString(somevalue))
     }))

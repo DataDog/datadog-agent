@@ -10,13 +10,13 @@ package cri
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
@@ -44,6 +44,7 @@ func (cext *criCustomMetricsExtension) PreProcess(sender generic.SenderFunc, agg
 	}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (cext *criCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	if cext.criContainerStats == nil {
 		return

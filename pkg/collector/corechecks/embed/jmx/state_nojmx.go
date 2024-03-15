@@ -5,6 +5,7 @@
 
 //go:build !jmx
 
+//nolint:revive // TODO(APL) Fix revive linter
 package jmx
 
 // StopJmxfetch does nothing when the agent does not ship jmx

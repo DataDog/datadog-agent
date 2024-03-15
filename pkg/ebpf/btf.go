@@ -240,7 +240,7 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform, platformVersion, kernelVersi
 	for _, kvp := range kernelVersionPatterns {
 		if kvp.pattern.MatchString(kernelVersion) {
 			// remove possible paths that do not match possible platforms
-			slices.DeleteFunc(possiblePaths, func(s string) bool {
+			possiblePaths = slices.DeleteFunc(possiblePaths, func(s string) bool {
 				pform := strings.Split(s, string(os.PathSeparator))[0]
 				return !slices.Contains(kvp.platforms, pform)
 			})
@@ -288,7 +288,7 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	return matchingPaths
 }
 
-func getBTFPlatform() (string, error) {
+var getBTFPlatform = funcs.Memoize(func() (string, error) {
 	platform, err := kernel.Platform()
 	if err != nil {
 		return "", fmt.Errorf("kernel platform: %s", err)
@@ -309,7 +309,7 @@ func getBTFPlatform() (string, error) {
 	default:
 		return "", fmt.Errorf("%s unsupported", platform)
 	}
-}
+})
 
 func loadBTFFrom(path string) (*btf.Spec, error) {
 	data, err := os.Open(path)

@@ -455,6 +455,7 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 }
 
 func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := &proto.ClientStatsPayload{
 		Hostname:         p.GetHostname(),
 		Env:              p.GetEnv(),
@@ -476,6 +477,7 @@ func deepCopyStatsBucket(s []*proto.ClientStatsBucket) []*proto.ClientStatsBucke
 	if s == nil {
 		return nil
 	}
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := make([]*proto.ClientStatsBucket, len(s))
 	for i, b := range s {
 		new[i] = &proto.ClientStatsBucket{
@@ -492,6 +494,7 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 	if s == nil {
 		return nil
 	}
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := make([]*proto.ClientGroupedStats, len(s))
 	for i, b := range s {
 		if b == nil {

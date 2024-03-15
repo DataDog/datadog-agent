@@ -25,10 +25,10 @@ import (
 
 func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
 	return fxutil.Test[serverdebug.Component](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(configComponent.MockParams{Overrides: overrides}),
-		Module,
+		Module(),
 	))
 }
 

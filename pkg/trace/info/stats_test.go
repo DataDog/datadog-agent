@@ -175,19 +175,23 @@ type testStatsClient struct {
 	counts atomic.Int64
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (ts *testStatsClient) Gauge(name string, value float64, tags []string, rate float64) error {
 	return nil
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (ts *testStatsClient) Count(name string, value int64, tags []string, rate float64) error {
 	ts.counts.Inc()
 	return nil
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (ts *testStatsClient) Histogram(name string, value float64, tags []string, rate float64) error {
 	return nil
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (ts *testStatsClient) Timing(name string, value time.Duration, tags []string, rate float64) error {
 	return nil
 }

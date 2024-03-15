@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	// User is the username used for authentication
 	User = "root"
+	// Pass is the password used for authentication
 	Pass = "root"
 )
 
+// RunServer runs a MySQL server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"MYSQL_ADDR=" + serverAddr,

@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/trigger/events"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -32,6 +32,7 @@ var (
 	errorUnsupportedExtractionType = errors.New("Unsupported event type for trace context extraction")
 	errorNoContextFound            = errors.New("No trace context found")
 	errorNoSQSRecordFound          = errors.New("No sqs message records found for trace context extraction")
+	errorNoSNSRecordFound          = errors.New("No sns message records found for trace context extraction")
 	errorNoTraceIDFound            = errors.New("No trace ID found")
 	errorNoParentIDFound           = errors.New("No parent ID found")
 )
@@ -91,6 +92,14 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 			}
 		}
 		carrier, err = sqsMessageCarrier(ev)
+	case events.SNSEvent:
+		// look for context in just the first message
+		if len(ev.Records) > 0 {
+			return e.extract(ev.Records[0].SNS)
+		}
+		return nil, errorNoSNSRecordFound
+	case events.SNSEntity:
+		carrier, err = snsEntityCarrier(ev)
 	case events.APIGatewayProxyRequest:
 		carrier, err = headersCarrier(ev.Headers)
 	case events.APIGatewayV2HTTPRequest:

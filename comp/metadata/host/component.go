@@ -8,9 +8,6 @@ package host
 
 import (
 	"context"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: agent-shared-components
@@ -19,10 +16,3 @@ import (
 type Component interface {
 	GetPayloadAsJSON(ctx context.Context) ([]byte, error)
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newHostProvider),
-)
-
-// The runner component doesn't provides a mock since other component don't use it directly.

@@ -50,6 +50,8 @@ func (e *ProcessEventsCheck) Realtime() bool { return false }
 func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (e *ProcessEventsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	return nil, errors.New("the process_events check is not supported on this system")
 }

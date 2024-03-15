@@ -152,7 +152,7 @@ func (fh *forwarderHealth) computeDomainsURL() {
 	}
 }
 
-func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, domain string, status *expvar.String) {
+func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expvar.String) {
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}

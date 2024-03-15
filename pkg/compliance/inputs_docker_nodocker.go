@@ -13,6 +13,6 @@ import (
 	docker "github.com/docker/docker/client"
 )
 
-func newDockerClient(ctx context.Context) (docker.CommonAPIClient, error) {
+func newDockerClient(_ context.Context) (docker.CommonAPIClient, error) {
 	return nil, ErrIncompatibleEnvironment
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package cloudservice
 
 import (
@@ -15,9 +16,13 @@ import (
 type AppService struct{}
 
 const (
-	WebsiteName  = "WEBSITE_SITE_NAME"
-	RegionName   = "REGION_NAME"
-	RunZip       = "APPSVC_RUN_ZIP"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	WebsiteName = "WEBSITE_SITE_NAME"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	RegionName = "REGION_NAME"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	RunZip = "APPSVC_RUN_ZIP"
+	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
@@ -55,4 +60,9 @@ func (a *AppService) GetPrefix() string {
 // Init is empty for AppService
 func (a *AppService) Init() error {
 	return nil
+}
+
+func isAppService() bool {
+	_, exists := os.LookupEnv(RunZip)
+	return exists
 }

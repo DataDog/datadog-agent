@@ -1,19 +1,13 @@
 generator:
-  - process_tree:
+  - proc_fs:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
-      max_depth: 3
-      max_children: 6
-      max_tree_per_second: 1
-      process_sleep_ns: 200000000
-      executables:
-        - executable: /usr/bin/sleep
-          args:
-            mode: static
-            values: ["1m"]
-          envs:
-            mode: static
-            values: ["ENV=staging"] 
+      root: /tmp/procfs
+      copy_from_host:
+        - /proc/uptime
+        - /proc/stat
+        - /proc/cpuinfo
+      total_processes: 128
 
 blackhole:
   - http:

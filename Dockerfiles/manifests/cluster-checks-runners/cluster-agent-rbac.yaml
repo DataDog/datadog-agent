@@ -6,7 +6,7 @@ automountServiceAccountToken: true
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.33.6"
+    chart: "datadog-3.49.6"
     heritage: "Helm"
     release: "datadog"
   name: datadog-cluster-agent
@@ -199,21 +199,20 @@ rules:
       - admissionregistration.k8s.io
     resources:
       - mutatingwebhookconfigurations
-    verbs: ["get", "list", "watch", "update", "create"]
+    resourceNames:
+      - "datadog-webhook"
+    verbs: ["get", "list", "watch", "update"]
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - mutatingwebhookconfigurations
+    verbs: ["create"]
   - apiGroups: ["batch"]
     resources: ["jobs", "cronjobs"]
     verbs: ["get"]
   - apiGroups: ["apps"]
     resources: ["statefulsets", "replicasets", "deployments", "daemonsets"]
     verbs: ["get"]
-  - apiGroups:
-      - policy
-    resources:
-      - podsecuritypolicies
-    verbs:
-      - use
-    resourceNames:
-      - datadog-cluster-agent
   - apiGroups:
       - "security.openshift.io"
     resources:
@@ -245,7 +244,7 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app: "datadog"
-    chart: "datadog-3.33.6"
+    chart: "datadog-3.49.6"
     release: "datadog"
     heritage: "Helm"
   name: datadog-cluster-agent-system-auth-delegator

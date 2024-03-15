@@ -28,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
@@ -91,8 +93,9 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -120,8 +123,9 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -140,14 +144,16 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
+// nolint: deadcode, unused
 func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
@@ -156,8 +162,9 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -185,8 +192,9 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", false)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -197,12 +205,14 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	return []*cobra.Command{downloadPolicyCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 type processCacheDumpCliParams struct {
 	*command.GlobalParams
 
 	withArgs bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &processCacheDumpCliParams{
 		GlobalParams: globalParams,
@@ -216,8 +226,9 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -232,12 +243,14 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{processCacheCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 type dumpNetworkNamespaceCliParams struct {
 	*command.GlobalParams
 
 	snapshotInterfaces bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
@@ -251,8 +264,9 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -267,6 +281,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	return []*cobra.Command{networkNamespaceCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	dumpDiscardersCmd := &cobra.Command{
@@ -276,8 +291,9 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -291,7 +307,8 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{discardersCmd}
 }
 
-func dumpProcessCache(log log.Component, config config.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
+// nolint: deadcode, unused
+func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -308,7 +325,8 @@ func dumpProcessCache(log log.Component, config config.Component, processCacheDu
 	return nil
 }
 
-func dumpNetworkNamespace(log log.Component, config config.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
+// nolint: deadcode, unused
+func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -329,6 +347,7 @@ func dumpNetworkNamespace(log log.Component, config config.Component, dumpNetwor
 	return nil
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
 	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
 	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
@@ -345,7 +364,7 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
+func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		client, err := secagent.NewRuntimeSecurityClient()
 		if err != nil {
@@ -499,7 +518,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	return event, nil
 }
 
-func evalRule(log log.Component, config config.Component, evalArgs *evalCliParams) error {
+func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs *evalCliParams) error {
 	policiesDir := evalArgs.dir
 
 	// enabled all the rules
@@ -571,7 +590,8 @@ func evalRule(log log.Component, config config.Component, evalArgs *evalCliParam
 	return nil
 }
 
-func runRuntimeSelfTest(log log.Component, config config.Component) error {
+// nolint: deadcode, unused
+func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -591,7 +611,7 @@ func runRuntimeSelfTest(log log.Component, config config.Component) error {
 	return nil
 }
 
-func reloadRuntimePolicies(log log.Component, config config.Component) error {
+func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -607,7 +627,7 @@ func reloadRuntimePolicies(log log.Component, config config.Component) error {
 }
 
 // StartRuntimeSecurity starts runtime security
-func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client, senderManager sender.SenderManager) (*secagent.RuntimeSecurityAgent, error) {
+func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, _ ddgostatsd.ClientInterface, senderManager sender.SenderManager) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
@@ -633,7 +653,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	stopper.Add(ctx)
 
 	runPath := config.GetString("runtime_security_config.run_path")
-	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, ctx)
+	reporter, err := reporter.NewCWSReporter(hostname, runPath, stopper, endpoints, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -645,7 +665,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	return agent, nil
 }
 
-func downloadPolicy(log log.Component, config config.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
+func downloadPolicy(log log.Component, config config.Component, _ secrets.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
 	var outputFile *os.File
 
 	apiKey := config.GetString("api_key")
@@ -726,7 +746,8 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	return err
 }
 
-func dumpDiscarders(log log.Component, config config.Component) error {
+// nolint: deadcode, unused
+func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

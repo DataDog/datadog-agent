@@ -19,8 +19,9 @@ const (
 )
 
 type spanModifier struct {
-	tags            map[string]string
-	lambdaSpanChan  chan<- *pb.Span
+	tags           map[string]string
+	lambdaSpanChan chan<- *pb.Span
+	//nolint:revive // TODO(SERV) Fix revive linter
 	coldStartSpanId uint64
 }
 

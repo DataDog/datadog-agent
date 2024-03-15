@@ -16,5 +16,5 @@ const (
 	SecurityAgentPath = "/opt/datadog-agent/embedded/bin/security-agent"
 
 	// PoliciesPath is the path of the default runtime security policies
-	PoliciesPath = "/etc/datadog-agent/runtime-security.d/default.policy"
+	PoliciesPath = "/etc/datadog-agent/runtime-security.d/test.policy"
 )

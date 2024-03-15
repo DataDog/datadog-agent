@@ -43,8 +43,11 @@ type driverReadBuffer []uint8
 type driverResizeResult int
 
 const (
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	ResizedDecreased driverResizeResult = -1
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	ResizedUnchanged driverResizeResult = 0
+	//nolint:revive // TODO(WKIT) Fix revive linter
 	ResizedIncreased driverResizeResult = 1
 )
 
@@ -98,6 +101,8 @@ type DriverInterface struct {
 // Function pointer definition passed to NewDriverInterface that enables
 // creating DriverInterfaces with varying handle types like ReadDriverHandle or
 // TestDriverHandle*
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 type HandleCreateFn func(flags uint32, handleType driver.HandleType) (driver.Handle, error)
 
 // NewDriverInterface returns a DriverInterface struct for interacting with the driver
@@ -145,6 +150,7 @@ func (di *DriverInterface) Close() error {
 	return nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (di *DriverInterface) GetHandle() driver.Handle {
 	return di.driverFlowHandle
 }
@@ -192,6 +198,7 @@ func (di *DriverInterface) setupFlowHandle() error {
 }
 
 func (di *DriverInterface) setupClassification() error {
+	//nolint:gosimple // TODO(WKIT) Fix gosimple linter
 	if di.cfg.ProtocolClassificationEnabled == false {
 		log.Infof("Traffic classification not enabled")
 		return nil
@@ -266,6 +273,7 @@ func printClassification(fd *driver.PerFlowData) {
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driverReadBuffer, outbuffer *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, error, int, int) {
 
 	start := outbuffer.Len()
@@ -331,6 +339,8 @@ func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driv
 
 // GetConnectionStats will read all open flows from the driver and convert them into ConnectionStats.
 // It returns the count of connections added to the active and closed buffers, respectively.
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (di *DriverInterface) GetOpenConnectionStats(openBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, error) {
 	di.openBufferLock.Lock()
 	defer di.openBufferLock.Unlock()
@@ -349,6 +359,8 @@ func (di *DriverInterface) GetOpenConnectionStats(openBuf *ConnectionBuffer, fil
 
 // GetConnectionStats will read all closed from the driver and convert them into ConnectionStats.
 // It returns the count of connections added to the active and closed buffers, respectively.
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (di *DriverInterface) GetClosedConnectionStats(closedBuf *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, error) {
 	di.closedBufferLock.Lock()
 	defer di.closedBufferLock.Unlock()

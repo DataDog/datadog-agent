@@ -5,6 +5,7 @@
 
 //go:build systemd
 
+//nolint:revive // TODO(AML) Fix revive linter
 package journald
 
 import (
@@ -23,10 +24,12 @@ import (
 // SDJournalFactory is a JournalFactory implementation that produces sdjournal instances
 type SDJournalFactory struct{}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SDJournalFactory) NewJournal() (tailer.Journal, error) {
 	return sdjournal.NewJournal()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *SDJournalFactory) NewJournalFromPath(path string) (tailer.Journal, error) {
 	return sdjournal.NewJournalFromDir(path)
 }
@@ -56,6 +59,8 @@ func NewLauncherWithFactory(journalFactory tailer.JournalFactory) *Launcher {
 }
 
 // Start starts the launcher.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	l.sources = sourceProvider.GetAddedForType(config.JournaldType)
 	l.pipelineProvider = pipelineProvider

@@ -69,7 +69,7 @@ func (t *testTransaction) GetPayloadSize() int {
 	return t.Called().Get(0).(int)
 }
 
-func (t *testTransaction) SerializeTo(_ log.Component, serializer transaction.TransactionsSerializer) error {
+func (t *testTransaction) SerializeTo(_ log.Component, _ transaction.TransactionsSerializer) error {
 	return nil
 }
 
@@ -171,7 +171,7 @@ func (tf *MockedForwarder) SubmitConnectionChecks(payload transaction.BytesPaylo
 }
 
 // SubmitOrchestratorChecks mock
-func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error) {
+func (tf *MockedForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, _ int) (chan Response, error) {
 	return nil, tf.Called(payload, extra).Error(0)
 }
 

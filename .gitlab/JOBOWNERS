@@ -8,6 +8,7 @@ build_processed_btfhub_archive       @DataDog/ebpf-platform
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
 tests_ebpf*                          @DataDog/ebpf-platform
+tests_windows_sysprobe*              @DataDog/ebpf-platform
 security_go_generate_check           @DataDog/agent-security
 prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 
@@ -78,9 +79,13 @@ k8s-e2e-cspm-*                    @DataDog/agent-security
 # New E2E
 new-e2e-containers*               @DataDog/container-integrations
 new-e2e-agent-subcommands*        @DataDog/agent-shared-components
+new-e2e-agent-shared-components*  @DataDog/agent-shared-components
 new-e2e-language-detection*       @DataDog/processes
+new-e2e-process*                  @DataDog/processes
 new-e2e-agent-platform*           @DataDog/agent-platform
+new-e2e-aml*                      @DataDog/agent-metrics-logs
 new-e2e-npm*                      @DataDog/Networks
+new-e2e-cws*                      @DataDog/agent-security
 
 # Kernel version testing
 package_dependencies*             @DataDog/ebpf-platform

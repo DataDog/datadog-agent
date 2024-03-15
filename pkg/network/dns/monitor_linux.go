@@ -93,6 +93,10 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 	}, nil
 }
 
+func (m *dnsMonitor) WaitForDomain(domain string) error {
+	return m.statKeeper.WaitForDomain(domain)
+}
+
 // Start starts the monitor
 func (m *dnsMonitor) Start() error {
 	if m.p != nil {

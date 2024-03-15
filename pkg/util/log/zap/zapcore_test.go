@@ -37,7 +37,7 @@ func createExtraTextContext(string) seelog.FormatterFunc {
 	}
 }
 
-func parseShortFilePath(params string) seelog.FormatterFunc {
+func parseShortFilePath(_ string) seelog.FormatterFunc {
 	return func(message string, level seelog.LogLevel, context seelog.LogContextInterface) interface{} {
 		return extractShortPathFromFullPath(context.FullPath())
 	}

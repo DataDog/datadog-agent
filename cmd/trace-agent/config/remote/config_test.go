@@ -169,7 +169,6 @@ func TestForwardErrors(t *testing.T) {
 	server := httptest.NewServer(mux)
 
 	req, _ := http.NewRequest("POST", server.URL+"/v0.7/config", strings.NewReader(`{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`))
-	req.Header.Set("Datadog-Container-ID", "cid")
 	r, err := http.DefaultClient.Do(req)
 	assert.NoError(err)
 	assert.Equal(404, r.StatusCode)

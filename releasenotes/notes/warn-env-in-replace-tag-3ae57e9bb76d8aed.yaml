@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    An error will now be logged if replace tags are used to change the Agent
+    "env", since this could have negative side effects. At this time, an error
+    is logged, but future versions may explicitly disallow this to avoid bugs.
+    See https://docs.datadoghq.com/getting_started/tracing/#environment-name
+    for instructions on setting the env, and
+    https://github.com/DataDog/datadog-agent/issues/21253 for more details
+    about this issue.

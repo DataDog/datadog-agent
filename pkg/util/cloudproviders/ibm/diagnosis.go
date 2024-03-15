@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ibm provides utilities to detect ibm cloud provider.
 package ibm
 
 import (

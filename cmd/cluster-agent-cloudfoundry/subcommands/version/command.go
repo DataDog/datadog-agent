@@ -16,6 +16,8 @@ import (
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
+//
+//nolint:revive // TODO(PLINT) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{version.MakeCommand("Cluster Agent for Cloud Foundry")}
 }

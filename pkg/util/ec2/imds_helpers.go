@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,15 +23,6 @@ var (
 	imdsIPv4        = "/public-ipv4"
 	imdsNetworkMacs = "/network/interfaces/macs"
 )
-
-func registerCloudProviderHostnameID(ctx context.Context) {
-	instanceID, err := getMetadataItemWithMaxLength(ctx, imdsInstanceID, true)
-	log.Debugf("instanceID from IMDSv2 '%s' (error: %v)", instanceID, err)
-
-	if err == nil {
-		inventories.SetHostMetadata(inventories.HostCloudProviderHostID, instanceID)
-	}
-}
 
 func getToken(ctx context.Context) (string, time.Time, error) {
 	tokenLifetime := time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second

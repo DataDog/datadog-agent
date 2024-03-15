@@ -11,8 +11,11 @@ import (
 )
 
 const (
+	// ProduceAPIKey is the API key for produce requests
 	ProduceAPIKey = 0
-	FetchAPIKey   = 1
+
+	// FetchAPIKey is the API key for fetch requests
+	FetchAPIKey = 1
 )
 
 // Key is an identifier for a group of Kafka transactions

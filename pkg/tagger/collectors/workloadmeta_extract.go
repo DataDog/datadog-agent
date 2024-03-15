@@ -11,13 +11,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -171,7 +171,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		c.tagProcessor.ProcessTagInfo(tagInfos)
 	}
 
-	close(evBundle.Ch)
+	evBundle.Acknowledge()
 }
 
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInfo {

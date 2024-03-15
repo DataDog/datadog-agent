@@ -344,11 +344,11 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 					if err != nil {
 						return err
 					}
-					err = ps.Int32(serieMetadataOriginOriginCategory, MetricSourceToOriginCategory(serie.Source))
+					err = ps.Int32(serieMetadataOriginOriginCategory, metricSourceToOriginCategory(serie.Source))
 					if err != nil {
 						return err
 					}
-					return ps.Int32(serieMetadataOriginOriginService, MetricSourceToOriginService(serie.Source))
+					return ps.Int32(serieMetadataOriginOriginService, metricSourceToOriginService(serie.Source))
 				})
 			})
 			if err != nil {

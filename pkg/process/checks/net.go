@@ -14,9 +14,9 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -39,7 +39,7 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfig.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
@@ -49,7 +49,7 @@ func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysco
 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
-	syscfg             *sysconfig.Config
+	syscfg             *sysconfigtypes.Config
 	sysprobeYamlConfig config.Reader
 	config             config.Reader
 
@@ -137,7 +137,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	conns, err := c.getConnections()
 	if err != nil {
 		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+		if errors.Is(err, net.ErrNotImplemented) || errors.Is(err, ErrTracerStillNotInitialized) {
 			return nil, nil
 		}
 		return nil, err
@@ -372,6 +372,7 @@ func batchConnections(
 				continue
 			}
 
+			//nolint:revive // TODO(NET) Fix revive linter
 			new := int32(len(newRouteIndices))
 			newRouteIndices[c.RouteIdx] = new
 			batchRoutes = append(batchRoutes, routes[c.RouteIdx])

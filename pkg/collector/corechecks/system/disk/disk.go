@@ -4,6 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build !windows
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package disk
 
 import (

@@ -27,7 +27,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
-	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+	if !IsDedicatedNodeForAD() {
 		t.Skip("Skip test when not run in dedicated env")
 	}
 
@@ -62,7 +62,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, rules, testOpts{
+	test, err := newTestModule(t, nil, rules, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -72,7 +72,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpTagRules:                true,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,9 +209,8 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 								bindNode.MatchedRules[0].RuleID != "tag_rule_threat_score_bind" ||
 								bindNode.MatchedRules[0].RuleVersion != "4.5.6" {
 								return false
-							} else {
-								return true
 							}
+							return true
 						}
 					}
 				}

@@ -9,20 +9,20 @@ package pkgmanager
 import (
 	"fmt"
 
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 // AptPackageManager struct for Apt package manager
 type AptPackageManager struct {
-	vmClient e2eClient.VM
+	host *components.RemoteHost
 }
 
 // NewAptPackageManager return apt package manager
-func NewAptPackageManager(vmClient e2eClient.VM) *AptPackageManager {
-	return &AptPackageManager{vmClient: vmClient}
+func NewAptPackageManager(host *components.RemoteHost) *AptPackageManager {
+	return &AptPackageManager{host: host}
 }
 
 // Remove call remove from apt
 func (s *AptPackageManager) Remove(pkg string) (string, error) {
-	return s.vmClient.ExecuteWithError(fmt.Sprintf("sudo apt remove -q -y %s", pkg))
+	return s.host.Execute(fmt.Sprintf("sudo apt remove -q -y %s", pkg))
 }

@@ -6,6 +6,7 @@
 package fxutil
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -19,6 +20,10 @@ import (
 type NoDependencies struct {
 	fx.In
 }
+
+// fxAppTestOverride allows TestRunCommand and TestOneShotSubcommand to
+// override the Run and OneShot functions.  It is always nil in production.
+var fxAppTestOverride func(interface{}, []fx.Option) error
 
 // Test starts an app and returns fulfilled dependencies
 //
@@ -49,6 +54,30 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 	return deps
 }
 
+// TestApp starts an fx app and returns fulfilled dependencies
+//
+// The generic return type T must conform to fx.In such
+// that it's dependencies can be fulfilled.
+func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
+	var deps T
+	delayed := newDelayedFxInvocation(func(d T) {
+		deps = d
+	})
+
+	app := fx.New(
+		delayed.option(),
+		fx.Options(opts...),
+	)
+	var err error
+	if err = app.Start(context.TODO()); err != nil {
+		return nil, deps, err
+	}
+
+	err = delayed.call()
+
+	return app, deps, err
+}
+
 type appAssertFn func(testing.TB, *fx.App)
 
 // TestStart runs an app fx.App.
@@ -76,6 +105,24 @@ func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface
 	appAssert(t, app)
 }
 
+// TestRun is a helper for testing code that uses fxutil.Run
+//
+// It takes a anonymous function, and sets up fx so that no actual App
+// will be constructed. Instead, it expects the given function to call
+// fxutil.Run. Then, this test verifies that all Options given to that
+// fxutil.Run call will satisfy fx's dependences by using fx.ValidateApp.
+func TestRun(t *testing.T, f func() error) {
+	var fxFakeAppRan bool
+	fxAppTestOverride = func(i interface{}, opts []fx.Option) error {
+		fxFakeAppRan = true
+		require.NoError(t, fx.ValidateApp(opts...))
+		return nil
+	}
+	defer func() { fxAppTestOverride = nil }()
+	require.NoError(t, f())
+	require.True(t, fxFakeAppRan, "fxutil.Run wasn't called")
+}
+
 // TestOneShotSubcommand is a helper for testing commands implemented with fxutil.OneShot.
 //
 // It takes an array of commands, and attaches all to a temporary top-level
@@ -100,7 +147,7 @@ func TestOneShotSubcommand(
 	verifyFn interface{}) {
 
 	var oneShotRan bool
-	oneShotTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
+	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true
 
 		// verify that the expected oneShotFunc would have been called
@@ -124,7 +171,7 @@ func TestOneShotSubcommand(
 		defer app.RequireStart().RequireStop()
 		return nil
 	}
-	defer func() { oneShotTestOverride = nil }()
+	defer func() { fxAppTestOverride = nil }()
 
 	cmd := &cobra.Command{Use: "test"}
 	for _, c := range subcommands {
@@ -143,7 +190,7 @@ func TestOneShotSubcommand(
 // is validated with fx.ValidateApp, however.
 func TestOneShot(t *testing.T, fct func()) {
 	var oneShotRan bool
-	oneShotTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
+	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true
 		// validate the app with the original oneShotFunc, to ensure that
 		// any types it requires are provided.
@@ -153,7 +200,7 @@ func TestOneShot(t *testing.T, fct func()) {
 					fx.Invoke(oneShotFunc))...))
 		return nil
 	}
-	defer func() { oneShotTestOverride = nil }()
+	defer func() { fxAppTestOverride = nil }()
 
 	fct()
 	require.True(t, oneShotRan, "fxutil.OneShot wasn't called")

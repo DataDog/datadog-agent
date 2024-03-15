@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+// Package modules is all the module definitions for system-probe
 package modules
 
 import "github.com/DataDog/datadog-agent/cmd/system-probe/api/module"

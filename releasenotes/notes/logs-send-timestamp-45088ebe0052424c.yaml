@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add timestamps to the logs HTTP client

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package command
 
 import (
@@ -13,6 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/info"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
+)
+
+const (
+	// LoggerName is the application logger identifier
+	LoggerName = "TRACE"
 )
 
 // MakeRootCommand is the root command for the trace-agent
@@ -32,7 +38,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		return &subcommands.GlobalParams{
 			ConfPath:   globalParams.ConfPath,
 			ConfigName: globalParams.ConfigName,
-			LoggerName: "TRACE",
+			LoggerName: LoggerName,
 		}
 	}
 	commands := []*cobra.Command{

@@ -17,7 +17,7 @@ type diskUsageRetrieverMock struct {
 	diskUsage *filesystem.DiskUsage
 }
 
-func (m diskUsageRetrieverMock) GetUsage(path string) (*filesystem.DiskUsage, error) {
+func (m diskUsageRetrieverMock) GetUsage(_ string) (*filesystem.DiskUsage, error) {
 	return m.diskUsage, nil
 }
 

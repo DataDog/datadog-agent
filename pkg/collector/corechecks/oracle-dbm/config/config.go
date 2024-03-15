@@ -5,6 +5,7 @@
 
 //go:build oracle
 
+//nolint:revive // TODO(DBM) Fix revive linter
 package config
 
 import (
@@ -25,6 +26,7 @@ type InitConfig struct {
 	CustomQueries         []CustomQuery `yaml:"custom_queries"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type QuerySamplesConfig struct {
 	Enabled            bool `yaml:"enabled"`
 	IncludeAllSessions bool `yaml:"include_all_sessions"`
@@ -44,14 +46,17 @@ type QueryMetricsConfig struct {
 	MaxRunTime         int64                       `yaml:"max_run_time"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SysMetricsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type TablespacesConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -60,16 +65,19 @@ type inactiveSessionsConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type SharedMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ExecutionPlansConfig struct {
 	Enabled              bool `yaml:"enabled"`
 	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
 	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type AgentSQLTrace struct {
 	Enabled    bool `yaml:"enabled"`
 	Binds      bool `yaml:"binds"`
@@ -77,11 +85,13 @@ type AgentSQLTrace struct {
 	TracedRuns int  `yaml:"traced_runs"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type CustomQueryColumns struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type CustomQuery struct {
 	MetricPrefix string               `yaml:"metric_prefix"`
 	Pdb          string               `yaml:"pdb"`
@@ -157,6 +167,7 @@ func GetDefaultObfuscatorOptions() obfuscate.SQLConfig {
 		ObfuscationMode:               obfuscate.ObfuscateAndNormalize,
 		RemoveSpaceBetweenParentheses: true,
 		KeepNull:                      true,
+		KeepTrailingSemicolon:         true,
 	}
 }
 

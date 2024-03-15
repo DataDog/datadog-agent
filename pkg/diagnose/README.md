@@ -3,17 +3,17 @@
 This package is used to register and run agent diagnostics which validates various aspects of agent installation, configuration and run-time environment.
 
 ## Running ```agent diagnose all```
-Details and command line options are specified in [```agent diagnose```](cmd/agent/subcommands/diagnose/README.md) command
+Details and command line options are specified in [```agent diagnose```](/cmd/agent/subcommands/diagnose/README.md) command
 You can run all registered diagnosis with the `diagnose` command on the agent
 
 The `flare` command will also run registered diagnosis and output them in a `diagnose.log` file.
 
 ## Registering a new diagnose suite
-All function and structures details can be found in [loader.go](pkg/diagnose/diagnosis/loader.go) file.
+All function and structures details can be found in [loader.go](./diagnosis/loader.go) file.
 
 To register a diagnose suite one need to register a function which returns ```[]diagnosis.Diagnosis```.
 
-Example from [loader.go](pkg/diagnose/connectivity/trace_request.go) file:
+Example from [loader.go](./connectivity/core_endpoint.go) file:
 ```
 package connectivity
 

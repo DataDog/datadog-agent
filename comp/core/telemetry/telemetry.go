@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sync"
 
+	dto "github.com/prometheus/client_model/go"
 	promOtel "go.opentelemetry.io/otel/exporters/prometheus"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,18 +24,22 @@ var (
 	registry = newRegistry()
 	provider = newProvider(registry)
 	mutex    = sync.Mutex{}
+
+	defaultRegistry = prometheus.NewRegistry()
 )
 
 type telemetryImpl struct {
 	mutex         *sync.Mutex
 	registry      *prometheus.Registry
 	meterProvider *sdk.MeterProvider
+
+	defaultRegistry *prometheus.Registry
 }
 
 func newRegistry() *prometheus.Registry {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	reg.MustRegister(collectors.NewGoCollector())
+	reg.MustRegister(collectors.NewGoCollector(collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsGC, collectors.MetricsMemory, collectors.MetricsScheduler)))
 	return reg
 }
 
@@ -53,6 +58,8 @@ func newTelemetry() Component {
 		mutex:         &mutex,
 		registry:      registry,
 		meterProvider: provider,
+
+		defaultRegistry: defaultRegistry,
 	}
 }
 
@@ -107,7 +114,7 @@ func (t *telemetryImpl) NewCounterWithOpts(subsystem, name string, tags []string
 			tags,
 		),
 	}
-	t.registry.MustRegister(c.pc)
+	t.mustRegister(c.pc, opts)
 	return c
 }
 
@@ -127,7 +134,7 @@ func (t *telemetryImpl) NewSimpleCounterWithOpts(subsystem, name, help string, o
 		Help:      help,
 	})
 
-	t.registry.MustRegister(pc)
+	t.mustRegister(pc, opts)
 	return &simplePromCounter{c: pc}
 }
 
@@ -151,7 +158,7 @@ func (t *telemetryImpl) NewGaugeWithOpts(subsystem, name string, tags []string, 
 			tags,
 		),
 	}
-	t.registry.MustRegister(g.pg)
+	t.mustRegister(g.pg, opts)
 	return g
 }
 
@@ -171,7 +178,7 @@ func (t *telemetryImpl) NewSimpleGaugeWithOpts(subsystem, name, help string, opt
 		Help:      help,
 	})}
 
-	t.registry.MustRegister(pc.g)
+	t.mustRegister(pc.g, opts)
 	return pc
 }
 
@@ -197,7 +204,8 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 		),
 	}
 
-	t.registry.MustRegister(h.ph)
+	t.mustRegister(h.ph, opts)
+
 	return h
 }
 
@@ -218,6 +226,18 @@ func (t *telemetryImpl) NewSimpleHistogramWithOpts(subsystem, name, help string,
 		Buckets:   buckets,
 	})}
 
-	t.registry.MustRegister(pc.h)
+	t.mustRegister(pc.h, opts)
 	return pc
+}
+
+func (t *telemetryImpl) mustRegister(c prometheus.Collector, opts Options) {
+	if opts.DefaultMetric {
+		t.defaultRegistry.MustRegister(c)
+	} else {
+		t.registry.MustRegister(c)
+	}
+}
+
+func (t *telemetryImpl) GatherDefault() ([]*dto.MetricFamily, error) {
+	return t.defaultRegistry.Gather()
 }

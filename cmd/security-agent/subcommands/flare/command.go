@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package flare implements flare related subcommands
 package flare
 
 import (
@@ -19,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -33,6 +36,7 @@ type cliParams struct {
 	caseID        string
 }
 
+// Commands returns the flare commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
@@ -52,8 +56,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithIgnoreErrors(true)),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
-				core.Bundle,
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+				core.Bundle(),
 			)
 		},
 	}
@@ -65,7 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(log log.Component, config config.Component, params *cliParams) error {
+func requestFlare(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {
 		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))

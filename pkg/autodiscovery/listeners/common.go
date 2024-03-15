@@ -5,6 +5,7 @@
 
 //go:build !serverless
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package listeners
 
 import (
@@ -101,11 +102,16 @@ func (f *containerFilters) IsExcluded(filter containers.FilterType, annotations 
 // getPrometheusIncludeAnnotations returns the Prometheus AD include annotations based on the Prometheus config
 func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 	annotations := types.PrometheusAnnotations{}
-	checks := []*types.PrometheusCheck{}
-	err := config.Datadog.UnmarshalKey("prometheus_scrape.checks", &checks)
-	if err != nil {
-		log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
-		return annotations
+	tmpConfigString := config.Datadog.GetString("prometheus_scrape.checks")
+
+	var checks []*types.PrometheusCheck
+	if len(tmpConfigString) > 0 {
+		var err error
+		checks, err = types.PrometheusScrapeChecksTransformer(tmpConfigString)
+		if err != nil {
+			log.Warnf("Couldn't get configurations from 'prometheus_scrape.checks': %v", err)
+			return annotations
+		}
 	}
 
 	if len(checks) == 0 {

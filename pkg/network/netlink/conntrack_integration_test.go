@@ -44,10 +44,10 @@ func TestConntrackExists(t *testing.T) {
 	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("2.2.2.4"), 8080, ns)
 	defer udpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP("2.2.2.4"), 80)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP("2.2.2.4"), 80)
 	defer tcpConn.Close()
 
-	udpConn := nettestutil.PingUDP(t, net.ParseIP("2.2.2.4"), 80)
+	udpConn := nettestutil.MustPingUDP(t, net.ParseIP("2.2.2.4"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -74,7 +74,7 @@ func BenchmarkConntrackExists(b *testing.B) {
 	tcpCloser := nettestutil.StartServerTCPNs(b, net.ParseIP("2.2.2.4"), 8080, ns)
 	defer tcpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(b, net.ParseIP("2.2.2.4"), 80)
+	tcpConn := nettestutil.MustPingTCP(b, net.ParseIP("2.2.2.4"), 80)
 	defer tcpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -169,10 +169,10 @@ func TestConntrackExists6(t *testing.T) {
 	udpCloser := nettestutil.StartServerUDPNs(t, net.ParseIP("fd00::2"), 8080, ns)
 	defer udpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP("fd00::2"), 80)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP("fd00::2"), 80)
 	defer tcpConn.Close()
 
-	udpConn := nettestutil.PingUDP(t, net.ParseIP("fd00::2"), 80)
+	udpConn := nettestutil.MustPingUDP(t, net.ParseIP("fd00::2"), 80)
 	defer udpConn.Close()
 
 	testNs, err := netns.GetFromName(ns)
@@ -220,7 +220,7 @@ func TestConntrackExistsRootDNAT(t *testing.T) {
 	tcpCloser := nettestutil.StartServerTCPNs(t, net.ParseIP(listenIP), listenPort, ns)
 	defer tcpCloser.Close()
 
-	tcpConn := nettestutil.PingTCP(t, net.ParseIP(destIP), destPort)
+	tcpConn := nettestutil.MustPingTCP(t, net.ParseIP(destIP), destPort)
 	defer tcpConn.Close()
 
 	rootck, err := NewConntrack(rootNs)

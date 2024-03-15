@@ -10,6 +10,7 @@ rules:
       - ""
     resources:
       - secrets
+      - configmaps
       - nodes
       - pods
       - services

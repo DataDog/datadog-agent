@@ -1,16 +1,16 @@
 module github.com/DataDog/datadog-agent/pkg/telemetry
 
-go 1.20
+go 1.21
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil
 )
 
-require github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0
+require github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

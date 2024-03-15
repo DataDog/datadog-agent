@@ -24,13 +24,13 @@ func TestSnapshotReplay(t *testing.T) {
 
 	var gotEvent bool
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, withStaticOpts(testOpts{
 		snapshotRuleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_snapshot_replay")
 			testMod.validateExecSchema(t, e)
 			gotEvent = true
 		},
-	})
+	}))
 
 	if err != nil {
 		t.Fatal(err)

@@ -5,6 +5,7 @@
 
 //go:build !kubeapiserver
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package apiserver
 
 import (
@@ -36,18 +37,24 @@ func GetAPIClient() (*APIClient, error) {
 }
 
 // WaitForAPIClient returns the shared ApiClient instance.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	log.Errorf("WaitForAPIClient not implemented %s", ErrNotCompiled.Error())
 	return &APIClient{}, nil
 }
 
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
 // GetMetadataMapBundleOnNode is used for the CLI svcmap command to output given a nodeName
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error) {
 	log.Errorf("GetMetadataMapBundleOnNode not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
@@ -60,12 +67,16 @@ func GetMetadataMapBundleOnAllNodes(_ *APIClient) (*apiv1.MetadataResponse, erro
 }
 
 // GetNodeLabels retrieves the labels of the queried node from the cache of the shared informer.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func GetNodeLabels(_ *APIClient, nodeName string) (map[string]string, error) {
 	log.Errorf("GetNodeLabels not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
 // GetKubeClient returns a Kubernetes client.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	return nil, ErrNotCompiled
 }

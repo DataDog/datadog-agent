@@ -42,3 +42,19 @@ The structure of each case is as follows:
 
 [Vector]: https://github.com/vectordotdev/vector/tree/master/regression
 [lading]: https://github.com/DataDog/lading
+
+## Local Run
+In order to run a regression experiment locally, you need two CLI utilities
+available:
+- `smp` -- build from source [repo](https://github.com/DataDog/single-machine-performance/)
+- `lading` -- See the notes in the below documentation about architecture,
+  `lading` needs to be compatible with the architecture of the image being run.
+
+See full docs [here](https://github.com/DataDog/single-machine-performance/blob/main/smp/README.md#running-replicates-locally)
+
+An example command may look like this:
+```
+smp local-run --experiment-dir ~/dev/datadog-agent/test/regression/ --case uds_to_blackhole --target-image datadog/agent-dev:nightly-main-1bf80594-py3 --lading-path ~/lading/target/release/lading --target-command "/bin/entrypoint.sh" --target datadog-agent
+```
+
+

@@ -25,7 +25,7 @@
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files/job_env.txt
     - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
     - popd
-    - inv security-agent.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+    - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
   artifacts:
     expire_in: 2 weeks
     when: always

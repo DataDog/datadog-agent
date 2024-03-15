@@ -52,7 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestDogstatsdStats,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -64,6 +64,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdStatsCmd}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func requestDogstatsdStats(log log.Component, config config.Component, cliParams *cliParams) error {
 	fmt.Printf("Getting the dogstatsd stats from the agent.\n\n")
 	var e error

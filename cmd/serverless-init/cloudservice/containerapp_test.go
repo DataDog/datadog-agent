@@ -82,7 +82,7 @@ func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 	err := cmd.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 		return
-	} else {
+	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_SUBSCRIPTION_ID")
 	}
 }
@@ -106,7 +106,7 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	err := cmd.Run()
 	if e, ok := err.(*exec.ExitError); ok && !e.Success() {
 		return
-	} else {
+	} else { //nolint:revive // TODO(SERV) Fix revive linter
 		assert.FailNow(t, "Process didn't exit when not specifying DD_AZURE_RESOURCE_GROUP")
 	}
 }

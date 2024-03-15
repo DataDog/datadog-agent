@@ -387,6 +387,8 @@ func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }

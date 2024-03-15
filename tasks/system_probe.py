@@ -17,9 +17,9 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from .go_test import environ
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
-from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
 from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
@@ -797,7 +797,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
 
-        for gobin in ["gotls_client", "fmapper", "prefetch_file"]:
+        for gobin in ["gotls_client", "grpc_external_server", "fmapper", "prefetch_file"]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
                 binary_path = os.path.join(target_path, gobin)
@@ -1672,6 +1672,8 @@ def start_microvms(
     vmconfig=None,
     local=False,
     provision=False,
+    run_agent=False,
+    agent_version=None,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1688,6 +1690,8 @@ def start_microvms(
         f"--vmconfig {vmconfig}" if vmconfig else "",
         "--run-provision" if provision else "",
         "--local" if local else "",
+        "--run-agent" if run_agent else "",
+        f"--agent-version {agent_version}" if agent_version else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

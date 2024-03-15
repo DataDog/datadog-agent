@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package http
 
 import (
@@ -50,6 +51,8 @@ var (
 )
 
 // emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
 
 // Destination sends a payload over HTTP.
@@ -271,9 +274,11 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
 		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
 	}
-	req = req.WithContext(ctx)
-
+	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.Messages), 10))
 	then := time.Now()
+	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
+
+	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
@@ -331,7 +336,7 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		d.lastRetryError = err
 
 		return true
-	} else {
+	} else { //nolint:revive // TODO(AML) Fix revive linter
 		d.nbErrors = d.backoff.DecError(d.nbErrors)
 		if isRetrying != nil && d.lastRetryError != nil {
 			isRetrying <- false
@@ -355,7 +360,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 // buildURL buils a url from a config endpoint.
 func buildURL(endpoint config.Endpoint) string {
 	var scheme string
-	if endpoint.UseSSL {
+	if endpoint.GetUseSSL() {
 		scheme = "https"
 	} else {
 		scheme = "http"
@@ -376,6 +381,14 @@ func buildURL(endpoint config.Endpoint) string {
 		url.Path = "/v1/input"
 	}
 	return url.String()
+}
+
+func getMessageTimestamp(messages []*message.Message) int64 {
+	timestampNanos := int64(-1)
+	if len(messages) > 0 {
+		timestampNanos = messages[len(messages)-1].IngestionTimestamp
+	}
+	return timestampNanos / int64(time.Millisecond/time.Nanosecond)
 }
 
 func prepareCheckConnectivity(endpoint config.Endpoint) (*client.DestinationsContext, *Destination) {
@@ -405,6 +418,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	return err == nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint)
 	return destination.url, completeCheckConnectivity(ctx, destination)

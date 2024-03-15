@@ -1,0 +1,52 @@
+
+=============
+Process Agent
+=============
+
+  Version: 7.49.1
+  Status date: 2023-11-29 10:42:27.319 UTC (1701254547319)
+  Process Agent Start: 2023-11-29 10:17:32.422 UTC (1701253052422)
+  Pid: 23863
+  Go Version: go1.20.10
+  Build arch: arm64
+  Log Level: info
+  Enabled Checks: [rtcontainer container process_discovery]
+  Allocated Memory: 14,060,976 bytes
+  Hostname: docker-desktop
+  System Probe Process Module Status: Not running
+  Process Language Detection Enabled: False
+
+  =================
+  Process Endpoints
+  =================
+    https://process.datadoghq.eu - API Key ending with:
+        - 72724
+
+  =========
+  Collector
+  =========
+    Last collection time: 2023-11-29 10:42:25
+    Docker socket: /var/run/docker.sock
+    Number of processes: 0
+    Number of containers: 1
+    Process Queue length: 0
+    RTProcess Queue length: 0
+    Connections Queue length: 0
+    Event Queue length: 0
+    Pod Queue length: 0
+    Process Bytes enqueued: 0
+    RTProcess Bytes enqueued: 0
+    Connections Bytes enqueued: 0
+    Event Bytes enqueued: 0
+    Pod Bytes enqueued: 0
+    Drop Check Payloads: []
+
+  ==========
+  Extractors
+  ==========
+
+    Workloadmeta
+    ============
+      Cache size: 0
+      Stale diffs discarded: 0
+      Diffs dropped: 0

@@ -37,6 +37,41 @@ execute 'extract driver merge module' do
   not_if { ::File.exist?(::File.join(tmp_dir, 'expanded', 'ddnpm.msm')) }
 end
 
+execute 'IIS' do
+  command "powershell -C \"Install-WindowsFeature -name Web-Server -IncludeManagementTools\""
+end
+
+directory "Make IIS Paths" do 
+  path "c:\\tmp\\inetpub\\testsite1"
+  recursive true
+end
+
+cookbook_file "c:\\tmp\\inetpub\\testsite1\\iisstart.htm" do
+  source 'iisstart.htm'
+end
+cookbook_file "c:\\tmp\\inetpub\\testsite1\\iisstart.png" do
+  source 'iisstart.png'
+end
+
+directory "Make IIS Paths" do 
+  path "c:\\tmp\\inetpub\\testsite2"
+  recursive true
+end
+
+cookbook_file "c:\\tmp\\inetpub\\testsite2\\iisstart.htm" do
+  source 'iisstart.htm'
+end
+cookbook_file "c:\\tmp\\inetpub\\testsite2\\iisstart.png" do
+  source 'iisstart.png'
+end
+execute "create testsite 1" do
+  command "powershell -C \"New-IISSite -Name 'TestSite1' -BindingInformation '*:8081:' -PhysicalPath c:\\tmp\\inetpub\\testsite1\""
+end
+
+execute "create testsite 2" do
+  command "powershell -C \"New-IISSite -Name 'TestSite2' -BindingInformation '*:8082:' -PhysicalPath c:\\tmp\\inetpub\\testsite2\""
+end
+
 if driver_path == "testsigned"
   reboot 'now' do
     action :nothing

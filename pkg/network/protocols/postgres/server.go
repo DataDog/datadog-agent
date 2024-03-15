@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package postgres provides a simple wrapper around 3rd party postgres client.
 package postgres
 
 import (
@@ -13,7 +14,8 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
-func RunServer(t testing.TB, serverAddr string, serverPort string) error {
+// RunServer runs a postgres server in a docker container
+func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	t.Helper()
 
 	env := []string{

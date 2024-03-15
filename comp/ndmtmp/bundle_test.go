@@ -8,27 +8,29 @@ package ndmtmp
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	ddagg "github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle,
-		demultiplexer.Module,
-		defaultforwarder.Module,
-		fx.Supply(demultiplexer.Params{}),
+	fxutil.TestBundle(t, Bundle(),
+		demultiplexerimpl.Module(),
+		orchestratorForwarderImpl.MockModule(),
+		defaultforwarder.Module(),
+		fx.Supply(demultiplexerimpl.Params{}),
 		fx.Supply(defaultforwarder.Params{}),
-		core.MockBundle,
+		core.MockBundle(),
 	)
 }
 
 func TestMockBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, MockBundle,
-		core.MockBundle,
+	fxutil.TestBundle(t, MockBundle(),
+		core.MockBundle(),
 		fx.Provide(func() *ddagg.AgentDemultiplexer {
 			return &ddagg.AgentDemultiplexer{}
 		}),

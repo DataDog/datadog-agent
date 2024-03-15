@@ -15,6 +15,7 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -91,6 +92,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	if c == nil {
 		return
 	}
+	health := health.RegisterLiveness("network-tracer")
 
 	var (
 		then             = time.Now()
@@ -99,10 +101,18 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	)
 
 	go func() {
+		defer func() {
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
+		}()
+
 		for {
 			select {
 			case <-c.closed:
 				return
+			case <-health.C:
 			case batchData, ok := <-c.perfHandler.DataChannel:
 				if !ok {
 					return

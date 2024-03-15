@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package providers
 
 import (
@@ -191,11 +192,11 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 				postCtx, cancel := context.WithTimeout(ctx, postStatusTimeout)
 				defer cancel()
 				if err := c.postHeartbeat(postCtx); err == nil {
-					extraHeartbeatTime = currentTime
 					log.Infof("Sent extra heartbeat at: %v", currentTime)
 				} else {
 					log.Warnf("Unable to send extra heartbeat to Cluster Agent, err: %v", err)
 				}
+				extraHeartbeatTime = currentTime
 			}
 
 		case <-ctx.Done():
@@ -206,7 +207,7 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 
 func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 	if c.dcaClient == nil {
-		return errors.New("DCA Client not initialized by main provider, cannot post heartbeat")
+		return errors.New("DCA Client not initialized by main provider yet, cannot post heartbeat, wait for init completion")
 	}
 
 	status := types.NodeStatus{

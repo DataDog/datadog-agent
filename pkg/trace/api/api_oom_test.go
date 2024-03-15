@@ -42,6 +42,7 @@ func TestOOMKill(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 	go func() {
+		//nolint:revive // TODO(APM) Fix revive linter
 		for range r.out {
 		}
 	}()

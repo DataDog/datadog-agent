@@ -88,12 +88,14 @@ def trigger_agent_pipeline(
     deploy=False,
     all_builds=False,
     kitchen_tests=False,
+    e2e_tests=False,
     rc_k8s_deployments=False,
 ):
     """
     Trigger a pipeline on the datadog-agent repositories. Multiple options are available:
     - run a pipeline with all builds (by default, a pipeline only runs a subset of all available builds),
     - run a pipeline with all kitchen tests,
+    - run a pipeline with all end-to-end tests,
     - run a deploy pipeline (includes all builds & kitchen tests + uploads artifacts to staging repositories);
     """
     args = {}
@@ -114,6 +116,11 @@ def trigger_agent_pipeline(
         args["RUN_KITCHEN_TESTS"] = "true"
     else:
         args["RUN_KITCHEN_TESTS"] = "false"
+
+    # End to end tests can be selectively enabled, or disabled on pipelines where they're
+    # enabled by default (default branch and deploy pipelines).
+    if e2e_tests:
+        args["RUN_E2E_TESTS"] = "true"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6
@@ -158,17 +165,19 @@ def wait_for_pipeline(gitlab, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_
             + " by "
             + color_message(commit_author, "bold"),
             "blue",
-        )
+        ),
+        flush=True,
     )
     print(
         color_message(
             "Pipeline Link: "
             + color_message(f"https://gitlab.ddbuild.io/{gitlab.project_name}/pipelines/{pipeline_id}", "green"),
             "blue",
-        )
+        ),
+        flush=True,
     )
 
-    print(color_message("Waiting for pipeline to finish. Exiting won't cancel it.", "blue"))
+    print(color_message("Waiting for pipeline to finish. Exiting won't cancel it.", "blue"), flush=True)
 
     f = functools.partial(pipeline_status, gitlab, pipeline_id)
 
@@ -217,7 +226,8 @@ def pipeline_status(gitlab, pipeline_id, job_status):
             color_message(
                 f"Pipeline https://gitlab.ddbuild.io/{gitlab.project_name}/pipelines/{pipeline_id} for {ref} succeeded",
                 "green",
-            )
+            ),
+            flush=True,
         )
         notify("Pipeline success", f"Pipeline {pipeline_id} for {ref} succeeded.")
         return True, job_status
@@ -227,7 +237,8 @@ def pipeline_status(gitlab, pipeline_id, job_status):
             color_message(
                 f"Pipeline https://gitlab.ddbuild.io/{gitlab.project_name}/pipelines/{pipeline_id} for {ref} failed",
                 "red",
-            )
+            ),
+            flush=True,
         )
         notify("Pipeline failure", f"Pipeline {pipeline_id} for {ref} failed.")
         return True, job_status
@@ -237,7 +248,8 @@ def pipeline_status(gitlab, pipeline_id, job_status):
             color_message(
                 f"Pipeline https://gitlab.ddbuild.io/{gitlab.project_name}/pipelines/{pipeline_id} for {ref} was canceled",
                 "grey",
-            )
+            ),
+            flush=True,
         )
         notify("Pipeline canceled", f"Pipeline {pipeline_id} for {ref} was canceled.")
         return True, job_status
@@ -295,7 +307,8 @@ def print_job_status(job):
             color_message(
                 f"[{date}] Job {name} (stage: {stage}) {status} [job duration: {duration // 60:.0f}m{duration % 60:2.0f}s]\n{link}".strip(),
                 color,
-            )
+            ),
+            flush=True,
         )
 
     def print_retry(name, date):

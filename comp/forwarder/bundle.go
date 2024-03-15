@@ -14,6 +14,7 @@ import (
 // team: agent-shared-components
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	defaultforwarder.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		defaultforwarder.Module())
+}

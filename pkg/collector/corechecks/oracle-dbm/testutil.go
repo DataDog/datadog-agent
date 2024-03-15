@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,3 +39,36 @@ var PASSWORD = "datadog"
 var SERVICE_NAME = "XE"
 var TNS_ALIAS = "XE"
 var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
+
+var dbmsTag = "dbms:oracle"
+
+func newRealCheck(t *testing.T, options string) (Check, *mocksender.MockSender) {
+	c := Check{}
+	config := fmt.Sprintf(`
+server: %s
+port: %d
+username: %s
+password: %s
+service_name: %s
+`, HOST, PORT, USER, PASSWORD, SERVICE_NAME)
+	if options != "" {
+		config = fmt.Sprintf(`%s
+%s`, config, options)
+	}
+	rawInstanceConfig := []byte(config)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	require.NoError(t, err)
+
+	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
+	sender.SetupAcceptAll()
+	assert.Equal(t, c.config.InstanceConfig.Server, HOST)
+	assert.Equal(t, c.config.InstanceConfig.Port, PORT)
+	assert.Equal(t, c.config.InstanceConfig.Username, USER)
+	assert.Equal(t, c.config.InstanceConfig.Password, PASSWORD)
+	assert.Equal(t, c.config.InstanceConfig.ServiceName, SERVICE_NAME)
+
+	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+
+	return c, sender
+}

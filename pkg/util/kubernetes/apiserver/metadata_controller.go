@@ -155,6 +155,7 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 	m.enqueue(obj)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (m *MetadataController) updateEndpoints(old, cur interface{}) {
 	newEndpoints, ok := cur.(*corev1.Endpoints)
 	if !ok {

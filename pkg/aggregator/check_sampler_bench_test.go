@@ -9,13 +9,19 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+
+	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func benchmarkAddBucket(bucketValue int64, b *testing.B) {
@@ -23,15 +29,16 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
-	log := fxutil.Test[log.Component](b, log.MockModule)
+	log := fxutil.Test[log.Component](b, logimpl.MockModule())
 	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarderOpts)
-	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, options, "hostname")
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, options, "hostname")
 	defer demux.Stop(true)
 
-	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
+	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"))
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -50,7 +57,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
-	checkSampler := newCheckSampler(1, true, 1000, tags.NewStore(true, "bench"))
+	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"))
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{

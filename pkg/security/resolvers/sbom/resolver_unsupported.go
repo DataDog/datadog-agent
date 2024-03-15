@@ -18,26 +18,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+// Resolver is the Software Bill-Of-material resolver
 type Resolver struct {
 }
 
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+// NewSBOMResolver returns a new instance of Resolver
+func NewSBOMResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 
-func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
+// OnCGroupDeletedEvent is used to handle a CGroupDeleted event
+func (r *Resolver) OnCGroupDeletedEvent(_ *cgroupModel.CacheEntry) {
 }
 
-func (r *Resolver) OnWorkloadSelectorResolvedEvent(sbom *cgroupModel.CacheEntry) {
+// OnWorkloadSelectorResolvedEvent is used to handle the creation of a new cgroup with its resolved tags
+func (r *Resolver) OnWorkloadSelectorResolvedEvent(_ *cgroupModel.CacheEntry) {
 }
 
-func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
+// ResolvePackage returns the Package that owns the provided file
+func (r *Resolver) ResolvePackage(_ string, _ *model.FileEvent) *Package {
 	return nil
 }
 
+// SendStats sends stats
 func (r *Resolver) SendStats() error {
 	return nil
 }
 
-func (r *Resolver) Start(ctx context.Context) {
+// Start starts the goroutine of the SBOM resolver
+func (r *Resolver) Start(_ context.Context) {
 }

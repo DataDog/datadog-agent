@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	//nolint:revive // TODO(AML) Fix revive linter
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package consumer
 
 import (
@@ -55,10 +56,12 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 	return p, nil
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *ProcessConsumer) Start() error {
 	return nil
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *ProcessConsumer) Stop() {
 }
 
@@ -67,6 +70,7 @@ func (p *ProcessConsumer) ID() string {
 	return "PROCESS"
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (p *ProcessConsumer) SendStats() {
 	if count := p.expiredEvents.Swap(0); count > 0 {
 		if err := p.statsdClient.Count(metrics.MetricProcessEventsServerExpired, count, []string{}, 1.0); err != nil {

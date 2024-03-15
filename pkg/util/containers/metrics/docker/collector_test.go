@@ -15,10 +15,15 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func TestConvertNetworkStats(t *testing.T) {
@@ -77,13 +82,21 @@ func TestConvertNetworkStats(t *testing.T) {
 }
 
 func TestGetContainerIDForPID(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
+	// TODO(components): this test needs to rely on a workloadmeta.Component mock
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		config.MockModule(),
+		logimpl.MockModule(),
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+
 	collector := dockerCollector{
 		pidCache:      provider.NewCache(pidCacheGCInterval),
 		metadataStore: mockStore,
 	}
 
-	mockStore.SetEntity(&workloadmeta.Container{
+	mockStore.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID1",
@@ -98,7 +111,7 @@ func TestGetContainerIDForPID(t *testing.T) {
 	assert.Equal(t, "cID1", cID1)
 
 	// Add an entry for PID 200, should not be picked up because full refresh is recent enough
-	mockStore.SetEntity(&workloadmeta.Container{
+	mockStore.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID2",

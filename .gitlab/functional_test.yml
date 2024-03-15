@@ -4,8 +4,9 @@
 
 include:
   - /.gitlab/functional_test/security_agent.yml
-  - /.gitlab/functional_test/system_probe.yml
   - /.gitlab/functional_test/serverless.yml
   - /.gitlab/functional_test/regression_detector.yml
   - /.gitlab/functional_test/workload_checks.yml
+  - /.gitlab/functional_test/system_probe_windows.yml
   - /.gitlab/kernel_version_testing/system_probe.yml
+  - /.gitlab/functional_test_sysprobe/system_probe.yml

@@ -106,6 +106,8 @@ func (k *kubeEndpointsConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	services, err := k.serviceLister.List(labels.Everything())
 	if err != nil {
@@ -131,6 +133,8 @@ func (k *kubeEndpointsConfigProvider) Collect(ctx context.Context) ([]integratio
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (k *kubeEndpointsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	return k.upToDate, nil
 }

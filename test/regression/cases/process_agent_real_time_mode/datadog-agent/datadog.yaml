@@ -1,4 +1,3 @@
-api_key: 00000000000000000000000000000000
 auth_token_file_path: /tmp/agent-auth-token
 hostname: smp-regression
 
@@ -11,6 +10,4 @@ confd_path: /etc/datadog-agent/conf.d
 # has network access.
 cloud_provider_metadata: []
 
-process_config:
-  process_collection:
-    enabled: true
+dogstatsd_socket: '/tmp/dsd.socket'

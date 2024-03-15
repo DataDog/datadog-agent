@@ -14,6 +14,7 @@ import (
 	"go.uber.org/atomic"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -37,8 +38,8 @@ var (
 	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
-	ad := autodiscovery.NewAutoConfig(metaScheduler)
+func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *autodiscovery.AutoConfig {
+	ad := autodiscovery.NewAutoConfig(metaScheduler, secretResolver)
 	providers.InitConfigFilesReader(confSearchPaths)
 	ad.AddConfigProvider(
 		providers.NewFileConfigProvider(),
@@ -202,7 +203,7 @@ func (sf schedulerFunc) Schedule(configs []integration.Config) {
 }
 
 // Unschedule implements scheduler.Scheduler#Unschedule.
-func (sf schedulerFunc) Unschedule(configs []integration.Config) {
+func (sf schedulerFunc) Unschedule(_ []integration.Config) {
 	// (do nothing)
 }
 

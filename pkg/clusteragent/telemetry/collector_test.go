@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	testRcClientId          = "YgRPh8NqGkvhXq71FvxVN"
+	//nolint:revive // TODO(TEL) Fix revive linter
+	testRcClientId = "YgRPh8NqGkvhXq71FvxVN"
+	//nolint:revive // TODO(TEL) Fix revive linter
 	testKubernetesClusterId = "2cb68cff-935e-4d09-8e57-7c2c5e0364d6"
 )
 
@@ -60,6 +62,7 @@ func TestTelemetryPath(t *testing.T) {
 	var reqCount int
 	var path string
 	server.assertReq = func(req *http.Request) {
+		//nolint:revive // TODO(TEL) Fix revive linter
 		reqCount += 1
 		path = req.URL.Path
 	}

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package cloudfoundry
 
 import (
@@ -24,6 +25,8 @@ var (
 var getFqdn = util.Fqdn
 
 // GetHostAliases returns the host aliases from Cloud Foundry
+//
+//nolint:revive // TODO(PLINT) Fix revive linter
 func GetHostAliases(ctx context.Context) ([]string, error) {
 	if !config.Datadog.GetBool("cloud_foundry") {
 		log.Debugf("cloud_foundry is not enabled in the conf: no cloudfoudry host alias")

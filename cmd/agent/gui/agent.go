@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package gui contains the gui subcommand
 package gui
 
 import (
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -44,7 +46,7 @@ func agentHandler(r *mux.Router, flare flare.Component, invAgent inventoryagent.
 }
 
 // Sends a simple reply (for checking connection to server)
-func ping(w http.ResponseWriter, r *http.Request) {
+func ping(w http.ResponseWriter, _ *http.Request) {
 	elapsed := time.Now().Unix() - startTimestamp
 	w.Write([]byte(strconv.FormatInt(elapsed, 10)))
 }
@@ -53,14 +55,24 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
 	statusType := mux.Vars(r)["type"]
 
-	verbose := r.URL.Query().Get("verbose") == "true"
-	status, e := status.GetStatus(verbose, invAgent)
-	if e != nil {
-		log.Errorf("Error getting status: " + e.Error())
-		w.Write([]byte("Error getting status: " + e.Error()))
+	var (
+		stats map[string]interface{}
+		err   error
+	)
+	if statusType == "collector" {
+		stats = collector.GetStatusInfo()
+	} else {
+		verbose := r.URL.Query().Get("verbose") == "true"
+		stats, err = status.GetStatus(verbose, invAgent)
+	}
+
+	if err != nil {
+		log.Errorf("Error getting status: " + err.Error())
+		w.Write([]byte("Error getting status: " + err.Error()))
 		return
 	}
-	json, _ := json.Marshal(status)
+
+	json, _ := json.Marshal(stats)
 	html, e := renderStatus(json, statusType)
 	if e != nil {
 		w.Write([]byte("Error generating status html: " + e.Error()))
@@ -69,10 +81,11 @@ func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.C
 
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
+
 }
 
 // Sends the current agent version
-func getVersion(w http.ResponseWriter, r *http.Request) {
+func getVersion(w http.ResponseWriter, _ *http.Request) {
 	version, e := version.Agent()
 	if e != nil {
 		log.Errorf("Error getting version: " + e.Error())
@@ -163,7 +176,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 }
 
 // Restarts the agent using the appropriate (platform-specific) restart function
-func restartAgent(w http.ResponseWriter, r *http.Request) {
+func restartAgent(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("got restart function")
 	e := restart()
 	if e != nil {
@@ -195,7 +208,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 }
 
 // Sends the configuration (aka datadog.yaml) file
-func getConfigFile(w http.ResponseWriter, r *http.Request) {
+func getConfigFile(w http.ResponseWriter, _ *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
 	settings, e := os.ReadFile(path)
 	if e != nil {

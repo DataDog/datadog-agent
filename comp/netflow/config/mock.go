@@ -22,7 +22,8 @@ func newMock(conf *NetflowConfig, logger log.Component) (Component, error) {
 // Injecting MockModule will provide default config;
 // override this with fx.Replace(&config.NetflowConfig{...}).
 // Defaults will always be populated.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-	fx.Supply(&NetflowConfig{}),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Supply(&NetflowConfig{}))
+}

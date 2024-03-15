@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -51,6 +51,8 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }

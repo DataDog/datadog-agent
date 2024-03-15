@@ -46,11 +46,15 @@ func (f *extendedJobFactory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedJobFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended job metric family generators
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedJobFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(

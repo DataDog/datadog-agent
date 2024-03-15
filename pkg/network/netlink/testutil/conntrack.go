@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(NET) Fix revive linter
 package testutil
 
 import (
@@ -176,6 +177,7 @@ func SetupVeth6Pair(t *testing.T) (ns string) {
 	return
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func teardownVeth6Pair(t *testing.T, ns string) {
 	cmds := []string{
 		"ip link del veth1",

@@ -25,9 +25,25 @@ const (
 	HerokuAgent = "heroku_agent"
 	// ProcessAgent is the Process Agent flavor
 	ProcessAgent = "process_agent"
+	// TraceAgent is the Trace Agent flavor
+	TraceAgent = "trace_agent"
 	// AgentlessScanner is the Agentless Scanner
 	AgentlessScanner = "agentless_scanner"
 )
+
+var agentFlavors = map[string]string{
+	DefaultAgent:    "Agent",
+	IotAgent:        "IoT Agent",
+	ClusterAgent:    "Cluster Agent",
+	Dogstatsd:       "DogStatsD",
+	SecurityAgent:   "Security Agent",
+	ServerlessAgent: "Serverless Agent",
+	HerokuAgent:     "Heroku Agent",
+	ProcessAgent:    "Process Agent",
+	TraceAgent:      "Trace Agent",
+}
+
+const unknownAgent = "Unknown Agent"
 
 var agentFlavor = DefaultAgent
 
@@ -45,4 +61,13 @@ func SetFlavor(flavor string) {
 // e.g. in init functions or to initialize package constants or variables.
 func GetFlavor() string {
 	return agentFlavor
+}
+
+// GetHumanReadableFlavor gets the running Agent flavor in a human readable form
+func GetHumanReadableFlavor() string {
+	if val, ok := agentFlavors[agentFlavor]; ok {
+		return val
+	}
+
+	return unknownAgent
 }

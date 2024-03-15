@@ -9,23 +9,25 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 )
 
 type crossPlatformSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.Host]
 }
 
 func TestCrossPlatformSuite(t *testing.T) {
-	e2e.Run(t, &crossPlatformSuite{}, e2e.AgentStackDef())
+	e2e.Run(t, &crossPlatformSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 func (s *crossPlatformSuite) TestUbuntuOS() {
-	os := ec2os.UbuntuOS
+	os := os.UbuntuDefault
 	s.subTestInstallAgentVersion(os)
 	s.subTestInstallAgent(os)
 }
@@ -34,36 +36,27 @@ func (s *crossPlatformSuite) TestWindows() {
 	// As the Windows installer cannot downgrade an agent version,
 	// the order of tests matter. New tests must be added at
 	// the end of the function.
-	os := ec2os.WindowsOS
+	os := os.WindowsDefault
 	s.subTestInstallAgentVersion(os)
 	s.subTestInstallAgent(os)
 }
 
 func (s *crossPlatformSuite) TestOtherOSES() {
-	for _, os := range ec2os.GetOSTypes() {
-		if os == ec2os.WindowsOS || os == ec2os.UbuntuOS {
-			// Windows and Ubuntu have their dedicated tests
-			continue
-		}
-
-		if os == ec2os.CentOS || os == ec2os.RockyLinux {
-			// TODO: There is a bug for CentOS and RockyLinux
-			continue
-		}
-
+	// TODO: There is a bug for CentOS and RockyLinux
+	for _, os := range []os.Descriptor{os.AmazonLinuxDefault, os.DebianDefault, os.FedoraDefault, os.RedHatDefault, os.SuseDefault} {
 		s.subTestInstallAgent(os)
 	}
 }
 
-func (s *crossPlatformSuite) subTestInstallAgent(os ec2os.Type) {
+func (s *crossPlatformSuite) subTestInstallAgent(os os.Descriptor) {
 	s.T().Run(fmt.Sprintf("Test install agent %v", os), func(t *testing.T) {
-		s.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(os))))
-		output := s.Env().Agent.Status().Content
+		s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os))))
+		output := s.Env().Agent.Client.Status().Content
 		require.Contains(s.T(), output, "Agent start")
 	})
 }
 
-func (s *crossPlatformSuite) subTestInstallAgentVersion(os ec2os.Type) {
+func (s *crossPlatformSuite) subTestInstallAgentVersion(os os.Descriptor) {
 	for _, data := range []struct {
 		version      string
 		agentVersion string
@@ -72,9 +65,9 @@ func (s *crossPlatformSuite) subTestInstallAgentVersion(os ec2os.Type) {
 		{"7.46.0~rc.2-1", "Agent 7.46.0-rc.2"},
 	} {
 		s.T().Run("Test install agent version "+data.version, func(t *testing.T) {
-			s.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(os)), e2e.WithAgentParams(agentparams.WithVersion(data.version))))
+			s.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os)), awshost.WithAgentOptions(agentparams.WithVersion(data.version))))
 
-			version := s.Env().Agent.Version()
+			version := s.Env().Agent.Client.Version()
 			require.Contains(s.T(), version, data.agentVersion)
 		})
 	}

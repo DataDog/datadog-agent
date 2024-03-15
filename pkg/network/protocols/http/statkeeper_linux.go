@@ -11,6 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-func getPathBufferSize(c *config.Config) int {
-	return int(BufferSize)
+func getPathBufferSize(*config.Config) int {
+	return BufferSize
 }

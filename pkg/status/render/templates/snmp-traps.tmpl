@@ -1,0 +1,15 @@
+{{/*
+NOTE: Changes made to this template should be reflected on the following templates, if applicable:
+* cmd/agent/gui/views/templates/generalStatus.tmpl
+*/}}
+{{- with .snmpTrapsStats }}
+==========
+SNMP Traps
+==========
+{{- if .error }}
+  Error: {{.error}}
+{{- end }}
+{{- range $key, $value := .metrics}}
+  {{formatTitle $key}}: {{humanize $value}}
+{{- end }}
+{{- end -}}

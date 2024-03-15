@@ -33,14 +33,17 @@ type mockedProcessor struct {
 	err    error
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *mockedProcessor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	return nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *mockedProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	return p.points, p.err
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *mockedProcessor) ProcessEMList(emList []custommetrics.ExternalMetricValue) map[string]custommetrics.ExternalMetricValue {
 	return nil
 }
@@ -59,6 +62,7 @@ type metricsFixture struct {
 	expected     []ddmWithQuery
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *metricsFixture) run(t *testing.T, testTime time.Time) {
 	t.Helper()
 

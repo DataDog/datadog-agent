@@ -90,15 +90,15 @@ func (a AbnormalEvent) ToJSON() ([]byte, error) {
 }
 
 // NewAbnormalEvent returns the rule and a populated custom event for a abnormal event
-func NewAbnormalEvent(id string, description string, event *model.Event, probe *Probe, err error) (*rules.Rule, *events.CustomEvent) {
+func NewAbnormalEvent(id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
-			Event: serializers.NewEventSerializer(event, probe.resolvers),
+			Event: serializers.NewEventSerializer(event),
 			Error: err.Error(),
 		}
 		evt.FillCustomEventCommonFields()
 		// Overwrite common timestamp with event timestamp
-		evt.Timestamp = event.FieldHandlers.ResolveEventTime(event)
+		evt.Timestamp = event.ResolveEventTime()
 
 		return evt
 	}

@@ -71,6 +71,9 @@ tests_ebpf_arm64:
 
 .prepare_ebpf_functional_tests:
   stage: source_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["go_deps"]
   artifacts:
     when: always
@@ -103,6 +106,9 @@ prepare_ebpf_functional_tests_x64:
 
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"

@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package procutil
 
 import (
 	"bytes"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,6 +26,12 @@ const (
 	defaultCacheMaxCycles = 25
 )
 
+type processCacheKey struct {
+	pid        int32
+	createTime int64
+}
+
+//nolint:revive // TODO(PROC) Fix revive linter
 type DataScrubberPattern struct {
 	FastCheck string
 	Re        *regexp.Regexp
@@ -37,8 +43,8 @@ type DataScrubber struct {
 	Enabled           bool
 	StripAllArguments bool
 	SensitivePatterns []DataScrubberPattern
-	seenProcess       map[string]struct{}
-	scrubbedCmdlines  map[string][]string
+	seenProcess       map[processCacheKey]struct{}
+	scrubbedCmdlines  map[processCacheKey][]string
 	cacheCycles       uint32 // used to control the cache age
 	cacheMaxCycles    uint32 // number of cycles before resetting the cache content
 }
@@ -50,8 +56,8 @@ func NewDefaultDataScrubber() *DataScrubber {
 	newDataScrubber := &DataScrubber{
 		Enabled:           true,
 		SensitivePatterns: patterns,
-		seenProcess:       make(map[string]struct{}),
-		scrubbedCmdlines:  make(map[string][]string),
+		seenProcess:       make(map[processCacheKey]struct{}),
+		scrubbedCmdlines:  make(map[processCacheKey][]string),
 		cacheCycles:       0,
 		cacheMaxCycles:    defaultCacheMaxCycles,
 	}
@@ -118,14 +124,11 @@ func CompileStringsToRegex(words []string) []DataScrubberPattern {
 }
 
 // createProcessKey returns an unique identifier for a given process
-func createProcessKey(p *Process) string {
-	var b bytes.Buffer
-	b.WriteString("p:")
-	b.WriteString(strconv.Itoa(int(p.Pid)))
-	b.WriteString("|c:")
-	b.WriteString(strconv.Itoa(int(p.Stats.CreateTime)))
-
-	return b.String()
+func createProcessKey(p *Process) processCacheKey {
+	return processCacheKey{
+		pid:        p.Pid,
+		createTime: p.Stats.CreateTime,
+	}
 }
 
 // ScrubProcessCommand uses a cache memory to avoid scrubbing already known
@@ -158,8 +161,8 @@ func (ds *DataScrubber) ScrubProcessCommand(p *Process) []string {
 func (ds *DataScrubber) IncrementCacheAge() {
 	ds.cacheCycles++
 	if ds.cacheCycles == ds.cacheMaxCycles {
-		ds.seenProcess = make(map[string]struct{})
-		ds.scrubbedCmdlines = make(map[string][]string)
+		ds.seenProcess = make(map[processCacheKey]struct{})
+		ds.scrubbedCmdlines = make(map[processCacheKey][]string)
 		ds.cacheCycles = 0
 	}
 }

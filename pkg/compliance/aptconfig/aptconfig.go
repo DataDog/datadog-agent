@@ -267,6 +267,7 @@ func readFileLimit(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer f.Close()
 	data, err := io.ReadAll(io.LimitReader(f, maxSize))
 	if err != nil {
 		return "", err

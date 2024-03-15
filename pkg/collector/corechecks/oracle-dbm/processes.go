@@ -49,6 +49,7 @@ type sessionTagColumns struct {
 	OsUser   sql.NullString `db:"OSUSER"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type ProcessesRowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	PID            uint64         `db:"PID"`
@@ -64,6 +65,7 @@ type ProcessesRowDB struct {
 	sessionTagColumns
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
 

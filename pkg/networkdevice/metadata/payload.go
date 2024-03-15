@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(NDM) Fix revive linter
 package metadata
 
 // PayloadMetadataBatchSize is the number of resources per event payload
@@ -19,12 +20,15 @@ const (
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
+//nolint:revive // TODO(NDM) Fix revive linter
 type IDType string
 
 const (
 	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
-	IDTypeMacAddress     = "mac_address"
-	IDTypeInterfaceName  = "interface_name"
+	IDTypeMacAddress = "mac_address"
+	//nolint:revive // TODO(NDM) Fix revive linter
+	IDTypeInterfaceName = "interface_name"
+	//nolint:revive // TODO(NDM) Fix revive linter
 	IDTypeInterfaceAlias = "interface_alias"
 )
 
@@ -69,8 +73,10 @@ type DeviceMetadata struct {
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
 	DeviceID      string        `json:"device_id"`
-	IDTags        []string      `json:"id_tags"` // used to correlate with interface metrics
-	Index         int32         `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	IDTags        []string      `json:"id_tags"`               // used to correlate with interface metrics
+	Index         int32         `json:"index"`                 // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	RawID         string        `json:"raw_id,omitempty"`      // used to uniquely identify the interface in the context of the device
+	RawIDType     string        `json:"raw_id_type,omitempty"` // used to indicate the type of identifier used (i.e. portId for Meraki switches, uplink for Meraki uplinks, blank for SNMP for compatibility)
 	Name          string        `json:"name,omitempty"`
 	Alias         string        `json:"alias,omitempty"`
 	Description   string        `json:"description,omitempty"`

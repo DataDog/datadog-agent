@@ -27,7 +27,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.46.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           resources: {}
@@ -36,16 +36,13 @@ spec:
               name: dogstatsdport
               protocol: UDP
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
             - name: DD_REMOTE_CONFIGURATION_ENABLED
-              value: "false"
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -89,10 +86,16 @@ spec:
               value: "clusterchecks endpointschecks"
             - name: DD_IGNORE_AUTOCONF
               value: "kubernetes_state"
+            - name: DD_CONTAINER_LIFECYCLE_ENABLED
+              value: "true"
+            - name: DD_ORCHESTRATOR_EXPLORER_ENABLED
+              value: "true"
             - name: DD_EXPVAR_PORT
               value: "6000"
             - name: DD_COMPLIANCE_CONFIG_ENABLED
               value: "false"
+            - name: DD_CONTAINER_IMAGE_ENABLED
+              value: "true"
           volumeMounts:
             - name: logdatadog
               mountPath: /var/log/datadog
@@ -106,7 +109,6 @@ spec:
               readOnly: false # Need RW to write to /tmp directory
             - name: os-release-file
               mountPath: /host/etc/os-release
-              mountPropagation: None
               readOnly: true
             - name: config
               mountPath: /etc/datadog-agent
@@ -150,21 +152,18 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.46.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           resources: {}
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
             - name: DD_REMOTE_CONFIGURATION_ENABLED
-              value: "false"
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES
@@ -210,7 +209,6 @@ spec:
               readOnly: false # Need RW to write to tmp directory
             - name: os-release-file
               mountPath: /host/etc/os-release
-              mountPropagation: None
               readOnly: true
             - name: runtimesocketdir
               mountPath: /host/var/run
@@ -229,7 +227,7 @@ spec:
               readOnly: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.46.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -240,7 +238,7 @@ spec:
               readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.46.0"
+          image: "gcr.io/datadoghq/agent:7.49.1"
           imagePullPolicy: IfNotPresent
           command:
             - bash
@@ -263,16 +261,13 @@ spec:
               mountPropagation: None
               readOnly: true
           env:
-            # Needs to be removed when Agent N-2 is built with Golang 1.17
-            - name: GODEBUG
-              value: x509ignoreCN=0
             - name: DD_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: "datadog"
                   key: api-key
             - name: DD_REMOTE_CONFIGURATION_ENABLED
-              value: "false"
+              value: "true"
             - name: DD_AUTH_TOKEN_FILE_PATH
               value: /etc/datadog-agent/auth/token
             - name: KUBERNETES

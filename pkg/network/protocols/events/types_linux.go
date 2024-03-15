@@ -8,7 +8,8 @@ type batch struct {
 	Len            uint16
 	Cap            uint16
 	Event_size     uint16
-	Dropped_events uint16
+	Dropped_events uint32
+	Failed_flushes uint32
 	Data           [4096]int8
 }
 type batchKey struct {

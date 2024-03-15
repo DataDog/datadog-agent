@@ -148,10 +148,12 @@ func TestProcessor(t *testing.T) {
 	}
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 type MockExtractor struct {
 	Rate float64
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (e *MockExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
 	if e.Rate < 0 {
 		return 0, false
@@ -159,6 +161,7 @@ func (e *MockExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (
 	return e.Rate, true
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 type MockEventSampler struct {
 	Rate float64
 
@@ -175,6 +178,7 @@ func (s *MockEventSampler) Stop() {
 	s.StopCalls++
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (s *MockEventSampler) Sample(event *pb.Span) (bool, float64) {
 	s.SampleCalls++
 

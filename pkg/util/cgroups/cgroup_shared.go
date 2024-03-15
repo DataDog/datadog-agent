@@ -15,6 +15,8 @@ import (
 const (
 	cgroupProcsFile = "cgroup.procs"
 	procCgroupFile  = "cgroup"
+	// unknownInode is the inode value returned when the cgroup node inode is incorrect or not found
+	unknownInode uint64 = 0
 )
 
 // ParseCPUSetFormat counts CPUs in CPUSet specs like "0,1,5-8". These are comma-separated lists

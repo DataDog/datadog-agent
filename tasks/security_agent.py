@@ -1,12 +1,10 @@
 import datetime
 import errno
 import glob
-import json
 import os
 import re
 import shutil
 import sys
-import tarfile
 import tempfile
 from subprocess import check_output
 
@@ -15,6 +13,7 @@ from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .go import run_golangci_lint
+from .go_test import environ
 from .libs.ninja_syntax import NinjaWriter
 from .process_agent import TempDir
 from .system_probe import (
@@ -24,7 +23,6 @@ from .system_probe import (
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
-from .test import environ
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -187,6 +185,25 @@ def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=Fal
         "verbose_opt": "-test.v" if verbose else "",
         "testflags": testflags,
         "path": os.environ['PATH'],
+    }
+
+    ctx.run(cmd.format(**args))
+
+
+@task
+def run_ebpfless_functional_tests(ctx, cws_instrumentation, testsuite, verbose=False, testflags=''):
+    cmd = '{testsuite} -trace {verbose_opt} {testflags} {tests}'
+
+    if os.getuid() != 0:
+        cmd = 'sudo -E PATH={path} ' + cmd
+
+    args = {
+        "cws_instrumentation": cws_instrumentation,
+        "testsuite": testsuite,
+        "verbose_opt": "-test.v" if verbose else "",
+        "testflags": testflags,
+        "path": os.environ['PATH'],
+        "tests": "-test.run '^(TestOpen|TestProcess|TimestampVariable|KillAction|TestRmdir|TestUnlink|TestRename)'",
     }
 
     ctx.run(cmd.format(**args))
@@ -482,6 +499,40 @@ def functional_tests(
 
 
 @task
+def ebpfless_functional_tests(
+    ctx,
+    verbose=False,
+    race=False,
+    arch=CURRENT_ARCH,
+    major_version='7',
+    output='pkg/security/tests/testsuite',
+    bundle_ebpf=True,
+    testflags='',
+    skip_linters=False,
+    kernel_release=None,
+    cws_instrumentation='bin/cws-instrumentation/cws-instrumentation',
+):
+    build_functional_tests(
+        ctx,
+        arch=arch,
+        major_version=major_version,
+        output=output,
+        bundle_ebpf=bundle_ebpf,
+        skip_linters=skip_linters,
+        race=race,
+        kernel_release=kernel_release,
+    )
+
+    run_ebpfless_functional_tests(
+        ctx,
+        cws_instrumentation,
+        testsuite=output,
+        verbose=verbose,
+        testflags=testflags,
+    )
+
+
+@task
 def kitchen_functional_tests(
     ctx,
     verbose=False,
@@ -710,7 +761,7 @@ def generate_cws_proto(ctx):
 
 
 def get_git_dirty_files():
-    dirty_stats = check_output(["git", "status", "--porcelain=v1", "untracked-files=no"]).decode('utf-8')
+    dirty_stats = check_output(["git", "status", "--porcelain=v1", "--untracked-files=no"]).decode('utf-8')
     paths = []
 
     # see https://git-scm.com/docs/git-status#_short_format for format documentation
@@ -820,42 +871,6 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
         args += " -trace"
 
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
-
-
-# TODO: this task does the same thing as system-probe.print-failed-tests.
-# They could be refactored to have the logic in only one place.
-@task
-def print_failed_tests(_, output_dir):
-    """
-    print_failed_tests is run at the end of the platform functional test Gitlab job to print failed tests
-    """
-    fail_count = 0
-    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
-        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
-
-        if os.path.isdir(testjson_tgz):
-            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
-            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
-
-        with tempfile.TemporaryDirectory() as unpack_dir:
-            with tarfile.open(testjson_tgz) as tgz:
-                tgz.extractall(path=unpack_dir)
-
-            for test_json in glob.glob(f"{unpack_dir}/*.json"):
-                bundle, _ = os.path.splitext(os.path.basename(test_json))
-                with open(test_json) as tf:
-                    for line in tf:
-                        json_test = json.loads(line.strip())
-                        if 'Test' in json_test:
-                            name = json_test['Test']
-                            action = json_test["Action"]
-
-                            if action == "fail":
-                                print(f"FAIL: [{test_platform}] [{bundle}] {name}")
-                                fail_count += 1
-
-    if fail_count > 0:
-        raise Exit(code=1)
 
 
 @task

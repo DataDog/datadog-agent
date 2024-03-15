@@ -7,18 +7,7 @@
 
 package retry
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
-
+// NewPointCountTelemetryMock returns a mock PointCountTelemetry
 func NewPointCountTelemetryMock() *PointCountTelemetry {
-	provider := telemetry.NewStatsTelemetryProvider(StatsTelemetrySenderMock{})
-	return NewPointCountTelemetry("domain", provider)
-}
-
-type StatsTelemetrySenderMock struct{}
-
-func (m StatsTelemetrySenderMock) Count(metric string, value float64, hostname string, tags []string) {
-}
-func (m StatsTelemetrySenderMock) Gauge(metric string, value float64, hostname string, tags []string) {
-}
-func (m StatsTelemetrySenderMock) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
+	return NewPointCountTelemetry("domain")
 }

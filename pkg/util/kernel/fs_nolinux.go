@@ -9,10 +9,12 @@ package kernel
 
 import "github.com/DataDog/datadog-agent/pkg/util/funcs"
 
+// ProcFSRoot is the path to procfs
 var ProcFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })
 
+// SysFSRoot is the path to sysfs
 var SysFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
 })

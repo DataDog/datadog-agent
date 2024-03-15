@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 )
 
+//nolint:revive // TODO(APM) Fix revive linter
 type RunParams struct {
 	*subcommands.GlobalParams
 
@@ -26,8 +27,9 @@ type RunParams struct {
 	MemProfile string
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {}
 
-func runTraceAgent(cliParams *RunParams, defaultConfPath string) error {
-	return runFx(context.Background(), cliParams, defaultConfPath)
+func runTraceAgentCommand(cliParams *RunParams, defaultConfPath string) error {
+	return runTraceAgentProcess(context.Background(), cliParams, defaultConfPath)
 }

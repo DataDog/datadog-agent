@@ -23,6 +23,7 @@ type statsProvider interface {
 
 type sysctlStatsProvider struct{}
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (_ *sysctlStatsProvider) getThreadCount() (int32, error) {
 	threadCount, err := unix.SysctlUint32("machdep.cpu.thread_count")
 	return int32(threadCount), err
@@ -46,6 +47,7 @@ func patchCPUInfo(gopsutilCPUInfo []cpu.InfoStat) ([]cpu.InfoStat, error) {
 
 	cpuStat := make([]cpu.InfoStat, 0, physicalCoreCount)
 	for i := 0; i < physicalCoreCount; i++ {
+		//nolint:revive // TODO(PROC) Fix revive linter
 		currentCpuInfo := cpuInfo
 		currentCpuInfo.Cores = threadCount / int32(physicalCoreCount)
 		cpuStat = append(cpuStat, currentCpuInfo)

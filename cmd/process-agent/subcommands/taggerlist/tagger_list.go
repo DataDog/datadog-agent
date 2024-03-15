@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package app
 
 import (
@@ -33,7 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(taggerList,
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
 
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		SilenceUsage: true,

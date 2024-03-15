@@ -180,3 +180,16 @@ func TestPrometheusCheck_IsIncluded(t *testing.T) {
 		})
 	}
 }
+
+func TestPrometheusScrapeChecksTransformer(t *testing.T) {
+	input := `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`
+	expected := []*PrometheusCheck{
+		{
+			Instances: []*OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
+			AD:        &ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &InclExcl{Incl: map[string]string{"custom_label": "true"}}},
+		},
+	}
+
+	value, _ := PrometheusScrapeChecksTransformer(input)
+	assert.EqualValues(t, value, expected)
+}

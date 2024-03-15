@@ -61,7 +61,7 @@ fi
 SERVERLESS_INTEGRATION_TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 cd "$SERVERLESS_INTEGRATION_TESTS_DIR/../../.."
-LAMBDA_EXTENSION_REPOSITORY_PATH="../datadog-lambda-extension"
+LAMBDA_EXTENSION_REPOSITORY_PATH="${LAMBDA_EXTENSION_REPOSITORY_PATH:-../datadog-lambda-extension}"
 if [ "$BUILD_EXTENSION" != "false" ]; then
     echo "Building extension"
 
@@ -84,21 +84,10 @@ cd $SERVERLESS_INTEGRATION_TESTS_DIR
 ./build_java_functions.sh
 ./build_csharp_functions.sh
 
-if [ -z "$NODE_LAYER_VERSION" ]; then
-    export NODE_LAYER_VERSION=$DEFAULT_NODE_LAYER_VERSION
-fi
-
-if [ -z "$PYTHON_LAYER_VERSION" ]; then
-    export PYTHON_LAYER_VERSION=$DEFAULT_PYTHON_LAYER_VERSION
-fi
-
-if [ -z "$JAVA_TRACE_LAYER_VERSION" ]; then
-    export JAVA_TRACE_LAYER_VERSION=$DEFAULT_JAVA_TRACE_LAYER_VERSION
-fi
-
-if [ -z "$DOTNET_TRACE_LAYER_VERSION" ]; then
-    export DOTNET_TRACE_LAYER_VERSION=$DEFAULT_DOTNET_TRACE_LAYER_VERSION
-fi
+export NODE_LAYER_VERSION=${NODE_LAYER_VERSION:-$DEFAULT_NODE_LAYER_VERSION}
+export PYTHON_LAYER_VERSION=${PYTHON_LAYER_VERSION:-$DEFAULT_PYTHON_LAYER_VERSION}
+export JAVA_TRACE_LAYER_VERSION=${JAVA_TRACE_LAYER_VERSION:-$DEFAULT_JAVA_TRACE_LAYER_VERSION}
+export DOTNET_TRACE_LAYER_VERSION=${DOTNET_TRACE_LAYER_VERSION:-$DEFAULT_DOTNET_TRACE_LAYER_VERSION}
 
 echo "Testing for $ARCHITECTURE architecture"
 
@@ -110,6 +99,9 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
 
+# Default to AWS Account 425362996713 because the workflow runs w/o sts:GetCallerIdentity permissions
+aws_account=$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null || echo '425362996713')
+
 function remove_stack() {
     echo "Removing stack"
     serverless remove --stage "${stage}"
@@ -117,16 +109,6 @@ function remove_stack() {
 
 # always remove the stack before exiting, no matter what
 trap remove_stack EXIT
-
-# a bug in opentelemetry instrumentation makes it impossible to define a
-# handler inside of a directory
-# see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
-cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
-
-# deploy the stack
-serverless deploy --stage "${stage}"
-
-rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
 
 metric_functions=(
     "metric-node"
@@ -171,6 +153,17 @@ appsec_functions=(
     "appsec-go"
     "appsec-csharp"
 )
+proxy_functions=(
+    "proxy-env-apikey"
+    "proxy-yaml-apikey"
+    "proxy-yaml-env-apikey"
+    "proxy-env-secret"
+    "proxy-yaml-secret"
+    "proxy-yaml-env-secret"
+    "proxy-env-kms"
+    "proxy-yaml-kms"
+    "proxy-yaml-env-kms"
+)
 
 declare -a all_functions # This is an array
 if [ $# == 1 ]; then
@@ -187,15 +180,87 @@ if [ $# == 1 ]; then
         appsec)
             all_functions=("${appsec_functions[@]}")
         ;;
+        proxy)
+            all_functions=("${proxy_functions[@]}")
+        ;;
         *)
-            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec)"
+            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec, proxy)"
             exit 1
         ;;
     esac
     echo "Selected test suite '$1' contains ${#all_functions[@]} functions..."
 else
-    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
+    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}" "${proxy_functions[@]}")
 fi
+
+# Set feature environment for the Serverless stack to avoid deploying useless stuff...
+export RUN_SUITE_METRIC=false
+export RUN_SUITE_TIMEOUT=false
+export RUN_SUITE_ERROR=false
+export RUN_SUITE_LOG=false
+export RUN_SUITE_TRACE=false
+export RUN_SUITE_OTLP=false
+export RUN_SUITE_APPSEC=false
+export RUN_SUITE_PROXY=false
+for function_name in "${all_functions[@]}"; do
+    case $function_name in
+    metric-*)
+        export RUN_SUITE_METRIC=true
+    ;;
+    timeout-*)
+        export RUN_SUITE_TIMEOUT=true
+    ;;
+    error-*)
+        export RUN_SUITE_ERROR=true
+    ;;
+    log-*)
+        export RUN_SUITE_LOG=true
+    ;;
+    trace-*)
+        export RUN_SUITE_TRACE=true
+    ;;
+    otlp-*)
+        export RUN_SUITE_OTLP=true
+    ;;
+    appsec-*)
+        export RUN_SUITE_APPSEC=true
+    ;;
+    proxy-*)
+        export RUN_SUITE_PROXY=true
+    ;;
+    *)
+        echo "⚠️ Un-mapped test function: ${function_name}, the necessary components may not be deployed!"
+        ;;
+    esac
+done
+
+# a bug in opentelemetry instrumentation makes it impossible to define a
+# handler inside of a directory
+# see https://github.com/open-telemetry/opentelemetry-lambda/issues/655
+cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
+
+# deploy the stack
+(cd ${SERVERLESS_INTEGRATION_TESTS_DIR}; npm install --no-save serverless-plugin-conditional-functions)
+serverless deploy --stage "${stage}"
+
+# deploy proxy functions with a different datadog.yaml
+if [ "$RUN_SUITE_PROXY" = true ]; then
+    echo "Updating datadog.yaml for proxy tests..."
+
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
+
+    for function_name in "${proxy_functions[@]}"; do
+        if [[ "$function_name" = *-yaml-* ]]; then
+            serverless deploy function --stage "${stage}" --function $function_name
+        fi
+    done
+
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml
+    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
+fi
+
+rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
@@ -236,12 +301,6 @@ for function_name in "${all_functions[@]}"; do
 done
 wait
 
-LOGS_WAIT_MINUTES=8
-END_OF_WAIT_TIME=$(node -p "new Date(Date.now() + ${LOGS_WAIT_MINUTES} * 60_000).toLocaleTimeString()")
-echo "Waiting $LOGS_WAIT_MINUTES minutes for logs to flush..."
-echo "This will be done around $END_OF_WAIT_TIME"
-sleep "$LOGS_WAIT_MINUTES"m
-
 failed_functions=()
 
 if [ -z $RAWLOGS_DIR ]; then
@@ -264,8 +323,8 @@ for function_name in "${all_functions[@]}"; do
             sleep 10
             continue
         fi
-        if [[ "${function_name}" = timeout-* ]]; then
-            echo "Ignoring Lambda report check count as this is a timeout example..."
+        if [[ "${function_name}" = timeout-* || "${function_name}" = proxy-* ]]; then
+            echo "Ignoring Lambda report check count as this is a timeout or proxy example..."
         else
             count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
             if [ $count -lt 2 ]; then
@@ -289,10 +348,12 @@ for function_name in "${all_functions[@]}"; do
         norm_type=logs
     elif [[ " ${appsec_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=appsec
-    else
+    elif [[ " ${trace_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=traces
+    elif [[ " ${proxy_functions[*]} " =~ " ${function_name} " ]]; then
+        norm_type=proxy
     fi
-    logs=$(python3 log_normalize.py --type $norm_type --logs "$raw_logs" --stage $stage)
+    logs=$(python3 log_normalize.py --accountid ${aws_account} --type $norm_type --logs "$raw_logs" --stage $stage)
 
     function_snapshot_path="./snapshots/${function_name}"
 

@@ -22,6 +22,8 @@ const (
 
 // IsProcessHostCgroupNamespace compares namespaceID with known, harcoded host PID Namespace inode
 // Keeps same signature as `IsProcessHostNetwork` as we may need to change implementation depending on Kernel evolution
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func IsProcessHostCgroupNamespace(procPath string, namespaceID uint64) *bool {
 	b := namespaceID == hostCgroupNamespaceInode
 	return &b

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package telemetry provides a way to collect metrics from eBPF programs.
 package telemetry
 
 import (
@@ -17,6 +18,7 @@ type deltaCalculator struct {
 	stateByClientID map[string]*clientState
 }
 
+// GetState returns the state for the given clientID.
 func (d *deltaCalculator) GetState(clientID string) *clientState {
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -52,6 +54,7 @@ type clientState struct {
 	lastSeen   time.Time
 }
 
+// ValueFor returns the delta between the current value of the metric and the previous one.
 func (c *clientState) ValueFor(m metric) int64 {
 	base := m.base()
 	if _, ok := m.(*Gauge); ok {

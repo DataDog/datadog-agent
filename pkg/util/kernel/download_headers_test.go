@@ -102,7 +102,7 @@ var targets = map[string]TargetSetup{
 	},
 }
 
-func setup(target types.Target, repos []string, dname string) error {
+func setup(_ types.Target, repos []string, dname string) error {
 	// Make source-list.d
 	sources := fmt.Sprintf(reposSourceDir, dname)
 	if err := os.MkdirAll(sources, 0744); err != nil {

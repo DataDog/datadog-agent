@@ -7,18 +7,20 @@
 package languagedetection
 
 import (
-	"github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	"github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: container-integrations
 
 // Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	client.Module,
-)
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		clientimpl.Module())
+}
 
 // MockBundle defines the fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	client.Module,
-)
+func MockBundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		clientimpl.Module())
+}

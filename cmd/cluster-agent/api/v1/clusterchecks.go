@@ -29,6 +29,7 @@ func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) 
 	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc))).Methods("GET")
 	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc))).Methods("POST")
 	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", getState(sc))).Methods("GET")
+	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", postIsolateCheck(sc))).Methods("POST")
 }
 
 // RebalancePostPayload struct is for the JSON messages received from a client POST request
@@ -121,6 +122,26 @@ func postRebalanceChecks(sc clusteragent.ServerContext) func(w http.ResponseWrit
 	}
 }
 
+// postIsolateCheck requests that a specified check be isolated in a runner
+func postIsolateCheck(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+	if sc.ClusterCheckHandler == nil {
+		return clusterChecksDisabledHandler
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
+			return
+		}
+
+		vars := mux.Vars(r)
+		isolateCheckID := vars["identifier"]
+
+		response := sc.ClusterCheckHandler.IsolateCheck(isolateCheckID)
+
+		writeJSONResponse(w, response)
+	}
+}
+
 // getState is used by the clustercheck config
 func getState(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
 	if sc.ClusterCheckHandler == nil {
@@ -156,6 +177,8 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}) {
 }
 
 // clusterChecksDisabledHandler returns a 404 response when cluster-checks are disabled
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func clusterChecksDisabledHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte("Cluster-checks are not enabled"))

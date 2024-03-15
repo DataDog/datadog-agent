@@ -1,0 +1,83 @@
+================
+Runtime Security
+================
+
+{{- if not .runtimeSecurityStatus}}
+  Not enabled
+{{- else}}
+  {{- with .runtimeSecurityStatus}}
+  {{ if .endpoints }}
+  {{- range $endpoint := .endpoints }}
+  {{ $endpoint }}
+  {{- end }}
+  {{- end }}
+  Connected: {{.connected}}
+  Events received: {{.eventReceived}}
+
+  Self Tests
+  ==========
+
+    Last execution: {{ .selfTests.LastTimestamp }}
+    {{ if .selfTests.Success }}
+    Succeeded:
+      {{- range $test := .selfTests.Success }}
+      - {{ $test }}
+      {{- end }}
+    {{- else }}
+    Succeeded: none
+    {{- end }}
+    {{ if .selfTests.Fails }}
+    Failed:
+      {{- range $test := .selfTests.Fails }}
+      - {{ $test }}
+      {{- end }}
+    {{- else }}
+    Failed: none
+    {{- end }}
+
+  Policies
+  ========
+    {{ range $policy := .policiesStatus }}
+      {{ $policy.name }}:
+        source: {{ $policy.source }}
+        rules:
+          {{- range $status := $policy.Status }}
+            - {{ $status.ID }}: {{ $status.Status }}{{- if $status.Error }} ({{- $status.Error }}){{- end }}
+          {{- end }}
+    {{ end }}
+
+  {{- with .environment }}
+
+  Environment
+  ===========
+    {{- if .warnings }}
+    Warnings:
+      {{- range $warning := .warnings }}
+      - {{ $warning }}
+      {{- end }}
+    {{- end }}
+    {{ if .kernelLockdown }}
+    Kernel lockdown: {{ .kernelLockdown }}
+    {{- end }}
+    {{- if .mmapableMaps }}
+    Use eBPF mmapable maps: {{ .mmapableMaps }}
+    {{- end }}
+    {{- if .ringBuffer }}
+    Use eBPF ring buffer: {{ .ringBuffer }}
+    {{- end }}
+    {{ if .constantFetchers }}
+    Available constant fetchers
+    ===========================
+      {{ range $fetcher := .constantFetchers.Fetchers }}
+      {{ $fetcher }}
+      {{- end }}
+
+    Constants
+    =========
+      {{ range $constant := .constantFetchers.Values }}
+      {{ $constant.ID }} = {{ $constant.Value }} (from {{ $constant.Source }})
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}

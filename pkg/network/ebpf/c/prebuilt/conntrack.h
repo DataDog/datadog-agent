@@ -29,10 +29,15 @@ offset_ct(status)
 offset_ct(netns)
 offset_ct(ino)
 
-static __always_inline u32 ct_status(const struct nf_conn *ct) {
-    u32 status = 0;
-    bpf_probe_read_kernel_with_telemetry(&status, sizeof(status), (char*)ct + offset_ct_status());
-    return status;
+#define RETURN_IF_NOT_NAT(orig, reply)                      \
+    if (!is_conn_nat(orig, reply)) {                        \
+        return 0;                                           \
+    }
+
+static __always_inline bool is_conn_nat(const conntrack_tuple_t* orig, const conntrack_tuple_t* reply) {
+    return orig->daddr_l != reply->saddr_l || orig->dport != reply->sport || 
+        orig->saddr_l != reply->daddr_l || orig->sport != reply->dport || 
+        orig->daddr_h != reply->saddr_h;
 }
 
 static __always_inline u32 get_netns(struct nf_conn *ct) {

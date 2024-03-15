@@ -396,14 +396,17 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetId() string {
 	return t.file.GetScanKey()
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetType() string {
 	return "file"
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
 }
