@@ -57,13 +57,16 @@ func newPerfBatchManager(batchMap *maps.GenericMap[uint32, netebpf.Batch], numCP
 		// batch entry with a CPU during startup. This information is used by
 		// the code that does the batch offset tracking.
 		b.Cpu = cpu
-		if err := batchMap.Put(&cpu, b); err != nil {
+		fmt.Errorf("adamk - cpu: %d", cpu)
+		fmt.Errorf("adamk - b.Cpu: %d", b.Cpu)
+		if err := batchMap.Put(&b.Cpu, b); err != nil {
 			return nil, fmt.Errorf("error initializing perf batch manager maps: %w", err)
 		}
 		state[cpu] = percpuState{
 			processed: make(map[uint64]batchState),
 		}
 	}
+	fmt.Errorf("adamk - finished setting up batch maps - state: %v", state)
 
 	return &perfBatchManager{
 		batchMap:             batchMap,
