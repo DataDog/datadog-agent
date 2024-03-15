@@ -285,6 +285,7 @@ func awsScanCmd(ctx context.Context, resourceID types.CloudID, targetName string
 		DefaultActions: actions,
 		DefaultRoles:   roles,
 		Statsd:         statsd,
+		EventForwarder: eventForwarder,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -320,6 +321,7 @@ func awsOfflineCmd(ctx context.Context, workers int, taskType types.TaskType, ac
 		DefaultActions: actions,
 		DefaultRoles:   roles,
 		Statsd:         statsd,
+		EventForwarder: eventForwarder,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)

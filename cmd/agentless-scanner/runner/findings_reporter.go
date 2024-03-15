@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -47,7 +49,7 @@ func newFindingsReporter() (*LogReporter, error) {
 	if err != nil {
 		endpoints, err = config.BuildHTTPEndpoints(coreconfig.Datadog, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, coreconfig.Datadog)
 			endpoints, err = config.BuildEndpoints(coreconfig.Datadog, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 		}
 	}
@@ -63,7 +65,7 @@ func newFindingsReporter() (*LogReporter, error) {
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext)
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agent.NewStatusProvider(), hostnameimpl.NewHostnameService(), coreconfig.Datadog)
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(

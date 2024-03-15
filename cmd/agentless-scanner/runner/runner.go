@@ -30,10 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,6 +61,7 @@ type Options struct {
 	DefaultRoles   types.RolesMapping
 	DefaultActions []types.ScanAction
 	Statsd         *ddogstatsd.Client
+	EventForwarder eventplatform.Component
 }
 
 type scanRecord struct {
@@ -72,7 +73,6 @@ type scanRecord struct {
 type Runner struct {
 	Options
 
-	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
 	rcClient         *client.Client
 
@@ -95,13 +95,15 @@ func New(opts Options) (*Runner, error) {
 	if opts.Statsd == nil {
 		panic("programmer error: missing Statsd option")
 	}
+	if opts.EventForwarder == nil {
+		panic("programmer error: missing EventForwarder option")
+	}
 	if opts.Workers == 0 {
 		panic("programmer error: Workers is 0")
 	}
 	if opts.ScannersMax == 0 {
 		panic("programmer error: ScannersMax is 0")
 	}
-	eventForwarder := epforwarder.NewEventPlatformForwarder()
 	findingsReporter, err := newFindingsReporter()
 	if err != nil {
 		return nil, err
@@ -110,7 +112,6 @@ func New(opts Options) (*Runner, error) {
 	return &Runner{
 		Options: opts,
 
-		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
 
 		runningScans: make(map[types.CloudID]*types.ScanTask),
@@ -168,7 +169,8 @@ func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 		return fmt.Errorf("could not init Remote Config: could not get IPC address: %w", err)
 	}
 
-	s.rcClient, err = client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(), security.FetchAuthToken,
+	s.rcClient, err = client.NewUnverifiedGRPCClient(ipcAddress, config.GetIPCPort(),
+		func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 		client.WithAgent("sidescanner", version.AgentVersion),
 		client.WithPollInterval(5*time.Second),
 	)
@@ -326,7 +328,12 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 	log.Infof("starting agentless-scanner main loop with %d scan workers", s.Workers)
 	defer log.Infof("stopped agentless-scanner main loop")
 
-	s.eventForwarder.Start()
+	eventPlatform, found := s.EventForwarder.Get()
+	if found {
+		eventPlatform.Start()
+	} else {
+		log.Info("not starting the event platform forwarder")
+	}
 
 	if s.rcClient != nil {
 		s.rcClient.Start()
@@ -344,7 +351,7 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 	doneCh := make(chan struct{})
 	go func() {
 		s.reportResults(s.resultsCh)
-		s.eventForwarder.Stop()
+		eventPlatform.Stop()
 		s.findingsReporter.Stop()
 		close(doneCh)
 	}()
@@ -660,8 +667,13 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 		return fmt.Errorf("unable to proto marhsal sbom: %w", err)
 	}
 
+	eventPlatform, found := s.EventForwarder.Get()
+	if !found {
+		return errors.New("event platform forwarder not initialized")
+	}
+
 	m := message.NewMessage(rawEvent, nil, "", 0)
-	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
+	return eventPlatform.SendEventPlatformEvent(m, eventplatform.EventTypeContainerSBOM)
 }
 
 func (s *Runner) sendFindings(findings []*types.ScanFinding) {

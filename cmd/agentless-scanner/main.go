@@ -30,6 +30,9 @@ import (
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -53,6 +56,7 @@ const (
 )
 
 var statsd *ddogstatsd.Client
+var eventForwarder eventplatform.Component
 
 var globalFlags struct {
 	configFilePath string
@@ -64,7 +68,8 @@ var globalFlags struct {
 func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		return fxutil.OneShot(
-			func(_ complog.Component, _ compconfig.Component) error {
+			func(_ complog.Component, _ compconfig.Component, evp eventplatform.Component) error {
+				eventForwarder = evp
 				return run(cmd, args)
 			},
 			fx.Supply(core.BundleParams{
@@ -73,6 +78,9 @@ func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd 
 				LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
 			}),
 			core.Bundle(),
+			eventplatformimpl.Module(),
+			fx.Supply(eventplatformimpl.NewDefaultParams()),
+			eventplatformreceiverimpl.Module(),
 		)
 	}
 }
@@ -210,6 +218,7 @@ func runCmd(provider types.CloudProvider, pidfilePath string, workers, scannersM
 		DefaultActions: defaultActions,
 		DefaultRoles:   getDefaultRolesMapping(provider),
 		Statsd:         statsd,
+		EventForwarder: eventForwarder,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
