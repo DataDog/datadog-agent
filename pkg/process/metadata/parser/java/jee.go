@@ -91,45 +91,49 @@ func extractContextRootFromApplicationXML(fs afero.Fs) ([]string, error) {
 }
 
 // resolveAppServerFromCmdLine parses the command line and tries to extract a couple of evidences for each known application server.
-// The first is the server home (usually defined by a system property) and the second is the main class / jar entry point.
-// It returns the serverVendor (unknown in case it cannot be determined with precision) and the domain path if applicable.
+// This function only return a serverVendor if both hints are matching the same vendor.
+// The first hint is about the server home that's typically different from vendor to vendor
+// The second hint is about the entry point (i.e. the main class name) that's bootstrapping the server
+// The reasons why we need both hints to match is that, in some cases the same jar may be used for admin operations (not to launch the server)
+// or the same property may be used for admin operation and not to launch the server (like happening for weblogic).
+// In case the vendor is matched, the server baseDir is also returned, otherwise the vendor unknown is returned
 func resolveAppServerFromCmdLine(args []string) (serverVendor, string) {
-	hint1, hint2 := unknown, unknown
+	serverHomeHint, entrypointHint := unknown, unknown
 	var baseDir string
 	for _, a := range args {
-		if hint1 == unknown {
+		if serverHomeHint == unknown {
 			if strings.HasPrefix(a, wlsHomeSysProp) {
 				// use the CWD for weblogic since the wlsHome is the home of the weblogic installation and not of the domain
-				hint1 = weblogic
+				serverHomeHint = weblogic
 			} else if strings.HasPrefix(a, tomcatSysProp) {
-				hint1 = tomcat
+				serverHomeHint = tomcat
 				baseDir = strings.TrimPrefix(a, tomcatSysProp)
 			} else if strings.HasPrefix(a, jbossSysProp) {
-				hint1 = jboss
+				serverHomeHint = jboss
 				baseDir = strings.TrimPrefix(a, jbossSysProp)
 			} else if strings.HasPrefix(a, websphereHomeSysProp) {
-				hint1 = websphere
+				serverHomeHint = websphere
 				baseDir = strings.TrimPrefix(a, websphereHomeSysProp)
 			}
 		}
-		if hint2 == unknown {
+		if entrypointHint == unknown {
 			// only return a match if it's exact meaning that the hint and the evidence are matching the same server type.
 			switch a {
 			case wlsServerMainClass:
-				hint2 = weblogic
+				entrypointHint = weblogic
 			case tomcatMainClass:
-				hint2 = tomcat
+				entrypointHint = tomcat
 			case websphereMainClass:
-				hint2 = websphere
+				entrypointHint = websphere
 			case jbossDomainMain, jbossStandaloneMain:
-				hint2 = jboss
+				entrypointHint = jboss
 			}
 		}
-		if hint1 != unknown && hint2 != unknown {
+		if serverHomeHint&entrypointHint != unknown {
 			break
 		}
 	}
-	return hint1 & hint2, baseDir
+	return serverHomeHint & entrypointHint, baseDir
 }
 
 // standardExtractContextFromWarName is the standard algorithm to deduce context root from war name.
