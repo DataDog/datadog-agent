@@ -14,7 +14,6 @@ import (
 
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func (cs *configSync) runWithInterval(refreshInterval time.Duration) {
@@ -53,7 +52,6 @@ func (cs *configSync) runWithChan(ch <-chan time.Time) {
 			for key, value := range cfg {
 				if updateConfig(cs.Config, key, value) {
 					cs.Log.Debugf("Updating config key %s from core agent", key)
-					pkgconfigsetup.Datadog.Set(key, value, pkgconfigmodel.SourceLocalConfigProcess)
 				}
 			}
 		}
