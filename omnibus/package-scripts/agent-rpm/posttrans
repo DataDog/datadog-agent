@@ -137,7 +137,7 @@ if [ ! -f "$CONFIG_DIR/install.json" ]; then
     install_type="linux_manual_with_rpm"
     install_time=$(date +%s)
     install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
-    sh -c "echo '$install_signature' > $CONFIG_DIR/install.json"
+    echo "$install_signature" > $CONFIG_DIR/install.json
     chown -R dd-agent:dd-agent ${CONFIG_DIR}
 fi
 set -e
