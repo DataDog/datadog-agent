@@ -175,9 +175,11 @@ func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.Pr
 func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[key]
 	if prev != nil {
+		prev.Exec(entry)
+		entry.PPid = prev.PPid
+
 		// inheritate credentials as exec event, uid/gid can be update by setuid/setgid events
 		entry.Credentials = prev.Credentials
-		prev.Exec(entry)
 	}
 
 	p.insertEntry(key, entry, prev)

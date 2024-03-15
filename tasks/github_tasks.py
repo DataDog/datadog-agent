@@ -163,7 +163,7 @@ def get_milestone_id(_, milestone):
     # dependencies, and we don't want to propagate it to files importing this one
     from libs.common.github_api import GithubAPI
 
-    gh = GithubAPI('DataDog/datadog-agent')
+    gh = GithubAPI()
     m = gh.get_milestone_by_name(milestone)
     if not m:
         raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
@@ -174,7 +174,7 @@ def get_milestone_id(_, milestone):
 def send_rate_limit_info_datadog(_, pipeline_id):
     from .libs.common.github_api import GithubAPI
 
-    gh = GithubAPI('DataDog/datadog-agent')
+    gh = GithubAPI()
     rate_limit_info = gh.get_rate_limit_info()
     print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
     metric = create_count(
