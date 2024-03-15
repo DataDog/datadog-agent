@@ -241,7 +241,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.config", "/injectconfig", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -264,7 +264,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.config", "/injectconfig", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -283,7 +283,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -306,7 +306,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -325,7 +325,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.auto.instrumentation", "/injectlib", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.lib.injection", "/injectlib", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -348,7 +348,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhook := webhook("datadog.webhook.auto.instrumentation", "/injectlib", &metav1.LabelSelector{
+				webhook := webhook("datadog.webhook.lib.injection", "/injectlib", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -366,12 +366,12 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhookConfig := webhook("datadog.webhook.config", "/injectconfig", &metav1.LabelSelector{
+				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
 				}, nil, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
-				webhookTags := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -390,7 +390,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
-				webhookConfig := webhook("datadog.webhook.config", "/injectconfig", &metav1.LabelSelector{
+				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -399,7 +399,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 						},
 					},
 				}, nil, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
-				webhookTags := webhook("datadog.webhook.tags", "/injecttags", &metav1.LabelSelector{
+				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
 							Key:      "admission.datadoghq.com/enabled",
@@ -423,12 +423,12 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
 			want: func() []admiv1.MutatingWebhook {
-				webhookConfig := webhook("datadog.webhook.config", "/injectconfig", nil, &metav1.LabelSelector{
+				webhookConfig := webhook("datadog.webhook.agent.config", "/injectconfig", nil, &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
 				}, []admiv1.OperationType{admiv1.Create}, []string{"pods"})
-				webhookTags := webhook("datadog.webhook.tags", "/injecttags", nil, &metav1.LabelSelector{
+				webhookTags := webhook("datadog.webhook.standard.tags", "/injecttags", nil, &metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"admission.datadoghq.com/enabled": "true",
 					},
@@ -450,7 +450,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1.MutatingWebhook {
 				webhook := webhook(
-					"datadog.webhook.config",
+					"datadog.webhook.agent.config",
 					"/injectconfig",
 					&metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -498,7 +498,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			configFunc: func() Config { return NewConfig(false, true) },
 			want: func() []admiv1.MutatingWebhook {
 				webhook := webhook(
-					"datadog.webhook.config",
+					"datadog.webhook.agent.config",
 					"/injectconfig",
 					nil,
 					&metav1.LabelSelector{
@@ -560,7 +560,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]string{"pods"},
 				)
 				execWebhook := webhook(
-					"datadog.webhook.cws.command.instrumentation",
+					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
 					nil,
@@ -596,7 +596,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]string{"pods"},
 				)
 				execWebhook := webhook(
-					"datadog.webhook.cws.command.instrumentation",
+					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
 					nil,
@@ -636,7 +636,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]string{"pods"},
 				)
 				execWebhook := webhook(
-					"datadog.webhook.cws.command.instrumentation",
+					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
 					nil,
@@ -672,7 +672,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 					[]string{"pods"},
 				)
 				execWebhook := webhook(
-					"datadog.webhook.cws.command.instrumentation",
+					"datadog.webhook.cws.exec.instrumentation",
 					"/inject-command-cws",
 					nil,
 					nil,
