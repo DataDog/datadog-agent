@@ -12,10 +12,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func Test_makeFlare(t *testing.T) {
@@ -46,6 +50,8 @@ func Test_makeFlare(t *testing.T) {
 		},
 	}
 
+	fakeGuiStartTimestamp := time.Now().Unix()
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, err := http.NewRequest("POST", "/flare", strings.NewReader(tt.payload))
@@ -54,7 +60,7 @@ func Test_makeFlare(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := mux.NewRouter()
-			agentHandler(router, nil, nil)
+			agentHandler(router, nil, nil, nil, fakeGuiStartTimestamp)
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()
@@ -83,6 +89,12 @@ func Test_getConfigSetting(t *testing.T) {
 		},
 	}
 
+	fakeGuiStartTimestamp := time.Now().Unix()
+
+	config := fxutil.Test[config.Component](t,
+		config.MockModule(),
+	)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := fmt.Sprintf("/getConfig/%s", tt.configSetting)
@@ -92,7 +104,7 @@ func Test_getConfigSetting(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := mux.NewRouter()
-			agentHandler(router, nil, nil)
+			agentHandler(router, nil, nil, config, fakeGuiStartTimestamp)
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()
