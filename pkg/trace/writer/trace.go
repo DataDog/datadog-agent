@@ -6,12 +6,13 @@
 package writer
 
 import (
-	"compress/gzip"
 	"errors"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/zstd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -69,7 +70,7 @@ type TraceWriter struct {
 	senders      []*sender
 	stop         chan struct{}
 	stats        *info.TraceWriterInfo
-	wg           sync.WaitGroup // waits for gzippers
+	wg           sync.WaitGroup // waits for compressors
 	tick         time.Duration  // flush frequency
 	agentVersion string
 
@@ -284,22 +285,16 @@ func (w *TraceWriter) serializer() {
 			w.stats.BytesUncompressed.Add(int64(len(b)))
 			p := newPayload(map[string]string{
 				"Content-Type":     "application/x-protobuf",
-				"Content-Encoding": "gzip",
+				"Content-Encoding": "zstd",
 				headerLanguages:    strings.Join(info.Languages(), "|"),
 			})
 			p.body.Grow(len(b) / 2)
-			gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
-			if err != nil {
-				// it will never happen, unless an invalid compression is chosen;
-				// we know gzip.BestSpeed is valid.
-				log.Errorf("gzip.NewWriterLevel: %d", err)
-				return
+			zstdw := zstd.NewWriterLevel(p.body, zstd.BestSpeed)
+			if _, err := zstdw.Write(b); err != nil {
+				log.Errorf("Error zstd compressing trace payload: %v", err)
 			}
-			if _, err := gzipw.Write(b); err != nil {
-				log.Errorf("Error gzipping trace payload: %v", err)
-			}
-			if err := gzipw.Close(); err != nil {
-				log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+			if err := zstdw.Close(); err != nil {
+				log.Errorf("Error closing zstd stream when writing trace payload: %v", err)
 			}
 			sendPayloads(w.senders, p, w.syncMode)
 		}()
