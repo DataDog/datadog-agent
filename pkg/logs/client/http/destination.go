@@ -66,6 +66,7 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
+	isHA                bool
 
 	// Concurrency
 	climit chan struct{} // semaphore for limiting concurrent background sends
@@ -150,6 +151,7 @@ func newDestination(endpoint config.Endpoint,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
+		isHA:                endpoint.IsHA,
 	}
 }
 
@@ -161,6 +163,16 @@ func errorToTag(err error) string {
 	} else {
 		return "non-retryable"
 	}
+}
+
+// IsHA indicates that this destination is a High Availability destination.
+func (d *Destination) IsHA() bool {
+	return d.isHA
+}
+
+// Target is the address of the destination.
+func (d *Destination) Target() string {
+	return d.url
 }
 
 // Start starts reading the input channel

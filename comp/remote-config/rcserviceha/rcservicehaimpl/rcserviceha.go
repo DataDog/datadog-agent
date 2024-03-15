@@ -9,6 +9,7 @@ package rcservicehaimpl
 import (
 	"context"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
@@ -62,7 +63,10 @@ func newHaRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservi
 // newHaRemoteConfigServiceOptional creates and configures a new service that receives remote config updates from the configured DD failover DC
 func newHaRemoteConfigService(deps dependencies) (rcserviceha.Component, error) {
 	apiKey := configUtils.SanitizeAPIKey(deps.Cfg.GetString("ha.api_key"))
-	baseRawURL := configUtils.GetHAEndpoint(deps.Cfg, "https://config.", "ha.rc_dd_url")
+	baseRawURL, err := configUtils.GetHAEndpoint(deps.Cfg, "https://config.", "ha.rc_dd_url")
+	if err != nil {
+		return nil, fmt.Errorf("unable to get HA remote config endpoint: %s", err)
+	}
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
 	configuredTags := configUtils.GetConfiguredTags(deps.Cfg, false)
 	options := []remoteconfig.Option{

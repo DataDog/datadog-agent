@@ -37,6 +37,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
+const (
+	maxMessageSize = 256 * 1024
+)
+
 type client struct {
 	conn             net.Conn
 	probe            *EBPFLessProbe
@@ -333,7 +337,7 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 	}
 
 	size := native.Endian.Uint32(sizeBuf)
-	if size > 64*1024 {
+	if size > maxMessageSize {
 		return fmt.Errorf("data overflow the max size: %d", size)
 	}
 
