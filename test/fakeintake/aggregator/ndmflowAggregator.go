@@ -10,53 +10,15 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 // NDMFlow represents an ndmflow payload
 type NDMFlow struct {
 	collectedTime time.Time
-	//JMW from ~/dd/datadog-agent/comp/netflow/payload/payload.go::FlowPayload
-	FlushTimestamp int64  `json:"flush_timestamp"`
-	FlowType       string `json:"type"`
-	SamplingRate   uint64 `json:"sampling_rate"`
-	Direction      string `json:"direction"`
-	Start          uint64 `json:"start"` // in seconds
-	End            uint64 `json:"end"`   // in seconds
-	Bytes          uint64 `json:"bytes"`
-	Packets        uint64 `json:"packets"`
-	EtherType      string `json:"ether_type,omitempty"`
-	IPProtocol     string `json:"ip_protocol"`
-	/*JMW
-	Device           Device           `json:"device"`
-	Exporter         Exporter         `json:"exporter"`
-	Source           Endpoint         `json:"source"`
-	Destination      Endpoint         `json:"destination"`
-	Ingress          ObservationPoint `json:"ingress"`
-	Egress           ObservationPoint `json:"egress"`
-	*/
-	Host     string   `json:"host"`
-	TCPFlags []string `json:"tcp_flags,omitempty"`
-	/*JMW
-	NextHop          NextHop          `json:"next_hop,omitempty"`
-	AdditionalFields AdditionalFields `json:"additional_fields,omitempty"`
-	*/
+	payload.FlowPayload
 }
-
-/*JMW
-func (t *tags) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
-	}
-	*t = tags(strings.Split(s, ","))
-	return nil
-}
-
-func (t tags) MarshalJSON() ([]byte, error) {
-	return json.Marshal(strings.Join(t, ","))
-}
-*/
 
 func (p *NDMFlow) name() string {
 	return "ndmflow"
@@ -91,7 +53,6 @@ func ParseNDMFlowPayload(payload api.Payload) (ndmflows []*NDMFlow, err error) {
 		n.collectedTime = payload.Timestamp
 	}
 	return ndmflows, err
-
 }
 
 // NDMFlowAggregator is an Aggregator for ndmflow payloads
