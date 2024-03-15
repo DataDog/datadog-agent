@@ -42,8 +42,18 @@ func TestCreditCards(t *testing.T) {
 		version api.Version
 	}{
 		{
-			conf:    []byte(""),
+			conf: []byte(`
+apm_config:
+  env: my-env
+  obfuscation:
+    credit_cards:
+      enabled: false`),
 			out:     "4166 6766 6766 6746",
+			version: "v0.4",
+		},
+		{
+			conf:    []byte(``),
+			out:     "?",
 			version: "v0.4",
 		},
 		{
@@ -52,13 +62,13 @@ apm_config:
   env: my-env
   obfuscation:
     credit_cards:
-      enabled: true`),
-			out:     "?",
-			version: "v0.4",
+      enabled: false`),
+			out:     "4166 6766 6766 6746",
+			version: "v0.5",
 		},
 		{
-			conf:    []byte(""),
-			out:     "4166 6766 6766 6746",
+			conf:    []byte(``),
+			out:     "?",
 			version: "v0.5",
 		},
 		{
@@ -67,22 +77,12 @@ apm_config:
   env: my-env
   obfuscation:
     credit_cards:
-      enabled: true`),
-			out:     "?",
-			version: "v0.5",
-		},
-		{
-			conf:    []byte(""),
+      enabled: false`),
 			out:     "4166 6766 6766 6746",
 			version: "v0.7",
 		},
 		{
-			conf: []byte(`
-apm_config:
-  env: my-env
-  obfuscation:
-    credit_cards:
-      enabled: true`),
+			conf:    []byte(``),
 			out:     "?",
 			version: "v0.7",
 		},
@@ -99,7 +99,7 @@ apm_config:
 			}
 			waitForTrace(t, &r, func(v *pb.AgentPayload) {
 				payloadsEqual(t, traces, v)
-				assert.Equal(t, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"], tt.out)
+				assert.Equal(t, tt.out, v.TracerPayloads[0].Chunks[0].Spans[0].Meta["credit_card_number"])
 			})
 		})
 	}
