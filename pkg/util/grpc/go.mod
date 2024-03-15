@@ -21,7 +21,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect

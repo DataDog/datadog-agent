@@ -5,7 +5,7 @@ go 1.21.8
 require (
 	github.com/favadi/protoc-go-inject-tag v1.4.0
 	github.com/golang/mock v1.5.0
-	github.com/golang/protobuf v1.5.2
+	github.com/golang/protobuf v1.5.4
 	github.com/grpc-ecosystem/grpc-gateway v1.12.2
 	github.com/planetscale/vtprotobuf v0.4.0
 	github.com/tinylib/msgp v1.1.6
