@@ -293,7 +293,7 @@ func (tx *EbpfTx) SetRequestMethod(_ http.Method) {
 
 // StaticTags returns the static tags of the transaction.
 func (tx *EbpfTx) StaticTags() uint64 {
-	return 0
+	return uint64(tx.Stream.Tags)
 }
 
 // DynamicTags returns the dynamic tags of the transaction.

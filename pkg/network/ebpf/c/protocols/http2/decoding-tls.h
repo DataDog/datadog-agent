@@ -639,11 +639,6 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         return 0;
     }
 
-    // If we have a state and we consumed it, then delete it.
-    if (frame_state != NULL && frame_state->remainder == 0) {
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
-    }
-
     check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame);
     bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
@@ -820,6 +815,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
+        current_stream->tags |= args->tags;
         tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
     }
 
@@ -1015,6 +1011,8 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
         return 0;
     }
 
+    bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
+
     terminated_http2_batch_enqueue(&args->tup);
     // Deleting the entry for the original tuple.
     bpf_map_delete_elem(&http2_remainder, &args->tup);
@@ -1024,8 +1022,6 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     flip_tuple(&args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
     bpf_map_delete_elem(&http2_remainder, &args->tup);
-
-    bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
     return 0;
 }

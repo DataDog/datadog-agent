@@ -15,7 +15,7 @@ const (
 	// MaxArgEnvSize maximum size of one argument or environment variable
 	MaxArgEnvSize = 256
 	// MaxArgsEnvsSize maximum number of args and/or envs
-	MaxArgsEnvsSize = 128
+	MaxArgsEnvsSize = 256
 )
 
 // ArgsEnvs raw value for args and envs

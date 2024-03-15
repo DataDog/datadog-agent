@@ -113,7 +113,9 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
-	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+
+	haEnabled := coreConfig.GetBool("ha.enabled")
+	if logsConfig.isForceHTTPUse() || logsConfig.obsPipelineWorkerEnabled() || haEnabled || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -273,6 +275,40 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *
 			additionals[i].Protocol = intakeProtocol
 			additionals[i].Origin = intakeOrigin
 		}
+	}
+
+	// Add in the HAMR endpoint if HA is enabled.
+	if coreConfig.GetBool("ha.enabled") {
+		haURL, err := pkgconfigutils.GetHAEndpoint(coreConfig, endpointPrefix, "ha.dd_url")
+		if err != nil {
+			return nil, fmt.Errorf("cannot construct HA endpoint: %s", err)
+		}
+
+		haHost, haPort, haUseSSL, err := parseAddressWithScheme(haURL, defaultNoSSL, parseAddressAsHost)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %s: %v", haURL, err)
+		}
+
+		// HA endpoint is always reliable
+		additionals = append(additionals, Endpoint{
+			IsHA:             true,
+			IsReliable:       pointer.Ptr(true),
+			APIKey:           coreConfig.GetString("ha.api_key"),
+			Host:             haHost,
+			Port:             haPort,
+			UseSSL:           pointer.Ptr(haUseSSL),
+			UseCompression:   main.UseCompression,
+			CompressionLevel: main.CompressionLevel,
+			BackoffBase:      main.BackoffBase,
+			BackoffMax:       main.BackoffMax,
+			BackoffFactor:    main.BackoffFactor,
+			RecoveryInterval: main.RecoveryInterval,
+			RecoveryReset:    main.RecoveryReset,
+			Version:          main.Version,
+			TrackType:        intakeTrackType,
+			Protocol:         intakeProtocol,
+			Origin:           intakeOrigin,
+		})
 	}
 
 	batchWait := logsConfig.batchWait()

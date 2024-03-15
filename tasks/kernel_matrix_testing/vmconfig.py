@@ -1,35 +1,15 @@
-from __future__ import annotations
-
 import copy
 import itertools
 import json
 import os
 import platform
-from typing import TYPE_CHECKING, Any, List, Optional, Set, Union, cast
 from urllib.parse import urlparse
 
-from invoke.context import Context
-
+from tasks.kernel_matrix_testing.download import arch_mapping, get_vmconfig_file, platforms_file
+from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.platforms import get_platforms
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
+from tasks.kernel_matrix_testing.stacks import create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
-from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping
-
-if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import (  # noqa: F401
-        Arch,
-        ArchOrLocal,
-        CustomKernel,
-        DistroKernel,
-        Kernel,
-        PathOrStr,
-        Platforms,
-        Recipe,
-        VMConfig,
-        VMDef,
-        VMSetDict,
-    )
 
 local_arch = "local"
 
@@ -132,26 +112,13 @@ table = [
 ]
 
 
-def get_vmconfig_template_file(template="system-probe"):
-    return f"test/new-e2e/system-probe/config/vmconfig-{template}.json"
-
-
-def get_vmconfig(file: PathOrStr) -> VMConfig:
-    with open(file) as f:
-        return cast(VMConfig, json.load(f))
-
-
-def get_vmconfig_template(template="system-probe") -> VMConfig:
-    return get_vmconfig(get_vmconfig_template_file(template))
-
-
-def lte_414(version: str) -> bool:
+def lte_414(version):
     major, minor = version.split('.')
     return (int(major) <= 4) and (int(minor) <= 14)
 
 
-def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
-    custom_kernels: List[List[str]] = list()
+def get_image_list(distro, custom):
+    custom_kernels = list()
     for k in kernels:
         if lte_414(k):
             custom_kernels.append([f"custom kernel v{k}", TICK, CROSS])
@@ -160,15 +127,13 @@ def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
 
     if (not (distro or custom)) or (distro and custom):
         return table + custom_kernels
-    elif distro:
+    if distro:
         return table
-    elif custom:
+    if custom:
         return custom_kernels
-    else:
-        return []
 
 
-def check_memory_and_vcpus(memory: List[Any], vcpus: List[Any]):
+def check_memory_and_vcpus(memory, vcpus):
     for mem in memory:
         if not mem.isnumeric() or int(mem) == 0:
             raise Exit(f"Invalid values for memory provided {memory}")
@@ -178,18 +143,18 @@ def check_memory_and_vcpus(memory: List[Any], vcpus: List[Any]):
             raise Exit(f"Invalid values for vcpu provided {v}")
 
 
-def empty_config(file_path: str):
+def empty_config(file_path):
     j = json.dumps({"vmsets": []}, indent=4)
     with open(file_path, 'w') as f:
         f.write(j)
 
 
-def list_possible() -> List[str]:
+def list_possible():
     distros = list(distributions.keys())
     archs = list(arch_mapping.keys())
     archs.append(local_arch)
 
-    result: List[str] = list()
+    result = list()
     possible = list(itertools.product(["custom"], kernels, archs)) + list(itertools.product(["distro"], distros, archs))
     for p in possible:
         result.append(f"{p[0]}-{p[1]}-{p[2]}")
@@ -204,15 +169,9 @@ def list_possible() -> List[str]:
 # arch: [x86_64, amd64]
 # Each normalized_vm_def output corresponds to each VM
 # requested by the user
-def normalize_vm_def(possible: List[str], vm: str) -> VMDef:
-    if process is None or fuzz is None:
-        raise Exit("thefuzz module is not installed, please install it to continue")
-
+def normalize_vm_def(possible, vm):
     # attempt to fuzzy match user provided vm-def with the possible list.
-    res = process.extractOne(vm, possible, scorer=fuzz.token_sort_ratio)
-    if res is None:
-        raise Exit(f"Unable to find a match for {vm}")
-    vm_def = cast(str, res[0])
+    vm_def, _ = process.extractOne(vm, possible, scorer=fuzz.token_sort_ratio)
     recipe, version, arch = vm_def.split('-')
 
     if arch != local_arch:
@@ -220,13 +179,11 @@ def normalize_vm_def(possible: List[str], vm: str) -> VMDef:
 
     if recipe == "distro":
         version = distributions[version]
-    elif recipe != "custom":
-        raise Exit(f"Invalid recipe {recipe}")
 
     return recipe, version, arch
 
 
-def get_custom_kernel_config(version: str, arch: ArchOrLocal) -> CustomKernel:
+def get_custom_kernel_config(version, arch):
     if arch == local_arch:
         arch = arch_mapping[platform.machine()]
 
@@ -249,7 +206,7 @@ def get_custom_kernel_config(version: str, arch: ArchOrLocal) -> CustomKernel:
     }
 
 
-def xz_suffix_removed(path: str):
+def xz_suffix_removed(path):
     if path.endswith(".xz"):
         return path[: -len(".xz")]
 
@@ -260,9 +217,7 @@ def xz_suffix_removed(path: str):
 # unique kernel or distribution from the normalized vm-def.
 # For more details on the generated configuration element, refer
 # to the micro-vms scenario in test-infra-definitions
-def get_kernel_config(
-    platforms: Platforms, recipe: Recipe, version: str, arch: ArchOrLocal
-) -> Union[DistroKernel, CustomKernel]:
+def get_kernel_config(platforms, recipe, version, arch):
     if recipe == "custom":
         return get_custom_kernel_config(version, arch)
 
@@ -276,18 +231,18 @@ def get_kernel_config(
     return {"tag": version, "image_source": os.path.join(url_base, kernel_path), "dir": kernel_name}
 
 
-def vmset_exists(vm_config: VMConfig, tags: Set[str]) -> bool:
+def vmset_exists(vm_config, tags):
     vmsets = vm_config["vmsets"]
 
     for vmset in vmsets:
-        if set(vmset.get("tags", [])) == tags:
+        if set(vmset["tags"]) == tags:
             return True
 
     return False
 
 
-def kernel_in_vmset(vmset: VMSetDict, kernel: Kernel) -> bool:
-    vmset_kernels = vmset.get("kernels", [])
+def kernel_in_vmset(vmset, kernel):
+    vmset_kernels = vmset["kernels"]
     for k in vmset_kernels:
         if k["tag"] == kernel["tag"]:
             return True
@@ -295,11 +250,11 @@ def kernel_in_vmset(vmset: VMSetDict, kernel: Kernel) -> bool:
     return False
 
 
-def vmset_name(arch: ArchOrLocal, recipe: Recipe) -> str:
+def vmset_name(arch, recipe):
     return f"{recipe}_{arch}"
 
 
-def add_custom_vmset(vmset: 'VMSet', vm_config: VMConfig):
+def add_custom_vmset(vmset, vm_config):
     arch = vmset.arch
     if arch == local_arch:
         arch = arch_mapping[platform.machine()]
@@ -317,55 +272,58 @@ def add_custom_vmset(vmset: 'VMSet', vm_config: VMConfig):
     if vmset_exists(vm_config, vmset.tags):
         return
 
-    new_set = VMSetDict(
-        tags=list(vmset.tags),
-        recipe=f"{vmset.recipe}-{vmset.arch}",
-        arch=vmset.arch,
-        kernels=list(),
-        image={
+    new_set = {
+        "tags": list(vmset.tags),
+        "recipe": f"{vmset.recipe}-{vmset.arch}",
+        "arch": vmset.arch,
+        "kernels": list(),
+        "image": {
             "image_path": image_path,
             "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
         },
-    )
+    }
 
     vm_config["vmsets"].append(new_set)
 
 
-def add_vmset(vmset: 'VMSet', vm_config: VMConfig):
+def add_vmset(vmset, vm_config):
     if vmset_exists(vm_config, vmset.tags):
         return
 
     if vmset.recipe == "custom":
         return add_custom_vmset(vmset, vm_config)
 
-    new_set = VMSetDict(tags=list(vmset.tags), recipe=vmset.recipe, arch=vmset.arch, kernels=list())
+    new_set = {
+        "tags": list(vmset.tags),
+        "recipe": f"{vmset.recipe}-{vmset.arch}",
+        "arch": vmset.arch,
+        "kernels": list(),
+    }
 
     vm_config["vmsets"].append(new_set)
 
 
-def add_kernel(vm_config: VMConfig, kernel: Kernel, tags: Set[str]):
+def add_kernel(vm_config, kernel, tags):
     for vmset in vm_config["vmsets"]:
-        if set(vmset.get("tags", [])) != tags:
+        if set(vmset["tags"]) != tags:
             continue
 
         if not kernel_in_vmset(vmset, kernel):
-            if "kernels" not in vmset:
-                vmset["kernels"] = list()
             vmset["kernels"].append(kernel)
             return
 
     raise Exit(f"Unable to find vmset with tags {tags}")
 
 
-def add_vcpu(vmset: VMSetDict, vcpu: List[int]):
+def add_vcpu(vmset, vcpu):
     vmset["vcpu"] = vcpu
 
 
-def add_memory(vmset: VMSetDict, memory: List[int]):
+def add_memory(vmset, memory):
     vmset["memory"] = memory
 
 
-def template_name(arch: ArchOrLocal, recipe: str) -> str:
+def template_name(arch, recipe):
     if arch == local_arch:
         arch = arch_mapping[platform.machine()]
 
@@ -373,10 +331,10 @@ def template_name(arch: ArchOrLocal, recipe: str) -> str:
     return f"{recipe_without_arch}_{arch}"
 
 
-def add_machine_type(vmconfig_template: VMConfig, vmset: VMSetDict):
-    tname = template_name(vmset.get("arch", 'local'), vmset.get("recipe", ""))
+def add_machine_type(vmconfig_template, vmset):
+    tname = template_name(vmset["arch"], vmset["recipe"])
     for template in vmconfig_template["vmsets"]:
-        if tname not in template.get("tags", []):
+        if tname not in template["tags"]:
             continue
 
         if "machine" not in template:
@@ -385,19 +343,19 @@ def add_machine_type(vmconfig_template: VMConfig, vmset: VMSetDict):
         vmset["machine"] = template["machine"]
 
 
-def add_disks(vmconfig_template: VMConfig, vmset: VMSetDict):
-    tname = template_name(vmset.get("arch", 'local'), vmset.get("recipe", ""))
+def add_disks(vmconfig_template, vmset):
+    tname = template_name(vmset["arch"], vmset["recipe"])
 
     for template in vmconfig_template["vmsets"]:
-        if tname in template.get("tags", []):
-            vmset["disks"] = copy.deepcopy(template.get("disks", []))
+        if tname in template["tags"]:
+            vmset["disks"] = copy.deepcopy(template["disks"])
 
 
-def add_console(vmset: VMSetDict):
+def add_console(vmset):
     vmset["console_type"] = "file"
 
 
-def url_to_fspath(url: str) -> str:
+def url_to_fspath(url):
     source = urlparse(url)
     filename = os.path.basename(source.path)
     filename = xz_suffix_removed(os.path.basename(source.path))
@@ -405,23 +363,21 @@ def url_to_fspath(url: str) -> str:
     return f"file://{os.path.join(get_kmt_os().rootfs_dir,filename)}"
 
 
-def image_source_to_path(vmset: VMSetDict):
-    if vmset.get("recipe") == f"custom-{vmset.get('arch')}":
-        if "image" not in vmset:
-            raise Exit("image not found in vmset")
-
+def image_source_to_path(vmset):
+    if vmset["recipe"] == f"custom-{vmset['arch']}":
         vmset["image"]["image_source"] = url_to_fspath(vmset["image"]["image_source"])
         return
 
-    for kernel in cast(List[DistroKernel], vmset.get("kernels", [])):
+    for kernel in vmset["kernels"]:
         kernel["image_source"] = url_to_fspath(kernel["image_source"])
 
-    for disk in vmset.get("disks", []):
-        disk["source"] = url_to_fspath(disk["source"])
+    if "disks" in vmset:
+        for disk in vmset["disks"]:
+            disk["source"] = url_to_fspath(disk["source"])
 
 
 class VM:
-    def __init__(self, version: str):
+    def __init__(self, version):
         self.version = version
 
     def __repr__(self):
@@ -429,16 +385,13 @@ class VM:
 
 
 class VMSet:
-    def __init__(self, arch: ArchOrLocal, recipe: Recipe, tags: Set[str]):
-        self.arch: ArchOrLocal = arch
-        self.recipe: Recipe = recipe
-        self.tags: Set[str] = tags
-        self.vms: List[VM] = list()
+    def __init__(self, arch, recipe, tags):
+        self.arch = arch
+        self.recipe = recipe
+        self.tags = tags
+        self.vms = list()
 
-    def __eq__(self, other: Any):
-        if not isinstance(other, VMSet):
-            return False
-
+    def __eq__(self, other):
         for tag in self.tags:
             if tag not in other.tags:
                 return False
@@ -453,7 +406,7 @@ class VMSet:
             vm_str.append(vm.version)
         return f"<VMSet> tags={'-'.join(self.tags)} arch={self.arch} vms={','.join(vm_str)}"
 
-    def add_vm_if_belongs(self, recipe: Recipe, version: str, arch: ArchOrLocal):
+    def add_vm_if_belongs(self, recipe, version, arch):
         if recipe == "custom":
             expected_tag = custom_version_prefix(version)
             found = False
@@ -468,12 +421,12 @@ class VMSet:
             self.vms.append(VM(version))
 
 
-def custom_version_prefix(version: str) -> str:
+def custom_version_prefix(version):
     return "lte_414" if lte_414(version) else "gt_414"
 
 
-def build_vmsets(normalized_vm_defs: List[VMDef], sets: List[str]) -> Set[VMSet]:
-    vmsets: Set[VMSet] = set()
+def build_vmsets(normalized_vm_defs, sets):
+    vmsets = set()
     for recipe, version, arch in normalized_vm_defs:
         if recipe == "custom":
             sets.append(custom_version_prefix(version))
@@ -493,17 +446,13 @@ def build_vmsets(normalized_vm_defs: List[VMDef], sets: List[str]) -> Set[VMSet]
     return vmsets
 
 
-def generate_vmconfig(
-    vm_config: VMConfig,
-    normalized_vm_defs: List[VMDef],
-    vcpu: List[int],
-    memory: List[int],
-    sets: List[str],
-    ci: bool,
-    template: str,
-) -> VMConfig:
-    platforms = get_platforms()
-    vmconfig_template = get_vmconfig_template(template)
+def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci, template):
+    with open(platforms_file) as f:
+        platforms = json.load(f)
+
+    with open(get_vmconfig_file(template)) as f:
+        vmconfig_template = json.load(f)
+
     vmsets = build_vmsets(normalized_vm_defs, sets)
 
     # add new vmsets to new vm_config
@@ -524,11 +473,11 @@ def generate_vmconfig(
         add_memory(vmset, memory)
         add_machine_type(vmconfig_template, vmset)
 
-        if vmset.get("recipe", "") != "custom":
+        if vmset["recipe"] != "custom":
             add_disks(vmconfig_template, vmset)
 
         # For local VMs we want to read images from the filesystem
-        if vmset.get("arch") == local_arch:
+        if vmset["arch"] == local_arch:
             image_source_to_path(vmset)
 
         if ci:
@@ -537,35 +486,28 @@ def generate_vmconfig(
     return vm_config
 
 
-def ls_to_int(ls: List[Any]) -> List[int]:
-    int_ls: List[int] = list()
+def ls_to_int(ls):
+    int_ls = list()
     for elem in ls:
         int_ls.append(int(elem))
 
     return int_ls
 
 
-def build_normalized_vm_def_set(vms: str) -> List[VMDef]:
+def build_normalized_vm_def_set(vms):
     vm_types = vms.split(',')
     if len(vm_types) == 0:
         raise Exit("No VMs to boot provided")
 
     possible = list_possible()
-    return [normalize_vm_def(possible, vm) for vm in vm_types]
+    normalized_vms = list()
+    for vm in vm_types:
+        normalized_vms.append(normalize_vm_def(possible, vm))
+
+    return normalized_vms
 
 
-def gen_config_for_stack(
-    ctx: Context,
-    stack: Optional[str],
-    vms: str,
-    sets: List[str],
-    init_stack: bool,
-    vcpu: List[int],
-    memory: List[int],
-    new: bool,
-    ci: bool,
-    template: str,
-):
+def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, template):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
@@ -609,10 +551,11 @@ def gen_config_for_stack(
     info(f"[+] vmconfig @ {vmconfig_file}")
 
 
-def list_all_distro_normalized_vms(archs: List[Arch]):
-    platforms = get_platforms()
+def list_all_distro_normalized_vms(archs):
+    with open(platforms_file) as f:
+        platforms = json.load(f)
 
-    vms: List[VMDef] = list()
+    vms = list()
     for arch in archs:
         for distro in platforms[arch]:
             vms.append(("distro", distro, arch))
@@ -620,20 +563,7 @@ def list_all_distro_normalized_vms(archs: List[Arch]):
     return vms
 
 
-def gen_config(
-    ctx: Context,
-    stack: Optional[str],
-    vms: str,
-    sets: str,
-    init_stack: bool,
-    vcpu: str,
-    memory: str,
-    new: bool,
-    ci: bool,
-    arch: str,
-    output_file: PathOrStr,
-    template: str,
-):
+def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, template):
     vcpu_ls = vcpu.split(',')
     memory_ls = memory.split(',')
 
@@ -656,7 +586,7 @@ def gen_config(
             template,
         )
 
-    arch_ls: List[Arch] = ["x86_64", "arm64"]
+    arch_ls = ["x86_64", "arm64"]
     if arch != "":
         arch_ls = [arch_mapping[arch]]
 

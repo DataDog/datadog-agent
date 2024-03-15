@@ -9,6 +9,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
@@ -143,6 +145,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring") {
+			writeDisabledProtocolMessage("http", w)
+			return
+		}
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -155,6 +161,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_kafka_monitoring") {
+			writeDisabledProtocolMessage("kafka", w)
+			return
+		}
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -167,6 +177,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring") {
+			writeDisabledProtocolMessage("http2", w)
+			return
+		}
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -314,4 +328,14 @@ func startTelemetryReporter(_ *sysconfigtypes.Config, done <-chan struct{}) {
 			}
 		}
 	}()
+}
+
+func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
+	log.Warnf("%s monitoring is disabled", protocolName)
+	w.WriteHeader(404)
+	// Writing JSON to ensure compatibility when using the jq bash utility for output
+	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
+	// We are marshaling a static string, so we can ignore the error
+	buf, _ := json.Marshal(outputString)
+	w.Write(buf)
 }
