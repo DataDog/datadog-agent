@@ -26,6 +26,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/docs/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://datadoghq.dev/datadog-agent/guidelines/components/defining-apps/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
