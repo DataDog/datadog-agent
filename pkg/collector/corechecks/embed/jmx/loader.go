@@ -12,8 +12,9 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,7 +25,6 @@ type JMXCheckLoader struct{}
 
 // NewJMXCheckLoader creates a loader for go checks
 func NewJMXCheckLoader() (*JMXCheckLoader, error) {
-	state.runner.initRunner()
 	return &JMXCheckLoader{}, nil
 }
 
@@ -70,6 +70,11 @@ func (jl *JMXCheckLoader) Load(senderManager sender.SenderManager, config integr
 
 func (jl *JMXCheckLoader) String() string {
 	return "JMX Check Loader"
+}
+
+// InitRunner inits the runner and injects the dogstatsd server component
+func InitRunner(server dogstatsdServer.Component) {
+	state.runner.initRunner(server)
 }
 
 func init() {

@@ -1,0 +1,10 @@
+[rhui-client-config-server-9]
+name=Red Hat Enterprise Linux 9 Client Configuration
+mirrorlist=https://versailles.com
+enabled=1
+gpgcheck=1
+gpgkey=file://testdata/datadog-archive-keyring.gpg
+sslverify=1
+sslcacert=/etc/pki/rhui/cdn.redhat.com-chain.crt
+sslclientcert=/etc/pki/rhui/product/rhui-client-config-server-9.crt
+sslclientkey=/etc/pki/rhui/rhui-client-config-server-9.key

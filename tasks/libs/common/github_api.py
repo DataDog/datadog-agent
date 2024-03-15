@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import subprocess
+from typing import List
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
@@ -24,8 +25,8 @@ class GithubAPI:
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository=""):
-        self._auth = self._chose_auth()
+    def __init__(self, repository="", public_repo=False):
+        self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
         self._repository = self._github.get_repo(repository)
 
@@ -73,6 +74,30 @@ class GithubAPI:
             if milestone.title == milestone_name:
                 return milestone
         return None
+
+    def is_release_note_needed(self, pull_number):
+        """
+        Check if labels are ok for skipping QA
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        labels = [label.name for label in pr.get_labels()]
+        if "changelog/no-changelog" in labels:
+            return False
+        return True
+
+    def contains_release_note(self, pull_number):
+        """
+        Look in modified files for a release note
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        for file in pr.get_files():
+            if (
+                file.filename.startswith("releasenotes/notes/")
+                or file.filename.startswith("releasenotes-dca/notes/")
+                or file.filename.startswith("releasenotes-installscript/notes")
+            ):
+                return True
+        return False
 
     def get_pulls(self, milestone=None, labels=None):
         if milestone is None:
@@ -161,13 +186,43 @@ class GithubAPI:
         release = self._repository.get_latest_release()
         return release.title
 
-    def _chose_auth(self):
+    def get_rate_limit_info(self):
+        """
+        Gets the current rate limit info.
+        """
+        return self._github.rate_limiting
+
+    def add_pr_label(self, pr_id: int, label: str) -> None:
+        """
+        Tries to add a label to the pull request
+        """
+        pr = self._repository.get_pull(pr_id)
+        pr.add_to_labels(label)
+
+    def get_pr_labels(self, pr_id: int) -> List[str]:
+        """
+        Returns the labels of a pull request
+        """
+        pr = self._repository.get_pull(pr_id)
+
+        return [label.name for label in pr.get_labels()]
+
+    def get_pr_files(self, pr_id: int) -> List[str]:
+        """
+        Returns the files involved in the PR
+        """
+        pr = self._repository.get_pull(pr_id)
+
+        return [f.filename for f in pr.get_files()]
+
+    def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
             - Personal access token through GITHUB_TOKEN environment variable
             - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
               variables (can also use GITHUB_INSTALLATION_ID to save a request)
             - A token from macOS keychain
+            - A fake login user/password to reach public repositories
         """
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
@@ -185,6 +240,8 @@ class GithubAPI:
                     raise Exit(message='No usable installation found', code=1)
                 installation_id = installations[0]
             return appAuth.get_installation_auth(int(installation_id))
+        if public_repo:
+            return Auth.Login("user", "password")
         if platform.system() == "Darwin":
             try:
                 output = (
@@ -207,3 +264,18 @@ class GithubAPI:
             "or export it from your .bashrc or equivalent.",
             code=1,
         )
+
+    @staticmethod
+    def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
+        app_id = os.environ.get(app_id_env)
+        app_key_b64 = os.environ.get(pkey_env)
+        app_key = base64.b64decode(app_key_b64).decode("ascii")
+
+        auth = Auth.AppAuth(app_id, app_key)
+        integration = GithubIntegration(auth=auth)
+        installations = integration.get_installations()
+        if installations.totalCount == 0:
+            raise RuntimeError("Failed to list app installations")
+        install_id = installations[0].id
+        auth_token = integration.get_access_token(install_id)
+        print(auth_token.token)

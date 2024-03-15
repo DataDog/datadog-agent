@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -118,7 +118,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(config.Datadog)
 	if err != nil {
 		return nil, err
 	}

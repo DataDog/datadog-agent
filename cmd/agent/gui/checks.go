@@ -21,10 +21,11 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -45,11 +46,11 @@ var (
 )
 
 // Adds the specific handlers for /checks/ endpoints
-func checkHandler(r *mux.Router) {
+func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
 	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
-	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheck)).Methods("POST")
-	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnce)).Methods("POST")
-	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheck)).Methods("POST")
+	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(collector, ac))).Methods("POST")
+	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnceHandler(ac))).Methods("POST")
+	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(collector, ac))).Methods("POST")
 	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
@@ -73,23 +74,33 @@ func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Schedules a specific check
-func runCheck(_ http.ResponseWriter, r *http.Request) {
-	// Fetch the desired check
-	name := mux.Vars(r)["name"]
-	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+func runCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Fetch the desired check
+		name := mux.Vars(r)["name"]
+		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 
-	for _, ch := range instances {
-		common.Coll.RunCheck(ch) //nolint:errcheck
+		for _, ch := range instances {
+			collector.RunCheck(ch) //nolint:errcheck
+		}
+		log.Infof("Scheduled new check: " + name)
 	}
-	log.Infof("Scheduled new check: " + name)
+}
+
+// runCheckOnceHandler generates a runCheckOnce handler with the autodiscovery component
+func runCheckOnceHandler(
+	ac autodiscovery.Component) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		runCheckOnce(w, r, ac)
+	}
 }
 
 // Runs a specified check once
-func runCheckOnce(w http.ResponseWriter, r *http.Request) {
+func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
 	response := make(map[string]string)
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
-	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+	instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 	if len(instances) == 0 {
 		html, e := renderError(name)
 		if e != nil {
@@ -140,24 +151,26 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reloads a running check
-func reloadCheck(w http.ResponseWriter, r *http.Request) {
-	name := html.EscapeString(mux.Vars(r)["name"])
-	instances := collector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
-	if len(instances) == 0 {
-		log.Errorf("Can't reload " + name + ": check has no new instances.")
-		w.Write([]byte("Can't reload " + name + ": check has no new instances"))
-		return
-	}
+func reloadCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name := html.EscapeString(mux.Vars(r)["name"])
+		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
+		if len(instances) == 0 {
+			log.Errorf("Can't reload " + name + ": check has no new instances.")
+			w.Write([]byte("Can't reload " + name + ": check has no new instances"))
+			return
+		}
 
-	killed, e := common.Coll.ReloadAllCheckInstances(name, instances)
-	if e != nil {
-		log.Errorf("Error reloading check: " + e.Error())
-		w.Write([]byte("Error reloading check: " + e.Error()))
-		return
-	}
+		killed, e := collector.ReloadAllCheckInstances(name, instances)
+		if e != nil {
+			log.Errorf("Error reloading check: " + e.Error())
+			w.Write([]byte("Error reloading check: " + e.Error()))
+			return
+		}
 
-	log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
-	fmt.Fprintf(w, "Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
+		log.Infof("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
+		fmt.Fprintf(w, "Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)
+	}
 }
 
 func getPathComponentFromRequest(vars map[string]string, name string, allowEmpty bool) (string, error) {

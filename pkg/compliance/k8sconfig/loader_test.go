@@ -12,6 +12,7 @@ import (
 	"context"
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -40,11 +41,11 @@ kubelet \
 var eksFs = []*mockFile{
 	{
 		name: "/etc/eks/image-credential-provider",
-		mode: 0755, isDir: true,
+		mode: 0750, isDir: true,
 	},
 	{
 		name: "/etc/eks/image-credential-provider/config.json",
-		mode: 0644,
+		mode: 0640,
 		content: `{
   "apiVersion": "kubelet.config.k8s.io/v1alpha1",
   "kind": "CredentialProviderConfig",
@@ -66,7 +67,7 @@ var eksFs = []*mockFile{
 	},
 	{
 		name: "/etc/eks/release",
-		mode: 0664,
+		mode: 0660,
 		content: `BASE_AMI_ID="ami-0528ac959959021be"
 BUILD_TIME="Sat May 13 01:48:34 UTC 2023"
 BUILD_KERNEL="5.10.178-162.673.amzn2.aarch64"
@@ -74,7 +75,7 @@ ARCH="aarch64"`,
 	},
 	{
 		name: "/etc/kubernetes/kubelet/kubelet-config.json",
-		mode: 0644,
+		mode: 0640,
 		content: `{
   "kind": "KubeletConfiguration",
   "apiVersion": "kubelet.config.k8s.io/v1beta1",
@@ -141,7 +142,7 @@ ARCH="aarch64"`,
 	},
 	{
 		name: "/etc/systemd/system/kubelet.service.d/10-kubelet-args.conf",
-		mode: 0644,
+		mode: 0640,
 		content: `[Service]
 Environment='KUBELET_ARGS=--node-ip=192.168.78.181 \
 	--pod-infra-container-image=602401143452.dkr.ecr.eu-west-3.amazonaws.com/eks/pause:3.5 \
@@ -151,7 +152,7 @@ Environment='KUBELET_ARGS=--node-ip=192.168.78.181 \
 	},
 	{
 		name: "/etc/kubernetes/pki/ca.crt",
-		mode: 0644,
+		mode: 0640,
 		content: `-----BEGIN CERTIFICATE-----
 MIIDFTCCAf2gAwIBAgIBATANBgkqhkiG9w0BAQsFADAfMR0wGwYDVQQDDBRsb2Nh
 bGhvc3RAMTUxNTQ2MjIwNjAgFw0xODAxMDkwMTQzMjZaGA8yMTE4MDEwOTAxNDMy
@@ -175,7 +176,7 @@ L7+jALMhMhiQD+Q4qsNuyvvNQLoYcTTFTw==
 	},
 	{
 		name: "/var/lib/kubelet/kubeconfig",
-		mode: 0644,
+		mode: 0640,
 		content: `apiVersion: v1
 kind: Config
 clusters:
@@ -230,7 +231,7 @@ kubelet \
 var gkeFs = []*mockFile{
 	{
 		name: "/var/lib/kubelet/kubeconfig",
-		mode: 0644,
+		mode: 0640,
 		content: `apiVersion: v1
 kind: Config
 clusters:
@@ -433,7 +434,7 @@ bira4c1b6yJ1gUq3vA==
 	},
 	{
 		name: "/etc/kubernetes/certs/ca.crt",
-		mode: 0644,
+		mode: 0640,
 		content: `-----BEGIN CERTIFICATE-----
 MIIE6DCCAtCgAwIBAgIQIuh8lD2Bvb+KBGRBBS6naTANBgkqhkiG9w0BAQsFADAN
 MQswCQYDVQQDEwJjYTAgFw0yMjEwMjQxNjAxMDVaGA8yMDUyMTAyNDE2MTEwNVow
@@ -736,19 +737,24 @@ func TestKubAksConfigLoader(t *testing.T) {
 		webhook := "Webhook"
 		assert.Equal(t, &webhook, conf.Components.Kubelet.AuthorizationMode)
 
-		assert.NotNil(t, conf.Components.Kubelet.ClientCaFile)
-		assert.Equal(t, "root", conf.Components.Kubelet.ClientCaFile.User)
-		assert.Equal(t, "root", conf.Components.Kubelet.ClientCaFile.Group)
-		assert.Equal(t, uint32(0644), conf.Components.Kubelet.ClientCaFile.Mode)
+		usr, err := user.Current()
+		assert.NoError(t, err)
+
+		grp, err := user.LookupGroupId(usr.Gid)
+		assert.NoError(t, err)
+
+		assert.Equal(t, usr.Username, conf.Components.Kubelet.ClientCaFile.User)
+		assert.Equal(t, grp.Name, conf.Components.Kubelet.ClientCaFile.Group)
+		assert.Equal(t, uint32(0640), conf.Components.Kubelet.ClientCaFile.Mode)
 
 		assert.NotNil(t, conf.Components.Kubelet.TlsCertFile)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsCertFile.User)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsCertFile.Group)
+		assert.Equal(t, usr.Username, conf.Components.Kubelet.TlsCertFile.User)
+		assert.Equal(t, grp.Name, conf.Components.Kubelet.TlsCertFile.Group)
 		assert.Equal(t, uint32(0600), conf.Components.Kubelet.TlsCertFile.Mode)
 
 		assert.NotNil(t, conf.Components.Kubelet.TlsPrivateKeyFile)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsPrivateKeyFile.User)
-		assert.Equal(t, "root", conf.Components.Kubelet.TlsPrivateKeyFile.Group)
+		assert.Equal(t, usr.Username, conf.Components.Kubelet.TlsPrivateKeyFile.User)
+		assert.Equal(t, grp.Name, conf.Components.Kubelet.TlsPrivateKeyFile.Group)
 		assert.Equal(t, uint32(0600), conf.Components.Kubelet.TlsPrivateKeyFile.Mode)
 
 		assert.NotEmpty(t, conf.Components.Kubelet.TlsCipherSuites)
@@ -782,7 +788,7 @@ func (f *mockFile) create(t *testing.T, root string) {
 			t.Fatal(err)
 		}
 	} else {
-		if err := os.MkdirAll(filepath.Join(root, filepath.Dir(f.name)), fs.FileMode(0755)); err != nil {
+		if err := os.MkdirAll(filepath.Join(root, filepath.Dir(f.name)), fs.FileMode(0750)); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(root, f.name), []byte(f.content), os.FileMode(f.mode)); err != nil {

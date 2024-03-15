@@ -38,7 +38,24 @@ import (
 
 const jsonContentType = "application/json"
 
-type admissionFunc func(raw []byte, name string, namespace string, info *authenticationv1.UserInfo, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error)
+// MutateRequest contains the information of a mutation request
+type MutateRequest struct {
+	// Raw is the raw request object
+	Raw []byte
+	// Name is the name of the object
+	Name string
+	// Namespace is the namespace of the object
+	Namespace string
+	// UserInfo contains information about the requesting user
+	UserInfo *authenticationv1.UserInfo
+	// DynamicClient holds a dynamic Kubernetes client
+	DynamicClient dynamic.Interface
+	// APIClient holds a Kubernetes client
+	APIClient kubernetes.Interface
+}
+
+// WebhookFunc is the function that runs the webhook logic
+type WebhookFunc func(request *MutateRequest) ([]byte, error)
 
 // Server TODO <container-integrations>
 type Server struct {
@@ -75,9 +92,9 @@ func (s *Server) initDecoder() {
 
 // Register adds an admission webhook handler.
 // Register must be called to register the desired webhook handlers before calling Run.
-func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+func (s *Server) Register(uri string, webhookName string, f WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
 	s.mux.HandleFunc(uri, func(w http.ResponseWriter, r *http.Request) {
-		s.mutateHandler(w, r, f, dc, apiClient)
+		s.mutateHandler(w, r, webhookName, f, dc, apiClient)
 	})
 }
 
@@ -119,12 +136,12 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 
 // mutateHandler contains the main logic responsible for handling mutation requests.
 // It supports both v1 and v1beta1 requests.
-func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFunc admissionFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
-	metrics.WebhooksReceived.Inc()
+func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, webhookName string, mutateFunc WebhookFunc, dc dynamic.Interface, apiClient kubernetes.Interface) {
+	metrics.WebhooksReceived.Inc(webhookName)
 
 	start := time.Now()
 	defer func() {
-		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds())
+		metrics.WebhooksResponseDuration.Observe(time.Since(start).Seconds(), webhookName)
 	}()
 
 	if r.Method != http.MethodPost {
@@ -163,7 +180,15 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		}
 		admissionReviewResp := &admiv1.AdmissionReview{}
 		admissionReviewResp.SetGroupVersionKind(*gvk)
-		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Name, admissionReviewReq.Request.Namespace, &admissionReviewReq.Request.UserInfo, dc, apiClient)
+		mutateRequest := MutateRequest{
+			Raw:           admissionReviewReq.Request.Object.Raw,
+			Name:          admissionReviewReq.Request.Name,
+			Namespace:     admissionReviewReq.Request.Namespace,
+			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			DynamicClient: dc,
+			APIClient:     apiClient,
+		}
+		jsonPatch, err := mutateFunc(&mutateRequest)
 		admissionReviewResp.Response = mutationResponse(jsonPatch, err)
 		admissionReviewResp.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReviewResp
@@ -174,7 +199,15 @@ func (s *Server) mutateHandler(w http.ResponseWriter, r *http.Request, mutateFun
 		}
 		admissionReviewResp := &admiv1beta1.AdmissionReview{}
 		admissionReviewResp.SetGroupVersionKind(*gvk)
-		jsonPatch, err := mutateFunc(admissionReviewReq.Request.Object.Raw, admissionReviewReq.Request.Name, admissionReviewReq.Request.Namespace, &admissionReviewReq.Request.UserInfo, dc, apiClient)
+		mutateRequest := MutateRequest{
+			Raw:           admissionReviewReq.Request.Object.Raw,
+			Name:          admissionReviewReq.Request.Name,
+			Namespace:     admissionReviewReq.Request.Namespace,
+			UserInfo:      &admissionReviewReq.Request.UserInfo,
+			DynamicClient: dc,
+			APIClient:     apiClient,
+		}
+		jsonPatch, err := mutateFunc(&mutateRequest)
 		admissionReviewResp.Response = responseV1ToV1beta1(mutationResponse(jsonPatch, err))
 		admissionReviewResp.Response.UID = admissionReviewReq.Request.UID
 		response = admissionReviewResp

@@ -269,7 +269,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 			} else {
 				n, _, err = conn.ReadFromUnix(packet.Buffer[n:maxPacketLength])
 			}
-			if n == 0 && oobn == 0 {
+			if n == 0 && oobn == 0 && l.transport == "unix" {
 				log.Debugf("dogstatsd-uds: %s connection closed", l.transport)
 				return nil
 			}
@@ -305,6 +305,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 			if capBuff != nil {
 				capBuff.Oob = oob
 				capBuff.Pid = int32(pid)
+				capBuff.Pb.Pid = int32(pid)
 				capBuff.Pb.AncillarySize = int32(oobn)
 				capBuff.Pb.Ancillary = oobS[:oobn]
 			}

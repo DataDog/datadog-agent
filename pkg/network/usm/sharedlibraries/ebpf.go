@@ -17,9 +17,9 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,10 +39,10 @@ var traceTypes = []string{"enter", "exit"}
 type ebpfProgram struct {
 	cfg         *config.Config
 	perfHandler *ddebpf.PerfHandler
-	*errtelemetry.Manager
+	*ddebpf.Manager
 }
 
-func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) *ebpfProgram {
+func newEBPFProgram(c *config.Config) *ebpfProgram {
 	perfHandler := ddebpf.NewPerfHandler(100)
 	pm := &manager.PerfMap{
 		Map: manager.Map{
@@ -60,7 +60,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 	mgr := &manager.Manager{
 		PerfMaps: []*manager.PerfMap{pm},
 	}
-	ddebpf.ReportPerfMapTelemetry(pm)
+	ebpftelemetry.ReportPerfMapTelemetry(pm)
 
 	probeIDs := getSysOpenHooksIdentifiers()
 	for _, identifier := range probeIDs {
@@ -74,7 +74,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 
 	return &ebpfProgram{
 		cfg:         c,
-		Manager:     errtelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:     ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
 		perfHandler: perfHandler,
 	}
 }
@@ -113,7 +113,7 @@ func (e *ebpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
 }
 
 func (e *ebpfProgram) Stop() {
-	ddebpf.UnregisterTelemetry(e.Manager.Manager)
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
 	e.perfHandler.Stop()
 }
@@ -133,7 +133,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
-	return e.InitWithOptions(buf, options)
+	return e.InitWithOptions(buf, &options)
 }
 
 func (e *ebpfProgram) initCORE() error {

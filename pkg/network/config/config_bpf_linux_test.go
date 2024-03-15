@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func newSystemProbeConfig(t *testing.T) {
@@ -40,15 +42,12 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 
 	if sysconfig.ProcessEventDataStreamSupported() {
 		require.True(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
-		sysProbeConfig, err := sysconfig.New("")
-		require.NoError(t, err)
-
-		emconfig := emconfig.NewConfig(sysProbeConfig)
+		emconfig := emconfig.NewConfig()
 		secconfig, err := secconfig.NewConfig()
 		require.NoError(t, err)
 
 		opts := eventmonitor.Opts{}
-		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+		evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, optional.NewNoneOption[workloadmeta.Component]())
 		require.NoError(t, err)
 		require.NoError(t, evm.Init())
 	} else {

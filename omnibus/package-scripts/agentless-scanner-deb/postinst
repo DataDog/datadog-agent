@@ -5,7 +5,6 @@
 # .deb: STEP 5 of 5
 
 INSTALL_DIR=/opt/datadog/agentless-scanner
-LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agentless-scanner
 
@@ -18,21 +17,6 @@ fi
 set -e
 case "$1" in
     configure)
-        # Only create dd-agent group and/or user if they don't already exist
-        getent group dd-agent >/dev/null || (echo "Creating dd-agent group" && addgroup --system dd-agent --quiet)
-        set +e
-        id -u dd-agent >/dev/null 2>&1
-        USER_EXISTS=$?
-        set -e
-        if [ ! $USER_EXISTS -eq 0 ]; then
-            echo "Creating dd-agent user"
-            adduser --system dd-agent --disabled-login --shell /usr/sbin/nologin --home ${INSTALL_DIR} --no-create-home --group --quiet
-        elif id -nG dd-agent | grep --invert-match --word-regexp --quiet 'dd-agent'; then
-            # User exists but is not part of the dd-agent group
-            echo "Adding dd-agent user to dd-agent group"
-            usermod -g dd-agent dd-agent
-        fi
-
         # Create a symlink to the agent's binary
         ln -sf $INSTALL_DIR/bin/agentless-scanner /usr/bin/datadog-agentless-scanner
     ;;
@@ -42,11 +26,6 @@ case "$1" in
     *)
     ;;
 esac
-
-# Set proper rights to the dd-agent user
-chown -R dd-agent:dd-agent ${CONFIG_DIR}
-chown -R dd-agent:dd-agent ${LOG_DIR}
-chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
 # Enable and restart the agentless-scanner service here on Debian platforms
 # On RHEL, this is done in the posttrans script

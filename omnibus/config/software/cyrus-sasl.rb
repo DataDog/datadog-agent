@@ -27,7 +27,7 @@ build do
   end
 
   configure(*configure_opts, env: env)
-  command "make", :env => env
+  command "make -j #{workers}", :env => env
   command "make install", :env => env
 
 end

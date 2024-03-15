@@ -17,8 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -73,7 +75,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		fx.Provide(func() corelogimpl.Params {
 			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		corelogimpl.TraceModule(),
+		tracelogimpl.Module(),
 		// setup workloadmeta
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.Params{
@@ -82,6 +84,13 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		}),
 		workloadmeta.Module(),
 		statsd.Module(),
+		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
+			if coreConfig.GetBool("apm_config.remote_tagger") {
+				return tagger.NewNodeRemoteTaggerParamsWithFallback()
+			}
+			return tagger.NewTaggerParams()
+		}),
+		tagger.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),

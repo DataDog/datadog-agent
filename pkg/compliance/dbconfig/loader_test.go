@@ -60,7 +60,7 @@ func TestDBConfLoader(t *testing.T) {
 
 		proc2, err := process.NewProcessWithContext(ctx, int32(proc.Pid))
 		assert.NoError(t, err)
-		resourceType, ok := getProcResourceType(proc2)
+		resourceType, ok := GetProcResourceType(proc2)
 		assert.True(t, ok)
 		assert.Equal(t, postgresqlResourceType, resourceType)
 
@@ -70,10 +70,6 @@ func TestDBConfLoader(t *testing.T) {
 
 		err = proc.Kill()
 		assert.NoError(t, err)
-
-		res, ok = LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
-		assert.False(t, ok)
-		assert.Nil(t, res)
 	}
 }
 
@@ -264,13 +260,13 @@ func TestCassandraConfParsing(t *testing.T) {
 	}
 	c, ok := LoadCassandraConfig(context.Background(), hostroot, nil)
 	assert.True(t, ok)
-	configData := c.ConfigData.(map[string]interface{})
+	configData := c.ConfigData.(*cassandraDBConfig)
 	assert.Equal(t, uint32(0600), c.ConfigFileMode)
 	assert.Equal(t, "/etc/cassandra/cassandra.yaml", c.ConfigFilePath)
 	assert.NotEmpty(t, c.ConfigFileUser)
 	assert.NotNil(t, configData)
-	assert.Equal(t, "/etc/cassandra/logback.xml", configData["logback_file_path"])
-	assert.Equal(t, cassandraLogbackSample, configData["logback_file_content"])
+	assert.Equal(t, "/etc/cassandra/logback.xml", configData.LogbackFilePath)
+	assert.Equal(t, cassandraLogbackSample, configData.LogbackFileContent)
 }
 
 func TestMongoDBConfParsing(t *testing.T) {

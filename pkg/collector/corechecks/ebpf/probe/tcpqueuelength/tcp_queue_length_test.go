@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
@@ -33,7 +34,7 @@ func TestTCPQueueLengthCompile(t *testing.T) {
 
 		cfg := ebpf.NewConfig()
 		cfg.BPFDebug = true
-		out, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+		out, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, nil, statsd.Client)
 		require.NoError(t, err)
 		_ = out.Close()
 	})
@@ -50,10 +51,12 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(tcpTracer.Close)
 
-		beforeStats := extractGlobalStats(t, tcpTracer)
-		if beforeStats.ReadBufferMaxUsage > 10 {
-			t.Errorf("max usage of read buffer is too big before the stress test: %d > 10", beforeStats.ReadBufferMaxUsage)
-		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			beforeStats := extractGlobalStats(t, tcpTracer)
+			if beforeStats.ReadBufferMaxUsage > 10 {
+				c.Errorf("max usage of read buffer is too big before the stress test: %d > 10", beforeStats.ReadBufferMaxUsage)
+			}
+		}, 3*time.Second, 1*time.Second)
 
 		err = runTCPLoadTest()
 		require.NoError(t, err)

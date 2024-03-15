@@ -1,0 +1,37 @@
+[main]
+gpgcheck=0
+repo_gpgcheck=0
+[basic http]
+baseurl=one
+gpgkey=https://basic.com
+[file and http same line]
+baseurl=two
+gpgcheck=1
+gpgkey=https://httpfile.com file:///etc/httpfile
+[file and http multiline]
+baseurl=three
+repo_gpgcheck=1
+gpgkey=https://ook.com
+ file:///etc/rincewind
+[multiline with more spaces]
+baseurl=four
+gpgcheck=1
+repo_gpgcheck = 1
+gpgkey=https://leia.com
+	file:///etc/luke
+[same line and multiline]
+baseurl=five
+gpgcheck=1
+gpgkey=https://strength.com https://courage.com
+ file:///etc/wisdom
+[check locally deactivated]
+baseurl=six
+gpgcheck=0
+gpgkey=https://caesar.com
+ file:///etc/pompey file:///etc/crassus
+[several files on second line]
+baseurl=seven
+gpgcheck=1
+enabled=0
+gpgkey=https://brahma.com
+ file:///etc/vishnu file:///etc/shiva

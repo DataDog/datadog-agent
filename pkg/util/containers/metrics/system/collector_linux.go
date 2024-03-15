@@ -67,7 +67,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
-		log.Errorf("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
+		log.Infof("Unable to initialize cgroup provider (cgroups not mounted?), err: %v", err)
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
@@ -78,7 +78,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	)
 	if err != nil {
 		// Cgroup provider is pretty static. Except not having required mounts, it should always work.
-		log.Errorf("Unable to initialize self cgroup reader, err: %v", err)
+		log.Infof("Unable to initialize self cgroup reader, err: %v", err)
 		return collectorMetadata, provider.ErrPermaFail
 	}
 	systemCollector := &systemCollector{

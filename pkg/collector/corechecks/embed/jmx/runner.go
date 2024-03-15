@@ -10,7 +10,8 @@ package jmx
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
@@ -21,9 +22,10 @@ type runner struct {
 	started  bool
 }
 
-func (r *runner) initRunner() {
+func (r *runner) initRunner(server dogstatsdServer.Component) {
 	r.jmxfetch = &jmxfetch.JMXFetch{}
 	r.jmxfetch.LogLevel = config.Datadog.GetString("log_level")
+	r.jmxfetch.DSD = server
 }
 
 func (r *runner) startRunner() error {

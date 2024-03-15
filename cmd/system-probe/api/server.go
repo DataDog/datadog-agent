@@ -3,53 +3,38 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package api contains the API exposed by system-probe
 package api
 
 import (
-	"context"
 	"errors"
 	"expvar"
 	"fmt"
 	"net/http"
-	"runtime/pprof"
-	"strings"
 
 	gorilla "github.com/gorilla/mux"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/stats"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const maxGRPCServerMessage = 100 * 1024 * 1024
-
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component) error {
+func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
 	}
 
-	var grpcServer *grpc.Server
-	var srv *http.Server
-
 	mux := gorilla.NewRouter()
-	if cfg.GRPCServerEnabled {
-		grpcServer = grpc.NewServer(
-			grpc.MaxRecvMsgSize(maxGRPCServerMessage),
-			grpc.MaxSendMsgSize(maxGRPCServerMessage),
-			grpc.StatsHandler(&pprofGRPCStatsHandler{}),
-		)
-	}
 
-	err = module.Register(cfg, mux, grpcServer, modules.All)
+	err = module.Register(cfg, mux, modules.All, wmeta)
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
@@ -62,26 +47,13 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component) erro
 	setupConfigHandlers(mux)
 
 	// Module-restart handler
-	mux.HandleFunc("/module-restart/{module-name}", restartModuleHandler).Methods("POST")
+	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, wmeta) }).Methods("POST")
 
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 
-	if cfg.GRPCServerEnabled {
-		srv = grpcutil.NewMuxedGRPCServer(
-			cfg.SocketAddress,
-			nil,
-			grpcServer,
-			mux,
-		)
-	} else {
-		srv = &http.Server{
-			Handler: mux,
-		}
-	}
-
 	go func() {
-		err = srv.Serve(conn.GetListener())
+		err = http.Serve(conn.GetListener(), mux)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Errorf("error creating HTTP server: %s", err)
 		}
@@ -94,29 +66,4 @@ func init() {
 	expvar.Publish("modules", expvar.Func(func() interface{} {
 		return module.GetStats()
 	}))
-}
-
-type pprofGRPCStatsHandler struct{}
-
-func (p *pprofGRPCStatsHandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) context.Context {
-	parts := strings.Split(info.FullMethodName, "/")
-	if len(parts) >= 1 {
-		moduleName := module.NameFromGRPCServiceName(parts[0])
-		if moduleName != "" {
-			return pprof.WithLabels(ctx, pprof.Labels("module", moduleName))
-		}
-	}
-	return ctx
-}
-
-func (p *pprofGRPCStatsHandler) HandleRPC(_ context.Context, _ stats.RPCStats) {
-	// intentionally empty
-}
-
-func (p *pprofGRPCStatsHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context {
-	return ctx
-}
-
-func (p *pprofGRPCStatsHandler) HandleConn(_ context.Context, _ stats.ConnStats) {
-	// intentionally empty
 }

@@ -16,9 +16,9 @@ import (
 	osq "github.com/openshift/api/quota/v1"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -35,7 +35,7 @@ func TestReportClusterQuotas(t *testing.T) {
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")
-	kubeASCheck := KubernetesASFactory().(*KubeASCheck)
+	kubeASCheck := newCheck().(*KubeASCheck)
 	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test")
 	require.NoError(t, err)
 

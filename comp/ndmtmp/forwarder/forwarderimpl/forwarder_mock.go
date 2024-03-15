@@ -10,8 +10,8 @@ package forwarderimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/golang/mock/gomock"
 	"go.uber.org/fx"
@@ -19,7 +19,7 @@ import (
 
 func getMockForwarder(t testing.TB) forwarder.MockComponent {
 	ctrl := gomock.NewController(t)
-	return epforwarder.NewMockEventPlatformForwarder(ctrl)
+	return eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 }
 
 // MockModule defines a component with a mock forwarder

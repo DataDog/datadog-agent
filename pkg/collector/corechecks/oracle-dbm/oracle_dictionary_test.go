@@ -26,9 +26,12 @@ func TestGetFullSqlText(t *testing.T) {
 		var driver string
 		if tnsAlias == "" {
 			driver = common.GoOra
-			chk.config.InstanceConfig.InstantClient = false
+			chk.config.InstanceConfig.OracleClient = false
 		} else {
 			driver = common.Godror
+		}
+		if driver == common.Godror && skipGodror() {
+			continue
 		}
 		err := chk.Run()
 		assert.NoError(t, err, "check run")

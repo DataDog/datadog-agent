@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests && trivy
+//go:build linux && functionaltests && trivy
 
 // Package tests holds tests related files
 package tests
@@ -13,14 +13,22 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/avast/retry-go/v4"
-
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+
+	"github.com/avast/retry-go/v4"
 )
 
 func TestSBOM(t *testing.T) {
+	SkipIfNotAvailable(t)
+	originalFlavor := flavor.GetFlavor()
+	flavor.SetFlavor(flavor.SecurityAgent)
+	defer func() {
+		flavor.SetFlavor(originalFlavor)
+	}()
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",

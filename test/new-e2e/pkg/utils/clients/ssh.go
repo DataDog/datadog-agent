@@ -89,7 +89,7 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create session: %v", err)
 	}
 
 	stdout, err := session.CombinedOutput(command)
@@ -135,7 +135,7 @@ func GetFile(client *ssh.Client, src string, dst string) error {
 	defer fsrc.Close()
 
 	// local
-	fdst, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE, 0o640)
+	fdst, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
@@ -243,9 +243,61 @@ func WriteFile(client *ssh.Client, path string, content []byte) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer f.Close()
 
 	reader := bytes.NewReader(content)
 	return io.Copy(f, reader)
+}
+
+// AppendFile append content to the file and returns the number of bytes appened and error if any
+func AppendFile(client *ssh.Client, os, path string, content []byte) (int64, error) {
+	if os == "linux" {
+		return appendWithSudo(client, path, content)
+	}
+	return appendWithSftp(client, path, content)
+
+}
+
+// appendWithSudo appends content to the file using sudo tee for Linux environment
+func appendWithSudo(client *ssh.Client, path string, content []byte) (int64, error) {
+	cmd := fmt.Sprintf("echo '%s' | sudo tee -a %s", string(content), path)
+	session, err := client.NewSession()
+	if err != nil {
+		return 0, err
+	}
+	defer session.Close()
+
+	var b bytes.Buffer
+	session.Stdout = &b
+	if err := session.Run(cmd); err != nil {
+		return 0, err
+	}
+
+	return int64(len(content)), nil
+}
+
+// appendWithSftp appends content to the file using sftp for Windows environment
+func appendWithSftp(client *ssh.Client, path string, content []byte) (int64, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return 0, err
+	}
+	defer sftpClient.Close()
+
+	// Open the file in append mode and create it if it doesn't exist
+	f, err := sftpClient.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	reader := bytes.NewReader(content)
+	written, err := io.Copy(f, reader)
+	if err != nil {
+		return 0, err
+	}
+
+	return written, nil
 }
 
 // ReadDir returns list of directory entries in path

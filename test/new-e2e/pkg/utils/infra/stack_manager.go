@@ -176,6 +176,24 @@ func (sm *StackManager) Cleanup(ctx context.Context) []error {
 	return errors
 }
 
+func (sm *StackManager) getLoggingOptions() (debug.LoggingOptions, error) {
+	logLevel, err := runner.GetProfile().ParamStore().GetIntWithDefault(parameters.PulumiLogLevel, 1)
+	if err != nil {
+		return debug.LoggingOptions{}, err
+	}
+	pulumiLogLevel := uint(logLevel)
+	pulumiLogToStdErr, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.PulumiLogToStdErr, false)
+	if err != nil {
+		return debug.LoggingOptions{}, err
+	}
+
+	return debug.LoggingOptions{
+		FlowToPlugins: true,
+		LogLevel:      &pulumiLogLevel,
+		LogToStdErr:   pulumiLogToStdErr,
+	}, nil
+}
+
 func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *auto.Stack, logWriter io.Writer) error {
 	if stack == nil {
 		return fmt.Errorf("unable to find stack, skipping deletion of: %s", stackID)
@@ -183,6 +201,10 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 
 	destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
 
+	loggingOptions, err := sm.getLoggingOptions()
+	if err != nil {
+		return err
+	}
 	var logger io.Writer
 
 	if logWriter == nil {
@@ -190,9 +212,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	} else {
 		logger = logWriter
 	}
-	_, err := stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(debug.LoggingOptions{
-		FlowToPlugins: true,
-	}))
+	_, err = stack.Destroy(destroyContext, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
 	cancel()
 	if err != nil {
 		return err
@@ -241,7 +261,10 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		return nil, auto.UpResult{}, err
 	}
 
-	var loglevel uint = 1
+	loggingOptions, err := sm.getLoggingOptions()
+	if err != nil {
+		return nil, auto.UpResult{}, err
+	}
 	var logger io.Writer
 
 	if logWriter == nil {
@@ -250,24 +273,35 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
-	var ok bool
 	var upResult auto.UpResult
 
-	for retry := 0; retry < stackUpRetry && !ok; retry++ {
+	for retry := 0; retry < stackUpRetry; retry++ {
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
-		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(debug.LoggingOptions{
-			FlowToPlugins: true,
-			LogLevel:      &loglevel,
-		}))
+		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(loggingOptions))
 		cancel()
-		if err != nil && shouldRetryError(err) {
-			fmt.Fprint(logger, "Got error that should be retried during stack up, retrying")
-			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up"}, logger)
+
+		if err == nil {
+			break
+		}
+		if retryStrategy := shouldRetryError(err); retryStrategy != noRetry {
+			fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying with %s strategy", retryStrategy)
+			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy)}, logger)
 			if err != nil {
 				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
 			}
+
+			if retryStrategy == reCreate {
+				// If we are recreating the stack, we should destroy the stack first
+				destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+				_, err := stack.Destroy(destroyCtx, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+				cancel()
+				if err != nil {
+					return stack, auto.UpResult{}, err
+				}
+			}
+
 		} else {
-			ok = true
+			break
 		}
 	}
 	return stack, upResult, err
@@ -321,21 +355,29 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 	}
 }
 
-func shouldRetryError(err error) bool {
+type retryType string
+
+const (
+	reUp     retryType = "ReUp"     // Retry the up operation
+	reCreate retryType = "ReCreate" // Retry the up operation after destroying the stack
+	noRetry  retryType = "NoRetry"
+)
+
+func shouldRetryError(err error) retryType {
 	// Add here errors that are known to be flakes and that should be retried
 	if strings.Contains(err.Error(), "i/o timeout") {
-		return true
+		return reCreate
 	}
 
 	if strings.Contains(err.Error(), "creating EC2 Instance: IdempotentParameterMismatch:") {
-		return true
+		return reUp
 	}
 
 	if strings.Contains(err.Error(), "InvalidInstanceID.NotFound") {
-		return true
+		return reUp
 	}
 
-	return false
+	return noRetry
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store

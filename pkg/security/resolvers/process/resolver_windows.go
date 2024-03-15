@@ -41,6 +41,8 @@ type Resolver struct {
 	cacheSize *atomic.Int64
 
 	processCacheEntryPool *Pool
+
+	exitedQueue []uint32
 }
 
 // NewResolver returns a new process resolver
@@ -87,6 +89,39 @@ func (p *Resolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Release()
 }
 
+// AddToExitedQueue adds the exited processes to a queue
+func (p *Resolver) AddToExitedQueue(pid uint32) {
+	p.Lock()
+	defer p.Unlock()
+	p.exitedQueue = append(p.exitedQueue, pid)
+}
+
+// DequeueExited dequeue exited process
+func (p *Resolver) DequeueExited() {
+	p.Lock()
+	defer p.Unlock()
+	delEntry := func(pid uint32, exitTime time.Time) {
+		p.deleteEntry(pid, exitTime)
+	}
+
+	var toKeep []uint32
+	now := time.Now()
+	for _, pid := range p.exitedQueue {
+		entry := p.processes[pid]
+		if entry == nil {
+			continue
+		}
+
+		if tm := entry.ExecTime; !tm.IsZero() && tm.Add(time.Minute).Before(now) {
+			delEntry(pid, now)
+		} else {
+			toKeep = append(toKeep, pid)
+		}
+	}
+
+	p.exitedQueue = toKeep
+}
+
 // DeleteEntry tries to delete an entry in the process cache
 func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 	p.Lock()
@@ -96,16 +131,15 @@ func (p *Resolver) DeleteEntry(pid uint32, exitTime time.Time) {
 }
 
 // AddNewEntry add a new process entry to the cache
-func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine string) (*model.ProcessCacheEntry, error) {
+func (p *Resolver) AddNewEntry(pid uint32, ppid uint32, file string, commandLine string, OwnerSidString string) (*model.ProcessCacheEntry, error) {
 	e := p.processCacheEntryPool.Get()
 	e.PIDContext.Pid = pid
 	e.PPid = ppid
-
 	e.Process.CmdLine = utils.NormalizePath(commandLine)
 	e.Process.FileEvent.PathnameStr = utils.NormalizePath(file)
 	e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 	e.ExecTime = time.Now()
-
+	e.Process.OwnerSidString = OwnerSidString
 	p.insertEntry(e)
 
 	return e, nil
@@ -149,6 +183,7 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 
 // GetProcessCmdLineScrubbed returns the scrubbed cmdline
 func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
+
 	if pr.ScrubbedCmdLineResolved {
 		return pr.CmdLineScrubbed
 	}
@@ -210,7 +245,6 @@ func (p *Resolver) Snapshot() {
 		e.Process.FileEvent.PathnameStr = utils.NormalizePath(proc.Exe)
 		e.Process.FileEvent.BasenameStr = filepath.Base(e.Process.FileEvent.PathnameStr)
 		e.ExecTime = time.Unix(0, proc.Stats.CreateTime*int64(time.Millisecond))
-
 		entries = append(entries, e)
 
 		log.Tracef("PID %d  %d PPID %d\n", pid, proc.Pid, proc.Ppid)

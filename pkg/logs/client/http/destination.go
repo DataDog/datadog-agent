@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -66,6 +66,7 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
+	isHA                bool
 
 	// Concurrency
 	climit chan struct{} // semaphore for limiting concurrent background sends
@@ -93,7 +94,8 @@ func NewDestination(endpoint config.Endpoint,
 	destinationsContext *client.DestinationsContext,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string) *Destination {
+	telemetryName string,
+	cfg pkgconfigmodel.Reader) *Destination {
 
 	return newDestination(endpoint,
 		contentType,
@@ -101,7 +103,8 @@ func NewDestination(endpoint config.Endpoint,
 		time.Second*10,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
-		telemetryName)
+		telemetryName,
+		cfg)
 }
 
 func newDestination(endpoint config.Endpoint,
@@ -110,7 +113,8 @@ func newDestination(endpoint config.Endpoint,
 	timeout time.Duration,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string) *Destination {
+	telemetryName string,
+	cfg pkgconfigmodel.Reader) *Destination {
 
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
@@ -135,7 +139,7 @@ func newDestination(endpoint config.Endpoint,
 		url:                 buildURL(endpoint),
 		apiKey:              endpoint.APIKey,
 		contentType:         contentType,
-		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout)),
+		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		wg:                  sync.WaitGroup{},
@@ -147,6 +151,7 @@ func newDestination(endpoint config.Endpoint,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
+		isHA:                endpoint.IsHA,
 	}
 }
 
@@ -158,6 +163,16 @@ func errorToTag(err error) string {
 	} else {
 		return "non-retryable"
 	}
+}
+
+// IsHA indicates that this destination is a High Availability destination.
+func (d *Destination) IsHA() bool {
+	return d.isHA
+}
+
+// Target is the address of the destination.
+func (d *Destination) Target() string {
+	return d.url
 }
 
 // Start starts reading the input channel
@@ -210,8 +225,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		backoffDuration := d.backoff.GetBackoffDuration(d.nbErrors)
 		d.blockedUntil = time.Now().Add(backoffDuration)
 		if d.blockedUntil.After(time.Now()) {
-			log.Debugf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
+			log.Warnf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
 			d.waitForBackoff()
+			metrics.RetryTimeSpent.Add(int64(backoffDuration))
+			metrics.RetryCount.Add(1)
+			metrics.TlmRetryCount.Add(1)
 		}
 		d.retryLock.Unlock()
 
@@ -347,12 +365,12 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 	}
 }
 
-func httpClientFactory(timeout time.Duration) func() *http.Client {
+func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() *http.Client {
 	return func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(pkgconfig.Datadog),
+			Transport: httputils.CreateHTTPTransport(cfg),
 		}
 	}
 }
@@ -391,10 +409,10 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 	return timestampNanos / int64(time.Millisecond/time.Nanosecond)
 }
 
-func prepareCheckConnectivity(endpoint config.Endpoint) (*client.DestinationsContext, *Destination) {
+func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "")
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
 	return ctx, destination
 }
 
@@ -405,9 +423,9 @@ func completeCheckConnectivity(ctx *client.DestinationsContext, destination *Des
 }
 
 // CheckConnectivity check if sending logs through HTTP works
-func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
+func CheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) config.HTTPConnectivity {
 	log.Info("Checking HTTP connectivity...")
-	ctx, destination := prepareCheckConnectivity(endpoint)
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	log.Infof("Sending HTTP connectivity request to %s...", destination.url)
 	err := completeCheckConnectivity(ctx, destination)
 	if err != nil {
@@ -419,8 +437,8 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
-	ctx, destination := prepareCheckConnectivity(endpoint)
+func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (url string, err error) {
+	ctx, destination := prepareCheckConnectivity(endpoint, cfg)
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 

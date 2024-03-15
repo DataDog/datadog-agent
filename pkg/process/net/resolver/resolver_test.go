@@ -3,16 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
-
 package resolver
 
 import (
 	"testing"
+	"time"
 
+	"github.com/benbjohnson/clock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
 func TestLocalResolver(t *testing.T) {
@@ -200,6 +202,44 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedRaddrID: "foo3",
 		},
 		{
+			name: "raddr resolution within same netns (1)",
+			conn: &model.Connection{
+				Pid:   3,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				IntraHost: true,
+				Direction: model.ConnectionDirection_incoming,
+			},
+			expectedLaddrID: "foo3",
+			expectedRaddrID: "foo5",
+		},
+		{
+			name: "raddr resolution within same netns (2)",
+			conn: &model.Connection{
+				Pid:   5,
+				NetNS: 3,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1240,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1235,
+				},
+				IntraHost: true,
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo5",
+			expectedRaddrID: "foo3",
+		},
+		{
 			name: "raddr failed resolution, known address in different netns",
 			conn: &model.Connection{
 				Pid:   5,
@@ -294,6 +334,42 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			expectedLaddrID: "foo7",
 			expectedRaddrID: "foo6",
 		},
+		{
+			name: "zero src netns failed resolution",
+			conn: &model.Connection{
+				Pid:   22,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 1250,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo22",
+			expectedRaddrID: "", // should NOT resolve to foo7
+		},
+		{
+			name: "zero src and dst netns failed resolution",
+			conn: &model.Connection{
+				Pid:   21,
+				NetNS: 0,
+				Laddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8181,
+				},
+				Raddr: &model.Addr{
+					Ip:   "127.0.0.1",
+					Port: 8282,
+				},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			expectedLaddrID: "foo21",
+			expectedRaddrID: "", // should NOT resolve to foo22
+		},
 	}
 
 	resolver := &LocalResolver{}
@@ -308,6 +384,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		8:  "bar",
 		20: "foo20",
 		21: "foo21",
+		22: "foo22",
 	})
 
 	conns := &model.Connections{}
@@ -322,4 +399,94 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			assert.Equal(t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
 		})
 	}
+}
+
+func TestLocalResolverPeriodicUpdates(t *testing.T) {
+	assert := assert.New(t)
+	mockCtrl := gomock.NewController(t)
+	mockedClock := clock.NewMock()
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock)
+	containers := []*model.Container{
+		{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_tcp,
+				},
+				{
+					Ip:       "172.17.0.4",
+					Port:     6379,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "172.17.0.2",
+					Port:     80,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_udp,
+				},
+			},
+		},
+	}
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil).MinTimes(1)
+	resolver.Run()
+	mockedClock.Add(11 * time.Second)
+
+	connections := &model.Connections{
+		Conns: []*model.Connection{
+			// connection 0
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+			// connection 1
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.4",
+					Port: 6379,
+				},
+			},
+			// connection 2
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.2",
+					Port: 80,
+				},
+			},
+			// connection 3
+			{
+				Type: model.ConnectionType_udp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+		},
+	}
+	resolver.Resolve(connections)
+	assert.Equal("container-1", connections.Conns[0].Raddr.ContainerId)
+	assert.Equal("container-1", connections.Conns[1].Raddr.ContainerId)
+	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
+	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
 }

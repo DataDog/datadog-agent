@@ -28,10 +28,16 @@ type Docker struct {
 }
 
 // NewDocker creates a new instance of Docker
-func NewDocker(t *testing.T, host remote.HostOutput) (*Docker, error) {
+// NOTE: docker+ssh does not support password protected SSH keys.
+func NewDocker(t *testing.T, host remote.HostOutput, privateKeyPath string) (*Docker, error) {
 	deamonURL := fmt.Sprintf("ssh://%v@%v", host.Username, host.Address)
 
-	helper, err := connhelper.GetConnectionHelperWithSSHOpts(deamonURL, []string{"-o", "StrictHostKeyChecking no"})
+	sshOpts := []string{"-o", "StrictHostKeyChecking no"}
+	if privateKeyPath != "" {
+		sshOpts = append(sshOpts, "-i", privateKeyPath)
+	}
+
+	helper, err := connhelper.GetConnectionHelperWithSSHOpts(deamonURL, sshOpts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to docker %v: %v", deamonURL, err)
 	}

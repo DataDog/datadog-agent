@@ -9,15 +9,19 @@ package memory
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const memCheckName = "memory"
+// CheckName is the name of the check
+const CheckName = "memory"
 
-func memFactory() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(memCheckName),
-	}
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
-func init() {
-	core.RegisterCheck(memCheckName, memFactory)
+
+func newCheck() check.Check {
+	return &Check{
+		CheckBase: core.NewCheckBase(CheckName),
+	}
 }

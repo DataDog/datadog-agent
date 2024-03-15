@@ -7,6 +7,7 @@ package fxutil
 
 import (
 	"context"
+	"errors"
 
 	"go.uber.org/fx"
 )
@@ -33,17 +34,10 @@ func Run(opts ...fx.Option) error {
 	defer cancel()
 
 	if err := app.Start(startCtx); err != nil {
-		return UnwrapIfErrArgumentsFailed(err)
+		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
 	}
 
 	<-app.Done()
 
-	stopCtx, cancel := context.WithTimeout(context.Background(), app.StopTimeout())
-	defer cancel()
-
-	if err := app.Stop(stopCtx); err != nil {
-		return err
-	}
-
-	return nil
+	return stopApp(app)
 }

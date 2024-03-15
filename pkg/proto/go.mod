@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/proto
 
-go 1.20
+go 1.21.8
 
 retract v0.46.0-devel
 
@@ -9,7 +9,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/gofuzz v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	github.com/tinylib/msgp v1.1.8
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d

@@ -8,7 +8,10 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
+	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/bootstrap"
+	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/experiment"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/run"
+	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/status"
 )
 
 // UpdaterSubcommands returns SubcommandFactories for the subcommands
@@ -16,5 +19,8 @@ import (
 func UpdaterSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		run.Commands,
+		bootstrap.Commands,
+		status.Commands,
+		experiment.Commands,
 	}
 }

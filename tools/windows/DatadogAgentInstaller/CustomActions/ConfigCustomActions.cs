@@ -342,63 +342,54 @@ namespace Datadog.CustomActions
         private static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
-            var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
-            var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
-            var securityAgentYaml = Path.Combine(configFolder, "security-agent.yaml");
-            var securityAgentProfile = Path.Combine(configFolder, "runtime-security.d", "default.policy");
-            var injectionControllerYaml = Path.Combine(configFolder, "apm-inject.yaml");
             try
             {
-                if (!File.Exists(systemProbeYaml))
-                {
-                    File.Copy(systemProbeYaml + ".example", systemProbeYaml);
-                }
+                var copyFileFn = new Action<string>(c => File.Copy(c + ".example", c));
 
-                if (File.Exists(datadogYaml))
-                {
-                    session.Log($"{datadogYaml} exists, not modifying it.");
-                    return ActionResult.Success;
-                }
-                string yaml;
-                using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml.example")))
-                {
-                    yaml = input.ReadToEnd();
-                }
+                var configFiles =
+                    new[]
+                        {
+                            "system-probe.yaml",
+                            "security-agent.yaml",
+                            Path.Combine("runtime-security.d", "default.policy"),
+                            "apm-inject.yaml"
+                        }
+                        .Select(c => new { Path = c, CreateFn = copyFileFn })
+                        .Concat(new[]
+                        {
+                            new
+                            {
+                                Path = "datadog.yaml",
+                                CreateFn = new Action<string>(c =>
+                                {
+                                    string yaml;
+                                    using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml.example")))
+                                    {
+                                        yaml = input.ReadToEnd();
+                                    }
 
-                yaml = ReplaceProperties(yaml, session);
+                                    yaml = ReplaceProperties(yaml, session);
 
-                using (var output = new StreamWriter(datadogYaml))
+                                    using var output = new StreamWriter(c);
+                                    output.Write(yaml);
+                                })
+                            }
+                        });
+                foreach (var c in configFiles)
                 {
-                    output.Write(yaml);
-                }
-
-                // Conditionally include the security agent YAML while it is in active development to make it easier
-                // to build/ship without it.
-                if (File.Exists(securityAgentProfile + ".example"))
-                {
-                    if (!File.Exists(securityAgentProfile))
+                    var configPath = Path.Combine(configFolder, c.Path);
+                    if (File.Exists(configPath + ".example"))
                     {
-                        File.Copy(securityAgentProfile + ".example", securityAgentProfile);
+                        if (!File.Exists(configPath))
+                        {
+                            c.CreateFn(configPath);
+                        }
+                        else
+                        {
+                            session.Log($"{configPath} exists, not modifying it.");
+                        }
                     }
-                }
-                // Conditionally include the security agent YAML while it is in active development to make it easier
-                // to build/ship without it.
-                if (File.Exists(securityAgentYaml + ".example"))
-                {
-                    if (!File.Exists(securityAgentYaml))
-                    {
-                        File.Copy(securityAgentYaml + ".example", securityAgentYaml);
-                    }
-                }
 
-                // Conditionally include the APM injection MSM while it is in active development to make it easier
-                // to build/ship without it.
-                if (File.Exists(injectionControllerYaml + ".example"))
-                {
-                    if (!File.Exists(injectionControllerYaml))
-                    {
-                        File.Copy(injectionControllerYaml + ".example", injectionControllerYaml);
-                    }
                 }
             }
             catch (Exception e)

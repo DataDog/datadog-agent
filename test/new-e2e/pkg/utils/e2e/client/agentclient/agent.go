@@ -14,6 +14,12 @@ type Agent interface {
 	// Hostname runs hostname command and returns the runtime Agent hostname
 	Hostname(commandArgs ...AgentArgsOption) string
 
+	// Check runs check command and returns the runtime Agent check
+	Check(commandArgs ...AgentArgsOption) string
+
+	// Check runs check command and returns the runtime Agent check or an error
+	CheckWithError(commandArgs ...AgentArgsOption) (string, error)
+
 	// Config runs config command and returns the runtime agent config
 	Config(commandArgs ...AgentArgsOption) string
 
@@ -37,6 +43,9 @@ type Agent interface {
 
 	// IntegrationWithError run integration command and returns the output
 	IntegrationWithError(commandArgs ...AgentArgsOption) (string, error)
+
+	// RemoteConfig runs the remote-config command and returns the output
+	RemoteConfig(commandArgs ...AgentArgsOption) string
 
 	// Secret runs the secret command
 	Secret(commandArgs ...AgentArgsOption) string

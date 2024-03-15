@@ -2,7 +2,7 @@ from typing import Optional
 
 from invoke import Context, task
 
-from .pipeline import update_circleci_config, update_gitlab_config
+from tasks.pipeline import update_circleci_config, update_gitlab_config
 
 
 @task(

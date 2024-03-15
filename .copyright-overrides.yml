@@ -183,6 +183,7 @@ github.com/gogo/protobuf: ["Copyright (c) 2013, The GoGo Authors. All rights res
 #  * Author, when known only by GitHub username, is "GitHub Full Name (github-username)"
 github.com/moby/sys/mountinfo: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/moby/sys/signal: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
+github.com/moby/sys/user: Copyright (c) 2014-2018 The Docker & Go Authors. All rights reserved.
 github.com/modern-go/concurrent: Copyright (c) 2018 Tao Wen
 github.com/modern-go/reflect2: Copyright (c) 2018 Tao Wen
 github.com/opencontainers/selinux/*: Copyright (c) 2017 The Authors
@@ -227,6 +228,11 @@ github.com/google/gnostic/extensions: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/jsonschema: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/openapiv2: Copyright 2017-2020, Google LLC.
 github.com/google/gnostic/openapiv3: Copyright 2017-2020, Google LLC.
+github.com/google/gnostic-models/compiler: Copyright 2017-2022, Google LLC.
+github.com/google/gnostic-models/extensions: Copyright 2017-2022, Google LLC
+github.com/google/gnostic-models/jsonschema: Copyright 2017-2022, Google LLC
+github.com/google/gnostic-models/openapiv2: Copyright 2017-2022, Google LLC
+github.com/google/gnostic-models/openapiv3: Copyright 2017-2022, Google LLC
 github.com/google/s2a-go: Copyright (c) 2020 Google
 github.com/google/s2a-go/fallback: Copyright (c) 2020 Google
 github.com/google/s2a-go/internal/authinfo: Copyright (c) 2020 Google
@@ -291,14 +297,20 @@ github.com/pjbgf/sha1cd:
  - Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>
  - Copyright 2022 Paulo Gomes <pjbgf@linux.com>
 
+github.com/kr/pretty: Copyright 2012 Keith Rarick
+github.com/kr/text: Copyright 2012 Keith Rarick
+
 # Copyright information is in the Makefile
 github.com/openvex/go-vex: Copyright 2023 The OpenVEX Authors
 
 # Copyright information is in the LICENSE
 github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Security
 github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
-github.com/moby/sys/user: Copyright 2014-2018 Docker, Inc.
 github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
 
 # Copyright information is in the source headers
 github.com/csaf-poc/csaf_distribution: Copyright 2021-2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
+
+github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+

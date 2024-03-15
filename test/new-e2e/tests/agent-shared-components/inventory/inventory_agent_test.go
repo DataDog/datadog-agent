@@ -22,7 +22,7 @@ type inventoryAgentSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestAgentDiagnoseEC2Suite(t *testing.T) {
+func TestInventoryAgentSuite(t *testing.T) {
 	e2e.Run(t, &inventoryAgentSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
@@ -42,7 +42,9 @@ func (v *inventoryAgentSuite) TestInventoryAllEnabled() {
 process_config:
   enabled: true
   process_collection:
-    enabled: true`
+    enabled: true
+compliance_config:
+  enabled: true`
 
 	systemProbeConfiguration := `runtime_security_config:
   enabled: true
@@ -51,13 +53,9 @@ service_monitoring_config:
 network_config:
   enabled: true`
 
-	securityAgentConfiguration := `compliance_config:
-  enabled: true`
-
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(string(agentConfig)),
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
-		agentparams.WithSecurityAgentConfig(string(securityAgentConfiguration)),
 	}
 
 	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
@@ -67,9 +65,7 @@ network_config:
 	assert.Contains(v.T(), inventory, `"feature_logs_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_process_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_networks_enabled": true`)
-	// TODO: (components) what caused this flag to flip, was it intentional or should it change to false
-	// disable this for now to quiet the e2e test
-	// assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": true`)
 }

@@ -1,11 +1,19 @@
-import getpass
 import json
 import os
 
-from .init_kmt import VMCONFIG, check_and_get_stack
-from .kmt_os import get_kmt_os
-from .libvirt import delete_domains, delete_networks, delete_pools, delete_volumes, pause_domains, resume_domains
-from .tool import Exit, ask, error, info, warn
+from tasks.kernel_matrix_testing.infra import ask_for_ssh, build_infrastructure, find_ssh_key
+from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
+from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.libvirt import (
+    delete_domains,
+    delete_networks,
+    delete_pools,
+    delete_volumes,
+    pause_domains,
+    resource_in_stack,
+    resume_domains,
+)
+from tasks.kernel_matrix_testing.tool import Exit, error, info
 
 try:
     import libvirt
@@ -37,15 +45,6 @@ def create_stack(ctx, stack=None):
     ctx.run(f"mkdir {stack_dir}")
 
 
-def find_ssh_key(ssh_key):
-    user = getpass.getuser()
-    ssh_key_file = f"/home/{user}/.ssh/{ssh_key}.pem"
-    if not os.path.exists(ssh_key_file):
-        raise Exit(f"Could not find file for ssh key {ssh_key}. Looked for {ssh_key_file}")
-
-    return ssh_key_file
-
-
 def remote_vms_in_config(vmconfig):
     with open(vmconfig, 'r') as f:
         data = json.load(f)
@@ -66,15 +65,6 @@ def local_vms_in_config(vmconfig):
             return True
 
     return False
-
-
-def ask_for_ssh():
-    return (
-        ask(
-            "You may want to provide ssh key, since the given config launches a remote instance.\nContinue witough ssh key?[Y/n]"
-        )
-        != "y"
-    )
 
 
 def kvm_ok(ctx):
@@ -189,10 +179,6 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     )
 
 
-def is_ec2_ip_entry(entry):
-    return entry.startswith("arm64-instance-ip") or entry.startswith("x86_64-instance-ip")
-
-
 def ec2_instance_ids(ctx, ip_list):
     ip_addresses = ','.join(ip_list)
     list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
@@ -208,18 +194,13 @@ def ec2_instance_ids(ctx, ip_list):
 def destroy_ec2_instances(ctx, stack):
     stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
-        warn(f"[-] File {stack_output} not found")
         return
 
-    with open(stack_output, 'r') as f:
-        output = f.read().split('\n')
-
+    infra = build_infrastructure(stack, remote_ssh_key="")
     ips = list()
-    for o in output:
-        if not is_ec2_ip_entry(o):
-            continue
-
-        ips.append(o.split(' ')[1])
+    for arch, instance in infra.items():
+        if arch != "local":
+            ips.append(instance.ip)
 
     if len(ips) == 0:
         info("[+] No ec2 instance to terminate in stack")
@@ -228,6 +209,10 @@ def destroy_ec2_instances(ctx, stack):
     instance_ids = ec2_instance_ids(ctx, ips)
     if len(instance_ids) == 0:
         return
+
+    if len(instance_ids) > 2:
+        error(f"CAREFUL! More than two instance ids returned. Something is wrong: {instance_ids}")
+        raise Exit("Too many instance_ids")
 
     ids = ' '.join(instance_ids)
     res = ctx.run(
@@ -241,15 +226,30 @@ def destroy_ec2_instances(ctx, stack):
     return
 
 
+def remove_pool_directory(ctx, stack):
+    pools_dir = os.path.join(get_kmt_os().libvirt_dir, "pools")
+    for _, dirs, _ in os.walk(pools_dir):
+        for d in dirs:
+            if resource_in_stack(stack, d):
+                rm_path = os.path.join(pools_dir, d)
+                ctx.run(f"sudo rm -r '{rm_path}'", hide=True)
+                info(f"[+] Removed libvirt pool directory {rm_path}")
+
+
 def destroy_stack_force(ctx, stack):
-    conn = libvirt.open("qemu:///system")
-    if not conn:
-        raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
-    delete_domains(conn, stack)
-    delete_volumes(conn, stack)
-    delete_pools(conn, stack)
-    delete_networks(conn, stack)
-    conn.close()
+    stack_dir = os.path.join(get_kmt_os().stacks_dir, stack)
+    vm_config = os.path.join(stack_dir, VMCONFIG)
+
+    if local_vms_in_config(vm_config):
+        conn = libvirt.open("qemu:///system")
+        if not conn:
+            raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
+        delete_domains(conn, stack)
+        delete_volumes(conn, stack)
+        delete_pools(conn, stack)
+        remove_pool_directory(ctx, stack)
+        delete_networks(conn, stack)
+        conn.close()
 
     destroy_ec2_instances(ctx, stack)
 
@@ -275,16 +275,16 @@ def destroy_stack_force(ctx, stack):
     )
 
 
-def destroy_stack(ctx, stack, force, ssh_key):
+def destroy_stack(ctx, stack, pulumi, ssh_key):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
-    if force:
-        destroy_stack_force(ctx, stack)
-    else:
+    if pulumi:
         destroy_stack_pulumi(ctx, stack, ssh_key)
+    else:
+        destroy_stack_force(ctx, stack)
 
     ctx.run(f"rm -r {get_kmt_os().stacks_dir}/{stack}")
 

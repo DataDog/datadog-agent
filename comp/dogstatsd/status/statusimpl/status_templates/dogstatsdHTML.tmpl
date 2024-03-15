@@ -1,0 +1,10 @@
+{{- with .dogstatsdStats -}}
+  <div class="stat">
+    <span class="stat_title">DogStatsD</span>
+    <span class="stat_data">
+        {{- range $key, $value := .}}
+          {{formatTitle $key}}: {{humanize $value}}<br>
+        {{- end }}
+    </span>
+  </div>
+{{- end -}}

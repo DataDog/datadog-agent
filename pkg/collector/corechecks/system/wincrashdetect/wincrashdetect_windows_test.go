@@ -99,7 +99,7 @@ func TestWinCrashReporting(t *testing.T) {
 			Success: true,
 		}
 
-		check := crashDetectFactory()
+		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
@@ -123,7 +123,7 @@ func TestWinCrashReporting(t *testing.T) {
 			Offender:   `somedriver.sys`,
 			BugCheck:   "0x00000007",
 		}
-		check := crashDetectFactory()
+		check := newCheck()
 		crashCheck := check.(*WinCrashDetect)
 		mock := mocksender.NewMockSender(crashCheck.ID())
 		err := crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
@@ -131,8 +131,8 @@ func TestWinCrashReporting(t *testing.T) {
 
 		expected := event.Event{
 			Priority:       event.EventPriorityNormal,
-			SourceTypeName: crashDetectCheckName,
-			EventType:      crashDetectCheckName,
+			SourceTypeName: CheckName,
+			EventType:      CheckName,
 			AlertType:      event.EventAlertTypeError,
 			Title:          formatTitle(p),
 			Text:           formatText(p),
@@ -177,7 +177,7 @@ func TestWinCrashReporting(t *testing.T) {
 		mock.On("Event", expected).Return().Times(1)
 		mock.On("Commit").Return().Times(1)
 
-		check = crashDetectFactory()
+		check = newCheck()
 		crashCheck = check.(*WinCrashDetect)
 		err = crashCheck.Configure(mock.GetSenderManager(), 0, nil, nil, "")
 		assert.Nil(t, err)

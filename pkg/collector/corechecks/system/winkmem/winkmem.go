@@ -15,17 +15,19 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"golang.org/x/sys/windows"
 )
 
 const (
-	kmemCheckName = "winkmem"
+	// CheckName is the name of the check
+	CheckName = "winkmem"
 
 	// KMemDefaultTopNum is the default number of kernel memory tags to return
 	KMemDefaultTopNum = 10
@@ -57,13 +59,14 @@ type KMemCheck struct {
 	config Config
 }
 
-func init() {
-	core.RegisterCheck(kmemCheckName, winkmemFactory)
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
 }
 
-func winkmemFactory() check.Check {
+func newCheck() check.Check {
 	return &KMemCheck{
-		CheckBase: core.NewCheckBase(kmemCheckName),
+		CheckBase: core.NewCheckBase(CheckName),
 	}
 }
 

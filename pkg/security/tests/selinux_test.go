@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -28,6 +28,8 @@ const TestBoolName = "selinuxuser_ping"
 const TestBoolName2 = "httpd_enable_cgi"
 
 func TestSELinux(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_enforce",
@@ -150,6 +152,8 @@ func TestSELinux(t *testing.T) {
 }
 
 func TestSELinuxCommitBools(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	if !isSELinuxEnabled() {
 		t.Skipf("SELinux is not available, skipping tests")
 	}

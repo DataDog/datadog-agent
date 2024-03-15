@@ -10,6 +10,7 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
@@ -17,12 +18,13 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(sysProbeConfig *sysconfigtypes.Config) (module.Module, error) {
-	emconfig := emconfig.NewConfig(sysProbeConfig)
+func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component]) (module.Module, error) {
+	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
 	if err != nil {
@@ -40,7 +42,7 @@ func createEventMonitorModule(sysProbeConfig *sysconfigtypes.Config) (module.Mod
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts)
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, opts, wmeta)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled
@@ -55,7 +57,11 @@ func createEventMonitorModule(sysProbeConfig *sysconfigtypes.Config) (module.Mod
 		log.Info("event monitoring cws consumer initialized")
 	}
 
-	if emconfig.NetworkConsumerEnabled {
+	// only add the network consumer if the pkg/network/events
+	// module was initialized by the network tracer module
+	// (this will happen only if the network consumer is enabled
+	// in config and the network tracer module is loaded successfully)
+	if events.Initialized() {
 		network, err := events.NewNetworkConsumer(evm)
 		if err != nil {
 			return nil, err

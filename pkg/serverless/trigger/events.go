@@ -7,6 +7,7 @@
 package trigger
 
 import (
+	"fmt"
 	"strings"
 
 	jsonEncoder "github.com/json-iterator/go"
@@ -293,4 +294,49 @@ func eventRecordsKeyEquals(event map[string]any, key string, val string) bool {
 		}
 	}
 	return false
+}
+
+func (et AWSEventType) String() string {
+	switch et {
+	case Unknown:
+		return "Unknown"
+	case APIGatewayEvent:
+		return "APIGatewayEvent"
+	case APIGatewayV2Event:
+		return "APIGatewayV2Event"
+	case APIGatewayWebsocketEvent:
+		return "APIGatewayWebsocketEvent"
+	case APIGatewayLambdaAuthorizerTokenEvent:
+		return "APIGatewayLambdaAuthorizerTokenEvent"
+	case APIGatewayLambdaAuthorizerRequestParametersEvent:
+		return "APIGatewayLambdaAuthorizerRequestParametersEvent"
+	case ALBEvent:
+		return "ALBEvent"
+	case CloudWatchEvent:
+		return "CloudWatchEvent"
+	case CloudWatchLogsEvent:
+		return "CloudWatchLogsEvent"
+	case CloudFrontRequestEvent:
+		return "CloudFrontRequestEvent"
+	case DynamoDBStreamEvent:
+		return "DynamoDBStreamEvent"
+	case KinesisStreamEvent:
+		return "KinesisStreamEvent"
+	case S3Event:
+		return "S3Event"
+	case SNSEvent:
+		return "SNSEvent"
+	case SQSEvent:
+		return "SQSEvent"
+	case SNSSQSEvent:
+		return "SNSSQSEvent"
+	case AppSyncResolverEvent:
+		return "AppSyncResolverEvent"
+	case EventBridgeEvent:
+		return "EventBridgeEvent"
+	case LambdaFunctionURLEvent:
+		return "LambdaFunctionURLEvent"
+	default:
+		return fmt.Sprintf("EventType(%d)", et)
+	}
 }

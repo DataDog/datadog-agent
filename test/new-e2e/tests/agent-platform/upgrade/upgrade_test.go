@@ -83,12 +83,12 @@ func TestUpgradeScript(t *testing.T) {
 }
 
 func (is *upgradeSuite) TestUpgrade() {
-	fileManager := filemanager.NewUnixFileManager(is.Env().RemoteHost)
+	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
 
 	agentClient, err := client.NewHostAgentClient(is.T(), is.Env().RemoteHost, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixHelper()
+	unixHelper := helpers.NewUnix()
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 	is.SetupAgentStartVersion(VMclient)
 	is.UpgradeAgentVersion(VMclient)

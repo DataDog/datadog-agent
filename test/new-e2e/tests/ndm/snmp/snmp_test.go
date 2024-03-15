@@ -51,7 +51,7 @@ func snmpDockerProvisioner() e2e.Provisioner {
 		if err != nil {
 			return err
 		}
-		host.Export(ctx, &env.Host.HostOutput)
+		host.Export(ctx, &env.RemoteHost.HostOutput)
 
 		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, name)
 		if err != nil {

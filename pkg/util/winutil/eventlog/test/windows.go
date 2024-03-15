@@ -2,18 +2,23 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
+
 //go:build windows
 
 package eventlog_test
 
 import (
 	"fmt"
+	"os/exec"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+
+	"github.com/stretchr/testify/require"
+	"testing"
 )
 
 const (
@@ -164,4 +169,35 @@ func channelRootKey() string {
 
 func channelRegistryKey(channel string) string {
 	return fmt.Sprintf(`%v\%v`, channelRootKey(), channel)
+}
+
+// StartEventLogService starts the Windows Event Log service
+func (ti *WindowsAPITester) StartEventLogService(t *testing.T) {
+	t.Helper()
+
+	cmd := exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "Failed to start EventLog service %s", out)
+}
+
+// KillEventLogService stops the Windows Event Log service and adds a Cleanup task to the test
+// to restart it at the end of the test.
+func (ti *WindowsAPITester) KillEventLogService(t *testing.T) {
+	t.Helper()
+
+	// kill the process rather than use `Stop-Service` because even with `-Force` it can fail to stop the service.
+	cmd := `Stop-Process -Force -Id (Get-WmiObject -Class Win32_Service -Filter "Name LIKE 'EventLog'" | Select-Object -ExpandProperty ProcessId)`
+	p := exec.Command("powershell.exe", "-Command", cmd)
+	out, err := p.CombinedOutput()
+
+	t.Cleanup(func() {
+		// ensure service is started at end of this test
+		p := exec.Command("powershell.exe", "-Command", "Start-Service", "EventLog")
+		out, err = p.CombinedOutput()
+		if err != nil {
+			t.Logf("Failed to start EventLog service %s", err)
+		}
+	})
+
+	require.NoError(t, err, "Failed to stop EventLog service %s", out)
 }

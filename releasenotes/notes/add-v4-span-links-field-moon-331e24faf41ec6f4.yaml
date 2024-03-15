@@ -1,0 +1,6 @@
+
+features:
+  - |
+    Adds support for `span links <https://docs.datadoghq.com/tracing/trace_collection/span_links/>`_  in the trace agent. This field
+    contains a list of casual relationships between spans and is only
+    populated when v0.4 of the Trace API is used.

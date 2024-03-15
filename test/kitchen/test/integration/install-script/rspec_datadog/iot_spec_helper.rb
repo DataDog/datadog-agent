@@ -1,1 +1,0 @@
-../../common/rspec_datadog/iot_spec_helper.rb

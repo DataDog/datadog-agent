@@ -61,13 +61,6 @@ if arm_target?
   excluded_packages.push(/^pymqi==/)
 end
 
-# We explicitly check for redhat builder, not target
-# Our centos/redhat builder uses glibc 2.12 while pydantic
-# requires glibc 2.17
-if redhat? && !arm_target?
-  excluded_packages.push(/^pydantic-core==/)
-end
-
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
 # even when doing a 32 bit build.  Do a specific check for the 32 bit
 # build
@@ -362,7 +355,7 @@ build do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows_target? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
+    awscli = if windows_target? then '"c:\Program files\python311\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       shellout! "inv -e agent.get-integrations-from-cache " \

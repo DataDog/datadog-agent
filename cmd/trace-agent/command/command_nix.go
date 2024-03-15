@@ -7,5 +7,11 @@
 
 package command
 
+import (
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
 // defaultConfigPath specifies the default configuration file path for non-Windows systems.
-const defaultConfigPath = "/opt/datadog-agent/etc/datadog.yaml"
+var defaultConfigPath = filepath.Join(setup.InstallPath, "etc/datadog.yaml")

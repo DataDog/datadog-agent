@@ -20,7 +20,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -65,8 +64,8 @@ type Watcher struct {
 }
 
 // NewWatcher creates a new Watcher instance
-func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
-	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
+func NewWatcher(cfg *config.Config, rules ...Rule) (*Watcher, error) {
+	ebpfProgram := newEBPFProgram(cfg)
 	err := ebpfProgram.Init()
 	if err != nil {
 		return nil, fmt.Errorf("error initializing shared library program: %w", err)
@@ -190,6 +189,8 @@ func (w *Watcher) Start() {
 			w.wg.Done()
 		}()
 
+		dataChannel := w.loadEvents.DataChannel()
+		lostChannel := w.loadEvents.LostChannel()
 		for {
 			select {
 			case <-w.done:
@@ -200,7 +201,7 @@ func (w *Watcher) Start() {
 				for deletedPid := range deletedPids {
 					w.registry.Unregister(deletedPid)
 				}
-			case event, ok := <-w.loadEvents.DataChannel:
+			case event, ok := <-dataChannel:
 				if !ok {
 					return
 				}
@@ -222,7 +223,7 @@ func (w *Watcher) Start() {
 					}
 				}
 				event.Done()
-			case <-w.loadEvents.LostChannel:
+			case <-lostChannel:
 				// Nothing to do in this case
 				break
 			}

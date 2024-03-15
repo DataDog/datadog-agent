@@ -5,7 +5,7 @@
 > [dedicated docs](https://datadoghq.dev/integrations-core/base/about/) for
 > more details.
 
-The module exposes [tagger](/pkg/tagger) functionalities to Python integrations.
+The module exposes [tagger](/comp/core/tagger) functionalities to Python integrations.
 
 ## Implementation
 

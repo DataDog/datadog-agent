@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -26,6 +27,11 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+)
+
+const (
+	taskNameDogstatsdUDS = "dogstatsd-uds"
+	taskNameDogstatsdUDP = "dogstatsd-udp"
 )
 
 type ecsSuite struct {
@@ -174,12 +180,13 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 	})
 }
 
-func (suite *ecsSuite) TestNginx() {
+func (suite *ecsSuite) TestNginxECS() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -189,6 +196,7 @@ func (suite *ecsSuite) TestNginx() {
 				`^docker_image:ghcr.io/datadog/apps-nginx-server:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:nginx$`,
+				`^ecs_launch_type:ec2$`,
 				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
@@ -201,12 +209,14 @@ func (suite *ecsSuite) TestNginx() {
 				`^task_name:.*-nginx-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "apps-nginx-server",
+			Tags:    []string{"ecs_launch_type:ec2"},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
@@ -216,6 +226,7 @@ func (suite *ecsSuite) TestNginx() {
 				`^docker_image:ghcr.io/datadog/apps-nginx-server:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:nginx$`,
+				`^ecs_launch_type:ec2$`,
 				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
@@ -232,50 +243,52 @@ func (suite *ecsSuite) TestNginx() {
 	})
 }
 
-func (suite *ecsSuite) TestRedis() {
+func (suite *ecsSuite) TestRedisECS() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
-				`^docker_image:redis:latest$`,
+				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
+				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
-				`^image_name:redis$`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
 				`^task_family:.*-redis-ec2$`,
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
 			Service: "redis",
+			Tags:    []string{"ecs_launch_type:ec2"},
 		},
 		Expect: testLogExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
-				`^docker_image:redis:latest$`,
+				`^docker_image:public.ecr.aws/docker/library/redis:latest$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:redis$`,
+				`^ecs_launch_type:ec2$`,
 				`^image_id:sha256:`,
-				`^image_name:redis$`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
 				`^short_image:redis$`,
 				`^task_arn:arn:`,
@@ -288,13 +301,80 @@ func (suite *ecsSuite) TestRedis() {
 	})
 }
 
+func (suite *ecsSuite) TestNginxFargate() {
+	// `nginx` check is configured via docker labels
+	// Test it is properly scheduled
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "nginx.net.request_per_s",
+			Tags: []string{"^ecs_launch_type:fargate$"},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^availability_zone:`,
+				`^availability-zone:`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:nginx$`,
+				`^ecs_launch_type:fargate$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^region:us-east-1$`,
+				`^short_image:apps-nginx-server$`,
+				`^task_arn:`,
+				`^task_family:.*-nginx-fg$`,
+				`^task_name:.*-nginx-fg$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+}
+
+func (suite *ecsSuite) TestRedisFargate() {
+	// `redis` check is auto-configured due to image name
+	// Test it is properly scheduled
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "redis.net.instantaneous_ops_per_sec",
+			Tags: []string{"^ecs_launch_type:fargate$"},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^availability_zone:`,
+				`^availability-zone:`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:redis$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:redis$`,
+				`^ecs_launch_type:fargate`,
+				`^image_id:sha256:`,
+				`^image_name:public.ecr.aws/docker/library/redis$`,
+				`^image_tag:latest$`,
+				`^region:us-east-1$`,
+				`^short_image:redis$`,
+				`^task_arn:`,
+				`^task_family:.*-redis-fg$`,
+				`^task_name:.*-redis-fg*`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+}
+
 func (suite *ecsSuite) TestCPU() {
 	// Test CPU metrics
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
-				"ecs_container_name:stress-ng",
+				"^ecs_container_name:stress-ng$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -302,13 +382,14 @@ func (suite *ecsSuite) TestCPU() {
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-stress-ng-ec2-`,
-				`^docker_image:ghcr.io/colinianking/stress-ng$`,
+				`^docker_image:ghcr.io/colinianking/stress-ng:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:stress-ng$`,
 				`^git.commit.sha:`,
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^runtime:docker$`,
 				`^short_image:stress-ng$`,
 				`^task_arn:`,
@@ -324,17 +405,27 @@ func (suite *ecsSuite) TestCPU() {
 	})
 }
 
-func (suite *ecsSuite) TestDogstatsd() {
-	// Test dogstatsd origin detection with UDS
+func (suite *ecsSuite) TestDogtstatsdUDS() {
+	suite.testDogstatsd(taskNameDogstatsdUDS)
+}
+
+func (suite *ecsSuite) TestDogtstatsdUDP() {
+	suite.testDogstatsd(taskNameDogstatsdUDP)
+}
+
+func (suite *ecsSuite) testDogstatsd(taskName string) {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
+			Tags: []string{
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
-				`^container_name:ecs-.*-dogstatsd-uds-ec2-`,
+				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
@@ -346,8 +437,8 @@ func (suite *ecsSuite) TestDogstatsd() {
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 				`^task_arn:`,
-				`^task_family:.*-dogstatsd-uds-ec2$`,
-				`^task_name:.*-dogstatsd-uds-ec2$`,
+				`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
 		},

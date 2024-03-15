@@ -4,7 +4,6 @@
 #
 # .rpm: STEP 2 of 6
 
-INSTALL_DIR=/opt/datadog/agentless-scanner
 SERVICE_NAME=datadog-agentless-scanner
 
 # Linux installation
@@ -18,17 +17,6 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
         initctl stop $SERVICE_NAME || true
     else
         echo "[ WARNING ]\tCannot detect a supported init system. The datadog-agentless-scanner package only provides service files for systemd and upstart."
-    fi
-fi
-
-# Set up `dd-agent` user and group
-if ! getent group dd-agent >/dev/null; then
-    groupadd -r dd-agent
-fi
-if ! getent passwd dd-agent >/dev/null; then
-    useradd -r -M -g dd-agent -d $INSTALL_DIR -s /sbin/nologin -c "Datadog Agent" dd-agent
-    if ! usermod -L dd-agent; then
-        echo "[ WARNING ]\tCannot lock the 'dd-agent' user account"
     fi
 fi
 

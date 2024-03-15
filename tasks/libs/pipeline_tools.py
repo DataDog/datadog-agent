@@ -4,9 +4,9 @@ import platform
 import sys
 from time import sleep, time
 
-from ..utils import DEFAULT_BRANCH
-from .common.color import color_message
-from .common.user_interactions import yes_no_question
+from tasks.libs.common.color import color_message
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import DEFAULT_BRANCH
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
 
@@ -87,8 +87,8 @@ def trigger_agent_pipeline(
     branch="nightly",
     deploy=False,
     all_builds=False,
-    kitchen_tests=False,
     e2e_tests=False,
+    rc_build=False,
     rc_k8s_deployments=False,
 ):
     """
@@ -110,17 +110,12 @@ def trigger_agent_pipeline(
     if all_builds:
         args["RUN_ALL_BUILDS"] = "true"
 
-    # Kitchen tests can be selectively enabled, or disabled on pipelines where they're
-    # enabled by default (default branch and deploy pipelines).
-    if kitchen_tests:
-        args["RUN_KITCHEN_TESTS"] = "true"
-    else:
-        args["RUN_KITCHEN_TESTS"] = "false"
-
     # End to end tests can be selectively enabled, or disabled on pipelines where they're
     # enabled by default (default branch and deploy pipelines).
     if e2e_tests:
-        args["RUN_E2E_TESTS"] = "true"
+        args["RUN_E2E_TESTS"] = "on"
+    else:
+        args["RUN_E2E_TESTS"] = "off"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6
@@ -130,6 +125,9 @@ def trigger_agent_pipeline(
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch
+
+    if rc_build:
+        args["RC_BUILD"] = "true"
 
     if rc_k8s_deployments:
         args["RC_K8S_DEPLOYMENTS"] = "true"

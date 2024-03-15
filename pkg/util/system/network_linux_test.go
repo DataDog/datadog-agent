@@ -19,7 +19,7 @@ import (
 
 func TestParseProcessRoutes(t *testing.T) {
 	dummyProcDir, err := testutil.NewTempFolder("test-process-routes")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer dummyProcDir.RemoveAll() // clean up
 
 	for _, tc := range []struct {
@@ -108,7 +108,7 @@ func TestParseProcessRoutes(t *testing.T) {
 
 func TestParseProcessIPs(t *testing.T) {
 	dummyProcDir, err := testutil.NewTempFolder("test-process-ips")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	defer dummyProcDir.RemoveAll() // clean up
 
 	exampleNetFibTrieFileContent := `
@@ -244,7 +244,7 @@ Local:
 
 // func TestDefaulHostIPs(t *testing.T) {
 // 	dummyProcDir, err := testutil.NewTempFolder("test-default-host-ips")
-// 	require.Nil(t, err)
+// 	require.NoError(t, err)
 // 	defer dummyProcDir.RemoveAll()
 
 // 	t.Run("routing table contains a gateway entry", func(t *testing.T) {
@@ -278,7 +278,7 @@ Local:
 
 // 		// Verify they match the IPs returned by DefaultHostIPs()
 // 		defaultIPs, err := defaultHostIPs(dummyProcDir.RootPath)
-// 		assert.Nil(t, err)
+// 		assert.NoError(t, err)
 // 		assert.Equal(t, expectedIPs, defaultIPs)
 // 	})
 

@@ -63,8 +63,11 @@ func NewCIProfile() (Profile, error) {
 
 	ciEnvironments := strings.Split(environmentsStr, " ")
 
+	// get output root from env, if not found, empty string "" will tell base profile to use default
+	outputRoot := os.Getenv("CI_PROJECT_DIR")
+
 	return ciProfile{
-		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
+		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
 		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
 	}, nil
 }

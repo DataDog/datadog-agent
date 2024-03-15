@@ -23,6 +23,8 @@ const (
 	AgentAPPKey = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentAPPKeyParamName
 	// AgentPipelineID pulumi config parameter name
 	AgentPipelineID = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentPipelineID
+	// AgentCommitSHA pulumi config parameter name
+	AgentCommitSHA = commonconfig.DDAgentConfigNamespace + ":" + commonconfig.DDAgentCommitSHA
 
 	// InfraEnvironmentVariables pulumi config paramater name
 	InfraEnvironmentVariables = commonconfig.DDInfraConfigNamespace + ":" + commonconfig.DDInfraEnvironment
@@ -117,6 +119,11 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
+	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.CommitSHA, AgentCommitSHA)
+	if err != nil {
+		return nil, err
+	}
+
 	// Secret parameters from profile store
 	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.APIKey, AgentAPIKey)
 	if err != nil {

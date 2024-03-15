@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
+
 	"github.com/shirou/gopsutil/v3/process"
 	yaml "gopkg.in/yaml.v3"
 )
@@ -59,7 +60,9 @@ func readFileLimit(name string) ([]byte, error) {
 	return b, nil
 }
 
-func getProcResourceType(proc *process.Process) (string, bool) {
+// GetProcResourceType returns the type of database resource associated with
+// the given process.
+func GetProcResourceType(proc *process.Process) (string, bool) {
 	name, _ := proc.Name()
 	switch name {
 	case "postgres":
@@ -75,32 +78,32 @@ func getProcResourceType(proc *process.Process) (string, bool) {
 	return "", false
 }
 
-// ListProcesses returns a map of database application processes that we are
-// able to scan, indexed by their associated container ID.
-func ListProcesses(ctx context.Context) map[utils.ContainerID]int32 {
-	pids := make(map[utils.ContainerID]int32)
-	procs, err := process.ProcessesWithContext(ctx)
-	if err != nil {
-		return nil
+// LoadDBResource loads and returns an optional DBResource associated with the
+// given process PID.
+func LoadDBResource(ctx context.Context, rootPath string, proc *process.Process, containerID utils.ContainerID) (*DBResource, bool) {
+	resourceType, ok := GetProcResourceType(proc)
+	if !ok {
+		return nil, false
 	}
-	dedupeMap := make(map[string]struct{})
-	for _, proc := range procs {
-		resourceType, ok := getProcResourceType(proc)
-		if !ok {
-			continue
-		}
-		containerID, _ := utils.GetProcessContainerID(proc.Pid)
-		// We dedupe our scans based on the resource type and the container
-		// ID, assuming that we will scan the same configuration for each
-		// containers running the process.
-		dedupeKey := resourceType + string(containerID)
-		if _, ok := dedupeMap[dedupeKey]; ok {
-			continue
-		}
-		dedupeMap[dedupeKey] = struct{}{}
-		pids[containerID] = proc.Pid
+	var conf *DBConfig
+	switch resourceType {
+	case postgresqlResourceType:
+		conf, ok = LoadPostgreSQLConfig(ctx, rootPath, proc)
+	case mongoDBResourceType:
+		conf, ok = LoadMongoDBConfig(ctx, rootPath, proc)
+	case cassandraResourceType:
+		conf, ok = LoadCassandraConfig(ctx, rootPath, proc)
+	default:
+		ok = false
 	}
-	return pids
+	if !ok || conf == nil {
+		return nil, false
+	}
+	return &DBResource{
+		Type:        resourceType,
+		ContainerID: string(containerID),
+		Config:      *conf,
+	}, true
 }
 
 // LoadDBResourceFromPID loads and returns an optional DBResource associated
@@ -111,10 +114,11 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 		return nil, false
 	}
 
-	resourceType, ok := getProcResourceType(proc)
+	resourceType, ok := GetProcResourceType(proc)
 	if !ok {
 		return nil, false
 	}
+
 	containerID, _ := utils.GetProcessContainerID(pid)
 	hostroot, ok := utils.GetProcessRootPath(pid)
 	if !ok {
@@ -191,7 +195,7 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 		result.ProcessName, _ = proc.NameWithContext(ctx)
 	}
 
-	var configData map[string]interface{}
+	var configData *cassandraDBConfig
 	matches, _ := filepath.Glob(filepath.Join(hostroot, cassandraConfigGlob))
 	for _, configPath := range matches {
 		fi, err := os.Stat(configPath)
@@ -217,8 +221,8 @@ func LoadCassandraConfig(ctx context.Context, hostroot string, proc *process.Pro
 
 	logback, err := readFileLimit(filepath.Join(hostroot, cassandraLogbackPath))
 	if err == nil {
-		configData["logback_file_path"] = cassandraLogbackPath
-		configData["logback_file_content"] = string(logback)
+		configData.LogbackFilePath = cassandraLogbackPath
+		configData.LogbackFileContent = string(logback)
 	}
 	result.ConfigData = configData
 	return &result, true

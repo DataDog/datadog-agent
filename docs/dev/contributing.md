@@ -37,16 +37,40 @@ Have you fixed a bug or written a new check and want to share it? Many thanks!
 In order to ease/speed up our review, here are some items you can check/improve
 when submitting your PR:
 
-  * have a proper commit history (we advise you to rebase if needed).
-  * write tests for the code you wrote.
-  * preferably make sure that all tests pass locally.
-  * summarize your PR with an explanatory title and a message describing your
-    changes, cross-referencing any related bugs/PRs.
-  * use [Reno](#reno) to create a releasenote.
-  * open your PR against the `main` branch.
-  * for PRs from contributors with write access to the repository (for community PRs, will be done by Datadog employees):
-    + set the relevant `team/` label
-    + add a milestone to your PR (by default, use the highest milestone version available, ex: `7.49.0`)
+<details open>
+<summary>Contributor Checklist</summary>
+
+- [ ] Have a proper commit history (we advise you to rebase if needed) with clear commit messages.
+
+- [ ] Write tests for the code you wrote.
+
+- [ ] Preferably make sure that all tests pass locally.
+
+- [ ] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.
+
+- [ ] Use [Reno](#reno) to create a release note.
+
+- [ ] Open your PR against the `main` branch.
+
+- [ ] Provide adequate QA/testing plan information.
+</details>
+<br>
+
+<details>
+<summary open>Reviewer Checklist</summary>
+
+- [ ] The added code comes with tests.
+
+- [ ] The CI is green, all tests are passing (required or not).
+
+- [ ] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
+
+- [ ] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
+</details>
+<br>
+
+> [!NOTE]
+> Adding GitHub labels is only possible for contributors with write access.
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
@@ -258,13 +282,29 @@ labels that can be use:
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote
   (useful for PRs only changing documentation or tests).
-- `qa/skip-qa`, `qa/done`, `qa/no-code-change`: if the `qa/skip-qa` label is set with
-  an additional required `qa/done` or `qa/no-code-change`, it will skip the creation
-  of a QA card related to this PR during next release process (example:
-  documentation-only PRs).
+- `qa/done`, `qa/no-code-change`: if either the `qa/no-code-change` label or the
+  `qa/done` label is set, it will skip the creation of a QA card related to this
+  PR during next release process (example: documentation-only PRs).
 - `major_change`: to flag the PR as a major change impacting many/all teams
   working on the agent and will require deeper QA (example: when we change the
   Python version shipped in the agent).
+- `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.
+- `k8s/<min-version>`: indicate the lowest Kubernetes version compatible with the PR's feature.
+- `backport/<branch-name>`: Add this label to automatically create a PR against the `<branch-name>` branch with your backported changes. The backport PR creation is triggered:
+  - When a PR with the label is merged
+  - When an already-merged PR gets the label
+
+  If there is a conflict, the bot prompts you with a list of instructions to follow ([example](https://github.com/DataDog/datadog-agent/pull/23316#issuecomment-1973207164)) to manually backport your PR.
+- `qa/done` or `qa/no-code-change`: used to skip the QA week:
+  - `qa/done` label is recommended in case of code changes **and** manual / automated qa done before merge.
+  - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
+
+> [!NOTE]
+> Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the agent build
+> All of the following do not require QA:
+> - Changing the CI configuration without impacting the Agent packaging.
+> - Changing the documentation.
+> - Changing the developer tooling.
 
 ## Integrations
 

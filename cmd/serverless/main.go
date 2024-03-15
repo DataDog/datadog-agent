@@ -119,7 +119,13 @@ func runAgent() {
 
 	debug.OutputDatadogEnvVariablesForDebugging()
 
-	if !apikey.HasAPIKey() {
+	config.Datadog.SetConfigFile(datadogConfigPath)
+	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
+	if _, err := config.LoadWithoutSecret(); err != nil {
+		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
+	}
+
+	if err := apikey.HandleEnv(); err != nil {
 		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
 		// we still need to register the extension but let's return after (no-op)
 		id, _, registrationError := registration.RegisterExtension(extensionRegistrationRoute, extensionRegistrationTimeout)
@@ -170,14 +176,6 @@ func runAgent() {
 	} else {
 		serverlessDaemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
 	}
-
-	config.Datadog.SetConfigFile(datadogConfigPath)
-	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := config.LoadWithoutSecret(); err != nil {
-		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
-	}
-
-	apikey.HandleEnv()
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
@@ -257,7 +255,7 @@ func runAgent() {
 	go func() {
 		defer wg.Done()
 		var err error
-		appsecProxyProcessor, err = appsec.New()
+		appsecProxyProcessor, err = appsec.New(serverlessDaemon.MetricAgent.Demux)
 		if err != nil {
 			log.Error("appsec: could not start: ", err)
 		}

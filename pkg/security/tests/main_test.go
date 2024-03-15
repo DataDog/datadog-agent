@@ -10,42 +10,41 @@ package tests
 
 import (
 	"flag"
-	"fmt"
+	"math/rand"
 	"os"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
-	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
-	"golang.org/x/exp/slices"
+	"github.com/cihub/seelog"
 )
 
 // TestMain is the entry points for functional tests
 func TestMain(m *testing.M) {
 	flag.Parse()
 
-	if trace {
-		args := slices.DeleteFunc(os.Args, func(arg string) bool {
-			return arg == "-trace"
-		})
-
-		envs := os.Environ()
-		envs = append(envs, "EBPFLESS=true")
-
-		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, ptracer.Creds{}, false /* verbose */, true /* async */, false /* disableStats */)
-		if err != nil {
-			fmt.Printf("unable to trace [%v]: %s", args, err)
-			os.Exit(-1)
-		}
-		return
-	}
-
+	preTestsHook()
 	retCode := m.Run()
-	if testMod != nil {
-		testMod.cleanup()
-	}
+	postTestsHook()
 
 	if commonCfgDir != "" {
 		_ = os.RemoveAll(commonCfgDir)
 	}
+
 	os.Exit(retCode)
+}
+
+var (
+	logLevelStr     string
+	logPatterns     stringSlice
+	logTags         stringSlice
+	ebpfLessEnabled bool
+)
+
+func init() {
+	flag.StringVar(&logLevelStr, "loglevel", seelog.WarnStr, "log level")
+	flag.Var(&logPatterns, "logpattern", "List of log pattern")
+	flag.Var(&logTags, "logtag", "List of log tag")
+	flag.BoolVar(&ebpfLessEnabled, "ebpfless", false, "enabled the ebpfless mode")
+
+	rand.Seed(time.Now().UnixNano())
 }

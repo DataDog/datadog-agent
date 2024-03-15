@@ -34,6 +34,14 @@ func (m *MockSender) AssertMetric(t *testing.T, method string, metric string, va
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags))
 }
 
+// AssertMetric that the metric is emitted only once
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertMetricOnce(t *testing.T, method string, metric string, value float64, hostname string, tags []string) bool {
+	okCall := m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags))
+	notOkCalls := m.Mock.AssertNotCalled(t, method, metric, AnythingBut(value), hostname, MatchTagsContains(tags))
+	return okCall && notOkCalls
+}
+
 // AssertMonotonicCount allows to assert a monotonic count was emitted with given parameters.
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertMonotonicCount(t *testing.T, method string, metric string, value float64, hostname string, tags []string, flushFirstValue bool) bool {

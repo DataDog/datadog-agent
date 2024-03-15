@@ -112,8 +112,8 @@ variables:
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
-  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   AGENT_BINARIES_DIR: bin/agent
+  AGENTLESS_SCANNER_BINARIES_DIR: bin/agentless-scanner
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
   CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
@@ -170,7 +170,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8d38c2a2a794
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 59215b0d47c4
   DATADOG_AGENT_BUILDERS: v21429255-6b46caa
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -895,7 +895,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_system_probe_changes_or_manual:
+.on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - changes:
       paths:
@@ -949,8 +949,10 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_main_and_no_skip_e2e:
+.on_main_or_rc_and_no_skip_e2e:
   - <<: *if_not_e2e
     when: never
+  - <<: *if_tagged_commit
+    when: on_success
   - <<: *if_main_branch
     when: on_success

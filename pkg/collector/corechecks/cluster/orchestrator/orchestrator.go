@@ -14,8 +14,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/atomic"
 	"gopkg.in/yaml.v2"
@@ -38,14 +39,13 @@ import (
 )
 
 const (
+	// CheckName is the name of the check
+	CheckName = orchestrator.CheckName
+
 	maximumWaitForAPIServer = 10 * time.Second
 	collectionInterval      = 10 * time.Second
 	defaultResyncInterval   = 300 * time.Second
 )
-
-func init() {
-	core.RegisterCheck(orchestrator.CheckName, OrchestratorFactory)
-}
 
 // OrchestratorInstance is the config of the orchestrator check instance.
 type OrchestratorInstance struct {
@@ -93,10 +93,14 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 	}
 }
 
-// OrchestratorFactory returns the orchestrator check
-func OrchestratorFactory() check.Check {
+// Factory creates a new check factory
+func Factory() optional.Option[func() check.Check] {
+	return optional.NewOption(newCheck)
+}
+
+func newCheck() check.Check {
 	return newOrchestratorCheck(
-		core.NewCheckBase(orchestrator.CheckName),
+		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},
 	)
 }

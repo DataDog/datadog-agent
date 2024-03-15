@@ -22,7 +22,7 @@ var core struct {
 	loader *coreAssetLoader
 }
 
-// Setup initializes CO-RE and BTF loaders with the provided config
+// Setup initializes CO-RE and BTF loaders with the provided config.
 // [Reset] must be called first if you want a different config to take effect
 func Setup(cfg *Config) error {
 	_, err := coreLoader(cfg)
@@ -56,7 +56,7 @@ func coreLoader(cfg *Config) (*coreAssetLoader, error) {
 	return core.loader, nil
 }
 
-// Reset resets CO-RE and BTF loaders back to uninitialized state
+// Reset resets CO-RE and BTF loaders and manager modifiers back to uninitialized state
 func Reset() {
 	core.Lock()
 	defer core.Unlock()
