@@ -815,6 +815,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
+        current_stream->tags |= args->tags;
         tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
     }
 

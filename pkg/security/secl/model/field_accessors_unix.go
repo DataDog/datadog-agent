@@ -771,6 +771,16 @@ func (ev *Event) GetEventAsync() bool {
 	return ev.FieldHandlers.ResolveAsync(ev)
 }
 
+// GetEventOrigin returns the value of the field, resolving if necessary
+func (ev *Event) GetEventOrigin() string {
+	return ev.BaseEvent.Origin
+}
+
+// GetEventOs returns the value of the field, resolving if necessary
+func (ev *Event) GetEventOs() string {
+	return ev.BaseEvent.Os
+}
+
 // GetEventService returns the value of the field, resolving if necessary
 func (ev *Event) GetEventService() string {
 	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)

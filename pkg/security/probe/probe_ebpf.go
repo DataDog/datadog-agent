@@ -618,8 +618,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	nsPath := utils.NetNSPathFromPid(event.PIDContext.Pid)
-	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.PIDContext.NetNS, nsPath)
+	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NetNSPath {
+		return utils.NetNSPathFromPid(event.PIDContext.Pid)
+	})
 
 	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
