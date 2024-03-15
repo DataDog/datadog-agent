@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,6 +79,47 @@ func TestProcess(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_rule")
+	})
+}
+
+func TestProcessEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	t.Run("proc-scan", func(t *testing.T) {
+		err := retry.Do(func() error {
+			var found bool
+			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+				if entry.FileEvent.BasenameStr == path.Base(executable) && slices.Contains(entry.ArgsEntry.Values, "-trace") {
+					found = true
+				}
+			})
+
+			if !found {
+				return errors.New("not found")
+			}
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		assert.Nil(t, err)
 	})
 }
 
@@ -2024,7 +2066,7 @@ echo "Executing echo insIDe a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print insIDe a python (%s) script insIDe a bash script')
+print('Executing print insIDe a python (%s) script inside a bash script')
 
 EOF
 
@@ -2098,7 +2140,7 @@ chmod 755 pyscript.py
 
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
+			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
 			}
@@ -2107,6 +2149,7 @@ chmod 755 pyscript.py
 
 			testModule.WaitSignal(t, func() error {
 				cmd := exec.Command(scriptLocation)
+				cmd.Dir = os.TempDir()
 				output, scriptRunErr := cmd.CombinedOutput()
 				if scriptRunErr != nil {
 					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)

@@ -14,7 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 
 	"gopkg.in/yaml.v2"
 )
@@ -34,11 +34,11 @@ func TestJSONConverter(t *testing.T) {
 
 		// Read file contents
 		yamlFile, err := os.ReadFile(fmt.Sprintf("../collector/corechecks/embed/jmx/fixtures/%s.yaml", c))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		// Parse configuration
 		err = yaml.Unmarshal(yamlFile, &cf)
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 
 		cache[c] = cf
 	}
@@ -53,7 +53,7 @@ func TestJSONConverter(t *testing.T) {
 
 	//json encode
 	_, err := json.Marshal(GetJSONSerializableMap(j))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestCopyDir(t *testing.T) {

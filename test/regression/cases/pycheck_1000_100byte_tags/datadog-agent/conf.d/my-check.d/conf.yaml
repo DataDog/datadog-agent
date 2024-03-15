@@ -1,0 +1,10 @@
+instances:
+  - seed: abcdef
+    num_tagsets: 10
+    tags_per_set: 1000
+    tag_length: 100
+
+  - seed: 12255457845
+    num_tagsets: 10
+    tags_per_set: 1000
+    tag_length: 100

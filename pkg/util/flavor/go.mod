@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/flavor
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
@@ -27,7 +27,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.52.0-rc.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (

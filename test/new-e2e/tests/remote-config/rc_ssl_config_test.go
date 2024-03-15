@@ -7,9 +7,10 @@ package remoteconfig
 
 import (
 	_ "embed"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -38,13 +39,15 @@ func TestSslConfigSuite(t *testing.T) {
 
 // TestRemoteConfigSSLConfigMismatch tests the startup condition where the agent's SSL config is disabled but RC's TLS validation is not explicitly disabled
 func (s *sslConfigSuite) TestRemoteConfigSSLConfigMismatch() {
-	// Ensure the remote config service starts
-	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
-
-	// Ensure the agent logs a warning about the SSL config mismatch
-	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote Configuration does not allow skipping TLS validation by default", 2*time.Minute, 5*time.Second)
-	// Ensure the remote config service stops, and the client stops because the service is no longer responding
-	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote configuration isn't enabled, disabling client", 2*time.Minute, 5*time.Second)
+	expectedLogs := []string{
+		// Ensure the agent logs a warning about the SSL config mismatch
+		"remote Configuration does not allow skipping TLS validation by default",
+		// Ensure the remote config service stops, and the client stops because the service is no longer responding
+		"remote configuration isn't enabled, disabling client",
+		// Ensure the agent logs a warning about the remote config service being unable to start
+		"unable to create remote config service",
+	}
+	assertAgentLogsEventually(s.T(), s.Env().RemoteHost, "agent", expectedLogs, 2*time.Minute, 5*time.Second)
 
 	// Ensure the agent remains running despite the remote config service initialization failure
 	// EventuallyWithT will wait for the duration of the `tick` argument before executing the assertion function,

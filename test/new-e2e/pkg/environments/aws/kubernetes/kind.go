@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )

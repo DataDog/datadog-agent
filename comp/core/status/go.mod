@@ -1,11 +1,11 @@
 module github.com/DataDog/datadog-agent/comp/core/status
 
-go 1.21.7
+go 1.21.8
 
 require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.16.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 	golang.org/x/text v0.3.0
 )

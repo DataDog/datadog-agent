@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
@@ -64,7 +64,7 @@ func NewPipeline(outputChan chan *message.Payload,
 	}
 
 	strategy := getStrategy(strategyInput, senderInput, flushChan, endpoints, serverless, pipelineID)
-	logsSender = sender.NewSender(senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
+	logsSender = sender.NewSender(cfg, senderInput, outputChan, mainDestinations, config.DestinationPayloadChanSize)
 
 	inputChan := make(chan *message.Message, config.ChanSize)
 	processor := processor.New(inputChan, strategyInput, processingRules, encoder, diagnosticMessageReceiver, hostname)

@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -63,17 +62,11 @@ func (rc *remoteConfig) Close() {
 }
 
 // SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(pkg string, state repository.State) {
+func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
 	if rc.client == nil {
 		return
 	}
-	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
-		{
-			Package:           pkg,
-			StableVersion:     state.Stable,
-			ExperimentVersion: state.Experiment,
-		},
-	})
+	rc.client.SetUpdaterPackagesState(packages)
 }
 
 // Package represents a downloadable package.
@@ -143,11 +136,12 @@ const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+	methodBootstrap         = "bootstrap"
 )
 
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
-	Package       string          `json:"package"`
+	Package       string          `json:"package_name"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
@@ -158,7 +152,7 @@ type expectedState struct {
 	Experiment string `json:"experiment"`
 }
 
-type startExperimentParams struct {
+type taskWithVersionParams struct {
 	Version string `json:"version"`
 }
 
