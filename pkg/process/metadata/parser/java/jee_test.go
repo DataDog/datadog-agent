@@ -8,6 +8,7 @@ package javaparser
 import (
 	"archive/zip"
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestResolveAppServerFromCmdLine(t *testing.T) {
 -jar /home/app/Downloads/wildfly-18.0.0.Final/jboss-modules.jar -mp /home/app/Downloads/wildfly-18.0.0.Final/modules org.jboss.as.standalone
 -Djboss.home.dir=/home/app/Downloads/wildfly-18.0.0.Final -Djboss.server.base.dir=/home/app/Downloads/wildfly-18.0.0.Final/standalone`,
 			expectedVendor: jboss,
-			expectedHome:   "/home/app/Downloads/wildfly-18.0.0.Final",
+			expectedHome:   "/home/app/Downloads/wildfly-18.0.0.Final/standalone",
 		},
 		{
 			name: "wildfly 18 domain",
@@ -49,7 +50,7 @@ func TestResolveAppServerFromCmdLine(t *testing.T) {
 -Dlogging.configuration=file:/home/app/Downloads/wildfly-18.0.0.Final/domain/configuration/default-server-logging.properties
 -jar /home/app/Downloads/wildfly-18.0.0.Final/jboss-modules.jar -mp /home/app/Downloads/wildfly-18.0.0.Final/modules org.jboss.as.server`,
 			expectedVendor: jboss,
-			expectedHome:   "/home/app/Downloads/wildfly-18.0.0.Final",
+			expectedHome:   filepath.FromSlash("/home/app/Downloads/wildfly-18.0.0.Final/domain"),
 		},
 		{
 			name: "tomcat 10.x",

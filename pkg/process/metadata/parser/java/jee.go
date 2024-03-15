@@ -39,7 +39,8 @@ const (
 	tomcatSysProp        string = "-Dcatalina.base="
 	jbossStandaloneMain  string = "org.jboss.as.standalone"
 	jbossDomainMain      string = "org.jboss.as.server"
-	jbossSysProp         string = "-Djboss.home.dir="
+	jbossBaseDirSysProp  string = "-Djboss.server.base.dir="
+	julConfigSysProp     string = "-Dlogging.configuration="
 	applicationXMLPath   string = "/META-INF/application.xml"
 )
 
@@ -100,6 +101,8 @@ func extractContextRootFromApplicationXML(fs afero.Fs) ([]string, error) {
 func resolveAppServerFromCmdLine(args []string) (serverVendor, string) {
 	serverHomeHint, entrypointHint := unknown, unknown
 	var baseDir string
+	// jboss in domain mode does not expose the domain base dir but that path can be derived from the logging configuration
+	var julConfigFile string
 	for _, a := range args {
 		if serverHomeHint == unknown {
 			if strings.HasPrefix(a, wlsHomeSysProp) {
@@ -108,9 +111,13 @@ func resolveAppServerFromCmdLine(args []string) (serverVendor, string) {
 			} else if strings.HasPrefix(a, tomcatSysProp) {
 				serverHomeHint = tomcat
 				baseDir = strings.TrimPrefix(a, tomcatSysProp)
-			} else if strings.HasPrefix(a, jbossSysProp) {
+			} else if strings.HasPrefix(a, jbossBaseDirSysProp) {
 				serverHomeHint = jboss
-				baseDir = strings.TrimPrefix(a, jbossSysProp)
+				baseDir = strings.TrimPrefix(a, jbossBaseDirSysProp)
+			} else if strings.HasPrefix(a, julConfigSysProp) {
+				// take the value for this property but continue parsing to give a chance to find the explicit basedir
+				// that config value can be a uri so trim file: if present
+				julConfigFile = strings.TrimPrefix(strings.TrimPrefix(a, julConfigSysProp), "file:")
 			} else if strings.HasPrefix(a, websphereHomeSysProp) {
 				serverHomeHint = websphere
 				baseDir = strings.TrimPrefix(a, websphereHomeSysProp)
@@ -132,6 +139,11 @@ func resolveAppServerFromCmdLine(args []string) (serverVendor, string) {
 		if serverHomeHint&entrypointHint != unknown {
 			break
 		}
+	}
+	if serverHomeHint == unknown && entrypointHint == jboss && len(julConfigFile) > 0 {
+		// if we cannot find the basedir (happens by default on jboss domain home), we derive
+		baseDir = filepath.Dir(filepath.Dir(julConfigFile))
+		serverHomeHint = jboss
 	}
 	return serverHomeHint & entrypointHint, baseDir
 }
