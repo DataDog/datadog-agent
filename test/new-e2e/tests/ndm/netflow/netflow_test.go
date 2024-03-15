@@ -131,7 +131,7 @@ func (s *netflowDockerSuite) TestNetflow() {
 		// Validate that certain types of flows were received
 		ndmflows, err := fakeintake.GetNDMFlows()
 		assert.NoError(c, err)
-		for i, ndmflow := range ndmflows {
+		for _, ndmflow := range ndmflows {
 			stats.flowTypes[ndmflow.FlowType]++
 			stats.ipProtocols[ndmflow.IPProtocol]++
 		}
