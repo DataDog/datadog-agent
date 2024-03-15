@@ -7,5 +7,5 @@ stats-fast-tests-windows-x64:
     - !reference [.except_mergequeue]
     - when: always
   script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - inv -e send-unit-tests-stats --job-name tests_windows-x64 --extra-tag version:v2
