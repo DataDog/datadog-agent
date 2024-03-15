@@ -163,8 +163,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			}),
 			getSharedFxOption(),
 			getPlatformModules(),
-			// Not sure about this way to provide constructor to run command
-			guiimpl.Module(),
 		)
 	}
 
@@ -398,6 +396,7 @@ func getSharedFxOption() fx.Option {
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
 		process.Bundle(),
+		guiimpl.Module(),
 	)
 }
 
