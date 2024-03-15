@@ -75,11 +75,6 @@ func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOptio
 
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
-	// Suite inits all fields by default, so we need to explicitly set it to nil
-	env.FakeIntake = nil
-	env.Agent = nil
-	env.ActiveDirectory = nil
-
 	awsEnv, err := aws.NewEnvironment(ctx)
 
 	// Make sure to override any OS other than Windows
@@ -111,6 +106,9 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 				agentparams.WithPulumiResourceOptions(
 					pulumi.DependsOn(activeDirectoryResources)))
 		}
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.ActiveDirectory = nil
 	}
 
 	// Create FakeIntake if required
@@ -129,6 +127,8 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
+	} else {
+		env.FakeIntake = nil
 	}
 
 	if params.agentOptions != nil {
@@ -140,6 +140,8 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		if err != nil {
 			return err
 		}
+	} else {
+		env.Agent = nil
 	}
 
 	return nil
