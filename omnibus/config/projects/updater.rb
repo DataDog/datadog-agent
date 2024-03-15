@@ -78,7 +78,7 @@ package :deb do
   end
 end
 
-package :ociru do
+package :xz do
   skip_packager true
 end
 

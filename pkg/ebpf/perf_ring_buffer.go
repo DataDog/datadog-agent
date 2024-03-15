@@ -55,7 +55,7 @@ func (c *RingBufferHandler) RecordHandler(record *ringbuf.Record, _ *manager.Rin
 		return
 	}
 
-	c.dataChannel <- &DataEvent{Data: record.RawSample, rr: record, CPU: -1}
+	c.dataChannel <- &DataEvent{Data: record.RawSample, rr: record}
 }
 
 // DataChannel returns the channel with event data

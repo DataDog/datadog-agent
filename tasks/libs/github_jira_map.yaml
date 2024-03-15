@@ -35,3 +35,4 @@
 '@datadog/asm-go': APPSEC
 '@datadog/agent-build-and-releases': BARX
 '@datadog/agent-developer-tools': ADXT
+'@datadog/agent-ci-experience': ACIX

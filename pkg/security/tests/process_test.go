@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,6 +79,47 @@ func TestProcess(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_rule")
+	})
+}
+
+func TestProcessEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	t.Run("proc-scan", func(t *testing.T) {
+		err := retry.Do(func() error {
+			var found bool
+			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+				if entry.FileEvent.BasenameStr == path.Base(executable) && slices.Contains(entry.ArgsEntry.Values, "-trace") {
+					found = true
+				}
+			})
+
+			if !found {
+				return errors.New("not found")
+			}
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		assert.Nil(t, err)
 	})
 }
 
