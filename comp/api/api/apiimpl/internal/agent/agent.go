@@ -404,6 +404,7 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) {
+	// WARNING: GUI comp currently not provided to JMX
 	gui, guiExist := optGui.Get()
 	if !guiExist {
 		return

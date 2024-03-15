@@ -153,6 +153,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
 			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
+			fx.Provide(func() optional.Option[gui.Component] { return optional.NewNoneOption[gui.Component]() }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
 			autodiscoveryimpl.Module(),
