@@ -28,6 +28,8 @@ var rcEnabledConfig string
 //go:embed fixtures/tracer-payload.json
 var tracerPayloadJSON string
 
+// TestRcTracerSuite tests the remote-config service by attempting to retrieve RC payloads as if a tracer were calling it
+// Requires a valid Datadog API key
 func TestRcTracerSuite(t *testing.T) {
 	e2e.Run(t, &tracerSuite{},
 		e2e.WithProvisioner(
@@ -42,16 +44,20 @@ func TestRcTracerSuite(t *testing.T) {
 
 // TestRemoteConfigTracerUpdate tests the remote-config service by attempting to retrieve RC payloads as if a tracer were calling it
 func (s *tracerSuite) TestRemoteConfigTracerUpdate() {
-	// Ensure the remote config service starts
-	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "remote config service started", 2*time.Minute, 5*time.Second)
-
-	// Wait until we've started querying for configs
-	assertLogsEventually(s.T(), s.Env().RemoteHost, "agent", "/api/v0.1/configurations", 2*time.Minute, 5*time.Second)
+	expectedAgentLogs := []string{
+		// Ensure the remote config service starts
+		"remote config service started",
+		// Wait until we've started querying for configs
+		"/api/v0.1/configurations",
+	}
+	assertAgentLogsEventually(s.T(), s.Env().RemoteHost, "agent", expectedAgentLogs, 2*time.Minute, 5*time.Second)
 
 	// Get configs as though we are a tracer
-	getConfigsOutput := mustCurlAgentRcServiceEventually(s.T(), s.Env().RemoteHost, tracerPayloadJSON, 2*time.Minute, 5*time.Second)
-	require.Contains(s.T(), getConfigsOutput, "roots", "expected a roots key in the tracer config output")
-	require.Contains(s.T(), getConfigsOutput, "targets", "expected a targets key in the tracer config output")
+	expectedKeys := []string{
+		"roots",
+		"targets",
+	}
+	assertCurlAgentRcServiceContainsEventually(s.T(), s.Env().RemoteHost, tracerPayloadJSON, expectedKeys, 2*time.Minute, 5*time.Second)
 
 	// Check remote-config command output for our e2e test client that we fetched configs for
 	remoteConfigOutput := s.Env().Agent.Client.RemoteConfig()

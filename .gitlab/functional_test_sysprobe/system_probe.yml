@@ -17,8 +17,8 @@
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
     - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/minimized-btfs.tar.xz
     - inv system-probe.test-docker-image-list > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/docker-images.txt
-    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY)
-    - export DOCKER_REGISTRY_PASSWORD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY)
+    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - export DOCKER_REGISTRY_PASSWORD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
     - pushd $DD_AGENT_TESTING_DIR
     - tasks/kitchen_setup.sh
   script:

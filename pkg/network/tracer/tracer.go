@@ -224,7 +224,7 @@ func (tr *Tracer) start() error {
 	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
-		return fmt.Errorf("could not start ebpf manager: %s", err)
+		return fmt.Errorf("could not start ebpf tracer: %s", err)
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
