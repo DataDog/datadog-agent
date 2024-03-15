@@ -178,6 +178,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	ringbufferEnabled := config.RingBufferSupportedNPM()
+	log.Errorf("adamk ringbufferEnabled: %v", ringbufferEnabled)
 	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", ringbufferEnabled)
 	if ringbufferEnabled {
 		util.EnableRingbuffersViaMapEditor(&mgrOpts)

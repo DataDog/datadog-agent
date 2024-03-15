@@ -36,6 +36,9 @@ func computeDefaultClosedConnRingBufferSize() int {
 	if err != nil {
 		numCPUs = 1
 	}
+	log.Error("adamk - numCPUs: ", numCPUs)
+	log.Error("adamk - os.Getpagesize(): ", os.Getpagesize())
+	log.Errorf("adamk - 8 * toPowerOf2(numCPUs) * os.Getpagesize(): %d", 8*toPowerOf2(numCPUs)*os.Getpagesize())
 	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
 }
 

@@ -64,6 +64,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
+	ebpftest.LogLevel(t, "debug")
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
