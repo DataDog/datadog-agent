@@ -53,6 +53,7 @@ agent_remote_updater-x64-a7:
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - export OMNIBUS_GIT_CACHE_DIR=/omnibus/opt/datadog-packages
 
 # build Agent package for remote_updater-x64
 agent_remote_updater-arm64-a7:
@@ -77,3 +78,4 @@ agent_remote_updater-arm64-a7:
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - export OMNIBUS_GIT_CACHE_DIR=/omnibus/opt/datadog-packages

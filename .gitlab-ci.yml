@@ -155,7 +155,7 @@ variables:
   ## build to succeed with S3 caching disabled.
   S3_OMNIBUS_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-cache-build-stable
   USE_S3_CACHING: --omnibus-s3-cache
-  OMNIBUS_GIT_CACHE_DIR: /tmp/omnibus-git-cache
+  OMNIBUS_GIT_CACHE_DIR: /omnibus/opt/datadog-agent/
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
@@ -207,7 +207,7 @@ variables:
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
-  
+
   # List of parameters retrieved from AWS SSM
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile  # agent-ci-experience
