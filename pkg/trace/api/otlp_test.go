@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
@@ -134,6 +136,14 @@ func NewTestConfig(t *testing.T) *config.AgentConfig {
 	cfg := config.New()
 	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 	require.NoError(t, err)
+	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
+	return cfg
+}
+
+func NewBenchmarkTestConfig(b *testing.B) *config.AgentConfig {
+	cfg := config.New()
+	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	require.NoError(b, err)
 	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	return cfg
 }
@@ -2048,7 +2058,43 @@ func TestMarshalSpanLinks(t *testing.T) {
 	}
 }
 
+func generateTraceRequest(traceCount int, spanCount int, attrCount int, attrLength int) ptraceotlp.ExportRequest {
+	traces := make([]testutil.OTLPResourceSpan, traceCount)
+	for k := 0; k < traceCount; k++ {
+		spans := make([]*testutil.OTLPSpan, spanCount)
+		for i := 0; i < spanCount; i++ {
+			attributes := make(map[string]interface{})
+			for j := 0; j < attrCount; j++ {
+				attributes["key_"+strconv.Itoa(j)] = strings.Repeat("x", attrLength)
+			}
+
+			spans[i] = &testutil.OTLPSpan{
+				Name:       "/path",
+				TraceState: "state",
+				Kind:       ptrace.SpanKindServer,
+				Attributes: attributes,
+				StatusCode: ptrace.StatusCodeOk,
+			}
+		}
+		rattributes := make(map[string]interface{})
+		for j := 0; j < attrCount; j++ {
+			rattributes["key_"+strconv.Itoa(j)] = strings.Repeat("x", attrLength)
+		}
+		rattributes["service.name"] = "test-service"
+		rattributes["deployment.environment"] = "test-env"
+		rspans := testutil.OTLPResourceSpan{
+			Spans:      spans,
+			LibName:    "stats-agent-test",
+			LibVersion: "0.0.1",
+			Attributes: rattributes,
+		}
+		traces[k] = rspans
+	}
+	return testutil.NewOTLPTracesRequest(traces)
+}
+
 func BenchmarkProcessRequest(b *testing.B) {
+	largeTraces := generateTraceRequest(10, 100, 100, 100)
 	metadata := http.Header(map[string][]string{
 		header.Lang:        {"go"},
 		header.ContainerID: {"containerdID"},
@@ -2067,11 +2113,12 @@ func BenchmarkProcessRequest(b *testing.B) {
 		}
 	}()
 
-	r := NewOTLPReceiver(out, nil, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	cfg := NewBenchmarkTestConfig(b)
+	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(context.Background(), metadata, otlpTestTracesRequest)
+		r.processRequest(context.Background(), metadata, largeTraces)
 	}
 	b.StopTimer()
 	end <- struct{}{}

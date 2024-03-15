@@ -186,6 +186,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	}
 
 	if result.Error != nil {
+		log.Errorf("Scan error: %v", result.Error)
 		sbom.Sbom = &model.SBOMEntity_Error{
 			Error: result.Error.Error(),
 		}
@@ -224,7 +225,7 @@ func (p *processor) triggerHostScan() {
 	}
 	log.Debugf("Triggering host SBOM refresh")
 
-	scanRequest := &host.ScanRequest{Path: "/"}
+	scanRequest := host.ScanRequest{Path: "/"}
 	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
 		scanRequest.Path = hostRoot
 	}

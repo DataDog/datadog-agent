@@ -13,10 +13,11 @@ import (
 
 // MetaCollector is a special collector that uses all available collectors, by priority order.
 type metaCollector struct {
-	lock                           sync.RWMutex
-	selfContainerIDcollectors      []CollectorRef[SelfContainerIDRetriever]
-	containerIDFromPIDcollectors   []CollectorRef[ContainerIDForPIDRetriever]
-	containerIDFromInodeCollectors []CollectorRef[ContainerIDForInodeRetriever]
+	lock                                      sync.RWMutex
+	selfContainerIDcollectors                 []CollectorRef[SelfContainerIDRetriever]
+	containerIDFromPIDcollectors              []CollectorRef[ContainerIDForPIDRetriever]
+	containerIDFromInodeCollectors            []CollectorRef[ContainerIDForInodeRetriever]
+	ContainerIDForPodUIDAndContNameCollectors []CollectorRef[ContainerIDForPodUIDAndContNameRetriever]
 }
 
 func newMetaCollector() *metaCollector {
@@ -70,7 +71,7 @@ func (mc *metaCollector) GetContainerIDForPID(pid int, cacheValidity time.Durati
 	return "", nil
 }
 
-// GetContainerIDForInode returns a container ID for given Inode.
+// GetContainerIDForInode returns a container ID for the given inode.
 // ("", nil) will be returned if no error but the containerd ID was not found.
 func (mc *metaCollector) GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error) {
 	mc.lock.RLock()
@@ -78,6 +79,26 @@ func (mc *metaCollector) GetContainerIDForInode(inode uint64, cacheValidity time
 
 	for _, collectorRef := range mc.containerIDFromInodeCollectors {
 		val, err := collectorRef.Collector.GetContainerIDForInode(inode, cacheValidity)
+		if err != nil {
+			return "", err
+		}
+
+		if val != "" {
+			return val, nil
+		}
+	}
+
+	return "", nil
+}
+
+// ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
+// and container name. Returns ("", nil) if the containerd ID was not found.
+func (mc *metaCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, cacheValidity time.Duration) (string, error) {
+	mc.lock.RLock()
+	defer mc.lock.RUnlock()
+
+	for _, collectorRef := range mc.ContainerIDForPodUIDAndContNameCollectors {
+		val, err := collectorRef.Collector.ContainerIDForPodUIDAndContName(podUID, contName, initCont, cacheValidity)
 		if err != nil {
 			return "", err
 		}

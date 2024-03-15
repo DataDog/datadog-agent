@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	etcd_client "go.etcd.io/etcd/client/v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )

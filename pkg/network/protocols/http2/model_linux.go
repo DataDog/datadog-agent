@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
+var oversizedLogLimit = log.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
 func validatePath(str string) error {
@@ -227,8 +227,12 @@ func (tx *EbpfTx) StatusCode() uint16 {
 			return 204
 		case K206Value:
 			return 206
+		case K304Value:
+			return 304
 		case K400Value:
 			return 400
+		case K404Value:
+			return 404
 		case K500Value:
 			return 500
 		default:
@@ -289,7 +293,7 @@ func (tx *EbpfTx) SetRequestMethod(_ http.Method) {
 
 // StaticTags returns the static tags of the transaction.
 func (tx *EbpfTx) StaticTags() uint64 {
-	return 0
+	return uint64(tx.Stream.Tags)
 }
 
 // DynamicTags returns the dynamic tags of the transaction.
@@ -417,7 +421,10 @@ HTTP2Telemetry{
 	"literal values exceed message count": %d,
 	"messages with more frames than we can filter": %d,
 	"messages with more interesting frames than we can process": %d,
-	"fragmented frame count": %d,
+	"fragmented headers frame count": %d,
+	"fragmented headers frame count end of stream": %d,
+	"fragmented data frame count end of stream": %d,
+	"fragmented rst frame count": %d,
 	"path headers length distribution": {
 		"in range [0, 120)": %d,
 		"in range [120, 130)": %d,
@@ -429,7 +436,7 @@ HTTP2Telemetry{
 		"in range [180, infinity)": %d
 	}
 }`, t.Request_seen, t.Response_seen, t.End_of_stream, t.End_of_stream_rst, t.Literal_value_exceeds_frame,
-		t.Exceeding_max_frames_to_filter, t.Exceeding_max_interesting_frames, t.Fragmented_frame_count, t.Path_size_bucket[0], t.Path_size_bucket[1],
+		t.Exceeding_max_frames_to_filter, t.Exceeding_max_interesting_frames, t.Fragmented_frame_count_headers, t.Fragmented_frame_count_headers_eos, t.Fragmented_frame_count_data_eos, t.Fragmented_frame_count_rst, t.Path_size_bucket[0], t.Path_size_bucket[1],
 		t.Path_size_bucket[2], t.Path_size_bucket[3], t.Path_size_bucket[4], t.Path_size_bucket[5], t.Path_size_bucket[6],
 		t.Path_size_bucket[7])
 }
