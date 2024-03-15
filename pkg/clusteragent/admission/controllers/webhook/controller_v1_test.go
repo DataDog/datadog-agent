@@ -493,6 +493,7 @@ func TestGenerateTemplatesV1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.inject_config.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 				mockConfig.SetWithoutSource("admission_controller.inject_tags.enabled", false)
+				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", false)
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
