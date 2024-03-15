@@ -149,6 +149,17 @@ func TestUpdateAPIKey(t *testing.T) {
 	addr, _ = url.Parse(ts2.URL)
 	_, ts2Port, _ := net.SplitHostPort(addr.Host)
 
+	// swap if necessary to ensure ts1 has a smaller port than ts2
+	// makes the json marshal deterministic so test is not flakey
+	if ts1Port > ts2Port {
+		swapPort := ts1Port
+		ts1Port = ts2Port
+		ts2Port = swapPort
+		swapServer := ts1
+		ts1 = ts2
+		ts2 = swapServer
+	}
+
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]string{
 		ts1.URL: {"api_key1", "api_key2"},
