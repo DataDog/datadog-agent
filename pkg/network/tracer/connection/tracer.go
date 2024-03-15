@@ -79,6 +79,8 @@ type Tracer interface {
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 	// An individual tracer implementation may choose which maps to expose via this function.
 	GetMap(string) *ebpf.Map
+	// GetProg returns the underlying named eBPF program.
+	GetProg(string) *ebpf.Program
 	// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 	DumpMaps(w io.Writer, maps ...string) error
 	// Type returns the type of the underlying ebpf tracer that is currently loaded
@@ -358,6 +360,20 @@ func (t *tracer) GetMap(name string) *ebpf.Map {
 	}
 	m, _, _ := t.m.GetMap(name)
 	return m
+}
+
+func (t *tracer) GetProg(name string) *ebpf.Program {
+	progs, err := t.m.GetPrograms()
+	if err != nil {
+		return nil
+	}
+
+	prog, ok := progs[name]
+	if !ok {
+		return nil
+	}
+
+	return prog
 }
 
 func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
@@ -675,6 +691,10 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		API:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
+	}
+
+	if (t.Sport == 8443 || t.Dport == 8443) && s.Protocol_stack.Encryption == 0 && (s.Protocol_stack.Flags&(1<<7)) != 0 {
+		log.Warnf("connection on 8443 with TLS clasification having been attempted: %s", stats)
 	}
 
 	if t.Type() == netebpf.TCP {
