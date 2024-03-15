@@ -9,6 +9,7 @@ package netflow
 import (
 	_ "embed"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,6 +58,11 @@ func netflowDockerProvisioner() e2e.Provisioner {
 		}
 		fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
 
+		// update agent config content at fakeintake address resolution
+		agentConfigContent := fakeIntake.URL.ApplyT(func(url string) string {
+			return strings.ReplaceAll(netflowConfig, "FAKEINTAKE_URL", url)
+		}).(pulumi.StringOutput)
+
 		filemanager := host.OS.FileManager()
 
 		createConfigDirCommand, configPath, err := filemanager.TempDirectory("config")
@@ -65,7 +71,7 @@ func netflowDockerProvisioner() e2e.Provisioner {
 		}
 		// edit config file
 		dontUseSudo := false
-		configCommand, err := filemanager.CopyInlineFile(pulumi.String(netflowConfig), path.Join(configPath, "netflow.yaml"), dontUseSudo,
+		configCommand, err := filemanager.CopyInlineFile(agentConfigContent, path.Join(configPath, "netflow.yaml"), dontUseSudo,
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err
