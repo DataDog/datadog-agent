@@ -20,7 +20,7 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
 		nodeName      string
 		serverName    string
 		deploymentXML string
-		expected      []typedDeployment
+		expected      []jeeDeployment
 	}{
 		{
 			name:       "find enabled deployment with 2 servers ",
@@ -44,7 +44,7 @@ func TestWebsphereFindDeployedApps(t *testing.T) {
     <deploymentTargets xmi:type="appdeployment:ServerTarget" xmi:id="ServerTarget_1710254881383" name="server2" nodeName="node1"/>
 </appdeployment:Deployment>
 `,
-			expected: []typedDeployment{{
+			expected: []jeeDeployment{{
 				dt:   ear,
 				path: filepath.FromSlash("base/config/cells/cell1/applications/myapp.ear/deployments/myapp"),
 			}},

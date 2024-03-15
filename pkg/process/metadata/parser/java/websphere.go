@@ -70,7 +70,7 @@ func isApplicationDeployed(fs afero.Fs, descriptorPath string, nodeName string, 
 
 // websphereFindDeployedApps finds applications that are enabled in a domainHome for the matched cell, node and server
 // If nothing false, it returns false
-func websphereFindDeployedApps(domainHome string, args []string, fs afero.Fs) ([]typedDeployment, bool) {
+func websphereFindDeployedApps(domainHome string, args []string, fs afero.Fs) ([]jeeDeployment, bool) {
 	n := len(args)
 	cellName, nodeName, serverName := args[n-3], args[n-2], args[n-1]
 	if len(cellName) == 0 || len(nodeName) == 0 || len(serverName) == 0 {
@@ -80,10 +80,10 @@ func websphereFindDeployedApps(domainHome string, args []string, fs afero.Fs) ([
 	if err != nil {
 		return nil, false
 	}
-	var apps []typedDeployment
+	var apps []jeeDeployment
 	for _, m := range matches {
 		if isApplicationDeployed(fs, m, nodeName, serverName) {
-			apps = append(apps, typedDeployment{
+			apps = append(apps, jeeDeployment{
 				path: filepath.Dir(m),
 				dt:   ear,
 			})
