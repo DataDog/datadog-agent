@@ -103,7 +103,7 @@ type EBPFProbe struct {
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
-	interner        *utils.StringInterner
+	interner        model.StringInterner
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -1474,6 +1474,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
+	var interner model.StringInterner
+	if config.Probe.EventStreamInternStrings {
+		interner = utils.NewStringInterner()
+	}
+
 	p := &EBPFProbe{
 		probe:                probe,
 		config:               config,
@@ -1485,7 +1490,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		Erpc:                 nerpc,
 		erpcRequest:          erpc.NewERPCRequest(0),
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
-		interner:             utils.NewStringInterner(),
+		interner:             interner,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
 		processKiller:        NewProcessKiller(),
@@ -1703,7 +1708,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, wmeta)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.interner, p.Erpc, resolversOpts, wmeta)
 	if err != nil {
 		return nil, err
 	}

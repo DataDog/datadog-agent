@@ -30,7 +30,7 @@ func TestProcessArgsFlags(t *testing.T) {
 		"-9", "-", "--",
 	}
 
-	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{}, nil,
 		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
@@ -93,7 +93,7 @@ func TestProcessArgsOptions(t *testing.T) {
 		"--", "---", "-9",
 	}
 
-	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+	resolver, _ := process.NewEBPFResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{}, nil,
 		&procutil.DataScrubber{}, nil, nil, nil, nil, nil, nil, process.NewResolverOpts())
 
 	e := model.Event{
