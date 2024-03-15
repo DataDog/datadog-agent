@@ -25,7 +25,7 @@ class GithubAPI:
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository="", public_repo=False):
+    def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
         self._repository = self._github.get_repo(repository)
