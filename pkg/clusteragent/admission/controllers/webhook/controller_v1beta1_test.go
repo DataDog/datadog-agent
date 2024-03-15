@@ -130,32 +130,30 @@ func TestUpdateOutdatedWebhookV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
+	mockConfig := config.Mock(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 	c.config = NewConfig(true, false)
 
-	holdValue := config.Datadog.Get("admission_controller.failure_policy")
-	defer config.Datadog.SetWithoutSource("admission_controller.failure_policy", holdValue)
-
-	config.Datadog.SetWithoutSource("admission_controller.failure_policy", "Ignore")
+	mockConfig.SetWithoutSource("admission_controller.failure_policy", "Ignore")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
 	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
 
-	config.Datadog.SetWithoutSource("admission_controller.failure_policy", "ignore")
+	mockConfig.SetWithoutSource("admission_controller.failure_policy", "ignore")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
 	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
 
-	config.Datadog.SetWithoutSource("admission_controller.failure_policy", "BadVal")
+	mockConfig.SetWithoutSource("admission_controller.failure_policy", "BadVal")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
 	assert.Equal(t, admiv1beta1.Ignore, *webhookSkeleton.FailurePolicy)
 
-	config.Datadog.SetWithoutSource("admission_controller.failure_policy", "")
+	mockConfig.SetWithoutSource("admission_controller.failure_policy", "")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
@@ -163,23 +161,58 @@ func TestAdmissionControllerFailureModeIgnoreV1beta1(t *testing.T) {
 }
 
 func TestAdmissionControllerFailureModeFailV1beta1(t *testing.T) {
-	holdValue := config.Datadog.Get("admission_controller.failure_policy")
-	defer config.Datadog.SetWithoutSource("admission_controller.failure_policy", holdValue)
-
+	mockConfig := config.Mock(t)
 	f := newFixtureV1beta1(t)
 	c, _ := f.createController()
 
-	config.Datadog.SetWithoutSource("admission_controller.failure_policy", "Fail")
+	mockConfig.SetWithoutSource("admission_controller.failure_policy", "Fail")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton := c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
 	assert.Equal(t, admiv1beta1.Fail, *webhookSkeleton.FailurePolicy)
 
-	config.Datadog.SetWithoutSource("admission_controller.failure_policy", "fail")
+	mockConfig.SetWithoutSource("admission_controller.failure_policy", "fail")
 	c.config = NewConfig(true, false)
 
 	webhookSkeleton = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
 	assert.Equal(t, admiv1beta1.Fail, *webhookSkeleton.FailurePolicy)
+}
+
+func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
+	mockConfig := config.Mock(t)
+	f := newFixtureV1beta1(t)
+	c, _ := f.createController()
+	c.config = NewConfig(true, false)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "IfNeeded")
+	c.config = NewConfig(true, false)
+	webhook := c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "ifneeded")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "Never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "wrong")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
 }
 
 func TestGenerateTemplatesV1beta1(t *testing.T) {
@@ -1070,43 +1103,4 @@ func validateV1beta1(w *admiv1beta1.MutatingWebhookConfiguration, s *corev1.Secr
 		}
 	}
 	return nil
-}
-
-func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
-	f := newFixtureV1beta1(t)
-	c, _ := f.createController()
-	c.config = NewConfig(true, false)
-
-	defaultValue := config.Datadog.Get("admission_controller.reinvocation_policy")
-	defer config.Datadog.SetWithoutSource("admission_controller.reinvocation_policy", defaultValue)
-
-	config.Datadog.SetWithoutSource("admission_controller.reinvocation_policy", "IfNeeded")
-	c.config = NewConfig(true, false)
-	webhook := c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	config.Datadog.SetWithoutSource("admission_controller.reinvocation_policy", "ifneeded")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	config.Datadog.SetWithoutSource("admission_controller.reinvocation_policy", "Never")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	config.Datadog.SetWithoutSource("admission_controller.reinvocation_policy", "never")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	config.Datadog.SetWithoutSource("admission_controller.reinvocation_policy", "wrong")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	config.Datadog.SetWithoutSource("admission_controller.reinvocation_policy", "")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
 }
