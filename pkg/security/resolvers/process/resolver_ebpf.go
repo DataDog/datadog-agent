@@ -251,7 +251,7 @@ var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
 
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
-	values, err := model.UnmarshalStringArray(data, nil)
+	values, err := model.UnmarshalStringArray(data, argsEnvsInterner)
 	if err != nil || len(data) == model.MaxArgEnvSize {
 		if len(values) > 0 {
 			values[len(values)-1] += "..."
@@ -259,7 +259,6 @@ func parseStringArray(data []byte) ([]string, bool) {
 		truncated = true
 	}
 
-	argsEnvsInterner.DeduplicateSlice(values)
 	return values, truncated
 }
 
