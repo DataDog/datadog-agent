@@ -30,6 +30,7 @@ type Destination struct {
 	shouldRetry         bool
 	retryLock           sync.Mutex
 	lastRetryError      error
+	isHA                bool
 }
 
 // NewDestination returns a new destination.
@@ -44,7 +45,18 @@ func NewDestination(endpoint config.Endpoint, useProto bool, destinationsContext
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
 		lastRetryError:      nil,
+		isHA:                endpoint.IsHA,
 	}
+}
+
+// IsHA indicates that this destination is a High Availability destination.
+func (d *Destination) IsHA() bool {
+	return d.isHA
+}
+
+// Target is the address of the destination.
+func (d *Destination) Target() string {
+	return d.connManager.address()
 }
 
 // Start reads from the input, transforms a message into a frame and sends it to a remote server,

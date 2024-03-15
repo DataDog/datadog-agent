@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path
@@ -82,7 +82,7 @@ require (
 
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.102 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.106 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.52.0-rc.3 // indirect

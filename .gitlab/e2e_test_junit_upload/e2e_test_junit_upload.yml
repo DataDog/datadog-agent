@@ -5,7 +5,7 @@
   variables:
     DD_ENV: ci
   script:
-    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - set +e
     - for f in junit*-e2e*.tgz; do inv -e junit-upload --tgz-path "$f"; done
 

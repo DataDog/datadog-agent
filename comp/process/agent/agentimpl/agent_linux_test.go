@@ -96,7 +96,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			checksEnabled:        true,
 			checkName:            checks.ConnectionsCheckName,
 			runInCoreAgentConfig: true,
-			expected:             false,
+			expected:             true,
 		},
 	}
 

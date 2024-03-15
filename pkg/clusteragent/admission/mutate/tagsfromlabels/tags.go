@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -41,7 +42,7 @@ var labelsToEnv = map[string]string{
 	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
 }
 
-const webhookName = "tags"
+const webhookName = "standard_tags"
 
 // Webhook is the webhook that injects DD_ENV, DD_VERSION, DD_SERVICE env vars
 type Webhook struct {
@@ -50,16 +51,18 @@ type Webhook struct {
 	endpoint   string
 	resources  []string
 	operations []admiv1.OperationType
+	wmeta      workloadmeta.Component
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook() *Webhook {
+func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
 		name:       webhookName,
 		isEnabled:  config.Datadog.GetBool("admission_controller.inject_tags.enabled"),
 		endpoint:   config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
 		resources:  []string{"pods"},
 		operations: []admiv1.OperationType{admiv1.Create},
+		wmeta:      wmeta,
 	}
 }
 
@@ -123,23 +126,25 @@ func (o *ownerInfo) buildID(ns string) string {
 // mutate adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
 func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, injectTags, request.DynamicClient)
+	return common.Mutate(request.Raw, request.Namespace, func(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
+		return w.injectTags(pod, ns, dc, w.wmeta)
+	}, request.DynamicClient)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed
-func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
+func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workloadmeta.Component) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected), "", "")
+		metrics.MutationAttempts.Inc(w.Name(), strconv.FormatBool(injected), "", "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "nil pod", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "nil pod", "", "")
 		return errors.New("cannot inject tags into nil pod")
 	}
 
-	if !autoinstrumentation.ShouldInject(pod) {
+	if !autoinstrumentation.ShouldInject(pod, wmeta) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
 		return nil
 	}
@@ -155,7 +160,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 		if pod.GetNamespace() != "" {
 			ns = pod.GetNamespace()
 		} else {
-			metrics.MutationErrors.Inc(metrics.TagsMutationType, "empty namespace", "", "")
+			metrics.MutationErrors.Inc(w.Name(), "empty namespace", "", "")
 			return errors.New("cannot get standard tags from parent object: empty namespace")
 		}
 	}
@@ -168,7 +173,7 @@ func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
 
 	owner, err := getOwner(owners[0], ns, dc)
 	if err != nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "cannot get owner", "", "")
+		metrics.MutationErrors.Inc(w.Name(), "cannot get owner", "", "")
 		return err
 	}
 

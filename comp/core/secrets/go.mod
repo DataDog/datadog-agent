@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/secrets
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
@@ -20,6 +20,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3
+	github.com/benbjohnson/clock v1.3.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 	golang.org/x/exp v0.0.0-20231214170342-aacd6d4b4611
