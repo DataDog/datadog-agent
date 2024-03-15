@@ -537,8 +537,12 @@ func (c *Container) Merge(e Entity) error {
 	if !ok {
 		return fmt.Errorf("cannot merge Container with different kind %T", e)
 	}
-
-	return merge(c, cc)
+	err := merge(c, cc)
+	if cc.ECSContainer != nil {
+		ec := deepcopy.Copy(*cc.ECSContainer).(ECSContainer)
+		cc.ECSContainer = &ec
+	}
+	return err
 }
 
 // DeepCopy implements Entity#DeepCopy.

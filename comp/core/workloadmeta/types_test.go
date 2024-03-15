@@ -108,6 +108,44 @@ Limits: map[]
 `
 	compareTestOutput(t, expected, task.String(true))
 }
+
 func compareTestOutput(t *testing.T, expected, actual string) {
 	assert.Equal(t, strings.ReplaceAll(expected, " ", ""), strings.ReplaceAll(actual, " ", ""))
+}
+
+func TestMergeECSContainer(t *testing.T) {
+	container1 := Container{
+		EntityID: EntityID{
+			Kind: KindContainer,
+			ID:   "container-1-id",
+		},
+		EntityMeta: EntityMeta{
+			Name: "container-1",
+		},
+		PID: 123,
+		ECSContainer: &ECSContainer{
+			DisplayName: "ecs-container-1",
+		},
+	}
+	container2 := Container{
+		EntityID: EntityID{
+			Kind: KindContainer,
+			ID:   "container-1-id",
+		},
+		EntityMeta: EntityMeta{
+			Name: "container-1",
+		},
+	}
+
+	err := container2.Merge(&container1)
+	assert.NoError(t, err)
+	assert.NotSame(t, container1.ECSContainer, container2.ECSContainer, "pointers of ECSContainer should not be equal")
+	assert.EqualValues(t, container1.ECSContainer, container2.ECSContainer)
+
+	container2.ECSContainer = nil
+	err = container1.Merge(&container2)
+	assert.NoError(t, err)
+	assert.NotSame(t, container1.ECSContainer, container2.ECSContainer, "pointers of ECSContainer should not be equal")
+	assert.Nil(t, container2.ECSContainer)
+	assert.EqualValues(t, container1.ECSContainer.DisplayName, "ecs-container-1")
 }
