@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -182,9 +183,6 @@ func PidTTY(pid uint32) string {
 	return ""
 }
 
-// MaxEnvVarsCollected defines the max env vars collected
-const MaxEnvVarsCollected = 256
-
 func zeroSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	for i := 0; i < len(data); i++ {
 		if data[i] == '\x00' {
@@ -219,7 +217,7 @@ func matchesOnePrefix(text string, prefixes []string) bool {
 }
 
 // EnvVars returns a array with the environment variables of the given pid
-func EnvVars(priorityEnvsPrefixes []string, pid uint32) ([]string, bool, error) {
+func EnvVars(priorityEnvsPrefixes []string, pid uint32, maxEnvVars int) ([]string, bool, error) {
 	filename := procPidPath(pid, "environ")
 
 	f, err := os.Open(filename)
@@ -246,8 +244,8 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32) ([]string, bool, error) 
 		}
 	}
 
-	if envCounter > MaxEnvVarsCollected {
-		envCounter = MaxEnvVarsCollected
+	if envCounter > maxEnvVars {
+		envCounter = maxEnvVars
 	}
 
 	// second pass collecting
@@ -259,7 +257,7 @@ func EnvVars(priorityEnvsPrefixes []string, pid uint32) ([]string, bool, error) 
 	envs = append(envs, priorityEnvs...)
 
 	for scanner.Scan() {
-		if len(envs) >= MaxEnvVarsCollected {
+		if len(envs) >= model.MaxArgsEnvsSize {
 			return envs, true, nil
 		}
 

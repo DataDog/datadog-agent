@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/serializer
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../cmd/agent/common/path
@@ -52,7 +52,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.102
+	github.com/DataDog/agent-payload/v5 v5.0.106
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.52.0-rc.3

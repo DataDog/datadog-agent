@@ -637,6 +637,34 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 }
 
+// HasActiveActivityDump returns true if the given event has an active dump
+func (adm *ActivityDumpManager) HasActiveActivityDump(event *model.Event) bool {
+	// ignore events with an error
+	if event.Error != nil {
+		return false
+	}
+
+	// is this event sampled for activity dumps ?
+	if !event.IsActivityDumpSample() {
+		return false
+	}
+
+	adm.Lock()
+	defer adm.Unlock()
+
+	for _, d := range adm.activeDumps {
+		d.Lock()
+		matches := d.MatchesSelector(event.ProcessCacheEntry)
+		state := d.state
+		d.Unlock()
+		if matches && state == Running {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
 func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 	// ignore events with an error
