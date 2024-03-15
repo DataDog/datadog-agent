@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // test1HostFakeIntakeNPMDumpInfo dump information about the test if it failed
@@ -56,7 +57,12 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
-	v.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		var err error
+		m, err := FakeIntake.Client().RouteStats()
+		assert.NoError(c, err, "RouteStats() errors")
+		t.Logf("RouteStats %#+v", m)
+
 		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
@@ -97,7 +103,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
-	v.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
