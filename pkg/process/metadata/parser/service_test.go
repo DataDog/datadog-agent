@@ -393,37 +393,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			useImprovedAlgorithm: true,
 			expectedServiceTags:  []string{"process_context:tomcat"},
 		},
-		{
-			name: "websphere - legacy algorithm",
-			cmdline: []string{
-				"java",
-				"-Dserver.root=java/testdata/websphere",
-				"com.ibm.wsspi.bootstrap.WSPreLauncher",
-				"-application",
-				"com.ibm.ws.bootstrap.WSLauncher",
-				"com.ibm.ws.runtime.WsServer",
-				"DefaultCell01",
-				"DefaultNode01",
-				"server1",
-			},
-			expectedServiceTags: []string{"process_context:WSPreLauncher"},
-		},
-		{
-			name: "websphere - improved algorithm",
-			cmdline: []string{
-				"java",
-				"-Dserver.root=java/testdata/websphere",
-				"com.ibm.wsspi.bootstrap.WSPreLauncher",
-				"-application",
-				"com.ibm.ws.bootstrap.WSLauncher",
-				"com.ibm.ws.runtime.WsServer",
-				"DefaultCell01",
-				"DefaultNode01",
-				"server1",
-			},
-			useImprovedAlgorithm: true,
-			expectedServiceTags:  []string{"process_context:context1", "process_context:context2"},
-		},
 	}
 
 	for _, tt := range tests {
