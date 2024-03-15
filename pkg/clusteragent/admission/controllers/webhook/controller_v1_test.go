@@ -181,6 +181,43 @@ func TestAdmissionControllerFailureModeFail(t *testing.T) {
 	assert.Equal(t, admiv1.Fail, *webhookSkeleton.FailurePolicy)
 }
 
+func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
+	mockConfig := config.Mock(t)
+	f := newFixtureV1(t)
+	c, _ := f.createController()
+	c.config = NewConfig(true, false)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "IfNeeded")
+	c.config = NewConfig(true, false)
+	webhook := c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "ifneeded")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "Never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "never")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "wrong")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+
+	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "")
+	c.config = NewConfig(true, false)
+	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
+	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
+}
+
 func TestGenerateTemplatesV1(t *testing.T) {
 	mockConfig := config.Mock(t)
 	defaultReinvocationPolicy := admiv1.IfNeededReinvocationPolicy
@@ -1072,41 +1109,4 @@ func validateV1(w *admiv1.MutatingWebhookConfiguration, s *corev1.Secret) error 
 	}
 
 	return nil
-}
-
-func TestAdmissionControllerReinvocationPolicyV1(t *testing.T) {
-	mockConfig := config.Mock(t)
-	f := newFixtureV1(t)
-	c, _ := f.createController()
-	c.config = NewConfig(true, false)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "IfNeeded")
-	c.config = NewConfig(true, false)
-	webhook := c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "ifneeded")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "Never")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "never")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1.NeverReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "wrong")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
-
-	mockConfig.SetWithoutSource("admission_controller.reinvocation_policy", "")
-	c.config = NewConfig(true, false)
-	webhook = c.getWebhookSkeleton("foo", "/bar", []admiv1.OperationType{admiv1.Create}, []string{"pods"}, nil, nil)
-	assert.Equal(t, admiv1.IfNeededReinvocationPolicy, *webhook.ReinvocationPolicy)
 }
