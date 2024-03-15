@@ -43,7 +43,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-20240313180525-30f826b9b34c
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/log v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status v0.52.0-rc.3
