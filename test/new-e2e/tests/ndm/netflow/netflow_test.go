@@ -114,8 +114,15 @@ func TestNetflowSuite(t *testing.T) {
 // TestNetflow tests that the netflow-generator container is running and that the agent container
 // is sending netflow data to the fakeintake
 func (s *netflowDockerSuite) TestNetflow() {
+	type ndmflowStats struct {
+		flowTypes   map[string]int
+		ipProtocols map[string]int
+	}
+	stats := ndmflowStats{make(map[string]int), make(map[string]int)}
+
 	fakeintake := s.Env().FakeIntake.Client()
 	s.EventuallyWithT(func(c *assert.CollectT) {
+		// Check that the netflow-generator container is running and that the agent container is sending netflow data to the fakeintake
 		metrics, err := fakeintake.FilterMetrics("datadog.netflow.aggregator.flows_flushed")
 		assert.NoError(c, err)
 		s.T().Logf("JMW fakeintake.FilterMetrics('datadog.netflow.aggregator.flows_flushed') returned: %v", metrics)
@@ -124,5 +131,20 @@ func (s *netflowDockerSuite) TestNetflow() {
 		assert.NotEmptyf(c, lo.Filter(metrics[len(metrics)-1].GetPoints(), func(v *gogen.MetricPayload_MetricPoint, _ int) bool {
 			return v.GetValue() > 0
 		}), "No non-zero value of `datadog.netflow.aggregator.flows_flushed` in the last metric: %v", metrics[len(metrics)-1])
+
+		// Validate that certain types of flows were received
+		ndmflows, err := fakeintake.GetNDMFlows()
+		assert.NoError(c, err)
+		s.T().Logf("JMW fakeintake.GetNDMFlows() returned: %v", ndmflows)
+		for i, ndmflow := range ndmflows {
+			s.T().Logf("JMW ndmflow %d: %v %v", i, &ndmflow, ndmflow)
+			stats.flowTypes[ndmflow.FlowType]++
+			stats.ipProtocols[ndmflow.IPProtocol]++
+		}
+		s.T().Logf("JMW stats: %v", stats)
+		assert.Greater(c, stats.flowTypes["netflow5"], 0, "no netflow5 flows yet")
+		assert.Greater(c, stats.ipProtocols["ICMP"], 0, "no ICMP flows yet")
+		assert.Greater(c, stats.ipProtocols["UDP"], 0, "no UDP flows yet")
+		assert.Greater(c, stats.ipProtocols["TCP"], 0, "no TCP flows yet")
 	}, 5*time.Minute, 10*time.Second)
 }
