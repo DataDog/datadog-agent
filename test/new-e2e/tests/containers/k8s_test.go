@@ -804,7 +804,9 @@ func (suite *k8sSuite) TestContainerImage() {
 		}
 		err = assertTags(images[len(images)-1].GetTags(), expectedTags, false)
 		assert.NoErrorf(c, err, "Tags mismatch")
-	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+	}, 6*time.Minute, // The refresh period is 5 minutes. Thus we should have at least an attempt to send every container image.
+		10*time.Second,
+		"Failed finding the container image payload")
 }
 
 func (suite *k8sSuite) TestSBOM() {
@@ -885,8 +887,15 @@ func (suite *k8sSuite) TestSBOM() {
 			if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
 				assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], "ghcr.io/datadog/apps-nginx-server@sha256:")
 			}
+
+			// Assert that at least a repodigest starts with ghcr.io/datadog/apps-nginx-server@sha256:
+			assert.True(c, lo.SomeBy(image.RepoDigests, func(repoDigest string) bool {
+				return strings.HasPrefix(repoDigest, "ghcr.io/datadog/apps-nginx-server@sha256:")
+			}))
 		}
-	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+	}, 6*time.Minute, // The refresh period is 5 minutes. Thus we should have at least an attempt to send every SBOM.
+		10*time.Second,
+		"Failed finding the container image payload")
 }
 
 func (suite *k8sSuite) TestContainerLifecycleEvents() {
