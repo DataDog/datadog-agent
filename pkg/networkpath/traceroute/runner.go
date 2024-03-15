@@ -39,7 +39,7 @@ const (
 // complete implementation.
 func RunTraceroute(cfg Config) (NetworkPath, error) {
 	rawDest := cfg.DestHostname
-	dests, err := net.LookupIP(rawDest)
+	dests, err := net.DefaultResolver.LookupIP(context.Background(), "ip4", rawDest)
 	if err != nil || len(dests) == 0 {
 		return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
 	}
