@@ -508,7 +508,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 			err = assertTags(tags, []*regexp.Regexp{
 				regexp.MustCompile(`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
 				regexp.MustCompile(`^container_id:`),
-				regexp.MustCompile(`^container_name:ecs-.*-` + taskName + `-ec2-`),
+				regexp.MustCompile(`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`),
 				regexp.MustCompile(`^docker_image:ghcr.io/datadog/apps-tracegen:main$`),
 				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
 				regexp.MustCompile(`^ecs_container_name:tracegen`),
@@ -519,8 +519,8 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				regexp.MustCompile(`^image_tag:main$`),
 				regexp.MustCompile(`^short_image:apps-tracegen`),
 				regexp.MustCompile(`^task_arn:`),
-				regexp.MustCompile(`^task_family:.*-` + taskName + `-ec2$`),
-				regexp.MustCompile(`^task_name:.*-` + taskName + `-ec2$`),
+				regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+				regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
 				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
 			}, false)
 			if err == nil {
