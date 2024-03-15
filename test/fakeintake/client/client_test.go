@@ -510,7 +510,6 @@ func TestClient(t *testing.T) {
 		client := NewClient(ts.URL)
 		err := client.getNDMFlows()
 		require.NoError(t, err)
-		//JMWassert.True(t, client.ndmflowAggregator.ContainsPayloadName("testapp"))
-		//JMWassert.False(t, client.ndmflowAggregator.ContainsPayloadName("totoro"))
+		assert.True(t, client.ndmflowAggregator.ContainsPayloadName("i-028cd2a4530c36887"))
 	})
 }

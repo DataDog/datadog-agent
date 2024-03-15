@@ -21,7 +21,7 @@ type NDMFlow struct {
 }
 
 func (p *NDMFlow) name() string {
-	return "ndmflow"
+	return p.Host
 }
 
 // GetTags return the tags from a payload

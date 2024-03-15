@@ -7,8 +7,6 @@ package aggregator
 
 import (
 	_ "embed"
-	//JMW"sort"
-	//JMW"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -35,11 +33,11 @@ func TestNDMFlowAggregator(t *testing.T) {
 		ndmflows, err := ParseNDMFlowPayload(api.Payload{Data: ndmflowData, Encoding: encodingGzip})
 		assert.NoError(t, err)
 		assert.Equal(t, 16, len(ndmflows))
-		assert.Equal(t, "ndmflow", ndmflows[0].name())
-		//JMWexpectedTags := []string{"singer:adele"}
-		//JMWsort.Strings(expectedTags)
-		//JMWgotTags := logs[0].GetTags()
-		//JMWsort.Strings(gotTags)
-		//JMWassert.Equal(t, expectedTags, gotTags)
+		t.Logf("%+v", ndmflows[0])
+		assert.Equal(t, "netflow5", ndmflows[0].FlowType)
+		assert.Equal(t, "ingress", ndmflows[0].Direction)
+		assert.Equal(t, "IPv4", ndmflows[0].EtherType)
+		assert.Equal(t, "TCP", ndmflows[0].IPProtocol)
+		assert.Equal(t, "i-028cd2a4530c36887", ndmflows[0].name())
 	})
 }

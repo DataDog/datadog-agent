@@ -105,10 +105,7 @@ type netflowDockerSuite struct {
 
 // TestNetflowSuite runs the netflow e2e suite
 func TestNetflowSuite(t *testing.T) {
-	//JMW
 	e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()))
-	//JMW e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithSkipDeleteOnFailure())
-	//JMW e2e.Run(t, &netflowDockerSuite{}, e2e.WithProvisioner(netflowDockerProvisioner()), e2e.WithDevMode())
 }
 
 // TestNetflow tests that the netflow-generator container is running and that the agent container
@@ -125,7 +122,6 @@ func (s *netflowDockerSuite) TestNetflow() {
 		// Check that the netflow-generator container is running and that the agent container is sending netflow data to the fakeintake
 		metrics, err := fakeintake.FilterMetrics("datadog.netflow.aggregator.flows_flushed")
 		assert.NoError(c, err)
-		s.T().Logf("JMW fakeintake.FilterMetrics('datadog.netflow.aggregator.flows_flushed') returned: %v", metrics)
 		assert.Greater(c, len(metrics), 0, "no 'datadog.netflow.aggregator.flows_flushed' metrics yet")
 		// Check value
 		assert.NotEmptyf(c, lo.Filter(metrics[len(metrics)-1].GetPoints(), func(v *gogen.MetricPayload_MetricPoint, _ int) bool {
@@ -135,13 +131,10 @@ func (s *netflowDockerSuite) TestNetflow() {
 		// Validate that certain types of flows were received
 		ndmflows, err := fakeintake.GetNDMFlows()
 		assert.NoError(c, err)
-		s.T().Logf("JMW fakeintake.GetNDMFlows() returned: %v", ndmflows)
 		for i, ndmflow := range ndmflows {
-			s.T().Logf("JMW ndmflow %d: %v %v", i, &ndmflow, ndmflow)
 			stats.flowTypes[ndmflow.FlowType]++
 			stats.ipProtocols[ndmflow.IPProtocol]++
 		}
-		s.T().Logf("JMW stats: %v", stats)
 		assert.Greater(c, stats.flowTypes["netflow5"], 0, "no netflow5 flows yet")
 		assert.Greater(c, stats.ipProtocols["ICMP"], 0, "no ICMP flows yet")
 		assert.Greater(c, stats.ipProtocols["UDP"], 0, "no UDP flows yet")
