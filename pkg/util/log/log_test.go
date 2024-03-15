@@ -56,7 +56,7 @@ func TestBasicLogging(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "debug")
 	assert.NotNil(t, logger.Load())
@@ -115,7 +115,7 @@ func TestLogBuffer(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	Tracef("%s", "foo")
 	Debugf("%s", "foo")
@@ -141,7 +141,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	Tracec("baz", "number", 1, "str", "hello")
 	Debugc("baz", "number", 1, "str", "hello")
@@ -177,7 +177,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "info")
 	assert.NotNil(t, logger.Load())
@@ -199,15 +199,15 @@ func TestExtraLogging(t *testing.T) {
 	wA := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	lA, err := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "info")
 	assert.NotNil(t, logger.Load())
 
 	err = RegisterAdditionalLogger("extra", lA)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	Info("don't tell anyone: ", "SECRET")
 	Infof("this is a SECRET password: %s", "hunter2")
@@ -487,7 +487,7 @@ func TestStackDepthfLogging(t *testing.T) {
 			w := bufio.NewWriter(&b)
 
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg\n")
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			SetupLogger(l, tc.strLogLevel)
 

@@ -83,8 +83,9 @@ typedef struct {
     conn_t c1;
     conn_t c2;
     conn_t c3;
-    __u16 len;
     __u64 id;
+    __u32 cpu;
+    __u16 len;
 } batch_t;
 
 // Telemetry names

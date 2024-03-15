@@ -1,1 +1,2 @@
+[agent-components-listing]: https://github.com/DataDog/datadog-agent/blob/main/comp/README.md
 [agent-troubleshooting]: https://docs.datadoghq.com/agent/troubleshooting/

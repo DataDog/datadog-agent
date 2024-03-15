@@ -9,15 +9,16 @@ package corechecks
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -26,7 +27,8 @@ import (
 type mockLongRunningCheck struct {
 	mock.Mock
 
-	stopCh chan struct{}
+	stopCh    chan struct{}
+	runningCh chan struct{}
 }
 
 func (m *mockLongRunningCheck) Stop() {
@@ -99,19 +101,28 @@ func (m *mockLongRunningCheck) GetSender() (sender.Sender, error) {
 
 func newMockLongRunningCheck() *mockLongRunningCheck {
 	return &mockLongRunningCheck{
-		stopCh: make(chan struct{}),
+		stopCh:    make(chan struct{}),
+		runningCh: make(chan struct{}, 1),
 	}
 }
 
 func (m *mockLongRunningCheck) Run() error {
 	args := m.Called()
+	m.runningCh <- struct{}{}
 	<-m.stopCh
 	return args.Error(0)
 }
 
 func (m *mockLongRunningCheck) Cancel() {
 	m.Called()
-	m.stopCh <- struct{}{}
+	select {
+	case m.stopCh <- struct{}{}:
+	default:
+	}
+}
+
+func (m *mockLongRunningCheck) waitUntilRun() {
+	<-m.runningCh
 }
 
 // TestLongRunningCheckWrapperRun tests the Run function for different scenarios.
@@ -123,8 +134,9 @@ func TestLongRunningCheckWrapperRun(t *testing.T) {
 
 		wrapper := NewLongRunningCheckWrapper(mockCheck)
 		err := wrapper.Run()
-
 		assert.Nil(t, err)
+		mockCheck.waitUntilRun()
+
 		mockCheck.Cancel()
 		mockCheck.AssertExpectations(t)
 	})
@@ -158,6 +170,39 @@ func TestLongRunningCheckWrapperRun(t *testing.T) {
 
 		assert.EqualError(t, err, "error getting sender: failed to get sender")
 		mockCheck.AssertExpectations(t)
+	})
+
+	t.Run("Make sure innerCheck.Cancel is called only once", func(t *testing.T) {
+		mockCheck := newMockLongRunningCheck()
+		mockCheck.On("Run").Return(nil)
+		mockCheck.On("Cancel").Return()
+
+		wrapper := NewLongRunningCheckWrapper(mockCheck)
+		err := wrapper.Run()
+		mockCheck.waitUntilRun()
+
+		assert.Nil(t, err)
+		wrapper.Cancel()
+		wrapper.Cancel()
+		mockCheck.AssertNumberOfCalls(t, "Cancel", 1)
+	})
+
+	t.Run("Make sure innerCheck.Run can't be called after a cancel", func(t *testing.T) {
+		mockCheck := newMockLongRunningCheck()
+		mockCheck.On("Run").Return(nil)
+		mockCheck.On("Cancel").Return()
+
+		wrapper := NewLongRunningCheckWrapper(mockCheck)
+		err := wrapper.Run()
+		assert.Nil(t, err)
+
+		wrapper.Cancel()
+		err = wrapper.Run()
+		assert.Error(t, err)
+		mockCheck.waitUntilRun()
+
+		mockCheck.AssertExpectations(t)
+		mockCheck.AssertNumberOfCalls(t, "Run", 1)
 	})
 }
 

@@ -69,6 +69,12 @@ Package collector defines the collector component.
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
 
+### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
+
+*Datadog Team*: container-integrations
+
+Package autodiscovery provides the autodiscovery component for the Datadog Agent
+
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
 Package config implements a component to handle agent configuration.  This
@@ -363,6 +369,10 @@ Package rcservice is a remote config service that can run within the agent to re
 ### [comp/remote-config/rcserviceha](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha)
 
 Package rcserviceha is a remote config service that can run in the Agent to receive remote config updates from the DD failover DC backend.
+
+### [comp/remote-config/rcstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcstatus)
+
+Package rcstatus implements the core status component information provider interface
 
 ### [comp/remote-config/rctelemetryreporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter)
 

@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/updater/command"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/bootstrap"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/experiment"
+	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/purge"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/run"
 	"github.com/DataDog/datadog-agent/cmd/updater/subcommands/status"
 )
@@ -22,5 +23,6 @@ func UpdaterSubcommands() []command.SubcommandFactory {
 		bootstrap.Commands,
 		status.Commands,
 		experiment.Commands,
+		purge.Commands,
 	}
 }

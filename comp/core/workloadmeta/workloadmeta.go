@@ -105,7 +105,6 @@ func newWorkloadMeta(deps dependencies) provider {
 		//                   context provided to the OnStart hook.
 		mainCtx, _ := common.GetMainCtxCancel()
 
-		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
 			err = deps.Params.InitHelper(mainCtx, wm)
 			if err != nil {
