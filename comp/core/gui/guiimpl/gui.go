@@ -142,6 +142,9 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 
 	// Fetch the authentication token (persists across sessions)
 	g.authToken, e = security.FetchAuthToken(deps.Config)
+	if e != nil {
+		return optional.NewNoneOption[guicomp.Component](), e
+	}
 
 	return optional.NewOption[guicomp.Component](g), nil
 }
