@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 // mock sampler
@@ -135,7 +136,7 @@ func randomSampledSpans(spans, events int) *SampledChunks {
 	realisticIDs := true
 	traceChunk := testutil.GetTestTraceChunks(1, spans, realisticIDs)[0]
 	return &SampledChunks{
-		TracerPayload: &pb.TracerPayload{Chunks: []*pb.TraceChunk{traceChunk}},
+		TracerPayload: &tracerpayload.ProtoWrapped{TP: &pb.TracerPayload{Chunks: []*pb.TraceChunk{traceChunk}}},
 		Size:          pb.Trace(traceChunk.Spans).Msgsize() + pb.Trace(traceChunk.Spans[:events]).Msgsize(),
 		SpanCount:     int64(len(traceChunk.Spans)),
 	}
@@ -162,7 +163,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 		var found bool
 		for _, tracerPayload := range all.TracerPayloads {
 			for _, trace := range tracerPayload.Chunks {
-				if proto.Equal(trace, ss.TracerPayload.Chunks[0]) {
+				if proto.Equal(trace, ss.TracerPayload.Chunk(0).(*tracerpayload.WrappedChunk).TC) {
 					found = true
 					break
 				}
@@ -228,9 +229,9 @@ func TestResetBuffer(t *testing.T) {
 	runtime.ReadMemStats(&m)
 	assert.Less(t, m.HeapInuse, uint64(50*1e6))
 
-	bigPayload := &pb.TracerPayload{
+	bigPayload := &tracerpayload.ProtoWrapped{TP: &pb.TracerPayload{
 		ContainerID: string(make([]byte, 50*1e6)),
-	}
+	}}
 
 	w.tracerPayloads = append(w.tracerPayloads, bigPayload)
 

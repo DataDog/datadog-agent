@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package datadog.trace;
+
+option go_package="."; //todo: this is wrong
+
+// TracerPayload represents a payload the trace agent receives from tracers.
+message TracerPayloadPb {
+  // containerID specifies the ID of the container where the tracer is running on.
+  // @gotags: json:"container_id" msg:"container_id"
+  uint32 containerID = 1;
+  // languageName specifies language of the tracer.
+  // @gotags: json:"language_name" msg:"language_name"
+  uint32 languageName = 2;
+  // languageVersion specifies language version of the tracer.
+  // @gotags: json:"language_version" msg:"language_version"
+  uint32 languageVersion = 3;
+  // tracerVersion specifies version of the tracer.
+  // @gotags: json:"tracer_version" msg:"tracer_version"
+  uint32 tracerVersion = 4;
+  // runtimeID specifies V4 UUID representation of a tracer session.
+  // @gotags: json:"runtime_id" msg:"runtime_id"
+  uint32 runtimeID = 5;
+  // chunks specifies list of containing trace chunks.
+  // @gotags: json:"chunks" msg:"chunks"
+  repeated TableTraceChunkPb chunks = 6;
+  // tags specifies tags common in all `chunks`.
+  // @gotags: json:"tags" msg:"tags"
+  map<uint32, uint32> tags = 7;
+  // env specifies `env` tag that set with the tracer.
+  // @gotags: json:"env" msg:"env"
+  uint32 env = 8;
+  // hostname specifies hostname of where the tracer is running.
+  // @gotags: json:"hostname" msg:"hostname"
+  uint32 hostname = 9;
+  // version specifies `version` tag that set with the tracer.
+  // @gotags: json:"app_version" msg:"app_version"
+  uint32 appVersion = 10;
+
+  // stringTable maps strings to their index in this table
+  // @gotags: json:"string_table" msg:"string_table"
+  repeated string stringTable = 11;
+}
+
+// TraceChunk represents a list of spans with the same trace ID. In other words, a chunk of a trace.
+message TableTraceChunkPb {
+  // priority specifies sampling priority of the trace.
+  // @gotags: json:"priority" msg:"priority"
+  int32 priority = 1;
+  // origin specifies origin product ("lambda", "rum", etc.) of the trace.
+  // @gotags: json:"origin" msg:"origin"
+  uint32 origin = 2;
+  // spans specifies list of containing spans.
+  // @gotags: json:"spans" msg:"spans"
+  repeated TableSpanPb spans = 3;
+  // tags specifies tags common in all `spans`.
+  // @gotags: json:"tags" msg:"tags"
+  map<uint32, uint32> tags = 4;
+  // droppedTrace specifies whether the trace was dropped by samplers or not.
+  // @gotags: json:"dropped_trace" msg:"dropped_trace"
+  bool droppedTrace = 5;
+}
+
+message TableSpanPb {
+  // service is the name of the service with which this span is associated.
+  // @gotags: json:"service" msg:"service"
+  uint32 service = 1;
+  // name is the operation name of this span.
+  // @gotags: json:"name" msg:"name"
+  uint32 name = 2;
+  // resource is the resource name of this span, also sometimes called the endpoint (for web spans).
+  // @gotags: json:"resource" msg:"resource"
+  uint32 resource = 3;
+  // traceID is the ID of the trace to which this span belongs.
+  // @gotags: json:"trace_id" msg:"trace_id"
+  uint64 traceID = 4;
+  // spanID is the ID of this span.
+  // @gotags: json:"span_id" msg:"span_id"
+  uint64 spanID = 5;
+  // parentID is the ID of this span's parent, or zero if this span has no parent.
+  // @gotags: json:"parent_id" msg:"parent_id"
+  uint64 parentID = 6;
+  // start is the number of nanoseconds between the Unix epoch and the beginning of this span.
+  // @gotags: json:"start" msg:"start"
+  int64 start = 7;
+  // duration is the time length of this span in nanoseconds.
+  // @gotags: json:"duration" msg:"duration"
+  int64 duration = 8;
+  // error is 1 if there is an error associated with this span, or 0 if there is not.
+  // @gotags: json:"error" msg:"error"
+  int32 error = 9;
+  // meta is a mapping from tag name to tag value for string-valued tags.
+  // @gotags: json:"meta,omitempty" msg:"meta,omitempty"
+  map<uint32, uint32> meta = 10;
+  // metrics is a mapping from tag name to tag value for numeric-valued tags.
+  // @gotags: json:"metrics,omitempty" msg:"metrics,omitempty"
+  map<uint32, double> metrics = 11;
+  // type is the type of the service with which this span is associated.  Example values: web, db, lambda.
+  // @gotags: json:"type" msg:"type"
+  uint32 type = 12;
+  // meta_struct is a registry of structured "other" data used by, e.g., AppSec.
+  // @gotags: json:"meta_struct,omitempty" msg:"meta_struct,omitempty"
+  map<uint32, bytes> meta_struct = 13;
+}

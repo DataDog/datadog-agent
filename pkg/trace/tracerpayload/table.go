@@ -178,6 +178,14 @@ func (t *TablePayload) ToPb() *pb.TracerPayload {
 	return &p
 }
 
+func (t *TablePayload) Serialize() ([]byte, error) {
+	panic("not impld")
+}
+
+func (t *TablePayload) IsCompressed() bool {
+	return true
+}
+
 type TableTraceChunk struct {
 	StringTable  *StringTable
 	Spans        []*TableSpan
@@ -306,6 +314,14 @@ type StringTable struct {
 	strings []*SharedString
 	// Map of string to where it exists in `strings`
 	stringIndexes map[string]uint32
+}
+
+func (st *StringTable) Strings() []string {
+	strs := make([]string, len(st.strings))
+	for i, sharedString := range st.strings {
+		strs[i] = sharedString.s
+	}
+	return strs
 }
 
 func (st *StringTable) Get(i uint32) string {

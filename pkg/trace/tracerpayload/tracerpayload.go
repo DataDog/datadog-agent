@@ -36,9 +36,11 @@ type Generic interface {
 	SetLanguageName(string)
 	Cut(i int) Generic
 	ToPb() *pb.TracerPayload
+	Serialize() ([]byte, error)
 	SetLanguageVersion(string)
 	SetContainerID(string)
 	SetTracerVersion(string)
+	IsCompressed() bool
 }
 
 func (p *ProtoWrapped) NumChunks() int {
@@ -120,6 +122,15 @@ func (p *ProtoWrapped) Cut(i int) Generic {
 
 func (p *ProtoWrapped) ToPb() *pb.TracerPayload {
 	return p.TP
+}
+
+func (p *ProtoWrapped) Serialize() ([]byte, error) {
+	bs, err := p.TP.MarshalVT()
+	return bs, err
+}
+
+func (p *ProtoWrapped) IsCompressed() bool {
+	return false
 }
 
 type WrappedChunk struct {
