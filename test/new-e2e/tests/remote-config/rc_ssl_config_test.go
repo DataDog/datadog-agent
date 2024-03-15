@@ -44,6 +44,8 @@ func (s *sslConfigSuite) TestRemoteConfigSSLConfigMismatch() {
 		"remote Configuration does not allow skipping TLS validation by default",
 		// Ensure the remote config service stops, and the client stops because the service is no longer responding
 		"remote configuration isn't enabled, disabling client",
+		// Ensure the agent logs a warning about the remote config service being unable to start
+		"unable to create remote config service",
 	}
 	assertAgentLogsEventually(s.T(), s.Env().RemoteHost, "agent", expectedLogs, 2*time.Minute, 5*time.Second)
 
