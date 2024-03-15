@@ -88,7 +88,7 @@ Package flare implements a component to generate flares from the agent.
 
 *Datadog Team*: agent-shared-component
 
-Package gui provides the GUI server component for the Datadog Agent
+Package gui provides the GUI server component for the Datadog Agent.
 
 ### [comp/core/hostname](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname)
 
