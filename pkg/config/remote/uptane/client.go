@@ -345,15 +345,27 @@ func (c *Client) verifyUptane() error {
 	if err != nil {
 		return err
 	}
-	for targetPath, targetMeta := range directorTargets {
-		configTargetMeta, err := c.configTUFClient.Target(targetPath)
-		if err != nil {
-			if client.IsNotFound(err) {
-				return fmt.Errorf("failed to find target '%s' in config repository", targetPath)
-			}
-			// Other errors such as expired metadata
-			return err
+	if len(directorTargets) == 0 {
+		return nil
+	}
+
+	targetPathsDestinations := make(map[string]client.Destination)
+	targetPaths := make([]string, 0, len(directorTargets))
+	for targetPath := range directorTargets {
+		targetPaths = append(targetPaths, targetPath)
+		targetPathsDestinations[targetPath] = &bufferDestination{}
+	}
+	configTargetMetas, err := c.configTUFClient.TargetBatch(targetPaths)
+	if err != nil {
+		if client.IsNotFound(err) {
+			return fmt.Errorf("failed to find target in config repository: %w", err)
 		}
+		// Other errors such as expired metadata
+		return err
+	}
+
+	for targetPath, targetMeta := range directorTargets {
+		configTargetMeta := configTargetMetas[targetPath]
 		if configTargetMeta.Length != targetMeta.Length {
 			return fmt.Errorf("target '%s' has size %d in directory repository and %d in config repository", targetPath, configTargetMeta.Length, targetMeta.Length)
 		}
@@ -372,15 +384,15 @@ func (c *Client) verifyUptane() error {
 				return fmt.Errorf("directory hash '%s' does not match config repository '%s'", string(directorHash), string(configHash))
 			}
 		}
-		// Check that the file is valid in the context of the TUF repository (path in targets, hash matching)
-		err = c.configTUFClient.Download(targetPath, &bufferDestination{})
-		if err != nil {
-			return err
-		}
-		err = c.directorTUFClient.Download(targetPath, &bufferDestination{})
-		if err != nil {
-			return err
-		}
+	}
+	// Check that the files are valid in the context of the TUF repository (path in targets, hash matching)
+	err = c.configTUFClient.DownloadBatch(targetPathsDestinations)
+	if err != nil {
+		return err
+	}
+	err = c.directorTUFClient.DownloadBatch(targetPathsDestinations)
+	if err != nil {
+		return err
 	}
 	return nil
 }
