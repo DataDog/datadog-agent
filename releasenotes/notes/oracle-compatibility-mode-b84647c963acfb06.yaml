@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Automatically fall back to deprecated Oracle integration mode if privileges are missing.
+    [oracle] Automatically fall back to deprecated Oracle integration mode if privileges are missing.
