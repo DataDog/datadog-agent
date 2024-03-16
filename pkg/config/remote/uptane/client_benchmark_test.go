@@ -28,7 +28,7 @@ func getBenchmarkDB(b *testing.B) *bbolt.DB {
 }
 
 func BenchmarkVerify(b *testing.B) {
-	for i := 1; i < 100; i *= 2 {
+	for i := 1; i <= 128; i *= 2 {
 		b.Run(fmt.Sprintf("verify-%d-configs", i), func(b *testing.B) {
 			configTargets := data.TargetFiles{}
 			directorTargets := data.TargetFiles{}
