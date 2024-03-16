@@ -27,6 +27,7 @@ import (
 type Client struct {
 	sync.Mutex
 
+	site            string
 	orgID           int64
 	orgUUIDProvider OrgUUIDProvider
 
@@ -61,15 +62,17 @@ func WithOrgIDCheck(orgID int64) ClientOption {
 }
 
 // WithDirectorRootOverride overrides director root
-func WithDirectorRootOverride(directorRootOverride string) ClientOption {
+func WithDirectorRootOverride(site string, directorRootOverride string) ClientOption {
 	return func(c *Client) {
+		c.site = site
 		c.directorRootOverride = directorRootOverride
 	}
 }
 
 // WithConfigRootOverride overrides config root
-func WithConfigRootOverride(configRootOverride string) ClientOption {
+func WithConfigRootOverride(site string, configRootOverride string) ClientOption {
 	return func(c *Client) {
+		c.site = site
 		c.configRootOverride = configRootOverride
 	}
 }
@@ -96,11 +99,11 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvid
 		o(c)
 	}
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, cacheKey, c.configRootOverride); err != nil {
+	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, cacheKey, c.site, c.configRootOverride); err != nil {
 		return nil, err
 	}
 
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, cacheKey, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, cacheKey, c.site, c.directorRootOverride); err != nil {
 		return nil, err
 	}
 
