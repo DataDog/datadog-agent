@@ -980,9 +980,8 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 		),
 	))
 
-	statusComponent, err := newStatus(deps)
-
-	assert.NoError(t, err)
+	provides := newStatus(deps)
+	statusComponent := provides.Comp
 
 	testCases := []struct {
 		name       string
@@ -996,7 +995,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			sections: []string{"moo_1"},
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 				assert.Equal(t, 1, len(result))
@@ -1009,7 +1008,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			sections: []string{"moo_1", "moo_2", "moo_4"},
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 				assert.Equal(t, 3, len(result))
@@ -1024,7 +1023,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			sections: []string{"moo_1", "fake_moo_2", "fake_moo_4"},
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 				assert.Equal(t, 1, len(result))
@@ -1037,7 +1036,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			sections: []string{"fake_moo_1"},
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err = json.Unmarshal(bytes, &result)
+				err := json.Unmarshal(bytes, &result)
 
 				assert.NoError(t, err)
 				assert.Equal(t, 0, len(result))

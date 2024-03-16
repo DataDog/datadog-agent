@@ -14,6 +14,7 @@ import (
 	"io"
 	"path"
 	"sort"
+	"strings"
 	"text/template"
 	"unicode"
 
@@ -317,7 +318,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	}
 
 	if len(providers) == 0 {
-		return nil, fmt.Errorf("none of the requested sections `%s` are found '%s'", strings.Join(section, ","))
+		return nil, fmt.Errorf("none of the requested sections '%s' are found", strings.Join(sections, ","))
 	}
 
 	switch format {
