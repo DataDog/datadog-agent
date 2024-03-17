@@ -53,13 +53,13 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	dt := &probev4.UDPv4{
 		Target:     dest,
 		SrcPort:    uint16(DefaultSourcePort), // TODO: what's a good value?
-		DstPort:    uint16(DefaultDestPort),   // TODO: what's a good value?
-		UseSrcPort: false,
+		DstPort:    cfg.DestPort,
+		UseSrcPort: cfg.UseSourcePort,
 		NumPaths:   uint16(DefaultNumPaths),
 		MinTTL:     uint8(DefaultMinTTL), // TODO: what's a good value?
-		MaxTTL:     uint8(DefaultMaxTTL),
-		Delay:      time.Duration(DefaultDelay) * time.Millisecond, // TODO: what's a good value?
-		Timeout:    DefaultReadTimeout,                             // TODO: what's a good value?
+		MaxTTL:     cfg.MaxTTL,
+		Delay:      time.Duration(DefaultDelay) * time.Millisecond,  // TODO: what's a good value?
+		Timeout:    time.Duration(cfg.TimeoutMs) * time.Millisecond, // TODO: what's a good value?
 		BrokenNAT:  false,
 	}
 	results, err := dt.Traceroute()

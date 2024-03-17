@@ -7,26 +7,36 @@ package networkpath
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
+)
+
+const (
+	DefaultSourcePort    = 12345
+	DefaultDestPort      = 33434
+	DefaultMaxTTL        = 30
+	DefaultReadTimeoutMs = 3000
 )
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
 	DestHostname string `yaml:"hostname"`
-	DestPort     string `yaml:"port"`
-	Protocol     string `yaml:"protocol"`
-	Timeout      string `yaml:"timeout"`
-	MaxTTL       string `yaml:"max_ttl"`
+
+	DestPort uint16 `yaml:"port"`
+
+	MaxTTL uint8 `yaml:"max_ttl"`
+
+	TimeoutMs uint `yaml:"timeout"` // millisecond
 }
 
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
-	DestHostname string
-	DestPort     string
-	Protocol     string
-	Timeout      string
-	MaxTTL       string
+	DestHostname  string
+	DestPort      uint16
+	MaxTTL        uint8
+	TimeoutMs     uint
+	UseSourcePort bool
 }
 
 // NewCheckConfig builds a new check config
@@ -41,10 +51,22 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 	c := &CheckConfig{}
 
 	c.DestHostname = instance.DestHostname
-	c.DestPort = instance.DestPort
-	c.Protocol = instance.Protocol
-	c.Timeout = instance.Timeout
-	c.MaxTTL = instance.MaxTTL
+	if instance.DestPort > 0 {
+		c.DestPort = instance.DestPort
+		c.UseSourcePort = false
+	} else {
+		c.DestPort = DefaultDestPort
+		c.UseSourcePort = true
+	}
+	c.MaxTTL = numberOrDefault(instance.MaxTTL, DefaultMaxTTL)
+	c.TimeoutMs = numberOrDefault(instance.TimeoutMs, DefaultReadTimeoutMs)
 
 	return c, nil
+}
+
+func numberOrDefault[T constraints.Integer](value T, defaultValue T) T {
+	if value == 0 {
+		return defaultValue
+	}
+	return value
 }

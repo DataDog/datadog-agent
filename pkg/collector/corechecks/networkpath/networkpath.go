@@ -42,7 +42,11 @@ func (c *Check) Run() error {
 	}
 
 	cfg := traceroute.Config{
-		DestHostname: c.config.DestHostname,
+		DestHostname:  c.config.DestHostname,
+		DestPort:      c.config.DestPort,
+		UseSourcePort: c.config.UseSourcePort,
+		MaxTTL:        c.config.MaxTTL,
+		TimeoutMs:     c.config.TimeoutMs,
 	}
 
 	tr := traceroute.New(cfg)
