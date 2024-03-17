@@ -8,6 +8,7 @@ package traceroute
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"sort"
 	"time"
@@ -50,11 +51,13 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	// use first resolved IP for now
 	dest := dests[0]
 
+	destPort, srcPort, useSourcePort := getPorts(cfg.DestPort)
+
 	dt := &probev4.UDPv4{
 		Target:     dest,
-		SrcPort:    uint16(DefaultSourcePort), // TODO: what's a good value?
-		DstPort:    cfg.DestPort,
-		UseSrcPort: cfg.UseSourcePort,
+		SrcPort:    srcPort,
+		DstPort:    destPort,
+		UseSrcPort: useSourcePort,
 		NumPaths:   uint16(DefaultNumPaths),
 		MinTTL:     uint8(DefaultMinTTL), // TODO: what's a good value?
 		MaxTTL:     cfg.MaxTTL,
@@ -79,6 +82,24 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	}
 
 	return pathResult, nil
+}
+
+func getPorts(configDestPort uint16) (uint16, uint16, bool) {
+	var destPort uint16
+	var srcPort uint16
+	var useSourcePort bool
+	if configDestPort > 0 {
+		// Fixed Destination Port + Random Source Port
+		destPort = configDestPort
+		useSourcePort = true
+		srcPort = DefaultSourcePort + uint16(rand.Intn(100))
+	} else {
+		// Random Destination Port + Fixed Source Port
+		destPort = DefaultDestPort + uint16(rand.Intn(100))
+		useSourcePort = false
+		srcPort = DefaultSourcePort
+	}
+	return destPort, srcPort, useSourcePort
 }
 
 func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {

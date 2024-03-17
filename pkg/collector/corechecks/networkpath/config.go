@@ -12,8 +12,6 @@ import (
 )
 
 const (
-	DefaultSourcePort    = 12345
-	DefaultDestPort      = 33434
 	DefaultMaxTTL        = 30
 	DefaultReadTimeoutMs = 3000
 )
@@ -32,11 +30,10 @@ type InstanceConfig struct {
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
-	DestHostname  string
-	DestPort      uint16
-	MaxTTL        uint8
-	TimeoutMs     uint
-	UseSourcePort bool
+	DestHostname string
+	DestPort     uint16
+	MaxTTL       uint8
+	TimeoutMs    uint
 }
 
 // NewCheckConfig builds a new check config
@@ -51,13 +48,7 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 	c := &CheckConfig{}
 
 	c.DestHostname = instance.DestHostname
-	if instance.DestPort > 0 {
-		c.DestPort = instance.DestPort
-		c.UseSourcePort = false
-	} else {
-		c.DestPort = DefaultDestPort
-		c.UseSourcePort = true
-	}
+	c.DestPort = instance.DestPort
 	c.MaxTTL = numberOrDefault(instance.MaxTTL, DefaultMaxTTL)
 	c.TimeoutMs = numberOrDefault(instance.TimeoutMs, DefaultReadTimeoutMs)
 
