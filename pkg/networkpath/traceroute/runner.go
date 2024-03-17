@@ -57,7 +57,7 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 		UseSrcPort: false,
 		NumPaths:   uint16(DefaultNumPaths),
 		MinTTL:     uint8(DefaultMinTTL), // TODO: what's a good value?
-		MaxTTL:     uint8(15),
+		MaxTTL:     uint8(DefaultMaxTTL),
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond, // TODO: what's a good value?
 		Timeout:    DefaultReadTimeout,                             // TODO: what's a good value?
 		BrokenNAT:  false,
