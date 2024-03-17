@@ -180,6 +180,13 @@ func GetWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 	return apmInstrumentationWebhook, errInitAPMInstrumentation
 }
 
+// UnsetWebhook unsets the webhook. For testing only.
+func UnsetWebhook() {
+	initOnce = sync.Once{}
+	apmInstrumentationWebhook = nil
+	errInitAPMInstrumentation = nil
+}
+
 // apmSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
 // The filter excludes two namespaces by default: "kube-system" and the
 // namespace where datadog is installed.

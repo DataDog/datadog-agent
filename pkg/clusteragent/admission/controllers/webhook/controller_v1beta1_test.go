@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -936,7 +937,9 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupConfig()
-			defer resetMockConfig(mockConfig) // Reset to default
+			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
+			defer resetMockConfig(mockConfig)        // Reset to default
+			defer autoinstrumentation.UnsetWebhook() // So other tests are not impacted
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
