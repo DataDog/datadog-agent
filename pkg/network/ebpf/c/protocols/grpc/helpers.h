@@ -47,27 +47,6 @@ static __always_inline grpc_status_t is_content_type_grpc(struct __sk_buff *skb,
     return bpf_memcmp(content_type_buf, GRPC_ENCODED_CONTENT_TYPE, GRPC_CONTENT_TYPE_LEN) == 0? PAYLOAD_GRPC : PAYLOAD_NOT_GRPC;
 }
 
-// skip_header increments skb_info->data_off so that it skips the remainder of
-// the current header (of which we already parsed the index value).
-static __always_inline void skip_literal_header(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_end, __u8 idx) {
-    string_literal_header_t len;
-    if (skb_info->data_off + sizeof(len) > frame_end) {
-        return;
-    }
-
-    bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
-    skb_info->data_off += sizeof(len) + len.length;
-
-    // If the index is zero, that means the header name is not indexed, so we
-    // have to skip both the name and the index.
-    if (!idx && skb_info->data_off + sizeof(len) <= frame_end) {
-        bpf_skb_load_bytes(skb, skb_info->data_off, &len, sizeof(len));
-        skb_info->data_off += sizeof(len) + len.length;
-    }
-
-    return;
-}
-
 // Scan headers goes through the headers in a frame, and tries to find a
 // content-type header or a method header.
 static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u32 frame_length) {
