@@ -58,11 +58,11 @@ func (c *Check) Run() error {
 	}
 
 	duration := time.Since(startTime)
-	log.Debugf("check duration: %2f for destination: '%s' %s", duration.Seconds(), c.config.DestHostname, c.config.DestName)
+	log.Debugf("check duration: %2f for destination: '%s'", duration.Seconds(), c.config.DestHostname)
 
 	if !c.lastCheckTime.IsZero() {
 		interval := startTime.Sub(c.lastCheckTime)
-		log.Tracef("time since last check %2f for destination: '%s' %s", interval.Seconds(), c.config.DestHostname, c.config.DestName)
+		log.Tracef("time since last check %2f for destination: '%s'", interval.Seconds(), c.config.DestHostname)
 	}
 	c.lastCheckTime = startTime
 

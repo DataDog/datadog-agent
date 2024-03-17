@@ -12,7 +12,6 @@ import (
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	DestName     string `yaml:"name"`
 	DestHostname string `yaml:"hostname"`
 }
 
@@ -20,7 +19,6 @@ type InstanceConfig struct {
 // Network Path integration
 type CheckConfig struct {
 	DestHostname string
-	DestName     string
 }
 
 // NewCheckConfig builds a new check config
@@ -35,7 +33,6 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 	c := &CheckConfig{}
 
 	c.DestHostname = instance.DestHostname
-	c.DestName = instance.DestName
 
 	return c, nil
 }
