@@ -183,7 +183,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        if (!handle_non_pseudo_headers(skb, skb_info, index)){
+        if (!process_and_skip_literal_headers(skb, skb_info, index)){
             break;
         }
     }

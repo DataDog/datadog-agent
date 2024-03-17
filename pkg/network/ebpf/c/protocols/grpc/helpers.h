@@ -88,7 +88,7 @@ static __always_inline grpc_status_t scan_headers(struct __sk_buff *skb, skb_inf
             break;
         }
 
-        if (!handle_non_pseudo_headers(skb, skb_info, index)){
+        if (!process_and_skip_literal_headers(skb, skb_info, index)){
             break;
         }
     }
