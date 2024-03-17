@@ -3,87 +3,8 @@
 
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/usm-events.h"
+#include "protocols/http2/skb-common.h"
 #include "protocols/http/types.h"
-
-// Similar to read_hpack_int, but with a small optimization of getting the
-// current character as input argument.
-static __always_inline bool read_hpack_int_with_given_current_char(struct __sk_buff *skb, skb_info_t *skb_info, __u64 current_char_as_number, __u64 max_number_for_bits, __u64 *out) {
-    current_char_as_number &= max_number_for_bits;
-
-    // In HPACK, if the number is too big to be stored in max_number_for_bits
-    // bits, then those bits are all set to one, and the rest of the number must
-    // be read from subsequent bytes.
-    if (current_char_as_number < max_number_for_bits) {
-        *out = current_char_as_number;
-        return true;
-    }
-
-    // Read the next byte, and check if it is the last byte of the number.
-    // While HPACK does support arbitrary sized numbers, we are limited by the
-    // number of instructions we can use in a single eBPF program, so we only
-    // parse one additional byte. The max value that can be parsed is
-    // `(2^max_number_for_bits - 1) + 127`.
-    __u64 next_char = 0;
-    if (bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, 1) >= 0 && (next_char & 128) == 0) {
-        skb_info->data_off++;
-        *out = current_char_as_number + (next_char & 127);
-        return true;
-    }
-
-    return false;
-}
-
-// read_hpack_int reads an unsigned variable length integer as specified in the
-// HPACK specification, from an skb.
-//
-// See https://httpwg.org/specs/rfc7541.html#rfc.section.5.1 for more details on
-// how numbers are represented in HPACK.
-//
-// max_number_for_bits represents the number of bits in the first byte that are
-// used to represent the MSB of number. It must always be between 1 and 8.
-//
-// The parsed number is stored in out.
-//
-// read_hpack_int returns true if the integer was successfully parsed, and false
-// otherwise.
-static __always_inline bool read_hpack_int(struct __sk_buff *skb, skb_info_t *skb_info, __u64 max_number_for_bits, __u64 *out, bool *is_huffman_encoded) {
-    __u64 current_char_as_number = 0;
-    if (bpf_skb_load_bytes(skb, skb_info->data_off, &current_char_as_number, 1) < 0) {
-        return false;
-    }
-    skb_info->data_off++;
-    // We are only interested in the first bit of the first byte, which indicates if it is huffman encoded or not.
-    // See: https://datatracker.ietf.org/doc/html/rfc7541#appendix-B for more details on huffman code.
-    *is_huffman_encoded = (current_char_as_number & 128) > 0;
-
-    return read_hpack_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
-}
-
-// Handles the case in which a header is not a pseudo header. We don't need to save it as interesting or modify our telemetry.
-// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
-// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.4
-static __always_inline bool handle_non_pseudo_headers(struct __sk_buff *skb, skb_info_t *skb_info, __u64 index) {
-    __u64 str_len = 0;
-    bool is_huffman_encoded = false;
-    // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
-        return false;
-    }
-
-    // The header name is new and inserted in the dynamic table - we skip the new value.
-    if (index == 0) {
-        skb_info->data_off += str_len;
-        str_len = 0;
-        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-        // At this point the huffman code is not interesting due to the fact that we already read the string length,
-        // We are reading the current size in order to skip it.
-        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
-            return false;
-        }
-    }
-    skb_info->data_off += str_len;
-    return true;
-}
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
@@ -152,29 +73,6 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
 end:
     skb_info->data_off += str_len;
     return true;
-}
-
-// handle_dynamic_table_update handles the dynamic table size update.
-static __always_inline void handle_dynamic_table_update(struct __sk_buff *skb, skb_info_t *skb_info){
-    // To determine the size of the dynamic table update, we read an integer representation byte by byte.
-    // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
-    // indicating that we've consumed the complete integer. While in the context of the dynamic table
-    // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
-    // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
-    __u8 current_ch;
-    bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-    // If the top 3 bits are 001, then we have a dynamic table size update.
-    if ((current_ch & 224) == 32) {
-        skb_info->data_off++;
-    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
-        for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
-            bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-            skb_info->data_off++;
-            if ((current_ch & 128) == 0) {
-                return;
-            }
-        }
-    }
 }
 
 // filter_relevant_headers parses the http2 headers frame, and filters headers
@@ -285,7 +183,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        if (!handle_non_pseudo_headers(skb, skb_info, index)){
+        if (!process_and_skip_literal_headers(skb, skb_info, index)){
             break;
         }
     }
@@ -386,17 +284,6 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
     process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
-}
-
-// skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
-// of an HTTP2 connection, and skip it if present.
-static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_info) {
-    char preface[HTTP2_MARKER_SIZE];
-    bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
-    bpf_skb_load_bytes(skb, skb_info->data_off, preface, HTTP2_MARKER_SIZE);
-    if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
-        skb_info->data_off += HTTP2_MARKER_SIZE;
-    }
 }
 
 // The function is trying to read the remaining of a split frame header. We have the first part in
