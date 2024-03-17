@@ -9,7 +9,9 @@
 #include "protocols/http2/skb-common.h"
 #include "protocols/grpc/defs.h"
 
+// Number of frames to filter in a single packet, while looking for the first headers frame.
 #define GRPC_MAX_FRAMES_TO_FILTER 90
+// Number of headers to process in a headers frame, while looking for the content-type header.
 #define GRPC_MAX_HEADERS_TO_PROCESS 10
 
 // The HPACK specification defines the specific Huffman encoding used for string
