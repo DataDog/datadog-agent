@@ -10,7 +10,7 @@ package oracle
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/stretchr/testify/assert"
 
 	_ "github.com/godror/godror"

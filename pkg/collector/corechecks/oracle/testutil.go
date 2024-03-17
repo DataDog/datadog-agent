@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	oracle_common "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	oracle_common "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +40,7 @@ var USER = "c##datadog"
 var PASSWORD = "datadog"
 var SERVICE_NAME = "XE"
 var TNS_ALIAS = "XE"
-var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
+var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/testutil/etc/netadmin"
 
 var dbmsTag = "dbms:oracle"
 
