@@ -7,6 +7,10 @@ package statusimpl
 
 import (
 	"bytes"
+	"expvar"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	_ "github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +18,14 @@ import (
 
 func TestStatusProvider(t *testing.T) {
 	provider := Provider{}
+
+	// Set SNMP Traps errors
+	aggregatorMetrics, ok := expvar.Get("aggregator").(*expvar.Map)
+	require.True(t, ok)
+	epErrors, ok := aggregatorMetrics.Get("EventPlatformEventsErrors").(*expvar.Map)
+	require.True(t, ok)
+	epErrors.Add(eventplatform.EventTypeSnmpTraps, 42)
+	require.True(t, ok)
 
 	tests := []struct {
 		name       string

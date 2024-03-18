@@ -140,7 +140,7 @@ func GetStatus() map[string]interface{} {
 	metrics := make(map[string]interface{})
 	json.Unmarshal(metricsJSON, &metrics) //nolint:errcheck
 	if dropped := getDroppedPackets(); dropped > 0 {
-		metrics["PacketsDropped"] = dropped
+		metrics["PacketsDropped"] = float64(dropped)
 	}
 	status["metrics"] = metrics
 	if startError != nil {
