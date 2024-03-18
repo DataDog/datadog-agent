@@ -576,15 +576,15 @@ func findShellCommand(commandArgs []string) int {
 			// That's a command
 			if cArgDetected {
 				return index + 1 // +1 to skip the -c parameter
-			} else {
-				if argMayWaitForArg {
-					argMayWaitForArg = false
-					continue
-				}
-
-				// Not an injected shell command via -c
-				return -1
 			}
+
+			if argMayWaitForArg {
+				argMayWaitForArg = false
+				continue
+			}
+
+			// Not an injected shell command via -c
+			return -1
 		}
 	}
 
