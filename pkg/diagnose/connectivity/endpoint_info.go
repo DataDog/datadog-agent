@@ -12,7 +12,15 @@ package connectivity
 import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
+
+func createFlareEndpoint() string {
+	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
+	flareRoute, _ := utils.AddAgentVersionToDomain(utils.GetInfraEndpoint(config.Datadog), "flare")
+	return flareRoute + "/support/flare"
+}
 
 // endpointInfo is a value object that contains all the information we need to
 // contact an endpoint to troubleshoot connectivity issues.
@@ -47,6 +55,9 @@ var (
 	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
 	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
 
+	// Flare endpoint
+	flareEndpointInfo = endpointInfo{transaction.Endpoint{Route: createFlareEndpoint(), Name: "flare"}, "HEAD", nil}
+
 	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
-		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
+		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo, flareEndpointInfo}
 )
