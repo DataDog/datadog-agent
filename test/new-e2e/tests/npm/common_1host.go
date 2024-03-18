@@ -36,6 +36,7 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 		t.Logf("fakeintake GetConnectionsNames() failed %s", err)
 		return
 	}
+	// Dump info for test1HostFakeIntakeNPM
 	for _, h := range hostnameNetID {
 		var prevCollectedTime time.Time
 		for i, cc := range cnx.GetPayloadsByName(h) {
@@ -44,6 +45,12 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 				t.Logf("hostname+networkID %v diff time %f seconds", h, dt)
 			}
 			prevCollectedTime = cc.GetCollectedTime()
+		}
+	}
+	// Dump info for test1HostFakeIntakeNPM600cnxBucket
+	for _, h := range hostnameNetID {
+		for _, cc := range cnx.GetPayloadsByName(h) {
+			t.Logf("hostname+networkID %v time %v connections %d", h, cc.GetCollectedTime(), len(cc.Connections))
 		}
 	}
 }
