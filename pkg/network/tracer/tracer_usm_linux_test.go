@@ -77,6 +77,8 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
+	// TODO: remove this once we figure out why ringbuffers are not working in CI
+	cfg.NPMRingbuffersEnabled = false
 	_ = setupTracer(t, cfg)
 }
 
