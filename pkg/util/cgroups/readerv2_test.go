@@ -8,6 +8,7 @@
 package cgroups
 
 import (
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,6 +43,7 @@ func TestReaderV2(t *testing.T) {
 	}
 
 	r, err := newReaderV2("", fakeFsPath, ContainerFilter)
+	require.NoError(t, err)
 	r.pidMapper = nil
 	assert.NoError(t, err)
 	assert.NotNil(t, r)
