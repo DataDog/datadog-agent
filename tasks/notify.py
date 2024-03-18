@@ -347,13 +347,16 @@ def create_msg(pipeline_id, pipeline_url, job_list):
     msg = f'''
 [Fast Unit Tests Report]
 
-Warning: On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not run any unit tests:
+On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not run any unit tests:
+
+<details>
+<summary>Jobs with no tests executed</summary>
 '''
     for job in job_list:
         msg += f"  - {job}\n"
+    msg += "</details>\n"
     msg += "\n"
     msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
-
     return msg
 
 
