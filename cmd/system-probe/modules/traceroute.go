@@ -9,6 +9,7 @@ package modules
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -48,31 +49,11 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		start := time.Now()
 		vars := mux.Vars(req)
 		id := getClientID(req)
-		host := vars["host"]
-		port, err := strconv.ParseUint(vars["port"], 10, 16)
+		cfg, err := parseParams(vars)
 		if err != nil {
-			log.Errorf("invalid port: %s", err)
+			log.Errorf("invalid params: %s", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
-		}
-		maxTTL, err := strconv.ParseUint(vars["max_ttl"], 10, 8)
-		if err != nil {
-			log.Errorf("invalid max_ttl: %s", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		timeout, err := strconv.ParseUint(vars["timeout"], 10, 32)
-		if err != nil {
-			log.Errorf("invalid timeout: %s", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		cfg := tracerouteutil.Config{
-			DestHostname: host,
-			DestPort:     uint16(port),
-			MaxTTL:       uint8(maxTTL),
-			TimeoutMs:    uint(timeout),
 		}
 
 		// Run traceroute
@@ -95,7 +76,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		runCount := runCounter.Inc()
-		logTracerouteRequests(host, id, runCount, start)
+		logTracerouteRequests(cfg.DestHostname, id, runCount, start)
 	})
 
 	return nil
@@ -116,4 +97,35 @@ func logTracerouteRequests(host string, client string, runCount uint64, start ti
 	default:
 		log.Debugf(msg, args...)
 	}
+}
+
+func parseParams(vars map[string]string) (tracerouteutil.Config, error) {
+	host := vars["host"]
+	port, err := parseUint(vars, "port", 16)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid port: %s", err)
+	}
+	maxTTL, err := parseUint(vars, "max_ttl", 8)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
+	}
+	timeout, err := parseUint(vars, "timeout", 32)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
+	}
+
+	return tracerouteutil.Config{
+		DestHostname: host,
+		DestPort:     uint16(port),
+		MaxTTL:       uint8(maxTTL),
+		TimeoutMs:    uint(timeout),
+	}, nil
+}
+
+func parseUint(vars map[string]string, field string, bitSize int) (uint64, error) {
+	value, ok := vars[field]
+	if !ok {
+		return 0, nil
+	}
+	return strconv.ParseUint(value, 10, bitSize)
 }

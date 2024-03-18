@@ -53,6 +53,18 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 
 	destPort, srcPort, useSourcePort := getPorts(cfg.DestPort)
 
+	maxTTL := cfg.MaxTTL
+	if maxTTL == 0 {
+		maxTTL = DefaultMaxTTL
+	}
+
+	var timeout time.Duration
+	if cfg.TimeoutMs == 0 {
+		timeout = DefaultReadTimeout
+	} else {
+		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
+	}
+
 	dt := &probev4.UDPv4{
 		Target:     dest,
 		SrcPort:    srcPort,
@@ -60,9 +72,9 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 		UseSrcPort: useSourcePort,
 		NumPaths:   uint16(DefaultNumPaths),
 		MinTTL:     uint8(DefaultMinTTL), // TODO: what's a good value?
-		MaxTTL:     cfg.MaxTTL,
-		Delay:      time.Duration(DefaultDelay) * time.Millisecond,  // TODO: what's a good value?
-		Timeout:    time.Duration(cfg.TimeoutMs) * time.Millisecond, // TODO: what's a good value?
+		MaxTTL:     maxTTL,
+		Delay:      time.Duration(DefaultDelay) * time.Millisecond, // TODO: what's a good value?
+		Timeout:    timeout,                                        // TODO: what's a good value?
 		BrokenNAT:  false,
 	}
 

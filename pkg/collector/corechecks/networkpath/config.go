@@ -7,13 +7,7 @@ package networkpath
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"golang.org/x/exp/constraints"
 	"gopkg.in/yaml.v2"
-)
-
-const (
-	defaultMaxTTL        = 30
-	defaultReadTimeoutMs = 3000
 )
 
 // InstanceConfig is used to deserialize integration instance config
@@ -49,15 +43,8 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
-	c.MaxTTL = numberOrDefault(instance.MaxTTL, defaultMaxTTL)
-	c.TimeoutMs = numberOrDefault(instance.TimeoutMs, defaultReadTimeoutMs)
+	c.MaxTTL = instance.MaxTTL
+	c.TimeoutMs = instance.TimeoutMs
 
 	return c, nil
-}
-
-func numberOrDefault[T constraints.Integer](value T, defaultValue T) T {
-	if value == 0 {
-		return defaultValue
-	}
-	return value
 }
