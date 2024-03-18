@@ -90,7 +90,9 @@ func main() {
 
 	signal.Ignore(syscall.SIGPIPE)
 
-	cmd := rootCommand()
+	sc := getScannerConfig()
+
+	cmd := rootCommand(sc)
 	cmd.SilenceErrors = true
 	err := cmd.Execute()
 
@@ -103,9 +105,9 @@ func main() {
 	os.Exit(0)
 }
 
-func initStatsdClient() {
+func initStatsdClient(sc *types.ScannerConfig) {
 	statsdHost := pkgconfig.GetBindHost()
-	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
+	statsdPort := sc.DogstatsdPort
 	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
 	var err error
 	statsd, err = ddogstatsd.New(statsdAddr)
@@ -114,7 +116,7 @@ func initStatsdClient() {
 	}
 }
 
-func rootCommand() *cobra.Command {
+func rootCommand(sc *types.ScannerConfig) *cobra.Command {
 	var flags struct {
 		diskModeStr       string
 		defaultActionsStr []string
@@ -125,7 +127,7 @@ func rootCommand() *cobra.Command {
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			initStatsdClient()
+			initStatsdClient(sc)
 			diskMode, err := types.ParseDiskMode(flags.diskModeStr)
 			if err != nil {
 				return err
@@ -140,10 +142,10 @@ func rootCommand() *cobra.Command {
 		}),
 	}
 
-	cmd.AddCommand(runCommand())
-	cmd.AddCommand(runScannerCommand())
-	cmd.AddCommand(awsGroupCommand(cmd))
-	cmd.AddCommand(localGroupCommand(cmd))
+	cmd.AddCommand(runCommand(sc))
+	cmd.AddCommand(runScannerCommand(sc))
+	cmd.AddCommand(awsGroupCommand(cmd, sc))
+	cmd.AddCommand(localGroupCommand(cmd, sc))
 
 	defaultActions := []string{
 		string(types.ScanActionVulnsHostOS),
@@ -158,7 +160,7 @@ func rootCommand() *cobra.Command {
 	return cmd
 }
 
-func runCommand() *cobra.Command {
+func runCommand(sc *types.ScannerConfig) *cobra.Command {
 	var flags struct {
 		cloudProvider string
 		pidfilePath   string
@@ -179,7 +181,7 @@ func runCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("could not detect cloud provider: %w", err)
 			}
-			return runCmd(provider, flags.pidfilePath, flags.workers, flags.scannersMax, globalFlags.defaultActions, globalFlags.noForkScanners)
+			return runCmd(sc, provider, flags.pidfilePath, flags.workers, flags.scannersMax, globalFlags.defaultActions, globalFlags.noForkScanners)
 		},
 	}
 	cmd.Flags().StringVarP(&flags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -189,7 +191,7 @@ func runCommand() *cobra.Command {
 	return cmd
 }
 
-func runCmd(provider types.CloudProvider, pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
+func runCmd(sc *types.ScannerConfig, provider types.CloudProvider, pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -210,36 +212,37 @@ func runCmd(provider types.CloudProvider, pidfilePath string, workers, scannersM
 	scannerID := types.NewScannerID(provider, hostname)
 	scanner, err := runner.New(runner.Options{
 		ScannerID:      scannerID,
-		DdEnv:          pkgconfig.Datadog.GetString("env"),
+		DdEnv:          sc.Env,
 		Workers:        workers,
 		ScannersMax:    scannersMax,
 		PrintResults:   false,
 		NoFork:         noForkScanners,
 		DefaultActions: defaultActions,
-		DefaultRoles:   getDefaultRolesMapping(provider),
+		DefaultRoles:   getDefaultRolesMapping(sc, provider),
 		Statsd:         statsd,
 		EventForwarder: eventForwarder,
+		ScannerConfig:  sc,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
-	if err := scanner.CleanSlate(); err != nil {
+	if err := scanner.CleanSlate(sc); err != nil {
 		log.Error(err)
 	}
 	if err := scanner.SubscribeRemoteConfig(ctx); err != nil {
 		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
 	}
-	scanner.Start(ctx)
+	scanner.Start(ctx, sc)
 	return nil
 }
 
-func runScannerCommand() *cobra.Command {
+func runScannerCommand(sc *types.ScannerConfig) *cobra.Command {
 	var sock string
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
 		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			return runScannerCmd(sock)
+			return runScannerCmd(sc, sock)
 		}),
 	}
 	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
@@ -247,7 +250,7 @@ func runScannerCommand() *cobra.Command {
 	return cmd
 }
 
-func runScannerCmd(sock string) error {
+func runScannerCmd(sc *types.ScannerConfig, sock string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -269,7 +272,7 @@ func runScannerCmd(sock string) error {
 		return err
 	}
 
-	result := runner.LaunchScannerInSameProcess(ctx, opts)
+	result := runner.LaunchScannerInSameProcess(ctx, sc, opts)
 	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
 	if err := enc.Encode(result); err != nil {
 		return err
@@ -287,8 +290,8 @@ func tryGetHostname(ctx context.Context) string {
 	return hostname
 }
 
-func getDefaultRolesMapping(provider types.CloudProvider) types.RolesMapping {
-	roles := pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles")
+func getDefaultRolesMapping(sc *types.ScannerConfig, provider types.CloudProvider) types.RolesMapping {
+	roles := sc.DefaultRoles
 	rolesMapping, err := types.ParseRolesMapping(provider, roles)
 	if err != nil {
 		log.Errorf("config error: could not parse `agentless_scanner.default_roles` properly: %s", err)
@@ -312,4 +315,17 @@ func detectCloudProvider(s string) (types.CloudProvider, error) {
 		return "", fmt.Errorf("could not detect cloud provider automatically, please specify one using --cloud-provider flag")
 	}
 	return types.ParseCloudProvider(s)
+}
+
+func getScannerConfig() *types.ScannerConfig {
+	return &types.ScannerConfig{
+		Env:                 pkgconfig.Datadog.GetString("env"),
+		DogstatsdPort:       pkgconfig.Datadog.GetInt("dogstatsd_port"),
+		DefaultRoles:        pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles"),
+		AWSRegion:           pkgconfig.Datadog.GetString("agentless_scanner.aws_region"),
+		AWSEC2Rate:          pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
+		AWSEBSListBlockRate: pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
+		AWSEBSGetBlockRate:  pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
+		AWSDefaultRate:      pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate"),
+	}
 }

@@ -10,12 +10,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/spf13/cobra"
 )
 
-func localGroupCommand(parent *cobra.Command) *cobra.Command {
+func localGroupCommand(parent *cobra.Command, sc *types.ScannerConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "local",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -23,11 +22,11 @@ func localGroupCommand(parent *cobra.Command) *cobra.Command {
 		SilenceUsage:      true,
 		PersistentPreRunE: parent.PersistentPreRunE,
 	}
-	cmd.AddCommand(localScanCommand())
+	cmd.AddCommand(localScanCommand(sc))
 	return cmd
 }
 
-func localScanCommand() *cobra.Command {
+func localScanCommand(sc *types.ScannerConfig) *cobra.Command {
 	var flags struct {
 		Hostname string
 	}
@@ -40,7 +39,7 @@ func localScanCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return localScanCmd(resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return localScanCmd(sc, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
 		},
 	}
 
@@ -48,7 +47,7 @@ func localScanCommand() *cobra.Command {
 	return cmd
 }
 
-func localScanCmd(resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func localScanCmd(sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
 	hostname := tryGetHostname(ctx)
@@ -57,7 +56,7 @@ func localScanCmd(resourceID types.CloudID, targetHostname string, actions []typ
 		return err
 	}
 	scannerID := types.NewScannerID(types.CloudProviderNone, hostname)
-	roles := getDefaultRolesMapping(types.CloudProviderNone)
+	roles := getDefaultRolesMapping(sc, types.CloudProviderNone)
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),
@@ -73,7 +72,7 @@ func localScanCmd(resourceID types.CloudID, targetHostname string, actions []typ
 
 	scanner, err := runner.New(runner.Options{
 		ScannerID:      scannerID,
-		DdEnv:          pkgconfig.Datadog.GetString("env"),
+		DdEnv:          sc.Env,
 		Workers:        1,
 		ScannersMax:    8,
 		PrintResults:   true,
@@ -92,6 +91,6 @@ func localScanCmd(resourceID types.CloudID, targetHostname string, actions []typ
 		})
 		scanner.Stop()
 	}()
-	scanner.Start(ctx)
+	scanner.Start(ctx, sc)
 	return nil
 }
