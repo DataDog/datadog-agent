@@ -559,11 +559,12 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.Equal(expectedEndpoints, endpoints)
 }
 
-func getTestEndpoint(host string, port int, ssl bool) Endpoint {
+func getTestEndpoint(host string, port int, prefix string, ssl bool) Endpoint {
 	e := Endpoint{
 		APIKey:           "123",
 		Host:             host,
 		Port:             port,
+		Prefix:           prefix,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    pkgconfigsetup.DefaultLogsSenderBackoffFactor,
@@ -597,7 +598,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "http://vector.host:8080/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, false))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8080, "/", false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -608,7 +609,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpsOverride() {
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://vector.host:8443/")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("vector.host", 8443, "/", true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -619,7 +620,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortOverride() 
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, "", true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -631,7 +632,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHostAndPortNoSSLOverri
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, false))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("observability_pipelines_worker.host", 8443, "", false))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -643,7 +644,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, "", true))
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }
@@ -790,26 +791,26 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 
 func Test_parseAddressWithScheme(t *testing.T) {
 	type args struct {
-		address       string
-		defaultNoSSL  bool
-		defaultParser defaultParseAddressFunc
+		address      string
+		defaultNoSSL bool
 	}
 	tests := []struct {
 		name       string
 		args       args
 		wantHost   string
 		wantPort   int
+		wantPrefix string
 		wantUseSSL bool
 		wantErr    bool
 	}{
 		{
 			name: "url without scheme and port",
 			args: args{
-				address:       "localhost:8080",
-				defaultNoSSL:  true,
-				defaultParser: parseAddress,
+				address:      "localhost:8080",
+				defaultNoSSL: true,
 			},
 			wantHost:   "localhost",
+			wantPrefix: "",
 			wantPort:   8080,
 			wantUseSSL: false,
 			wantErr:    false,
@@ -817,78 +818,82 @@ func Test_parseAddressWithScheme(t *testing.T) {
 		{
 			name: "url with https prefix",
 			args: args{
-				address:       "https://localhost",
-				defaultNoSSL:  true,
-				defaultParser: parseAddress,
+				address:      "https://localhost",
+				defaultNoSSL: true,
 			},
 			wantHost:   "localhost",
 			wantPort:   0,
+			wantPrefix: "",
 			wantUseSSL: true,
 			wantErr:    false,
 		},
 		{
 			name: "url with https prefix and port",
 			args: args{
-				address:       "https://localhost:443",
-				defaultParser: parseAddress,
+				address: "https://localhost:443/base",
 			},
 			wantHost:   "localhost",
 			wantPort:   443,
+			wantPrefix: "/base",
 			wantUseSSL: true,
 			wantErr:    false,
 		},
 		{
 			name: "invalid url",
 			args: args{
-				address:       "https://localhost:443-8080",
-				defaultNoSSL:  true,
-				defaultParser: parseAddressAsHost,
+				address:      "https://localhost:443-8080",
+				defaultNoSSL: true,
 			},
 			wantHost:   "",
 			wantPort:   0,
+			wantPrefix: "",
 			wantUseSSL: false,
 			wantErr:    true,
 		},
 		{
 			name: "allow emptyPort",
 			args: args{
-				address:       "https://localhost",
-				defaultNoSSL:  true,
-				defaultParser: parseAddressAsHost,
+				address:      "https://localhost",
+				defaultNoSSL: true,
 			},
 			wantHost:   "localhost",
 			wantPort:   0,
+			wantPrefix: "",
 			wantUseSSL: true,
 			wantErr:    false,
 		},
 		{
 			name: "no schema, not port emptyPort",
 			args: args{
-				address:       "localhost",
-				defaultNoSSL:  false,
-				defaultParser: parseAddressAsHost,
+				address:      "localhost",
+				defaultNoSSL: false,
 			},
 			wantHost:   "localhost",
 			wantPort:   0,
+			wantPrefix: "",
 			wantUseSSL: true,
 			wantErr:    false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotHost, gotPort, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
+			var endpoint Endpoint
+			err := parseAddress(tt.args.address, &endpoint, tt.args.defaultNoSSL, false)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("parseAddressWithScheme() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("parseAddress() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if gotHost != tt.wantHost {
-				t.Errorf("parseAddressWithScheme() gotHost = %v, want %v", gotHost, tt.wantHost)
+			if endpoint.Host != tt.wantHost {
+				t.Errorf("parseAddress() gotHost = %v, want %v", endpoint.Host, tt.wantHost)
 			}
-			if gotPort != tt.wantPort {
-				t.Errorf("parseAddressWithScheme() gotPort = %v, want %v", gotPort, tt.wantPort)
+			if endpoint.Port != tt.wantPort {
+				t.Errorf("parseAddress() gotPort = %v, want %v", endpoint.Port, tt.wantPort)
 			}
-			if gotUseSSL != tt.wantUseSSL {
-				t.Errorf("parseAddressWithScheme() gotUseSSL = %v, want %v", gotUseSSL, tt.wantUseSSL)
+			if endpoint.Prefix != tt.wantPrefix {
+				t.Errorf("parseAddress() gotPrefix = %v, want %v", endpoint.Prefix, tt.wantPrefix)
+			}
+			if *endpoint.UseSSL != tt.wantUseSSL {
+				t.Errorf("parseAddress() gotUseSSL = %v, want %v", endpoint.UseSSL, tt.wantUseSSL)
 			}
 		})
 	}
