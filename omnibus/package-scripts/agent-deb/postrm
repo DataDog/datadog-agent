@@ -26,6 +26,7 @@ case "$1" in
     ;;
     remove)
         rm "$CONFIG_DIR/install_info" || true
+        rm "$CONFIG_DIR/install.json" || true
     ;;
     *)
     ;;
