@@ -17,7 +17,7 @@ func Test_getPorts(t *testing.T) {
 	assert.False(t, useSourcePort)
 
 	destPort, sourcePort, useSourcePort = getPorts(80)
-	assert.GreaterOrEqual(t, destPort, uint16(80))
+	assert.Equal(t, destPort, uint16(80))
 	assert.GreaterOrEqual(t, sourcePort, uint16(DefaultSourcePort))
 	assert.True(t, useSourcePort)
 }
