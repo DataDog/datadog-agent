@@ -93,11 +93,11 @@ func (m *MockSender) SetupAcceptAll() {
 	metricWithTimestampCalls := []string{"GaugeWithTimestamp", "CountWithTimestamp"}
 	for _, call := range metricWithTimestampCalls {
 		m.On(call,
-			mock.AnythingOfType("string"),    // Metric
-			mock.AnythingOfType("float64"),   // Value
-			mock.AnythingOfType("string"),    // Hostname
-			mock.AnythingOfType("[]string"),  // Tags
-			mock.AnythingOfType("time.Time"), // Timestamp
+			mock.AnythingOfType("string"),   // Metric
+			mock.AnythingOfType("float64"),  // Value
+			mock.AnythingOfType("string"),   // Hostname
+			mock.AnythingOfType("[]string"), // Tags
+			mock.AnythingOfType("float64"),  // Timestamp
 		).Return(nil)
 	}
 	m.On("ServiceCheck",
