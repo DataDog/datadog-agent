@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	DefaultMaxTTL        = 30
-	DefaultReadTimeoutMs = 3000
+	defaultMaxTTL        = 30
+	defaultReadTimeoutMs = 3000
 )
 
 // InstanceConfig is used to deserialize integration instance config
@@ -49,8 +49,8 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
-	c.MaxTTL = numberOrDefault(instance.MaxTTL, DefaultMaxTTL)
-	c.TimeoutMs = numberOrDefault(instance.TimeoutMs, DefaultReadTimeoutMs)
+	c.MaxTTL = numberOrDefault(instance.MaxTTL, defaultMaxTTL)
+	c.TimeoutMs = numberOrDefault(instance.TimeoutMs, defaultReadTimeoutMs)
 
 	return c, nil
 }
