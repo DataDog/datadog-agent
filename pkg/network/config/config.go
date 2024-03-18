@@ -261,6 +261,10 @@ type Config struct {
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
 
+	// EnableCustomDDSketchEncoding specifies if we should encode DDSketch fields using the custom encoding rather than
+	// the generic protobuf encoding.
+	EnableCustomDDSketchEncoding bool
+
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
 
@@ -364,18 +368,19 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
-		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
-		JavaAgentDebug:              cfg.GetBool(join(smjtNS, "debug")),
-		JavaAgentArgs:               cfg.GetString(join(smjtNS, "args")),
-		JavaAgentAllowRegex:         cfg.GetString(join(smjtNS, "allow_regex")),
-		JavaAgentBlockRegex:         cfg.GetString(join(smjtNS, "block_regex")),
-		JavaDir:                     cfg.GetString(join(smjtNS, "dir")),
-		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
-		GoTLSExcludeSelf:            cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
-		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
-		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
-		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
-		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
+		EnableJavaTLSSupport:         cfg.GetBool(join(smjtNS, "enabled")),
+		JavaAgentDebug:               cfg.GetBool(join(smjtNS, "debug")),
+		JavaAgentArgs:                cfg.GetString(join(smjtNS, "args")),
+		JavaAgentAllowRegex:          cfg.GetString(join(smjtNS, "allow_regex")),
+		JavaAgentBlockRegex:          cfg.GetString(join(smjtNS, "block_regex")),
+		JavaDir:                      cfg.GetString(join(smjtNS, "dir")),
+		EnableGoTLSSupport:           cfg.GetBool(join(smNS, "tls", "go", "enabled")),
+		GoTLSExcludeSelf:             cfg.GetBool(join(smNS, "tls", "go", "exclude_self")),
+		EnableHTTPStatsByStatusCode:  cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
+		EnableCustomDDSketchEncoding: cfg.GetBool(join(smNS, "enable_custom_ddsketch_encoding")),
+		EnableUSMQuantization:        cfg.GetBool(join(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:    cfg.GetBool(join(smNS, "enable_connection_rollup")),
+		EnableUSMRingBuffers:         cfg.GetBool(join(smNS, "enable_ring_buffers")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
