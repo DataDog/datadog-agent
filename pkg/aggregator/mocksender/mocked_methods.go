@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
-	"time"
 )
 
 // Rate adds a rate type to the mock calls.
@@ -132,13 +131,13 @@ func (m *MockSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clust
 }
 
 // GaugeWithTimestamp adds a gauge with timestamp type to the mock calls.
-func (m *MockSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error {
+func (m *MockSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	m.Called(metric, value, hostname, tags, timestamp)
 	return nil
 }
 
 // CountWithTimestamp adds a count with timestamp type to the mock calls.
-func (m *MockSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error {
+func (m *MockSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
 	m.Called(metric, value, hostname, tags, timestamp)
 	return nil
 }

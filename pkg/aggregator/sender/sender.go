@@ -7,8 +7,6 @@
 package sender
 
 import (
-	"time"
-
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -31,8 +29,8 @@ type Sender interface {
 	Distribution(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string)
 	HistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool)
-	GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error
-	CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp time.Time) error
+	GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error
+	CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error
 	Event(e event.Event)
 	EventPlatformEvent(rawEvent []byte, eventType string)
 	GetSenderStats() stats.SenderStats
