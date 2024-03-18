@@ -12,14 +12,20 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
+const (
+	customDDSketchEncodingCfg = "service_monitoring_config.enable_custom_ddsketch_encoding"
+)
+
 type httpEncoder struct {
-	httpAggregationsBuilder *model.HTTPAggregationsBuilder
-	byConnection            *USMConnectionIndex[http.Key, *http.RequestStats]
+	httpAggregationsBuilder      *model.HTTPAggregationsBuilder
+	byConnection                 *USMConnectionIndex[http.Key, *http.RequestStats]
+	enableCustomDDSketchEncoding bool
 }
 
 func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
@@ -32,6 +38,7 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
+		enableCustomDDSketchEncoding: coreconfig.SystemProbe.GetBool(customDDSketchEncodingCfg),
 	}
 }
 
@@ -76,12 +83,18 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
-
-							// TODO: can we get a streaming marshaller for latencies?
-							blob, _ := proto.Marshal(latencies.ToProto())
-							w.SetLatencies(func(b *bytes.Buffer) {
-								b.Write(blob)
-							})
+							if e.enableCustomDDSketchEncoding {
+								w.SetEncodedLatencies(func(b *bytes.Buffer) {
+									bb := make([]byte, 0)
+									latencies.Encode(&bb, false)
+									b.Write(bb)
+								})
+							} else {
+								blob, _ := proto.Marshal(latencies.ToProto())
+								w.SetLatencies(func(b *bytes.Buffer) {
+									b.Write(blob)
+								})
+							}
 						} else {
 							w.SetFirstLatencySample(stats.FirstLatencySample)
 						}

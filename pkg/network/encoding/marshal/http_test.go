@@ -10,13 +10,17 @@ import (
 	"runtime"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/sketches-go/ddsketch"
-	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
+	"github.com/DataDog/sketches-go/ddsketch/store"
+
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	cfgmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -114,16 +118,30 @@ func testFormatHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	assert.Equal(t, uint64((1<<len(statusCodes))-1), tags)
 }
 
-func TestFormatHTTPStatsByPath(t *testing.T) {
-	t.Run("status code", func(t *testing.T) {
-		testFormatHTTPStatsByPath(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testFormatHTTPStatsByPath(t, false)
-	})
+func boolToEnabledString(b bool) string {
+	if b {
+		return "enabled"
+	}
+	return "disabled"
 }
 
-func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
+func TestFormatHTTPStatsByPath(t *testing.T) {
+	t.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
+	})
+	for _, enableCustomSketchEncoding := range []bool{true, false} {
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, enableCustomSketchEncoding, cfgmodel.SourceAgentRuntime)
+		for _, aggregateByStatusCode := range []bool{true, false} {
+			testName := fmt.Sprintf("status code aggregation (%s), custom sketch encoding (%s)", boolToEnabledString(aggregateByStatusCode), boolToEnabledString(enableCustomSketchEncoding))
+			t.Run(testName, func(t *testing.T) {
+				testFormatHTTPStatsByPath(t, aggregateByStatusCode, enableCustomSketchEncoding)
+			})
+		}
+	}
+}
+
+func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode, enableCustomSketchEncoding bool) {
 	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 
 	httpReqStats.AddRequest(100, 12.5, 0, nil)
@@ -181,13 +199,13 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	statsByResponseStatus := endpointAggregations[0].StatsByStatusCode
 	assert.Len(t, statsByResponseStatus, 2)
 
-	serializedLatencies := statsByResponseStatus[int32(httpReqStats.NormalizeStatusCode(100))].Latencies
-	sketch := unmarshalSketch(t, serializedLatencies)
+	serializedLatencies := statsByResponseStatus[int32(httpReqStats.NormalizeStatusCode(100))]
+	sketch := unmarshalSketch(t, serializedLatencies, enableCustomSketchEncoding)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 12.5)
 
-	serializedLatencies = statsByResponseStatus[int32(httpReqStats.NormalizeStatusCode(405))].Latencies
-	sketch = unmarshalSketch(t, serializedLatencies)
+	serializedLatencies = statsByResponseStatus[int32(httpReqStats.NormalizeStatusCode(405))]
+	sketch = unmarshalSketch(t, serializedLatencies, enableCustomSketchEncoding)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 3.5)
 
@@ -358,9 +376,15 @@ func getHTTPAggregations(t *testing.T, encoder *httpEncoder, c network.Connectio
 	return &aggregations, staticTags, dynamicTags
 }
 
-func unmarshalSketch(t *testing.T, bytes []byte) *ddsketch.DDSketch {
+func unmarshalSketch(t *testing.T, sketch *model.HTTPStats_Data, customDDSketchEnabled bool) *ddsketch.DDSketch {
+	if customDDSketchEnabled {
+		sketchPb, err := ddsketch.DecodeDDSketch(sketch.EncodedLatencies, store.DenseStoreConstructor, nil)
+		assert.Nil(t, err)
+		return sketchPb
+	}
+
 	var sketchPb sketchpb.DDSketch
-	err := proto.Unmarshal(bytes, &sketchPb)
+	err := proto.Unmarshal(sketch.Latencies, &sketchPb)
 	assert.Nil(t, err)
 
 	ret, err := ddsketch.FromProto(&sketchPb)
@@ -389,12 +413,13 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 	}
 
 	httpStats := http.NewRequestStats(false)
-	httpStats.AddRequest(100, 10, 0, nil)
-	httpStats.AddRequest(200, 10, 0, nil)
-	httpStats.AddRequest(300, 10, 0, nil)
-	httpStats.AddRequest(400, 10, 0, nil)
-	httpStats.AddRequest(500, 10, 0, nil)
-
+	for i := 0; i < 100; i++ {
+		httpStats.AddRequest(100, 10, 0, nil)
+		httpStats.AddRequest(200, 10, 0, nil)
+		httpStats.AddRequest(300, 10, 0, nil)
+		httpStats.AddRequest(400, 10, 0, nil)
+		httpStats.AddRequest(500, 10, 0, nil)
+	}
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
 		for dport := uint16(0); dport < destPortsMax; dport++ {
 			index := sport*sourcePortsMax + dport
