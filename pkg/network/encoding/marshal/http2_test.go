@@ -7,6 +7,7 @@ package marshal
 
 import (
 	"fmt"
+	"io"
 	"runtime"
 	"testing"
 
@@ -387,4 +388,36 @@ func getHTTP2Aggregations(t *testing.T, encoder *http2Encoder, c network.Connect
 	require.NoError(t, err)
 
 	return &aggregations, staticTags, dynamicTags
+}
+
+func commonHTTP2SketchEncodingBenchmark(b *testing.B) {
+	payload := generateBenchMarkPayload(1, 1)
+	builder := model.NewConnectionBuilder(io.Discard)
+	b.ResetTimer()
+	b.ReportAllocs()
+	var h *http2Encoder
+	for i := 0; i < b.N; i++ {
+		// HTTP2 and HTTP share the same data format, so we can reuse the same payload
+		h = newHTTP2Encoder(payload.HTTP)
+		h.WriteHTTP2AggregationsAndTags(payload.Conns[0], builder)
+		builder.Reset(io.Discard)
+	}
+}
+
+func BenchmarkHTTP2SketchProto(b *testing.B) {
+	b.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
+	})
+	coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, false, cfgmodel.SourceAgentRuntime)
+	commonHTTP2SketchEncodingBenchmark(b)
+}
+
+func BenchmarkHTTP2SketchCustom(b *testing.B) {
+	b.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
+	})
+	coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, true, cfgmodel.SourceAgentRuntime)
+	commonHTTP2SketchEncodingBenchmark(b)
 }
