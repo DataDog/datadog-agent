@@ -27,6 +27,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// for testing purposes
+var coreAgentGetHostname = hostname.Get
+
 // HostInfo describes details of host information shared between various checks
 type HostInfo struct {
 	SystemInfo *model.SystemInfo
@@ -55,6 +58,15 @@ func CollectHostInfo(config config.Reader) (*HostInfo, error) {
 }
 
 func resolveHostName(config config.Reader) (string, error) {
+	// use the common agent hostname utility when not running in the process-agent
+	if flavor.GetFlavor() != flavor.ProcessAgent {
+		hostName, err := coreAgentGetHostname(context.TODO())
+		if err != nil {
+			return "", fmt.Errorf("error while getting hostname: %v", err)
+		}
+		return hostName, nil
+	}
+
 	var hostName string
 	if config.IsSet("hostname") {
 		hostName = config.GetString("hostname")
@@ -64,15 +76,6 @@ func resolveHostName(config config.Reader) (string, error) {
 		// lookup hostname if there is no config override or if the override is invalid
 		agentBin := config.GetString("process_config.dd_agent_bin")
 		connectionTimeout := config.GetDuration("process_config.grpc_connection_timeout_secs") * time.Second
-		var err error
-		// TODO: We should migrate to the common hostname component
-		if flavor.GetFlavor() != flavor.ProcessAgent {
-			hostName, err = hostname.Get(context.TODO())
-			if err != nil {
-				return "", fmt.Errorf("error while getting hostname: %v", err)
-			}
-			return hostName, nil
-		}
 
 		hostName, err = getHostname(context.Background(), agentBin, connectionTimeout)
 		if err != nil {

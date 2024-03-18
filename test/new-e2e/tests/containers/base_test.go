@@ -19,7 +19,6 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
-
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -59,12 +58,17 @@ type testMetricArgs struct {
 
 type testMetricFilterArgs struct {
 	Name string
+	// Tags are used to filter the metrics
+	// Regexes are supported
 	Tags []string
 }
 
 type testMetricExpectArgs struct {
-	Tags  *[]string
-	Value *testMetricExpectValueArgs
+	// Tags are the tags expected to be present
+	// Regexes are supported
+	Tags                 *[]string
+	Value                *testMetricExpectValueArgs
+	AcceptUnexpectedTags bool
 }
 
 type testMetricExpectValueArgs struct {
@@ -158,9 +162,13 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				}
 			}()
 
+			filterTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				args.Filter.Name,
-				fakeintake.WithTags[*aggregator.MetricSeries](args.Filter.Tags),
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries](filterTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
@@ -173,7 +181,7 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, optionalTags)
+				err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags, optionalTags, args.Expect.AcceptUnexpectedTags)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyMetricQuery)
 			}
 
@@ -298,7 +306,7 @@ func (suite *baseSuite) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{})
+				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
 			}
 

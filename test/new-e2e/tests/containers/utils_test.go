@@ -14,11 +14,12 @@ import (
 
 func TestAssertTags(t *testing.T) {
 	tests := []struct {
-		name           string
-		actualTags     []string
-		expectedTags   []*regexp.Regexp
-		optionalTags   []*regexp.Regexp
-		expectedOutput string
+		name                 string
+		actualTags           []string
+		expectedTags         []*regexp.Regexp
+		optionalTags         []*regexp.Regexp
+		acceptUnexpectedTags bool
+		expectedOutput       string
 	}{
 		{
 			name: "All good",
@@ -48,6 +49,22 @@ func TestAssertTags(t *testing.T) {
 				regexp.MustCompile(`:baz$`),
 			},
 			expectedOutput: "unexpected tags: qux:qux",
+		},
+		{
+			name: "Accept unexpected tag",
+			actualTags: []string{
+				"foo:foo",
+				"bar:bar",
+				"baz:baz",
+				"qux:qux",
+			},
+			expectedTags: []*regexp.Regexp{
+				regexp.MustCompile(`^foo:foo$`),
+				regexp.MustCompile(`^bar:`),
+				regexp.MustCompile(`:baz$`),
+			},
+			acceptUnexpectedTags: true,
+			expectedOutput:       "",
 		},
 		{
 			name: "Missing tag",
@@ -105,7 +122,7 @@ func TestAssertTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := assertTags(tt.actualTags, tt.expectedTags, tt.optionalTags)
+			output := assertTags(tt.actualTags, tt.expectedTags, tt.optionalTags, tt.acceptUnexpectedTags)
 			if output != nil || tt.expectedOutput != "" {
 				assert.EqualError(t, output, tt.expectedOutput)
 			}

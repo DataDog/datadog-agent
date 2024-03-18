@@ -35,6 +35,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -1202,7 +1203,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				return validateStats(usmMonitor, res, tt.expectedEndpoints)
+				return validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -1389,7 +1390,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS))
 
 				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
@@ -1401,6 +1402,82 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
+				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
+				dumpTelemetry(t, usmMonitor, s.isTLS)
+			}
+		})
+	}
+}
+
+// TestRemainderTable tests the remainder table map.
+// We would like to make sure that the remainder table map is being updated correctly.
+func (s *usmHTTP2Suite) TestRemainderTable() {
+	t := s.T()
+	cfg := s.getCfg()
+
+	// Start local server and register its cleanup.
+	t.Cleanup(startH2CServer(t, authority, s.isTLS))
+
+	// Start the proxy server.
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	tests := []struct {
+		name           string
+		messageBuilder func() [][]byte
+		mapSize        int
+	}{
+		{
+			name: "validate clean with remainder and header zero",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
+				b := newFramer().writeData(t, 1, true, []byte("test12345")).bytes()
+				message := append(a, b[11:]...)
+				return [][]byte{
+					// we split it in 11 bytes in order to split the payload itself.
+					message,
+					b[11:],
+				}
+			},
+			mapSize: 0,
+		},
+		{
+			name: "validate remainder in map",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				a := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
+					writeData(t, 1, true, emptyBody).bytes()
+				return [][]byte{
+					// we split it in 10 bytes in order to split the payload itself.
+					a[:10],
+					a[10:],
+				}
+			},
+			mapSize: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			usmMonitor := setupUSMTLSMonitor(t, cfg)
+			if s.isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+
+			c := dialHTTP2Server(t)
+
+			// Composing a message with the number of setting frames we want to send.
+			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
+
+			assert.Eventually(t, func() bool {
+				require.Len(t, getRemainderTableMapKeys(t, usmMonitor.ebpfProgram), tt.mapSize)
+				return true
+			}, time.Second*5, time.Millisecond*100, "")
+			if t.Failed() {
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap)
 				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
@@ -1469,7 +1546,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints) {
+				if !validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
 					return false
 				}
 
@@ -1518,7 +1595,7 @@ func TestHTTP2InFlightMapCleaner(t *testing.T) {
 }
 
 // validateStats validates that the stats we get from the monitor are as expected.
-func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
+func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
 			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
@@ -1527,6 +1604,10 @@ func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]i
 			// 200 as the status code.
 			if statusCode == 0 {
 				statusCode = 200
+			}
+			hasTag := stat.Data[statusCode].StaticTags == network.ConnTagGo
+			if hasTag != isTLS {
+				continue
 			}
 			count := stat.Data[statusCode].Count
 			newKey := usmhttp.Key{
@@ -1835,6 +1916,21 @@ func validateDynamicTableMap(t *testing.T, ebpfProgram *ebpfProgram, expectedDyn
 	}
 	sort.Ints(resultIndexes)
 	require.EqualValues(t, expectedDynamicTablePathIndexes, resultIndexes)
+}
+
+// getRemainderTableMapKeys returns the keys of the remainder table map.
+func getRemainderTableMapKeys(t *testing.T, ebpfProgram *ebpfProgram) []usmhttp.ConnTuple {
+	remainderMap, _, err := ebpfProgram.GetMap("http2_remainder")
+	require.NoError(t, err)
+	resultIndexes := make([]usmhttp.ConnTuple, 0)
+	var key usmhttp2.ConnTuple
+	var value usmhttp2.HTTP2RemainderEntry
+	iterator := remainderMap.Iterate()
+
+	for iterator.Next(&key, &value) {
+		resultIndexes = append(resultIndexes, key)
+	}
+	return resultIndexes
 }
 
 // validateHuffmanEncoded validates that the dynamic table map contains the expected huffman encoded paths.
