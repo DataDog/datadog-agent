@@ -236,7 +236,7 @@ func clientWithOneRedirects() *http.Client {
 	return clientCustom
 }
 
-// Return true if the URL is redirected to another URL, and return the status code of the redirection
+// See if the URL is redirected to another URL, and return the status code of the redirection
 func acceptRedirection(url string, client *http.Client) (int, error) {
 	res, err := client.Head(url)
 	if err != nil {
