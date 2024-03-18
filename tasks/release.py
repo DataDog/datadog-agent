@@ -348,7 +348,7 @@ def list_major_change(_, milestone):
     List all PR labeled "major_changed" for this release.
     """
 
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
     if pull_requests is None:
         return
@@ -1290,7 +1290,7 @@ Make sure that milestone is open before trying again.""",
     labels = [
         "changelog/no-changelog",
         "qa/no-code-change",
-        "team/agent-platform",
+        "team/agent-build-and-releases",
         "team/agent-release-management",
         "category/release_operations",
     ]
@@ -1562,7 +1562,7 @@ def cleanup(ctx):
       - Updates the scheduled nightly pipeline to target the new stable branch
       - Updates the release.json last_stable fields
     """
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     latest_release = gh.latest_release()
     match = VERSION_RE.search(latest_release)
     if not match:
@@ -1693,7 +1693,7 @@ def get_active_release_branch(_ctx):
     If release started and code freeze is in place - main branch is considered active.
     If release started and code freeze is over - release branch is considered active.
     """
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     latest_release = gh.latest_release()
     version = _create_version_from_match(VERSION_RE.search(latest_release))
     next_version = version.next_version(bump_minor=True)

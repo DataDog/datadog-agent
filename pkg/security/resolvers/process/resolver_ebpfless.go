@@ -175,9 +175,11 @@ func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.Pr
 func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[key]
 	if prev != nil {
+		prev.Exec(entry)
+		entry.PPid = prev.PPid
+
 		// inheritate credentials as exec event, uid/gid can be update by setuid/setgid events
 		entry.Credentials = prev.Credentials
-		prev.Exec(entry)
 	}
 
 	p.insertEntry(key, entry, prev)
@@ -222,6 +224,16 @@ func (p *EBPFLessResolver) UpdateGID(key CacheResolverKey, gid int32, egid int32
 		if egid != -1 {
 			entry.Credentials.EGID = uint32(egid)
 		}
+	}
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *EBPFLessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
 	}
 }
 

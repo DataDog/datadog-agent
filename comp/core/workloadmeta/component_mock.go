@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: container-integrations
@@ -43,6 +44,8 @@ type Mock interface {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newWorkloadMetaMock),
+		fx.Provide(func(mock Mock) Component { return mock }),
+		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
 	)
 }
 

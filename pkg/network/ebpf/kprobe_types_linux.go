@@ -39,12 +39,14 @@ type Conn struct {
 	Tcp_retransmits uint32
 }
 type Batch struct {
-	C0  Conn
-	C1  Conn
-	C2  Conn
-	C3  Conn
-	Len uint16
-	Id  uint64
+	C0        Conn
+	C1        Conn
+	C2        Conn
+	C3        Conn
+	Id        uint64
+	Cpu       uint32
+	Len       uint16
+	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
 	Tcp_failed_connect  uint64

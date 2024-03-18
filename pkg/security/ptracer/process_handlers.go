@@ -151,7 +151,9 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateEnvs(envs)
+
+	it := NewStringArrayIterator(envs)
+	envs, envsTruncated := truncateEnvs(it)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
@@ -190,7 +192,9 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateEnvs(envs)
+
+	it := NewStringArrayIterator(envs)
+	envs, envsTruncated := truncateEnvs(it)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{

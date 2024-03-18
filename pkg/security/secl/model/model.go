@@ -11,6 +11,7 @@ package model
 import (
 	"net"
 	"reflect"
+	"runtime"
 	"time"
 	"unsafe"
 
@@ -23,7 +24,7 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
+var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 var containerContextZero ContainerContext
 
 // NewEvent returns a new Event
@@ -31,6 +32,7 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
 			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
 		},
 	}
 }
@@ -120,10 +122,11 @@ type BaseEvent struct {
 	Type          uint32         `field:"-"`
 	Flags         uint32         `field:"-"`
 	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
+	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime" event:"*"`
 	Rules         []*MatchedRule `field:"-"`
 	ActionReports []ActionReport `field:"-"`
-	Origin        string         `field:"-"`
+	Os            string         `field:"event.os" event:"*"`                             // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin" event:"*"`                         // SECLDoc[event.origin] Definition:`Origin of the event`
 	Service       string         `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
@@ -178,6 +181,7 @@ func NewFakeEvent() *Event {
 		BaseEvent: BaseEvent{
 			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
 		},
 	}
 }
@@ -206,6 +210,11 @@ func (e *Event) IsActivityDumpSample() bool {
 // IsInProfile return true if the event was found in the profile
 func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
+}
+
+// HasActiveActivityDump returns true if the event has an active activity dump associated to it
+func (e *Event) HasActiveActivityDump() bool {
+	return e.Flags&EventFlagsHasActiveActivityDump > 0
 }
 
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
@@ -313,7 +322,7 @@ type MatchedRule struct {
 
 // ActionReport defines an action report
 type ActionReport interface {
-	ToJSON() ([]byte, error)
+	ToJSON() ([]byte, bool, error)
 }
 
 // NewMatchedRule return a new MatchedRule instance

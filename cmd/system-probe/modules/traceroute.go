@@ -14,8 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/gorilla/mux"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
@@ -29,7 +31,7 @@ var (
 	tracerouteConfigNamespaces = []string{"traceroute"}
 )
 
-func createTracerouteModule(_ *sysconfigtypes.Config) (module.Module, error) {
+func createTracerouteModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 	return &traceroute{}, nil
 }
 
