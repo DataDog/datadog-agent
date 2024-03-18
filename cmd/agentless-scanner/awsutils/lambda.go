@@ -29,15 +29,15 @@ const (
 )
 
 // SetupLambda downloads and extracts the code of a lambda function.
-func SetupLambda(ctx context.Context, scan *types.ScanTask) (string, error) {
+func SetupLambda(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask) (string, error) {
 	lambdaDir := scan.Path()
 	if err := os.MkdirAll(lambdaDir, 0700); err != nil {
 		return "", err
 	}
-	return downloadAndUnzipLambda(ctx, scan, lambdaDir)
+	return downloadAndUnzipLambda(ctx, sc, scan, lambdaDir)
 }
 
-func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir string) (codePath string, err error) {
+func downloadAndUnzipLambda(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask, lambdaDir string) (codePath string, err error) {
 	if err := statsd.Count("datadog.agentless_scanner.functions.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -64,7 +64,7 @@ func downloadAndUnzipLambda(ctx context.Context, scan *types.ScanTask, lambdaDir
 		}
 	}()
 
-	cfg := GetConfigFromCloudID(ctx, scan.Roles, scan.TargetID)
+	cfg := GetConfigFromCloudID(ctx, sc, scan.Roles, scan.TargetID)
 	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
 		return "", err

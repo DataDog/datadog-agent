@@ -62,6 +62,7 @@ type Options struct {
 	DefaultActions []types.ScanAction
 	Statsd         *ddogstatsd.Client
 	EventForwarder eventplatform.Component
+	ScannerConfig  *types.ScannerConfig
 }
 
 type scanRecord struct {
@@ -123,16 +124,16 @@ func New(opts Options) (*Runner, error) {
 }
 
 // Cleanup cleans up all the resources created by the runner.
-func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole types.CloudID) error {
-	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, maxTTL, region, assumedRole)
+func (s *Runner) Cleanup(ctx context.Context, sc *types.ScannerConfig, maxTTL time.Duration, region string, assumedRole types.CloudID) error {
+	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, sc, maxTTL, region, assumedRole)
 	if err != nil {
 		return err
 	}
-	awsutils.ResourcesCleanup(ctx, toBeDeleted, region, assumedRole)
+	awsutils.ResourcesCleanup(ctx, sc, toBeDeleted, region, assumedRole)
 	return nil
 }
 
-func (s *Runner) cleanupProcess(ctx context.Context) {
+func (s *Runner) cleanupProcess(ctx context.Context, sc *types.ScannerConfig) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
@@ -154,7 +155,7 @@ func (s *Runner) cleanupProcess(ctx context.Context) {
 
 		if len(touched) > 0 {
 			for record := range touched {
-				if err := s.Cleanup(ctx, defaultSnapshotsMaxTTL, record.Region, record.Role); err != nil {
+				if err := s.Cleanup(ctx, sc, defaultSnapshotsMaxTTL, record.Region, record.Role); err != nil {
 					log.Warnf("cleanupProcess failed on region %q with role %q: %v", record.Region, record.Role, err)
 				}
 			}
@@ -223,7 +224,7 @@ func (s *Runner) healthServer(ctx context.Context) error {
 
 // CleanSlate removes all the files, directories and cloud resources created
 // by the scanner that could still be present at startup.
-func (s *Runner) CleanSlate() error {
+func (s *Runner) CleanSlate(sc *types.ScannerConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -318,13 +319,13 @@ func (s *Runner) CleanSlate() error {
 				}
 			}
 		}
-		awsutils.CleanSlate(ctx, blockDevices, s.DefaultRoles)
+		awsutils.CleanSlate(ctx, sc, blockDevices, s.DefaultRoles)
 	}
 
 	return nil
 }
 
-func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *types.ScanTask, <-chan struct{}) {
+func (s *Runner) init(ctx context.Context, sc *types.ScannerConfig) (<-chan *types.ScanTask, chan<- *types.ScanTask, <-chan struct{}) {
 	log.Infof("starting agentless-scanner main loop with %d scan workers", s.Workers)
 	defer log.Infof("stopped agentless-scanner main loop")
 
@@ -346,7 +347,7 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 		}
 	}()
 
-	go s.cleanupProcess(ctx)
+	go s.cleanupProcess(ctx, sc)
 
 	doneCh := make(chan struct{})
 	go func() {
@@ -398,8 +399,8 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 }
 
 // Start starts the runner main loop.
-func (s *Runner) Start(ctx context.Context) {
-	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx)
+func (s *Runner) Start(ctx context.Context, sc *types.ScannerConfig) {
+	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx, sc)
 
 	var wg sync.WaitGroup
 	wg.Add(s.Workers)
@@ -411,7 +412,7 @@ func (s *Runner) Start(ctx context.Context) {
 				NoFork:      s.NoFork,
 				Statsd:      s.Statsd,
 			})
-			w.Run(ctx, triggeredScansCh, finishedScansCh, s.resultsCh)
+			w.Run(ctx, sc, triggeredScansCh, finishedScansCh, s.resultsCh)
 			wg.Done()
 		}(i)
 	}
@@ -435,8 +436,8 @@ func (s *Runner) Start(ctx context.Context) {
 
 // StartWithRemoteWorkers starts the runner main loop with remote workers. It
 // spawns an HTTP server to dispatch scan tasks to remote workers.
-func (s *Runner) StartWithRemoteWorkers(ctx context.Context) {
-	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx)
+func (s *Runner) StartWithRemoteWorkers(ctx context.Context, sc *types.ScannerConfig) {
+	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx, sc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/scans", func(w http.ResponseWriter, req *http.Request) {

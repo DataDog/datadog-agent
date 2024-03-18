@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"golang.org/x/time/rate"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -61,12 +60,12 @@ func loadDefaultConfig(ctx context.Context, options ...func(*config.LoadOptions)
 }
 
 // GetConfigFromCloudID returns an AWS Config for the given region and assumed role.
-func GetConfigFromCloudID(ctx context.Context, roles types.RolesMapping, cloudID types.CloudID) aws.Config {
-	return GetConfig(ctx, cloudID.Region(), roles.GetCloudIDRole(cloudID))
+func GetConfigFromCloudID(ctx context.Context, sc *types.ScannerConfig, roles types.RolesMapping, cloudID types.CloudID) aws.Config {
+	return GetConfig(ctx, sc, cloudID.Region(), roles.GetCloudIDRole(cloudID))
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
-func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aws.Config {
+func GetConfig(ctx context.Context, sc *types.ScannerConfig, region string, assumedRole types.CloudID) aws.Config {
 	key := confKey{assumedRole, region}
 	if cfg, ok := globalConfigs.Load(key); ok {
 		return cfg.(aws.Config)
@@ -81,10 +80,10 @@ func GetConfig(ctx context.Context, region string, assumedRole types.CloudID) aw
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 	}
 	limiter := NewLimiter(LimiterOptions{
-		EC2Rate:          rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate")),
-		EBSListBlockRate: rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate")),
-		EBSGetBlockRate:  rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate")),
-		DefaultRate:      rate.Limit(pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate")),
+		EC2Rate:          rate.Limit(sc.AWSEC2Rate),
+		EBSListBlockRate: rate.Limit(sc.AWSEBSListBlockRate),
+		EBSGetBlockRate:  rate.Limit(sc.AWSEBSGetBlockRate),
+		DefaultRate:      rate.Limit(sc.AWSDefaultRate),
 	})
 
 	noDelegateCfg := loadDefaultConfig(ctx, config.WithRegion(region))
