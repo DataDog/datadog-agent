@@ -283,6 +283,63 @@ func (s *USMSuite) TestTLSClassification() {
 	}
 }
 
+func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
+	t := s.T()
+
+	cfg := testConfig()
+	cfg.ProtocolClassificationEnabled = true
+
+	if !classificationSupported(cfg) {
+		t.Skip("TLS classification platform not supported")
+	}
+
+	serverAddr := net.JoinHostPort("localhost", httpsPort)
+	portAsValue, err := strconv.ParseUint(httpsPort, 10, 16)
+	require.NoError(t, err)
+
+	_ = testutil.HTTPPythonServer(t, serverAddr, testutil.Options{
+		EnableKeepAlive: false,
+		EnableTLS:       true,
+	})
+
+	client := &nethttp.Client{
+		Transport: &nethttp.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	// Helper to make a request to the server, and discard the response.
+	makeRequest := func() {
+		resp, err := client.Get(fmt.Sprintf("https://%s/200/test", serverAddr))
+		require.NoError(t, err)
+
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}
+
+	makeRequest()
+	tr := setupTracer(t, cfg)
+	time.Sleep(100 * time.Millisecond)
+	makeRequest()
+
+	// Iterate through active connections until we find connection created above
+	var foundIncoming, foundOutgoing bool
+	require.Eventuallyf(t, func() bool {
+		payload := getConnections(t, tr)
+
+		for _, c := range payload.Conns {
+			if !foundIncoming && c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
+				foundIncoming = true
+			}
+
+			if !foundOutgoing && c.SPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
+				foundOutgoing = true
+			}
+		}
+		return foundIncoming && foundOutgoing
+	}, 4*time.Second, 100*time.Millisecond, "couldn't find matching TLS connection")
+}
+
 func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
 	if !httpsSupported() {
 		t.Skip("https is not supported")

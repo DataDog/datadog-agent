@@ -12,7 +12,7 @@ update_rc_build_links:
   tags: ["arch:amd64"]
   script:
     - source /root/.bashrc
-    - export ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.jira_read_api_token)
+    - export ATLASSIAN_PASSWORD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $JIRA_READ_API_TOKEN_SSM_NAME)
     - export ATLASSIAN_USERNAME=robot-jira-agentplatform@datadoghq.com
     - python3 -m pip install -r tasks/requirements_release_tasks.txt
     - inv -e release.update-build-links ${CI_COMMIT_REF_NAME}
