@@ -179,6 +179,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	ringbufferEnabled := config.RingBufferSupportedNPM()
+	log.Errorf("adamk ringbufferEnabled: %v", ringbufferEnabled)
 	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", ringbufferEnabled)
 	if ringbufferEnabled {
 		util.EnableRingbuffersViaMapEditor(&mgrOpts)
@@ -257,6 +258,12 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 				ProbeIdentificationPair: probeIdentifier,
 			})
 	}
+	log.Errorf("adamk - mgrOpts: %+v", mgrOpts)
+	log.Errorf("adamk - manager: %+v", m.Manager)
+	log.Errorf("adamk - manager: %+v", m.Manager.RingBuffers)
+	log.Errorf("adamk - manager: %+v", m.Manager.PerfMaps)
+	log.Errorf("adamk - manager: %+v", m.Manager.Maps)
+	log.Errorf("adamk - manager: %+v", m.Manager.Probes)
 
 	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)

@@ -30,6 +30,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,6 +65,10 @@ var kv = kernel.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
+	if err := rlimit.RemoveMemlock(); err != nil {
+		fmt.Fprintf(os.Stderr, "error removing memlock: %s", err)
+		os.Exit(1)
+	}
 }
 
 func (s *TracerSuite) TestTCPRemoveEntries() {

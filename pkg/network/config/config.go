@@ -409,5 +409,7 @@ func New() *Config {
 }
 
 func (c *Config) RingBufferSupportedNPM() bool {
+	log.Errorf("adamk - features.HaveMapType(cebpf.RingBuf): %v", features.HaveMapType(cebpf.RingBuf))
+	log.Errorf("adamk - c.NPMRingbuffersEnabled: %v", c.NPMRingbuffersEnabled)
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
 }

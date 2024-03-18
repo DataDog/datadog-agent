@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -56,13 +57,16 @@ func newPerfBatchManager(batchMap *maps.GenericMap[uint32, netebpf.Batch], numCP
 		// batch entry with a CPU during startup. This information is used by
 		// the code that does the batch offset tracking.
 		b.Cpu = cpu
-		if err := batchMap.Put(&cpu, b); err != nil {
+		log.Errorf("adamk - cpu: %d", cpu)
+		log.Errorf("adamk - b.Cpu: %d", b.Cpu)
+		if err := batchMap.Put(&b.Cpu, b); err != nil {
 			return nil, fmt.Errorf("error initializing perf batch manager maps: %w", err)
 		}
 		state[cpu] = percpuState{
 			processed: make(map[uint64]batchState),
 		}
 	}
+	log.Errorf("adamk - finished setting up batch maps - state: %v", state)
 
 	return &perfBatchManager{
 		batchMap:             batchMap,
@@ -184,6 +188,7 @@ func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Errorf("adamk - batchManager- numCPUs: %d", numCPUs)
 	batchMgr, err := newPerfBatchManager(connCloseMap, uint32(numCPUs))
 	if err != nil {
 		return nil, err

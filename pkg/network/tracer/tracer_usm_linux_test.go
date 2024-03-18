@@ -71,6 +71,7 @@ func TestUSMSuite(t *testing.T) {
 
 func (s *USMSuite) TestEnableHTTPMonitoring() {
 	t := s.T()
+	ebpftest.LogLevel(t, "trace")
 	if !httpSupported() {
 		t.Skip("HTTP monitoring not supported")
 	}
