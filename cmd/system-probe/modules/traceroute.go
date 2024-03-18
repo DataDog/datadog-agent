@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
+////go:build linux || windows
 
 package modules
 
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -48,9 +49,30 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		vars := mux.Vars(req)
 		id := getClientID(req)
 		host := vars["host"]
+		port, err := strconv.ParseUint(vars["port"], 10, 16)
+		if err != nil {
+			log.Errorf("invalid port: %s", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		maxTTL, err := strconv.ParseUint(vars["max_ttl"], 10, 8)
+		if err != nil {
+			log.Errorf("invalid max_ttl: %s", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		timeout, err := strconv.ParseUint(vars["timeout"], 10, 32)
+		if err != nil {
+			log.Errorf("invalid max_ttl: %s", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
 		cfg := tracerouteutil.Config{
 			DestHostname: host,
+			DestPort:     uint16(port),
+			MaxTTL:       uint8(maxTTL),
+			TimeoutMs:    uint(timeout),
 		}
 
 		// Run traceroute
