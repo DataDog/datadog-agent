@@ -134,7 +134,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Microsoft/go-winio v0.6.1
-	github.com/Microsoft/hcsshim v0.12.0-rc.2
+	github.com/Microsoft/hcsshim v0.12.0
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
@@ -155,7 +155,7 @@ require (
 	github.com/containernetworking/cni v1.1.2
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd v22.5.0+incompatible
-	github.com/cri-o/ocicni v0.4.0
+	github.com/cri-o/ocicni v0.4.2
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v25.0.3+incompatible
@@ -379,7 +379,7 @@ require (
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/containerd/ttrpc v1.2.2 // indirect
-	github.com/containernetworking/plugins v1.4.0 // indirect
+	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
@@ -739,6 +739,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
+	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/csaf-poc/csaf_distribution/v3 v3.0.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect

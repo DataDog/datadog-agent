@@ -351,8 +351,8 @@ github.com/Microsoft/go-winio v0.5.0/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpz
 github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
-github.com/Microsoft/hcsshim v0.12.0-rc.2 h1:gfKebjq3Mq17Ys+4cjE8vc2h6tZVeqCGb9a7vBVqpAk=
-github.com/Microsoft/hcsshim v0.12.0-rc.2/go.mod h1:G2TZhBED5frlh/hsuxV5CDh/ylkSFknPAMPpQg9owQw=
+github.com/Microsoft/hcsshim v0.12.0 h1:rbICA+XZFwrBef2Odk++0LjFvClNCJGRK+fsrP254Ts=
+github.com/Microsoft/hcsshim v0.12.0/go.mod h1:RZV12pcHCXQ42XnlQ3pz6FZfmrC1C+R4gaOHhRNML1g=
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
@@ -630,6 +630,8 @@ github.com/containerd/containerd v1.7.13 h1:wPYKIeGMN8vaggSKuV1X0wZulpMz4CrgEsZd
 github.com/containerd/containerd v1.7.13/go.mod h1:zT3up6yTRfEUa6+GsITYIJNgSVL9NQ4x4h1RPzk0Wu4=
 github.com/containerd/continuity v0.4.3 h1:6HVkalIp+2u1ZLH1J/pYX2oBVXlJZvh1X1A7bEZ9Su8=
 github.com/containerd/continuity v0.4.3/go.mod h1:F6PTNCKepoxEaXLQp3wDAjygEnImnZ/7o4JzpodfroQ=
+github.com/containerd/errdefs v0.1.0 h1:m0wCRBiu1WJT/Fr+iOoQHMQS/eP5myQ8lCv4Dz5ZURM=
+github.com/containerd/errdefs v0.1.0/go.mod h1:YgWiiHtLmSeBrvpw+UfPijzbLaB77mEG1WwJTDETIV0=
 github.com/containerd/fifo v1.1.0 h1:4I2mbh5stb1u6ycIABlBw9zgtlK8viPI9QkQNRQEEmY=
 github.com/containerd/fifo v1.1.0/go.mod h1:bmC4NWMbXlt2EZ0Hc7Fx7QzTFxgPID13eH0Qu+MAb2o=
 github.com/containerd/log v0.1.0 h1:TCJt7ioM2cr/tfR8GPbGf9/VRAX8D2B4PjzCpfX540I=
@@ -642,8 +644,8 @@ github.com/containerd/typeurl/v2 v2.1.1 h1:3Q4Pt7i8nYwy2KmQWIw2+1hTvwTE/6w9Fqctt
 github.com/containerd/typeurl/v2 v2.1.1/go.mod h1:IDp2JFvbwZ31H8dQbEIY7sDl2L3o3HZj1hsSQlywkQ0=
 github.com/containernetworking/cni v1.1.2 h1:wtRGZVv7olUHMOqouPpn3cXJWpJgM6+EUl31EQbXALQ=
 github.com/containernetworking/cni v1.1.2/go.mod h1:sDpYKmGVENF3s6uvMvGgldDWeG8dMxakj/u+i9ht9vw=
-github.com/containernetworking/plugins v1.4.0 h1:+w22VPYgk7nQHw7KT92lsRmuToHvb7wwSv9iTbXzzic=
-github.com/containernetworking/plugins v1.4.0/go.mod h1:UYhcOyjefnrQvKvmmyEKsUA+M9Nfn7tqULPpH0Pkcj0=
+github.com/containernetworking/plugins v1.4.1 h1:+sJRRv8PKhLkXIl6tH1D7RMi+CbbHutDGU+ErLBORWA=
+github.com/containernetworking/plugins v1.4.1/go.mod h1:n6FFGKcaY4o2o5msgu/UImtoC+fpQXM3076VHfHbj60=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/bbolt v1.3.3/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
@@ -666,8 +668,8 @@ github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:ma
 github.com/cpuguy83/go-md2man/v2 v2.0.0/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
 github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/cri-o/ocicni v0.4.0 h1:FKTiq4CESW5OfqM3M87KyHApcawtWw5EwufMiZyXYb0=
-github.com/cri-o/ocicni v0.4.0/go.mod h1:/L2k9zk6l2O1FbE4xY1qTqSWJBqobOvsoYlkghIhjmk=
+github.com/cri-o/ocicni v0.4.2 h1:/QRdfxW9x0AUtIloDNLTHY21cEK/U+fh+CadoNG0BPg=
+github.com/cri-o/ocicni v0.4.2/go.mod h1:KoSu7fBBKuRRM+t4om4iFOGt+/a0bkUF+9IeYTMZCNs=
 github.com/csaf-poc/csaf_distribution/v3 v3.0.0 h1:ob9+Fmpff0YWgTP3dYaw7G2hKQ9cegh9l3zksc+q3sM=
 github.com/csaf-poc/csaf_distribution/v3 v3.0.0/go.mod h1:uilCTiNKivq+6zrDvjtZaUeLk70oe21iwKivo6ILwlQ=
 github.com/cyphar/filepath-securejoin v0.2.4 h1:Ugdm7cg7i6ZK6x3xDF1oEu1nfkyfH53EtKeQYTC3kyg=
@@ -1448,8 +1450,8 @@ github.com/onsi/ginkgo v1.16.4/go.mod h1:dX+/inL/fNMqNlz0e9LfyB9TswhZpCVdJM/Z6Vv
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo v1.16.5/go.mod h1:+E8gABHa3K6zRBolWtd+ROzc/U5bkGt0FwiG042wbpU=
 github.com/onsi/ginkgo/v2 v2.1.3/go.mod h1:vw5CSIxN1JObi/U8gcbwft7ZxR2dgaR70JSE3/PpL4c=
-github.com/onsi/ginkgo/v2 v2.13.2 h1:Bi2gGVkfn6gQcjNjZJVO8Gf0FHzMPf2phUei9tejVMs=
-github.com/onsi/ginkgo/v2 v2.13.2/go.mod h1:XStQ8QcGwLyF4HdfcZB8SFOS/MWCgDuXMSBe6zrvLgM=
+github.com/onsi/ginkgo/v2 v2.16.0 h1:7q1w9frJDzninhXxjZd+Y/x54XNjG/UlRLIYPZafsPM=
+github.com/onsi/ginkgo/v2 v2.16.0/go.mod h1:llBI3WDLL9Z6taip6f33H76YcWtJv+7R3HigUjbIBOs=
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.5.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
@@ -1457,8 +1459,8 @@ github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1y
 github.com/onsi/gomega v1.10.5/go.mod h1:gza4q3jKQJijlu05nKWRCW/GavJumGt8aNRxWg7mt48=
 github.com/onsi/gomega v1.17.0/go.mod h1:HnhC7FXeEQY45zxNK3PPoIUhzk/80Xly9PcubAlGdZY=
 github.com/onsi/gomega v1.19.0/go.mod h1:LY+I3pBVzYsTBU1AnDwOSxaYi9WoWiqgwooUqq9yPro=
-github.com/onsi/gomega v1.30.0 h1:hvMK7xYz4D3HapigLTeGdId/NcfQx1VHMJc60ew99+8=
-github.com/onsi/gomega v1.30.0/go.mod h1:9sxs+SwGrKI0+PWe4Fxa9tFQQBG5xSsSbMXOI8PPpoQ=
+github.com/onsi/gomega v1.31.1 h1:KYppCUK+bUgAZwHOu7EXVBKyQA6ILvOESHkn/tgoqvo=
+github.com/onsi/gomega v1.31.1/go.mod h1:y40C95dwAD1Nz36SsEnxvfFe8FFfNxzI5eJ0EYGyAy0=
 github.com/open-policy-agent/opa v0.61.0 h1:nhncQ2CAYtQTV/SMBhDDPsCpCQsUW+zO/1j+T5V7oZg=
 github.com/open-policy-agent/opa v0.61.0/go.mod h1:7OUuzJnsS9yHf8lw0ApfcbrnaRG1EkN3J2fuuqi4G/E=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.75.0 h1:XW4DBJP3+dgdclPVA7d9aetG/FBUmwSNQGWaWoZnyo0=
