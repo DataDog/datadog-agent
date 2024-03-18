@@ -20,12 +20,15 @@ import (
 
 const (
 	customDDSketchEncodingCfg = "service_monitoring_config.enable_custom_ddsketch_encoding"
+
+	defaultSketchBufferSize = 1024
 )
 
 type httpEncoder struct {
 	httpAggregationsBuilder      *model.HTTPAggregationsBuilder
 	byConnection                 *USMConnectionIndex[http.Key, *http.RequestStats]
 	enableCustomDDSketchEncoding bool
+	sketchBuffer                 *[]byte
 }
 
 func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
@@ -84,10 +87,14 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
 							if e.enableCustomDDSketchEncoding {
+								if e.sketchBuffer == nil {
+									tmp := make([]byte, 0, defaultSketchBufferSize)
+									e.sketchBuffer = &tmp
+								}
 								w.SetEncodedLatencies(func(b *bytes.Buffer) {
-									bb := make([]byte, 0)
-									latencies.Encode(&bb, false)
-									b.Write(bb)
+									latencies.Encode(e.sketchBuffer, false)
+									b.Write(*e.sketchBuffer)
+									*e.sketchBuffer = (*e.sketchBuffer)[:0]
 								})
 							} else {
 								blob, _ := proto.Marshal(latencies.ToProto())

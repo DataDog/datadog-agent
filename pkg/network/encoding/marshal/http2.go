@@ -22,6 +22,7 @@ type http2Encoder struct {
 	http2AggregationsBuilder     *model.HTTP2AggregationsBuilder
 	byConnection                 *USMConnectionIndex[http.Key, *http.RequestStats]
 	enableCustomDDSketchEncoding bool
+	sketchBuffer                 *[]byte
 }
 
 func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
@@ -80,10 +81,14 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
 							if e.enableCustomDDSketchEncoding {
+								if e.sketchBuffer == nil {
+									tmp := make([]byte, 0, defaultSketchBufferSize)
+									e.sketchBuffer = &tmp
+								}
 								w.SetEncodedLatencies(func(b *bytes.Buffer) {
-									bb := make([]byte, 0)
-									latencies.Encode(&bb, false)
-									b.Write(bb)
+									latencies.Encode(e.sketchBuffer, false)
+									b.Write(*e.sketchBuffer)
+									*e.sketchBuffer = (*e.sketchBuffer)[:0]
 								})
 							} else {
 								blob, _ := proto.Marshal(latencies.ToProto())
