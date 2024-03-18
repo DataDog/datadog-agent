@@ -5,6 +5,11 @@
 
 package transaction
 
+import (
+	config "github.com/DataDog/datadog-agent/pkg/config"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+)
+
 // Endpoint is an endpoint
 type Endpoint struct {
 	// Route to hit in the HTTP transaction
@@ -13,6 +18,14 @@ type Endpoint struct {
 	Name string
 }
 
+// String returns the route of the endpoint
 func (e Endpoint) String() string {
 	return e.Route
+}
+
+// MakeFlareEndpoint Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
+func MakeFlareEndpoint() string {
+	url := configUtils.GetInfraEndpoint(config.Datadog)
+	baseURL, _ := configUtils.AddAgentVersionToDomain(url, "flare")
+	return baseURL + "/support/flare"
 }

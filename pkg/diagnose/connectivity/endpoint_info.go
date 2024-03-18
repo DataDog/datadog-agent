@@ -47,6 +47,9 @@ var (
 	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
 	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
 
+	// Flare endpoint
+	flareEndpointInfo = endpointInfo{endpoints.FlareEndpoint, "HEAD", nil}
+
 	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
 		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
 )

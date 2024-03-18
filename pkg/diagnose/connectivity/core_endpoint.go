@@ -100,6 +100,14 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				}
 				diagnoses = append(diagnoses, d)
 			}
+
+			// Send a request to the flare endpoint
+			flareEndpoint := flareEndpointInfo
+			respStatus, err := acceptRedirection(flareEndpoint.Endpoint.Route, clientWithOneRedirects())
+			report, reportErr := verifyEndpointResponse(respStatus, nil, err)
+			diagnosisName := "Connectivity to " + flareEndpoint.Endpoint.Route
+			d := createDiagnosis(diagnosisName, flareEndpoint.Endpoint.Route, report, reportErr)
+			diagnoses = append(diagnoses, d)
 		}
 	}
 	return diagnoses
@@ -212,4 +220,26 @@ func noResponseHints(err error) string {
 	}
 
 	return ""
+}
+
+func clientWithOneRedirects() *http.Client {
+	clientCustom := &http.Client{}
+	clientCustom.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return clientCustom
+}
+
+// Return true if the URL is redirected to another URL, and return the status code of the redirection
+func acceptRedirection(url string, client *http.Client) (int, error) {
+	res, err := client.Head(url)
+	if err != nil {
+		return res.StatusCode, err
+	}
+	defer res.Body.Close() // Close the response body
+	// Since the flare only accept post, when we perform a head request, we should expect a redirection before the final response
+	if res.StatusCode == http.StatusTemporaryRedirect || res.StatusCode == http.StatusPermanentRedirect || res.StatusCode == http.StatusOK {
+		return res.StatusCode, err
+	}
+	return res.StatusCode, err
 }
