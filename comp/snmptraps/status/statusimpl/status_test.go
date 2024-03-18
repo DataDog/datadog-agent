@@ -8,12 +8,13 @@ package statusimpl
 import (
 	"bytes"
 	"expvar"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	_ "github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	_ "github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 func TestStatusProvider(t *testing.T) {
