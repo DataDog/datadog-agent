@@ -6,16 +6,19 @@
 package marshal
 
 import (
+	"fmt"
 	"runtime"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/suite"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	cfgmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -133,15 +136,22 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 
 func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
 	t := s.T()
-	t.Run("status code", func(t *testing.T) {
-		testFormatHTTP2StatsByPath(t, true)
+	t.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
 	})
-	t.Run("status class", func(t *testing.T) {
-		testFormatHTTP2StatsByPath(t, false)
-	})
+	for _, enableCustomSketchEncoding := range []bool{true, false} {
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, enableCustomSketchEncoding, cfgmodel.SourceAgentRuntime)
+		for _, aggregateByStatusCode := range []bool{true, false} {
+			testName := fmt.Sprintf("status code aggregation (%s), custom sketch encoding (%s)", boolToEnabledString(aggregateByStatusCode), boolToEnabledString(enableCustomSketchEncoding))
+			t.Run(testName, func(t *testing.T) {
+				testFormatHTTP2StatsByPath(t, aggregateByStatusCode, enableCustomSketchEncoding)
+			})
+		}
+	}
 }
 
-func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
+func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode, enableCustomSketchEncoding bool) {
 	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
 
 	http2ReqStats.AddRequest(100, 12.5, 0, nil)
@@ -199,13 +209,13 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	statsByResponseStatus := endpointAggregations[0].StatsByStatusCode
 	assert.Len(t, statsByResponseStatus, 2)
 
-	serializedLatencies := statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(100))].Latencies
-	sketch := unmarshalSketch(t, serializedLatencies)
+	serializedLatencies := statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(100))]
+	sketch := unmarshalSketch(t, serializedLatencies, enableCustomSketchEncoding)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 12.5)
 
-	serializedLatencies = statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(405))].Latencies
-	sketch = unmarshalSketch(t, serializedLatencies)
+	serializedLatencies = statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(405))]
+	sketch = unmarshalSketch(t, serializedLatencies, enableCustomSketchEncoding)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 3.5)
 
