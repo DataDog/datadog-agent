@@ -519,7 +519,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
-			event.Error = &model.ErrNoProcessContext{Err: errors.New("process context not resolved")}
+			event.Error = model.ErrNoProcessContext
 		} else if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 			p.Resolvers.ProcessResolver.CountBrokenLineage()
