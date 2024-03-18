@@ -21,8 +21,6 @@ A `stack` may be:
 
 > All subsequent commands are assumed to be executed from the root directory of the datadog-agent repository.
 
-> MacOS users can only launch remote VMs at the moment. Local development will be available soon.
-
 ## Dependencies
 
 1. Review and run `tasks/kernel_matrix_testing/env-setup.sh`
@@ -37,7 +35,7 @@ pulumi --non-interactive plugin install
 pulumi --non-interactive plugin ls
 ```
 
-> For macOS users: Internet Sharing needs to be enabled for the networking to work properly. Enable it in System Settings -> General -> Sharing. It does not matter which interface you enable it on, as long as it is enabled and the connection being shared is the one you use for Internet connection.
+> For macOS users: Internet Sharing might need to be enabled for the networking to work properly. Enable it in System Settings -> General -> Sharing if you find problems with the VM networks. It does not matter which interface you enable it on, as long as it is enabled and the connection being shared is the one you use for Internet connection. We'd also appreciate it if you reported it to the eBPF platform team, as it's not clear still whether Internet Sharing needs to be enabled at some point or not.
 
 ## Getting started
 
