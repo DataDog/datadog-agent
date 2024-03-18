@@ -36,12 +36,15 @@ var tlmStreamChanTime = telemetry.NewSimpleHistogram("stream",
 	"Time to send on the stream channel",
 	[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
 
+var tlmStreamSkew = telemetry.NewSimpleGauge("stream", "stream_skew", "Skew of the stream channel")
+
 // Send sends one message at a time and forwards them to the next stage of the pipeline.
 func (s *streamStrategy) Start() {
 	go func() {
 		for msg := range s.inputChan {
 
 			tlmStreamChanTime.Observe(float64(msg.SendDuration().Nanoseconds()))
+			tlmStreamSkew.Set(telemetry.GetSkew(tlmStreamChanTime))
 
 			if msg.Inner.Origin != nil {
 				msg.Inner.Origin.LogSource.LatencyStats.Add(msg.Inner.GetLatency())
