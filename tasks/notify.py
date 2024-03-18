@@ -1,6 +1,8 @@
 import io
 import json
 import os
+import re
+import tempfile
 import traceback
 from collections import defaultdict
 from datetime import datetime
@@ -302,3 +304,66 @@ def send_notification(alert_jobs):
         message += f"Job(s) {jobs} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n"
     if message:
         send_slack_message("#agent-platform-ops", message)
+
+
+@task
+def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
+    from tasks.libs.common.github_api import GithubAPI
+
+    pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
+
+    jobs_with_no_tests_run = process_unit_tests_tarballs(ctx)
+    gh = GithubAPI("DataDog/datadog-agent")
+    prs = gh.get_pr_for_branch(branch_name)
+
+    if prs.totalCount == 0:
+        # If the branch is not linked to any PR we stop here
+        return
+    pr = prs[0]
+
+    comment = gh.find_comment(pr.number, "[Fast Unit Tests Report]")
+    if comment is None and len(jobs_with_no_tests_run) > 0:
+        msg = create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
+        gh.publish_comment(pr.number, msg)
+        return
+
+    previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)
+    # An older pipeline should not edit a message corresponding to a newer pipeline
+    if previous_comment_pipeline_id and previous_comment_pipeline_id[0] > pipeline_id:
+        return
+
+    if len(jobs_with_no_tests_run) > 0:
+        msg = create_msg(pipeline_id, pipeline_url, jobs_with_no_tests_run)
+        comment.edit(msg)
+    else:
+        comment.delete()
+
+
+def create_msg(pipeline_id, pipeline_url, job_list):
+    msg = f'''
+[Fast Unit Tests Report]
+
+Warning: On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not run any unit tests:
+'''
+    for job in job_list:
+        msg += f"  - {job}\n"
+    msg += "\n"
+    msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
+
+    return msg
+
+
+def process_unit_tests_tarballs(ctx):
+    tarballs = ctx.run("ls junit-tests_*.tgz", hide=True).stdout.split()
+    jobs_with_no_tests_run = []
+    for tarball in tarballs:
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            ctx.run(f"tar -xzf {tarball} -C {unpack_dir}")
+
+            # We check if the folder contains at least one junit.xml file. Otherwise we consider no tests were executed
+            if not any(f.endswith(".xml") for f in os.listdir(unpack_dir)):
+                jobs_with_no_tests_run.append(
+                    tarball.replace("junit-", "").replace(".tgz", "").replace("-repacked", "")
+                )  # We remove -repacked to have a correct job name macos
+
+    return jobs_with_no_tests_run
