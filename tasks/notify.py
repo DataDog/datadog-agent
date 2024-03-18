@@ -347,7 +347,7 @@ def create_msg(pipeline_id, pipeline_url, job_list):
     msg = f'''
 [Fast Unit Tests Report]
 
-On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not run any unit tests:
+On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.pipeline.id%3A{pipeline_id}&fromUser=false&index=cipipeline)). The following jobs did not run any unit tests:
 
 <details>
 <summary>Jobs with no tests executed:</summary>
