@@ -83,6 +83,7 @@ def gen_config(
             arch=arch,
             output_file=output_file,
             use_local_if_possible=use_local_if_possible,
+            vmconfig_template=vmconfig_template,
         )
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -104,6 +105,7 @@ def gen_config_from_ci_pipeline(
     use_local_if_possible=False,
     arch="",
     output_file="vmconfig.json",
+    vmconfig_template="system-probe",
 ):
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
@@ -166,7 +168,9 @@ def gen_config_from_ci_pipeline(
     info(f"[+] generating vmconfig.json file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
-    return vmconfig.gen_config(ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file)
+    return vmconfig.gen_config(
+        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+    )
 
 
 @task
