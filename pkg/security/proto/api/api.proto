@@ -252,7 +252,7 @@ message SecurityProfileMessage {
     repeated string EventTypes = 5;
     repeated LastAnomalyTimestampMessage LastAnomalies = 6 [deprecated = true];
     repeated InstanceMessage Instances = 7;
-    string Status = 8;
+    string Status = 8 [deprecated = true];
     string Version = 9 [deprecated = true];
     MetadataMessage Metadata = 10;
     repeated string Tags = 11 [deprecated = true];

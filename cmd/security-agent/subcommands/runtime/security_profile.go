@@ -167,7 +167,6 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 	fmt.Printf("%s  workload_selector:\n", prefix)
 	fmt.Printf("%s    image_name: %v\n", prefix, msg.GetSelector().GetName())
 	fmt.Printf("%s    image_tag: %v\n", prefix, msg.GetSelector().GetTag())
-	fmt.Printf("%s  status: %v\n", prefix, msg.GetStatus())
 	fmt.Printf("%s  kernel_space:\n", prefix)
 	fmt.Printf("%s    loaded: %v\n", prefix, msg.GetLoadedInKernel())
 	if msg.GetLoadedInKernel() {
