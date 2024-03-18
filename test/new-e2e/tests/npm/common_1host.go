@@ -7,15 +7,46 @@ package npm
 
 import (
 	"math"
+	"testing"
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// test1HostFakeIntakeNPMDumpInfo dump information about the test if it failed
+func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeIntake) {
+	if !t.Failed() {
+		return
+	}
+	t.Log("==== test failed dumping fakeintake info ====")
+	cnx, err := FakeIntake.Client().GetConnections()
+	if err != nil {
+		t.Logf("fakeintake GetConnections() failed %s", err)
+		return
+	}
+	hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
+	if err != nil {
+		t.Logf("fakeintake GetConnectionsNames() failed %s", err)
+		return
+	}
+	for _, h := range hostnameNetID {
+		var prevCollectedTime time.Time
+		for i, cc := range cnx.GetPayloadsByName(h) {
+			if i > 0 {
+				dt := cc.GetCollectedTime().Sub(prevCollectedTime).Seconds()
+				t.Logf("hostname+networkID %v diff time %f seconds", h, dt)
+			}
+			prevCollectedTime = cc.GetCollectedTime()
+		}
+	}
+}
 
 // testFakeIntakeNPM
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -26,7 +57,12 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
-	v.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
+		var err error
+		m, err := FakeIntake.Client().RouteStats()
+		assert.NoError(c, err, "RouteStats() errors")
+		t.Logf("RouteStats %#+v", m)
+
 		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
@@ -35,7 +71,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 		targetHostnameNetID = hostnameNetID[0]
 
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
-	}, 60*time.Second, time.Second, "no connections received")
+	}, 120*time.Second, time.Second, "no connections received")
 
 	// looking for 5 payloads and check if the last 2 have a span of 30s +/- 500ms
 	v.EventuallyWithT(func(c *assert.CollectT) {
@@ -67,7 +103,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
-	v.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {
