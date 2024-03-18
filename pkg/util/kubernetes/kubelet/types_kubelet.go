@@ -185,6 +185,7 @@ func (s *Status) GetAllContainers() []ContainerStatus {
 	return s.AllContainers
 }
 
+// Update the LastSeenReady field for a container
 func (pod *Pod) UpdateLastSeenReady(idx int, lastSeenReady time.Time) {
 	pod.Status.AllContainers[idx].LastSeenReady = lastSeenReady
 	if idx < len(pod.Status.InitContainers) && pod.Status.InitContainers[idx].ID == pod.Status.AllContainers[idx].ID {
