@@ -17,12 +17,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/metric"
 
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
-	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/cloudservice"
+	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-sidecar/log"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
