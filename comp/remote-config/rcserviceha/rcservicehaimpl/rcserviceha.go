@@ -63,20 +63,36 @@ func newHaRemoteConfigServiceOptional(deps dependencies) optional.Option[rcservi
 // newHaRemoteConfigServiceOptional creates and configures a new service that receives remote config updates from the configured DD failover DC
 func newHaRemoteConfigService(deps dependencies) (rcserviceha.Component, error) {
 	apiKey := configUtils.SanitizeAPIKey(deps.Cfg.GetString("ha.api_key"))
-	baseRawURL, err := configUtils.GetHAEndpoint(deps.Cfg, "https://config.", "ha.rc_dd_url")
+	baseRawURL, err := configUtils.GetHAEndpoint(deps.Cfg, "https://config.", "remote_configuration.ha.rc_dd_url")
 	if err != nil {
 		return nil, fmt.Errorf("unable to get HA remote config endpoint: %s", err)
 	}
 	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(deps.Cfg)
 	configuredTags := configUtils.GetConfiguredTags(deps.Cfg, false)
 	options := []remoteconfig.Option{
+		remoteconfig.WithFlavor("ha"),
+		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
 		remoteconfig.WithDatabaseFileName("remote-config-ha.db"),
+		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("remote_configuration.ha.config_root")),
+		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("remote_configuration.ha.director_root")),
+		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.ha.key")),
+	}
+	if deps.Cfg.IsSet("remote_configuration.ha.refresh_interval") {
+		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("remote_configuration.ha.refresh_interval"), "remote_configuration.ha.refresh_interval"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.ha.max_backoff_time") {
+		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("remote_configuration.ha.max_backoff_time"), "remote_configuration.max_backoff_time"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.ha.clients.ttl_seconds") {
+		options = append(options, remoteconfig.WithClientTTL(deps.Cfg.GetDuration("remote_configuration.ha.clients.ttl_seconds"), "remote_configuration.ha.clients.ttl_seconds"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.ha.clients.cache_bypass_limit") {
+		options = append(options, remoteconfig.WithClientCacheBypassLimit(deps.Cfg.GetInt("remote_configuration.ha.clients.cache_bypass_limit"), "remote_configuration.ha.clients.cache_bypass_limit"))
 	}
 
 	haConfigService, err := remoteconfig.NewService(
 		deps.Cfg,
-		apiKey,
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
 		configuredTags,

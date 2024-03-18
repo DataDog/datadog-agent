@@ -73,15 +73,30 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 	configuredTags := configUtils.GetConfiguredTags(deps.Cfg, false)
 
 	options := []remoteconfig.Option{
+		remoteconfig.WithAPIKey(apiKey),
 		remoteconfig.WithTraceAgentEnv(traceAgentEnv),
+		remoteconfig.WithConfigRootOverride(deps.Cfg.GetString("remote_configuration.config_root")),
+		remoteconfig.WithDirectorRootOverride(deps.Cfg.GetString("remote_configuration.director_root")),
+		remoteconfig.WithRcKey(deps.Cfg.GetString("remote_configuration.key")),
 	}
 	if deps.Params != nil {
 		options = append(options, deps.Params.Options...)
 	}
+	if deps.Cfg.IsSet("remote_configuration.refresh_interval") {
+		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("remote_configuration.refresh_interval"), "remote_configuration.refresh_interval"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.max_backoff_time") {
+		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("remote_configuration.max_backoff_time"), "remote_configuration.max_backoff_time"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.clients.ttl_seconds") {
+		options = append(options, remoteconfig.WithClientTTL(deps.Cfg.GetDuration("remote_configuration.clients.ttl_seconds"), "remote_configuration.clients.ttl_seconds"))
+	}
+	if deps.Cfg.IsSet("remote_configuration.clients.cache_bypass_limit") {
+		options = append(options, remoteconfig.WithClientCacheBypassLimit(deps.Cfg.GetInt("remote_configuration.clients.cache_bypass_limit"), "remote_configuration.clients.cache_bypass_limit"))
+	}
 
 	configService, err := remoteconfig.NewService(
 		deps.Cfg,
-		apiKey,
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
 		configuredTags,
