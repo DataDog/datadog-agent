@@ -8,7 +8,7 @@ package cloudservice
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/cloudservice/helper"
 	"github.com/stretchr/testify/assert"
 )
 

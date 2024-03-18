@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-sidecar/log"
 
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/stretchr/testify/assert"

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"

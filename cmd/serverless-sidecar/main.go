@@ -20,11 +20,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/initcontainer"
-	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/cloudservice"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/initcontainer"
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-sidecar/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/metric"
+	"github.com/DataDog/datadog-agent/cmd/serverless-sidecar/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -41,7 +41,7 @@ import (
 const (
 	datadogConfigPath = "/datadog.yaml"
 	logLevelEnvVar    = "DD_LOG_LEVEL"
-	loggerName        = "SERVERLESS_INIT"
+	loggerName        = "SERVERLESS_SIDECAR"
 )
 
 func main() {
