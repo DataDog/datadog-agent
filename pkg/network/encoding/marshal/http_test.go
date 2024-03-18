@@ -7,6 +7,7 @@ package marshal
 
 import (
 	"fmt"
+	"io"
 	"runtime"
 	"testing"
 
@@ -414,11 +415,13 @@ func generateBenchMarkPayload(sourcePortsMax, destPortsMax uint16) network.Conne
 
 	httpStats := http.NewRequestStats(false)
 	for i := 0; i < 100; i++ {
-		httpStats.AddRequest(100, 10, 0, nil)
-		httpStats.AddRequest(200, 10, 0, nil)
-		httpStats.AddRequest(300, 10, 0, nil)
-		httpStats.AddRequest(400, 10, 0, nil)
-		httpStats.AddRequest(500, 10, 0, nil)
+		for j := 0; j < 10000; j++ {
+			httpStats.AddRequest(100+uint16(i), 10, 0, nil)
+			httpStats.AddRequest(200+uint16(i), 10, 0, nil)
+			httpStats.AddRequest(300+uint16(i), 10, 0, nil)
+			httpStats.AddRequest(400+uint16(i), 10, 0, nil)
+			httpStats.AddRequest(500+uint16(i), 10, 0, nil)
+		}
 	}
 	for sport := uint16(0); sport < sourcePortsMax; sport++ {
 		for dport := uint16(0); dport < destPortsMax; dport++ {
@@ -469,4 +472,35 @@ func BenchmarkHTTPEncoder100Requests(b *testing.B) {
 
 func BenchmarkHTTPEncoder10000Requests(b *testing.B) {
 	commonBenchmarkHTTPEncoder(b, 100)
+}
+
+func commonHTTPSketchEncodingBenchmark(b *testing.B) {
+	payload := generateBenchMarkPayload(1, 1)
+	builder := model.NewConnectionBuilder(io.Discard)
+	b.ResetTimer()
+	b.ReportAllocs()
+	var h *httpEncoder
+	for i := 0; i < b.N; i++ {
+		h = newHTTPEncoder(payload.HTTP)
+		h.GetHTTPAggregationsAndTags(payload.Conns[0], builder)
+		builder.Reset(io.Discard)
+	}
+}
+
+func BenchmarkHTTPSketchProto(b *testing.B) {
+	b.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
+	})
+	coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, false, cfgmodel.SourceAgentRuntime)
+	commonHTTPSketchEncodingBenchmark(b)
+}
+
+func BenchmarkHTTPSketchCustom(b *testing.B) {
+	b.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
+	})
+	coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, true, cfgmodel.SourceAgentRuntime)
+	commonHTTPSketchEncodingBenchmark(b)
 }
