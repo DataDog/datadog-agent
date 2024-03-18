@@ -1,0 +1,534 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+package client
+
+import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures"
+)
+
+func TestNewClientDefaults(t *testing.T) {
+	tests := []struct {
+		name                string
+		options             ClientOptions
+		expectedMaxAttempts int
+		expectedMaxPages    int
+		expectedMaxCount    string
+		expectedLookback    time.Duration
+	}{
+		{
+			name:                "test defaults",
+			options:             ClientOptions{},
+			expectedMaxAttempts: defaultMaxAttempts,
+			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxPages:    defaultMaxPages,
+			expectedLookback:    defaultLookback,
+		},
+		{
+			name: "No retries",
+			options: ClientOptions{
+				MaxRetries: 1,
+			},
+			expectedMaxAttempts: 1,
+			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxPages:    defaultMaxPages,
+			expectedLookback:    defaultLookback,
+		},
+		{
+			name: "Count",
+			options: ClientOptions{
+				MaxCount: 4000,
+			},
+			expectedMaxAttempts: defaultMaxAttempts,
+			expectedMaxCount:    "4000",
+			expectedMaxPages:    defaultMaxPages,
+			expectedLookback:    defaultLookback,
+		},
+		{
+			name: "Pages",
+			options: ClientOptions{
+				MaxPages: 40,
+			},
+			expectedMaxAttempts: defaultMaxAttempts,
+			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxPages:    40,
+			expectedLookback:    defaultLookback,
+		},
+		{
+			name: "Lookback",
+			options: ClientOptions{
+				Lookback: 40 * time.Minute,
+			},
+			expectedMaxAttempts: defaultMaxAttempts,
+			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxPages:    defaultMaxPages,
+			expectedLookback:    40 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := NewClient(tt.options, HTTPOptions{})
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectedMaxAttempts, client.maxAttempts)
+			require.Equal(t, tt.expectedMaxCount, client.maxCount)
+			require.Equal(t, tt.expectedMaxPages, client.maxPages)
+			require.Equal(t, tt.expectedLookback, client.lookback)
+		})
+	}
+}
+
+func TestBuildHTTPClient(t *testing.T) {
+	tests := []struct {
+		name             string
+		options          HTTPOptions
+		expectedScheme   string
+		expectedInsecure bool
+		expectedTimeout  int
+	}{
+		{
+			name:             "test defaults",
+			options:          HTTPOptions{},
+			expectedScheme:   "https",
+			expectedInsecure: false,
+			expectedTimeout:  10,
+		},
+		{
+			name: "http secure",
+			options: HTTPOptions{
+				UseHTTP:  true,
+				Insecure: false,
+				Timeout:  1000,
+			},
+			expectedScheme:   "http",
+			expectedInsecure: false,
+			expectedTimeout:  1000,
+		},
+		{
+			name: "https secure",
+			options: HTTPOptions{
+				UseHTTP:  false,
+				Insecure: false,
+				Timeout:  1000,
+			},
+			expectedScheme:   "https",
+			expectedInsecure: false,
+			expectedTimeout:  1000,
+		},
+		{
+			name: "http insecure",
+			options: HTTPOptions{
+				UseHTTP:  true,
+				Insecure: true,
+				Timeout:  1000,
+			},
+			expectedScheme:   "http",
+			expectedInsecure: true,
+			expectedTimeout:  1000,
+		},
+		{
+			name: "https insecure",
+			options: HTTPOptions{
+				UseHTTP:  false,
+				Insecure: true,
+				Timeout:  1000,
+			},
+			expectedScheme:   "https",
+			expectedInsecure: true,
+			expectedTimeout:  1000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			httpClient, scheme, err := buildHTTPClient(tt.options)
+			require.NoError(t, err)
+
+			transport := httpClient.Transport.(*http.Transport)
+			tlsConfig := transport.TLSClientConfig
+
+			require.Equal(t, tt.expectedScheme, scheme)
+			require.EqualValues(t, tt.expectedTimeout*int(time.Second), httpClient.Timeout)
+			require.Equal(t, tt.expectedInsecure, tlsConfig.InsecureSkipVerify)
+		})
+	}
+}
+
+func TestGetDevices(t *testing.T) {
+	mux, handler := setupCommonServerMuxWithFixture("/dataservice/device", fixtures.FakePayload(fixtures.GetDevices))
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetDevices()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.1", devices[0].DeviceID)
+	require.Equal(t, "10.10.1.1", devices[0].SystemIP)
+	require.Equal(t, "Manager", devices[0].HostName)
+	require.Equal(t, "101", devices[0].SiteID)
+	require.Equal(t, "reachable", devices[0].Reachability)
+	require.Equal(t, "vmanage", devices[0].DeviceModel)
+	require.Equal(t, "next", devices[0].DeviceOs)
+	require.Equal(t, "20.12.1", devices[0].Version)
+	require.Equal(t, "61FA4073B0169C46F4F498B8CA2C5C7A4A5510F9", devices[0].BoardSerial)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetDevicesCounters(t *testing.T) {
+	mux, handler := setupCommonServerMuxWithFixture("/dataservice/device/counters", fixtures.FakePayload(fixtures.GetDevicesCounters))
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetDevicesCounters()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.12", devices[0].SystemIP)
+	require.Equal(t, 1, devices[0].NumberVsmartControlConnections)
+	require.Equal(t, 1, devices[0].ExpectedControlConnections)
+	require.Equal(t, 0, devices[0].OmpPeersUp)
+	require.Equal(t, 0, devices[0].OmpPeersDown)
+	require.Equal(t, 0, devices[0].BfdSessionsUp)
+	require.Equal(t, 0, devices[0].BfdSessionsDown)
+	require.Equal(t, 0, devices[0].CrashCount)
+	require.Equal(t, 3, devices[0].RebootCount)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetVEdgeInterfaces(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "1000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetVEdgeInterfaces)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/Interface", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetVEdgeInterfaces()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
+	require.Equal(t, "system", devices[0].Ifname)
+	require.Equal(t, 3, devices[0].Ifindex)
+	require.Equal(t, "", devices[0].Desc)
+	require.Equal(t, "", devices[0].Hwaddr)
+	require.Equal(t, "Up", devices[0].IfAdminStatus)
+	require.Equal(t, "Up", devices[0].IfOperStatus)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetCEdgeInterfaces(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "1000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetCEdgeInterfaces)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/CEdgeInterface", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetCEdgeInterfaces()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.17", devices[0].VmanageSystemIP)
+	require.Equal(t, "GigabitEthernet4", devices[0].Ifname)
+	require.Equal(t, "4", devices[0].Ifindex)
+	require.Equal(t, "", devices[0].Description)
+	require.Equal(t, "52:54:00:0b:6e:90", devices[0].Hwaddr)
+	require.Equal(t, "if-state-up", devices[0].IfAdminStatus)
+	require.Equal(t, "if-oper-state-ready", devices[0].IfOperStatus)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetInterfacesMetrics(t *testing.T) {
+	timeNow = mockTimeNow
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+		timeZone := query.Get("timeZone")
+		startDate := query.Get("startDate")
+		endDate := query.Get("endDate")
+
+		require.Equal(t, "1000", count)
+		require.Equal(t, "UTC", timeZone)
+		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "2000-01-01T00:00:00", endDate)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetInterfacesMetrics)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/statistics/interfacestatistics", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetInterfacesMetrics()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.22", devices[0].VmanageSystemIP)
+	require.Equal(t, "GigabitEthernet3", devices[0].Interface)
+	require.Equal(t, int64(1709049697985), devices[0].EntryTime)
+	require.Equal(t, int64(0), devices[0].TxOctets)
+	require.Equal(t, int64(0), devices[0].RxOctets)
+	require.Equal(t, float64(0), devices[0].TxKbps)
+	require.Equal(t, float64(0), devices[0].RxKbps)
+	require.Equal(t, float64(0), devices[0].DownCapacityPercentage)
+	require.Equal(t, float64(0), devices[0].UpCapacityPercentage)
+	require.Equal(t, int64(0), devices[0].RxErrors)
+	require.Equal(t, int64(0), devices[0].TxErrors)
+	require.Equal(t, int64(0), devices[0].RxDrops)
+	require.Equal(t, int64(0), devices[0].TxDrops)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetDeviceHardwareMetrics(t *testing.T) {
+	timeNow = mockTimeNow
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+		timeZone := query.Get("timeZone")
+		startDate := query.Get("startDate")
+		endDate := query.Get("endDate")
+
+		require.Equal(t, "1000", count)
+		require.Equal(t, "UTC", timeZone)
+		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "2000-01-01T00:00:00", endDate)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetDeviceHardwareStatistics)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/statistics/devicesystemstatusstatistics", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetDeviceHardwareMetrics()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
+	require.Equal(t, int64(1709050342874), devices[0].EntryTime)
+	require.Equal(t, 0.29, devices[0].CPUUserNew)
+	require.Equal(t, 0.41, devices[0].CPUSystemNew)
+	require.Equal(t, 0.15, devices[0].MemUtil)
+	require.Equal(t, int64(293187584), devices[0].DiskUsed)
+	require.Equal(t, int64(7245897728), devices[0].DiskAvail)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
+	timeNow = mockTimeNow
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+		timeZone := query.Get("timeZone")
+		startDate := query.Get("startDate")
+		endDate := query.Get("endDate")
+
+		require.Equal(t, "1000", count)
+		require.Equal(t, "UTC", timeZone)
+		require.Equal(t, "1999-12-31T23:40:00", startDate)
+		require.Equal(t, "2000-01-01T00:00:00", endDate)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetApplicationAwareRoutingMetrics)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/statistics/approutestatsstatistics", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetApplicationAwareRoutingMetrics()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.13", devices[0].VmanageSystemIP)
+	require.Equal(t, "10.10.1.13", devices[0].LocalSystemIP)
+	require.Equal(t, "10.10.1.11", devices[0].RemoteSystemIP)
+	require.Equal(t, "mpls", devices[0].LocalColor)
+	require.Equal(t, "public-internet", devices[0].RemoteColor)
+	require.Equal(t, int64(1709050725125), devices[0].EntryTime)
+	require.Equal(t, float64(202), devices[0].Latency)
+	require.Equal(t, float64(0), devices[0].Jitter)
+	require.Equal(t, 0.301, devices[0].LossPercentage)
+	require.Equal(t, float64(2), devices[0].VqoeScore)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetControlConnectionsState(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "1000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetControlConnectionsState)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/ControlConnection", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetControlConnectionsState()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.1", devices[0].VmanageSystemIP)
+	require.Equal(t, "10.10.1.3", devices[0].SystemIP)
+	require.Equal(t, "10.10.20.80", devices[0].PrivateIP)
+	require.Equal(t, "default", devices[0].LocalColor)
+	require.Equal(t, "default", devices[0].RemoteColor)
+	require.Equal(t, "vbond", devices[0].PeerType)
+	require.Equal(t, "up", devices[0].State)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetOMPPeersState(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "1000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetOMPPeersState)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/OMPPeer", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetOMPPeersState()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
+	require.Equal(t, "10.10.1.13", devices[0].Peer)
+	require.Equal(t, "yes", devices[0].Legit)
+	require.Equal(t, "supported", devices[0].Refresh)
+	require.Equal(t, "vedge", devices[0].Type)
+	require.Equal(t, "up", devices[0].State)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
+
+func TestGetBFDSessionsState(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "1000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetBFDSessionsState)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/BFDSessions", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	require.NoError(t, err)
+
+	devices, err := client.GetBFDSessionsState()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)
+	require.Equal(t, "public-internet", devices[0].LocalColor)
+	require.Equal(t, "public-internet", devices[0].Color)
+	require.Equal(t, "10.10.1.13", devices[0].SystemIP)
+	require.Equal(t, "ipsec", devices[0].Proto)
+	require.Equal(t, "up", devices[0].State)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}
