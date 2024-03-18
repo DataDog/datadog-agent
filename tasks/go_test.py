@@ -424,6 +424,7 @@ def test(
             modules = get_modified_packages(ctx, build_tags=build_tags)
         if only_impacted_packages:
             modules = get_impacted_packages(ctx, build_tags=build_tags)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,

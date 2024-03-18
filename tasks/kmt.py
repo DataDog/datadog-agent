@@ -445,6 +445,7 @@ def build_run_config(run, packages):
         "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
+        "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
     }
 )
 def test(
@@ -460,6 +461,7 @@ def test(
     ssh_key=None,
     verbose=True,
     test_logs=False,
+    test_extra_arguments=None,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -488,6 +490,7 @@ def test(
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
             "-test-root /opt/system-probe-tests",
+            f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
         ]
         for d in domains:
             d.copy(ctx, f"{tmp.name}", "/tmp")
