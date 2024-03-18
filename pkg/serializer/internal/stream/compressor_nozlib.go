@@ -27,10 +27,14 @@ var (
 )
 
 // Compressor is not implemented
-type Compressor struct{}
+type Compressor interface {
+	MethodMissing() string
+	AddItem(data []byte) error
+	Close() ([]byte, error)
+}
 
 // NewCompressor not implemented
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (Compressor, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 
