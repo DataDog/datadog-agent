@@ -244,37 +244,6 @@ func isExited(waitStatus syscall.WaitStatus) bool {
 	return waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled()
 }
 
-// SyscallStateTracker defines a syscall state tracker
-type SyscallStateTracker struct {
-	entry map[int]bool
-}
-
-// NewSyscallStateTracker returns a new syscall state tracker
-func NewSyscallStateTracker() *SyscallStateTracker {
-	return &SyscallStateTracker{
-		entry: make(map[int]bool),
-	}
-}
-
-// IsSyscallEntry returns true is the pid is at a syscall entry
-func (st *SyscallStateTracker) IsSyscallEntry(pid int) bool {
-	return st.entry[pid]
-}
-
-// NextStop update the state for the given pid
-func (st *SyscallStateTracker) NextStop(pid int) {
-	if state, exists := st.entry[pid]; exists {
-		st.entry[pid] = !state
-	} else {
-		st.entry[pid] = true
-	}
-}
-
-// Exit delete the pid from the tracker
-func (st *SyscallStateTracker) Exit(pid int) {
-	delete(st.entry, pid)
-}
-
 func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus)) error {
 	var waitStatus syscall.WaitStatus
 
@@ -329,16 +298,25 @@ func (t *Tracer) trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 					cb(CallbackPostType, nr, int(npid), pid, regs, nil)
 				}
 			case syscall.PTRACE_EVENT_EXEC:
+				cb(CallbackPostType, ExecveNr, pid, 0, regs, nil)
+
+				if state := tracker.PeekState(pid); state != nil {
+					state.Exec = true
+				}
 			default:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:
+					// already handled
 				default:
-					tracker.NextStop(pid)
+					state := tracker.NextStop(pid)
 
 					if tracker.IsSyscallEntry(pid) {
 						cb(CallbackPreType, nr, pid, 0, regs, nil)
 					} else {
-						cb(CallbackPostType, nr, pid, 0, regs, nil)
+						if !state.Exec {
+							cb(CallbackPostType, nr, pid, 0, regs, nil)
+						}
+						state.Exec = false
 					}
 				}
 			}
