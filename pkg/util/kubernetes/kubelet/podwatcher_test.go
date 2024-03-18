@@ -54,10 +54,10 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	// The first pod is a static pod but should be found
 	require.Len(suite.T(), changes, 3)
 
-	// Same list should detect no change
+	// Same list will trigger last seen ready updates for running pods
 	changes, err = watcher.computeChanges(threePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 2) // Two pods are ready, last seen ready time is updated
 
 	// A pod with new containers should be sent
 	changes, err = watcher.computeChanges(remainingPods)
@@ -70,13 +70,13 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 	remainingPods[0].Status.AllContainers[0].ID = "testNewID"
 	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 3) // Three pods are ready, last seen ready time is updated
 	require.Equal(suite.T(), changes[0].Metadata.UID, remainingPods[0].Metadata.UID)
 
-	// Sending the same pod again with no change
+	// Sending the same pod again will trigger last seen ready updates for running pods
 	changes, err = watcher.computeChanges(remainingPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 3)
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
@@ -98,22 +98,22 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 		}
 	}
 
-	// Same list should detect no change
+	// Same list should trigger last seen ready updates for running pods
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 4) // nginx pod is not ready, one pod is pending
 
 	// The nginx become Ready
 	sourcePods, err = loadPodsFixture("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 7)
 
-	// Should detect 2 changes: nginx and the new kube-proxy static pod
+	// Should the new kube-proxy static pod, and last seen ready updates to all ready pods (including nginx)
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 2)
-	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
-	require.True(suite.T(), IsPodReady(changes[0]))
+	require.Len(suite.T(), changes, 6)
+	assert.Equal(suite.T(), "nginx", changes[3].Spec.Containers[0].Name)
+	require.True(suite.T(), IsPodReady(changes[3]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
@@ -135,9 +135,9 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {
 	// Should detect the change with the main container being started
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
-	assert.Equal(suite.T(), "myapp-container", changes[0].Spec.Containers[0].Name)
-	require.True(suite.T(), IsPodReady(changes[0]))
+	require.Len(suite.T(), changes, 5)
+	assert.Equal(suite.T(), "myapp-container", changes[2].Spec.Containers[0].Name)
+	require.True(suite.T(), IsPodReady(changes[2]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
@@ -156,12 +156,17 @@ func (suite *PodwatcherTestSuite) TestPodWatcherWithShortLivedContainers() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), sourcePods, 5)
 
-	// Should detect the change of the terminated short lived pod
+	// Should detect the change of the terminated short lived pod and all ready pods
 	changes, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
-	assert.Equal(suite.T(), "short-lived-container", changes[0].Spec.Containers[0].Name)
-	require.False(suite.T(), IsPodReady(changes[0]))
+	require.Len(suite.T(), changes, 5)
+	assert.Equal(suite.T(), "short-lived-container", changes[1].Spec.Containers[0].Name)
+	require.False(suite.T(), IsPodReady(changes[1]))
+
+	// Non-ready pods should not trigger last seen ready update
+	changes, err = watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 4)
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
@@ -292,27 +297,31 @@ func (suite *PodwatcherTestSuite) TestPodWatcherLabelsValueChange() {
 	twoPods[0].Metadata.Labels["label1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2) // detect label change and last seen ready update of running pod
 
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1) // detect last seen ready update
 
 	twoPods[0].Metadata.Labels["label1"] = "newvalue1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2) // detect label change and last seen ready update of running pod
 
 	delete(twoPods[0].Metadata.Labels, "label1")
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2) // detect label change and last seen ready update of running pod
 
 	twoPods[0].Metadata.Labels["newlabel1"] = "newvalue1"
 	twoPods[1].Metadata.Labels["label1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
+
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1) // detect last seen ready update
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherPhaseChange() {
@@ -330,7 +339,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherPhaseChange() {
 	twoPods[0].Status.Phase = "Succeeded"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2) // detect phase change and last seen ready update
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
@@ -348,27 +357,31 @@ func (suite *PodwatcherTestSuite) TestPodWatcherAnnotationsValueChange() {
 	twoPods[0].Metadata.Annotations["annotation1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2) // detect annotation change and last seen ready update of running pod
 
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 0)
+	require.Len(suite.T(), changes, 1)
 
 	twoPods[0].Metadata.Annotations["annotation1"] = "newvalue1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2) // detect annotation change and last seen ready update of running pod
 
 	delete(twoPods[0].Metadata.Annotations, "annotation1")
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), changes, 1)
+	require.Len(suite.T(), changes, 2) // detect annotation change and last seen ready update of running pod
 
 	twoPods[0].Metadata.Annotations["newannotation1"] = "newvalue1"
 	twoPods[1].Metadata.Annotations["annotation1"] = "value1"
 	changes, err = watcher.computeChanges(twoPods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
+
+	changes, err = watcher.computeChanges(twoPods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), changes, 1) // detect last seen ready update
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherContainerCreatingTags() {

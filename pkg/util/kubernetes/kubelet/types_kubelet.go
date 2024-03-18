@@ -190,7 +190,7 @@ func (pod *Pod) UpdateLastSeenReady(idx int, lastSeenReady time.Time) {
 	pod.Status.AllContainers[idx].LastSeenReady = lastSeenReady
 	if idx < len(pod.Status.InitContainers) && pod.Status.InitContainers[idx].ID == pod.Status.AllContainers[idx].ID {
 		pod.Status.InitContainers[idx].LastSeenReady = lastSeenReady
-	} else if idx < len(pod.Status.Containers) && pod.Status.Containers[idx-len(pod.Status.InitContainers)].ID == pod.Status.AllContainers[idx].ID {
+	} else if idx < len(pod.Status.AllContainers) && pod.Status.Containers[idx-len(pod.Status.InitContainers)].ID == pod.Status.AllContainers[idx].ID {
 		pod.Status.Containers[idx-len(pod.Status.InitContainers)].LastSeenReady = lastSeenReady
 	} else {
 		log.Debugf("Encountered invalid container index when trying to update LastSeenReady for pod %s", pod.Metadata.Name)
