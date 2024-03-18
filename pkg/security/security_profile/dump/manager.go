@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -708,9 +709,10 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		ancestors := []*model.ProcessCacheEntry{entry}
 		parent := activity_tree.GetNextAncestorBinaryOrArgv0(&entry.ProcessContext)
 		for parent != nil && ad.MatchesSelector(entry) {
-			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
+			ancestors = append(ancestors, parent)
 			parent = activity_tree.GetNextAncestorBinaryOrArgv0(&parent.ProcessContext)
 		}
+		slices.Reverse(ancestors)
 
 		for _, parent = range ancestors {
 			_, _, err := ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false, adm.resolvers)
