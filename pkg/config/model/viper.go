@@ -74,6 +74,10 @@ type safeConfig struct {
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
 	configEnvVars map[string]struct{}
+
+	// keys that have been used but are unknown
+	// used to warn (a single time) on use
+	unknownKeys map[string]struct{}
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -153,10 +157,37 @@ func (c *safeConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is known
 func (c *safeConfig) IsKnown(key string) bool {
-	keys := c.GetKnownKeysLowercased()
-	key = strings.ToLower(key)
-	_, ok := keys[key]
-	return ok
+	c.RLock()
+	defer c.RUnlock()
+
+	return c.Viper.IsKnown(key)
+}
+
+// checkKnownKey checks if a key is known, and if not logs a warning
+// Only a single warning will be logged per unknown key.
+//
+// Must be called with the lock read-locked.
+// The lock can be released and re-locked.
+func (c *safeConfig) checkKnownKey(key string) {
+	if c.Viper.IsKnown(key) {
+		return
+	}
+
+	if _, ok := c.unknownKeys[key]; ok {
+		return
+	}
+
+	// need to write-lock to add the key to the unknownKeys map
+	c.RUnlock()
+	// but we need to have the lock in the same state (RLocked) at the end of the function
+	defer c.RLock()
+
+	c.Lock()
+	c.unknownKeys[key] = struct{}{}
+	c.Unlock()
+
+	// log without holding the lock
+	log.Warnf("config key %v is unknown", key)
 }
 
 // GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
@@ -234,6 +265,7 @@ func (c *safeConfig) AllKeysLowercased() []string {
 func (c *safeConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -245,6 +277,7 @@ func (c *safeConfig) Get(key string) interface{} {
 func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	vals := make([]ValueWithSource, len(sources))
 	for i, source := range sources {
 		vals[i] = ValueWithSource{
@@ -259,6 +292,7 @@ func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
 func (c *safeConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -270,6 +304,7 @@ func (c *safeConfig) GetString(key string) string {
 func (c *safeConfig) GetBool(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetBoolE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -281,6 +316,7 @@ func (c *safeConfig) GetBool(key string) bool {
 func (c *safeConfig) GetInt(key string) int {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetIntE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -292,6 +328,7 @@ func (c *safeConfig) GetInt(key string) int {
 func (c *safeConfig) GetInt32(key string) int32 {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetInt32E(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -303,6 +340,7 @@ func (c *safeConfig) GetInt32(key string) int32 {
 func (c *safeConfig) GetInt64(key string) int64 {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetInt64E(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -314,6 +352,7 @@ func (c *safeConfig) GetInt64(key string) int64 {
 func (c *safeConfig) GetFloat64(key string) float64 {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetFloat64E(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -325,6 +364,7 @@ func (c *safeConfig) GetFloat64(key string) float64 {
 func (c *safeConfig) GetTime(key string) time.Time {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetTimeE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -336,6 +376,7 @@ func (c *safeConfig) GetTime(key string) time.Time {
 func (c *safeConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetDurationE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -347,6 +388,7 @@ func (c *safeConfig) GetDuration(key string) time.Duration {
 func (c *safeConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringSliceE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -358,6 +400,7 @@ func (c *safeConfig) GetStringSlice(key string) []string {
 func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 
 	// We're using GetStringSlice because viper can only parse list of string from env variables
 	list, err := c.Viper.GetStringSliceE(key)
@@ -380,6 +423,7 @@ func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringMapE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -391,6 +435,7 @@ func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
 func (c *safeConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringMapStringE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -402,6 +447,7 @@ func (c *safeConfig) GetStringMapString(key string) map[string]string {
 func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringMapStringSliceE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -413,6 +459,7 @@ func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
 func (c *safeConfig) GetSizeInBytes(key string) uint {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetSizeInBytesE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -424,6 +471,7 @@ func (c *safeConfig) GetSizeInBytes(key string) uint {
 func (c *safeConfig) GetSource(key string) Source {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	var source Source
 	for _, s := range sources {
 		if c.configSources[s].Get(key) != nil {
@@ -488,6 +536,7 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
 
@@ -662,6 +711,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		Viper:         viper.New(),
 		configSources: map[Source]*viper.Viper{},
 		configEnvVars: map[string]struct{}{},
+		unknownKeys:   map[string]struct{}{},
 	}
 
 	// load one Viper instance per source of setting change
@@ -689,6 +739,7 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 		c.envPrefix = cfg.envPrefix
 		c.envKeyReplacer = cfg.envKeyReplacer
 		c.configEnvVars = cfg.configEnvVars
+		c.unknownKeys = cfg.unknownKeys
 		return
 	}
 	panic("Replacement config must be an instance of safeConfig")
