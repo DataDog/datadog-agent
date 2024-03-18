@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-2020 Datadog, Inc.
 
-//go:build !zlib
+//go:build !zlib && !zstd
 
 package stream
 

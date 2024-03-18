@@ -29,7 +29,7 @@ func NewCompressorStrategy(cfg config.Component) utils.Compressor {
 	case utils.NoneKind:
 		return compression.NewNoopStrategy()
 	default:
-		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd', 'none'")
+		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd'")
 		return compression.NewNoopStrategy()
 	}
 }
@@ -42,10 +42,8 @@ func NewStreamCompressor(output *bytes.Buffer, cfg config.Component) utils.Strea
 		return compression.NewZlibStreamCompressor(output)
 	case utils.ZstdKind:
 		return compression.NewZstdStreamCompressor(output)
-	case utils.NoneKind:
-		return compression.NewNoopStreamCompressor(output)
 	default:
-		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd', 'none'")
+		log.Warn("invalid serializer_compressor_kind detected. use one of 'zlib', 'zstd'")
 		return compression.NewNoopStreamCompressor(output)
 	}
 }
