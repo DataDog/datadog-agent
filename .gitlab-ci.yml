@@ -185,7 +185,7 @@ variables:
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: eb67dd1667e4
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f2ab6e511638
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -206,7 +206,7 @@ variables:
   RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
-  
+
   # List of parameters retrieved from AWS SSM
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
   AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile  # agent-ci-experience
