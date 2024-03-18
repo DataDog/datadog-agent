@@ -93,7 +93,7 @@ distributions = {
     "centos_7": "centos_79",
     "centos_8": "centos_8",
     # Rocky Linux mappings
-    "rocky_8.9": "rocky_8.9",
+    "rocky_8.5": "rocky_8.5",
     "rocky_9.3": "rocky_9.3",
 }
 

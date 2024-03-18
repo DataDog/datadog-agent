@@ -19,7 +19,7 @@
         "oracle_7.9": "master/oracle-7.9-x86_64.qcow.xz",
         "oracle_8.9": "master/oracle-8.9-x86_64.qcow.xz",
         "oracle_9.3": "master/oracle-9.3-x86_64.qcow.xz",
-        "rocky_8.9": "guillermo.julian/rocky-linux/rocky-8.9-x86_64.qcow2.xz",
+        "rocky_8.5": "guillermo.julian/rocky-linux/rocky-8.9-x86_64.qcow2.xz",
         "rocky_9.3": "guillermo.julian/rocky-linux/rocky-9.3-x86_64.qcow2.xz"
     },
     "arm64": {
@@ -39,7 +39,7 @@
         "centos_8": "master/centos-8-arm64.qcow2.xz",
         "oracle_8.9": "master/oracle-8.9-arm64.qcow.xz",
         "oracle_9.3": "master/oracle-9.3-arm64.qcow.xz",
-        "rocky_8.9": "guillermo.julian/rocky-linux/rocky-8.9-arm64.qcow2.xz",
+        "rocky_8.5": "guillermo.julian/rocky-linux/rocky-8.9-arm64.qcow2.xz",
         "rocky_9.3": "guillermo.julian/rocky-linux/rocky-9.3-arm64.qcow2.xz"
     }
 }
