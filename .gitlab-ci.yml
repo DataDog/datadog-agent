@@ -973,9 +973,9 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
-  - <<: *if_run_all_kmt_tests
   - <<: *if_mergequeue
     when: never
+  - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
