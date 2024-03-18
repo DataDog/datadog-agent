@@ -327,6 +327,10 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
         gh.publish_comment(pr.number, msg)
         return
 
+    if comment is None:
+        # If no tests are executed and no previous comment exists, we stop here
+        return
+
     previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)
     # An older pipeline should not edit a message corresponding to a newer pipeline
     if previous_comment_pipeline_id and previous_comment_pipeline_id[0] > pipeline_id:
