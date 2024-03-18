@@ -108,7 +108,7 @@ type Check struct {
 	lastOracleRows                          []OracleRow // added for tests
 	databaseRole                            string
 	openMode                                string
-	oldIntegrationCompatibilityMode         bool
+	legacyIntegrationCompatibilityMode      bool
 }
 
 type vDatabase struct {
@@ -195,7 +195,7 @@ func (c *Check) Run() error {
 
 	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
 
-	if dbInstanceIntervalExpired && !c.oldIntegrationCompatibilityMode {
+	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode {
 		err := sendDbInstanceMetadata(c)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err))
@@ -211,7 +211,7 @@ func (c *Check) Run() error {
 		}
 		fixTags(c)
 
-		if !c.oldIntegrationCompatibilityMode {
+		if !c.legacyIntegrationCompatibilityMode {
 			err := c.OS_Stats()
 			if err != nil {
 				db, errConnect := c.Connect()
@@ -326,7 +326,7 @@ func (c *Check) Run() error {
 	}
 	sendServiceCheck(c, serviceCheckName, status, message)
 	commit(c)
-	if c.oldIntegrationCompatibilityMode {
+	if c.legacyIntegrationCompatibilityMode {
 		log.Warnf("%s missing privileges detected, running in deprecated integration compatibility mode", c.logPrompt)
 	}
 	return allErrors

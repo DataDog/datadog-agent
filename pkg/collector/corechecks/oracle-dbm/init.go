@@ -36,7 +36,7 @@ func (c *Check) init() error {
 	if err != nil {
 		isPrivilegeError, err2 := handlePrivilegeError(c, err)
 		if !c.dbmEnabled && isPrivilegeError {
-			c.oldIntegrationCompatibilityMode = true
+			c.legacyIntegrationCompatibilityMode = true
 			log.Warnf("%s missing privileges detected, falling back to deprecated Oracle integration %s", c.logPrompt, err2.Error())
 			c.initialized = true
 			if strings.HasPrefix(strings.ToUpper(c.config.Username), "C##") {

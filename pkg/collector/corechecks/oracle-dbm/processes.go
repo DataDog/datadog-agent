@@ -78,7 +78,7 @@ func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
 
 	var pgaQuery string
-	if c.oldIntegrationCompatibilityMode {
+	if c.legacyIntegrationCompatibilityMode {
 		pgaQuery = pgaQueryOldIntegration
 	} else {
 		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {

@@ -144,13 +144,17 @@ func (c *Check) sysMetrics() (int64, error) {
 	metricRows := []SysmetricsRowDB{}
 
 	var sysMetricsQuery string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) && !c.oldIntegrationCompatibilityMode {
-		sysMetricsQuery = sysMetricsQuery12
-	} else {
+	if c.legacyIntegrationCompatibilityMode {
 		sysMetricsQuery = sysMetricsQuery11
+	} else {
+		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+			sysMetricsQuery = sysMetricsQuery12
+		} else {
+			sysMetricsQuery = sysMetricsQuery11
+		}
 	}
 
-	if !c.oldIntegrationCompatibilityMode {
+	if !c.legacyIntegrationCompatibilityMode {
 		if isDbVersionGreaterOrEqualThan(c, "18") {
 			err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$con_sysmetric"))
 			if err != nil {
@@ -165,7 +169,7 @@ func (c *Check) sysMetrics() (int64, error) {
 	}
 
 	var view string
-	if c.oldIntegrationCompatibilityMode {
+	if c.legacyIntegrationCompatibilityMode {
 		view = "gv$sysmetric"
 	} else {
 		view = "v$sysmetric"
@@ -183,7 +187,7 @@ func (c *Check) sysMetrics() (int64, error) {
 		}
 	}
 
-	if !c.oldIntegrationCompatibilityMode {
+	if !c.legacyIntegrationCompatibilityMode {
 		var overAllocationCount float64
 		err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
 		if err != nil {
