@@ -107,6 +107,13 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
+// AfterTest will be called after each test
+func (v *ec2VMSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
+}
+
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
