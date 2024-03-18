@@ -178,7 +178,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
 
-	ringbufferEnabled := config.RingBufferSupportedNPM()
+	ringbufferEnabled := connCloseEventHandler.(*ddebpf.RingBufferHandler) != nil
 	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", ringbufferEnabled)
 	if ringbufferEnabled {
 		util.EnableRingbuffersViaMapEditor(&mgrOpts)
