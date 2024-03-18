@@ -43,7 +43,6 @@ include:
   - /.gitlab/software_composition_analysis/software_composition_analysis.yml
   - /.gitlab/source_test/include.yml
   - /.gitlab/source_test_junit_upload/source_test_junit_upload.yml
-  - /.gitlab/source_test_stats/include.yml
   - /.gitlab/trigger_release/trigger_release.yml
 
 default:
@@ -203,7 +202,8 @@ variables:
   CLANG_LLVM_VER: 12.0.1
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
-  RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_E2E_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
@@ -343,6 +343,15 @@ variables:
 
 .if_disable_e2e_tests: &if_disable_e2e_tests
   if: $RUN_E2E_TESTS == "off"
+
+.if_disable_unit_tests: &if_disable_unit_tests
+  if: $RUN_UNIT_TESTS == "off"
+
+.if_run_all_unit_tests: &if_run_all_unit_tests
+  if: $RUN_UNIT_TESTS == "on"
+
+.if_auto_unit_tests: &if_auto_unit_tests
+  if: $RUN_UNIT_TESTS == "auto"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
@@ -857,6 +866,7 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
   - <<: *if_run_all_builds
+  - <<: *if_run_all_unit_tests
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
@@ -1359,6 +1369,10 @@ workflow:
   - <<: *if_mergequeue
     when: never
 
+.except_disable_unit_tests:
+  - <<: *if_disable_unit_tests
+    when: never
+
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
@@ -1394,3 +1408,19 @@ workflow:
 .on_fakeintake_changes_on_main:
   - <<: *on_fakeintake_changes
     if: $CI_COMMIT_BRANCH == "main"
+
+.fast_on_dev_branch_only:
+  - <<: *if_main_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_release_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_triggered_pipeline
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_run_all_unit_tests
+    variables:
+      FAST_TESTS: "false"
+  - variables:
+      FAST_TESTS: "true"
