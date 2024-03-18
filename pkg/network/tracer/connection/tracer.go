@@ -221,8 +221,10 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	}
 	var connCloseEventHandler ddebpf.EventHandler
 	if config.RingBufferSupportedNPM() {
+		log.Errorf("adamk - RingBufferSupportedNPM")
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 	} else {
+		log.Errorf("adamk - !RingBufferSupportedNPM")
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
 	}
 	var m *manager.Manager

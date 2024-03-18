@@ -50,6 +50,7 @@ func computeDefaultClosedConnPerfBufferSize() int {
 
 // EnableRingbuffersViaMapEditor sets up the ring buffer for closed connection events via a map editor
 func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
+	log.Errorf("adamk - EnableRingbuffersViaMapEditor")
 	mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
 		Type:       cebpf.RingBuf,
 		MaxEntries: uint32(computeDefaultClosedConnRingBufferSize()),
@@ -57,12 +58,15 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 		ValueSize:  0,
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
+	log.Errorf("adamk - mgrOpts.MapSpecEditors[probes.ConnCloseEventMap]: %v", mgrOpts.MapSpecEditors[probes.ConnCloseEventMap])
 }
 
 // SetupClosedConnHandler sets up the closed connection event handler
 func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
+	log.Errorf("adamk - SetupClosedConnHandler")
 	switch handler := connCloseEventHandler.(type) {
 	case *ebpf.RingBufferHandler:
+		log.Errorf("adamk - RingBufferHandler")
 		options := manager.RingBufferOptions{
 			RecordGetter:     handler.RecordGetter,
 			RecordHandler:    handler.RecordHandler,
@@ -78,6 +82,7 @@ func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.M
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:
+		log.Errorf("adamk - PerfHandler")
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: probes.ConnCloseEventMap},
 			PerfMapOptions: manager.PerfMapOptions{
