@@ -28,11 +28,11 @@ ARM_INSTANCE_TYPE = "m6gd.metal"
 
 def _get_active_branch_name():
     head_dir = Path(".") / ".git" / "HEAD"
-    with head_dir.open("r") as f:
+    with head_dir.open() as f:
         content = f.read().splitlines()
 
     for line in content:
-        if line[0:4] == "ref:":
+        if line.startswith("ref:"):
             return line.partition("refs/heads/")[2].replace("/", "-")
 
     raise Exit("Could not find active branch name")
