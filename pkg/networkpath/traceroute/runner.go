@@ -103,16 +103,15 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	var srcPort uint16
 	var useSourcePort bool
 	if configDestPort > 0 {
-		// Fixed Destination Port + Random Source Port
+		// Fixed Destination Port
 		destPort = configDestPort
 		useSourcePort = true
-		srcPort = DefaultSourcePort + uint16(rand.Intn(10000))
 	} else {
-		// Random Destination Port + Random Source Port
+		// Random Destination Port
 		destPort = DefaultDestPort + uint16(rand.Intn(30))
 		useSourcePort = false
-		srcPort = DefaultSourcePort + uint16(rand.Intn(10000))
 	}
+	srcPort = DefaultSourcePort + uint16(rand.Intn(10000))
 	return destPort, srcPort, useSourcePort
 }
 

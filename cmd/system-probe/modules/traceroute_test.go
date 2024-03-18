@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func Test_parseParams(t *testing.T) {
+func TestParseParams(t *testing.T) {
 	tests := []struct {
 		name           string
 		vars           map[string]string

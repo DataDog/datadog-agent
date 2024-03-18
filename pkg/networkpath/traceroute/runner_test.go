@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func Test_getPorts(t *testing.T) {
+func TestGetPorts(t *testing.T) {
 	destPort, sourcePort, useSourcePort := getPorts(0)
 	assert.GreaterOrEqual(t, destPort, uint16(DefaultDestPort))
 	assert.GreaterOrEqual(t, sourcePort, uint16(DefaultSourcePort))
