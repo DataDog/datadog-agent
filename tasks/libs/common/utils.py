@@ -321,7 +321,7 @@ def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
     ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
     if install_path:
         package_version = os.path.basename(install_path)
-        ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version}"
+        ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
 
     return ldflags
 
