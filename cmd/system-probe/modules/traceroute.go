@@ -63,7 +63,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 		timeout, err := strconv.ParseUint(vars["timeout"], 10, 32)
 		if err != nil {
-			log.Errorf("invalid max_ttl: %s", err)
+			log.Errorf("invalid timeout: %s", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
