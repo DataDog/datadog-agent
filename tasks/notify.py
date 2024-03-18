@@ -350,7 +350,8 @@ def create_msg(pipeline_id, pipeline_url, job_list):
 On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not run any unit tests:
 
 <details>
-<summary>Jobs with no tests executed</summary>
+<summary>Jobs with no tests executed:</summary>
+
 '''
     for job in job_list:
         msg += f"  - {job}\n"
