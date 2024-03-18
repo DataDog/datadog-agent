@@ -51,7 +51,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		id := getClientID(req)
 		cfg, err := parseParams(vars)
 		if err != nil {
-			log.Errorf("invalid params: %s", err)
+			log.Errorf("invalid params (host: %s, vars: %+v): %s", cfg.DestHostname, vars, err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
