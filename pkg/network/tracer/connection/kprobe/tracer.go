@@ -258,7 +258,11 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			})
 	}
 	log.Errorf("adamk - mgrOpts: %+v", mgrOpts)
-	log.Errorf("adamk - manager: %+v", m)
+	log.Errorf("adamk - manager: %+v", m.Manager)
+	log.Errorf("adamk - manager: %+v", m.Manager.RingBuffers)
+	log.Errorf("adamk - manager: %+v", m.Manager.PerfMaps)
+	log.Errorf("adamk - manager: %+v", m.Manager.Maps)
+	log.Errorf("adamk - manager: %+v", m.Manager.Probes)
 
 	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
