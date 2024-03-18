@@ -86,14 +86,14 @@ func TestConvertDocker(t *testing.T) {
 	dst := filepath.Join(dir, "docker.yaml")
 
 	err := os.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	configConverter := config.NewConfigConverter()
 	err = ImportDockerConf(src, dst, true, configConverter)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	newConf, err := os.ReadFile(filepath.Join(dir, "docker.yaml"))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, dockerNewConf, string(newConf))
 
@@ -114,7 +114,7 @@ func TestConvertDocker(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 
 	err = ImportDockerConf(src, dst, true, configConverter)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.False(t, os.IsNotExist(err))
 }

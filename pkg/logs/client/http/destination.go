@@ -66,6 +66,7 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
+	isHA                bool
 
 	// Concurrency
 	climit chan struct{} // semaphore for limiting concurrent background sends
@@ -74,7 +75,6 @@ type Destination struct {
 	// Retry
 	backoff        backoff.Policy
 	nbErrors       int
-	blockedUntil   time.Time
 	retryLock      sync.Mutex
 	shouldRetry    bool
 	lastRetryError error
@@ -150,6 +150,7 @@ func newDestination(endpoint config.Endpoint,
 		shouldRetry:         shouldRetry,
 		expVars:             expVars,
 		telemetryName:       telemetryName,
+		isHA:                endpoint.IsHA,
 	}
 }
 
@@ -161,6 +162,16 @@ func errorToTag(err error) string {
 	} else {
 		return "non-retryable"
 	}
+}
+
+// IsHA indicates that this destination is a High Availability destination.
+func (d *Destination) IsHA() bool {
+	return d.isHA
+}
+
+// Target is the address of the destination.
+func (d *Destination) Target() string {
+	return d.url
 }
 
 // Start starts reading the input channel
@@ -210,16 +221,17 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 	for {
 
 		d.retryLock.Lock()
-		backoffDuration := d.backoff.GetBackoffDuration(d.nbErrors)
-		d.blockedUntil = time.Now().Add(backoffDuration)
-		if d.blockedUntil.After(time.Now()) {
-			log.Warnf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, d.blockedUntil, backoffDuration.String(), d.nbErrors)
-			d.waitForBackoff()
+		nbErrors := d.nbErrors
+		d.retryLock.Unlock()
+		backoffDuration := d.backoff.GetBackoffDuration(nbErrors)
+		blockedUntil := time.Now().Add(backoffDuration)
+		if blockedUntil.After(time.Now()) {
+			log.Warnf("%s: sleeping until %v before retrying. Backoff duration %s due to %d errors", d.url, blockedUntil, backoffDuration.String(), nbErrors)
+			d.waitForBackoff(blockedUntil)
 			metrics.RetryTimeSpent.Add(int64(backoffDuration))
 			metrics.RetryCount.Add(1)
 			metrics.TlmRetryCount.Add(1)
 		}
-		d.retryLock.Unlock()
 
 		err := d.unconditionalSend(payload)
 
@@ -430,8 +442,8 @@ func CheckConnectivityDiagnose(endpoint config.Endpoint, cfg pkgconfigmodel.Read
 	return destination.url, completeCheckConnectivity(ctx, destination)
 }
 
-func (d *Destination) waitForBackoff() {
-	ctx, cancel := context.WithDeadline(d.destinationsContext.Context(), d.blockedUntil)
+func (d *Destination) waitForBackoff(blockedUntil time.Time) {
+	ctx, cancel := context.WithDeadline(d.destinationsContext.Context(), blockedUntil)
 	defer cancel()
 	<-ctx.Done()
 }

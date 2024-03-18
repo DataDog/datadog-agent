@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/flavor
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types

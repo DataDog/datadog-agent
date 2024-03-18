@@ -407,6 +407,14 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
+	// mark the events that have an associated activity dump
+	// this is needed for auto suppressions performed by the CWS rule engine
+	if p.profileManagers.activityDumpManager != nil {
+		if p.profileManagers.activityDumpManager.HasActiveActivityDump(event) {
+			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
+		}
+	}
+
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToWildcardHandlers(event)
 
@@ -511,7 +519,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
-			event.Error = &model.ErrNoProcessContext{Err: errors.New("process context not resolved")}
+			event.Error = model.ErrNoProcessContext
 		} else if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 			p.Resolvers.ProcessResolver.CountBrokenLineage()
@@ -548,7 +556,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	if eventType > model.MaxKernelEventType {
 		p.monitors.eventStreamMonitor.CountInvalidEvent(eventstream.EventStreamMap, eventstream.InvalidType, dataLen)
 		seclog.Errorf("unsupported event type %d", eventType)
-		seclog.Errorf("event: %x", data)
 		return
 	}
 
@@ -611,8 +618,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	nsPath := utils.NetNSPathFromPid(event.PIDContext.Pid)
-	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(event.PIDContext.NetNS, nsPath)
+	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NetNSPath {
+		return utils.NetNSPathFromPid(event.PIDContext.Pid)
+	})
 
 	if model.GetEventTypeCategory(eventType.String()) == model.NetworkCategory {
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {

@@ -49,13 +49,13 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 
 	// With the correct API Key, it should be a 200
 	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)
-	assert.Nil(t, errWithKey)
+	assert.NoError(t, errWithKey)
 	assert.Equal(t, statusCodeWithKey, 200)
 	assert.Equal(t, string(responseBodyWithKey), "OK")
 
 	// With the wrong API Key, it should be a 400
 	statusCode, responseBody, _, err := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, statusCode, 400)
 	assert.Equal(t, string(responseBody), "Bad Request")
 }

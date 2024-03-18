@@ -21,6 +21,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -79,6 +80,17 @@ func Bootstrap(ctx context.Context, pkg string) error {
 	rc := newNoopRemoteConfig()
 	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
 	return u.Bootstrap(ctx, pkg)
+}
+
+// Purge removes files installed by the updater
+func Purge() {
+	service.RemoveAgentUnits()
+	if err := os.RemoveAll(defaultLocksPath); err != nil {
+		log.Warnf("updater: could not purge directory %s: %v", defaultLocksPath, err)
+	}
+	if err := os.RemoveAll(defaultRepositoriesPath); err != nil {
+		log.Warnf("updater: could not purge directory %s: %v", defaultRepositoriesPath, err)
+	}
 }
 
 // NewUpdater returns a new Updater.
@@ -188,11 +200,11 @@ func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package
 	defer os.RemoveAll(tmpDir)
 	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
 	if err != nil {
-		return fmt.Errorf("could not download experiment: %w", err)
+		return fmt.Errorf("could not download: %w", err)
 	}
 	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
 	if err != nil {
-		return fmt.Errorf("could not install experiment: %w", err)
+		return fmt.Errorf("could not install: %w", err)
 	}
 	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
 	return nil

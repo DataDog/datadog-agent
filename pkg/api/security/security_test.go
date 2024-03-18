@@ -24,7 +24,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 	testDir := t.TempDir()
 
 	f, err := os.CreateTemp(testDir, "fake-datadog-yaml-")
-	require.Nil(t, err, fmt.Errorf("%v", err))
+	require.NoError(t, err, fmt.Errorf("%v", err))
 	t.Cleanup(func() {
 		f.Close()
 	})
@@ -39,10 +39,10 @@ func initMockConf(t *testing.T) (model.Config, string) {
 func TestCreateOrFetchAuthTokenValidGen(t *testing.T) {
 	config, expectTokenPath := initMockConf(t)
 	token, err := CreateOrFetchToken(config)
-	require.Nil(t, err, fmt.Sprintf("%v", err))
+	require.NoError(t, err, fmt.Sprintf("%v", err))
 	assert.True(t, len(token) > authTokenMinimalLen, fmt.Sprintf("%d", len(token)))
 	_, err = os.Stat(expectTokenPath)
-	require.Nil(t, err)
+	require.NoError(t, err)
 }
 
 func TestFetchAuthToken(t *testing.T) {
@@ -55,12 +55,12 @@ func TestFetchAuthToken(t *testing.T) {
 	require.True(t, os.IsNotExist(err))
 
 	newToken, err := CreateOrFetchToken(config)
-	require.Nil(t, err, fmt.Sprintf("%v", err))
+	require.NoError(t, err, fmt.Sprintf("%v", err))
 	require.True(t, len(newToken) > authTokenMinimalLen, fmt.Sprintf("%d", len(newToken)))
 	_, err = os.Stat(expectTokenPath)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	token, err = FetchAuthToken(config)
-	require.Nil(t, err, fmt.Sprintf("%v", err))
+	require.NoError(t, err, fmt.Sprintf("%v", err))
 	require.Equal(t, newToken, token)
 }
