@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
-func createFlareEndpoint() string {
-	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
-	flareRoute, _ := utils.AddAgentVersionToDomain(utils.GetInfraEndpoint(config.Datadog), "flare")
-	return flareRoute + "/support/flare"
-}
-
 // endpointInfo is a value object that contains all the information we need to
 // contact an endpoint to troubleshoot connectivity issues.
 // It can be seen as a very lightweight version of transaction.HTTPTransaction.
@@ -61,3 +55,9 @@ var (
 	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
 		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo, flareEndpointInfo}
 )
+
+func createFlareEndpoint() string {
+	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
+	flareRoute, _ := utils.AddAgentVersionToDomain(utils.GetInfraEndpoint(config.Datadog), "flare")
+	return flareRoute + "/support/flare"
+}
