@@ -6,11 +6,8 @@
 // Package healthprobe implements the health check server
 package healthprobe
 
-import "context"
-
 // team: /* TODO: add team name */
 
 // Component is the component type.
 type Component interface {
-	Serve(ctx context.Context) error
 }

@@ -18,11 +18,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthprobeComp "github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/gorilla/mux"
 )
 
@@ -43,22 +42,43 @@ type dependencies struct {
 }
 
 type healthprobe struct {
-	config config.Component
-	log    log.Component
-	port   int
+	config   config.Component
+	log      log.Component
+	server   *http.Server
+	listener net.Listener
 }
 
-func (h *healthprobe) Serve(ctx context.Context) error {
-	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", h.port))
+func (h *healthprobe) start() error {
+	h.log.Debugf("Health check listening on port %d", h.config.GetInt("health_port"))
+
+	go h.server.Serve(h.listener) //nolint:errcheck
+
+	return nil
+}
+
+func (h *healthprobe) stop() error {
+	timeout, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	h.log.Debug("Stopping Health check")
+	return h.server.Shutdown(timeout) //nolint:errcheck
+}
+
+func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Component, error) {
+	healthPort := deps.Config.GetInt("health_port")
+	if healthPort <= 0 {
+		return healthprobe{}, nil
+	}
+
+	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", healthPort))
 	if err != nil {
-		return err
+		return healthprobe{}, err
 	}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/live", h.liveHandler())
-	r.HandleFunc("/ready", h.readyHandler())
+	r.HandleFunc("/live", liveHandler(deps.Config, deps.Log))
+	r.HandleFunc("/ready", readyHandler(deps.Config, deps.Log))
 	// Default route for backward compatibility
-	r.NewRoute().HandlerFunc(h.liveHandler())
+	r.NewRoute().HandlerFunc(liveHandler(deps.Config, deps.Log))
 
 	srv := &http.Server{
 		Handler:           r,
@@ -67,34 +87,39 @@ func (h *healthprobe) Serve(ctx context.Context) error {
 		WriteTimeout:      defaultTimeout,
 	}
 
-	go srv.Serve(ln) //nolint:errcheck
-	go closeOnContext(ctx, srv)
-	return nil
+	probe := &healthprobe{
+		config:   deps.Config,
+		log:      deps.Log,
+		server:   srv,
+		listener: ln,
+	}
+
+	// We rely on FX to start and stop the metadata runner
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return probe.start()
+		},
+		OnStop: func(ctx context.Context) error {
+			return probe.stop()
+		},
+	})
+
+	return probe, nil
 }
 
-func closeOnContext(ctx context.Context, srv *http.Server) {
-	// Wait for the context to be canceled
-	<-ctx.Done()
-
-	// Shutdown the server, it will close the listener
-	timeout, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	srv.Shutdown(timeout) //nolint:errcheck
-}
-
-func (h *healthprobe) liveHandler() func(w http.ResponseWriter, r *http.Request) {
+func liveHandler(config config.Component, log log.Component) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		h.healthHandler(health.GetLiveNonBlocking, w, r)
+		healthHandler(config, log, health.GetLiveNonBlocking, w, r)
 	}
 }
 
-func (h *healthprobe) readyHandler() func(w http.ResponseWriter, r *http.Request) {
+func readyHandler(config config.Component, log log.Component) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		h.healthHandler(health.GetReadyNonBlocking, w, r)
+		healthHandler(config, log, health.GetReadyNonBlocking, w, r)
 	}
 }
 
-func (h *healthprobe) healthHandler(getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
+func healthHandler(config config.Component, log log.Component, getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
 	health, err := getStatusNonBlocking()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -102,15 +127,15 @@ func (h *healthprobe) healthHandler(getStatusNonBlocking func() (health.Status, 
 
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
-		h.log.Infof("Healthcheck failed on: %v", health.Unhealthy)
-		if h.config.GetBool("log_all_goroutines_when_unhealthy") {
-			h.log.Infof("Goroutines stack: \n%s\n", allStack())
+		log.Infof("Healthcheck failed on: %v", health.Unhealthy)
+		if config.GetBool("log_all_goroutines_when_unhealthy") {
+			log.Infof("Goroutines stack: \n%s\n", allStack())
 		}
 	}
 
 	jsonHealth, err := json.Marshal(health)
 	if err != nil {
-		h.log.Errorf("Error marshalling status. Error: %v", err)
+		log.Errorf("Error marshalling status. Error: %v", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		http.Error(w, string(body), 500)
 		return
@@ -129,19 +154,4 @@ func allStack() []byte {
 		}
 		buf = make([]byte, 2*len(buf))
 	}
-}
-
-func newHealthProbe(deps dependencies) optional.Option[healthprobeComp.Component] {
-	healthPort := deps.Config.GetInt("health_port")
-	if healthPort <= 0 {
-		return optional.NewNoneOption[healthprobeComp.Component]()
-	}
-
-	probe := &healthprobe{
-		config: deps.Config,
-		log:    deps.Log,
-		port:   healthPort,
-	}
-
-	return optional.NewOption[healthprobeComp.Component](probe)
 }
