@@ -47,6 +47,6 @@ func (l *logFormatter) Format(m *message.Message, eventType string, redactedMsg 
 		hname,
 		m.Origin.Service(),
 		m.Origin.Source(),
-		m.Origin.TagsToString(),
+		m.TagsToString(),
 		string(redactedMsg))
 }

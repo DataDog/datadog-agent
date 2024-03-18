@@ -64,7 +64,6 @@ func (a *agent) SetupPipeline(
 	a.launchers = lnchrs
 	a.health = health
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
-
 }
 
 // buildEndpoints builds endpoints for the logs agent

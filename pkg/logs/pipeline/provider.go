@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/atomic"
 
@@ -17,7 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -25,6 +28,7 @@ import (
 type Provider interface {
 	Start()
 	Stop()
+	ReconfigureSDS(definitions []byte, rules []byte) error
 	NextPipelineChan() chan *message.Message
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
@@ -104,6 +108,31 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.pipelines = p.pipelines[:0]
 	p.outputChan = nil
+}
+
+func (p *provider) ReconfigureSDS(standardRules []byte, rules []byte) error {
+	var order sds.ReconfigureOrder
+
+	if standardRules != nil {
+		order.Type = sds.StandardRules
+		order.Config = standardRules
+	}
+
+	if rules != nil {
+		order.Type = sds.AgentConfig
+		order.Config = rules
+	}
+
+	if order.Type == "" {
+		return fmt.Errorf("called with no standard rules or rules")
+	}
+
+	for _, pipeline := range p.pipelines {
+		log.Debug("Sending SDS reconfiguration order:", string(order.Type))
+		pipeline.processor.ReconfigChan <- order
+	}
+
+	return nil
 }
 
 // NextPipelineChan returns the next pipeline input channel

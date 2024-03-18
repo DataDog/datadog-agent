@@ -35,6 +35,8 @@ type Message struct {
 	Status             string
 	IngestionTimestamp int64
 	RawDataLen         int
+	// Tags added on processing
+	ProcessingTags []string
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -303,4 +305,14 @@ func (m *Message) GetStatus() string {
 // GetLatency returns the latency delta from ingestion time until now
 func (m *Message) GetLatency() int64 {
 	return time.Now().UnixNano() - m.IngestionTimestamp
+}
+
+// Message returns all tags that this message is attached with.
+func (m *Message) Tags() []string {
+	return m.Origin.Tags(m.ProcessingTags)
+}
+
+// Message returns all tags that this message is attached with, as a string.
+func (m *Message) TagsToString() string {
+	return m.Origin.TagsToString(m.ProcessingTags)
 }

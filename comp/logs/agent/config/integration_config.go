@@ -261,6 +261,7 @@ func (c *LogsConfig) Validate() error {
 	if err != nil {
 		return err
 	}
+
 	return CompileProcessingRules(c.ProcessingRules)
 }
 
