@@ -241,9 +241,9 @@ func runScannerCommand(sc *types.ScannerConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
-		RunE: runWithModules(func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			return runScannerCmd(sc, sock)
-		}),
+		},
 	}
 	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
 	_ = cmd.MarkFlagRequired("sock")
