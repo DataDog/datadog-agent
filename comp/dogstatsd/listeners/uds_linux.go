@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pid"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -59,7 +60,7 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 // source, and an error if any.
 // PID is added to ancillary data by the Linux kernel if we added the
 // SO_PASSCRED to the socket, see enableUDSPassCred.
-func processUDSOrigin(ancillary []byte) (int, string, error) {
+func processUDSOrigin(ancillary []byte, state pid.Component) (int, string, error) {
 	messages, err := unix.ParseSocketControlMessage(ancillary)
 	if err != nil {
 		return 0, packets.NoOrigin, err
@@ -84,7 +85,7 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 		capture = true
 	}
 
-	entity, err := getEntityForPID(pid, capture)
+	entity, err := getEntityForPID(pid, capture, state)
 	if err != nil {
 		return int(pid), packets.NoOrigin, err
 	}
@@ -95,13 +96,13 @@ func processUDSOrigin(ancillary []byte) (int, string, error) {
 // getEntityForPID returns the container entity name and caches the value for future lookups
 // As the result is cached and the lookup is really fast (parsing local files), it can be
 // called from the intake goroutine.
-func getEntityForPID(pid int32, capture bool) (string, error) {
+func getEntityForPID(pid int32, capture bool, state pid.Component) (string, error) {
 	key := cache.BuildAgentKey(pidToEntityCacheKeyPrefix, strconv.Itoa(int(pid)))
 	if x, found := cache.Cache.Get(key); found {
 		return x.(string), nil
 	}
 
-	entity, err := entityForPID(pid, capture)
+	entity, err := entityForPID(pid, capture, state)
 	switch err {
 	case nil:
 		// No error, yay!
@@ -121,9 +122,9 @@ func getEntityForPID(pid int32, capture bool) (string, error) {
 
 // entityForPID returns the entity ID for a given PID. It can return
 // errNoContainerMatch if no match is found for the PID.
-func entityForPID(pid int32, capture bool) (string, error) {
+func entityForPID(pid int32, capture bool, state pid.Component) (string, error) {
 	if capture {
-		return replay.ContainerIDForPID(pid)
+		return state.ContainerIDForPID(pid)
 	}
 
 	cID, err := metrics.GetProvider().GetMetaCollector().GetContainerIDForPID(int(pid), pidToEntityCacheDuration)

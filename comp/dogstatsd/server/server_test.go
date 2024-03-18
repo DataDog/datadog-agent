@@ -26,6 +26,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -41,6 +42,7 @@ type serverDeps struct {
 	Log           log.Component
 	Demultiplexer demultiplexer.FakeSamplerMock
 	Replay        replay.Component
+	PidMap        pidmap.Component
 	Debug         serverdebug.Component
 
 	Server Component
@@ -60,6 +62,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
+		pidmap.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		Module(),
 	))
@@ -78,6 +81,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
+		pidmap.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		Module(),
 	))
@@ -99,7 +103,7 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.PidMap, deps.Debug, false, deps.Demultiplexer)
 	s.start(context.TODO())
 	requireStart(t, s)
 

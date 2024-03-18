@@ -21,7 +21,7 @@ import (
 )
 
 func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component) (StatsdListener, error) {
-	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil)
+	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, nil)
 }
 
 func TestNewUDSDatagramListener(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 )
 
 // ErrLinuxOnly is emitted on non-linux platforms
@@ -32,6 +33,6 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func processUDSOrigin(oob []byte) (int, string, error) {
+func processUDSOrigin(oob []byte, pidmap pidmap.Component) (int, string, error) {
 	return 0, packets.NoOrigin, ErrLinuxOnly
 }

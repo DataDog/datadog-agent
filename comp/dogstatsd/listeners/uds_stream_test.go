@@ -22,7 +22,7 @@ import (
 )
 
 func udsStreamListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component) (StatsdListener, error) {
-	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil)
+	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil, nil)
 }
 
 func TestNewUDSStreamListener(t *testing.T) {
