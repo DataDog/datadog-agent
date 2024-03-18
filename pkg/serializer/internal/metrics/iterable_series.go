@@ -108,9 +108,10 @@ func describeItem(serie *metrics.Serie) string {
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
+// TODO: (streaming stream.Component) as a factory that creates Compressor
 func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component) (transaction.BytesPayloads, error) {
 	var err error
-	var compressor *stream.Compressor
+	var compressor stream.Compressor
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
 	payloads := transaction.BytesPayloads{}

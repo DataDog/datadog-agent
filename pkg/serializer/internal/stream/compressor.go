@@ -60,7 +60,7 @@ func init() {
 }
 
 // Compressor is in charge of compressing items for a single payload
-type Compressor struct {
+type compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
 	zipper              *zlib.Writer
@@ -76,9 +76,17 @@ type Compressor struct {
 	separator           []byte
 }
 
+type Compressor interface {
+	MethodMissing() string
+	AddItem(data []byte) error
+	Close() ([]byte, error)
+}
+
+var _ Compressor = (*compressor)(nil)
+
 // NewCompressor returns a new instance of a Compressor
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
-	c := &Compressor{
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (Compressor, error) {
+	c := &compressor{
 		header:              header,
 		footer:              footer,
 		input:               input,
@@ -98,11 +106,15 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 	return c, err
 }
 
+func (c *compressor) MethodMissing() string {
+	return "NotImplemented"
+}
+
 // checkItemSize checks that the item can fit in a payload. Worst case is used to
 // determine the size of the item after compression meaning we could drop an item
 // that could actually fit after compression. That said it is probably impossible
 // to have a 2MB+ item that is valid for the backend.
-func (c *Compressor) checkItemSize(data []byte) bool {
+func (c *compressor) checkItemSize(data []byte) bool {
 	maxEffectivePayloadSize := (c.maxPayloadSize - len(c.footer) - len(c.header))
 	compressedWillFit := compression.CompressBound(len(data)) < c.maxZippedItemSize && compression.CompressBound(len(data)) < maxEffectivePayloadSize
 
@@ -110,7 +122,7 @@ func (c *Compressor) checkItemSize(data []byte) bool {
 }
 
 // hasRoomForItem checks if the current payload has enough room to store the given item
-func (c *Compressor) hasRoomForItem(item []byte) bool {
+func (c *compressor) hasRoomForItem(item []byte) bool {
 	uncompressedDataSize := c.input.Len() + len(item)
 	if !c.firstItem {
 		uncompressedDataSize += len(c.separator)
@@ -119,7 +131,7 @@ func (c *Compressor) hasRoomForItem(item []byte) bool {
 }
 
 // pack flushes the temporary uncompressed buffer input to the compression writer
-func (c *Compressor) pack() error {
+func (c *compressor) pack() error {
 	expvarsTotalCycles.Add(1)
 	tlmTotalCycles.Inc()
 	n, err := c.input.WriteTo(c.zipper)
@@ -132,13 +144,13 @@ func (c *Compressor) pack() error {
 	return nil
 }
 
-func (c *Compressor) Write(data []byte) (int, error) {
+func (c *compressor) Write(data []byte) (int, error) {
 	err := c.AddItem(data)
 	return len(data), err
 }
 
 // AddItem will try to add the given item
-func (c *Compressor) AddItem(data []byte) error {
+func (c *compressor) AddItem(data []byte) error {
 	// check item size sanity
 	if !c.checkItemSize(data) {
 		return ErrItemTooBig
@@ -174,7 +186,7 @@ func (c *Compressor) AddItem(data []byte) error {
 }
 
 // Close closes the Compressor, flushing any remaining uncompressed data
-func (c *Compressor) Close() ([]byte, error) {
+func (c *compressor) Close() ([]byte, error) {
 	// Flush remaining uncompressed data
 	if c.input.Len() > 0 {
 		n, err := c.input.WriteTo(c.zipper)
@@ -208,6 +220,6 @@ func (c *Compressor) Close() ([]byte, error) {
 	return payload, nil
 }
 
-func (c *Compressor) remainingSpace() int {
+func (c *compressor) remainingSpace() int {
 	return c.maxPayloadSize - c.compressed.Len() - len(c.footer)
 }

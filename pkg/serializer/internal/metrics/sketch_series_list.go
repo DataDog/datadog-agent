@@ -52,7 +52,7 @@ func init() {
 // The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
 func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component) (transaction.BytesPayloads, error) {
 	var err error
-	var compressor *stream.Compressor
+	var compressor stream.Compressor
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
 	payloads := transaction.BytesPayloads{}
