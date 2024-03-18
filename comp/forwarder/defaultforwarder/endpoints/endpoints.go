@@ -54,7 +54,4 @@ var (
 	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orch", Name: "orchestrator"}
 	// OrchestratorManifestEndpoint is a v2 endpoint used to send orchestrator manifests
 	OrchestratorManifestEndpoint = transaction.Endpoint{Route: "/api/v2/orchmanif", Name: "orchmanifest"}
-
-	// FlareEndpoint is a endpoint used to send flares
-	FlareEndpoint = transaction.Endpoint{Route: transaction.MakeFlareEndpoint(), Name: "flare"}
 )

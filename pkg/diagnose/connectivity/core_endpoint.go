@@ -102,11 +102,17 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 			}
 
 			// Send a request to the flare endpoint
-			flareEndpoint := flareEndpointInfo
-			respStatus, err := acceptRedirection(flareEndpoint.Endpoint.Route, clientWithOneRedirects())
+			flareEndpointURLMaker := func() string {
+				// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
+				url := utils.GetInfraEndpoint(config.Datadog)
+				baseURL, _ := utils.AddAgentVersionToDomain(url, "flare")
+				return baseURL + "/support/flare"
+			}
+			flareEndpointURL := flareEndpointURLMaker()
+			respStatus, err := acceptRedirection(flareEndpointURL, clientWithOneRedirects())
 			report, reportErr := verifyEndpointResponse(respStatus, nil, err)
-			diagnosisName := "Connectivity to " + flareEndpoint.Endpoint.Route
-			d := createDiagnosis(diagnosisName, flareEndpoint.Endpoint.Route, report, reportErr)
+			diagnosisName := "Connectivity to " + flareEndpointURL
+			d := createDiagnosis(diagnosisName, flareEndpointURL, report, reportErr)
 			diagnoses = append(diagnoses, d)
 		}
 	}
