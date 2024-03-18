@@ -141,6 +141,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.ConsumeTopics(topicName),
+						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
 					},
 				})
 				require.NoError(t, err)
