@@ -212,7 +212,7 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	}
 
 	ia.data["config_dd_url"] = scrub(ia.conf.GetString("dd_url"))
-	ia.data["config_site"] = scrub(ia.conf.GetString("dd_site"))
+	ia.data["config_site"] = scrub(ia.conf.GetString("site"))
 	ia.data["config_logs_dd_url"] = scrub(ia.conf.GetString("logs_config.logs_dd_url"))
 	ia.data["config_logs_socks5_proxy_address"] = scrub(ia.conf.GetString("logs_config.socks5_proxy_address"))
 	ia.data["config_no_proxy"] = cfgSlice("proxy.no_proxy")
