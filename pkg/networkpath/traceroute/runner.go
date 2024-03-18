@@ -65,6 +65,8 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 		Timeout:    time.Duration(cfg.TimeoutMs) * time.Millisecond, // TODO: what's a good value?
 		BrokenNAT:  false,
 	}
+
+	log.Debugf("Traceroute UDPv4 probe config: %+v", dt)
 	results, err := dt.Traceroute()
 	if err != nil {
 		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
