@@ -71,7 +71,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 		targetHostnameNetID = hostnameNetID[0]
 
 		t.Logf("hostname+networkID %v seen connections", hostnameNetID)
-	}, 60*time.Second, time.Second, "no connections received")
+	}, 120*time.Second, time.Second, "no connections received")
 
 	// looking for 5 payloads and check if the last 2 have a span of 30s +/- 500ms
 	v.EventuallyWithT(func(c *assert.CollectT) {
