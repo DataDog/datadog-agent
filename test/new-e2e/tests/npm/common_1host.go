@@ -36,6 +36,7 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 		t.Logf("fakeintake GetConnectionsNames() failed %s", err)
 		return
 	}
+	// Dump info for test1HostFakeIntakeNPM
 	for _, h := range hostnameNetID {
 		var prevCollectedTime time.Time
 		for i, cc := range cnx.GetPayloadsByName(h) {
@@ -46,6 +47,12 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 			prevCollectedTime = cc.GetCollectedTime()
 		}
 	}
+	// Dump info for test1HostFakeIntakeNPM600cnxBucket
+	for _, h := range hostnameNetID {
+		for _, cc := range cnx.GetPayloadsByName(h) {
+			t.Logf("hostname+networkID %v time %v connections %d", h, cc.GetCollectedTime(), len(cc.Connections))
+		}
+	}
 }
 
 // testFakeIntakeNPM
@@ -54,6 +61,7 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
 	t.Helper()
+	t.Log(time.Now())
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -100,6 +108,7 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
 	t.Helper()
+	t.Log(time.Now())
 
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -148,6 +157,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 func test1HostFakeIntakeNPMTCPUDPDNS[Env any](v *e2e.BaseSuite[Env], FakeIntake *components.FakeIntake) {
 	t := v.T()
 	t.Helper()
+	t.Log(time.Now())
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
