@@ -13,10 +13,11 @@ import (
 type ShellScanner struct {
 	s     string
 	index int
-	match *match
+	match *Match
 }
 
-type match struct {
+// Match is a simple struct that holds the string that was matched.
+type Match struct {
 	s string
 }
 
@@ -41,17 +42,17 @@ func (s *ShellScanner) Index() int {
 }
 
 // Match returns the current match.
-func (m *match) String() string {
+func (m *Match) String() string {
 	return m.s
 }
 
 // Scan scans the string for the given regexp.
-func (s *ShellScanner) Scan(re *regexp.Regexp) *match {
+func (s *ShellScanner) Scan(re *regexp.Regexp) *Match {
 	loc := re.FindStringIndex(s.s[s.index:])
 	if loc == nil {
 		return nil
 	}
-	s.match = &match{s: s.s[s.index+loc[0] : s.index+loc[1]]}
+	s.match = &Match{s: s.s[s.index+loc[0] : s.index+loc[1]]}
 
 	s.index += loc[1]
 	return s.match

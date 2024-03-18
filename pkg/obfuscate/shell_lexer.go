@@ -85,7 +85,7 @@ func scanUntil(s *ShellScanner, pattern *regexp.Regexp) *string {
 
 func nextToken(scanner *ShellScanner, state struct{ current ShellTokenKind }) *ShellToken {
 	pos := scanner.Index()
-	var token *match
+	var token *Match
 
 	if state.current != DoubleQuote && state.current != SingleQuote {
 		if token = scanner.Scan(expressions["control"]); token != nil {
@@ -341,10 +341,9 @@ func changeStates(ret []ShellToken) []ShellToken {
 					withoutWhitespaces = append(withoutWhitespaces, ret[i])
 					stateList[len(stateList)-1] = Equal
 					continue
+				} else if len(withoutWhitespaces) == 0 || withoutWhitespaces[len(withoutWhitespaces)-1].kind != Redirection {
+					// we skip the case of redirection - token will be added in the default behaviour
 
-				} else if len(withoutWhitespaces) > 0 && withoutWhitespaces[len(withoutWhitespaces)-1].kind == Redirection {
-					// do nothing - this is a redirection - token will be added in the default behaviour
-				} else {
 					t.kind = Executable
 					stateList[len(stateList)-1] = 0
 				}
