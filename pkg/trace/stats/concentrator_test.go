@@ -409,7 +409,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		testSpan(now, 11, 0, 333, 3, "A1", "resource3", 0, map[string]string{"span.kind": "client"}),
 		testSpan(now, 12, 0, 444, 3, "A1", "resource3", 0, map[string]string{"span.kind": "server"}),
 		// 2 buckets old, part of the first flush
-		testSpan(now, 1, 0, 24, 2, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 100, 24, 2, "A1", "resource1", 0, nil),
 		testSpan(now, 2, 0, 12, 2, "A1", "resource1", 2, nil),
 		testSpan(now, 3, 1, 40, 2, "A2", "resource2", 2, nil),
 		testSpan(now, 4, 1, 300000000000, 2, "A2", "resource2", 2, nil), // 5 minutes trace
@@ -432,11 +432,22 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Resource:     "resource1",
 			Type:         "db",
 			Name:         "query",
-			Duration:     369,
-			Hits:         4,
+			Duration:     345,
+			Hits:         3,
 			TopLevelHits: 4,
 			Errors:       1,
 			IsTraceRoot:  true,
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource1",
+			Type:         "db",
+			Name:         "query",
+			Duration:     24,
+			Hits:         1,
+			TopLevelHits: 1,
+			Errors:       0,
+			IsTraceRoot:  false,
 		},
 		{
 			Service:      "A2",
