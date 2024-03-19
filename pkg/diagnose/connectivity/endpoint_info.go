@@ -32,43 +32,44 @@ type endpointInfo struct {
 }
 
 var (
-	// Each added/modified endpointInfo should be tested on all sites.
-
 	emptyPayload    = []byte("{}")
 	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
-
-	// v1 endpoints
-	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
-	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
-	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
-	// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
-	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
-	v1MetadataEndpointInfo = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
-
-	// v2 endpoints
-	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
-	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
-
-	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
-		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
 )
 
-func createDynamicEndpointURL() []endpointInfo {
-	listDynamicEndpoints := []endpointInfo{}
+// Each added/modified endpointInfo should be tested on all sites.
 
+func getStaticEndpointURL() []endpointInfo {
+	// v1 endpoints
+	v1SeriesEndpointInfo := endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
+	v1CheckRunsEndpointInfo := endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
+	v1IntakeEndpointInfo := endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
+	// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
+	v1ValidateEndpointInfo := endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
+	v1MetadataEndpointInfo := endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
+
+	// v2 endpoints
+	seriesEndpointInfo := endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
+	sketchSeriesEndpointInfo := endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
+
+	return []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
+		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
+}
+
+func getDynamicEndpointURL(cfg config.Reader) []endpointInfo {
 	// Flare endpoint
-	flareEndpointInfo := endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(config.Datadog), Name: "flare"}, "HEAD", nil}
-	listDynamicEndpoints = append(listDynamicEndpoints, flareEndpointInfo)
+	flareEndpointInfo := endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil}
 
-	return listDynamicEndpoints
+	return []endpointInfo{flareEndpointInfo}
 }
 
 // GetEndpointsInfo returns a list of all endpoints.
-func GetEndpointsInfo() []endpointInfo {
+func getEndpointsInfo(cfg config.Reader) []endpointInfo {
+	var endpointsInfo []endpointInfo
+
 	// Get all static endpoints
-	endpointsInfo := append([]endpointInfo{}, endpointsInfo...)
+	endpointsInfo = append(endpointsInfo, getStaticEndpointURL()...)
 	// Get all dynamic endpoints
-	endpointsInfo = append(endpointsInfo, createDynamicEndpointURL()...)
+	endpointsInfo = append(endpointsInfo, getDynamicEndpointURL(cfg)...)
 
 	return endpointsInfo
 }
