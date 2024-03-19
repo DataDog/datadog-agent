@@ -341,7 +341,9 @@ def add_vmset(vmset: 'VMSet', vm_config: VMConfig):
     if vmset.recipe == "custom":
         return add_custom_vmset(vmset, vm_config)
 
-    new_set = cast('VMSetDict', dict(tags=list(vmset.tags), recipe=vmset.recipe, arch=vmset.arch, kernels=list()))
+    new_set = cast(
+        'VMSetDict', dict(tags=list(vmset.tags), recipe=f"{vmset.recipe}-{vmset.arch}", arch=vmset.arch, kernels=list())
+    )
 
     vm_config["vmsets"].append(new_set)
 
