@@ -101,7 +101,7 @@ func TestRetryLogic_Error(t *testing.T) {
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown").Once()
+	mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 	collectors.RegisterCollector(collName, mockCollector)
 
@@ -168,7 +168,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	mockCollector.On("Options").Return(sbom.ScanOptions{})
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown").Once()
+	mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 	collectors.RegisterCollector(collName, mockCollector)
 
@@ -213,7 +213,7 @@ func TestRetryLogic_Host(t *testing.T) {
 	mockCollector.On("Options").Return(sbom.ScanOptions{})
 	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
 	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown").Once()
+	mockCollector.On("Shutdown")
 	mockCollector.On("Type").Return(collectors.HostScanType)
 	collectors.RegisterCollector(collName, mockCollector)
 
