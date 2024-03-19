@@ -106,6 +106,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 		trace.Bundle(),
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
+		// Force the instantiation of the components
 		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component]) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {

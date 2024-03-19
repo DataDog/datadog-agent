@@ -192,6 +192,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				statusimpl.Module(),
 				fetchonlyimpl.Module(),
 				configsyncimpl.OptionalModule(),
+				// Force the instantiation of the component
 				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 			)
 		},
