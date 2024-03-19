@@ -25,7 +25,7 @@ func (sc *nozlibStreamComponent) NewCompressor(input, output *bytes.Buffer,
 }
 
 func (sc *nozlibStreamComponent) NewJSONPayloadBuilder(shareAndLockBuffers bool) stream.JSONPayloadBuilder {
-	return nil
+	return &noneJSONPayloadBuilder{}
 }
 
 func (sc *nozlibStreamComponent) IsAvailable() bool {
