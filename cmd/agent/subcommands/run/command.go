@@ -47,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -219,7 +218,6 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	gui optional.Option[gui.Component],
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -283,7 +281,6 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
-		gui,
 	); err != nil {
 		return err
 	}
@@ -423,7 +420,6 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	_ status.Component,
 	collector collector.Component,
-	gui optional.Option[gui.Component],
 ) error {
 
 	var err error
@@ -565,7 +561,6 @@ func startAgent(
 		logsAgent,
 		demultiplexer,
 		optional.NewOption(collector),
-		gui,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

@@ -62,6 +62,7 @@ type apiServer struct {
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
 	authToken             authtoken.Component
+	gui                   optional.Option[gui.Component]
 }
 
 type dependencies struct {
@@ -83,6 +84,7 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
+	Gui                   optional.Option[gui.Component]
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -105,6 +107,7 @@ func newAPIServer(deps dependencies) api.Component {
 		rcService:             deps.RcService,
 		rcServiceHA:           deps.RcServiceHA,
 		authToken:             deps.AuthToken,
+		gui:                   deps.Gui,
 	}
 }
 
@@ -116,7 +119,6 @@ func (server *apiServer) StartServer(
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
-	gui optional.Option[gui.Component],
 ) error {
 	return StartServers(server.rcService,
 		server.rcServiceHA,
@@ -139,7 +141,7 @@ func (server *apiServer) StartServer(
 		collector,
 		server.eventPlatformReceiver,
 		ac,
-		gui,
+		server.gui,
 	)
 }
 
