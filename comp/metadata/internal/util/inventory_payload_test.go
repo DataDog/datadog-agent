@@ -141,9 +141,10 @@ func TestCollectStartupTime(t *testing.T) {
 	i.createdAt = createdAt
 
 	serializerMock := i.serializer.(*serializer.MockSerializer)
+	duration := 1 * time.Minute
 
 	interval := i.collect(context.Background())
-	assert.Equal(t, time.Duration(createdAt.Add(1*time.Minute).Second()), interval)
+	assert.Equal(t, duration-time.Since(createdAt).Round(duration), interval.Round(duration))
 	assert.Empty(t, serializerMock.Calls)
 
 	// testing with custom values from configuration
