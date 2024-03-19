@@ -57,10 +57,26 @@ func WithAgentOptions(opts ...agentparams.Option) ProvisionerOption {
 	}
 }
 
+// WithoutAgent disables the creation of the Agent.
+func WithoutAgent() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentOptions = nil
+		return nil
+	}
+}
+
 // WithFakeIntakeOptions adds options to the FakeIntake.
 func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.fakeintakeOptions = append(params.fakeintakeOptions, opts...)
+		return nil
+	}
+}
+
+// WithoutFakeIntake disables the creation of the FakeIntake.
+func WithoutFakeIntake() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fakeintakeOptions = nil
 		return nil
 	}
 }
@@ -174,4 +190,22 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Wi
 	}, nil)
 
 	return provisioner
+}
+
+// ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
+func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutAgent(), WithoutFakeIntake())
+
+	return Provisioner(mergedOpts...)
+}
+
+// ProvisionerNoFakeIntake wraps Provisioner with hardcoded WithoutFakeIntake option.
+func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutFakeIntake())
+
+	return Provisioner(mergedOpts...)
 }
