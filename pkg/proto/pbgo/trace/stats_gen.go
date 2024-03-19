@@ -128,10 +128,14 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 				}
 			}
 		case "IsTraceRoot":
-			z.IsTraceRoot, err = dc.ReadBool()
-			if err != nil {
-				err = msgp.WrapError(err, "IsTraceRoot")
-				return
+			{
+				var zb0003 int32
+				zb0003, err = dc.ReadInt32()
+				if err != nil {
+					err = msgp.WrapError(err, "IsTraceRoot")
+					return
+				}
+				z.IsTraceRoot = TraceRootFlag(zb0003)
 			}
 		default:
 			err = dc.Skip()
@@ -309,7 +313,7 @@ func (z *ClientGroupedStats) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteBool(z.IsTraceRoot)
+	err = en.WriteInt32(int32(z.IsTraceRoot))
 	if err != nil {
 		err = msgp.WrapError(err, "IsTraceRoot")
 		return
@@ -371,7 +375,7 @@ func (z *ClientGroupedStats) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 	// string "IsTraceRoot"
 	o = append(o, 0xab, 0x49, 0x73, 0x54, 0x72, 0x61, 0x63, 0x65, 0x52, 0x6f, 0x6f, 0x74)
-	o = msgp.AppendBool(o, z.IsTraceRoot)
+	o = msgp.AppendInt32(o, int32(z.IsTraceRoot))
 	return
 }
 
@@ -497,10 +501,14 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				}
 			}
 		case "IsTraceRoot":
-			z.IsTraceRoot, bts, err = msgp.ReadBoolBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "IsTraceRoot")
-				return
+			{
+				var zb0003 int32
+				zb0003, bts, err = msgp.ReadInt32Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "IsTraceRoot")
+					return
+				}
+				z.IsTraceRoot = TraceRootFlag(zb0003)
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -520,7 +528,7 @@ func (z *ClientGroupedStats) Msgsize() (s int) {
 	for za0001 := range z.PeerTags {
 		s += msgp.StringPrefixSize + len(z.PeerTags[za0001])
 	}
-	s += 12 + msgp.BoolSize
+	s += 12 + msgp.Int32Size
 	return
 }
 
@@ -1728,5 +1736,57 @@ func (z *StatsPayload) Msgsize() (s int) {
 		}
 	}
 	s += 13 + msgp.StringPrefixSize + len(z.AgentVersion) + 15 + msgp.BoolSize + 13 + msgp.BoolSize
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
+func (z *TraceRootFlag) DecodeMsg(dc *msgp.Reader) (err error) {
+	{
+		var zb0001 int32
+		zb0001, err = dc.ReadInt32()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = TraceRootFlag(zb0001)
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z TraceRootFlag) EncodeMsg(en *msgp.Writer) (err error) {
+	err = en.WriteInt32(int32(z))
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z TraceRootFlag) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	o = msgp.AppendInt32(o, int32(z))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *TraceRootFlag) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	{
+		var zb0001 int32
+		zb0001, bts, err = msgp.ReadInt32Bytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = TraceRootFlag(zb0001)
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z TraceRootFlag) Msgsize() (s int) {
+	s = msgp.Int32Size
 	return
 }

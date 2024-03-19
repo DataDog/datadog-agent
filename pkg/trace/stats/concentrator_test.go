@@ -267,7 +267,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         6,
 				TopLevelHits: 6,
 				Errors:       0,
-				IsTraceRoot:  true,
+				IsTraceRoot:  pb.TraceRootFlag_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -305,7 +305,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         5,
 				TopLevelHits: 5,
 				Errors:       0,
-				IsTraceRoot:  true,
+				IsTraceRoot:  pb.TraceRootFlag_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -326,7 +326,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         1,
 				TopLevelHits: 1,
 				Errors:       0,
-				IsTraceRoot:  true,
+				IsTraceRoot:  pb.TraceRootFlag_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -436,7 +436,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         3,
 			TopLevelHits: 4,
 			Errors:       1,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -447,7 +447,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  false,
+			IsTraceRoot:  pb.TraceRootFlag_FALSE,
 		},
 		{
 			Service:      "A2",
@@ -458,7 +458,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         2,
 			TopLevelHits: 2,
 			Errors:       2,
-			IsTraceRoot:  false,
+			IsTraceRoot:  pb.TraceRootFlag_FALSE,
 		},
 		{
 			Service:      "A2",
@@ -469,7 +469,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -481,7 +481,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -493,7 +493,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 	}
 	// 1-bucket old flush
@@ -507,7 +507,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -518,7 +518,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -529,7 +529,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -540,7 +540,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -551,7 +551,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  true,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 	}
 	// last bucket to be flushed
@@ -565,7 +565,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  false,
+			IsTraceRoot:  pb.TraceRootFlag_FALSE,
 		},
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}

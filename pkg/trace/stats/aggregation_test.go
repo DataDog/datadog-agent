@@ -181,23 +181,23 @@ func TestSpanKindIsConsumerOrProducer(t *testing.T) {
 func TestIsRootSpan(t *testing.T) {
 	for _, tt := range []struct {
 		in          *pb.Span
-		isTraceRoot bool
+		isTraceRoot pb.TraceRootFlag
 	}{
 		{
 			&pb.Span{},
-			true,
+			pb.TraceRootFlag_TRUE,
 		},
 		{
 			&pb.Span{
 				ParentID: 0,
 			},
-			true,
+			pb.TraceRootFlag_TRUE,
 		},
 		{
 			&pb.Span{
 				ParentID: 123,
 			},
-			false,
+			pb.TraceRootFlag_FALSE,
 		},
 	} {
 		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, []string{})
