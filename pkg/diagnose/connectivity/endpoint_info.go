@@ -39,22 +39,21 @@ var (
 // Each added/modified endpointInfo should be tested on all sites.
 
 func getEndpointsInfo(cfg config.Reader) []endpointInfo {
-	// v1 endpoints
-	v1SeriesEndpointInfo := endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
-	v1CheckRunsEndpointInfo := endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
-	v1IntakeEndpointInfo := endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
-	// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
-	v1ValidateEndpointInfo := endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
-	v1MetadataEndpointInfo := endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
+	return []endpointInfo{
+		// v1 endpoints
+		endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload},
+		endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload},
+		endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload},
 
-	// v2 endpoints
-	seriesEndpointInfo := endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
-	sketchSeriesEndpointInfo := endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
+		// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
+		endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil},
+		endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload},
 
-	// Flare endpoint
-	flareEndpointInfo := endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil}
+		// v2 endpoints
+		endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload},
+		endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload},
 
-	return []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo,
-		v1IntakeEndpointInfo, v1ValidateEndpointInfo, seriesEndpointInfo, sketchSeriesEndpointInfo,
-		flareEndpointInfo}
+		// Flare endpoint
+		endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil},
+	}
 }
