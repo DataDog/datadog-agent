@@ -69,7 +69,9 @@ type kernelTelemetry struct {
 	// fragmentedFrameCountRST Count of times we have seen a fragmented RST frame.
 	fragmentedFrameCountRST *tlsAwareCounter
 	// fragmentedHeadersFrameEOSCount Count of times we have seen a fragmented headers frame with EOS.
-	fragmentedHeadersFrameEOSCount *tlsAwareCounter
+	fragmentedHeadersFrameEOSCount     *tlsAwareCounter
+	dynamicCounterTableDeletionFailure *tlsAwareCounter
+	terminationSeen                    *tlsAwareCounter
 	// fragmentedHeadersFrameCount Count of times we have seen a fragmented headers frame.
 	fragmentedHeadersFrameCount *tlsAwareCounter
 	// fragmentedDataFrameEOSCount Count of times we have seen a fragmented data frame with EOS.
@@ -82,18 +84,20 @@ type kernelTelemetry struct {
 func newHTTP2KernelTelemetry() *kernelTelemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.http2", libtelemetry.OptPrometheus)
 	http2KernelTel := &kernelTelemetry{
-		metricGroup:                    metricGroup,
-		http2requests:                  newTLSAwareCounter(metricGroup, "requests"),
-		http2responses:                 newTLSAwareCounter(metricGroup, "responses"),
-		endOfStream:                    newTLSAwareCounter(metricGroup, "eos"),
-		endOfStreamRST:                 newTLSAwareCounter(metricGroup, "rst"),
-		literalValueExceedsFrame:       newTLSAwareCounter(metricGroup, "literal_value_exceeds_frame"),
-		exceedingMaxInterestingFrames:  newTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
-		exceedingMaxFramesToFilter:     newTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter"),
-		fragmentedDataFrameEOSCount:    newTLSAwareCounter(metricGroup, "exceeding_data_end_data_eos"),
-		fragmentedHeadersFrameCount:    newTLSAwareCounter(metricGroup, "exceeding_data_end_headers"),
-		fragmentedHeadersFrameEOSCount: newTLSAwareCounter(metricGroup, "exceeding_data_end_headers_eos"),
-		fragmentedFrameCountRST:        newTLSAwareCounter(metricGroup, "exceeding_data_end_rst")}
+		metricGroup:                        metricGroup,
+		http2requests:                      newTLSAwareCounter(metricGroup, "requests"),
+		http2responses:                     newTLSAwareCounter(metricGroup, "responses"),
+		endOfStream:                        newTLSAwareCounter(metricGroup, "eos"),
+		endOfStreamRST:                     newTLSAwareCounter(metricGroup, "rst"),
+		literalValueExceedsFrame:           newTLSAwareCounter(metricGroup, "literal_value_exceeds_frame"),
+		exceedingMaxInterestingFrames:      newTLSAwareCounter(metricGroup, "exceeding_max_interesting_frames"),
+		exceedingMaxFramesToFilter:         newTLSAwareCounter(metricGroup, "exceeding_max_frames_to_filter"),
+		fragmentedDataFrameEOSCount:        newTLSAwareCounter(metricGroup, "exceeding_data_end_data_eos"),
+		fragmentedHeadersFrameCount:        newTLSAwareCounter(metricGroup, "exceeding_data_end_headers"),
+		fragmentedHeadersFrameEOSCount:     newTLSAwareCounter(metricGroup, "exceeding_data_end_headers_eos"),
+		dynamicCounterTableDeletionFailure: newTLSAwareCounter(metricGroup, "dynamic_counter_table_deletion_failure"),
+		terminationSeen:                    newTLSAwareCounter(metricGroup, "termination_seen"),
+		fragmentedFrameCountRST:            newTLSAwareCounter(metricGroup, "exceeding_data_end_rst")}
 
 	for bucketIndex := range http2KernelTel.pathSizeBucket {
 		http2KernelTel.pathSizeBucket[bucketIndex] = newTLSAwareCounter(metricGroup, "path_size_bucket_"+(strconv.Itoa(bucketIndex+1)))
@@ -115,6 +119,8 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry, isTLS bool) {
 	t.exceedingMaxFramesToFilter.add(int64(telemetryDelta.Exceeding_max_frames_to_filter), isTLS)
 	t.fragmentedFrameCountRST.add(int64(telemetryDelta.Fragmented_frame_count_rst), isTLS)
 	t.fragmentedHeadersFrameEOSCount.add(int64(telemetryDelta.Fragmented_frame_count_headers_eos), isTLS)
+	t.dynamicCounterTableDeletionFailure.add(int64(telemetryDelta.Dynamic_counter_table_deletion_failure), isTLS)
+	t.terminationSeen.add(int64(telemetryDelta.Termination_seen), isTLS)
 	t.fragmentedHeadersFrameCount.add(int64(telemetryDelta.Fragmented_frame_count_headers), isTLS)
 	t.fragmentedDataFrameEOSCount.add(int64(telemetryDelta.Fragmented_frame_count_data_eos), isTLS)
 	for bucketIndex := range t.pathSizeBucket {

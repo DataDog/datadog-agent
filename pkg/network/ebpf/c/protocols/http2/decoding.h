@@ -603,16 +603,26 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     bpf_memcpy(&dispatcher_args_copy.tup, &args->tup, sizeof(conn_tuple_t));
     bpf_memcpy(&dispatcher_args_copy.skb_info, &args->skb_info, sizeof(skb_info_t));
 
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    if (http2_tel == NULL) {
+        return 0;
+    }
+
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
         // Deleting the entry for the original tuple.
+        __sync_fetch_and_add(&http2_tel->termination_seen, 1);
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
-        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+        if (bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup) != 0) {
+            __sync_fetch_and_add(&http2_tel->dynamic_counter_table_deletion_failure, 1);
+        }
         terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
         // so we won't reach for that path again in the code, so we're deleting the opposite side as well.
         flip_tuple(&dispatcher_args_copy.tup);
-        bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+        if (bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup)!= 0) {
+            __sync_fetch_and_add(&http2_tel->dynamic_counter_table_deletion_failure, 1);
+        }
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
         return 0;
     }
@@ -639,11 +649,6 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     }
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
-
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
-    if (http2_tel == NULL) {
-        return 0;
-    }
 
     bool has_valid_first_frame = get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame, http2_tel);
     // If we have a state and we consumed it, then delete it.
