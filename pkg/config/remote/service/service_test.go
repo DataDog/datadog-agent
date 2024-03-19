@@ -138,26 +138,6 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-// getConfiguredTags returns list of tags from a configuration, based on
-// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
-// if includeDogdstatsd is true.
-func getConfiguredTags(c model.Reader, includeDogstatsd bool) []string {
-	tags := c.GetStringSlice("tags")
-	extraTags := c.GetStringSlice("extra_tags")
-
-	var dsdTags []string
-	if includeDogstatsd {
-		dsdTags = c.GetStringSlice("dogstatsd_tags")
-	}
-
-	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
-	combined = append(combined, tags...)
-	combined = append(combined, extraTags...)
-	combined = append(combined, dsdTags...)
-
-	return combined
-}
-
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
