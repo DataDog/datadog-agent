@@ -69,7 +69,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		time.Duration(initConfig.MinCollectionInterval)*time.Second,
 		defaultCheckInterval,
 	)
-	if c.MinCollectionInterval < 0 {
+	if c.MinCollectionInterval <= 0 {
 		return nil, fmt.Errorf("min collection interval must be > 0")
 	}
 
