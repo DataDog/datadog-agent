@@ -392,6 +392,8 @@ def add_disks(vmconfig_template: VMConfig, vmset: VMSetDict):
         if tname in template.get("tags", []):
             vmset["disks"] = copy.deepcopy(template.get("disks", []))
 
+            if "arch" not in vmset:
+                raise Exit("arch is not defined in vmset")
             if vmset["arch"] == local_arch:
                 kmt_os = get_kmt_os()
             else:
