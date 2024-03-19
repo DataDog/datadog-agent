@@ -13,7 +13,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
 	"github.com/jinroh/go-nbd/pkg/backend"
 )

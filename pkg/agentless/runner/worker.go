@@ -27,11 +27,11 @@ import (
 
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/nbd"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/scanners"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/awsutils"
+	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
+	"github.com/DataDog/datadog-agent/pkg/agentless/nbd"
+	"github.com/DataDog/datadog-agent/pkg/agentless/scanners"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"

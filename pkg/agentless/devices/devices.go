@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

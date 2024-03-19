@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
