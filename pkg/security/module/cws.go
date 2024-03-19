@@ -252,6 +252,11 @@ func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 	}
 }
 
+// APIServer returns the api server
+func (c *CWSConsumer) APIServer() *APIServer {
+	return c.apiServer
+}
+
 // HandleActivityDump sends an activity dump to the backend
 func (c *CWSConsumer) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
 	c.apiServer.SendActivityDump(dump)
