@@ -98,7 +98,10 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	}
 
 	if len(l.errs) > 0 {
-		node.Errors = l.errs
+		node.Errors = make([]string, 0, len(l.errs))
+		for _, err := range l.errs {
+			node.Errors = append(node.Errors, err.Error())
+		}
 	}
 
 	resourceType := "kubernetes_worker_node"
@@ -191,7 +194,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		return name, nil, nil, false
 	}
 	var b []byte
-	const maxSize = 64 * 1024
+	const maxSize = 512 * 1024
 	if loadContent && info.Size() < maxSize {
 		f, err := os.Open(name)
 		if err != nil {
@@ -237,18 +240,11 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 	}
 
 	var content interface{}
-	switch filepath.Ext(name) {
-	case ".yaml", ".yml":
-		if err := yaml.Unmarshal(b, &content); err != nil {
-			l.pushError(err)
-			content = b
-		}
-	case ".json":
-		if err := json.Unmarshal(b, &content); err != nil {
-			l.pushError(err)
-			content = b
-		}
-	default:
+	erru := json.Unmarshal(b, &content)
+	if erru != nil {
+		erru = yaml.Unmarshal(b, &content)
+	}
+	if erru != nil {
 		content = string(b)
 	}
 
@@ -461,15 +457,12 @@ func (l *loader) loadKubeconfigMeta(name string) *K8sKubeconfigMeta {
 	}
 
 	var source k8SKubeconfigSource
-	var err error
-	switch filepath.Ext(name) {
-	case ".json":
-		err = json.Unmarshal(b, &source)
-	default:
-		err = yaml.Unmarshal(b, &source)
+	erru := json.Unmarshal(b, &source)
+	if erru != nil {
+		erru = yaml.Unmarshal(b, &source)
 	}
-	if err != nil {
-		l.pushError(err)
+	if erru != nil {
+		l.pushError(erru)
 		return nil
 	}
 
