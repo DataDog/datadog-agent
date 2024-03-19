@@ -18,7 +18,7 @@
     - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
     # NOTE: for now, we consider "ociru" to be a "redhat_target" in omnibus/lib/ostools.rb
     # if we ever start building on a different platform, that might need to change
-    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru
+    - inv -e agent.omnibus-build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --python-runtimes "$PYTHON_RUNTIMES" --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --host-distribution=ociru --install-directory="$INSTALL_DIR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
   variables:
@@ -53,7 +53,7 @@ agent_remote_updater-x64-a7:
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export OMNIBUS_GIT_CACHE_SUFFIX=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
+
 
 # build Agent package for remote_updater-x64
 agent_remote_updater-arm64-a7:
@@ -78,4 +78,4 @@ agent_remote_updater-arm64-a7:
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export OMNIBUS_GIT_CACHE_SUFFIX=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
+
