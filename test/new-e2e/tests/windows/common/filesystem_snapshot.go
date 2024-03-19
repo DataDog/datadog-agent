@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// FileSystemSnapshot represents a snapshot of the system files that can be used to compare against later
 type FileSystemSnapshot struct {
 	host *components.RemoteHost
 	path string
@@ -84,5 +85,14 @@ func NewFileSystemSnapshot(host *components.RemoteHost, pathsToIgnore []string) 
 	if err != nil {
 		return nil, fmt.Errorf("snapshot system files command failed: %s", err)
 	}
-	return &FileSystemSnapshot{host: host, path: tempFile}, nil
+	f := &FileSystemSnapshot{host: host, path: tempFile}
+	err = f.Validate(host)
+	if err != nil {
+		cleanupErr := f.Cleanup()
+		if cleanupErr != nil {
+			return nil, fmt.Errorf("failed to validate and cleanup snapshot: %w, %w", err, cleanupErr)
+		}
+		return nil, err
+	}
+	return f, nil
 }
