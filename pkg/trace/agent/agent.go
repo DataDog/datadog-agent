@@ -514,17 +514,6 @@ func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion stri
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
-func isManualUserDrop(priority sampler.SamplingPriority, pt *traceutil.ProcessedTrace) bool {
-	if priority != sampler.PriorityUserDrop {
-		return false
-	}
-	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
-	if !hasDm {
-		return false
-	}
-	return dm == manualSampling
-}
-
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
 	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
@@ -551,6 +540,21 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 	return keep, len(events)
 }
 
+// isManualUserDrop returns true if and only if the ProcessedTrace is marked as Priority User Drop
+// AND has a sampling decision maker of "Manual Sampling" (-4)
+func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
+	priority, _ := sampler.GetSamplingPriority(pt.TraceChunk)
+	// Default priority is non-drop, so it's safe to ignore if the priority wasn't found
+	if priority != sampler.PriorityUserDrop {
+		return false
+	}
+	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
+	if !hasDm {
+		return false
+	}
+	return dm == manualSampling
+}
+
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
 func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
@@ -564,7 +568,7 @@ func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.Pr
 		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
 		// Note that we DON'T skip single span sampling. We only do this for historical
 		// reasons and analytics events are deprecated so hopefully this can all go away someday.
-		if isManualUserDrop(priority, pt) {
+		if isManualUserDrop(pt) {
 			return false, false
 		}
 	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
