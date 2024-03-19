@@ -7,6 +7,7 @@ package domain
 
 import (
 	"fmt"
+	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 	"path/filepath"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -40,8 +40,8 @@ func TestInstallsOnDomainController(t *testing.T) {
 		suite := suite
 		t.Run(reflect.TypeOf(suite).Elem().Name(), func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake(
-				awsHostWindows.WithActiveDirectoryOptions(
+			e2e.Run(t, suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake(
+				winawshost.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 					activedirectory.WithDomainUser(TestUser, TestPassword),
 				))))

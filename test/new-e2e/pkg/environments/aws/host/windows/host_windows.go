@@ -1,4 +1,10 @@
-package windows
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package winawshost contains the definition of the AWS Windows Host environment.
+package winawshost
 
 import (
 	"fmt"
@@ -92,6 +98,9 @@ func WithActiveDirectoryOptions(opts ...activedirectory.Option) ProvisionerOptio
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Make sure to override any OS other than Windows
 	// TODO: Make the Windows version configurable
