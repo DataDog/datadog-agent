@@ -23,6 +23,8 @@ const (
 	HistorateType
 	SetType
 	DistributionType
+	GaugeWithTimestampType
+	CountWithTimestampType
 
 	// NumMetricTypes is the number of metric types; must be the last item here
 	NumMetricTypes
@@ -59,6 +61,10 @@ func (m MetricType) String() string {
 		return "Set"
 	case DistributionType:
 		return "Distribution"
+	case GaugeWithTimestampType:
+		return "GaugeWithTimestamp"
+	case CountWithTimestampType:
+		return "CountWithTimestamp"
 	default:
 		return ""
 	}

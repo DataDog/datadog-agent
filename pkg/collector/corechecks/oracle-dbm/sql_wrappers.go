@@ -18,12 +18,18 @@ import (
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
 	err := c.db.Select(s, sql, binds...)
 	err = handleError(c, &c.db, err)
+	if err != nil {
+		err = fmt.Errorf("%w %s", err, sql)
+	}
 	return err
 }
 
 func getWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
 	err := c.db.Get(s, sql, binds...)
 	err = handleError(c, &c.db, err)
+	if err != nil {
+		err = fmt.Errorf("%w %s", err, sql)
+	}
 	return err
 }
 
@@ -55,8 +61,13 @@ func handlePrivilegeError(c *Check, err error) (bool, error) {
 		return isPrivilegeError, err
 	}
 
+	hostingType := c.hostingType
+	if hostingType == "" {
+		hostingType = selfManaged
+	}
+
 	var link string
-	switch c.hostingType {
+	switch hostingType {
 	case selfManaged:
 		if c.multitenant {
 			link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/?tab=multitenant#grant-permissions"
@@ -97,7 +108,7 @@ func handleRefusedConnection(c *Check, db *sqlx.DB, err error) (bool, error) {
 	if isConnectionRefused(err) {
 		closeDatabase(c, db)
 		return true, fmt.Errorf(`%w
-The network connection between the Agent and the database server is disrupted. Run one of the following commands on the machine where the Agent is running to test the network connection: 
+The network connection between the Agent and the database server is disrupted. Run one of the following commands on the machine where the Agent is running to test the network connection:
 nc -v dbserver port
 telnet dbserver port
 curl dbserver:port`,
