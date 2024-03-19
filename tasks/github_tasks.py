@@ -27,7 +27,7 @@ def concurrency_key():
     current_ref = get_git_pretty_ref()
 
     # We want workflows to run to completion on the default branch and release branches
-    if re.search(r'^.*$', current_ref):
+    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
         return None
 
     return current_ref
