@@ -227,11 +227,11 @@ func noResponseHints(err error) string {
 }
 
 func clientWithOneRedirects() *http.Client {
-	clientCustom := &http.Client{}
-	clientCustom.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
+	return &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
-	return clientCustom
 }
 
 // See if the URL is redirected to another URL, and return the status code of the redirection
