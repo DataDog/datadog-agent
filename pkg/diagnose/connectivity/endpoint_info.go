@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // endpointInfo is a value object that contains all the information we need to
@@ -49,7 +50,7 @@ var (
 	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
 
 	// Flare endpoint
-	flareEndpointInfo = endpointInfo{transaction.Endpoint{Route: helpers.CreateFlareEndpoint(), Name: "flare"}, "HEAD", nil}
+	flareEndpointInfo = endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(config.Datadog), Name: "flare"}, "HEAD", nil}
 
 	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
 		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo, flareEndpointInfo}

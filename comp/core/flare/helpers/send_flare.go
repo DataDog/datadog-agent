@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -254,9 +255,9 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 	return analyzeResponse(r, apiKey)
 }
 
-// CreateFlareEndpoint creates the flare endpoint URL
-func CreateFlareEndpoint() string {
+// GetFlareEndpoint creates the flare endpoint URL
+func GetFlareEndpoint(cfg config.Reader) string {
 	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
-	flareRoute, _ := configUtils.AddAgentVersionToDomain(configUtils.GetInfraEndpoint(pkgconfig.Datadog), "flare")
+	flareRoute, _ := configUtils.AddAgentVersionToDomain(configUtils.GetInfraEndpoint(cfg), "flare")
 	return flareRoute + "/support/flare"
 }
