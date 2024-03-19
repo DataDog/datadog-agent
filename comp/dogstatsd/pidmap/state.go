@@ -2,7 +2,6 @@ package pidmap
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 )
 
@@ -48,6 +47,5 @@ func (s *state) ContainerIDForPID(pid int32) (string, error) {
 }
 
 func newPidMap() Component {
-	fmt.Println("rz6300 creating PID")
 	return &state{}
 }
