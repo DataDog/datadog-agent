@@ -416,6 +416,11 @@ type SuitesDeps struct {
 	AC             optional.Option[autodiscovery.Component]
 }
 
+// GetWMeta returns the workload metadata instance
+func (s *SuitesDeps) GetWMeta() optional.Option[workloadmeta.Component] {
+	return s.wmeta
+}
+
 // NewSuitesDeps returns a new SuitesDeps.
 func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,

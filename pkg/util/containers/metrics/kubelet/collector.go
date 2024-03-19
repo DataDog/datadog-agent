@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -39,7 +40,7 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newKubeletCollector(cache)
 		},
 	})

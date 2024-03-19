@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -35,8 +37,8 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
-			return newDockerCollector(cache)
+		Constructor: func(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+			return newDockerCollector(cache, wmeta)
 		},
 	})
 }
@@ -44,10 +46,10 @@ func init() {
 type dockerCollector struct {
 	du            *docker.DockerUtil
 	pidCache      *provider.Cache
-	metadataStore workloadmeta.Component
+	metadataStore optional.Option[workloadmeta.Component]
 }
 
-func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, error) {
+func newDockerCollector(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
 	if !config.IsFeaturePresent(config.Docker) {
@@ -60,10 +62,9 @@ func newDockerCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 	}
 
 	collector := &dockerCollector{
-		du:       du,
-		pidCache: provider.NewCache(pidCacheGCInterval),
-		// TODO(components): remove use of global, use injected component instead
-		metadataStore: workloadmeta.GetGlobalStore(),
+		du:            du,
+		pidCache:      provider.NewCache(pidCacheGCInterval),
+		metadataStore: wmeta,
 	}
 
 	collectors := &provider.Collectors{
@@ -200,8 +201,12 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 		return err
 	}
 
+	wmeta, ok := d.metadataStore.Get()
+	if !ok {
+		return errors.New("metadata is not enabled")
+	}
 	// Full refresh
-	containers := d.metadataStore.ListContainers()
+	containers := wmeta.ListContainers()
 
 	for _, container := range containers {
 		if container.Runtime == workloadmeta.ContainerRuntimeDocker && container.PID != 0 {

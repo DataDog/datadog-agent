@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -92,7 +93,7 @@ func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider
 	}
 
 	// TODO(components): stop relying on globals and use injected components instead whenever possible.
-	return NewContainerProvider(metrics.GetProvider(), wmeta, containerFilter)
+	return NewContainerProvider(metrics.GetProvider(optional.NewOption(wmeta)), wmeta, containerFilter)
 }
 
 // GetContainers returns containers found on the machine
