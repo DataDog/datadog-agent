@@ -31,12 +31,10 @@ type endpointInfo struct {
 	Payload []byte
 }
 
-var (
-	emptyPayload    = []byte("{}")
-	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
-)
-
 func getEndpointsInfo(cfg config.Reader) []endpointInfo {
+	emptyPayload := []byte("{}")
+	checkRunPayload := []byte("{\"check\": \"test\", \"status\": 0}")
+
 	// Each added/modified endpointInfo should be tested on all sites.
 	return []endpointInfo{
 		// v1 endpoints
