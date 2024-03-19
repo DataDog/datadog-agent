@@ -176,14 +176,6 @@ type MetricMapping struct {
 	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 }
 
-// Endpoint represent a datadog endpoint
-type Endpoint struct {
-	Site   string `mapstructure:"site" json:"site" yaml:"site"`
-	URL    string `mapstructure:"url" json:"url" yaml:"url"`
-	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
-	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
-}
-
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
 type DataType string
 
@@ -1216,6 +1208,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
+
+	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
+	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", false)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")

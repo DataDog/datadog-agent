@@ -10,6 +10,7 @@ package k8sconfig
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"os/user"
@@ -573,7 +574,7 @@ func procTable(str string) []proc {
 
 func TestKubAdmConfigLoader(t *testing.T) {
 	tmpDir := t.TempDir()
-	conf := loadTestConfiguration(tmpDir, kubadmProcTable)
+	conf := loadTestConfiguration(t, tmpDir, kubadmProcTable)
 	assert.Empty(t, conf.Errors)
 }
 
@@ -582,7 +583,7 @@ func TestKubEksConfigLoader(t *testing.T) {
 	for _, f := range eksFs {
 		f.create(t, tmpDir)
 	}
-	conf := loadTestConfiguration(tmpDir, eksProcTable)
+	conf := loadTestConfiguration(t, tmpDir, eksProcTable)
 	assert.Empty(t, conf.Errors)
 
 	assert.NotNil(t, conf.ManagedEnvironment)
@@ -608,7 +609,7 @@ func TestKubEksConfigLoader(t *testing.T) {
 	}
 
 	{
-		v := 10255
+		v := int(10255)
 		assert.NotNil(t, conf.Components.Kubelet.ReadOnlyPort)
 		assert.Equal(t, &v, conf.Components.Kubelet.ReadOnlyPort)
 		assert.Nil(t, kubeletConfig["readOnlyPort"])
@@ -621,7 +622,7 @@ func TestKubEksConfigLoader(t *testing.T) {
 		assert.True(t, ok)
 		x509, ok := authentication["x509"].(map[string]interface{})
 		assert.True(t, ok)
-		clientCAFile, ok := x509["clientCAFile"].(*K8sCertFileMeta)
+		clientCAFile, ok := x509["clientCAFile"].(map[string]interface{})
 		assert.True(t, ok)
 		assert.NotNil(t, clientCAFile)
 		assert.Nil(t, conf.Components.Kubelet.ClientCaFile)
@@ -643,7 +644,7 @@ func TestKubGkeConfigLoader(t *testing.T) {
 	for _, f := range gkeFs {
 		f.create(t, tmpDir)
 	}
-	conf := loadTestConfiguration(tmpDir, gkeProcTable)
+	conf := loadTestConfiguration(t, tmpDir, gkeProcTable)
 	assert.Empty(t, conf.Errors)
 
 	assert.NotNil(t, conf.ManagedEnvironment)
@@ -670,7 +671,7 @@ func TestKubGkeConfigLoader(t *testing.T) {
 	{
 		assert.Nil(t, conf.Components.Kubelet.ReadOnlyPort)
 		assert.NotNil(t, kubeletConfig["readOnlyPort"])
-		assert.Equal(t, 10255, kubeletConfig["readOnlyPort"])
+		assert.Equal(t, float64(10255), kubeletConfig["readOnlyPort"])
 	}
 
 	{
@@ -680,7 +681,7 @@ func TestKubGkeConfigLoader(t *testing.T) {
 		assert.True(t, ok)
 		x509, ok := authentication["x509"].(map[string]interface{})
 		assert.True(t, ok)
-		clientCAFile, ok := x509["clientCAFile"].(*K8sCertFileMeta)
+		clientCAFile, ok := x509["clientCAFile"].(map[string]interface{})
 		assert.True(t, ok)
 		assert.NotNil(t, clientCAFile)
 		assert.Nil(t, conf.Components.Kubelet.ClientCaFile)
@@ -697,7 +698,7 @@ func TestKubAksConfigLoader(t *testing.T) {
 	for _, f := range aksFs {
 		f.create(t, tmpDir)
 	}
-	conf := loadTestConfiguration(tmpDir, aksProcTable)
+	conf := loadTestConfiguration(t, tmpDir, aksProcTable)
 	assert.Empty(t, conf.Errors)
 
 	assert.NotNil(t, conf.ManagedEnvironment)
@@ -767,12 +768,17 @@ func TestKubAksConfigLoader(t *testing.T) {
 	}
 }
 
-func loadTestConfiguration(hostroot string, table string) *K8sNodeConfig {
+func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
 	l := &loader{hostroot: hostroot}
 	_, data := l.load(context.Background(), func(ctx context.Context) []proc {
 		return procTable(table)
 	})
-	return data
+	jsonData, err := json.Marshal(data)
+	assert.NoError(t, err)
+	var conf K8sNodeConfig
+	err = json.Unmarshal(jsonData, &conf)
+	assert.NoError(t, err)
+	return &conf
 }
 
 type mockFile struct {

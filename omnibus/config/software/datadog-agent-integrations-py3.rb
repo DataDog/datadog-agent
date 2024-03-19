@@ -149,19 +149,6 @@ build do
     nix_build_env["CFLAGS"] += " -std=c99"
   end
 
-  # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
-  # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
-  if redhat_target? && !arm_target?
-    nix_specific_build_env["cryptography"] = nix_build_env.merge(
-      {
-        "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
-        "OPENSSL_DIR" => "#{install_dir}/embedded/",
-        "PIP_NO_CACHE_DIR" => "off",
-        "PIP_FORCE_REINSTALL" => "1",
-      }
-    )
-  end
-
   #
   # Prepare the requirements file containing ALL the dependencies needed by
   # any integration. This will provide the "static Python environment" of the Agent.
