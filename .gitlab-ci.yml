@@ -1436,6 +1436,9 @@ workflow:
   - <<: *if_release_branch
     variables:
       FAST_TESTS: "false"
+  - <<: *if_tagged_commit
+    variables:
+      FAST_TESTS: "false"
   - <<: *if_triggered_pipeline
     variables:
       FAST_TESTS: "false"
