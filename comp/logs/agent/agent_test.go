@@ -25,6 +25,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
@@ -235,11 +236,7 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		suite.T().Run(test.name, func(*testing.T) {
 			suite.configOverrides["logs_enabled"] = test.enabled
 
-			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-				core.MockBundle(),
-				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-				inventoryagentimpl.MockModule(),
-			))
+			deps := suite.createDeps()
 
 			provides := newLogsAgent(deps)
 
@@ -279,11 +276,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 
 	suite.configOverrides["logs_enabled"] = true
 
-	deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-		core.MockBundle(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-		inventoryagentimpl.MockModule(),
-	))
+	deps := suite.createDeps()
 
 	provides := newLogsAgent(deps)
 
@@ -370,11 +363,7 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 		suite.T().Run(test.name, func(*testing.T) {
 			suite.configOverrides["logs_enabled"] = test.enabled
 
-			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-				core.MockBundle(),
-				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-				inventoryagentimpl.MockModule(),
-			))
+			deps := suite.createDeps()
 
 			provides := newLogsAgent(deps)
 
@@ -386,6 +375,16 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 			}
 		})
 	}
+}
+
+func (suite *AgentTestSuite) createDeps() dependencies {
+	return fxutil.Test[dependencies](suite.T(), fx.Options(
+		core.MockBundle(),
+		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
+		inventoryagentimpl.MockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
 }
 
 func TestAgentTestSuite(t *testing.T) {

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -61,6 +62,7 @@ type dependencies struct {
 	Config         configComponent.Component
 	InventoryAgent inventoryagent.Component
 	Hostname       hostname.Component
+	WMeta          optional.Option[workloadmeta.Component]
 }
 
 type provides struct {
@@ -92,6 +94,7 @@ type agent struct {
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
+	wmeta                     optional.Option[workloadmeta.Component]
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -114,6 +117,7 @@ func newLogsAgent(deps dependencies) provides {
 			services:        service.NewServices(),
 			tracker:         tailers.NewTailerTracker(),
 			flarecontroller: flareController.NewFlareController(),
+			wmeta:           deps.WMeta,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -187,7 +191,7 @@ func (a *agent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	a.SetupPipeline(processingRules)
+	a.SetupPipeline(processingRules, a.wmeta)
 	return nil
 }
 

@@ -12,6 +12,7 @@ package tailerfactory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -171,7 +172,11 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSource, error) {
 	containerID := source.Config.Identifier
 
-	pod, err := tf.workloadmetaStore.GetKubernetesPodForContainer(containerID)
+	wmeta, ok := tf.workloadmetaStore.Get()
+	if !ok {
+		return nil, errors.New("workloadmeta store is not initialized")
+	}
+	pod, err := wmeta.GetKubernetesPodForContainer(containerID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find pod for container %q: %w", containerID, err)
 	}
