@@ -31,7 +31,7 @@ def generate_tag_sets(rng, num_sets, tags_per_set, tag_length, unique_tagset_rat
         if tag_length % 2 == 0:
             half_length = tag_length // 2 - 1
         else:
-            half_length = (length - 1) // 2
+            half_length = (tag_length - 1) // 2
 
         if tag_length % 2 == 0 and rng.choice([True, False]):
             left_length = half_length + 1
