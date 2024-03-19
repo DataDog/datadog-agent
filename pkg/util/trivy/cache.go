@@ -52,14 +52,14 @@ func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir 
 	if err != nil {
 		return nil, err
 	}
-	cache, err := newPersistentCache(
+	c, err := newPersistentCache(
 		maxDiskSize,
 		db,
 	)
 	if err != nil {
 		return nil, err
 	}
-	trivyCache := &ScannerCache{cache: cache, wmeta: wmeta}
+	trivyCache := &ScannerCache{cache: c, wmeta: wmeta, cachedKeysForEntity: make(map[string][]string)}
 	return trivyCache, nil
 }
 
@@ -539,3 +539,5 @@ func (c *memoryCache) Close() (err error) {
 func (c *memoryCache) Clear() (err error) {
 	return c.Close()
 }
+func (c *memoryCache) clean() error                      { return nil }
+func (c *memoryCache) setKeysForEntity(string, []string) {}

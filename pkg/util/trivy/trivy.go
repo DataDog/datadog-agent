@@ -291,6 +291,8 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	// For filesystem scans, it is required to walk the filesystem to get the cache key so caching does not add any value.
+	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
 	fsArtifact, err := local2.NewArtifact(path, cache, getDefaultArtifactOption(path, scanOptions))
@@ -298,7 +300,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta)
+	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
@@ -315,12 +317,8 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	return c.scanFilesystem(ctx, path, nil, scanOptions)
 }
 
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata) (*types.Report, error) {
-	// The cacheCleaner can be nil if `getCache` is not called previously. At the moment, we initialize the cache
-	// in the `scanImage`, which is not called in the `ScanImageFromFilesystem` method.
-	// Filesystem scans use a memory cache that is not returned by the cacheProvider.
-	// Todo: refactor the cache initialization to avoid this.
-	if imgMeta != nil && c.cache != nil {
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner) (*types.Report, error) {
+	if imgMeta != nil && cache != nil {
 		// The artifact reference is only needed to clean up the blobs after the scan.
 		// It is re-generated from cached partial results during the scan.
 		artifactReference, err := artifact.Inspect(ctx)
@@ -354,7 +352,7 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta)
+	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta, c.cache)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
