@@ -82,4 +82,4 @@ intervals).
 
 ### Metric
 We have different kind of metrics (Gauge, Count, ...). Those are responsible to
-compute final `Serie` (set of points) to forwarde the the Datadog backend.
+compute the final `Series` (set of points) to forward to the Datadog backend.
