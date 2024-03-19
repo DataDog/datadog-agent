@@ -38,9 +38,11 @@ func makeYamlConfigString(section, entry string, val int) string {
 func TestDisablingDNSInspection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNS.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+    enabled: true
+    disable_dns_inspection: true
+`)
 
 		assert.False(t, cfg.DNSInspection)
 	})
@@ -59,9 +61,10 @@ func TestDisablingDNSInspection(t *testing.T) {
 func TestDisablingProtocolClassification(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-NoPRTCLClassifying.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+    enable_protocol_classification: false
+`)
 
 		assert.False(t, cfg.ProtocolClassificationEnabled)
 	})
@@ -80,9 +83,10 @@ func TestDisablingProtocolClassification(t *testing.T) {
 func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-EnableHTTPStatusCodeAggr.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_http_stats_by_status_code: true
+`)
 
 		assert.True(t, cfg.EnableHTTPStatsByStatusCode)
 	})
@@ -101,9 +105,10 @@ func TestEnableHTTPStatsByStatusCode(t *testing.T) {
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DeprecatedEnableHTTP.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  enable_http_monitoring: true
+`)
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
@@ -121,9 +126,10 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_http_monitoring: true
+`)
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
 	})
@@ -209,9 +215,10 @@ service_monitoring_config:
 func TestEnableHTTP2Monitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP2.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_http2_monitoring: true
+`)
 
 		assert.True(t, cfg.EnableHTTP2Monitoring)
 	})
@@ -280,9 +287,10 @@ func TestDisableGatewayLookup(t *testing.T) {
 		assert.True(t, cfg.EnableGatewayLookup)
 
 		aconfig.ResetSystemProbeConfig(t)
-		_, err = sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableGwLookup.yaml")
-		require.NoError(t, err)
-		cfg = New()
+		cfg = configurationFromYAML(t, `
+network_config:
+  enable_gateway_lookup: false
+`)
 
 		assert.False(t, cfg.EnableGatewayLookup)
 	})
@@ -301,9 +309,10 @@ func TestDisableGatewayLookup(t *testing.T) {
 func TestIgnoreConntrackInitFailure(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-IgnoreCTInitFailure.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  ignore_conntrack_init_failure: true
+`)
 
 		assert.True(t, cfg.IgnoreConntrackInitFailure)
 	})
@@ -323,9 +332,10 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 func TestEnablingDNSStatsCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableDNSStats.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  collect_dns_stats: true
+`)
 
 		assert.True(t, cfg.CollectDNSStats)
 	})
@@ -352,9 +362,11 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 func TestDisablingDNSDomainCollection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  collect_dns_domains: false
+  max_dns_stats: 100
+`)
 
 		assert.False(t, cfg.CollectDNSDomains)
 	})
@@ -381,9 +393,11 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 func TestSettingMaxDNSStats(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-DisableDNSDomains.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+system_probe_config:
+  collect_dns_domains: false
+  max_dns_stats: 100
+`)
 
 		assert.Equal(t, 100, cfg.MaxDNSStats)
 	})
@@ -443,9 +457,15 @@ func TestHTTPReplaceRules(t *testing.T) {
 
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRulesDeprecated.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  http_replace_rules:
+    - pattern: "/users/(.*)"
+      repl: "/users/?"
+    - pattern: "foo"
+      repl: "bar"
+    - pattern: "payment_id"
+`)
 
 		require.Len(t, cfg.HTTPReplaceRules, 3)
 		for i, r := range expected {
@@ -467,10 +487,15 @@ func TestHTTPReplaceRules(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-HTTPReplaceRules.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http_replace_rules:
+    - pattern: "/users/(.*)"
+      repl: "/users/?"
+    - pattern: "foo"
+      repl: "bar"
+    - pattern: "payment_id"
+`)
 		require.Len(t, cfg.HTTPReplaceRules, 3)
 		for i, r := range expected {
 			assert.Equal(t, r, cfg.HTTPReplaceRules[i])
@@ -544,9 +569,10 @@ func TestHTTPReplaceRules(t *testing.T) {
 func TestMaxTrackedHTTPConnections(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnectionsDeprecated.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  max_tracked_http_connections: 1025
+`)
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
 	})
@@ -562,9 +588,10 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxTrackedHTTPConnections.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_tracked_http_connections: 1025
+`)
 
 		require.Equal(t, cfg.MaxTrackedHTTPConnections, int64(1025))
 	})
@@ -1098,9 +1125,10 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 func TestMaxHTTPStatsBuffered(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBufferedDeprecated.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+network_config:
+  max_http_stats_buffered: 513
+`)
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
 	})
@@ -1116,9 +1144,10 @@ func TestMaxHTTPStatsBuffered(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		_, err := sysconfig.New("./testdata/TestDDSystemProbeConfig-MaxHTTPStatsBuffered.yaml")
-		require.NoError(t, err)
-		cfg := New()
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_http_stats_buffered: 513
+`)
 
 		require.Equal(t, cfg.MaxHTTPStatsBuffered, 513)
 	})
@@ -1557,7 +1586,7 @@ system_probe_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := modelCfgFromYAML(t, `
 system_probe_config:
-  process_service_inference: 
+  process_service_inference:
     enabled: true`)
 		require.False(t, cfg.GetBool("system_probe_config.process_service_inference.enabled"))
 	})

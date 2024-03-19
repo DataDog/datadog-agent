@@ -6,7 +6,9 @@
 // Package protocols provides the implementation of the network tracer protocols
 package protocols
 
-import "math"
+import (
+	"math"
+)
 
 // below is copied from pkg/trace/stats/statsraw.go
 

@@ -13,8 +13,8 @@
       docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       # DockerHub login
-      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
-      `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name $DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text
+      `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
       docker login --username "`${DOCKER_REGISTRY_LOGIN}" --password "`${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | out-file ci-scripts/docker-login.ps1
