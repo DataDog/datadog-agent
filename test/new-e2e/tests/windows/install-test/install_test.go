@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"testing"
 )
 
@@ -82,7 +83,11 @@ func (is *agentMSISuite) prepareHost() {
 	}
 }
 
-func (is *agentMSISuite) BeforeTest(_, _ string) {
+func (is *agentMSISuite) BeforeTest(suiteName, testName string) {
+	if beforeTest, ok := any(&is.BaseAgentInstallerSuite).(suite.BeforeTest); ok {
+		beforeTest.BeforeTest(suiteName, testName)
+	}
+
 	vm := is.Env().RemoteHost
 	var err error
 	// If necessary (for example for parallelization), store the snapshot per suite/test in a map
