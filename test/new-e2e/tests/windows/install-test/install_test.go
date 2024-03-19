@@ -130,7 +130,7 @@ func (is *agentMSISuite) TestInstall() {
 	is.uninstallAgentAndRunUninstallTests(t)
 
 	// Do uninstall tests here, but could/should be in its own test
-	AssertDoesNotChangeSystemFiles(is.T(), vm, is.beforeInstall)
+	AssertDoesNotRemoveSystemFiles(is.T(), vm, is.beforeInstall)
 }
 
 func (is *agentMSISuite) TestUpgrade() {

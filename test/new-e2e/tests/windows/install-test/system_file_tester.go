@@ -13,8 +13,8 @@ import (
 	"testing"
 )
 
+// SystemPaths returns a list of paths that are known to frequently change and should be ignored when collecting the list of files
 func SystemPaths() []string {
-	// Ignore these paths when collecting the list of files, they are known to frequently change
 	// Ignoring paths while creating the snapshot reduces the snapshot size by >90%
 	return []string{
 		`C:\Windows\assembly\`,
@@ -40,9 +40,11 @@ func SystemPaths() []string {
 	}
 }
 
-func AssertDoesNotChangeSystemFiles(t *testing.T, host *components.RemoteHost, beforeInstall *windowsCommon.FileSystemSnapshot) {
+// AssertDoesNotRemoveSystemFiles checks that the paths in the snapshot still exist
+func AssertDoesNotRemoveSystemFiles(t *testing.T, host *components.RemoteHost, beforeInstall *windowsCommon.FileSystemSnapshot) {
 	t.Run("does not change system files", func(tt *testing.T) {
 		afterUninstall, err := windowsCommon.NewFileSystemSnapshot(host, SystemPaths())
+		assert.NoError(tt, err)
 		result, err := beforeInstall.CompareSnapshots(host, afterUninstall)
 		assert.NoError(tt, err)
 
