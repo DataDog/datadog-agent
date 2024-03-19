@@ -127,6 +127,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 
+		metrics.TlmChanLength.Set(float64(len(p.outputChan)/cap(p.outputChan)), "processing")
+
 		p.outputChan <- message.NewTimedMessage(msg)
 	}
 }

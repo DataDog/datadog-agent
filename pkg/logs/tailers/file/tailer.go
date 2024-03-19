@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -348,6 +349,9 @@ func (t *Tailer) forwardMessages() {
 		if len(output.GetContent()) == 0 {
 			continue
 		}
+
+		metrics.TlmChanLength.Set(float64(len(t.outputChan)/cap(t.outputChan)), "tailer")
+
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -215,6 +216,8 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	// Stream to console if debug mode is enabled
 	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
 
+	metrics.TlmChanLength.Set(float64(len(p.in)/cap(p.in)), "epforwarder")
+
 	select {
 	case p.in <- message.NewTimedMessage(e):
 		return nil
@@ -275,6 +278,8 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEventBlocking(e *messag
 
 	// Stream to console if debug mode is enabled
 	p.eventPlatformReceiver.HandleMessage(e, []byte{}, eventType)
+
+	metrics.TlmChanLength.Set(float64(len(p.in)/cap(p.in)), "epforwarder")
 
 	p.in <- message.NewTimedMessage(e)
 	return nil

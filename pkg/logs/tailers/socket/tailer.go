@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -67,6 +68,7 @@ func (t *Tailer) forwardMessages() {
 	}()
 	for output := range t.decoder.OutputChan {
 		if len(output.GetContent()) > 0 {
+			metrics.TlmChanLength.Set(float64(len(t.outputChan)/cap(t.outputChan)), "tailer")
 			t.outputChan <- message.NewTimedMessage(message.NewMessageWithSource(output.GetContent(), message.StatusInfo, t.source, output.IngestionTimestamp))
 		}
 	}
