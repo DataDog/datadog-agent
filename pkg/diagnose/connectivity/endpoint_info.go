@@ -38,19 +38,19 @@ func getEndpointsInfo(cfg config.Reader) []endpointInfo {
 	// Each added/modified endpointInfo should be tested on all sites.
 	return []endpointInfo{
 		// v1 endpoints
-		endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload},
-		endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload},
-		endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload},
+		{endpoints.V1SeriesEndpoint, "POST", emptyPayload},
+		{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload},
+		{endpoints.V1IntakeEndpoint, "POST", emptyPayload},
 
 		// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
-		endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil},
-		endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload},
+		{endpoints.V1ValidateEndpoint, "GET", nil},
+		{endpoints.V1MetadataEndpoint, "POST", emptyPayload},
 
 		// v2 endpoints
-		endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload},
-		endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload},
+		{endpoints.SeriesEndpoint, "POST", emptyPayload},
+		{endpoints.SketchSeriesEndpoint, "POST", emptyPayload},
 
 		// Flare endpoint
-		endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil},
+		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil},
 	}
 }
