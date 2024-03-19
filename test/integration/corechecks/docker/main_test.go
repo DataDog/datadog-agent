@@ -131,7 +131,6 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 	store := deps.Store
-	workloadmeta.SetGlobalStore(store)
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
