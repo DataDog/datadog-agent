@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -97,7 +97,7 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
 	pod, err := kc.metadataStore.GetKubernetesPod(podUID)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if pkgerrors.IsNotFound(err) {
 			return "", nil
 		}
 		return "", err

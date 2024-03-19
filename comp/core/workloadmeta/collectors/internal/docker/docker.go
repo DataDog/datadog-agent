@@ -177,7 +177,11 @@ func (c *collector) stream(ctx context.Context) {
 }
 
 func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
-	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter)
+	if c.store == nil {
+		return errors.New("Start was not called")
+	}
+
+	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter, c.store)
 	if err != nil {
 		return err
 	}
