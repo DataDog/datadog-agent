@@ -8,8 +8,6 @@ extensions:
     conductor:
       slack: "datadog-agent-pipelines"
       schedule: "0 3 * * 1-5"
-      parameterized_deployment:
-        workflow_generator: ""
       env:
         - name: "staging"
           branch: "chouquette/conductor"
