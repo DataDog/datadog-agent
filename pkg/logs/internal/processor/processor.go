@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -161,11 +162,32 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	}
 
 	// TODO(remy): this is most likely where we want to plug in SDS
+	isPrime := func(n int) bool {
+		if n <= 1 {
+			return false
+		}
+		for i := 2; i*i <= n; i++ {
+			if n%i == 0 {
+				return false
+			}
+		}
+		return true
+	}
 
 	if strings.Contains(string(content), "chill") {
 		// Sleep for a second to simulate slow processing
 		delay := rand.Int63n(100)
-		time.Sleep(time.Duration(delay) * time.Microsecond)
+		start := time.Now()
+		biggest := 0
+		for num := 2; time.Since(start) < time.Duration(delay)*time.Microsecond; num++ {
+			if isPrime(num) {
+				if num > biggest {
+					biggest = num
+				}
+			}
+		}
+
+		fmt.Println("Biggest prime found:", biggest)
 	}
 
 	msg.SetContent(content)
