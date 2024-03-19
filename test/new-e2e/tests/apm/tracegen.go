@@ -35,6 +35,7 @@ type tracegenCfg struct {
 }
 
 func runTracegenDocker(h *components.RemoteHost, service string, cfg tracegenCfg) (shutdown func()) {
+	pullLatest(h)
 	var run, rm string
 	if cfg.transport == uds {
 		run, rm = tracegenUDSCommands(service)
@@ -46,12 +47,17 @@ func runTracegenDocker(h *components.RemoteHost, service string, cfg tracegenCfg
 	return func() { h.MustExecute(rm) }
 }
 
+func pullLatest(h *components.RemoteHost) {
+	h.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:main")
+}
+
 func tracegenUDSCommands(service string) (string, string) {
 	// TODO: use a proper docker-compose definition for tracegen
 	run := "docker run -d --rm --name " + service +
 		" -v /var/run/datadog/:/var/run/datadog/ " +
 		" -e DD_TRACE_AGENT_URL=unix:///var/run/datadog/apm.socket " +
 		" -e DD_SERVICE=" + service +
+		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" ghcr.io/datadog/apps-tracegen:main"
 	rm := "docker rm -f " + service
 	return run, rm
@@ -61,6 +67,7 @@ func tracegenTCPCommands(service string) (string, string) {
 	// TODO: use a proper docker-compose definition for tracegen
 	run := "docker run -d --network host --rm --name " + service +
 		" -e DD_SERVICE=" + service +
+		" -e DD_GIT_COMMIT_SHA=abcd1234 " +
 		" ghcr.io/datadog/apps-tracegen:main"
 	rm := "docker rm -f " + service
 	return run, rm

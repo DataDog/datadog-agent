@@ -27,7 +27,7 @@
 
 .write_ssh_key_file:
   - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.ssh_key > $AWS_EC2_SSH_KEY_FILE
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_SSM_NAME > $AWS_EC2_SSH_KEY_FILE
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
   - chmod 600 $AWS_EC2_SSH_KEY_FILE
@@ -45,7 +45,7 @@
 
 .kernel_matrix_testing_new_profile:
   - mkdir -p ~/.aws
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.agent-qa-profile >> ~/.aws/config
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
 .prepare_common_dependency_upload:
@@ -79,7 +79,6 @@
 .package_dependencies:
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
-  allow_failure: true
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -122,7 +121,7 @@
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
@@ -138,11 +137,15 @@
   after_script:
     - export AWS_PROFILE=agent-qa-ci
     - !reference [.shared_filters_and_queries]
-    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/$ARCH $CI_PROJECT_DIR/libvirt/xml $CI_PROJECT_DIR/libvirt/qemu $CI_PROJECT_DIR/libvirt/dnsmasq
     - !reference [.get_instance_ip_by_type]
     - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/ddvm-xml-'{}'.txt\""
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/$ARCH
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml/$ARCH
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "sudo virsh list --name | xargs -I '{}' sh -c \"sudo cp /var/log/libvirt/qemu/'{}'.log /tmp/qemu-ddvm-'{}'.log && sudo chown 1000:1000 /tmp/qemu-ddvm*\""
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP" "mkdir /tmp/dnsmasq && sudo cp /var/lib/libvirt/dnsmasq/* /tmp/dnsmasq/ && sudo chown 1000:1000 /tmp/dnsmasq/*"
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/qemu-ddvm-*.log" $CI_PROJECT_DIR/libvirt/qemu
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/dnsmasq/*" $CI_PROJECT_DIR/libvirt/dnsmasq
   artifacts:
     when: always
     paths:
@@ -169,12 +172,11 @@
 
 # -- Test runners
 .kernel_matrix_testing_run_tests:
-  allow_failure: true
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/job_env.txt

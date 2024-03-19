@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 

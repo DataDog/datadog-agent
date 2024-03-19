@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
@@ -391,6 +391,14 @@ def add_disks(vmconfig_template: VMConfig, vmset: VMSetDict):
     for template in vmconfig_template["vmsets"]:
         if tname in template.get("tags", []):
             vmset["disks"] = copy.deepcopy(template.get("disks", []))
+
+            if vmset["arch"] == local_arch:
+                kmt_os = get_kmt_os()
+            else:
+                kmt_os = Linux
+
+            for disk in vmset.get("disks", []):
+                disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
 
 
 def add_console(vmset: VMSetDict):

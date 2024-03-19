@@ -11,7 +11,6 @@
 package probe
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -49,14 +48,12 @@ type JKillActionReport struct {
 }
 
 // ToJSON marshal the action
-func (k *KillActionReport) ToJSON() ([]byte, error) {
+func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
 	k.RLock()
 	defer k.RUnlock()
 
 	// for sigkill wait for exit
-	if k.Signal == "SIGKILL" && !k.resolved {
-		return nil, errors.New("not resolved")
-	}
+	resolved := k.Signal != "SIGKILL" || k.resolved
 
 	jk := JKillActionReport{
 		Name:       rules.KillAction,
@@ -72,5 +69,10 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 		jk.TTR = k.ExitedAt.Sub(k.CreatedAt).String()
 	}
 
-	return utils.MarshalEasyJSON(jk)
+	data, err := utils.MarshalEasyJSON(jk)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return data, resolved, nil
 }

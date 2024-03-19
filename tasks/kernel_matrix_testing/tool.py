@@ -8,6 +8,8 @@ except ImportError:
         return text
 
 
+import os
+
 import invoke.exceptions as ie
 
 
@@ -39,3 +41,7 @@ def NoLibvirt():
     return Exit(
         "libvirt python module not installed. Install with 'pip install -r tasks/kernel_matrix_testing/requirements.txt'"
     )
+
+
+def is_root():
+    return os.getuid() == 0

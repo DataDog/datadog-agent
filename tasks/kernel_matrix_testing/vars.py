@@ -15,5 +15,4 @@ arch_mapping: Dict[str, Arch] = {
     "aarch64": "arm64",
 }
 
-
 VMCONFIG = "vmconfig.json"

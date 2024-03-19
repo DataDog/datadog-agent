@@ -124,7 +124,7 @@ float_list:
 	config.ReadConfig(bytes.NewBuffer(yamlExample))
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 
 	yamlExample = []byte(`---
@@ -157,7 +157,7 @@ float_list:
 	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 
@@ -320,12 +320,12 @@ func TestNotification(t *testing.T) {
 	updatedKeyCB1 := []string{}
 	updatedKeyCB2 := []string{}
 
-	config.OnUpdate(func(key string) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
 	config.Set("foo", "bar", SourceFile)
 	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
 
-	config.OnUpdate(func(key string) { updatedKeyCB2 = append(updatedKeyCB2, key) })
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB2 = append(updatedKeyCB2, key) })
 
 	config.Set("foo", "bar2", SourceFile)
 	config.Set("foo2", "bar2", SourceFile)
@@ -338,7 +338,7 @@ func TestNotificationNoChange(t *testing.T) {
 
 	updatedKeyCB1 := []string{}
 
-	config.OnUpdate(func(key string) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
 	config.Set("foo", "bar", SourceFile)
 	assert.Equal(t, []string{"foo"}, updatedKeyCB1)

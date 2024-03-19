@@ -15,9 +15,9 @@ import (
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

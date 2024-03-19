@@ -480,6 +480,7 @@ def build_run_config(run: Optional[str], packages: List[str]):
         "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
+        "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
     }
 )
 def test(
@@ -495,6 +496,7 @@ def test(
     ssh_key: Optional[str] = None,
     verbose=True,
     test_logs=False,
+    test_extra_arguments=None,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
@@ -523,6 +525,7 @@ def test(
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
             "-test-root /opt/system-probe-tests",
+            f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
         ]
         for d in domains:
             d.copy(ctx, f"{tmp.name}", "/tmp")
@@ -646,14 +649,17 @@ def ssh_config(
             continue
 
         for _, instance in build_infrastructure(stack.name, remote_ssh_key="").items():
-            print(f"Host kmt-{stack_name}-{instance.arch}")
-            print(f"    HostName {instance.ip}")
-            print("    User ubuntu")
-            print("")
+            if instance.arch != "local":
+                print(f"Host kmt-{stack_name}-{instance.arch}")
+                print(f"    HostName {instance.ip}")
+                print("    User ubuntu")
+                print("")
+
             for domain in instance.microvms:
                 print(f"Host kmt-{stack_name}-{instance.arch}-{domain.tag}")
                 print(f"    HostName {domain.ip}")
-                print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
+                if instance.arch != "local":
+                    print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
                 print("    User root")
                 # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant

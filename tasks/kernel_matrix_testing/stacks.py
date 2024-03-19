@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import platform
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, cast
 
@@ -33,28 +34,21 @@ X86_INSTANCE_TYPE = "m5d.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
-def get_active_branch_name() -> str:
+def _get_active_branch_name() -> str:
     head_dir = Path(".") / ".git" / "HEAD"
-    with head_dir.open("r") as f:
+    with head_dir.open() as f:
         content = f.read().splitlines()
 
-    # .git/HEAD will contain something like this
-    # ref: refs/heads/branchname
-    # For an automatic stack name based on the branch, we take the branch
-    # name from the ref line and replace any '/' with '-'
     for line in content:
-        if line[0:4] == "ref:":
-            # partition returns a string separated in three: before the separator (the
-            # argument), the separator and after the separator. In our case, the branch
-            # name is what's after the separator.
+        if line.startswith("ref:"):
             return line.partition("refs/heads/")[2].replace("/", "-")
 
-    return ""
+    raise Exit("Could not find active branch name")
 
 
 def check_and_get_stack(stack: Optional[str]) -> str:
     if stack is None:
-        stack = get_active_branch_name()
+        stack = _get_active_branch_name()
 
     if not stack.endswith("-ddvm"):
         return f"{stack}-ddvm"
@@ -135,9 +129,18 @@ def check_libvirt_sock_perms():
 
 
 def check_env(ctx: Context):
-    kvm_ok(ctx)
-    check_user_in_kvm(ctx)
-    check_user_in_libvirt(ctx)
+    info("[+] Checking environment for local machines")
+    supported_local_envs = ["Linux", "Darwin"]
+
+    if platform.system() not in supported_local_envs:
+        raise Exit("Local machines only supported on Linux and MacOS")
+
+    if platform.system() == "Linux":
+        kvm_ok(ctx)
+        # on macOS libvirt runs as the local user, so no need to check for group membership
+        check_user_in_kvm(ctx)
+        check_user_in_libvirt(ctx)
+
     check_libvirt_sock_perms()
 
 
@@ -287,7 +290,7 @@ def destroy_stack_force(ctx: Context, stack: str):
         if libvirt is None:
             raise NoLibvirt()
 
-        conn = libvirt.open("qemu:///system")
+        conn = libvirt.open(get_kmt_os().libvirt_socket)
         if not conn:
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
         delete_domains(conn, stack)
@@ -344,7 +347,7 @@ def pause_stack(stack: Optional[str] = None):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     if libvirt is None:
         raise NoLibvirt()
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
     conn.close()
 
@@ -355,7 +358,7 @@ def resume_stack(stack=None):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
     if libvirt is None:
         raise NoLibvirt()
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
     conn.close()
 
@@ -363,7 +366,7 @@ def resume_stack(stack=None):
 def read_libvirt_sock():
     if libvirt is None:
         raise NoLibvirt()
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
     conn.listAllDomains()
@@ -393,7 +396,7 @@ testPoolXML = """
 def write_libvirt_sock():
     if libvirt is None:
         raise NoLibvirt()
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")
     pool = conn.storagePoolDefineXML(testPoolXML, 0)

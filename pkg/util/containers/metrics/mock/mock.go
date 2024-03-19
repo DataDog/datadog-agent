@@ -23,9 +23,10 @@ type MetricsProvider struct {
 
 // MetaCollector is a mocked provider.MetaCollector
 type MetaCollector struct {
-	ContainerID  string
-	CIDFromPID   map[int]string
-	CIDFromInode map[uint64]string
+	ContainerID           string
+	CIDFromPID            map[int]string
+	CIDFromInode          map[uint64]string
+	CIDFromPodUIDContName map[string]string
 }
 
 // GetSelfContainerID returns the container ID for current container.
@@ -41,9 +42,22 @@ func (mc *MetaCollector) GetContainerIDForPID(pid int, _ time.Duration) (string,
 	return "", nil
 }
 
-// GetContainerIDForInode returns a container ID for given inode.
+// GetContainerIDForInode returns a container ID for the given inode.
 func (mc *MetaCollector) GetContainerIDForInode(inode uint64, _ time.Duration) (string, error) {
 	if val, found := mc.CIDFromInode[inode]; found {
+		return val, nil
+	}
+	return "", nil
+}
+
+// ContainerIDForPodUIDAndContName returns a container ID for the given pod uid and container name.
+func (mc *MetaCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+	initPrefix := ""
+	if initCont {
+		initPrefix = "i-"
+	}
+	cacheKey := initPrefix + podUID + "/" + contName
+	if val, found := mc.CIDFromPodUIDContName[cacheKey]; found {
 		return val, nil
 	}
 	return "", nil

@@ -37,6 +37,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
+const (
+	maxMessageSize = 256 * 1024
+)
+
 type client struct {
 	conn             net.Conn
 	probe            *EBPFLessProbe
@@ -333,7 +337,7 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 	}
 
 	size := native.Endian.Uint32(sizeBuf)
-	if size > 64*1024 {
+	if size > maxMessageSize {
 		return fmt.Errorf("data overflow the max size: %d", size)
 	}
 
@@ -341,12 +345,16 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 		p.buf = make([]byte, size)
 	}
 
-	n, err = conn.Read(p.buf[:size])
-	if err != nil {
-		return err
+	var read uint32
+	for read < size {
+		n, err = conn.Read(p.buf[read:size])
+		if err != nil {
+			return err
+		}
+		read += uint32(n)
 	}
 
-	return msgpack.Unmarshal(p.buf[0:n], msg)
+	return msgpack.Unmarshal(p.buf[0:size], msg)
 }
 
 // GetClientsCount returns the number of connected clients

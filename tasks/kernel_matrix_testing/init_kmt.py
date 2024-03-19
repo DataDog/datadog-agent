@@ -9,23 +9,22 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.compiler import build_compiler
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.tool import info
+from tasks.kernel_matrix_testing.tool import info, is_root
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
 
 
-def is_root() -> bool:
-    return os.getuid() == 0
-
-
 def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
     ctx.run(f"cp tasks/kernel_matrix_testing/ddvm_rsa {kmt_dir}")
-    ctx.run(f"chmod 400 {kmt_dir}/ddvm_rsa")
+    ctx.run(f"chmod 600 {kmt_dir}/ddvm_rsa")
 
 
 def init_kernel_matrix_testing_system(ctx: Context, lite: bool):
     kmt_os = get_kmt_os()
+
+    if not lite:
+        kmt_os.init_local(ctx)
 
     sudo = "sudo" if not is_root() else ""
     user = getpass.getuser()
@@ -35,16 +34,6 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool):
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.libvirt_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.rootfs_dir}")
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.shared_dir}")
-
-    if not lite:
-        ## fix libvirt conf
-        ctx.run(
-            f"{sudo} sed --in-place 's/#security_driver = \"selinux\"/security_driver = \"none\"/' {kmt_os.qemu_conf}"
-        )
-        ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {kmt_os.qemu_conf}")
-        ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {kmt_os.qemu_conf}")
-
-        kmt_os.restart_libvirtd(ctx, sudo)
 
     # download dependencies
     if not lite:

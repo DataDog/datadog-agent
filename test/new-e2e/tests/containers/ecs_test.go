@@ -25,8 +25,18 @@ import (
 	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/fatih/color"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+)
+
+const (
+	taskNameDogstatsdUDS = "dogstatsd-uds"
+	taskNameDogstatsdUDP = "dogstatsd-udp"
+
+	taskNameTracegenUDS = "tracegen-uds"
+	taskNameTracegenTCP = "tracegen-tcp"
 )
 
 type ecsSuite struct {
@@ -181,7 +191,7 @@ func (suite *ecsSuite) TestNginxECS() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
-			Tags: []string{"ecs_launch_type:ec2"},
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -204,6 +214,7 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^task_name:.*-nginx-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -243,7 +254,7 @@ func (suite *ecsSuite) TestRedisECS() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
-			Tags: []string{"ecs_launch_type:ec2"},
+			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -257,15 +268,13 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
 				`^task_family:.*-redis-ec2$`,
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -303,7 +312,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
-			Tags: []string{"ecs_launch_type:fargate"},
+			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -326,6 +335,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 				`^task_name:.*-nginx-fg$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
@@ -336,7 +346,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
-			Tags: []string{"ecs_launch_type:fargate"},
+			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
@@ -351,9 +361,6 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^image_id:sha256:`,
 				`^image_name:public.ecr.aws/docker/library/redis$`,
 				`^image_tag:latest$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^region:us-east-1$`,
 				`^short_image:redis$`,
 				`^task_arn:`,
@@ -361,6 +368,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^task_name:.*-redis-fg*`,
 				`^task_version:[[:digit:]]+$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 }
@@ -371,7 +379,7 @@ func (suite *ecsSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
-				"ecs_container_name:stress-ng",
+				"^ecs_container_name:stress-ng$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -379,13 +387,14 @@ func (suite *ecsSuite) TestCPU() {
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-stress-ng-ec2-`,
-				`^docker_image:ghcr.io/colinianking/stress-ng$`,
+				`^docker_image:ghcr.io/colinianking/stress-ng:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:stress-ng$`,
 				`^git.commit.sha:`,
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
 				`^image_id:sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^runtime:docker$`,
 				`^short_image:stress-ng$`,
 				`^task_arn:`,
@@ -401,17 +410,27 @@ func (suite *ecsSuite) TestCPU() {
 	})
 }
 
-func (suite *ecsSuite) TestDogstatsd() {
-	// Test dogstatsd origin detection with UDS
+func (suite *ecsSuite) TestDogtstatsdUDS() {
+	suite.testDogstatsd(taskNameDogstatsdUDS)
+}
+
+func (suite *ecsSuite) TestDogtstatsdUDP() {
+	suite.testDogstatsd(taskNameDogstatsdUDP)
+}
+
+func (suite *ecsSuite) testDogstatsd(taskName string) {
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
+			Tags: []string{
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
-				`^container_name:ecs-.*-dogstatsd-uds-ec2-`,
+				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
 				`^docker_image:ghcr.io/datadog/apps-dogstatsd:main$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^ecs_container_name:dogstatsd$`,
@@ -423,8 +442,8 @@ func (suite *ecsSuite) TestDogstatsd() {
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
 				`^task_arn:`,
-				`^task_family:.*-dogstatsd-uds-ec2$`,
-				`^task_name:.*-dogstatsd-uds-ec2$`,
+				`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
 		},
@@ -460,4 +479,54 @@ func (suite *ecsSuite) TestPrometheus() {
 			},
 		},
 	})
+}
+
+func (suite *ecsSuite) TestTraceUDS() {
+	suite.testTrace(taskNameTracegenUDS)
+}
+
+func (suite *ecsSuite) TestTraceTCP() {
+	suite.testTrace(taskNameTracegenTCP)
+}
+
+// testTrace verifies that traces are tagged with container and pod tags.
+func (suite *ecsSuite) testTrace(taskName string) {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		traces, cerr := suite.Fakeintake.GetTraces()
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
+			return
+		}
+
+		var err error
+		// Iterate starting from the most recent traces
+		for _, trace := range traces {
+			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
+				return k + ":" + v
+			})
+			// Assert origin detection is working properly
+			err = assertTags(tags, []*regexp.Regexp{
+				regexp.MustCompile(`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^container_id:`),
+				regexp.MustCompile(`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`),
+				regexp.MustCompile(`^docker_image:ghcr.io/datadog/apps-tracegen:main$`),
+				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^ecs_container_name:tracegen`),
+				regexp.MustCompile(`^git.commit.sha:`),                                                       // org.opencontainers.image.revision docker image label
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
+				regexp.MustCompile(`^image_id:sha256:`),
+				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen`),
+				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^short_image:apps-tracegen`),
+				regexp.MustCompile(`^task_arn:`),
+				regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+				regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
+			}, false)
+			if err == nil {
+				break
+			}
+		}
+		require.NoErrorf(c, err, "Failed finding trace with proper tags")
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
