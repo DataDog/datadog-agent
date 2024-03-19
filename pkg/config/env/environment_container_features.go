@@ -23,6 +23,8 @@ const (
 	EKSFargate Feature = "eksfargate"
 	// KubeOrchestratorExplorer can be enabled
 	KubeOrchestratorExplorer Feature = "orchestratorexplorer"
+	// ECSOrchestratorExplorer can be enabled
+	ECSOrchestratorExplorer Feature = "ecsorchestratorexplorer"
 	// CloudFoundry socket present
 	CloudFoundry Feature = "cloudfoundry"
 	// Podman containers storage path accessible
