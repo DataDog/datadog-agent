@@ -240,18 +240,11 @@ func (l *loader) loadConfigFileMeta(name string) *K8sConfigFileMeta {
 	}
 
 	var content interface{}
-	switch filepath.Ext(name) {
-	case ".yaml", ".yml":
-		if err := yaml.Unmarshal(b, &content); err != nil {
-			l.pushError(err)
-			content = b
-		}
-	case ".json":
-		if err := json.Unmarshal(b, &content); err != nil {
-			l.pushError(err)
-			content = b
-		}
-	default:
+	erru := json.Unmarshal(b, &content)
+	if erru != nil {
+		erru = yaml.Unmarshal(b, &content)
+	}
+	if erru != nil {
 		content = string(b)
 	}
 
@@ -464,15 +457,12 @@ func (l *loader) loadKubeconfigMeta(name string) *K8sKubeconfigMeta {
 	}
 
 	var source k8SKubeconfigSource
-	var err error
-	switch filepath.Ext(name) {
-	case ".json":
-		err = json.Unmarshal(b, &source)
-	default:
-		err = yaml.Unmarshal(b, &source)
+	erru := json.Unmarshal(b, &source)
+	if erru != nil {
+		erru = yaml.Unmarshal(b, &source)
 	}
-	if err != nil {
-		l.pushError(err)
+	if erru != nil {
+		l.pushError(erru)
 		return nil
 	}
 
