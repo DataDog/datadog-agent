@@ -151,8 +151,8 @@
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-ci-experience
-/cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/oracle.d/conf.yaml.default @DataDog/database-monitoring
+/cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring-agent
+/cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring-agent
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/install*.sh                  @DataDog/agent-build-and-releases
@@ -319,7 +319,8 @@
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
-/pkg/collector/corechecks/oracle        @DataDog/database-monitoring
+/pkg/collector/corechecks/oracle        @DataDog/database-monitoring-agent
+/pkg/collector/corechecks/oracle-dbm        @DataDog/database-monitoring-agent
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/platform-integrations
@@ -458,7 +459,7 @@
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
-/pkg/databasemonitoring                 @DataDog/database-monitoring
+/pkg/databasemonitoring                 @DataDog/database-monitoring-agent
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/network-device-monitoring
