@@ -6,16 +6,20 @@
 package marshal
 
 import (
+	"fmt"
+	"io"
 	"runtime"
 	"testing"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/suite"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	cfgmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -133,15 +137,22 @@ func testFormatHTTP2Stats(t *testing.T, aggregateByStatusCode bool) {
 
 func (s *HTTP2Suite) TestFormatHTTP2StatsByPath() {
 	t := s.T()
-	t.Run("status code", func(t *testing.T) {
-		testFormatHTTP2StatsByPath(t, true)
+	t.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
 	})
-	t.Run("status class", func(t *testing.T) {
-		testFormatHTTP2StatsByPath(t, false)
-	})
+	for _, enableCustomSketchEncoding := range []bool{true, false} {
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, enableCustomSketchEncoding, cfgmodel.SourceAgentRuntime)
+		for _, aggregateByStatusCode := range []bool{true, false} {
+			testName := fmt.Sprintf("status code aggregation (%s), custom sketch encoding (%s)", boolToEnabledString(aggregateByStatusCode), boolToEnabledString(enableCustomSketchEncoding))
+			t.Run(testName, func(t *testing.T) {
+				testFormatHTTP2StatsByPath(t, aggregateByStatusCode, enableCustomSketchEncoding)
+			})
+		}
+	}
 }
 
-func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
+func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode, enableCustomSketchEncoding bool) {
 	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
 
 	http2ReqStats.AddRequest(100, 12.5, 0, nil)
@@ -199,13 +210,13 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	statsByResponseStatus := endpointAggregations[0].StatsByStatusCode
 	assert.Len(t, statsByResponseStatus, 2)
 
-	serializedLatencies := statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(100))].Latencies
-	sketch := unmarshalSketch(t, serializedLatencies)
+	serializedLatencies := statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(100))]
+	sketch := unmarshalSketch(t, serializedLatencies, enableCustomSketchEncoding)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 12.5)
 
-	serializedLatencies = statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(405))].Latencies
-	sketch = unmarshalSketch(t, serializedLatencies)
+	serializedLatencies = statsByResponseStatus[int32(http2ReqStats.NormalizeStatusCode(405))]
+	sketch = unmarshalSketch(t, serializedLatencies, enableCustomSketchEncoding)
 	assert.Equal(t, 2.0, sketch.GetCount())
 	verifyQuantile(t, sketch, 0.5, 3.5)
 
@@ -377,4 +388,36 @@ func getHTTP2Aggregations(t *testing.T, encoder *http2Encoder, c network.Connect
 	require.NoError(t, err)
 
 	return &aggregations, staticTags, dynamicTags
+}
+
+func commonHTTP2SketchEncodingBenchmark(b *testing.B) {
+	payload := generateBenchMarkPayload(1, 1)
+	builder := model.NewConnectionBuilder(io.Discard)
+	b.ResetTimer()
+	b.ReportAllocs()
+	var h *http2Encoder
+	for i := 0; i < b.N; i++ {
+		// HTTP2 and HTTP share the same data format, so we can reuse the same payload
+		h = newHTTP2Encoder(payload.HTTP)
+		h.WriteHTTP2AggregationsAndTags(payload.Conns[0], builder)
+		builder.Reset(io.Discard)
+	}
+}
+
+func BenchmarkHTTP2SketchProto(b *testing.B) {
+	b.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
+	})
+	coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, false, cfgmodel.SourceAgentRuntime)
+	commonHTTP2SketchEncodingBenchmark(b)
+}
+
+func BenchmarkHTTP2SketchCustom(b *testing.B) {
+	b.Cleanup(func() {
+		origValue := coreconfig.SystemProbe.Get(customDDSketchEncodingCfg)
+		coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, origValue, cfgmodel.SourceAgentRuntime)
+	})
+	coreconfig.SystemProbe.Set(customDDSketchEncodingCfg, true, cfgmodel.SourceAgentRuntime)
+	commonHTTP2SketchEncodingBenchmark(b)
 }
