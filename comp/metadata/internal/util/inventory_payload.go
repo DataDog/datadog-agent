@@ -155,7 +155,7 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	// Since we upload the information to different endpoints, we could run into a race condition.
 	// Ensuring the request order and timeframe reduces the likelihood of hitting that race condition.
 	if time.Now().Sub(i.createdAt).Minutes() < 1 {
-		return i.MinInterval
+		return time.Duration(i.createdAt.Add(1 * time.Minute).Nanosecond())
 	}
 
 	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if it's

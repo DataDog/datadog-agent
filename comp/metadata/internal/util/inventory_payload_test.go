@@ -125,6 +125,7 @@ func TestFillFlare(t *testing.T) {
 func TestCollectRecentLastCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 	i.LastCollect = time.Now()
+	i.createdAt = time.Now().Add(-2 * time.Minute)
 
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
@@ -136,12 +137,13 @@ func TestCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
 	// testing collect do not send metadata if hasn't elapsed a minute from createdAt time
-	i.createdAt = time.Now().Add(2 * time.Minute)
+	createdAt := time.Now().Add(2 * time.Minute)
+	i.createdAt = createdAt
 
 	serializerMock := i.serializer.(*serializer.MockSerializer)
 
 	interval := i.collect(context.Background())
-	assert.Equal(t, defaultMinInterval, interval)
+	assert.Equal(t, time.Duration(createdAt.Add(1*time.Minute).Nanosecond()), interval)
 	assert.Empty(t, serializerMock.Calls)
 
 	// testing collect with LastCollect > MaxInterval
