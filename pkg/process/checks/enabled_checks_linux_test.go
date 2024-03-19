@@ -14,10 +14,11 @@ import (
 )
 
 func TestProcessEventsCheckEnabled(t *testing.T) {
+	deps := createDeps(t)
 	t.Run("default", func(t *testing.T) {
 		cfg := config.Mock(t)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -25,7 +26,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
 		assertContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -33,7 +34,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", false)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 }
