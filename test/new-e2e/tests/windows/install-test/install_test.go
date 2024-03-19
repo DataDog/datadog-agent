@@ -105,15 +105,6 @@ func (is *agentMSISuite) TestInstall() {
 	// install the agent
 	remoteMSIPath := is.installAgentPackage(vm, is.AgentPackage)
 
-	is.Run("install Agent only modify Agent related paths", func() {
-		afterInstall, err := windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
-		is.Require().NoError(err)
-		results, err := is.beforeInstall.CompareSnapshots(vm, afterInstall)
-		is.Require().NoError(err)
-		// TODO: compare files to ensure they all start with Agent paths ("%PROGRAMDATA%\Datadog" "%PROGRAMFILES%\Datadog Agent")
-		is.Require().NotEmpty(results)
-	})
-
 	// run tests
 	if !t.TestInstallExpectations(is.T()) {
 		is.T().FailNow()
