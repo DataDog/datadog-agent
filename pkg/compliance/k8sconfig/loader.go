@@ -98,7 +98,10 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 	}
 
 	if len(l.errs) > 0 {
-		node.Errors = l.errs
+		node.Errors = make([]string, 0, len(l.errs))
+		for _, err := range l.errs {
+			node.Errors = append(node.Errors, err.Error())
+		}
 	}
 
 	resourceType := "kubernetes_worker_node"
