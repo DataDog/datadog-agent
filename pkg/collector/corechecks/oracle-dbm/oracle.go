@@ -108,6 +108,7 @@ type Check struct {
 	lastOracleRows                          []OracleRow // added for tests
 	databaseRole                            string
 	openMode                                string
+	legacyIntegrationCompatibilityMode      bool
 }
 
 type vDatabase struct {
@@ -194,7 +195,7 @@ func (c *Check) Run() error {
 
 	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
 
-	if dbInstanceIntervalExpired {
+	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode {
 		err := sendDbInstanceMetadata(c)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err))
@@ -210,20 +211,22 @@ func (c *Check) Run() error {
 		}
 		fixTags(c)
 
-		err := c.OS_Stats()
-		if err != nil {
-			db, errConnect := c.Connect()
-			if errConnect != nil {
-				handleServiceCheck(c, errConnect)
-			} else if db == nil {
-				handleServiceCheck(c, fmt.Errorf("empty connection"))
+		if !c.legacyIntegrationCompatibilityMode {
+			err := c.OS_Stats()
+			if err != nil {
+				db, errConnect := c.Connect()
+				if errConnect != nil {
+					handleServiceCheck(c, errConnect)
+				} else if db == nil {
+					handleServiceCheck(c, fmt.Errorf("empty connection"))
+				} else {
+					handleServiceCheck(c, nil)
+				}
+				closeDatabase(c, db)
+				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err))
 			} else {
 				handleServiceCheck(c, nil)
 			}
-			closeDatabase(c, db)
-			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err))
-		} else { //nolint:revive // TODO(DBM) Fix revive linter
-			handleServiceCheck(c, nil)
 		}
 
 		if c.config.SysMetrics.Enabled {
@@ -323,6 +326,9 @@ func (c *Check) Run() error {
 	}
 	sendServiceCheck(c, serviceCheckName, status, message)
 	commit(c)
+	if c.legacyIntegrationCompatibilityMode {
+		log.Warnf("%s missing privileges detected, running in deprecated integration compatibility mode", c.logPrompt)
+	}
 	return allErrors
 }
 

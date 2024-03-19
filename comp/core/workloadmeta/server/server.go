@@ -56,7 +56,7 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 			}
 			eventBundle.Acknowledge()
 
-			var protobufEvents []*pb.WorkloadmetaEvent
+			protobufEvents := make([]*pb.WorkloadmetaEvent, 0, len(eventBundle.Events))
 
 			for _, event := range eventBundle.Events {
 				protobufEvent, err := protoutils.ProtobufEventFromWorkloadmetaEvent(event)
