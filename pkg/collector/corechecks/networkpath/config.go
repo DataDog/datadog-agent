@@ -76,9 +76,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 }
 
 func firstNonZero(values ...time.Duration) time.Duration {
-	for _, s := range values {
-		if s != 0 {
-			return s
+	for _, value := range values {
+		if value != 0 {
+			return value
 		}
 	}
 	return 0
