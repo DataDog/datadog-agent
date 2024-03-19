@@ -73,11 +73,12 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         if vmset["arch"] != arch:
             continue
 
-        for disk in vmset["disks"]:
+        for disk in vmset.get("disks", []):
             # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
             d = os.path.basename(disk["target"])
             if not os.path.exists(os.path.join(rootfs_dir, d)):
-                d = d.removesuffix(".xz")
+                if d.endswith(".xz"):
+                    d = d[: -len(".xz")]
                 to_download.append(d)
 
     # download and compare hash sums
