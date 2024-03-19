@@ -13,13 +13,16 @@ import (
 	"strings"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/fx"
 )
 
 const (
@@ -28,20 +31,23 @@ const (
 )
 
 type collector struct {
-	id      string
-	store   workloadmeta.Component
-	catalog workloadmeta.AgentType
-	metaV2  v2.Client
-	seen    map[workloadmeta.EntityID]struct{}
+	id            string
+	store         workloadmeta.Component
+	catalog       workloadmeta.AgentType
+	metaV2        v2.Client
+	metaV4        v3or4.Client
+	seen          map[workloadmeta.EntityID]struct{}
+	v4TaskEnabled bool
 }
 
 // NewCollector returns a new ecsfargate collector provider and an error
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			seen:    make(map[workloadmeta.EntityID]struct{}),
+			id:            collectorID,
+			catalog:       workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			seen:          make(map[workloadmeta.EntityID]struct{}),
+			v4TaskEnabled: util.Isv4TaskEnabled(),
 		},
 	}, nil
 }
@@ -64,10 +70,27 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return err
 	}
 
+	if c.v4TaskEnabled {
+		c.metaV4, err = ecsmeta.V4FromCurrentTask()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (c *collector) Pull(ctx context.Context) error {
+	if c.v4TaskEnabled {
+		task, err := c.metaV4.GetTask(ctx)
+		if err != nil {
+			return err
+		}
+
+		c.store.Notify(c.parseV4Task(task))
+		return nil
+	}
+
 	task, err := c.metaV2.GetTask(ctx)
 	if err != nil {
 		return err
@@ -91,7 +114,7 @@ func (c *collector) parseTask(task *v2.Task) []workloadmeta.CollectorEvent {
 	seen := make(map[workloadmeta.EntityID]struct{})
 
 	// We only want to collect tasks without a STOPPED status.
-	if task.KnownStatus == "STOPPED" {
+	if task.KnownStatus == workloadmeta.ECSTaskKnownStatusStopped {
 		return events
 	}
 
@@ -230,6 +253,45 @@ func (c *collector) parseTaskContainers(
 	}
 
 	return taskContainers, events
+}
+
+func (c *collector) parseV4Task(task *v3or4.Task) []workloadmeta.CollectorEvent {
+	events := []workloadmeta.CollectorEvent{}
+	seen := make(map[workloadmeta.EntityID]struct{})
+
+	// We only want to collect tasks without a STOPPED status.
+	if task.KnownStatus == workloadmeta.ECSTaskKnownStatusStopped {
+		return events
+	}
+
+	events = append(events, util.ParseV4Task(*task, seen)...)
+
+	for seenID := range c.seen {
+		if _, ok := seen[seenID]; ok {
+			continue
+		}
+
+		var entity workloadmeta.Entity
+		switch seenID.Kind {
+		case workloadmeta.KindECSTask:
+			entity = &workloadmeta.ECSTask{EntityID: seenID}
+		case workloadmeta.KindContainer:
+			entity = &workloadmeta.Container{EntityID: seenID}
+		default:
+			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceRuntime,
+			Entity: entity,
+		})
+	}
+
+	c.seen = seen
+
+	return events
 }
 
 // parseClusterName returns the short name of a cluster. it detects if the name
