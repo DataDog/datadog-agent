@@ -96,19 +96,27 @@ func (i *installer) uninstallExperiment(pkg string) error {
 }
 
 func (i *installer) startExperiment(pkg string) error {
-	// TODO(arthur): currently we only support the datadog-agent package
-	if pkg != "datadog-agent" {
+	switch pkg {
+	case "datadog-agent":
+		return service.StartAgentExperiment()
+	case "datadog-updater":
+		return service.StartUpdaterExperiment()
+	default:
+		// TODO: currently we don't support arbitrary experiments
 		return nil
 	}
-	return service.StartAgentExperiment()
 }
 
 func (i *installer) stopExperiment(pkg string) error {
-	// TODO(arthur): currently we only support the datadog-agent package
-	if pkg != "datadog-agent" {
+	switch pkg {
+	case "datadog-agent":
+		return service.StopAgentExperiment()
+	case "datadog-updater":
+		return service.StopUpdaterExperiment()
+	default:
+		// TODO: currently we don't support arbitrary experiments
 		return nil
 	}
-	return service.StopAgentExperiment()
 }
 
 func extractPackageLayers(image oci.Image, configDir string, packageDir string) error {

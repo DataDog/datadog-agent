@@ -9,6 +9,8 @@ package run
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -83,6 +85,20 @@ func runFxWrapper(params *cliParams) error {
 	)
 }
 
-func run(_ localapi.Component) error {
-	select {}
+func run(shutdowner fx.Shutdowner, _ localapi.Component) error {
+	handleSignals(shutdowner)
+	return nil
+}
+
+func handleSignals(shutdowner fx.Shutdowner) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGPIPE)
+	for signo := range sigChan {
+		switch signo {
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Infof("Received signal %d (%v)", signo, signo)
+			_ = shutdowner.Shutdown()
+			return
+		}
+	}
 }

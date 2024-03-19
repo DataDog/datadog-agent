@@ -89,6 +89,7 @@ build do
       "datadog-agent-process-exp.service.erb" => "datadog-agent-process-exp.service",
       "datadog-agent-security-exp.service.erb" => "datadog-agent-security-exp.service",
       "datadog-agent-sysprobe-exp.service.erb" => "datadog-agent-sysprobe-exp.service",
+      "datadog-updater.service-exp.erb" => "datadog-updater-exp.service",
     }
     expTemplateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/experiment"
