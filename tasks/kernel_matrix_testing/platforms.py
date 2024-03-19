@@ -12,4 +12,4 @@ platforms_file = "test/new-e2e/system-probe/config/platforms.json"
 
 def get_platforms():
     with open(platforms_file) as f:
-        return cast(Platforms, json.load(f))
+        return cast('Platforms', json.load(f))

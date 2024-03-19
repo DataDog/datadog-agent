@@ -304,7 +304,7 @@ def destroy_stack_force(ctx: Context, stack: str):
 
     # Find a better solution for this
     pulumi_stack_name = cast(
-        Result,
+        'Result',
         ctx.run(
             f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
             warn=True,

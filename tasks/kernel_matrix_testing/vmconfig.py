@@ -138,7 +138,7 @@ def get_vmconfig_template_file(template="system-probe"):
 
 def get_vmconfig(file: PathOrStr) -> VMConfig:
     with open(file) as f:
-        return cast(VMConfig, json.load(f))
+        return cast('VMConfig', json.load(f))
 
 
 def get_vmconfig_template(template="system-probe") -> VMConfig:
@@ -317,15 +317,18 @@ def add_custom_vmset(vmset: 'VMSet', vm_config: VMConfig):
     if vmset_exists(vm_config, vmset.tags):
         return
 
-    new_set = VMSetDict(
-        tags=list(vmset.tags),
-        recipe=f"{vmset.recipe}-{vmset.arch}",
-        arch=vmset.arch,
-        kernels=list(),
-        image={
-            "image_path": image_path,
-            "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
-        },
+    new_set = cast(
+        'VMSetDict',
+        dict(
+            tags=list(vmset.tags),
+            recipe=f"{vmset.recipe}-{vmset.arch}",
+            arch=vmset.arch,
+            kernels=list(),
+            image={
+                "image_path": image_path,
+                "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
+            },
+        ),
     )
 
     vm_config["vmsets"].append(new_set)
@@ -338,7 +341,7 @@ def add_vmset(vmset: 'VMSet', vm_config: VMConfig):
     if vmset.recipe == "custom":
         return add_custom_vmset(vmset, vm_config)
 
-    new_set = VMSetDict(tags=list(vmset.tags), recipe=vmset.recipe, arch=vmset.arch, kernels=list())
+    new_set = cast('VMSetDict', dict(tags=list(vmset.tags), recipe=vmset.recipe, arch=vmset.arch, kernels=list()))
 
     vm_config["vmsets"].append(new_set)
 
@@ -423,7 +426,7 @@ def image_source_to_path(vmset: VMSetDict):
         vmset["image"]["image_source"] = url_to_fspath(vmset["image"]["image_source"])
         return
 
-    for kernel in cast(List[DistroKernel], vmset.get("kernels", [])):
+    for kernel in cast(List['DistroKernel'], vmset.get("kernels", [])):
         kernel["image_source"] = url_to_fspath(kernel["image_source"])
 
     for disk in vmset.get("disks", []):

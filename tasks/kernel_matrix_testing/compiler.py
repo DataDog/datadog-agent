@@ -39,8 +39,8 @@ def start_compiler(ctx: Context):
         "docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/datadog-agent kmt:compile sleep \"infinity\""
     )
 
-    uid = cast(Result, ctx.run("id -u")).stdout.rstrip()
-    gid = cast(Result, ctx.run("id -g")).stdout.rstrip()
+    uid = cast('Result', ctx.run("id -u")).stdout.rstrip()
+    gid = cast('Result', ctx.run("id -g")).stdout.rstrip()
     docker_exec(ctx, f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
     docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 

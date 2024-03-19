@@ -334,7 +334,7 @@ def build_dependencies(
     ctx.run(f"mkdir -p {deps_dir}")
 
     with open(layout_file) as f:
-        deps_layout = cast(DependenciesLayout, json.load(f))
+        deps_layout: DependenciesLayout = cast('DependenciesLayout', json.load(f))
     with ctx.cd(deps_dir):
         for new_dirs in deps_layout["layout"]:
             ctx.run(f"mkdir -p {new_dirs}", hide=(not verbose))
