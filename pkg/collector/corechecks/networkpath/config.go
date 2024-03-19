@@ -41,6 +41,7 @@ type CheckConfig struct {
 	MinCollectionInterval time.Duration
 }
 
+// TODO: TESTME
 // NewCheckConfig builds a new check config
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
