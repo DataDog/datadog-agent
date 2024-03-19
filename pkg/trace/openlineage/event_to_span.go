@@ -11,7 +11,11 @@ import (
 
 const (
 	StartEventType    = "START"
+	RunningEventType  = "RUNNING"
 	CompleteEventType = "COMPLETE"
+	AbortEventType    = "ABORT"
+	FailedEventType   = "FAIL"
+	OtherEventType    = "OTHER"
 )
 
 type State struct {
