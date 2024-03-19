@@ -27,7 +27,7 @@ import (
 
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
 
-	"github.com/DataDog/datadog-agent/pkg/agentless/awsutils"
+	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
 	"github.com/DataDog/datadog-agent/pkg/agentless/nbd"
 	"github.com/DataDog/datadog-agent/pkg/agentless/scanners"
@@ -50,7 +50,7 @@ type Worker struct {
 	WorkerOptions
 
 	id     int
-	waiter awsutils.ResourceWaiter
+	waiter awsbackend.ResourceWaiter
 }
 
 // NewWorker creates a new worker.
@@ -206,7 +206,7 @@ func (w *Worker) triggerScan(ctx context.Context, sc *types.ScannerConfig, scan 
 		w.scanRootFilesystems(ctx, sc, scan, []string{scan.TargetID.ResourceName()}, pool, resultsCh)
 
 	case types.TaskTypeAMI:
-		snapshotID, err := awsutils.SetupEBSSnapshot(ctx, sc, scan, &w.waiter)
+		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, sc, scan, &w.waiter)
 		if err != nil {
 			return err
 		}
@@ -214,7 +214,7 @@ func (w *Worker) triggerScan(ctx context.Context, sc *types.ScannerConfig, scan 
 		case types.DiskModeNoAttach:
 			w.scanSnaphotNoAttach(ctx, sc, scan, snapshotID, pool, resultsCh)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err = awsutils.SetupEBSVolume(ctx, sc, scan, &w.waiter, snapshotID)
+			err = awsbackend.SetupEBSVolume(ctx, sc, scan, &w.waiter, snapshotID)
 			if err != nil {
 				return err
 			}
@@ -231,7 +231,7 @@ func (w *Worker) triggerScan(ctx context.Context, sc *types.ScannerConfig, scan 
 		}
 
 	case types.TaskTypeEBS:
-		snapshotID, err := awsutils.SetupEBSSnapshot(ctx, sc, scan, &w.waiter)
+		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, sc, scan, &w.waiter)
 		if err != nil {
 			return err
 		}
@@ -239,7 +239,7 @@ func (w *Worker) triggerScan(ctx context.Context, sc *types.ScannerConfig, scan 
 		case types.DiskModeNoAttach:
 			w.scanSnaphotNoAttach(ctx, sc, scan, snapshotID, pool, resultsCh)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err := awsutils.SetupEBSVolume(ctx, sc, scan, &w.waiter, snapshotID)
+			err := awsbackend.SetupEBSVolume(ctx, sc, scan, &w.waiter, snapshotID)
 			if err != nil {
 				return err
 			}
@@ -256,7 +256,7 @@ func (w *Worker) triggerScan(ctx context.Context, sc *types.ScannerConfig, scan 
 		}
 
 	case types.TaskTypeLambda:
-		mountpoint, err := awsutils.SetupLambda(ctx, sc, scan)
+		mountpoint, err := awsbackend.SetupLambda(ctx, sc, scan)
 		if err != nil {
 			return err
 		}
@@ -360,7 +360,7 @@ func (w *Worker) cleanupScan(sc *types.ScannerConfig, scan *types.ScanTask) {
 	switch scan.Type {
 	case types.TaskTypeEBS, types.TaskTypeAMI:
 		for resourceID, createdAt := range scan.CreatedResources {
-			if err := awsutils.CleanupScanEBS(ctx, sc, scan, resourceID); err != nil {
+			if err := awsbackend.CleanupScanEBS(ctx, sc, scan, resourceID); err != nil {
 				log.Warnf("%s: failed to cleanup EBS resource %q: %v", scan, resourceID, err)
 			} else {
 				w.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)

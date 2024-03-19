@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/pkg/agentless/awsutils"
+	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
@@ -117,10 +117,10 @@ func awsSnapshotCommand(sc *types.ScannerConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cfg := awsutils.GetConfigFromCloudID(ctx, sc, roles, scan.TargetID)
-			var waiter awsutils.ResourceWaiter
+			cfg := awsbackend.GetConfigFromCloudID(ctx, sc, roles, scan.TargetID)
+			var waiter awsbackend.ResourceWaiter
 			ec2client := ec2.NewFromConfig(cfg)
-			snapshotID, err := awsutils.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.TargetID)
+			snapshotID, err := awsbackend.CreateSnapshot(ctx, scan, &waiter, ec2client, scan.TargetID)
 			if err != nil {
 				return err
 			}
@@ -334,7 +334,7 @@ func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatf
 	}
 
 	pushEBSVolumes := func() error {
-		ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, sc, regionName, roles.GetRole(accountID)))
+		ec2client := ec2.NewFromConfig(awsbackend.GetConfig(ctx, sc, regionName, roles.GetRole(accountID)))
 		if err != nil {
 			return err
 		}
@@ -424,7 +424,7 @@ func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatf
 	}
 
 	pushAMI := func() error {
-		ec2client := ec2.NewFromConfig(awsutils.GetConfig(ctx, sc, regionName, roles.GetRole(accountID)))
+		ec2client := ec2.NewFromConfig(awsbackend.GetConfig(ctx, sc, regionName, roles.GetRole(accountID)))
 		if err != nil {
 			return err
 		}
@@ -507,7 +507,7 @@ func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatf
 	}
 
 	pushLambdaFunctions := func() error {
-		lambdaclient := lambda.NewFromConfig(awsutils.GetConfig(ctx, sc, regionName, roles.GetRole(accountID)))
+		lambdaclient := lambda.NewFromConfig(awsbackend.GetConfig(ctx, sc, regionName, roles.GetRole(accountID)))
 		var marker *string
 		count := 0
 		for {
@@ -584,7 +584,7 @@ func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatf
 
 func awsCleanupCmd(ctx context.Context, sc *types.ScannerConfig, region, account string, dryRun bool, delay time.Duration) error {
 	assumedRole := getDefaultRolesMapping(sc, types.CloudProviderAWS).GetRole(account)
-	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, sc, delay, region, assumedRole)
+	toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, sc, delay, region, assumedRole)
 	if err != nil {
 		return err
 	}
@@ -597,7 +597,7 @@ func awsCleanupCmd(ctx context.Context, sc *types.ScannerConfig, region, account
 		fmt.Printf(" - %s\n", resourceID)
 	}
 	if !dryRun {
-		awsutils.ResourcesCleanup(ctx, sc, toBeDeleted, region, assumedRole)
+		awsbackend.ResourcesCleanup(ctx, sc, toBeDeleted, region, assumedRole)
 	}
 	return nil
 }
@@ -624,19 +624,19 @@ func awsAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types
 		defer cancel()
 		runner.CleanupScanDir(ctxcleanup, scan)
 		for resourceID := range scan.CreatedResources {
-			if err := awsutils.CleanupScanEBS(ctxcleanup, sc, scan, resourceID); err != nil {
+			if err := awsbackend.CleanupScanEBS(ctxcleanup, sc, scan, resourceID); err != nil {
 				log.Errorf("%s: could not cleanup resource %q: %v", scan, resourceID, err)
 			}
 		}
 	}()
 
-	var waiter awsutils.ResourceWaiter
-	snapshotID, err := awsutils.SetupEBSSnapshot(ctx, sc, scan, &waiter)
+	var waiter awsbackend.ResourceWaiter
+	snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, sc, scan, &waiter)
 	if err != nil {
 		return err
 	}
 
-	err = awsutils.SetupEBSVolume(ctx, sc, scan, &waiter, snapshotID)
+	err = awsbackend.SetupEBSVolume(ctx, sc, scan, &waiter, snapshotID)
 	if err != nil {
 		return err
 	}
@@ -711,10 +711,10 @@ func probeAWSEnv(ctx context.Context, sc *types.ScannerConfig) (*awsEnv, error) 
 				region = sc.AWSRegion
 			}
 			if region == "" {
-				region = awsutils.DefaultSelfRegion
+				region = awsbackend.DefaultSelfRegion
 			}
 			if account == "" {
-				id2, err := awsutils.GetIdentity(ctx)
+				id2, err := awsbackend.GetIdentity(ctx)
 				if err != nil {
 					return nil, fmt.Errorf("could not get self identity: %w", err)
 				}
