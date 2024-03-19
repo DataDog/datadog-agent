@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -126,61 +125,56 @@ func (o *ownerInfo) buildID(ns string) string {
 // mutate adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
 func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, func(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
-		return w.injectTags(pod, ns, dc, w.wmeta)
+	return common.Mutate(request.Raw, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+		return injectTags(pod, ns, dc, w.wmeta)
 	}, request.DynamicClient)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed
-func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workloadmeta.Component) error {
+func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workloadmeta.Component) (bool, error) {
 	var injected bool
-	defer func() {
-		metrics.MutationAttempts.Inc(w.Name(), strconv.FormatBool(injected), "", "")
-	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(w.Name(), "nil pod", "", "")
-		return errors.New("cannot inject tags into nil pod")
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	if !autoinstrumentation.ShouldInject(pod, wmeta) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
-		return nil
+		return false, nil
 	}
 
 	var found bool
 	if found, injected = injectTagsFromLabels(pod.GetLabels(), pod); found {
 		// Standard labels found in the pod's labels
 		// No need to lookup the pod's owner
-		return nil
+		return injected, nil
 	}
 
 	if ns == "" {
 		if pod.GetNamespace() != "" {
 			ns = pod.GetNamespace()
 		} else {
-			metrics.MutationErrors.Inc(w.Name(), "empty namespace", "", "")
-			return errors.New("cannot get standard tags from parent object: empty namespace")
+			return false, errors.New(metrics.InvalidInput)
 		}
 	}
 
 	// Try to discover standard labels on the pod's owner
 	owners := pod.GetOwnerReferences()
 	if len(owners) == 0 {
-		return nil
+		return false, nil
 	}
 
 	owner, err := getOwner(owners[0], ns, dc)
 	if err != nil {
-		metrics.MutationErrors.Inc(w.Name(), "cannot get owner", "", "")
-		return err
+		log.Error(err)
+		return false, errors.New(metrics.InternalError)
 	}
 
 	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, common.PodString(pod))
 	_, injected = injectTagsFromLabels(owner.labels, pod)
 
-	return nil
+	return injected, nil
 }
 
 // injectTagsFromLabels looks for standard tags in pod labels

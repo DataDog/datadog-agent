@@ -10,7 +10,7 @@ publish_winget_7_x64:
   variables:
     ARCH: "x64"
   before_script:
-    - $wingetPat = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.winget_pat --with-decryption --query "Parameter.Value" --out text)
+    - $wingetPat = (aws ssm get-parameter --region us-east-1 --name $WINGET_PAT_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
   script:
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     - $ErrorActionPreference = "Stop"

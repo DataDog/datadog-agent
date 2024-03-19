@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -223,7 +223,7 @@ func mkURL(baseURL string, caseID string, apiKey string) string {
 
 // SendTo sends a flare file to the backend. This is part of the "helpers" package while all the code is moved to
 // components. When possible use the "Send" method of the "flare" component instead.
-func SendTo(archivePath, caseID, email, apiKey, url string, source FlareSource) (string, error) {
+func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url string, source FlareSource) (string, error) {
 	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
@@ -232,7 +232,7 @@ func SendTo(archivePath, caseID, email, apiKey, url string, source FlareSource) 
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	baseURL, _ := configUtils.AddAgentVersionToDomain(url, "flare")
 
-	transport := httputils.CreateHTTPTransport(pkgconfig.Datadog)
+	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   httpTimeout,

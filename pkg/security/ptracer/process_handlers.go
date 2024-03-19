@@ -22,13 +22,13 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 		{
 			IDs:        []syscallID{{ID: ExecveNr, Name: "execve"}},
 			Func:       handleExecve,
-			ShouldSend: shouldSendAlways,
+			ShouldSend: shouldSendExec,
 			RetFunc:    nil,
 		},
 		{
 			IDs:        []syscallID{{ID: ExecveatNr, Name: "execveat"}},
 			Func:       handleExecveAt,
-			ShouldSend: shouldSendAlways,
+			ShouldSend: shouldSendExec,
 			RetFunc:    nil,
 		},
 		{
@@ -115,6 +115,13 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 		}
 	}
 	return syscallList
+}
+
+func shouldSendExec(msg *ebpfless.SyscallMsg) bool {
+	if msg.Retval == -int64(syscall.ENOSYS) {
+		msg.Retval = 0
+	}
+	return isAcceptedRetval(msg)
 }
 
 //

@@ -168,6 +168,7 @@ typedef struct {
 typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
+    __u8 tags;
 
     status_code_t status_code;
     method_t request_method;

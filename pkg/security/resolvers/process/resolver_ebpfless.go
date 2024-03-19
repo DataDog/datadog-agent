@@ -98,10 +98,11 @@ func (p *EBPFLessResolver) AddForkEntry(key CacheResolverKey, ppid uint32, ts ui
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, file string, argv []string, argsTruncated bool,
+func (p *EBPFLessResolver) AddExecEntry(key CacheResolverKey, ppid uint32, file string, argv []string, argsTruncated bool,
 	envs []string, envsTruncated bool, ctrID string, ts uint64, tty string) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = key.Pid
+	entry.PPid = ppid
 
 	entry.Process.ArgsEntry = &model.ArgsEntry{
 		Values:    argv,
@@ -175,9 +176,15 @@ func (p *EBPFLessResolver) insertForkEntry(key CacheResolverKey, entry *model.Pr
 func (p *EBPFLessResolver) insertExecEntry(key CacheResolverKey, entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[key]
 	if prev != nil {
+		prev.Exec(entry)
+
+		// procfs entry should have the ppid already set
+		if entry.PPid == 0 {
+			entry.PPid = prev.PPid
+		}
+
 		// inheritate credentials as exec event, uid/gid can be update by setuid/setgid events
 		entry.Credentials = prev.Credentials
-		prev.Exec(entry)
 	}
 
 	p.insertEntry(key, entry, prev)

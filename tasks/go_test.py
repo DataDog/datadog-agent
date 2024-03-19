@@ -28,7 +28,7 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags
 from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
+from tasks.libs.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -232,7 +232,7 @@ def test_flavor(
 
         if junit_tar:
             module_result.junit_file_path = os.path.join(module_path, junit_file)
-            add_flavor_to_junitxml(module_result.junit_file_path, flavor)
+            enrich_junitxml(module_result.junit_file_path, flavor)
 
         test_results.append(module_result)
 
@@ -424,6 +424,7 @@ def test(
             modules = get_modified_packages(ctx, build_tags=build_tags)
         if only_impacted_packages:
             modules = get_impacted_packages(ctx, build_tags=build_tags)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
