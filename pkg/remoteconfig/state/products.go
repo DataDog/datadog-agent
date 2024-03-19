@@ -17,6 +17,7 @@ var validProducts = map[string]struct{}{
 	ProductCWSDD:             {},
 	ProductCWSCustom:         {},
 	ProductCWSProfiles:       {},
+	ProductCSMSideScanning:   {},
 	ProductASM:               {},
 	ProductASMFeatures:       {},
 	ProductASMDD:             {},
@@ -50,6 +51,8 @@ const (
 	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
+	// ProductCSMSideScanning is the side scanning product
+	ProductCSMSideScanning = "CSM_SIDE_SCANNING"
 	// ProductASM is the ASM product used by customers to issue rules configurations
 	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config

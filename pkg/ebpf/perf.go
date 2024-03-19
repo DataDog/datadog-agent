@@ -60,7 +60,7 @@ func (c *PerfHandler) RecordHandler(record *perf.Record, _ *manager.PerfMap, _ *
 		return
 	}
 
-	c.dataChannel <- &DataEvent{CPU: record.CPU, Data: record.RawSample, pr: record}
+	c.dataChannel <- &DataEvent{Data: record.RawSample, pr: record}
 }
 
 // DataChannel returns the channel with event data

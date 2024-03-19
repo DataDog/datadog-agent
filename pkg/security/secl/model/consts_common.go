@@ -64,6 +64,9 @@ const (
 
 	// EventFlagsAnomalyDetectionEvent true if the event is marked as being an anomaly
 	EventFlagsAnomalyDetectionEvent
+
+	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
+	EventFlagsHasActiveActivityDump
 )
 
 var (

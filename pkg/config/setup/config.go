@@ -176,14 +176,6 @@ type MetricMapping struct {
 	Tags      map[string]string `mapstructure:"tags" json:"tags" yaml:"tags"`
 }
 
-// Endpoint represent a datadog endpoint
-type Endpoint struct {
-	Site   string `mapstructure:"site" json:"site" yaml:"site"`
-	URL    string `mapstructure:"url" json:"url" yaml:"url"`
-	APIKey string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
-	APPKey string `mapstructure:"app_key" json:"app_key" yaml:"app_key"`
-}
-
 // DataType represent the generic data type (e.g. metrics, logs) that can be sent by the Agent
 type DataType string
 
@@ -642,6 +634,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_https_kubelet_port", 10250)
 
 	config.BindEnvAndSetDefault("kubelet_tls_verify", true)
+	config.BindEnvAndSetDefault("kubelet_core_check_enabled", false)
 	config.BindEnvAndSetDefault("collect_kubernetes_events", false)
 	config.BindEnvAndSetDefault("kubelet_client_ca", "")
 
@@ -1829,15 +1822,17 @@ func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url 
 func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
-	secretResolver.Configure(
-		config.GetString("secret_backend_command"),
-		config.GetStringSlice("secret_backend_arguments"),
-		config.GetInt("secret_backend_timeout"),
-		config.GetInt("secret_backend_output_max_size"),
-		config.GetInt("secret_refresh_interval"),
-		config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		config.GetBool("secret_backend_remove_trailing_line_break"),
-	)
+	secretResolver.Configure(secrets.ConfigParams{
+		Command:          config.GetString("secret_backend_command"),
+		Arguments:        config.GetStringSlice("secret_backend_arguments"),
+		Timeout:          config.GetInt("secret_backend_timeout"),
+		MaxSize:          config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:  config.GetInt("secret_refresh_interval"),
+		GroupExecPerm:    config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:  config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:          config.GetString("run_path"),
+		AuditFileMaxSize: config.GetInt("secret_audit_file_max_size"),
+	})
 
 	if config.GetString("secret_backend_command") != "" {
 		// Viper doesn't expose the final location of the file it

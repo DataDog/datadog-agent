@@ -9,6 +9,7 @@
 package ptracer
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -43,9 +44,19 @@ var (
 	groupPath  = defaultGroupPath
 )
 
+// Opts defines ptracer options
+type Opts struct {
+	Creds           Creds
+	Verbose         bool
+	Async           bool
+	DisableStats    bool
+	DisableProcScan bool
+	ScanProcEvery   time.Duration
+}
+
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
 
-type shouldSendFunc func(ret int64) bool
+type shouldSendFunc func(msg *ebpfless.SyscallMsg) bool
 
 type syscallID struct {
 	ID   int
@@ -60,9 +71,10 @@ type syscallHandler struct {
 }
 
 // defaults funcs for ShouldSend:
-func shouldSendAlways(_ int64) bool { return true }
-func isAcceptedRetval(retval int64) bool {
-	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
+func shouldSendAlways(_ *ebpfless.SyscallMsg) bool { return true }
+
+func isAcceptedRetval(msg *ebpfless.SyscallMsg) bool {
+	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM)
 }
 
 func checkEntryPoint(path string) (string, error) {
@@ -132,7 +144,7 @@ func sendMsg(client net.Conn, msg *ebpfless.Message) error {
 }
 
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds, verbose bool, async bool, disableStats bool) error {
+func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) error {
 	if len(args) == 0 {
 		return fmt.Errorf("an executable is required")
 	}
@@ -141,7 +153,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 		return err
 	}
 
-	logger := Logger{verbose}
+	logger := Logger{opts.Verbose}
 
 	logger.Debugf("Run %s %v [%s]", entry, args, os.Getenv("DD_CONTAINER_ID"))
 
@@ -160,7 +172,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 	if probeAddr != "" {
 		logger.Debugf("connection to system-probe...")
-		if async {
+		if opts.Async {
 			go func() {
 				// use a local err variable to avoid race condition
 				var err error
@@ -194,22 +206,30 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
 
-	opts := Opts{
+	tracerOpts := TracerOpts{
 		Syscalls: PtracedSyscalls,
-		Creds:    creds,
+		Creds:    opts.Creds,
 		Logger:   logger,
 	}
 
-	tracer, err := NewTracer(entry, args, envs, opts)
+	tracer, err := NewTracer(entry, args, envs, tracerOpts)
 	if err != nil {
 		return err
 	}
 
 	var (
-		msgChan   = make(chan *ebpfless.Message, 100000)
-		traceChan = make(chan bool)
-		stopChan  = make(chan bool, 1)
+		msgChan        = make(chan *ebpfless.Message, 100000)
+		traceChan      = make(chan bool)
+		ctx, cancelFnc = context.WithCancel(context.Background())
 	)
+
+	send := func(msg *ebpfless.Message) {
+		select {
+		case msgChan <- msg:
+		default:
+			logger.Errorf("unable to send message")
+		}
+	}
 
 	pc := NewProcessCache()
 
@@ -231,7 +251,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			// wait for the client to be ready of stopped
 			for {
 				select {
-				case <-stopChan:
+				case <-ctx.Done():
 					return
 				case <-clientReady:
 					break LOOP
@@ -240,28 +260,25 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			defer client.Close()
 		}
 
-		for msg := range msgChan {
-			msg.SeqNum = seq
+		for {
+			select {
+			case msg := <-msgChan:
+				msg.SeqNum = seq
 
-			if probeAddr != "" {
-				logger.Debugf("sending message: %s", msg)
-				if err := sendMsg(client, msg); err != nil {
-					logger.Debugf("%v", err)
+				if probeAddr != "" {
+					logger.Debugf("sending message: %s", msg)
+					if err := sendMsg(client, msg); err != nil {
+						logger.Debugf("%v", err)
+					}
+				} else {
+					logger.Debugf("sending message: %s", msg)
 				}
-			} else {
-				logger.Debugf("sending message: %s", msg)
+				seq++
+			case <-ctx.Done():
+				return
 			}
-			seq++
 		}
 	}()
-
-	send := func(msg *ebpfless.Message) {
-		select {
-		case msgChan <- msg:
-		default:
-			logger.Errorf("unable to send message")
-		}
-	}
 
 	send(&ebpfless.Message{
 		Type: ebpfless.MessageTypeHello,
@@ -271,6 +288,20 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			EntrypointArgs:   args,
 		},
 	})
+
+	if !opts.DisableProcScan {
+		every := opts.ScanProcEvery
+		if every == 0 {
+			every = 500 * time.Millisecond
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			scanProcfs(ctx, tracer.PID, send, every, logger)
+		}()
+	}
 
 	cb := func(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {
 		process := pc.Get(pid)
@@ -304,7 +335,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 			handler, found := syscallHandlers[nr]
 			if found && handler.Func != nil {
-				err := handler.Func(tracer, process, syscallMsg, regs, disableStats)
+				err := handler.Func(tracer, process, syscallMsg, regs, opts.DisableStats)
 				if err != nil {
 					return
 				}
@@ -313,18 +344,18 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			/* internal special cases */
 			switch nr {
 			case ExecveNr:
-				// Top level pid, add creds. For the other PIDs the creds will be propagated at the probe side
+				// Top level pid, add opts.Creds. For the other PIDs the creds will be propagated at the probe side
 				if process.Pid == tracer.PID {
 					var uid, gid uint32
 
-					if creds.UID != nil {
-						uid = *creds.UID
+					if opts.Creds.UID != nil {
+						uid = *opts.Creds.UID
 					} else {
 						uid = uint32(os.Getuid())
 					}
 
-					if creds.GID != nil {
-						gid = *creds.GID
+					if opts.Creds.GID != nil {
+						gid = *opts.Creds.GID
 					} else {
 						gid = uint32(os.Getgid())
 					}
@@ -335,7 +366,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 						GID:  gid,
 						EGID: gid,
 					}
-					if !disableStats {
+					if !opts.DisableStats {
 						syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
 						syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
 						syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
@@ -359,15 +390,14 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 			handler, handlerFound := syscallHandlers[nr]
 			if handlerFound && msgExists && (handler.ShouldSend != nil || handler.RetFunc != nil) {
 				if handler.RetFunc != nil {
-					err := handler.RetFunc(tracer, process, syscallMsg, regs, disableStats)
+					err := handler.RetFunc(tracer, process, syscallMsg, regs, opts.DisableStats)
 					if err != nil {
 						return
 					}
 				}
 				if handler.ShouldSend != nil {
-					ret := tracer.ReadRet(regs)
-					if handler.ShouldSend(ret) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
-						syscallMsg.Retval = ret
+					syscallMsg.Retval = tracer.ReadRet(regs)
+					if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
 						sendSyscallMsg(syscallMsg)
 					}
 				}
@@ -443,9 +473,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, creds Creds
 
 	defer func() {
 		// stop client and msg chan reader
-		stopChan <- true
-		close(msgChan)
+		cancelFnc()
 		wg.Wait()
+		close(msgChan)
 	}()
 
 	if err := tracer.Trace(cb); err != nil {

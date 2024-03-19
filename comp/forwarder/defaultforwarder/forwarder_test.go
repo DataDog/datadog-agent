@@ -88,7 +88,7 @@ func TestStart(t *testing.T) {
 	err := forwarder.Start()
 	defer forwarder.Stop()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, Started, forwarder.State())
 	require.Len(t, forwarder.domainForwarders, 1)
 	require.NotNil(t, forwarder.healthChecker)
@@ -316,7 +316,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 	err = forwarder.sendHTTPTransactions(tr)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestSubmitV1Intake(t *testing.T) {
