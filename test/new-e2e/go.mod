@@ -244,10 +244,6 @@ require (
 
 require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.30.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.30.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1 // indirect
 )
