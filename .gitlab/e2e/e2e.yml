@@ -131,34 +131,26 @@ k8s-e2e-otlp-main:
     reports:
       junit: test/new-e2e/junit-*.xml
 
-.new_e2e_template_needs_kitchen_deploy:
+.new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
   needs:
-    - job: deploy_deb_testing-a6_x64
-      optional: true
-    - job: deploy_deb_testing-a6_arm64
-      optional: true
     - job: deploy_deb_testing-a7_x64
       optional: true
-    - job: deploy_deb_testing-a7_arm64
+
+.new_e2e_template_needs_deb_windows_x64:
+  extends: .new_e2e_template
+  needs:
+    - job: deploy_deb_testing-a7_x64
       optional: true
-    - job: deploy_deb_testing-u7_arm64
+    - job: deploy_windows_testing-a7
       optional: true
-    - job: deploy_rpm_testing-a6_x64
-      optional: true
-    - job: deploy_rpm_testing-a6_arm64
+
+.new_e2e_template_needs_deb_rpm_windows_x64:
+  extends: .new_e2e_template
+  needs:
+    - job: deploy_deb_testing-a7_x64
       optional: true
     - job: deploy_rpm_testing-a7_x64
-      optional: true
-    - job: deploy_rpm_testing-a7_arm64
-      optional: true
-    - job: deploy_suse_rpm_testing_x64-a6
-      optional: true
-    - job: deploy_suse_rpm_testing_x64-a7
-      optional: true
-    - job: deploy_suse_rpm_testing_arm64-a7
-      optional: true
-    - job: deploy_windows_testing-a6
       optional: true
     - job: deploy_windows_testing-a7
       optional: true
@@ -177,10 +169,6 @@ new-e2e-containers:
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
   rules: !reference [.on_container_or_e2e_changes_or_manual]
-  needs:
-    - qa_agent
-    - qa_dca
-    - qa_dogstatsd
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -193,21 +181,21 @@ new-e2e-containers:
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
 
 new-e2e-remote-config:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template_needs_deb_x64
   rules: !reference [.on_rc_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
 new-e2e-agent-shared-components:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template_needs_deb_x64
   rules: !reference [.on_asc_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
 
 new-e2e-agent-subcommands:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules: !reference [.on_subcommands_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/agent-subcommands
@@ -233,29 +221,32 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxCheckSuite
 
 new-e2e-language-detection:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template_needs_deb_x64
   rules: !reference [.on_language-detection_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
 
 new-e2e-npm:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template_needs_deb_rpm_windows_x64
   rules: !reference [.on_npm_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
 
 new-e2e-aml:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules: !reference [.on_aml_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
 
 new-e2e-cws:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template
   rules: !reference [.on_cws_or_e2e_changes_or_manual]
+  needs:
+    - deploy_deb_testing-a7_x64
+    - qa_cws_instrumentation
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -266,7 +257,7 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-process:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules: !reference [.on_process_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/process
@@ -297,9 +288,12 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
 new-e2e-updater:
-  extends: .new_e2e_template_needs_kitchen_deploy
+  extends: .new_e2e_template
   rules:
     !reference [.on_updater_or_e2e_changes_or_manual]
+  needs:
+    - job: deploy_deb_testing-u7_arm64
+      optional: true
   variables:
     TARGETS: ./tests/updater
     TEAM: fleet
