@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
@@ -39,7 +40,7 @@ var awsFlags struct {
 	account string
 }
 
-func awsGroupCommand(parent *cobra.Command, sc *types.ScannerConfig) *cobra.Command {
+func awsGroupCommand(parent *cobra.Command, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "aws",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -50,15 +51,15 @@ func awsGroupCommand(parent *cobra.Command, sc *types.ScannerConfig) *cobra.Comm
 	pflags := cmd.PersistentFlags()
 	pflags.StringVar(&awsFlags.region, "region", "", "AWS region")
 	pflags.StringVar(&awsFlags.account, "account-id", "", "AWS account ID")
-	cmd.AddCommand(awsScanCommand(sc))
+	cmd.AddCommand(awsScanCommand(sc, evp))
 	cmd.AddCommand(awsSnapshotCommand(sc))
-	cmd.AddCommand(awsOfflineCommand(sc))
+	cmd.AddCommand(awsOfflineCommand(sc, evp))
 	cmd.AddCommand(awsAttachCommand(sc))
 	cmd.AddCommand(awsCleanupCommand(sc))
 	return cmd
 }
 
-func awsScanCommand(sc *types.ScannerConfig) *cobra.Command {
+func awsScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	var flags struct {
 		Hostname string
 		Region   string
@@ -77,7 +78,7 @@ func awsScanCommand(sc *types.ScannerConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return awsScanCmd(ctx, sc, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return awsScanCmd(ctx, sc, evp, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
 		},
 	}
 
@@ -129,7 +130,7 @@ func awsSnapshotCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func awsOfflineCommand(sc *types.ScannerConfig) *cobra.Command {
+func awsOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	parseFilters := func(filters string) ([]ec2types.Filter, error) {
 		var fs []ec2types.Filter
 		if filter := filters; filter != "" {
@@ -186,6 +187,7 @@ func awsOfflineCommand(sc *types.ScannerConfig) *cobra.Command {
 			return awsOfflineCmd(
 				ctx,
 				sc,
+				evp,
 				flags.workers,
 				taskType,
 				self.AccountID,
@@ -254,7 +256,7 @@ func awsCleanupCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	hostname := tryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -285,7 +287,7 @@ func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.C
 		DefaultActions: actions,
 		DefaultRoles:   roles,
 		Statsd:         statsd,
-		EventForwarder: eventForwarder,
+		EventForwarder: *evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -301,7 +303,7 @@ func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.C
 	return nil
 }
 
-func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	defer statsd.Flush()
 
 	hostname, err := utils.GetHostnameWithContext(ctx)
@@ -321,7 +323,7 @@ func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, workers int, ta
 		DefaultActions: actions,
 		DefaultRoles:   roles,
 		Statsd:         statsd,
-		EventForwarder: eventForwarder,
+		EventForwarder: *evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)

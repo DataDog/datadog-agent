@@ -56,7 +56,6 @@ const (
 )
 
 var statsd *ddogstatsd.Client
-var eventForwarder eventplatform.Component
 
 var globalFlags struct {
 	configFilePath string
@@ -65,35 +64,15 @@ var globalFlags struct {
 	noForkScanners bool
 }
 
-func runWithModules(run func(cmd *cobra.Command, args []string) error, sc *types.ScannerConfig) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		return fxutil.OneShot(
-			func(_ complog.Component, config compconfig.Component, evp eventplatform.Component) error {
-				*sc = getScannerConfig(config)
-				eventForwarder = evp
-				return run(cmd, args)
-			},
-			fx.Supply(core.BundleParams{
-				ConfigParams: compconfig.NewAgentParams(globalFlags.configFilePath),
-				SecretParams: secrets.NewEnabledParams(),
-				LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
-			}),
-			core.Bundle(),
-			eventplatformimpl.Module(),
-			fx.Supply(eventplatformimpl.NewDefaultParams()),
-			eventplatformreceiverimpl.Module(),
-		)
-	}
-}
-
 func main() {
 	flavor.SetFlavor(flavor.AgentlessScanner)
 
 	signal.Ignore(syscall.SIGPIPE)
 
 	var sc types.ScannerConfig
+	var evp eventplatform.Component
 
-	cmd := rootCommand(sc)
+	cmd := rootCommand(sc, evp)
 	cmd.SilenceErrors = true
 	err := cmd.Execute()
 
@@ -117,7 +96,7 @@ func initStatsdClient(sc types.ScannerConfig) {
 	}
 }
 
-func rootCommand(sc types.ScannerConfig) *cobra.Command {
+func rootCommand(sc types.ScannerConfig, evp eventplatform.Component) *cobra.Command {
 	var flags struct {
 		diskModeStr       string
 		defaultActionsStr []string
@@ -127,25 +106,40 @@ func rootCommand(sc types.ScannerConfig) *cobra.Command {
 		Short:        "Datadog Agentless Scanner at your service.",
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
-		PersistentPreRunE: runWithModules(func(cmd *cobra.Command, args []string) error {
-			initStatsdClient(sc)
-			diskMode, err := types.ParseDiskMode(flags.diskModeStr)
-			if err != nil {
-				return err
-			}
-			defaultActions, err := types.ParseScanActions(flags.defaultActionsStr)
-			if err != nil {
-				return err
-			}
-			globalFlags.diskMode = diskMode
-			globalFlags.defaultActions = defaultActions
-			return nil
-		}, &sc),
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(
+				func(_ complog.Component, config compconfig.Component, eventForwarder eventplatform.Component) error {
+					sc = getScannerConfig(config)
+					evp = eventForwarder
+					initStatsdClient(sc)
+					diskMode, err := types.ParseDiskMode(flags.diskModeStr)
+					if err != nil {
+						return err
+					}
+					defaultActions, err := types.ParseScanActions(flags.defaultActionsStr)
+					if err != nil {
+						return err
+					}
+					globalFlags.diskMode = diskMode
+					globalFlags.defaultActions = defaultActions
+					return nil
+				},
+				fx.Supply(core.BundleParams{
+					ConfigParams: compconfig.NewAgentParams(globalFlags.configFilePath),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
+				}),
+				core.Bundle(),
+				eventplatformimpl.Module(),
+				fx.Supply(eventplatformimpl.NewDefaultParams()),
+				eventplatformreceiverimpl.Module(),
+			)
+		},
 	}
 
-	cmd.AddCommand(runCommand(&sc))
+	cmd.AddCommand(runCommand(&sc, &evp))
 	cmd.AddCommand(runScannerCommand(&sc))
-	cmd.AddCommand(awsGroupCommand(cmd, &sc))
+	cmd.AddCommand(awsGroupCommand(cmd, &sc, &evp))
 	cmd.AddCommand(localGroupCommand(cmd, &sc))
 
 	defaultActions := []string{
@@ -161,7 +155,7 @@ func rootCommand(sc types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func runCommand(sc *types.ScannerConfig) *cobra.Command {
+func runCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	var flags struct {
 		cloudProvider string
 		pidfilePath   string
@@ -182,7 +176,7 @@ func runCommand(sc *types.ScannerConfig) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("could not detect cloud provider: %w", err)
 			}
-			return runCmd(sc, provider, flags.pidfilePath, flags.workers, flags.scannersMax, globalFlags.defaultActions, globalFlags.noForkScanners)
+			return runCmd(sc, evp, provider, flags.pidfilePath, flags.workers, flags.scannersMax, globalFlags.defaultActions, globalFlags.noForkScanners)
 		},
 	}
 	cmd.Flags().StringVarP(&flags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -192,7 +186,7 @@ func runCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func runCmd(sc *types.ScannerConfig, provider types.CloudProvider, pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
+func runCmd(sc *types.ScannerConfig, evp *eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -221,7 +215,7 @@ func runCmd(sc *types.ScannerConfig, provider types.CloudProvider, pidfilePath s
 		DefaultActions: defaultActions,
 		DefaultRoles:   getDefaultRolesMapping(sc, provider),
 		Statsd:         statsd,
-		EventForwarder: eventForwarder,
+		EventForwarder: *evp,
 		ScannerConfig:  sc,
 	})
 	if err != nil {
