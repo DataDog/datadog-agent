@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/config
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
@@ -34,7 +34,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3
-	github.com/DataDog/viper v1.12.0
+	github.com/DataDog/viper v1.13.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )

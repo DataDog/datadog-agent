@@ -7,10 +7,14 @@ package resolver
 
 import (
 	"testing"
+	"time"
 
+	"github.com/benbjohnson/clock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
 func TestLocalResolver(t *testing.T) {
@@ -395,4 +399,94 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			assert.Equal(t, te.expectedRaddrID, te.conn.Raddr.ContainerId, "raddr container id does not match expected value")
 		})
 	}
+}
+
+func TestLocalResolverPeriodicUpdates(t *testing.T) {
+	assert := assert.New(t)
+	mockCtrl := gomock.NewController(t)
+	mockedClock := clock.NewMock()
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock)
+	containers := []*model.Container{
+		{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_tcp,
+				},
+				{
+					Ip:       "172.17.0.4",
+					Port:     6379,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "172.17.0.2",
+					Port:     80,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_udp,
+				},
+			},
+		},
+	}
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, nil, nil).MinTimes(1)
+	resolver.Run()
+	mockedClock.Add(11 * time.Second)
+
+	connections := &model.Connections{
+		Conns: []*model.Connection{
+			// connection 0
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+			// connection 1
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.4",
+					Port: 6379,
+				},
+			},
+			// connection 2
+			{
+				Type: model.ConnectionType_tcp,
+				Raddr: &model.Addr{
+					Ip:   "172.17.0.2",
+					Port: 80,
+				},
+			},
+			// connection 3
+			{
+				Type: model.ConnectionType_udp,
+				Raddr: &model.Addr{
+					Ip:   "10.0.2.15",
+					Port: 32769,
+				},
+			},
+		},
+	}
+	resolver.Resolve(connections)
+	assert.Equal("container-1", connections.Conns[0].Raddr.ContainerId)
+	assert.Equal("container-1", connections.Conns[1].Raddr.ContainerId)
+	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
+	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
 }

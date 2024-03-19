@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21.7
+go 1.21.8
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -127,7 +127,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.13.3
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3
 	github.com/DataDog/sketches-go v1.4.4
-	github.com/DataDog/viper v1.12.0
+	github.com/DataDog/viper v1.13.0
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
 	github.com/DataDog/zstd v1.5.5
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -175,7 +175,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/golang/mock v1.6.0
-	github.com/golang/protobuf v1.5.3
+	github.com/golang/protobuf v1.5.4
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-containerregistry v0.19.0
 	github.com/google/gofuzz v1.2.0
@@ -268,7 +268,7 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.26.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
-	golang.org/x/arch v0.6.0
+	golang.org/x/arch v0.7.0
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 	golang.org/x/net v0.22.0
 	golang.org/x/sync v0.6.0
@@ -277,11 +277,11 @@ require (
 	golang.org/x/time v0.5.0
 	golang.org/x/tools v0.19.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
-	google.golang.org/genproto v0.0.0-20231212172506-995d672761c0 // indirect
-	google.golang.org/grpc v1.61.0
+	google.golang.org/genproto v0.0.0-20240123012728-ef4313101c80 // indirect
+	google.golang.org/grpc v1.62.1
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
-	google.golang.org/protobuf v1.32.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.58.0
+	google.golang.org/protobuf v1.33.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.61.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -305,7 +305,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.111.0 // indirect
+	cloud.google.com/go v0.112.0 // indirect
 	cloud.google.com/go/compute v1.23.3 // indirect
 	cloud.google.com/go/compute/metadata v0.2.4-0.20230617002413-005d2dfb6b68 // indirect
 	cloud.google.com/go/iam v1.1.5 // indirect
@@ -413,7 +413,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
-	github.com/golang/glog v1.1.2 // indirect
+	github.com/golang/glog v1.2.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.6.0
@@ -668,7 +668,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
-	github.com/DataDog/go-libddwaf/v2 v2.2.2
+	github.com/DataDog/go-libddwaf/v2 v2.3.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.13.3
 	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240212231818-6a2ed8bdfe76
@@ -805,13 +805,13 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdoutmetric v0.44.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.21.0 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20231121144256-b99613f794b6 // indirect
-	golang.org/x/exp/typeparams v0.0.0-20220613132600-b0d781184e0d // indirect
+	golang.org/x/exp/typeparams v0.0.0-20230307190834-24139beb5833 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240102182953-50ed04b92917 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	honnef.co/go/tools v0.3.2 // indirect
+	honnef.co/go/tools v0.4.5 // indirect
 	k8s.io/kms v0.29.0 // indirect
 )
 
@@ -850,9 +850,6 @@ replace github.com/moby/buildkit => github.com/moby/buildkit v0.13.0
 
 // Fixes a panic in trivy, see gitlab.com/cznic/libc/-/issues/25
 replace modernc.org/sqlite => modernc.org/sqlite v1.19.3
-
-// Fixes eBPF ring buffer corruption, to remove when this is merged upstream
-replace github.com/cilium/ebpf => github.com/paulcacheux/ebpf v0.11.1-0.20240309154158-cb664e155bd2
 
 // Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
 // https://github.com/open-telemetry/opentelemetry-collector/issues/8127

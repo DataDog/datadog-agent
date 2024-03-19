@@ -9,6 +9,8 @@
 package resolver
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
@@ -36,12 +38,15 @@ type DomainResolver interface {
 	GetAlternateDomains() []string
 	// SetBaseDomain sets the base domain to a new value
 	SetBaseDomain(domain string)
+	// UpdateAPIKey replaces instances of the oldKey with the newKey
+	UpdateAPIKey(oldKey, newKey string)
 }
 
 // SingleDomainResolver will always return the same host
 type SingleDomainResolver struct {
 	domain  string
 	apiKeys []string
+	mu      sync.Mutex
 }
 
 // NewSingleDomainResolver creates a SingleDomainResolver with its destination domain & API keys
@@ -49,6 +54,7 @@ func NewSingleDomainResolver(domain string, apiKeys []string) *SingleDomainResol
 	return &SingleDomainResolver{
 		domain,
 		apiKeys,
+		sync.Mutex{},
 	}
 }
 
@@ -73,6 +79,8 @@ func (r *SingleDomainResolver) GetBaseDomain() string {
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
 func (r *SingleDomainResolver) GetAPIKeys() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.apiKeys
 }
 
@@ -86,6 +94,21 @@ func (r *SingleDomainResolver) GetAlternateDomains() []string {
 	return []string{}
 }
 
+// UpdateAPIKey replaces instances of the oldKey with the newKey
+func (r *SingleDomainResolver) UpdateAPIKey(oldKey, newKey string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	replace := make([]string, 0, len(r.apiKeys))
+	for _, key := range r.apiKeys {
+		if key == oldKey {
+			replace = append(replace, newKey)
+		} else {
+			replace = append(replace, key)
+		}
+	}
+	r.apiKeys = replace
+}
+
 type destination struct {
 	domain string
 	dType  DestinationType
@@ -97,6 +120,7 @@ type MultiDomainResolver struct {
 	apiKeys             []string
 	overrides           map[string]destination
 	alternateDomainList []string
+	mu                  sync.Mutex
 }
 
 // NewMultiDomainResolver initializes a MultiDomainResolver with its API keys and base destination
@@ -106,11 +130,14 @@ func NewMultiDomainResolver(baseDomain string, apiKeys []string) *MultiDomainRes
 		apiKeys,
 		make(map[string]destination),
 		[]string{},
+		sync.Mutex{},
 	}
 }
 
 // GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
 func (r *MultiDomainResolver) GetAPIKeys() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.apiKeys
 }
 
@@ -135,6 +162,21 @@ func (r *MultiDomainResolver) SetBaseDomain(domain string) {
 // GetAlternateDomains returns a slice with all alternate domain
 func (r *MultiDomainResolver) GetAlternateDomains() []string {
 	return r.alternateDomainList
+}
+
+// UpdateAPIKey replaces instances of the oldKey with the newKey
+func (r *MultiDomainResolver) UpdateAPIKey(oldKey, newKey string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	replace := make([]string, 0, len(r.apiKeys))
+	for _, key := range r.apiKeys {
+		if key == oldKey {
+			replace = append(replace, newKey)
+		} else {
+			replace = append(replace, key)
+		}
+	}
+	r.apiKeys = replace
 }
 
 // RegisterAlternateDestination adds an alternate destination to a MultiDomainResolver.

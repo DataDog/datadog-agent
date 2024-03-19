@@ -64,12 +64,13 @@ type FilePath struct {
 
 // NewFilePath creates a new `FilePath` instance from a given `namespacedPath`
 func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) {
+	base := "root"
 	// Use cwd of the process as root if the namespacedPath is relative
 	if namespacedPath[0] != '/' {
-		namespacedPath = "/cwd" + namespacedPath
+		base = "cwd/"
 	}
 
-	path := fmt.Sprintf("%s/%d/root%s", procRoot, pid, namespacedPath)
+	path := fmt.Sprintf("%s/%d/%s%s", procRoot, pid, base, namespacedPath)
 	pathID, err := NewPathIdentifier(path)
 	if err != nil {
 		return FilePath{}, err

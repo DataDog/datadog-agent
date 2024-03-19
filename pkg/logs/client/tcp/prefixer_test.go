@@ -12,8 +12,6 @@ import (
 )
 
 func TestPrefixer(t *testing.T) {
-
-	prefixer := newPrefixer("foo ")
+	prefixer := newPrefixer(func() string { return "foo" })
 	assert.Equal(t, []byte("foo bar"), prefixer.apply([]byte("bar")))
-
 }

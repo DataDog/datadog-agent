@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
@@ -28,13 +26,6 @@ type DockerFakeintakeSuite struct {
 }
 
 func dockerSuiteOpts(tr transport, opts ...awsdocker.ProvisionerOption) []e2e.SuiteOption {
-	opts = append(opts,
-		// The LoadBalancer is an https endpoint while the raw fakeintake is http
-		// The Agent is configured to use HTTPS. Thus, using the load balancer is mandatory.
-		// Moreover, if the Fakeintake is killed and replaced, the fakeintake IP can change but
-		// the load balancer IP will not. Thus it should be more robust.
-		awsdocker.WithFakeIntakeOptions(fakeintake.WithLoadBalancer()),
-	)
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsdocker.Provisioner(opts...)),
 		e2e.WithStackName(fmt.Sprintf("apm-docker-suite-%s-%v", tr, os.Getenv("CI_PIPELINE_ID"))),

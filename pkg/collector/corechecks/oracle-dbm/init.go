@@ -10,6 +10,7 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -33,6 +34,18 @@ func (c *Check) init() error {
 	var i vInstance
 	err := getWrapper(c, &i, "SELECT /* DD */ host_name, instance_name, version version_full FROM v$instance")
 	if err != nil {
+		isPrivilegeError, err2 := handlePrivilegeError(c, err)
+		if !c.dbmEnabled && isPrivilegeError {
+			c.legacyIntegrationCompatibilityMode = true
+			log.Warnf("%s missing privileges detected, falling back to deprecated Oracle integration %s", c.logPrompt, err2.Error())
+			c.initialized = true
+			if strings.HasPrefix(strings.ToUpper(c.config.Username), "C##") {
+				c.multitenant = true
+			} else {
+				c.connectedToPdb = true
+			}
+			return nil
+		}
 		return fmt.Errorf("%s failed to query v$instance: %w", c.logPrompt, err)
 	}
 	c.dbVersion = i.VersionFull
