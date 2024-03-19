@@ -253,3 +253,10 @@ func SendTo(archivePath, caseID, email, apiKey, url string, source FlareSource) 
 	defer r.Body.Close()
 	return analyzeResponse(r, apiKey)
 }
+
+// CreateFlareEndpoint creates the flare endpoint URL
+func CreateFlareEndpoint() string {
+	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
+	flareRoute, _ := configUtils.AddAgentVersionToDomain(configUtils.GetInfraEndpoint(pkgconfig.Datadog), "flare")
+	return flareRoute + "/support/flare"
+}
