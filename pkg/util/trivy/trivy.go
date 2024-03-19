@@ -31,7 +31,6 @@ import (
 	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
 	image2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/image"
 	local2 "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
-	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/aquasecurity/trivy/pkg/scanner"
@@ -69,8 +68,7 @@ type CollectorConfig struct {
 type Collector struct {
 	config           CollectorConfig
 	cacheInitialized sync.Once
-	cache            cache.Cache
-	cacheCleaner     *ScannerCacheCleaner
+	cache            CacheWithCleaner
 	osScanner        ospkg.Scanner
 	langScanner      langpkg.Scanner
 	vulnClient       vulnerability.Client
@@ -205,18 +203,18 @@ func (c *Collector) Close() error {
 
 // CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
-	if c.cacheCleaner != nil {
-		return c.cacheCleaner.clean()
+	if c.cache != nil {
+		return c.cache.clean()
 	}
 	return nil
 }
 
 // getCache returns the cache with the cache Cleaner. It should initializes the cache
 // only once to avoid blocking the CLI with the `flock` file system.
-func (c *Collector) getCache() (cache.Cache, *ScannerCacheCleaner, error) {
+func (c *Collector) getCache() (CacheWithCleaner, error) {
 	var err error
 	c.cacheInitialized.Do(func() {
-		c.cache, c.cacheCleaner, err = NewCustomBoltCache(
+		c.cache, err = NewCustomBoltCache(
 			c.wmeta,
 			defaultCacheDir(),
 			config.Datadog.GetInt("sbom.cache.max_disk_size"),
@@ -224,10 +222,10 @@ func (c *Collector) getCache() (cache.Cache, *ScannerCacheCleaner, error) {
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return c.cache, c.cacheCleaner, nil
+	return c.cache, nil
 }
 
 // ScanDockerImage scans a docker image
@@ -322,14 +320,14 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 	// in the `scanImage`, which is not called in the `ScanImageFromFilesystem` method.
 	// Filesystem scans use a memory cache that is not returned by the cacheProvider.
 	// Todo: refactor the cache initialization to avoid this.
-	if imgMeta != nil && c.cacheCleaner != nil {
+	if imgMeta != nil && c.cache != nil {
 		// The artifact reference is only needed to clean up the blobs after the scan.
 		// It is re-generated from cached partial results during the scan.
 		artifactReference, err := artifact.Inspect(ctx)
 		if err != nil {
 			return nil, err
 		}
-		c.cacheCleaner.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
+		c.cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
 	}
 
 	s := scanner.NewScanner(local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient), artifact)
@@ -346,7 +344,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 }
 
 func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	cache, _, err := c.getCache()
+	cache, err := c.getCache()
 	if err != nil {
 		return nil, err
 	}

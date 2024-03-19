@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
+	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
@@ -43,73 +44,23 @@ func defaultCacheDir() string {
 
 // NewCustomBoltCache returns a BoltDB cache using an LRU algorithm with a
 // maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (*ScannerCache, *ScannerCacheCleaner, error) {
+func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (CacheWithCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = defaultCacheDir()
 	}
 	db, err := NewBoltDB(cacheDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	cache, err := newPersistentCache(
 		maxDiskSize,
 		db,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	trivyCache := &ScannerCache{cache: cache}
-	return trivyCache, NewScannerCacheCleaner(trivyCache, wmeta), nil
-}
-
-// ScannerCacheCleaner is a cache cleaner for a ScannerCache instance. It holds a map
-// that keeps track of all the entities using a given key.
-type ScannerCacheCleaner struct {
-	cachedKeysForEntity map[string][]string
-	target              *ScannerCache
-	wmeta               optional.Option[workloadmeta.Component]
-}
-
-// NewScannerCacheCleaner creates a new instance of ScannerCacheCleaner and returns a pointer to it.
-func NewScannerCacheCleaner(target *ScannerCache, wmeta optional.Option[workloadmeta.Component]) *ScannerCacheCleaner {
-	return &ScannerCacheCleaner{
-		cachedKeysForEntity: make(map[string][]string),
-		target:              target,
-		wmeta:               wmeta,
-	}
-}
-
-// clean removes unused cached entries from the cache.
-func (c *ScannerCacheCleaner) clean() error {
-	instance, ok := c.wmeta.Get()
-	if !ok {
-		return nil
-	}
-	images := instance.ListImages()
-
-	toKeep := make(map[string]struct{}, len(images))
-	for _, imageMetadata := range images {
-		for _, key := range c.cachedKeysForEntity[imageMetadata.EntityID.ID] {
-			toKeep[key] = struct{}{}
-		}
-	}
-
-	toRemove := make([]string, 0, c.target.cache.Len())
-	for _, key := range c.target.cache.Keys() {
-		if _, ok := toKeep[key]; !ok {
-			toRemove = append(toRemove, key)
-		}
-	}
-
-	if err := c.target.cache.Remove(toRemove); err != nil {
-		return err
-	}
-	return nil
-}
-
-// setKeysForEntity sets keys of items stored in the cache for the given entity.
-func (c *ScannerCacheCleaner) setKeysForEntity(entity string, cachedKeys []string) {
-	c.cachedKeysForEntity[entity] = cachedKeys
+	trivyCache := &ScannerCache{cache: cache, wmeta: wmeta}
+	return trivyCache, nil
 }
 
 // cachedObject describes an object that can be stored with ScannerCache
@@ -140,10 +91,57 @@ func trivyCacheGet[T cachedObject](cache *ScannerCache, id string) (T, error) {
 	return res, nil
 }
 
+// CacheWithCleaner implements trivy's cache interface and adds a Clean method.
+type CacheWithCleaner interface {
+	cache.Cache
+	// clean removes unused cached entries from the cache.
+	clean() error
+	setKeysForEntity(entity string, cachedKeys []string)
+}
+
+// Make sure that ScannerCache implements CacheWithCleaner
+var _ CacheWithCleaner = &ScannerCache{}
+
 // ScannerCache wraps a generic Cache and implements trivy.Cache.
 type ScannerCache struct {
 	// cache is the underlying cache
 	cache *persistentCache
+
+	cachedKeysForEntity map[string][]string
+	wmeta               optional.Option[workloadmeta.Component]
+}
+
+// clean removes entries of deleted images from the cache.
+func (c *ScannerCache) clean() error {
+	instance, ok := c.wmeta.Get()
+	if !ok {
+		return nil
+	}
+	images := instance.ListImages()
+
+	toKeep := make(map[string]struct{}, len(images))
+	for _, imageMetadata := range images {
+		for _, key := range c.cachedKeysForEntity[imageMetadata.EntityID.ID] {
+			toKeep[key] = struct{}{}
+		}
+	}
+
+	toRemove := make([]string, 0, c.cache.Len())
+	for _, key := range c.cache.Keys() {
+		if _, ok := toKeep[key]; !ok {
+			toRemove = append(toRemove, key)
+		}
+	}
+
+	if err := c.cache.Remove(toRemove); err != nil {
+		return err
+	}
+	return nil
+}
+
+// setKeysForEntity sets keys of items stored in the cache for the given entity.
+func (c *ScannerCache) setKeysForEntity(entity string, cachedKeys []string) {
+	c.cachedKeysForEntity[entity] = cachedKeys
 }
 
 // MissingBlobs implements cache.Cache#MissingBlobs
