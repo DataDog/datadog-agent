@@ -194,8 +194,27 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 		Metadata: &api.MetadataMessage{
 			Name: p.Metadata.Name,
 		},
-		ProfileGlobalState: p.GetGlobalState().toTag(),
+		ProfileGlobalState: p.GetGlobalState().String(),
+		ProfileContexts:    make(map[string]*api.ProfileContextMessage),
 	}
+	p.versionContextsLock.Lock()
+	for imageTag, ctx := range p.versionContexts {
+		msgCtx := &api.ProfileContextMessage{
+			FirstSeen:      ctx.firstSeenNano,
+			LastSeen:       ctx.lastSeenNano,
+			EventTypeState: make(map[string]*api.EventTypeState),
+			Tags:           ctx.Tags,
+		}
+		for et, state := range ctx.eventTypeState {
+			msgCtx.EventTypeState[et.String()] = &api.EventTypeState{
+				LastAnomalyNano:   state.lastAnomalyNano,
+				EventProfileState: state.state.String(),
+			}
+		}
+		msg.ProfileContexts[imageTag] = msgCtx
+	}
+	p.versionContextsLock.Unlock()
+
 	if p.ActivityTree != nil {
 		msg.Stats = &api.ActivityTreeStatsMessage{
 			ProcessNodesCount: p.ActivityTree.Stats.ProcessNodes,
@@ -372,7 +391,7 @@ func (p *SecurityProfile) ListAllVersionStates() {
 	}
 	fmt.Printf("Versions: %s\n", versions)
 
-	fmt.Printf("Global state: %s\n", p.GetGlobalState().toTag())
+	fmt.Printf("Global state: %s\n", p.GetGlobalState().String())
 	for i, version := range orderedVersions {
 		fmt.Printf("Version %d:\n", i)
 		fmt.Printf("  - Tags: %+v\n", version.Tags)
@@ -380,7 +399,7 @@ func (p *SecurityProfile) ListAllVersionStates() {
 		fmt.Printf("  - Last seen: %v\n", time.Unix(0, int64(version.lastSeenNano)))
 		fmt.Printf("  - Event types:\n")
 		for et, ets := range version.eventTypeState {
-			fmt.Printf("    . %s: %+v\n", et, ets.state.toTag())
+			fmt.Printf("    . %s: %+v\n", et, ets.state.String())
 		}
 	}
 	fmt.Printf("Instances:\n")

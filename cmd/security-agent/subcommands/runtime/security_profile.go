@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -162,8 +163,14 @@ func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
 }
 
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
+	timeResolver, err := timeResolver.NewResolver()
+	if err != nil {
+		fmt.Printf("can't get new time resolver: %v\n", err)
+		return
+	}
+
 	prefix := "  "
-	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s## NAME: %s ##\n", prefix, msg.GetMetadata().GetName())
 	fmt.Printf("%s  workload_selector:\n", prefix)
 	fmt.Printf("%s    image_name: %v\n", prefix, msg.GetSelector().GetName())
 	fmt.Printf("%s    image_tag: %v\n", prefix, msg.GetSelector().GetTag())
@@ -175,10 +182,21 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 	}
 	fmt.Printf("%s  event_types: %v\n", prefix, msg.GetEventTypes())
 	fmt.Printf("%s  global_state: %v\n", prefix, msg.GetProfileGlobalState())
+	fmt.Printf("%s  Versions:\n", prefix)
+	for imageTag, ctx := range msg.GetProfileContexts() {
+		fmt.Printf("%s  - %s:\n", prefix, imageTag)
+		fmt.Printf("%s    tags: %v\n", prefix, ctx.GetTags())
+		fmt.Printf("%s    first seen: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(ctx.GetFirstSeen()))
+		fmt.Printf("%s    last seen: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(ctx.GetLastSeen()))
+		for et, state := range ctx.GetEventTypeState() {
+			fmt.Printf("%s    . %s: %s\n", prefix, et, state.GetEventProfileState())
+			fmt.Printf("%s      last anomaly: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(state.GetLastAnomalyNano()))
+		}
+	}
 	if len(msg.GetInstances()) > 0 {
 		fmt.Printf("%s  instances:\n", prefix)
 		for _, inst := range msg.GetInstances() {
-			fmt.Printf("%s    - container_id: %s\n", prefix, inst.GetContainerID())
+			fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}

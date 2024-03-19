@@ -60,22 +60,26 @@ const (
 	WorkloadWarmup
 )
 
-func (efr EventFilteringProfileState) toTag() string {
+func (efr EventFilteringProfileState) String() string {
 	switch efr {
 	case NoProfile:
-		return "profile_state:no_profile"
+		return "no_profile"
 	case ProfileAtMaxSize:
-		return "profile_state:profile_at_max_size"
+		return "profile_at_max_size"
 	case UnstableEventType:
-		return "profile_state:unstable_event_type"
+		return "unstable_event_type"
 	case StableEventType:
-		return "profile_state:stable_event_type"
+		return "stable_event_type"
 	case AutoLearning:
-		return "profile_state:auto_learning"
+		return "auto_learning"
 	case WorkloadWarmup:
-		return "profile_state:workload_warmup"
+		return "workload_warmup"
 	}
 	return ""
+}
+
+func (efr EventFilteringProfileState) toTag() string {
+	return "profile_state:" + efr.String()
 }
 
 func (efr EventFilteringProfileState) toProto() proto.EventProfileState {
