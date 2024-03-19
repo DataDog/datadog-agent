@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -30,32 +29,32 @@ import (
 // ExecJMXCommandConsole runs the provided JMX command name on the selected checks, and
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component], gui optional.Option[gui.Component]) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector, gui)
+func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting
 // the data as a JSON on the console. It is used by the `check jmx` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component], gui optional.Option[gui.Component]) error {
+func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector, gui)
+	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector)
 }
 
 // ExecJmxListWithRateMetricsJSON runs the JMX command with "with-rate-metrics", reporting
 // the data as a JSON on the console. It is used by the `check jmx --rate` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component], gui optional.Option[gui.Component]) error {
+func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector, gui)
+	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector)
 }
 
 // execJmxCommand runs the provided JMX command name on the selected checks.
@@ -71,10 +70,9 @@ func execJmxCommand(command string,
 	ac autodiscovery.Component,
 	senderManager sender.DiagnoseSenderManager,
 	agentAPI internalAPI.Component,
-	collector optional.Option[collector.Component],
-	gui optional.Option[gui.Component]) error {
+	collector optional.Option[collector.Component]) error {
 	// start the cmd HTTP server
-	if err := agentAPI.StartServer(wmeta, taggerComp, ac, optional.NewNoneOption[logsAgent.Component](), senderManager, collector, gui); err != nil {
+	if err := agentAPI.StartServer(wmeta, taggerComp, ac, optional.NewNoneOption[logsAgent.Component](), senderManager, collector); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
 	}
 

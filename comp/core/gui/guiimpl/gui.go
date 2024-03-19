@@ -50,17 +50,23 @@ func Module() fxutil.Module {
 }
 
 type gui struct {
+	logger    log.Component
+	config    config.Component
+	flare     flare.Component
+	status    status.Component
+	collector collector.Component
+	ac        autodiscovery.Component
+
 	port      string
 	listener  net.Listener
 	router    *mux.Router
 	authToken string
-	logger    log.Component
 
 	// CsrfToken is a session-specific token passed to the GUI's authentication endpoint by app.launchGui
 	CsrfToken string
 
 	// To compute uptime
-	// startTimestamp int64
+	startTimestamp int64
 }
 
 //go:embed views
@@ -97,16 +103,15 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 		return optional.NewNoneOption[guicomp.Component](), nil
 	}
 
-	var g gui
-
-	// Set gui port
-	g.port = guiPort
-
-	// Set Logger
-	g.logger = deps.Log
-
-	// Set start time...
-	startTimestamp := time.Now().Unix()
+	g := gui{
+		port:      guiPort,
+		logger:    deps.Log,
+		config:    deps.Config,
+		flare:     deps.Flare,
+		status:    deps.Status,
+		collector: deps.Collector,
+		ac:        deps.Ac,
+	}
 
 	// Instantiate the gorilla/mux router
 	g.router = mux.NewRouter()
@@ -115,16 +120,16 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 	g.router.HandleFunc("/authenticate", g.generateAuthEndpoint)
 
 	// Serve the (secured) index page on the default endpoint
-	g.router.Handle("/", g.authorizeAccess(http.HandlerFunc(g.generateIndex)))
+	g.router.Handle("/", g.authorizeAccess(http.HandlerFunc(generateIndex)))
 
 	// Mount our (secured) filesystem at the view/{path} route
-	g.router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", g.authorizeAccess(http.HandlerFunc(g.serveAssets))))
+	g.router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", g.authorizeAccess(http.HandlerFunc(serveAssets))))
 
 	// Set up handlers for the API
 	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, startTimestamp)
+	g.agentHandler(agentRouter)
 	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
-	checkHandler(checkRouter, deps.Collector, deps.Ac)
+	g.checkHandler(checkRouter)
 
 	// Add authorization middleware to all the API endpoints
 	g.router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(g.authorizePOST), negroni.Wrap(agentRouter)))
@@ -149,9 +154,13 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 	return optional.NewOption[guicomp.Component](g), nil
 }
 
-// StartGUIServer creates the router, starts the HTTP server & generates the authentication token for access
+// start function is provided to fx as OnStart lifecycle hook, it run the GUI server
 func (g *gui) start(_ context.Context) error {
 	var e error
+
+	// Set start time...
+	g.startTimestamp = time.Now().Unix()
+
 	g.listener, e = net.Listen("tcp", "127.0.0.1:"+g.port)
 	if e != nil {
 		return e
@@ -178,7 +187,7 @@ func (g *gui) createCSRFToken() error {
 	return nil
 }
 
-func (gui) generateIndex(w http.ResponseWriter, _ *http.Request) {
+func generateIndex(w http.ResponseWriter, _ *http.Request) {
 	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -216,7 +225,7 @@ func (g *gui) generateAuthEndpoint(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func (gui) serveAssets(w http.ResponseWriter, req *http.Request) {
+func serveAssets(w http.ResponseWriter, req *http.Request) {
 	path := path.Join("views", "private", req.URL.Path)
 	data, err := viewsFS.ReadFile(path)
 	if err != nil {

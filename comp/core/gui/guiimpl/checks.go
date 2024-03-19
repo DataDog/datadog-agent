@@ -46,11 +46,11 @@ var (
 )
 
 // Adds the specific handlers for /checks/ endpoints
-func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
+func (g *gui) checkHandler(r *mux.Router) {
 	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
-	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(collector, ac))).Methods("POST")
-	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnceHandler(ac))).Methods("POST")
-	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(collector, ac))).Methods("POST")
+	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(g.collector, g.ac))).Methods("POST")
+	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnceHandler(g.ac))).Methods("POST")
+	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(g.collector, g.ac))).Methods("POST")
 	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")

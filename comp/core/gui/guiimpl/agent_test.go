@@ -50,7 +50,10 @@ func Test_makeFlare(t *testing.T) {
 		},
 	}
 
-	fakeGuiStartTimestamp := time.Now().Unix()
+	// fakeGuiStartTimestamp := time.Now().Unix()
+	g := gui{
+		startTimestamp: time.Now().Unix(),
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,7 +63,7 @@ func Test_makeFlare(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := mux.NewRouter()
-			agentHandler(router, nil, nil, nil, fakeGuiStartTimestamp)
+			g.agentHandler(router)
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()
@@ -92,11 +95,14 @@ func Test_getConfigSetting(t *testing.T) {
 		},
 	}
 
-	fakeGuiStartTimestamp := time.Now().Unix()
-
 	c := fxutil.Test[config.Component](t,
 		config.MockModule(),
 	)
+
+	g := gui{
+		startTimestamp: time.Now().Unix(),
+		config:         c,
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -111,7 +117,7 @@ func Test_getConfigSetting(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			router := mux.NewRouter()
-			agentHandler(router, nil, nil, c, fakeGuiStartTimestamp)
+			g.agentHandler(router)
 			router.ServeHTTP(rr, req)
 
 			resp := rr.Result()
