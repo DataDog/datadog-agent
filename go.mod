@@ -78,7 +78,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
-	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ./pkg/util/flavor
@@ -651,7 +650,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/common v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/compression v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.52.0-rc.3
