@@ -50,6 +50,7 @@ func newTestClient(db *bbolt.DB, name string, cfg model.Config) (*Client, error)
 	}
 	return NewClient(db, name, getTestOrgUUIDProvider(2), opts...)
 }
+
 func TestClientState(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	cfg := newTestConfig(testRepository1)
