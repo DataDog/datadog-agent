@@ -240,8 +240,8 @@ func sendHTTPHEADRequestToEndpoint(url string, client *http.Client) (int, error)
 	if err != nil {
 		return -1, err
 	}
-	defer res.Body.Close() // Close the response body
-	// Since the flare only accept post, when we perform a head request, we should expect a redirection before the final response
+	defer res.Body.Close()
+	// Expected status codes are OK or a redirection
 	if res.StatusCode == http.StatusTemporaryRedirect || res.StatusCode == http.StatusPermanentRedirect || res.StatusCode == http.StatusOK {
 		return res.StatusCode, nil
 	}
