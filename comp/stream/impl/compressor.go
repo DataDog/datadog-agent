@@ -3,24 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-//go:build zlib
-
 //nolint:revive // TODO(AML) Fix revive linter
-package stream
+package streamimpl
 
 import (
 	"bytes"
 	"compress/zlib"
-	"errors"
 	"expvar"
 
+	"github.com/DataDog/datadog-agent/comp/stream"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-)
-
-const (
-	// Available is true if the code is compiled in
-	Available = true
 )
 
 var (
@@ -42,14 +35,6 @@ var (
 
 var (
 	maxRepacks = 40 // CPU time vs tighter payload tradeoff
-)
-
-var (
-	// ErrPayloadFull is returned when the payload buffer is full
-	ErrPayloadFull = errors.New("reached maximum payload size")
-
-	// ErrItemTooBig is returned when a item alone exceeds maximum payload size
-	ErrItemTooBig = errors.New("item alone exceeds maximum payload size")
 )
 
 func init() {
@@ -76,16 +61,10 @@ type compressor struct {
 	separator           []byte
 }
 
-type Compressor interface {
-	MethodMissing() string
-	AddItem(data []byte) error
-	Close() ([]byte, error)
-}
-
-var _ Compressor = (*compressor)(nil)
+var _ stream.Compressor = (*compressor)(nil)
 
 // NewCompressor returns a new instance of a Compressor
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (Compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (stream.Compressor, error) {
 	c := &compressor{
 		header:              header,
 		footer:              footer,
@@ -104,10 +83,6 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 	c.uncompressedWritten += n
 
 	return c, err
-}
-
-func (c *compressor) MethodMissing() string {
-	return "NotImplemented"
 }
 
 // checkItemSize checks that the item can fit in a payload. Worst case is used to
@@ -153,23 +128,23 @@ func (c *compressor) Write(data []byte) (int, error) {
 func (c *compressor) AddItem(data []byte) error {
 	// check item size sanity
 	if !c.checkItemSize(data) {
-		return ErrItemTooBig
+		return stream.ErrItemTooBig
 	}
 	// check max repack cycles
 	if c.repacks >= maxRepacks {
-		return ErrPayloadFull
+		return stream.ErrPayloadFull
 	}
 
 	if !c.hasRoomForItem(data) {
 		if c.input.Len() == 0 {
-			return ErrPayloadFull
+			return stream.ErrPayloadFull
 		}
 		err := c.pack()
 		if err != nil {
 			return err
 		}
 		if !c.hasRoomForItem(data) {
-			return ErrPayloadFull
+			return stream.ErrPayloadFull
 		}
 		c.repacks++
 	}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/stream"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -124,11 +125,13 @@ func (c *ServerlessMetricAgent) GetExtraTags() []string {
 func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration) aggregator.Demultiplexer {
 	log.Debugf("Using a SyncForwarder with a %v timeout", forwarderTimeout)
 	keysPerDomain, err := multipleEndpointConfig.GetMultipleEndpoints()
+	// TODO: fix nil stream.Component
+	var streamComp stream.Component
 	if err != nil {
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout)
+	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout, streamComp)
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {

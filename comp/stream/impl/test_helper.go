@@ -5,7 +5,7 @@
 
 //go:build test
 
-package stream
+package streamimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"

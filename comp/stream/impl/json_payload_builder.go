@@ -3,9 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//go:build zlib
-
-package stream
+package streamimpl
 
 import (
 	"bytes"
@@ -17,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -62,7 +61,7 @@ func init() {
 // JSONPayloadBuilder is used to build payloads. JSONPayloadBuilder allocates memory based
 // on what was previously need to serialize payloads. Keep that in mind and
 // use multiple JSONPayloadBuilders for different sources.
-type JSONPayloadBuilder struct {
+type jsonPayloadBuilder struct {
 	inputSizeHint, outputSizeHint int
 	shareAndLockBuffers           bool
 	input, output                 *bytes.Buffer
@@ -70,10 +69,12 @@ type JSONPayloadBuilder struct {
 	config                        config.Component
 }
 
+var _ stream.JSONPayloadBuilder = (*jsonPayloadBuilder)(nil)
+
 // NewJSONPayloadBuilder returns a new JSONPayloadBuilder
-func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) stream.JSONPayloadBuilder {
 	if shareAndLockBuffers {
-		return &JSONPayloadBuilder{
+		return &jsonPayloadBuilder{
 			inputSizeHint:       4096,
 			outputSizeHint:      4096,
 			shareAndLockBuffers: true,
@@ -82,7 +83,7 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *J
 			config:              config,
 		}
 	}
-	return &JSONPayloadBuilder{
+	return &jsonPayloadBuilder{
 		inputSizeHint:       4096,
 		outputSizeHint:      4096,
 		shareAndLockBuffers: false,
@@ -90,21 +91,10 @@ func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *J
 	}
 }
 
-// OnErrItemTooBigPolicy defines the behavior when OnErrItemTooBig occurs.
-type OnErrItemTooBigPolicy int
-
-const (
-	// DropItemOnErrItemTooBig skips the error and continues when ErrItemTooBig is encountered
-	DropItemOnErrItemTooBig OnErrItemTooBigPolicy = iota
-
-	// FailOnErrItemTooBig returns the error and stop when ErrItemTooBig is encountered
-	FailOnErrItemTooBig
-)
-
 // BuildWithOnErrItemTooBigPolicy serializes a metadata payload and sends it to the forwarder
-func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
+func (b *jsonPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	m marshaler.IterableStreamJSONMarshaler,
-	policy OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
+	policy stream.OnErrItemTooBigPolicy) (transaction.BytesPayloads, error) {
 	var input, output *bytes.Buffer
 
 	// the backend accepts payloads up to specific compressed / uncompressed
@@ -178,7 +168,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 		}
 
 		switch compressor.AddItem(jsonStream.Buffer()) {
-		case ErrPayloadFull:
+		case stream.ErrPayloadFull:
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
@@ -204,9 +194,9 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
 			continue
-		case ErrItemTooBig:
-			if policy == FailOnErrItemTooBig {
-				return nil, ErrItemTooBig
+		case stream.ErrItemTooBig:
+			if policy == stream.FailOnErrItemTooBig {
+				return nil, stream.ErrItemTooBig
 			}
 			fallthrough
 		default:

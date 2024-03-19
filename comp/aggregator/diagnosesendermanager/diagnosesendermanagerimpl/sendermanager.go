@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/stream"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -33,6 +34,7 @@ type dependencies struct {
 	fx.In
 	Log      log.Component
 	Config   config.Component
+	Stream   stream.Component
 	Hostname hostname.Component
 }
 
@@ -73,6 +75,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 		orchestratorForwarder,
 		opts,
 		eventPlatformForwarder,
+		sender.deps.Stream,
 		hostnameDetected)
 
 	sender.senderManager.Set(senderManager)
