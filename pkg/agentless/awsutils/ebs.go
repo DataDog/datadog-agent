@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/devices"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/nbd"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
+	"github.com/DataDog/datadog-agent/pkg/agentless/nbd"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 

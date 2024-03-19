@@ -8,8 +8,8 @@ package scanners
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/awsutils"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/awsutils"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
