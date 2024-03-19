@@ -134,26 +134,13 @@ k8s-e2e-otlp-main:
 .new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
   needs:
-    - job: deploy_deb_testing-a7_x64
-      optional: true
+    - deploy_deb_testing-a7_x64
 
 .new_e2e_template_needs_deb_windows_x64:
   extends: .new_e2e_template
   needs:
-    - job: deploy_deb_testing-a7_x64
-      optional: true
-    - job: deploy_windows_testing-a7
-      optional: true
-
-.new_e2e_template_needs_deb_rpm_windows_x64:
-  extends: .new_e2e_template
-  needs:
-    - job: deploy_deb_testing-a7_x64
-      optional: true
-    - job: deploy_rpm_testing-a7_x64
-      optional: true
-    - job: deploy_windows_testing-a7
-      optional: true
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
@@ -228,8 +215,13 @@ new-e2e-language-detection:
     TEAM: processes
 
 new-e2e-npm:
-  extends: .new_e2e_template_needs_deb_rpm_windows_x64
+  extends: .new_e2e_template
   rules: !reference [.on_npm_or_e2e_changes_or_manual]
+  needs:
+    - qa_agent
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_x64
+    - deploy_windows_testing-a7
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
