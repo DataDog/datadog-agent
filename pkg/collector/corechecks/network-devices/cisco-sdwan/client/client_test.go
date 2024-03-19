@@ -147,7 +147,7 @@ func TestGetVEdgeInterfaces(t *testing.T) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(fixtures.GetVEdgeInterfaces)))
@@ -183,7 +183,7 @@ func TestGetCEdgeInterfaces(t *testing.T) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(fixtures.GetCEdgeInterfaces)))
@@ -223,7 +223,7 @@ func TestGetInterfacesMetrics(t *testing.T) {
 		startDate := query.Get("startDate")
 		endDate := query.Get("endDate")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
 		require.Equal(t, "1999-12-31T23:40:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
@@ -272,7 +272,7 @@ func TestGetDeviceHardwareMetrics(t *testing.T) {
 		startDate := query.Get("startDate")
 		endDate := query.Get("endDate")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
 		require.Equal(t, "1999-12-31T23:40:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
@@ -315,7 +315,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 		startDate := query.Get("startDate")
 		endDate := query.Get("endDate")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 		require.Equal(t, "UTC", timeZone)
 		require.Equal(t, "1999-12-31T23:40:00", startDate)
 		require.Equal(t, "2000-01-01T00:00:00", endDate)
@@ -357,7 +357,7 @@ func TestGetControlConnectionsState(t *testing.T) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(fixtures.GetControlConnectionsState)))
@@ -393,7 +393,7 @@ func TestGetOMPPeersState(t *testing.T) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(fixtures.GetOMPPeersState)))
@@ -428,7 +428,7 @@ func TestGetBFDSessionsState(t *testing.T) {
 		query := r.URL.Query()
 		count := query.Get("count")
 
-		require.Equal(t, "1000", count)
+		require.Equal(t, "2000", count)
 
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(fixtures.FakePayload(fixtures.GetBFDSessionsState)))

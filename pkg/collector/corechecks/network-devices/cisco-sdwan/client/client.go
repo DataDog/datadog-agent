@@ -22,8 +22,8 @@ const timeFormat = "2006-01-02T15:04:05"
 
 const (
 	defaultMaxAttempts = 3
-	defaultMaxPages    = 10
-	defaultMaxCount    = "1000"
+	defaultMaxPages    = 100
+	defaultMaxCount    = "2000"
 	defaultLookback    = 20 * time.Minute
 	defaultHTTPTimeout = 10
 	defaultHTTPScheme  = "https"
