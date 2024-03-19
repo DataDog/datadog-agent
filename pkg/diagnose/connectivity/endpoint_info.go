@@ -36,9 +36,8 @@ var (
 	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
 )
 
-// Each added/modified endpointInfo should be tested on all sites.
-
 func getEndpointsInfo(cfg config.Reader) []endpointInfo {
+	// Each added/modified endpointInfo should be tested on all sites.
 	return []endpointInfo{
 		// v1 endpoints
 		endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload},
