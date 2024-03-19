@@ -63,26 +63,23 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
 
-	minCollectionInterval, err := getMinCollectionInterval(instance, initConfig)
-	if err != nil {
-		return nil, err
+	c.MinCollectionInterval = firstNonZero(
+		time.Duration(instance.MinCollectionInterval)*time.Second,
+		time.Duration(initConfig.MinCollectionInterval)*time.Second,
+		defaults.DefaultCheckInterval,
+	)
+	if c.MinCollectionInterval < 0 {
+		return nil, fmt.Errorf("min collection interval must be > 0")
 	}
-	c.MinCollectionInterval = minCollectionInterval
 
 	return c, nil
 }
 
-func getMinCollectionInterval(instance InstanceConfig, initConfig InitConfig) (time.Duration, error) {
-	var minCollectionInterval time.Duration
-	if instance.MinCollectionInterval != 0 {
-		minCollectionInterval = time.Duration(instance.MinCollectionInterval) * time.Second
-	} else if initConfig.MinCollectionInterval != 0 {
-		minCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
-	} else {
-		minCollectionInterval = defaults.DefaultCheckInterval
+func firstNonZero(values ...time.Duration) time.Duration {
+	for _, s := range values {
+		if s != 0 {
+			return s
+		}
 	}
-	if minCollectionInterval < 0 {
-		return 0, fmt.Errorf("min collection interval must be > 0")
-	}
-	return minCollectionInterval, nil
+	return 0
 }
