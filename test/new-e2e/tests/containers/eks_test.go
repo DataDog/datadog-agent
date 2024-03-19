@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
@@ -25,6 +26,8 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3935
+	flake.Mark(t)
 	suite.Run(t, &eksSuite{})
 }
 
