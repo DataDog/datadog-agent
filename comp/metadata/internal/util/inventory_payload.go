@@ -93,6 +93,7 @@ type InventoryPayload struct {
 	log        log.Component
 	serializer serializer.MetricSerializer
 	getPayload PayloadGetter
+	createdAt  time.Time
 
 	Enabled       bool
 	LastCollect   time.Time
@@ -121,6 +122,7 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		log:           l,
 		serializer:    s,
 		getPayload:    getPayload,
+		createdAt:     time.Now(),
 		FlareFileName: flareFileName,
 		MinInterval:   minInterval,
 		MaxInterval:   maxInterval,
@@ -146,6 +148,13 @@ func (i *InventoryPayload) MetadataProvider() runnerimpl.Provider {
 func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	// Collect is called every MinInterval second. To maintain the same order of request as we did in 7.50.0
+	// We need to warranty that metadata information gets sent to the backend at least 1 minute past the startup time.
+	// For more information please check https://app.datadoghq.com/notebook/7691993/postmortem-ir-25790-agent-7-51-increase-the-chances-of-delayed-hots-tags
+	if time.Now().Sub(i.createdAt).Minutes() < 1 {
+		return i.MinInterval
+	}
 
 	// Collect will be called every MinInterval second. We send a new payload if a refresh was trigger or if it's
 	// been at least MaxInterval seconds since the last payload.
