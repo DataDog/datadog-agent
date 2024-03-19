@@ -97,6 +97,7 @@ func newRemoteConfigService(deps dependencies) (rcservice.Component, error) {
 
 	configService, err := remoteconfig.NewService(
 		deps.Cfg,
+		"Remote Config",
 		baseRawURL,
 		deps.Hostname.GetSafe(context.Background()),
 		configuredTags,

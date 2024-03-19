@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -39,6 +38,7 @@ type mockAPI struct {
 const (
 	httpError    = "api: simulated HTTP error"
 	agentVersion = "9.9.9"
+	testEnv      = "test-env"
 )
 
 // Setup overrides for tests
@@ -138,28 +138,6 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-// getTraceAgentDefaultEnv returns the default env for the trace agent
-func getTraceAgentDefaultEnv(c model.Reader) string {
-	defaultEnv := ""
-	if c.IsSet("apm_config.env") {
-		defaultEnv = c.GetString("apm_config.env")
-		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
-	} else if c.IsSet("env") {
-		defaultEnv = c.GetString("env")
-		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
-	} else {
-		for _, tag := range getConfiguredTags(c, false) {
-			if strings.HasPrefix(tag, "env:") {
-				defaultEnv = strings.TrimPrefix(tag, "env:")
-				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
-				return defaultEnv
-			}
-		}
-	}
-
-	return defaultEnv
-}
-
 // getConfiguredTags returns list of tags from a configuration, based on
 // `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
 // if includeDogdstatsd is true.
@@ -191,13 +169,13 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	baseRawURL := "https://localhost"
-	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
+	traceAgentEnv := testEnv
 	mockTelemetryReporter := newMockRcTelemetryReporter()
 	options := []Option{
 		WithTraceAgentEnv(traceAgentEnv),
 		WithAPIKey("abc"),
 	}
-	service, err := NewService(cfg, baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
@@ -218,6 +196,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -245,6 +224,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	// Sending the http error too
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -301,6 +281,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	api = &mockAPI{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -431,6 +412,7 @@ func TestService(t *testing.T) {
 	}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -514,6 +496,7 @@ func TestService(t *testing.T) {
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
 		AgentUuid:                    "test-uuid",
+		TraceAgentEnv:                testEnv,
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     1,
 		CurrentConfigSnapshotVersion: 2,
@@ -623,6 +606,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
@@ -669,6 +653,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -708,6 +693,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -747,6 +733,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -786,6 +773,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -828,6 +816,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -907,6 +896,7 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,

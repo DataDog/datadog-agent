@@ -80,7 +80,10 @@ var (
 type Service struct {
 	sync.Mutex
 
-	flavor string
+	// rcType is used to differentiate multiple RC services running in a single agent.
+	// Today, it is simply logged as a prefix in all log messages to help when triaging
+	// via logs.
+	rcType string
 
 	firstUpdate bool
 
@@ -153,51 +156,36 @@ func init() {
 	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
 }
 
-type configurableDurationOpt struct {
-	interval time.Duration
-	cfgPath  string
-}
-
-type configurableIntOpt struct {
-	value   int
-	cfgPath string
-}
-
 type options struct {
-	flavor                 string
-	rcKey                  string
-	apiKey                 string
-	traceAgentEnv          string
-	databaseFileName       string
-	configRootOverride     string
-	directorRootOverride   string
-	clientCacheBypassLimit *configurableIntOpt
-	refresh                *configurableDurationOpt
-	maxBackoff             *configurableDurationOpt
-	clientTTL              *configurableDurationOpt
+	rcKey                          string
+	apiKey                         string
+	traceAgentEnv                  string
+	databaseFileName               string
+	configRootOverride             string
+	directorRootOverride           string
+	clientCacheBypassLimit         int
+	refresh                        time.Duration
+	refreshIntervalOverrideAllowed bool
+	maxBackoff                     time.Duration
+	clientTTL                      time.Duration
 }
 
 var defaultOptions = options{
-	flavor:                 "Remote Config",
-	rcKey:                  "",
-	apiKey:                 "",
-	traceAgentEnv:          "",
-	databaseFileName:       "remote-config.db",
-	configRootOverride:     "",
-	directorRootOverride:   "",
-	clientCacheBypassLimit: nil,
-	refresh:                nil,
-	maxBackoff:             nil,
-	clientTTL:              nil,
+	rcKey:                          "",
+	apiKey:                         "",
+	traceAgentEnv:                  "",
+	databaseFileName:               "remote-config.db",
+	configRootOverride:             "",
+	directorRootOverride:           "",
+	clientCacheBypassLimit:         defaultCacheBypassLimit,
+	refresh:                        defaultRefreshInterval,
+	refreshIntervalOverrideAllowed: true,
+	maxBackoff:                     minimalMaxBackoffTime,
+	clientTTL:                      defaultClientsTTL,
 }
 
 // Option is a service option
 type Option func(s *options)
-
-// WithFlavor sets the service's flavor, which is used during logging/metrics to distinguish between different instances of the RC service
-func WithFlavor(flavor string) func(s *options) {
-	return func(s *options) { s.flavor = flavor }
-}
 
 // WithTraceAgentEnv sets the service trace-agent environment variable
 func WithTraceAgentEnv(env string) func(s *options) {
@@ -219,23 +207,37 @@ func WithDirectorRootOverride(override string) func(s *options) {
 	return func(s *options) { s.directorRootOverride = override }
 }
 
-// WithRefreshInterval sets the service refresh interval
+// WithRefreshInterval validates and sets the service refresh interval
 func WithRefreshInterval(interval time.Duration, cfgPath string) func(s *options) {
-	return func(s *options) {
-		s.refresh = &configurableDurationOpt{
-			interval: interval,
-			cfgPath:  cfgPath,
+	if interval < minimalRefreshInterval {
+		log.Warnf("%s is set to %v which is below the minimum of %v - using default refresh interval %v", cfgPath, interval, minimalRefreshInterval, defaultRefreshInterval)
+		return func(s *options) {
+			s.refresh = defaultRefreshInterval
+			s.refreshIntervalOverrideAllowed = true
 		}
+	}
+	return func(s *options) {
+		s.refresh = interval
+		s.refreshIntervalOverrideAllowed = false
 	}
 }
 
-// WithMaxBackoffInterval sets the service maximum retry backoff time
+// WithMaxBackoffInterval validates sets the service maximum retry backoff time
 func WithMaxBackoffInterval(interval time.Duration, cfgPath string) func(s *options) {
-	return func(s *options) {
-		s.maxBackoff = &configurableDurationOpt{
-			interval: interval,
-			cfgPath:  cfgPath,
+	if interval < minimalMaxBackoffTime {
+		log.Warnf("%s is set to %v which is below the minimum of %v - setting value to %v", cfgPath, interval, minimalMaxBackoffTime, minimalMaxBackoffTime)
+		return func(s *options) {
+			s.maxBackoff = minimalMaxBackoffTime
 		}
+	} else if interval > maximalMaxBackoffTime {
+		log.Warnf("%s is set to %v which is above the maximum of %v - setting value to %v", cfgPath, interval, maximalMaxBackoffTime, maximalMaxBackoffTime)
+		return func(s *options) {
+			s.maxBackoff = maximalMaxBackoffTime
+		}
+	}
+
+	return func(s *options) {
+		s.maxBackoff = interval
 	}
 }
 
@@ -249,53 +251,40 @@ func WithAPIKey(apiKey string) func(s *options) {
 	return func(s *options) { s.apiKey = apiKey }
 }
 
-// WithClientCacheBypassLimit sets the service client cache bypass limit
+// WithClientCacheBypassLimit validates and sets the service client cache bypass limit
 func WithClientCacheBypassLimit(limit int, cfgPath string) func(s *options) {
-	return func(s *options) {
-		s.clientCacheBypassLimit = &configurableIntOpt{
-			value:   limit,
-			cfgPath: cfgPath,
+	if limit < minCacheBypassLimit || limit > maxCacheBypassLimit {
+		log.Warnf(
+			"%s is not within accepted range (%d - %d): %d. Defaulting to %d",
+			cfgPath, minCacheBypassLimit, maxCacheBypassLimit, limit, defaultCacheBypassLimit,
+		)
+		return func(s *options) {
+			s.clientCacheBypassLimit = defaultCacheBypassLimit
 		}
+	}
+	return func(s *options) {
+		s.clientCacheBypassLimit = limit
 	}
 }
 
-// WithClientTTL sets the service client TTL
+// WithClientTTL validates and sets the service client TTL
 func WithClientTTL(interval time.Duration, cfgPath string) func(s *options) {
-	return func(s *options) {
-		s.clientTTL = &configurableDurationOpt{
-			interval: interval,
-			cfgPath:  cfgPath,
+	if interval < minimalRefreshInterval || interval > maxClientsTTL {
+		log.Warnf("%s is not within accepted range (%s - %s): %s. Defaulting to %s", cfgPath, minimalRefreshInterval, maxClientsTTL, interval, defaultClientsTTL)
+		return func(s *options) {
+			s.clientTTL = defaultClientsTTL
 		}
+	}
+	return func(s *options) {
+		s.clientTTL = interval
 	}
 }
 
 // NewService instantiates a new remote configuration management service
-func NewService(cfg model.Reader, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
+func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*Service, error) {
 	options := defaultOptions
 	for _, opt := range opts {
 		opt(&options)
-	}
-
-	refreshInterval := defaultRefreshInterval
-	refreshIntervalOverrideAllowed := true
-	if options.refresh != nil && options.refresh.interval >= minimalRefreshInterval {
-		refreshInterval = options.refresh.interval
-		refreshIntervalOverrideAllowed = false
-	} else if options.refresh != nil {
-		log.Warnf("[%s] %s is set to %v which is below the minimum of %v - using default refresh interval %v", options.flavor, options.refresh.cfgPath, options.refresh.interval, minimalRefreshInterval, defaultRefreshInterval)
-	}
-
-	maxBackoffTime := minimalMaxBackoffTime
-	if options.maxBackoff != nil {
-		if options.maxBackoff.interval < minimalMaxBackoffTime {
-			log.Warnf("[%s] %s is set to %v which is below the minimum of %v - setting value to %v", options.flavor, options.maxBackoff.cfgPath, options.maxBackoff.interval, minimalMaxBackoffTime, minimalMaxBackoffTime)
-			maxBackoffTime = minimalMaxBackoffTime
-		} else if options.maxBackoff.interval > maximalMaxBackoffTime {
-			log.Warnf("[%s] %s is set to %v which is above the maximum of %v - setting value to %v", options.flavor, options.maxBackoff.cfgPath, options.maxBackoff.interval, maximalMaxBackoffTime, maximalMaxBackoffTime)
-			maxBackoffTime = maximalMaxBackoffTime
-		} else {
-			maxBackoffTime = options.maxBackoff.interval
-		}
 	}
 
 	// A backoff is calculated as a range from which a random value will be selected. The formula is as follows.
@@ -313,7 +302,7 @@ func NewService(cfg model.Reader, baseRawURL, hostname string, tags []string, te
 	recoveryReset := false
 
 	backoffPolicy := backoff.NewExpBackoffPolicy(minBackoffFactor, baseBackoffTime,
-		maxBackoffTime.Seconds(), recoveryInterval, recoveryReset)
+		options.maxBackoff.Seconds(), recoveryInterval, recoveryReset)
 
 	authKeys, err := getRemoteConfigAuthKeys(options.apiKey, options.rcKey)
 	if err != nil {
@@ -357,34 +346,13 @@ func NewService(cfg model.Reader, baseRawURL, hostname string, tags []string, te
 		return nil, err
 	}
 
-	clientsTTL := defaultClientsTTL
-	if options.clientTTL != nil {
-		if options.clientTTL.interval < minimalRefreshInterval || options.clientTTL.interval > maxClientsTTL {
-			log.Warnf("[%s] %s is not within accepted range (%s - %s): %s. Defaulting to %s", options.flavor, options.clientTTL.cfgPath, minimalRefreshInterval, maxClientsTTL, options.clientTTL.interval, defaultClientsTTL)
-		} else {
-			clientsTTL = options.clientTTL.interval
-		}
-	}
-
-	clientsCacheBypassLimit := defaultCacheBypassLimit
-	if options.clientCacheBypassLimit != nil {
-		if options.clientCacheBypassLimit.value < minCacheBypassLimit || options.clientCacheBypassLimit.value > maxCacheBypassLimit {
-			log.Warnf(
-				"[%s] %s is not within accepted range (%d - %d): %d. Defaulting to %d",
-				options.flavor, options.clientCacheBypassLimit.cfgPath, minCacheBypassLimit, maxCacheBypassLimit, options.clientCacheBypassLimit.value, defaultCacheBypassLimit,
-			)
-		} else {
-			clientsCacheBypassLimit = options.clientCacheBypassLimit.value
-		}
-	}
-
 	clock := clock.New()
 
 	return &Service{
-		flavor:                         options.flavor,
+		rcType:                         rcType,
 		firstUpdate:                    true,
-		defaultRefreshInterval:         refreshInterval,
-		refreshIntervalOverrideAllowed: refreshIntervalOverrideAllowed,
+		defaultRefreshInterval:         options.refresh,
+		refreshIntervalOverrideAllowed: options.refreshIntervalOverrideAllowed,
 		backoffErrorCount:              0,
 		backoffPolicy:                  backoffPolicy,
 		products:                       make(map[rdata.Product]struct{}),
@@ -392,10 +360,11 @@ func NewService(cfg model.Reader, baseRawURL, hostname string, tags []string, te
 		hostname:                       hostname,
 		tags:                           tags,
 		clock:                          clock,
+		traceAgentEnv:                  options.traceAgentEnv,
 		db:                             db,
 		api:                            http,
 		uptane:                         uptaneClient,
-		clients:                        newClients(clock, clientsTTL),
+		clients:                        newClients(clock, options.clientTTL),
 		cacheBypassClients: cacheBypassClients{
 			clock:    clock,
 			requests: make(chan chan struct{}),
@@ -403,9 +372,9 @@ func NewService(cfg model.Reader, baseRawURL, hostname string, tags []string, te
 			// By default, allows for 5 cache bypass every refreshInterval seconds
 			// in addition to the usual refresh.
 			currentWindow:  time.Now().UTC(),
-			windowDuration: refreshInterval,
-			capacity:       clientsCacheBypassLimit,
-			allowance:      clientsCacheBypassLimit,
+			windowDuration: options.refresh,
+			capacity:       options.clientCacheBypassLimit,
+			allowance:      options.clientCacheBypassLimit,
 		},
 		telemetryReporter: telemetryReporter,
 		agentVersion:      agentVersion,
@@ -431,7 +400,7 @@ func (s *Service) Start() {
 			case <-s.clock.After(orgStatusPollInterval):
 				s.pollOrgStatus()
 			case <-s.stopOrgPoller:
-				log.Infof("[%s] Stopping Remote Config org status poller", s.flavor)
+				log.Infof("[%s] Stopping Remote Config org status poller", s.rcType)
 				return
 			}
 		}
@@ -444,9 +413,9 @@ func (s *Service) Start() {
 		err := s.refresh()
 		if err != nil {
 			if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
-				log.Errorf("[%s] Could not refresh Remote Config: %v", s.flavor, err)
+				log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 			} else {
-				log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.flavor, err)
+				log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
 			}
 		}
 
@@ -465,16 +434,16 @@ func (s *Service) Start() {
 				}
 				close(response)
 			case <-s.stopConfigPoller:
-				log.Infof("[%s] Stopping Remote Config configuration poller", s.flavor)
+				log.Infof("[%s] Stopping Remote Config configuration poller", s.rcType)
 				return
 			}
 
 			if err != nil {
 				if s.previousOrgStatus != nil && s.previousOrgStatus.Enabled && s.previousOrgStatus.Authorized {
 					exportedLastUpdateErr.Set(err.Error())
-					log.Errorf("[%s] Could not refresh Remote Config: %v", s.flavor, err)
+					log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 				} else {
-					log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.flavor, err)
+					log.Debugf("[%s] Could not refresh Remote Config (org is disabled or key is not authorized): %v", s.rcType, err)
 				}
 			}
 		}
@@ -496,7 +465,7 @@ func (s *Service) pollOrgStatus() {
 		// Unauthorized and proxy error are caught by the main loop requesting the latest config,
 		// and it limits the error log.
 		if !errors.Is(err, api.ErrUnauthorized) && !errors.Is(err, api.ErrProxy) {
-			log.Errorf("[%s] Could not refresh Remote Config: %v", s.flavor, err)
+			log.Errorf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 		}
 		return
 	}
@@ -507,16 +476,16 @@ func (s *Service) pollOrgStatus() {
 		s.previousOrgStatus.Authorized != response.Authorized {
 		if response.Enabled {
 			if response.Authorized {
-				log.Infof("[%s] Remote Configuration is enabled for this organization and agent.", s.flavor)
+				log.Infof("[%s] Remote Configuration is enabled for this organization and agent.", s.rcType)
 			} else {
 				log.Infof(
-					"[%s] Remote Configuration is enabled for this organization but disabled for this agent. Add the Remote Configuration Read permission to its API key to enable it for this agent.", s.flavor)
+					"[%s] Remote Configuration is enabled for this organization but disabled for this agent. Add the Remote Configuration Read permission to its API key to enable it for this agent.", s.rcType)
 			}
 		} else {
 			if response.Authorized {
-				log.Infof("[%s] Remote Configuration is disabled for this organization.", s.flavor)
+				log.Infof("[%s] Remote Configuration is disabled for this organization.", s.rcType)
 			} else {
-				log.Infof("[%s] Remote Configuration is disabled for this organization and agent.", s.flavor)
+				log.Infof("[%s] Remote Configuration is disabled for this organization and agent.", s.rcType)
 			}
 		}
 	}
@@ -540,14 +509,14 @@ func (s *Service) refresh() error {
 	s.refreshProducts(activeClients)
 	previousState, err := s.uptane.TUFVersionState()
 	if err != nil {
-		log.Warnf("[%s] could not get previous TUF version state: %v", s.flavor, err)
+		log.Warnf("[%s] could not get previous TUF version state: %v", s.rcType, err)
 	}
 	if s.forceRefresh() || err != nil {
 		previousState = uptane.TUFVersions{}
 	}
 	clientState, err := s.getClientState()
 	if err != nil {
-		log.Warnf("[%s] could not get previous backend client state: %v", s.flavor, err)
+		log.Warnf("[%s] could not get previous backend client state: %v", s.rcType, err)
 	}
 	orgUUID, err := s.uptane.StoredOrgUUID()
 	if err != nil {
@@ -578,7 +547,7 @@ func (s *Service) refresh() error {
 			// If we saw the error enough time, we consider that RC not working is a normal behavior
 			// And we only log as DEBUG
 			// The agent will eventually log this error as DEBUG every maximalMaxBackoffTime
-			log.Debugf("[%s] Could not refresh Remote Config: %v", s.flavor, err)
+			log.Debugf("[%s] Could not refresh Remote Config: %v", s.rcType, err)
 			return nil
 		}
 		return err
@@ -598,7 +567,7 @@ func (s *Service) refresh() error {
 		if err == nil && ri > 0 && s.defaultRefreshInterval != ri {
 			s.defaultRefreshInterval = ri
 			s.cacheBypassClients.windowDuration = ri
-			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.flavor, ri)
+			log.Infof("[%s] Overriding agent's base refresh interval to %v due to backend recommendation", s.rcType, ri)
 		}
 	}
 
