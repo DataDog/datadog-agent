@@ -59,6 +59,10 @@ def init_kernel_matrix_testing_system(ctx, lite):
         ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {kmt_os.qemu_conf}")
         ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {kmt_os.qemu_conf}")
 
+        ctx.run("{sudo} echo \"/opt/kernel-version-testing 100.0.0.0/8(ro,no_root_squash,no_subtree_check)\" >> /etc/exports")
+        ctx.run("{sudo} exportfs -a")
+
+
         kmt_os.restart_libvirtd(ctx, sudo)
 
     # download dependencies
