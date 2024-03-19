@@ -201,9 +201,11 @@ func (is *agentMSISuite) TestRepair() {
 	is.Require().NoError(err)
 
 	// Corrupt the install
-	err = t.host.Remove("C:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe")
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(t.host)
 	is.Require().NoError(err)
-	err = t.host.RemoveAll("C:\\Program Files\\Datadog\\Datadog Agent\\embedded3")
+	err = t.host.Remove(filepath.Join(installPath, "bin", "agent.exe"))
+	is.Require().NoError(err)
+	err = t.host.RemoveAll(filepath.Join(installPath, "embedded3"))
 	is.Require().NoError(err)
 
 	// Run Repair through the MSI
