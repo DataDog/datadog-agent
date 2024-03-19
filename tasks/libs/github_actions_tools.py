@@ -93,7 +93,7 @@ def trigger_macos_workflow(
     # Adding another hack to check if the workflow is not waiting a concurrency to be solved before generating the workflow jobs
     might_be_waiting = set()
 
-    MAX_WAITING_CONCURRENCY_RETRIES = 3  # Retries for up to 1h30
+    MAX_WAITING_CONCURRENCY_RETRIES = 3  # Retries for up to 1h45
     MAX_RETRIES = 30  # Retry for up to 5 minutes
     for i in range(MAX_WAITING_CONCURRENCY_RETRIES):
         for j in range(MAX_RETRIES):
@@ -101,8 +101,6 @@ def trigger_macos_workflow(
             recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
             for recent_run in recent_runs:
                 jobs = recent_run.jobs()
-                if jobs.totalCount == 0:
-                    might_be_waiting.add(recent_run.id)
                 if jobs.totalCount >= 2:
                     if recent_run.id in might_be_waiting:
                         might_be_waiting.remove(recent_run.id)
@@ -110,7 +108,8 @@ def trigger_macos_workflow(
                         if any([step.name == workflow_id for step in job.steps]):
                             return recent_run
                 else:
-                    print("waiting for jobs to popup...")
+                    might_be_waiting.add(recent_run.id)
+                    print(f"{might_be_waiting} workflows are waiting for jobs to popup...")
                     sleep(5)
             sleep(10)
         if len(might_be_waiting) != 0:
