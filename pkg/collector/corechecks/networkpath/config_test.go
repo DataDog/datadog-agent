@@ -6,12 +6,89 @@
 package networkpath
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
 
-func Test_firstNonZero(t *testing.T) {
+func TestNewCheckConfig(t *testing.T) {
+	tests := []struct {
+		name           string
+		rawInstance    integration.Data
+		rawInitConfig  integration.Data
+		expectedConfig *CheckConfig
+		expectedError  string
+	}{
+		{
+			name:          "invalid raw instance json",
+			rawInstance:   []byte(`{{{`),
+			expectedError: "invalid instance config",
+		},
+		{
+			name:          "invalid raw instance json",
+			rawInstance:   []byte(`hostname: 1.2.3.4`),
+			rawInitConfig: []byte(`{{{`),
+			expectedError: "invalid init_config",
+		},
+		{
+			name: "invalid min_collection_interval",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: -1
+`),
+			expectedError: "min collection interval must be > 0",
+		},
+		{
+			name: "min_collection_interval from instance",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+min_collection_interval: 42
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(42) * time.Second,
+			},
+		},
+		{
+			name: "min_collection_interval from init_config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+`),
+			rawInitConfig: []byte(`
+min_collection_interval: 10
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(10) * time.Second,
+			},
+		},
+		{
+			name: "min_collection_interval default value",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+`),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(15) * time.Second,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config, err := NewCheckConfig(tt.rawInstance, tt.rawInitConfig)
+			assert.Equal(t, tt.expectedConfig, config)
+			if tt.expectedError != "" {
+				assert.ErrorContains(t, err, tt.expectedError)
+			}
+		})
+	}
+}
+
+func TestFirstNonZero(t *testing.T) {
 	tests := []struct {
 		name          string
 		values        []time.Duration

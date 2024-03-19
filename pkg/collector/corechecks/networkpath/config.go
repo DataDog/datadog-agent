@@ -41,7 +41,6 @@ type CheckConfig struct {
 	MinCollectionInterval time.Duration
 }
 
-// TODO: TESTME
 // NewCheckConfig builds a new check config
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
@@ -49,12 +48,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid init_config: %s", err)
 	}
 
 	err = yaml.Unmarshal(rawInstance, &instance)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid instance config: %s", err)
 	}
 
 	c := &CheckConfig{}
