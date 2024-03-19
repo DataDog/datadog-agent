@@ -3,6 +3,7 @@ import string
 
 from datadog_checks.checks import AgentCheck
 
+
 def generate_tag_sets(rng, num_sets, tags_per_set, tag_length, unique_tagset_ratio):
     """
     Generate tag sets with a specified ratio, at the tagset level, of unique strings to potentially reused tag sets,
@@ -22,6 +23,7 @@ def generate_tag_sets(rng, num_sets, tags_per_set, tag_length, unique_tagset_rat
     """
 
     individual_tags = []
+
     def generate_tag(tag_length):
         if rng.random() >= unique_tagset_ratio and len(individual_tags) != 0:
             # sample from existing tags
@@ -55,7 +57,6 @@ def generate_tag_sets(rng, num_sets, tags_per_set, tag_length, unique_tagset_rat
         tag_sets.append(list(current_set))
 
     return tag_sets
-
 
 
 class MyCheck(AgentCheck):
