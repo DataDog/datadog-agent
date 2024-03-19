@@ -133,9 +133,6 @@ func (is *agentMSISuite) TestInstall() {
 	windowsAgent.TestValidDatadogCodeSignatures(is.T(), t.host, paths)
 
 	is.uninstallAgentAndRunUninstallTests(t)
-
-	// Do uninstall tests here, but could/should be in its own test
-	AssertDoesNotRemoveSystemFiles(is.T(), vm, is.beforeInstall)
 }
 
 func (is *agentMSISuite) TestUpgrade() {
@@ -293,6 +290,8 @@ func (is *agentMSISuite) uninstallAgentAndRunUninstallTests(t *Tester) bool {
 		}) {
 			tt.Fatal("uninstall failed")
 		}
+
+		AssertDoesNotRemoveSystemFiles(is.T(), is.Env().RemoteHost, is.beforeInstall)
 
 		t.TestUninstallExpectations(tt)
 	})
