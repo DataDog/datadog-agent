@@ -92,7 +92,17 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 }
 
 // WithTLSConfig is a functional option to set the HTTP Client TLS Config
-func WithTLSConfig(insecure bool, CAFile string) ClientOptions {
+func WithTLSConfig(insecure bool, CAFile string) (ClientOptions, error) {
+	var caCert []byte
+	var err error
+
+	if CAFile != "" {
+		caCert, err = os.ReadFile(CAFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return func(c *Client) {
 		tlsConfig := &tls.Config{}
 
@@ -100,20 +110,16 @@ func WithTLSConfig(insecure bool, CAFile string) ClientOptions {
 			tlsConfig.InsecureSkipVerify = insecure
 		}
 
-		if CAFile != "" {
-			caCert, err := os.ReadFile(CAFile)
-			if err == nil {
-				caCertPool := x509.NewCertPool()
-				caCertPool.AppendCertsFromPEM(caCert)
-
-				tlsConfig.RootCAs = caCertPool
-			}
+		if caCert != nil {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCert)
+			tlsConfig.RootCAs = caCertPool
 		}
 
 		c.httpClient.Transport = &http.Transport{
 			TLSClientConfig: tlsConfig,
 		}
-	}
+	}, nil
 }
 
 // WithMaxAttempts is a functional option to set the client max attempts
