@@ -281,7 +281,7 @@ kernel_matrix_testing_system_probe_cleanup_arm64:
     - .kernel_matrix_testing_system_probe_cleanup
   needs:
     - kernel_matrix_testing_setup_env_system_probe_arm64
-    - kernel_matrix_testing_run_system_probe_tests_arm64
+    - kmt_run_sysprobe_tests_arm64
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
@@ -291,7 +291,7 @@ kernel_matrix_testing_system_probe_cleanup_x64:
     - .kernel_matrix_testing_system_probe_cleanup
   needs:
     - kernel_matrix_testing_setup_env_system_probe_x64
-    - kernel_matrix_testing_run_system_probe_tests_x64
+    - kmt_run_sysprobe_tests_x64
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
