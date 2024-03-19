@@ -49,9 +49,26 @@ var (
 	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
 	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
 
-	// Flare endpoint
-	flareEndpointInfo = endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(config.Datadog), Name: "flare"}, "HEAD", nil}
-
 	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
-		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo, flareEndpointInfo}
+		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
 )
+
+func createDynamicEndpointURL() []endpointInfo {
+	listDynamicEndpoints := []endpointInfo{}
+
+	// Flare endpoint
+	flareEndpointInfo := endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(config.Datadog), Name: "flare"}, "HEAD", nil}
+	listDynamicEndpoints = append(listDynamicEndpoints, flareEndpointInfo)
+
+	return listDynamicEndpoints
+}
+
+// GetEndpointsInfo returns a list of all endpoints.
+func GetEndpointsInfo() []endpointInfo {
+	// Get all static endpoints
+	endpointsInfo := append([]endpointInfo{}, endpointsInfo...)
+	// Get all dynamic endpoints
+	endpointsInfo = append(endpointsInfo, createDynamicEndpointURL()...)
+
+	return endpointsInfo
+}
