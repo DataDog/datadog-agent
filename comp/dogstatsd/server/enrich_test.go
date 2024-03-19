@@ -27,9 +27,6 @@ var (
 		"ms": metrics.HistogramType,
 		"d":  metrics.DistributionType,
 	}
-
-	OptOutEnabled  = true
-	OptOutDisabled = false
 )
 
 func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrichConfig) (metrics.MetricSample, error) {
@@ -1317,30 +1314,11 @@ func TestEnrichTags(t *testing.T) {
 
 		t.Run(tt.name, func(t *testing.T) {
 			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, tt.args.conf)
-			if tt.args.conf.originOptOutEnabled {
-				tt.wantedOrigin.OptOutEnabled = &OptOutEnabled
-			} else {
-				tt.wantedOrigin.OptOutEnabled = &OptOutDisabled
-			}
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
 		})
-
-		if !tt.args.conf.originOptOutEnabled {
-			// All cases that work without originOptOutEnabled should still work with it.
-			conf := tt.args.conf
-			conf.originOptOutEnabled = true
-			tt.wantedOrigin.OptOutEnabled = &OptOutEnabled
-			t.Run(tt.name, func(t *testing.T) {
-				tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, tt.args.originFromMsg, conf)
-				assert.Equal(t, tt.wantedTags, tags)
-				assert.Equal(t, tt.wantedHost, host)
-				assert.Equal(t, tt.wantedOrigin, origin)
-				assert.Equal(t, tt.wantedMetricSource, metricSource)
-			})
-		}
 	}
 }
 

@@ -18,11 +18,9 @@ const (
 
 // OriginInfo contains the Origin Detection information.
 type OriginInfo struct {
-	FromUDS                   string        // FromUDS is the origin resolved using Unix Domain Socket.
-	FromTag                   string        // FromTag is the origin resolved from tags.
-	FromMsg                   string        // FromMsg is the origin resolved from the message.
-	Cardinality               string        // Cardinality is the cardinality of the resolved origin.
-	ProductOrigin             ProductOrigin // ProductOrigin is the product that sent the origin information.
-	OptOutEnabled             *bool         // OptOutEnabled is a pointer to a boolean indicating if the origin opt-out is enabled.
-	EntityIDPrecedenceEnabled *bool         // EntityIDPrecedenceEnabled is a pointer to a boolean indicating if EntityIDPrecedence is enabled.
+	FromUDS       string        // FromUDS is the origin resolved using Unix Domain Socket.
+	FromTag       string        // FromTag is the origin resolved from tags.
+	FromMsg       string        // FromMsg is the origin resolved from the message.
+	Cardinality   string        // Cardinality is the cardinality of the resolved origin.
+	ProductOrigin ProductOrigin // ProductOrigin is the product that sent the origin information.
 }

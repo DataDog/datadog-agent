@@ -33,7 +33,6 @@ type enrichConfig struct {
 	defaultHostname           string
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
-	originOptOutEnabled       bool
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
@@ -44,7 +43,6 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		FromUDS:       originFromUDS,
 		FromMsg:       string(originFromMsg),
 		ProductOrigin: taggertypes.ProductOriginDogStatsD,
-		OptOutEnabled: &conf.originOptOutEnabled,
 	}
 
 	n := 0

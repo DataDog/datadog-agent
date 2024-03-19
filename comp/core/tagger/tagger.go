@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -348,6 +349,8 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // is taking care of deduping the tags while generating the context key.
 func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality)
+	optOutEnabled := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
+	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
 	switch originInfo.ProductOrigin {
 	case taggertypes.ProductOriginDogStatsD:
@@ -376,7 +379,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		// | none                   | empty           || empty                               |
 		// | empty                  | not empty       || container prefix + originFromMsg    |
 		// | none                   | not empty       || container prefix + originFromMsg    |
-		if originInfo.OptOutEnabled != nil && *originInfo.OptOutEnabled && originInfo.Cardinality == "none" {
+		if optOutEnabled && originInfo.Cardinality == "none" {
 			originInfo.FromUDS = packets.NoOrigin
 			originInfo.FromTag = ""
 			originInfo.FromMsg = ""
@@ -386,7 +389,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		// We use the UDS socket origin if no origin ID was specify in the tags
 		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
 		if originInfo.FromUDS != packets.NoOrigin &&
-			(originInfo.FromTag == "" || (originInfo.EntityIDPrecedenceEnabled != nil && *originInfo.EntityIDPrecedenceEnabled)) {
+			(originInfo.FromTag == "" || entityIDPrecedenceEnabled) {
 			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
 				log.Errorf(err.Error())
 			}
