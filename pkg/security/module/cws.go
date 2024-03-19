@@ -76,7 +76,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		// internals
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
-		apiServer:     NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
+		apiServer:     NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester),
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
