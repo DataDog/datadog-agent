@@ -1148,6 +1148,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
+	config.BindEnvAndSetDefault("container_lifecycle.ecs_task_event.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
