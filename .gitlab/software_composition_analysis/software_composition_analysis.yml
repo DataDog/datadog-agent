@@ -6,7 +6,7 @@
 datadog-sca-ci:
   stage: software_composition_analysis
   tags: ["arch:amd64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci-sbom:2024011006
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-static-analyzer:2024031801
   when: always
   # We don't want to disrupt the pipeline so let's fail silently.
   allow_failure: true
