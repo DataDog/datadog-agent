@@ -316,6 +316,7 @@
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm/            @Datadog/agent-ci-experience @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/  @Datadog/agent-ci-experience @DataDog/processes
+/pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
