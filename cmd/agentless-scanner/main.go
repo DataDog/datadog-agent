@@ -65,10 +65,11 @@ var globalFlags struct {
 	noForkScanners bool
 }
 
-func runWithModules(run func(cmd *cobra.Command, args []string) error) func(cmd *cobra.Command, args []string) error {
+func runWithModules(run func(cmd *cobra.Command, args []string) error, sc *types.ScannerConfig) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		return fxutil.OneShot(
-			func(_ complog.Component, _ compconfig.Component, evp eventplatform.Component) error {
+			func(_ complog.Component, config compconfig.Component, evp eventplatform.Component) error {
+				*sc = getScannerConfig(config)
 				eventForwarder = evp
 				return run(cmd, args)
 			},
@@ -90,7 +91,7 @@ func main() {
 
 	signal.Ignore(syscall.SIGPIPE)
 
-	sc := getScannerConfig()
+	var sc types.ScannerConfig
 
 	cmd := rootCommand(sc)
 	cmd.SilenceErrors = true
@@ -139,7 +140,7 @@ func rootCommand(sc types.ScannerConfig) *cobra.Command {
 			globalFlags.diskMode = diskMode
 			globalFlags.defaultActions = defaultActions
 			return nil
-		}),
+		}, &sc),
 	}
 
 	cmd.AddCommand(runCommand(&sc))
@@ -317,15 +318,15 @@ func detectCloudProvider(s string) (types.CloudProvider, error) {
 	return types.ParseCloudProvider(s)
 }
 
-func getScannerConfig() types.ScannerConfig {
+func getScannerConfig(c compconfig.Component) types.ScannerConfig {
 	return types.ScannerConfig{
-		Env:                 pkgconfig.Datadog.GetString("env"),
-		DogstatsdPort:       pkgconfig.Datadog.GetInt("dogstatsd_port"),
-		DefaultRoles:        pkgconfig.Datadog.GetStringSlice("agentless_scanner.default_roles"),
-		AWSRegion:           pkgconfig.Datadog.GetString("agentless_scanner.aws_region"),
-		AWSEC2Rate:          pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
-		AWSEBSListBlockRate: pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
-		AWSEBSGetBlockRate:  pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
-		AWSDefaultRate:      pkgconfig.Datadog.GetFloat64("agentless_scanner.limits.aws_default_rate"),
+		Env:                 c.GetString("env"),
+		DogstatsdPort:       c.GetInt("dogstatsd_port"),
+		DefaultRoles:        c.GetStringSlice("agentless_scanner.default_roles"),
+		AWSRegion:           c.GetString("agentless_scanner.aws_region"),
+		AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
+		AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
+		AWSEBSGetBlockRate:  c.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
+		AWSDefaultRate:      c.GetFloat64("agentless_scanner.limits.aws_default_rate"),
 	}
 }
