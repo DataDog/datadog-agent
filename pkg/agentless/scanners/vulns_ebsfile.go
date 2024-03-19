@@ -8,7 +8,7 @@ package scanners
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/agentless/awsutils"
+	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -46,7 +46,7 @@ func (e ebsClientWithWalk) WalkSnapshotBlocks(ctx context.Context, input *ebs.Li
 
 // LaunchTrivyHostVM launches a trivy scan on a EBS volume.
 func LaunchTrivyHostVM(ctx context.Context, sc *types.ScannerConfig, opts types.ScannerOptions) (*cdx.BOM, error) {
-	ebsclient := ebs.NewFromConfig(awsutils.GetConfigFromCloudID(ctx, sc, opts.Scan.Roles, *opts.SnapshotID))
+	ebsclient := ebs.NewFromConfig(awsbackend.GetConfigFromCloudID(ctx, sc, opts.Scan.Roles, *opts.SnapshotID))
 	trivyCache := newMemoryCache()
 	onlyDirs := []string{
 		"/etc/*",

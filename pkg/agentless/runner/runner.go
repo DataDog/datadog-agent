@@ -26,7 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/DataDog/datadog-agent/pkg/agentless/awsutils"
+	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
@@ -125,11 +125,11 @@ func New(opts Options) (*Runner, error) {
 
 // Cleanup cleans up all the resources created by the runner.
 func (s *Runner) Cleanup(ctx context.Context, sc *types.ScannerConfig, maxTTL time.Duration, region string, assumedRole types.CloudID) error {
-	toBeDeleted, err := awsutils.ListResourcesForCleanup(ctx, sc, maxTTL, region, assumedRole)
+	toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, sc, maxTTL, region, assumedRole)
 	if err != nil {
 		return err
 	}
-	awsutils.ResourcesCleanup(ctx, sc, toBeDeleted, region, assumedRole)
+	awsbackend.ResourcesCleanup(ctx, sc, toBeDeleted, region, assumedRole)
 	return nil
 }
 
@@ -319,7 +319,7 @@ func (s *Runner) CleanSlate(sc *types.ScannerConfig) error {
 				}
 			}
 		}
-		awsutils.CleanSlate(ctx, sc, blockDevices, s.DefaultRoles)
+		awsbackend.CleanSlate(ctx, sc, blockDevices, s.DefaultRoles)
 	}
 
 	return nil
