@@ -32,7 +32,7 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(Config) (ServiceListener, error) {
+func NewContainerListener(_ Config, wmeta workloadmeta.Component) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	filterParams := workloadmeta.FilterParams{
@@ -43,7 +43,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 	f := workloadmeta.NewFilter(&filterParams)
 
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService, wmeta)
 	if err != nil {
 		return nil, err
 	}

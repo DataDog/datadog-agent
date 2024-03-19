@@ -26,7 +26,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(Config) (ServiceListener, error) {
+func NewKubeletListener(_ Config, wmeta workloadmeta.Component) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -38,7 +38,7 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	f := workloadmeta.NewFilter(&filterParams)
 
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod, wmeta)
 	if err != nil {
 		return nil, err
 	}
