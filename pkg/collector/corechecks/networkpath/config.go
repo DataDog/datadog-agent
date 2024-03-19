@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const DefaultCheckInterval time.Duration = 1 * time.Minute
+const defaultCheckInterval time.Duration = 1 * time.Minute
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
@@ -67,7 +67,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
 		time.Duration(initConfig.MinCollectionInterval)*time.Second,
-		DefaultCheckInterval,
+		defaultCheckInterval,
 	)
 	if c.MinCollectionInterval < 0 {
 		return nil, fmt.Errorf("min collection interval must be > 0")
