@@ -204,7 +204,7 @@ upload_system_probe_tests_arm64:
   variables:
     TEST_COMPONENT: system-probe
 
-kernel_matrix_testing_run_system_probe_tests_x64:
+kmt_run_sysprobe_tests_x64:
   extends:
     - .kernel_matrix_testing_run_system_probe_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -237,7 +237,7 @@ kernel_matrix_testing_run_system_probe_tests_x64:
           - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
-kernel_matrix_testing_run_system_probe_tests_arm64:
+kmt_run_sysprobe_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_system_probe_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
