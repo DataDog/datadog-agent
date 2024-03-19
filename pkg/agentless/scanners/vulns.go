@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"golang.org/x/exp/slices"
 

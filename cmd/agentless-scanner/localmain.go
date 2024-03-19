@@ -8,8 +8,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/runner"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/types"
+	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
 	"github.com/spf13/cobra"
 )
