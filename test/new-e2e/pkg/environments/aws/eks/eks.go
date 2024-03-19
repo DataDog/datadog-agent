@@ -13,14 +13,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/mutatedbyadmissioncontroller"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
+	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -28,15 +22,16 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/pulumi/pulumi-aws/sdk/v5/go/aws/ec2"
-	awsEks "github.com/pulumi/pulumi-aws/sdk/v5/go/aws/eks"
-	awsIam "github.com/pulumi/pulumi-aws/sdk/v5/go/aws/iam"
-	"github.com/pulumi/pulumi-eks/sdk/go/eks"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
-	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/core/v1"
-	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/meta/v1"
+	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
+	awsEks "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/eks"
+	awsIam "github.com/pulumi/pulumi-aws/sdk/v6/go/aws/iam"
+	"github.com/pulumi/pulumi-eks/sdk/v2/go/eks"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -45,11 +40,32 @@ const eksNodeSelector = "eks.amazonaws.com/nodegroup"
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
+	agentOptions      []ecsagentparams.Option
+	fakeintakeOptions []fakeintake.Option
+
+	extraConfigParams        runner.ConfigMap
+	eksLinuxNodeGroup        bool
+	eksLinuxARMNodeGroup     bool
+	eksBottlerocketNodeGroup bool
+	eksWindowsNodeGroup      bool
+
+	deployDogstatsd  bool
+	workloadAppFuncs []WorkloadAppFunc
 }
 
 func newProvisionerParams() *ProvisionerParams {
 	// We use nil arrays to decide if we should create or not
-	return &ProvisionerParams{}
+	return &ProvisionerParams{
+		agentOptions:      []ecsagentparams.Option{},
+		fakeintakeOptions: []fakeintake.Option{},
+
+		extraConfigParams:        runner.ConfigMap{},
+		eksLinuxNodeGroup:        false,
+		eksLinuxARMNodeGroup:     false,
+		eksBottlerocketNodeGroup: false,
+		eksWindowsNodeGroup:      false,
+		deployDogstatsd:          false,
+	}
 }
 
 // GetProvisionerParams return ProvisionerParams from options opts setup
@@ -60,6 +76,100 @@ func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
 	}
 	return params
+}
+
+// ProvisionerOption is a function that modifies the ProvisionerParams
+type ProvisionerOption func(*ProvisionerParams) error
+
+// WithAgentOptions sets the options for the Docker Agent
+func WithAgentOptions(opts ...ecsagentparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentOptions = append(params.agentOptions, opts...)
+		return nil
+	}
+}
+
+// WithExtraConfigParams sets the extra config params for the environment
+func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.extraConfigParams = configMap
+		return nil
+	}
+}
+
+// WithFakeIntakeOptions sets the options for the FakeIntake
+func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fakeintakeOptions = append(params.fakeintakeOptions, opts...)
+		return nil
+	}
+}
+
+// WithEKSLinuxNodeGroup enable aws/ecs/linuxECSOptimizedNodeGroup
+func WithEKSLinuxNodeGroup() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.eksLinuxNodeGroup = true
+		return nil
+	}
+}
+
+// WithEKSLinuxARMNodeGroup enable aws/ecs/linuxECSOptimizedNodeGroup
+func WithEKSLinuxARMNodeGroup() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.eksLinuxARMNodeGroup = true
+		return nil
+	}
+}
+
+// WithEKSBottlerocketNodeGroup enable aws/ecs/linuxECSOptimizedNodeGroup
+func WithEKSBottlerocketNodeGroup() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.eksBottlerocketNodeGroup = true
+		return nil
+	}
+}
+
+// WithECSWindowsNodeGroup enable aws/ecs/windowsLTSCNodeGroup
+func WithEKSWindowsNodeGroup() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.eksWindowsNodeGroup = true
+		return nil
+	}
+}
+
+// WithDeployDogstatsd deploy standalone dogstatd
+func WithDeployDogstatsd() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.deployDogstatsd = true
+		return nil
+	}
+}
+
+// WithoutFakeIntake deactivates the creation of the FakeIntake
+func WithoutFakeIntake() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fakeintakeOptions = nil
+		return nil
+	}
+}
+
+// WithoutAgent deactivates the creation of the Docker Agent
+func WithoutAgent() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentOptions = nil
+		return nil
+	}
+}
+
+// WorkloadAppFunc is a function that deploys a workload app to a kube provider
+type WorkloadAppFunc func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
+
+// WithWorkloadApp adds a workload app to the environment
+func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
+		return nil
+	}
 }
 
 // Run deploys a EKS environment given a pulumi.Context
@@ -173,40 +283,33 @@ func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) 
 		comp.KubeConfig = cluster.KubeconfigJson
 
 		nodeGroups := make([]pulumi.Resource, 0)
-		var cgroupV1Ng pulumi.StringOutput
-		var cgroupV2Ng pulumi.StringOutput
 		// Create managed node groups
-		if awsEnv.EKSLinuxNodeGroup() {
+		if params.eksLinuxNodeGroup {
 			ng, err := localEks.NewLinuxNodeGroup(awsEnv, cluster, linuxNodeRole)
 			if err != nil {
 				return err
 			}
 			nodeGroups = append(nodeGroups, ng)
-			// The default AMI used for Amazon Linux 2 is using cgroupv1
-			cgroupV1Ng = ng.NodeGroup.NodeGroupName()
 		}
 
-		if awsEnv.EKSLinuxARMNodeGroup() {
+		if params.eksLinuxARMNodeGroup {
 			ng, err := localEks.NewLinuxARMNodeGroup(awsEnv, cluster, linuxNodeRole)
 			if err != nil {
 				return err
 			}
 			nodeGroups = append(nodeGroups, ng)
-			cgroupV1Ng = ng.NodeGroup.NodeGroupName()
 		}
 
-		if awsEnv.EKSBottlerocketNodeGroup() {
+		if params.eksBottlerocketNodeGroup {
 			ng, err := localEks.NewBottlerocketNodeGroup(awsEnv, cluster, linuxNodeRole)
 			if err != nil {
 				return err
 			}
 			nodeGroups = append(nodeGroups, ng)
-			// Bottlerocket uses cgroupv2
-			cgroupV2Ng = ng.NodeGroup.NodeGroupName()
 		}
 
 		// Create unmanaged node groups
-		if awsEnv.EKSWindowsNodeGroup() {
+		if params.eksWindowsNodeGroup {
 			_, err := localEks.NewWindowsUnmanagedNodeGroup(awsEnv, cluster, windowsNodeRole)
 			if err != nil {
 				return err
@@ -223,7 +326,7 @@ func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) 
 		}
 
 		// Applying necessary Windows configuration if Windows nodes
-		if awsEnv.EKSWindowsNodeGroup() {
+		if params.eksWindowsNodeGroup {
 			_, err := corev1.NewConfigMapPatch(awsEnv.Ctx, awsEnv.Namer.ResourceName("eks-cni-cm"), &corev1.ConfigMapPatchArgs{
 				Metadata: metav1.ObjectMetaPatchArgs{
 					Namespace: pulumi.String("kube-system"),
@@ -241,10 +344,8 @@ func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) 
 			}
 		}
 
-		var dependsOnCrd pulumi.ResourceOption
-
 		var fakeIntake *fakeintakeComp.Fakeintake
-		if awsEnv.GetCommonEnvironment().AgentUseFakeintake() {
+		if params.fakeintakeOptions != nil {
 			fakeIntakeOptions := []fakeintake.Option{
 				fakeintake.WithCPU(1024),
 				fakeintake.WithMemory(6144),
@@ -256,13 +357,13 @@ func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) 
 			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", fakeIntakeOptions...); err != nil {
 				return err
 			}
-			if err := fakeIntake.Export(awsEnv.Ctx, nil); err != nil {
+			if err := fakeIntake.Export(awsEnv.Ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
 				return err
 			}
 		}
 
 		// Deploy the agent
-		if awsEnv.AgentDeploy() {
+		if params.agentOptions != nil {
 			helmComponent, err := agent.NewHelmInstallation(*awsEnv.CommonEnvironment, agent.HelmInstallationArgs{
 				KubeProvider:  eksKubeProvider,
 				Namespace:     "datadog",
@@ -279,54 +380,19 @@ func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) 
 				ctx.Export("agent-windows-helm-install-name", helmComponent.WindowsHelmReleaseName)
 				ctx.Export("agent-windows-helm-install-status", helmComponent.WindowsHelmReleaseStatus)
 			}
-
-			dependsOnCrd = utils.PulumiDependsOn(helmComponent)
 		}
 
 		// Deploy standalone dogstatsd
-		if awsEnv.DogstatsdDeploy() {
+		if params.deployDogstatsd {
 			if _, err := dogstatsdstandalone.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
 				return err
 			}
 		}
 
-		// Deploy testing workload
-		if awsEnv.TestingWorkloadDeploy() {
-			if _, err := nginx.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-nginx", dependsOnCrd); err != nil {
-				return err
-			}
-
-			if _, err := redis.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-redis", dependsOnCrd); err != nil {
-				return err
-			}
-
-			if _, err := cpustress.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-cpustress"); err != nil {
-				return err
-			}
-
-			// dogstatsd clients that report to the Agent
-			if _, err := dogstatsd.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket"); err != nil {
-				return err
-			}
-
-			// dogstatsd clients that report to the dogstatsd standalone deployment
-			if _, err := dogstatsd.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket); err != nil {
-				return err
-			}
-
-			if _, err := tracegen.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-tracegen-cgroupv1", pulumi.StringMap{eksNodeSelector: cgroupV1Ng}); err != nil {
-				return err
-			}
-
-			if _, err := tracegen.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-tracegen-cgroupv2", pulumi.StringMap{eksNodeSelector: cgroupV2Ng}); err != nil {
-				return err
-			}
-
-			if _, err := prometheus.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-prometheus"); err != nil {
-				return err
-			}
-
-			if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(*awsEnv.CommonEnvironment, eksKubeProvider, "workload-mutated"); err != nil {
+		// Deploy workloads
+		for _, appFunc := range params.workloadAppFuncs {
+			_, err := appFunc(*awsEnv.CommonEnvironment, eksKubeProvider)
+			if err != nil {
 				return err
 			}
 		}
