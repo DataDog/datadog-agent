@@ -44,8 +44,11 @@ func stdDev(data []telemetryComponent.Bucket, mean float64) float64 {
 	return math.Sqrt(variance)
 }
 
-func GetSkew(histogram SimpleHistogram) float64 {
-	hist := histogram.Get()
+// Gets the skew of the histogram with the given tags.
+// Highly experimental.
+func GetSkew(histogram Histogram, tags ...string) float64 {
+	taggedHist := histogram.WithValues(tags...)
+	hist := taggedHist.Get()
 	if hist.Count == 0 {
 		return 0
 	}

@@ -64,6 +64,14 @@ var (
 	DestinationHttpRespByStatusAndUrl = expvar.Map{}
 	//nolint:revive // TODO(AML) Fix revive linter
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
+
+	TlmChanTime = telemetry.NewHistogram("processing",
+		"channel_time",
+		[]string{"channel"},
+		"Time to send on the processing channel",
+		[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
+
+	TlmChanTimeSkew = telemetry.NewGauge("processing", "channel_time_skew", []string{"channel"}, "Skew of the processing channel")
 )
 
 func init() {

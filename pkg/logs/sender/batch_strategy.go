@@ -12,6 +12,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -79,13 +80,6 @@ func (s *batchStrategy) Stop() {
 	<-s.stopChan
 }
 
-var tlmStrategyChanTime = telemetry.NewSimpleHistogram("strategy",
-	"strategy_channel_time",
-	"Time to send on the strategy channel",
-	[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
-
-var tlmStrategySkew = telemetry.NewSimpleGauge("strategy", "strategy_skew", "Skew of the strategy channel")
-
 // Start reads the incoming messages and accumulates them to a buffer. The buffer is
 // encoded (optionally compressed) and written to a Payload which goes to the next
 // step in the pipeline.
@@ -102,8 +96,8 @@ func (s *batchStrategy) Start() {
 			select {
 			case m, isOpen := <-s.inputChan:
 
-				tlmStrategyChanTime.Observe(float64(m.SendDuration().Nanoseconds()))
-				tlmStrategySkew.Set(telemetry.GetSkew(tlmStreamChanTime))
+				metrics.TlmChanTime.Observe(float64(m.SendDuration().Nanoseconds()), "strategy")
+				metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "strategy"), "strategy")
 
 				if !isOpen {
 					// inputChan has been closed, no more payloads are expected

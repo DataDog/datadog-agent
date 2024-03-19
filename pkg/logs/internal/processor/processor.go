@@ -64,13 +64,6 @@ func (p *Processor) Stop() {
 	<-p.done
 }
 
-var tlmProcessChanTime = telemetry.NewSimpleHistogram("processing",
-	"processing_channel_time",
-	"Time to send on the processing channel",
-	[]float64{1000000, 2000000, 3000000, 4000000, 5000000, 6000000, 7000000, 8000000, 9000000, 10000000})
-
-var tlmProcessSkew = telemetry.NewSimpleGauge("processing", "processing_skew", "Skew of the processing channel")
-
 // Flush processes synchronously the messages that this processor has to process.
 func (p *Processor) Flush(ctx context.Context) {
 	p.mu.Lock()
@@ -85,8 +78,8 @@ func (p *Processor) Flush(ctx context.Context) {
 			}
 			msg := <-p.inputChan
 
-			tlmProcessChanTime.Observe(float64(msg.SendDuration().Nanoseconds()))
-			tlmProcessSkew.Set(telemetry.GetSkew(tlmProcessChanTime))
+			metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
+			metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
 
 			p.processMessage(msg.Inner)
 		}
@@ -101,8 +94,8 @@ func (p *Processor) run() {
 	for msg := range p.inputChan {
 		p.processMessage(msg.Inner)
 
-		tlmProcessChanTime.Observe(float64(msg.SendDuration().Nanoseconds()))
-		tlmProcessSkew.Set(telemetry.GetSkew(tlmProcessChanTime))
+		metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
+		metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
 
 		p.mu.Lock() // block here if we're trying to flush synchronously
 		//nolint:staticcheck
