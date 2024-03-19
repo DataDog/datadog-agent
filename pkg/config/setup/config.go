@@ -1210,6 +1210,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", 0) // 0 == default interval from inventories
 	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
+	// Seconds to wait to sent metadata payload to the backend after startup
+	config.BindEnvAndSetDefault("inventories_wait_threshold", 60)
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
