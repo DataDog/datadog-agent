@@ -38,7 +38,7 @@ var (
 
 // Each added/modified endpointInfo should be tested on all sites.
 
-func getStaticEndpointURL() []endpointInfo {
+func getEndpointsInfo(cfg config.Reader) []endpointInfo {
 	// v1 endpoints
 	v1SeriesEndpointInfo := endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
 	v1CheckRunsEndpointInfo := endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
@@ -51,25 +51,10 @@ func getStaticEndpointURL() []endpointInfo {
 	seriesEndpointInfo := endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
 	sketchSeriesEndpointInfo := endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
 
-	return []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
-		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
-}
-
-func getDynamicEndpointURL(cfg config.Reader) []endpointInfo {
 	// Flare endpoint
 	flareEndpointInfo := endpointInfo{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil}
 
-	return []endpointInfo{flareEndpointInfo}
-}
-
-// GetEndpointsInfo returns a list of all endpoints.
-func getEndpointsInfo(cfg config.Reader) []endpointInfo {
-	var endpointsInfo []endpointInfo
-
-	// Get all static endpoints
-	endpointsInfo = append(endpointsInfo, getStaticEndpointURL()...)
-	// Get all dynamic endpoints
-	endpointsInfo = append(endpointsInfo, getDynamicEndpointURL(cfg)...)
-
-	return endpointsInfo
+	return []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo,
+		v1IntakeEndpointInfo, v1ValidateEndpointInfo, seriesEndpointInfo, sketchSeriesEndpointInfo,
+		flareEndpointInfo}
 }
