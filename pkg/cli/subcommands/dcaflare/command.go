@@ -239,7 +239,7 @@ func run(cliParams *cliParams,
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
+	response, e := flare.SendFlare(pkgconfig.Datadog, filePath, cliParams.caseID, cliParams.email, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e
