@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"context"
+	"errors"
 	"hash/fnv"
 	"sync"
 	"time"
@@ -40,8 +41,12 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache, _ optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
-			return newKubeletCollector(cache)
+		Constructor: func(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+			instance, ok := wmeta.Get()
+			if !ok {
+				return provider.CollectorMetadata{}, errors.New("missing workloadmeta component")
+			}
+			return newKubeletCollector(cache, instance)
 		},
 	})
 }
@@ -53,7 +58,7 @@ type kubeletCollector struct {
 	refreshLock   sync.Mutex
 }
 
-func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
+func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
 	if !config.IsFeaturePresent(config.Kubernetes) {
@@ -68,8 +73,7 @@ func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
 	collector := &kubeletCollector{
 		kubeletClient: client,
 		statsCache:    *provider.NewCache(kubeletCacheGCInterval),
-		// TODO(components): stop using globals, rely on injected workloadmeta component.
-		metadataStore: workloadmeta.GetGlobalStore(),
+		metadataStore: wmeta,
 	}
 
 	collectors := &provider.Collectors{
