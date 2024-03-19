@@ -9,14 +9,16 @@ package agentsidecar
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"reflect"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 const commonRegistry = "gcr.io/datadoghq"
@@ -28,6 +30,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 		provider                  string
 		profilesJSON              string
 		ExpectError               bool
+		ExpectInjection           bool
 		ExpectedPodAfterInjection func() *corev1.Pod
 	}{
 		{
@@ -36,6 +39,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			provider:                  "",
 			profilesJSON:              "",
 			ExpectError:               true,
+			ExpectInjection:           false,
 			ExpectedPodAfterInjection: func() *corev1.Pod { return nil },
 		},
 		{
@@ -50,9 +54,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -80,9 +85,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -110,9 +116,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -139,9 +146,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "fargate",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "fargate",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 				withEnvOverrides(&sidecar, corev1.EnvVar{
@@ -191,7 +199,8 @@ func TestInjectAgentSidecar(t *testing.T) {
             }
         }
     }]`,
-			ExpectError: false,
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 
@@ -231,12 +240,18 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 			webhook := NewWebhook()
 
-			err := webhook.injectAgentSidecar(test.Pod, "", nil)
+			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
 			} else {
 				assert.NoError(tt, err, "expected returned error to be nil")
+			}
+
+			if test.ExpectInjection {
+				assert.True(t, injected)
+			} else {
+				assert.False(t, injected)
 			}
 
 			expectedPod := test.ExpectedPodAfterInjection()
