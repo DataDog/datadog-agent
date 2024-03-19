@@ -149,7 +149,7 @@ func TestCollectStartupTime(t *testing.T) {
 
 	// testing with custom values from configuration
 	i = getTestInventoryPayload(t, map[string]any{
-		"inventories_wait_threshold": 0,
+		"inventories_first_run_delay": 0,
 	})
 
 	// reset serializer mock
