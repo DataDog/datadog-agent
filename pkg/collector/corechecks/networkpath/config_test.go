@@ -73,7 +73,7 @@ hostname: 1.2.3.4
 `),
 			expectedConfig: &CheckConfig{
 				DestHostname:          "1.2.3.4",
-				MinCollectionInterval: time.Duration(15) * time.Second,
+				MinCollectionInterval: time.Duration(1) * time.Minute,
 			},
 		},
 	}
