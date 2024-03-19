@@ -1010,7 +1010,7 @@ def omnibus_build(
     python_mirror=None,
     pip_config_file="pip.conf",
     host_distribution=None,
-    install_directory="/opt/datadog-agent"
+    install_directory="/opt/datadog-agent",
 ):
     """
     Build the Agent packages with Omnibus Installer.
