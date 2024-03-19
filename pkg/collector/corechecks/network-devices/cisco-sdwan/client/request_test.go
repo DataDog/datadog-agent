@@ -46,13 +46,7 @@ func TestNewRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clientOptions := ClientOptions{
-				Endpoint: tt.host,
-				Username: "testuser",
-				Password: "testpassword",
-			}
-
-			client, err := NewClient(clientOptions, HTTPOptions{})
+			client, err := NewClient(tt.host, "testuser", "testpassword", false)
 			require.NoError(t, err)
 
 			req, err := client.newRequest(tt.method, tt.uri, nil)
@@ -85,7 +79,7 @@ func TestDoRequest(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	// Set token
@@ -117,7 +111,7 @@ func TestDoRequestBadRequest(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	// Set token
@@ -149,7 +143,7 @@ func TestDoRequestError(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	// Set token
@@ -187,7 +181,7 @@ func TestGetRequest(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	params := map[string]string{
@@ -213,7 +207,7 @@ func TestGetRequestRetries(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	// Set max retries to 10 for testing
@@ -231,7 +225,7 @@ func TestGetRequestUnmarshalling(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	resp, err := get[Device](client, "/test", nil)
@@ -252,7 +246,7 @@ func TestGetRequestUnmarshallingError(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	resp, err := get[Device](client, "/test", nil)
@@ -286,7 +280,7 @@ func TestGetMoreEntriesMaxPages(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	// Set max pages to 20 for testing
@@ -349,7 +343,7 @@ func TestGetMoreEntriesIndexPagination(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	params := make(map[string]string)
@@ -405,7 +399,7 @@ func TestGetMoreEntriesScrollPagination(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	params := make(map[string]string)

@@ -38,12 +38,8 @@ func serverURL(server *httptest.Server) string {
 	return strings.TrimPrefix(server.URL, "http://")
 }
 
-func commonTestClientOptions(server *httptest.Server) ClientOptions {
-	return ClientOptions{
-		Endpoint: serverURL(server),
-		Username: "testuser",
-		Password: "testpass",
-	}
+func testClient(server *httptest.Server) (*Client, error) {
+	return NewClient(serverURL(server), "testuser", "testpass", true)
 }
 
 type handler struct {

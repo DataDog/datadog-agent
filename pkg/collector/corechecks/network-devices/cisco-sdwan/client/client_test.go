@@ -6,7 +6,6 @@
 package client
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,7 +19,7 @@ import (
 func TestNewClientDefaults(t *testing.T) {
 	tests := []struct {
 		name                string
-		options             ClientOptions
+		options             []ClientOptions
 		expectedMaxAttempts int
 		expectedMaxPages    int
 		expectedMaxCount    string
@@ -28,26 +27,26 @@ func TestNewClientDefaults(t *testing.T) {
 	}{
 		{
 			name:                "test defaults",
-			options:             ClientOptions{},
+			options:             []ClientOptions{},
 			expectedMaxAttempts: defaultMaxAttempts,
-			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxCount:    defaultMaxCount,
 			expectedMaxPages:    defaultMaxPages,
 			expectedLookback:    defaultLookback,
 		},
 		{
 			name: "No retries",
-			options: ClientOptions{
-				MaxRetries: 1,
+			options: []ClientOptions{
+				WithMaxAttempts(1),
 			},
 			expectedMaxAttempts: 1,
-			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxCount:    defaultMaxCount,
 			expectedMaxPages:    defaultMaxPages,
 			expectedLookback:    defaultLookback,
 		},
 		{
 			name: "Count",
-			options: ClientOptions{
-				MaxCount: 4000,
+			options: []ClientOptions{
+				WithMaxCount(4000),
 			},
 			expectedMaxAttempts: defaultMaxAttempts,
 			expectedMaxCount:    "4000",
@@ -56,21 +55,21 @@ func TestNewClientDefaults(t *testing.T) {
 		},
 		{
 			name: "Pages",
-			options: ClientOptions{
-				MaxPages: 40,
+			options: []ClientOptions{
+				WithMaxPages(40),
 			},
 			expectedMaxAttempts: defaultMaxAttempts,
-			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxCount:    defaultMaxCount,
 			expectedMaxPages:    40,
 			expectedLookback:    defaultLookback,
 		},
 		{
 			name: "Lookback",
-			options: ClientOptions{
-				Lookback: 40 * time.Minute,
+			options: []ClientOptions{
+				WithLookback(40 * time.Minute),
 			},
 			expectedMaxAttempts: defaultMaxAttempts,
-			expectedMaxCount:    fmt.Sprintf("%d", defaultMaxCount),
+			expectedMaxCount:    defaultMaxCount,
 			expectedMaxPages:    defaultMaxPages,
 			expectedLookback:    40 * time.Minute,
 		},
@@ -78,7 +77,7 @@ func TestNewClientDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewClient(tt.options, HTTPOptions{})
+			client, err := NewClient("", "", "", false, tt.options...)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectedMaxAttempts, client.maxAttempts)
@@ -89,89 +88,13 @@ func TestNewClientDefaults(t *testing.T) {
 	}
 }
 
-func TestBuildHTTPClient(t *testing.T) {
-	tests := []struct {
-		name             string
-		options          HTTPOptions
-		expectedScheme   string
-		expectedInsecure bool
-		expectedTimeout  int
-	}{
-		{
-			name:             "test defaults",
-			options:          HTTPOptions{},
-			expectedScheme:   "https",
-			expectedInsecure: false,
-			expectedTimeout:  10,
-		},
-		{
-			name: "http secure",
-			options: HTTPOptions{
-				UseHTTP:  true,
-				Insecure: false,
-				Timeout:  1000,
-			},
-			expectedScheme:   "http",
-			expectedInsecure: false,
-			expectedTimeout:  1000,
-		},
-		{
-			name: "https secure",
-			options: HTTPOptions{
-				UseHTTP:  false,
-				Insecure: false,
-				Timeout:  1000,
-			},
-			expectedScheme:   "https",
-			expectedInsecure: false,
-			expectedTimeout:  1000,
-		},
-		{
-			name: "http insecure",
-			options: HTTPOptions{
-				UseHTTP:  true,
-				Insecure: true,
-				Timeout:  1000,
-			},
-			expectedScheme:   "http",
-			expectedInsecure: true,
-			expectedTimeout:  1000,
-		},
-		{
-			name: "https insecure",
-			options: HTTPOptions{
-				UseHTTP:  false,
-				Insecure: true,
-				Timeout:  1000,
-			},
-			expectedScheme:   "https",
-			expectedInsecure: true,
-			expectedTimeout:  1000,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			httpClient, scheme, err := buildHTTPClient(tt.options)
-			require.NoError(t, err)
-
-			transport := httpClient.Transport.(*http.Transport)
-			tlsConfig := transport.TLSClientConfig
-
-			require.Equal(t, tt.expectedScheme, scheme)
-			require.EqualValues(t, tt.expectedTimeout*int(time.Second), httpClient.Timeout)
-			require.Equal(t, tt.expectedInsecure, tlsConfig.InsecureSkipVerify)
-		})
-	}
-}
-
 func TestGetDevices(t *testing.T) {
 	mux, handler := setupCommonServerMuxWithFixture("/dataservice/device", fixtures.FakePayload(fixtures.GetDevices))
 
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetDevices()
@@ -197,7 +120,7 @@ func TestGetDevicesCounters(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetDevicesCounters()
@@ -235,7 +158,7 @@ func TestGetVEdgeInterfaces(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetVEdgeInterfaces()
@@ -271,7 +194,7 @@ func TestGetCEdgeInterfaces(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetCEdgeInterfaces()
@@ -314,7 +237,7 @@ func TestGetInterfacesMetrics(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetInterfacesMetrics()
@@ -363,7 +286,7 @@ func TestGetDeviceHardwareMetrics(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetDeviceHardwareMetrics()
@@ -406,7 +329,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetApplicationAwareRoutingMetrics()
@@ -445,7 +368,7 @@ func TestGetControlConnectionsState(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetControlConnectionsState()
@@ -481,7 +404,7 @@ func TestGetOMPPeersState(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetOMPPeersState()
@@ -516,7 +439,7 @@ func TestGetBFDSessionsState(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	client, err := NewClient(commonTestClientOptions(server), HTTPOptions{UseHTTP: true})
+	client, err := testClient(server)
 	require.NoError(t, err)
 
 	devices, err := client.GetBFDSessionsState()

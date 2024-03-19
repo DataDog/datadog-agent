@@ -23,7 +23,7 @@ const timeFormat = "2006-01-02T15:04:05"
 const (
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 10
-	defaultMaxCount    = 1000
+	defaultMaxCount    = "1000"
 	defaultLookback    = 20 * time.Minute
 	defaultHTTPTimeout = 10
 	defaultHTTPScheme  = "https"
@@ -47,112 +47,101 @@ type Client struct {
 	lookback            time.Duration
 }
 
-// ClientOptions contains Client specific options for the Cisco SD-WAN client
-type ClientOptions struct {
-	Endpoint   string
-	Username   string
-	Password   string
-	MaxRetries int           // Max retries to apply on HTTP errors
-	MaxPages   int           // Max number of pages to retrieve from paginated endpoints
-	MaxCount   int           // Max entries to get per request
-	Lookback   time.Duration // Look back duration to apply when polling statistics endpoints (minutes)
-}
-
-// HTTPOptions contains HTTP specific options for the Cisco SD-WAN client
-type HTTPOptions struct {
-	UseHTTP  bool
-	Insecure bool
-	Timeout  int
-	CAFile   string
-}
+// ClientOptions are the functional options for the Cisco SD-WAN client
+type ClientOptions func(*Client)
 
 // NewClient creates a new Cisco SD-WAN HTTP client.
-func NewClient(clientOptions ClientOptions, httpOptions HTTPOptions) (*Client, error) {
-	if clientOptions.MaxRetries == 0 {
-		clientOptions.MaxRetries = defaultMaxAttempts
-	}
-
-	if clientOptions.MaxPages == 0 {
-		clientOptions.MaxPages = defaultMaxPages
-	}
-
-	if clientOptions.MaxCount == 0 {
-		clientOptions.MaxCount = defaultMaxCount
-	}
-
-	if clientOptions.Lookback == 0 {
-		clientOptions.Lookback = defaultLookback
-	}
-
-	httpClient, scheme, err := buildHTTPClient(httpOptions)
+func NewClient(endpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+	cookieJar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
 	}
 
-	endpoint := url.URL{
+	httpClient := &http.Client{
+		Timeout: defaultHTTPTimeout * time.Second,
+		Jar:     cookieJar,
+	}
+
+	scheme := defaultHTTPScheme
+	if useHTTP {
+		scheme = "http"
+	}
+
+	endpointURL := url.URL{
 		Scheme: scheme,
-		Host:   clientOptions.Endpoint,
+		Host:   endpoint,
 	}
 
 	client := &Client{
 		httpClient:          httpClient,
-		endpoint:            endpoint.String(),
-		username:            clientOptions.Username,
-		password:            clientOptions.Password,
+		endpoint:            endpointURL.String(),
+		username:            username,
+		password:            password,
 		authenticationMutex: &sync.Mutex{},
-		maxAttempts:         clientOptions.MaxRetries,
-		maxPages:            clientOptions.MaxPages,
-		maxCount:            fmt.Sprintf("%d", clientOptions.MaxCount),
-		lookback:            clientOptions.Lookback,
+		maxAttempts:         defaultMaxAttempts,
+		maxPages:            defaultMaxPages,
+		maxCount:            defaultMaxCount,
+		lookback:            defaultLookback,
+	}
+
+	for _, opt := range options {
+		opt(client)
 	}
 
 	return client, nil
 }
 
-func buildHTTPClient(options HTTPOptions) (*http.Client, string, error) {
-	tlsConfig := &tls.Config{InsecureSkipVerify: false}
+// WithTLSConfig is a functional option to set the HTTP Client TLS Config
+func WithTLSConfig(insecure bool, CAFile string) ClientOptions {
+	return func(c *Client) {
+		tlsConfig := &tls.Config{}
 
-	if options.Insecure {
-		tlsConfig.InsecureSkipVerify = options.Insecure
-	}
-
-	if options.CAFile != "" {
-		caCert, err := os.ReadFile(options.CAFile)
-		if err != nil {
-			return nil, "", err
+		if insecure {
+			tlsConfig.InsecureSkipVerify = insecure
 		}
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
 
-		tlsConfig.RootCAs = caCertPool
+		if CAFile != "" {
+			caCert, err := os.ReadFile(CAFile)
+			if err == nil {
+				caCertPool := x509.NewCertPool()
+				caCertPool.AppendCertsFromPEM(caCert)
+
+				tlsConfig.RootCAs = caCertPool
+			}
+		}
+
+		c.httpClient.Transport = &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
 	}
+}
 
-	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+// WithMaxAttempts is a functional option to set the client max attempts
+func WithMaxAttempts(maxAttempts int) ClientOptions {
+	return func(c *Client) {
+		c.maxAttempts = maxAttempts
 	}
+}
 
-	cookieJar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, "", err
+// WithMaxCount is a functional option to set the client max count
+func WithMaxCount(maxCount int) ClientOptions {
+	return func(c *Client) {
+		c.maxCount = fmt.Sprintf("%d", maxCount)
 	}
+}
 
-	timeout := defaultHTTPTimeout * time.Second
-	if options.Timeout > 0 {
-		timeout = time.Duration(options.Timeout) * time.Second
+// WithMaxPages is a functional option to set the client max pages
+func WithMaxPages(maxPages int) ClientOptions {
+	return func(c *Client) {
+		c.maxPages = maxPages
 	}
+}
 
-	httpClient := http.Client{
-		Timeout:   timeout,
-		Transport: transport,
-		Jar:       cookieJar,
+// WithLookback is a functional option to set the client lookback interval
+func WithLookback(lookback time.Duration) ClientOptions {
+	return func(c *Client) {
+		c.lookback = lookback
 	}
-
-	scheme := defaultHTTPScheme
-	if options.UseHTTP {
-		scheme = "http"
-	}
-
-	return &httpClient, scheme, nil
 }
 
 // GetDevices get all devices from this SD-WAN network

@@ -51,13 +51,7 @@ func TestAuth(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	clientOptions := ClientOptions{
-		Endpoint: serverURL(server),
-		Username: "username",
-		Password: "password",
-	}
-
-	client, err := NewClient(clientOptions, HTTPOptions{UseHTTP: true})
+	client, err := NewClient(serverURL(server), "username", "password", true)
 	require.NoError(t, err)
 
 	_, err = client.GetDevices()
@@ -96,7 +90,7 @@ func TestAuth(t *testing.T) {
 }
 
 func TestClearAuth(t *testing.T) {
-	client, err := NewClient(ClientOptions{}, HTTPOptions{})
+	client, err := NewClient("", "", "", false)
 	require.NoError(t, err)
 
 	client.token = "testtoken"
