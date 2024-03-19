@@ -292,7 +292,7 @@ updater_deb-amd64:
     DESTINATION_DBG_DEB: "datadog-updater-dbg_7_amd64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export OMNIBUS_GIT_CACHE_SUFFIX=/opt/datadog-packages/datadog-agent
+    - export OMNIBUS_GIT_CACHE_SUFFIX=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
 
 updater_deb-arm64:
   extends: .updater_build_common_deb
@@ -308,7 +308,7 @@ updater_deb-arm64:
     DESTINATION_DBG_DEB: "datadog-updater-dbg_7_arm64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export OMNIBUS_GIT_CACHE_SUFFIX=/opt/datadog-packages/datadog-agent
+    - export OMNIBUS_GIT_CACHE_SUFFIX=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
 
 agentless_scanner_deb-x64:
   rules:
