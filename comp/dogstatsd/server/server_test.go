@@ -946,6 +946,38 @@ func TestContainerIDParsing(t *testing.T) {
 	}
 }
 
+func TestOrigin(t *testing.T) {
+	cfg := make(map[string]interface{})
+	t.Run("TestOrigin", func(t *testing.T) {
+		deps := fulfillDepsWithConfigOverride(t, cfg)
+		s := deps.Server.(*server)
+		assert := assert.New(t)
+
+		requireStart(t, s)
+
+		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+		parser.dsdOriginEnabled = true
+
+		// Metric
+		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", "", false)
+		assert.NoError(err)
+		assert.Len(metrics, 1)
+		assert.Equal("metric-container", metrics[0].OriginInfo.FromMsg)
+
+		// Event
+		event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
+		assert.NoError(err)
+		assert.NotNil(event)
+		assert.Equal("event-container", event.OriginInfo.FromMsg)
+
+		// Service check
+		serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
+		assert.NoError(err)
+		assert.NotNil(serviceCheck)
+		assert.Equal("service-check-container", serviceCheck.OriginInfo.FromMsg)
+	})
+}
+
 func requireStart(t *testing.T, s Component) {
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning())
