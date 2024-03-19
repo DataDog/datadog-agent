@@ -151,7 +151,9 @@ func (i *InventoryPayload) collect(_ context.Context) time.Duration {
 
 	// Collect is called every MinInterval second. To maintain the same order of request as we did in 7.50.0
 	// We need to warranty that metadata information gets sent to the backend at least 1 minute past the startup time.
-	// For more information please check https://app.datadoghq.com/notebook/7691993/postmortem-ir-25790-agent-7-51-increase-the-chances-of-delayed-hots-tags
+	// The backend is resposible for creating the host entry in the DB using the information gathered by the agent.
+	// Since we upload the information to different endpoints, we could run into a race condition.
+	// Ensuring the request order and timeframe reduces the likelihood of hitting that race condition.
 	if time.Now().Sub(i.createdAt).Minutes() < 1 {
 		return i.MinInterval
 	}
