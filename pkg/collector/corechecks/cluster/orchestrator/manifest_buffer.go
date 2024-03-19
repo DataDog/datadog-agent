@@ -17,7 +17,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
@@ -88,16 +88,18 @@ func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 // flushManifest flushes manifests by chunking them first then sending them to the sender
 func (cb *ManifestBuffer) flushManifest(sender sender.Sender) {
 	manifests := cb.bufferedManifests
-	ctx := &processors.ProcessorContext{
-		ClusterID:  cb.Cfg.ClusterID,
-		MsgGroupID: cb.Cfg.MsgGroupRef.Inc(),
-		Cfg: &config.OrchestratorConfig{
-			KubeClusterName:          cb.Cfg.KubeClusterName,
-			MaxPerMessage:            cb.Cfg.MaxPerMessage,
-			MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			MsgGroupID: cb.Cfg.MsgGroupRef.Inc(),
+			Cfg: &config.OrchestratorConfig{
+				KubeClusterName:          cb.Cfg.KubeClusterName,
+				MaxPerMessage:            cb.Cfg.MaxPerMessage,
+				MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
+			},
+			ClusterID: cb.Cfg.ClusterID,
 		},
 	}
-	manifestMessages := processors.ChunkManifest(ctx, k8s.BaseHandlers{}.BuildManifestMessageBody, manifests)
+	manifestMessages := processors.ChunkManifest(ctx, common.BaseHandlers{}.BuildManifestMessageBody, manifests)
 	sender.OrchestratorManifest(manifestMessages, cb.Cfg.ClusterID)
 	setManifestStats(manifests)
 	cb.bufferedManifests = cb.bufferedManifests[:0]
