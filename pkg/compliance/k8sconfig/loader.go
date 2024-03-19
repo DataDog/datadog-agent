@@ -194,7 +194,7 @@ func (l *loader) loadMeta(name string, loadContent bool) (string, os.FileInfo, [
 		return name, nil, nil, false
 	}
 	var b []byte
-	const maxSize = 64 * 1024
+	const maxSize = 512 * 1024
 	if loadContent && info.Size() < maxSize {
 		f, err := os.Open(name)
 		if err != nil {
