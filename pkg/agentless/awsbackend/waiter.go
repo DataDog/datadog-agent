@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package awsutils provides some utility functions and types for operating
+// Package awsbackend provides some utility functions and types for operating
 // with AWS services.
-package awsutils
+package awsbackend
 
 import (
 	"context"
