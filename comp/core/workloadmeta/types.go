@@ -341,7 +341,6 @@ type ContainerPort struct {
 	Port     int
 	Protocol string
 	HostPort uint16
-	HostIP   string
 }
 
 // String returns a string representation of ContainerPort.
@@ -353,7 +352,6 @@ func (c ContainerPort) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Name:", c.Name)
 		_, _ = fmt.Fprintln(&sb, "Protocol:", c.Protocol)
 		_, _ = fmt.Fprintln(&sb, "Host Port:", c.HostPort)
-		_, _ = fmt.Fprintln(&sb, "Host IP:", c.HostIP)
 	}
 
 	return sb.String()
