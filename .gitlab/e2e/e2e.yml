@@ -188,7 +188,7 @@ new-e2e-language-detection:
 new-e2e-npm:
   extends: .new_e2e_template
   rules: !reference [.on_npm_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7", "qa_agent"]
+  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7", "qa_agent", "deploy_rpm_testing-a7_x64"]
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
