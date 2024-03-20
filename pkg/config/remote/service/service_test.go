@@ -956,6 +956,8 @@ func TestWithTraceAgentEnv(t *testing.T) {
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
 	assert.Equal(t, "dog", service.traceAgentEnv)
+	assert.NotNil(t, service)
+	t.Cleanup(func() { service.Stop() })
 }
 
 func TestWithDatabaseFileName(t *testing.T) {
@@ -971,22 +973,8 @@ func TestWithDatabaseFileName(t *testing.T) {
 	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
 	assert.NoError(t, err)
 	assert.Equal(t, "/tmp/test.db", service.db.Path())
-}
-
-func TestWithDirectorRootOverride(t *testing.T) {
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.SetWithoutSource("run_path", "/tmp")
-
-	baseRawURL := "https://localhost"
-	mockTelemetryReporter := newMockRcTelemetryReporter()
-	options := []Option{
-		WithDirectorRootOverride("{\"a\": \"b\"}"),
-		WithAPIKey("abc"),
-	}
-	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
-	// Because we used an invalid root, we should get an error. All we're trying to capture
-	// with this test is that the builder method is propagating the value properly
-	assert.Errorf(t, err, "failed to set embedded root in roots bucket: invalid meta: version field is missing")
+	assert.NotNil(t, service)
+	t.Cleanup(func() { service.Stop() })
 }
 
 type refreshIntervalTest struct {
@@ -1027,6 +1015,7 @@ func TestWithRefreshInterval(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, service.defaultRefreshInterval)
 			assert.Equal(t, tt.expectedRefreshIntervalOverrideAllowed, service.refreshIntervalOverrideAllowed)
+			assert.NotNil(t, service)
 			service.Stop()
 		})
 	}
@@ -1107,6 +1096,22 @@ type clientTTLTest struct {
 	name     string
 	ttl      time.Duration
 	expected time.Duration
+}
+
+func TestWithDirectorRootOverride(t *testing.T) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithDirectorRootOverride("{\"a\": \"b\"}"),
+		WithAPIKey("abc"),
+	}
+	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	// Because we used an invalid root, we should get an error. All we're trying to capture
+	// with this test is that the builder method is propagating the value properly
+	assert.Errorf(t, err, "failed to set embedded root in roots bucket: invalid meta: version field is missing")
 }
 
 func TestWithClientTTL(t *testing.T) {

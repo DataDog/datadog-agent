@@ -344,6 +344,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []st
 		opt...,
 	)
 	if err != nil {
+		db.Close()
 		return nil, err
 	}
 
