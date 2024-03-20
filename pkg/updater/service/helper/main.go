@@ -46,16 +46,22 @@ func isValidUnitString(s string) bool {
 }
 
 func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
-	command := inputCommand.Command
-	if command == "systemd-reload" {
+	if inputCommand.Command == "systemd-reload" {
 		return exec.Command("systemctl", "daemon-reload"), nil
 	}
 
+	if inputCommand.Unit != "" {
+		return buildUnitCommand(inputCommand)
+	}
+	return buildPathCommand(inputCommand)
+}
+
+func buildUnitCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
+	command := inputCommand.Command
 	unit := inputCommand.Unit
 	if !strings.HasPrefix(unit, "datadog-") || !isValidUnitString(unit) {
 		return nil, fmt.Errorf("invalid unit")
 	}
-
 	switch command {
 	case "stop", "enable", "disable":
 		return exec.Command("systemctl", command, unit), nil
@@ -69,7 +75,26 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
+}
 
+func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
+	path := inputCommand.Path
+	// detects symlinks and ..
+	absPath, err := filepath.Abs(path)
+	if absPath != path || err != nil {
+		return nil, fmt.Errorf("invalid path")
+	}
+	if !strings.HasPrefix(path, "/opt/datadog-packages") {
+		return nil, fmt.Errorf("invalid path")
+	}
+	switch inputCommand.Command {
+	case "chown dd-agent":
+		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
+	case "rm":
+		return exec.Command("rm", "-rf", "dd-agent:dd-agent", path), nil
+	default:
+		return nil, fmt.Errorf("invalid command")
+	}
 }
 
 func executeCommand() error {
