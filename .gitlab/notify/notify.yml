@@ -68,14 +68,12 @@ notify_github:
       changes:
         paths:
           - '**/*.go'
-          - '**/*.yml'
         compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
       when: on_success
     - when: never
   needs:
-    - job: "github_rate_limit_info"
+    - job: "deploy_deb_testing-a7_x64"
       optional: true
-      # - job: "deploy_deb_testing-a7_x64"
   dependencies: []
   allow_failure: true
   script:
