@@ -65,9 +65,11 @@ notify_github:
     - !reference [.except_main_or_release_branch]
     - !reference [.except_no_tests_no_deploy]
     - !reference [.on_a7]
-    - changes:
-      paths:
-        - ./**/*.go
+    - if: $CI_COMMIT_BRANCH
+      changes:
+        paths:
+          - ./**/*.go
+      compare_to: 'refs/heads/main'
       when: never
     - when: on_success
   needs:
