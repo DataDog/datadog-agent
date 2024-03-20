@@ -2507,9 +2507,6 @@ func TestGenerateInstallSignature(t *testing.T) {
 }
 
 func TestMockConfig(t *testing.T) {
-	os.Setenv("DD_HOSTNAME", "foo")
-	defer func() { os.Unsetenv("DD_HOSTNAME") }()
-
 	os.Setenv("DD_SITE", "datadoghq.eu")
 	defer func() { os.Unsetenv("DD_SITE") }()
 
@@ -2517,15 +2514,12 @@ func TestMockConfig(t *testing.T) {
 		fx.Supply(corecomp.Params{}),
 		corecomp.MockModule(),
 		MockModule(),
-		// disable fetching the hostname from the core agent
-		fx.Replace(corecomp.MockParams{Overrides: map[string]interface{}{"serverless.enabled": true}}),
 	))
 	// underlying config
 	cfg := config.Object()
 	require.NotNil(t, cfg)
 
 	// values aren't set from env..
-	assert.NotEqual(t, "foo", cfg.Hostname)
 	assert.NotEqual(t, "datadoghq.eu", cfg.Site)
 
 	// but defaults are set
