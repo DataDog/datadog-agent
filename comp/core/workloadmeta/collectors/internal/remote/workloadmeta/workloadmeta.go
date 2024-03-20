@@ -120,7 +120,7 @@ func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.Collect
 }
 
 func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
-	var entities []workloadmeta.Entity
+	entities := make([]workloadmeta.Entity, 0, len(events))
 	for _, event := range events {
 		entities = append(entities, event.Entity)
 	}

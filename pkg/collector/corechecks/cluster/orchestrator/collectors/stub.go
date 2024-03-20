@@ -3,5 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package compression implements various compression mechanisms
-package compression
+//go:build !kubeapiserver && orchestrator
+
+package collectors
+
+// OrchestratorInformerFactory contains all informer factories used by the orchestration check
+type OrchestratorInformerFactory struct{}

@@ -25,13 +25,18 @@ import (
 	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/fatih/color"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
 const (
 	taskNameDogstatsdUDS = "dogstatsd-uds"
 	taskNameDogstatsdUDP = "dogstatsd-udp"
+
+	taskNameTracegenUDS = "tracegen-uds"
+	taskNameTracegenTCP = "tracegen-tcp"
 )
 
 type ecsSuite struct {
@@ -474,4 +479,54 @@ func (suite *ecsSuite) TestPrometheus() {
 			},
 		},
 	})
+}
+
+func (suite *ecsSuite) TestTraceUDS() {
+	suite.testTrace(taskNameTracegenUDS)
+}
+
+func (suite *ecsSuite) TestTraceTCP() {
+	suite.testTrace(taskNameTracegenTCP)
+}
+
+// testTrace verifies that traces are tagged with container and pod tags.
+func (suite *ecsSuite) testTrace(taskName string) {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		traces, cerr := suite.Fakeintake.GetTraces()
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
+			return
+		}
+
+		var err error
+		// Iterate starting from the most recent traces
+		for _, trace := range traces {
+			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
+				return k + ":" + v
+			})
+			// Assert origin detection is working properly
+			err = assertTags(tags, []*regexp.Regexp{
+				regexp.MustCompile(`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^container_id:`),
+				regexp.MustCompile(`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`),
+				regexp.MustCompile(`^docker_image:ghcr.io/datadog/apps-tracegen:main$`),
+				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^ecs_container_name:tracegen`),
+				regexp.MustCompile(`^git.commit.sha:`),                                                       // org.opencontainers.image.revision docker image label
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
+				regexp.MustCompile(`^image_id:sha256:`),
+				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen`),
+				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^short_image:apps-tracegen`),
+				regexp.MustCompile(`^task_arn:`),
+				regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+				regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
+			}, false)
+			if err == nil {
+				break
+			}
+		}
+		require.NoErrorf(c, err, "Failed finding trace with proper tags")
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
