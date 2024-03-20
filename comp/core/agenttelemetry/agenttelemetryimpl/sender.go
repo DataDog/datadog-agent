@@ -166,9 +166,24 @@ func newSenderImpl(
 	logComp log.Component,
 	hostComp host.Component,
 	client client) (sender, error) {
-	// Form Agent Telemetry endpoint
-	endpoint := utils.GetMainEndpoint(cfgComp, telemetryEndpointPrefix, "dd_url")
-	endpointURL, err := url.JoinPath(endpoint, "/api/v2/apmtelemetry")
+
+	// Form Agent Telemetry endpoint URL
+	// We cannot use utils.GetMainEndpoint() function call with "dd_url" parameters directly,
+	// at this point, just as other Agent components are used for forwarding data to Datadog
+	// for a number of reasons. Accordingly, "site" configuration is required to be used at
+	// this time. This will fail for an explicit proxy relying on dd_url configuration. In
+	// future it will be addressed either at intake or at the Agent level (APM Telemetry e.g.
+	// is required to use "apm_config.telemetry.dd_url").
+	//
+	// On related note "sending" part of the sender will be moved to "DefaultForwarder"
+	// to support retry, caching, URL management, API key rotation at runtime, flush to
+	// disk, backoff logic, etc.
+	site := cfgComp.GetString("site")
+	if len(site) == 0 {
+		return nil, fmt.Errorf("site is not set in the configuration")
+	}
+	prefixedSite := utils.BuildURLWithPrefix(telemetryEndpointPrefix, site)
+	endpointURL, err := url.JoinPath(prefixedSite, "/api/v2/apmtelemetry")
 	if err != nil {
 		return nil, fmt.Errorf("failed to form agent telemetry endpoint URL from configuration: %v", err)
 	}
@@ -301,7 +316,9 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		return err
 	}
 
-	// Send the payload
+	// Send the payload. In the future we want to move this functionality/code into DefaultForwarder
+	// because it provides retry, caching, URL management, API key rotation at runtime, flush to disk,
+	// backoff logic etc.
 	req, err := http.NewRequest("POST", s.endpointURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return err
@@ -317,8 +334,12 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		}
 	}()
 
-	// Log return status
-	s.logComp.Infof("Telemetery request response status: %s, status code: %d", resp.Status, resp.StatusCode)
+	// Log return status (and URL if unsuccessful)
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		s.logComp.Infof("Telemetery enpoint response status: %s, status code: %d", resp.Status, resp.StatusCode)
+	} else {
+		s.logComp.Warnf("Telemetery enpoint response status: %s, status code: %d, url: %s", resp.Status, resp.StatusCode, s.endpointURL)
+	}
 
 	return nil
 }

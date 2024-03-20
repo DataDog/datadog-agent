@@ -410,7 +410,7 @@ func (a *atel) addAgentStatusExtra(p *Profile, fullStatus map[string]interface{}
 		case bool:
 			attrVal = jqValueType
 		case nil:
-			a.logComp.Debugf("JQ expression return 'nil' value for JSON path '%s'", strings.Join(builder.jpathTarget, "."))
+			a.logComp.Errorf("JQ expression return 'nil' value for JSON path '%s'", strings.Join(builder.jpathTarget, "."))
 			continue
 		case string:
 			a.logComp.Errorf("string value (%v) for JSON path '%s' for extra status atttribute is not currently allowed",
@@ -513,6 +513,8 @@ func (a *atel) reportAgentStatus(session *senderSession, p *Profile) {
 // run runs the agent telemetry for a given profile. It is triggered by the runner
 // according to the profiles schedule.
 func (a *atel) run(profiles []*Profile) {
+	a.logComp.Info("Starting agent telemetry run")
+
 	session := a.sender.startSession(a.cancelCtx)
 
 	for _, p := range profiles {
@@ -534,7 +536,7 @@ func (a *atel) GetAsJSON() ([]byte, error) {
 
 // start is called by FX when the application starts.
 func (a *atel) start() error {
-	a.logComp.Info("Starting agent telemetry")
+	a.logComp.Info("Starting agent telemetry for %d schedules and %d profiles", len(a.atelCfg.schedule), len(a.atelCfg.Profiles))
 
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
 
