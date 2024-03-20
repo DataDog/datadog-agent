@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -32,7 +34,7 @@ type ContainerListener struct {
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(_ Config, wmeta workloadmeta.Component) (ServiceListener, error) {
+func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	filterParams := workloadmeta.FilterParams{
@@ -42,8 +44,12 @@ func NewContainerListener(_ Config, wmeta workloadmeta.Component) (ServiceListen
 	}
 	f := workloadmeta.NewFilter(&filterParams)
 
+	wmetaInstance, ok := wmeta.Get()
+	if !ok {
+		return nil, errors.New("workloadmeta store is not initialized")
+	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService, wmeta)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService, wmetaInstance)
 	if err != nil {
 		return nil, err
 	}

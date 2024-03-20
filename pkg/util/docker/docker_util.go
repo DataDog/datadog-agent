@@ -156,7 +156,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options con
 	}
 
 	isExcluded := func(container types.Container) bool {
-		var annotations map[string]string		
+		var annotations map[string]string
 		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
 		}

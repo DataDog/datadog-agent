@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
@@ -24,7 +25,7 @@ type MockParams struct {
 
 type mockdependencies struct {
 	fx.In
-	WMeta  workloadmeta.Component
+	WMeta  optional.Option[workloadmeta.Component]
 	Params MockParams
 }
 

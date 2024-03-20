@@ -47,7 +47,7 @@ type dependencies struct {
 	Log        logComp.Component
 	TaggerComp tagger.Component
 	Secrets    secrets.Component
-	WMeta      workloadmeta.Component
+	WMeta      optional.Option[workloadmeta.Component]
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -69,7 +69,7 @@ type AutoConfig struct {
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
 	started                  bool
-	wmeta                    workloadmeta.Component
+	wmeta                    optional.Option[workloadmeta.Component]
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -130,7 +130,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta workloadmeta.Component) *AutoConfig {
+func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -604,7 +604,7 @@ type optionalModuleDeps struct {
 	Log        logComp.Component
 	TaggerComp optional.Option[tagger.Component]
 	Secrets    secrets.Component
-	WMeta      workloadmeta.Component
+	WMeta      optional.Option[workloadmeta.Component]
 }
 
 // OptionalModule defines the fx options when ac should be used as an optional and not started
