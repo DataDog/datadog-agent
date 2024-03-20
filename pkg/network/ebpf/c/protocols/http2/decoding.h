@@ -607,7 +607,6 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     if (http2_tel == NULL) {
         return 0;
     }
-
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
         // Deleting the entry for the original tuple.
@@ -615,6 +614,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
         if (bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup) != 0) {
             __sync_fetch_and_add(&http2_tel->dynamic_counter_table_deletion_failure, 1);
+            log_debug("http2 (before flip): unable to delete elem from dynamic counter table for sport: %llu, dport: %llu", dispatcher_args_copy.tup.sport, dispatcher_args_copy.tup.dport);
         }
         terminated_http2_batch_enqueue(&dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
@@ -622,6 +622,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         flip_tuple(&dispatcher_args_copy.tup);
         if (bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup)!= 0) {
             __sync_fetch_and_add(&http2_tel->dynamic_counter_table_deletion_failure, 1);
+            log_debug("http2 (after flip): unable to delete elem from dynamic counter table for sport: %llu, dport: %llu", dispatcher_args_copy.tup.sport, dispatcher_args_copy.tup.dport);
         }
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
         return 0;

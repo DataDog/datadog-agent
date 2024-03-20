@@ -25,7 +25,7 @@ func BuildUnixTransparentProxyServer(curDir, binaryDir string) (string, error) {
 		return cachedServerBinaryPath, nil
 	}
 
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test", "-ldflags=-extldflags '-static'", "-o", cachedServerBinaryPath, serverSrcDir)
+	c := exec.Command("/home/vagrant/.gimme/versions/go1.21.5.linux.arm64/bin/go", "build", "-buildvcs=false", "-a", "-tags=test", "-ldflags=-extldflags '-static'", "-o", cachedServerBinaryPath, serverSrcDir)
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("could not build unix transparent proxy server test binary: %s\noutput: %s", err, string(out))

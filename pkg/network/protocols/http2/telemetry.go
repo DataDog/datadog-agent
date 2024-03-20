@@ -69,9 +69,11 @@ type kernelTelemetry struct {
 	// fragmentedFrameCountRST Count of times we have seen a fragmented RST frame.
 	fragmentedFrameCountRST *tlsAwareCounter
 	// fragmentedHeadersFrameEOSCount Count of times we have seen a fragmented headers frame with EOS.
-	fragmentedHeadersFrameEOSCount     *tlsAwareCounter
+	fragmentedHeadersFrameEOSCount *tlsAwareCounter
+	// dynamicCounterTableDeletionFailure Count of times we have seen a failure to delete a dynamic counter table entry.
 	dynamicCounterTableDeletionFailure *tlsAwareCounter
-	terminationSeen                    *tlsAwareCounter
+	// terminationSeen Count of times we have seen termination.
+	terminationSeen *tlsAwareCounter
 	// fragmentedHeadersFrameCount Count of times we have seen a fragmented headers frame.
 	fragmentedHeadersFrameCount *tlsAwareCounter
 	// fragmentedDataFrameEOSCount Count of times we have seen a fragmented data frame with EOS.
@@ -137,18 +139,20 @@ func (t *kernelTelemetry) Log() {
 // Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other
 func (t *HTTP2Telemetry) Sub(other HTTP2Telemetry) *HTTP2Telemetry {
 	return &HTTP2Telemetry{
-		Request_seen:                       t.Request_seen - other.Request_seen,
-		Response_seen:                      t.Response_seen - other.Response_seen,
-		End_of_stream:                      t.End_of_stream - other.End_of_stream,
-		End_of_stream_rst:                  t.End_of_stream_rst - other.End_of_stream_rst,
-		Literal_value_exceeds_frame:        t.Literal_value_exceeds_frame - other.Literal_value_exceeds_frame,
-		Exceeding_max_interesting_frames:   t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
-		Exceeding_max_frames_to_filter:     t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
-		Fragmented_frame_count_headers:     t.Fragmented_frame_count_headers - other.Fragmented_frame_count_headers,
-		Fragmented_frame_count_data_eos:    t.Fragmented_frame_count_data_eos - other.Fragmented_frame_count_data_eos,
-		Fragmented_frame_count_rst:         t.Fragmented_frame_count_rst - other.Fragmented_frame_count_rst,
-		Fragmented_frame_count_headers_eos: t.Fragmented_frame_count_headers_eos - other.Fragmented_frame_count_headers_eos,
-		Path_size_bucket:                   computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
+		Request_seen:                           t.Request_seen - other.Request_seen,
+		Response_seen:                          t.Response_seen - other.Response_seen,
+		End_of_stream:                          t.End_of_stream - other.End_of_stream,
+		End_of_stream_rst:                      t.End_of_stream_rst - other.End_of_stream_rst,
+		Literal_value_exceeds_frame:            t.Literal_value_exceeds_frame - other.Literal_value_exceeds_frame,
+		Exceeding_max_interesting_frames:       t.Exceeding_max_interesting_frames - other.Exceeding_max_interesting_frames,
+		Exceeding_max_frames_to_filter:         t.Exceeding_max_frames_to_filter - other.Exceeding_max_frames_to_filter,
+		Fragmented_frame_count_headers:         t.Fragmented_frame_count_headers - other.Fragmented_frame_count_headers,
+		Fragmented_frame_count_data_eos:        t.Fragmented_frame_count_data_eos - other.Fragmented_frame_count_data_eos,
+		Fragmented_frame_count_rst:             t.Fragmented_frame_count_rst - other.Fragmented_frame_count_rst,
+		Fragmented_frame_count_headers_eos:     t.Fragmented_frame_count_headers_eos - other.Fragmented_frame_count_headers_eos,
+		Termination_seen:                       t.Termination_seen - other.Termination_seen,
+		Dynamic_counter_table_deletion_failure: t.Dynamic_counter_table_deletion_failure - other.Dynamic_counter_table_deletion_failure,
+		Path_size_bucket:                       computePathSizeBucketDifferences(t.Path_size_bucket, other.Path_size_bucket),
 	}
 }
 
