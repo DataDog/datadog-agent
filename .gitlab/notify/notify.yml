@@ -69,7 +69,7 @@ notify_github:
       changes:
         paths:
           - ./**/*.go
-      compare_to: 'refs/heads/main'
+        compare_to: 'refs/heads/main'
       when: never
     - when: on_success
   needs:
