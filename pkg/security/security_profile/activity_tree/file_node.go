@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/exp/slices"
 )
 
 // FileNode holds a tree representation of a list of files
@@ -149,9 +148,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			if imageTag != "" && !slices.Contains(currentFn.ImageTags, imageTag) {
-				currentFn.ImageTags = append(currentFn.ImageTags, imageTag)
-			}
+			currentFn.ImageTags, _ = AppendIfNotPresentString(currentFn.ImageTags, imageTag)
 			continue
 		}
 
@@ -174,9 +171,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 }
 
 func (fn *FileNode) tagAllNodes(imageTag string) {
-	if imageTag != "" && !slices.Contains(fn.ImageTags, imageTag) {
-		fn.ImageTags = append(fn.ImageTags, imageTag)
-	}
+	fn.ImageTags, _ = AppendIfNotPresentString(fn.ImageTags, imageTag)
 	for _, child := range fn.Children {
 		child.tagAllNodes(imageTag)
 	}

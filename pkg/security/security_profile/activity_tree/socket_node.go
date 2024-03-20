@@ -41,9 +41,7 @@ func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 }
 
 func (bn *BindNode) appendImageTag(imageTag string) {
-	if imageTag != "" && !slices.Contains(bn.ImageTags, imageTag) {
-		bn.ImageTags = append(bn.ImageTags, imageTag)
-	}
+	bn.ImageTags, _ = AppendIfNotPresentString(bn.ImageTags, imageTag)
 }
 
 func (sn *SocketNode) appendImageTag(imageTag string) {

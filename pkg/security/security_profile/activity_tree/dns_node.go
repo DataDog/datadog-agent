@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"golang.org/x/exp/slices"
 )
 
 // DNSNode is used to store a DNS node
@@ -54,9 +53,7 @@ func dnsFilterSubdomains(name string, maxDepth int) string {
 }
 
 func (dn *DNSNode) appendImageTag(imageTag string) {
-	if imageTag != "" && !slices.Contains(dn.ImageTags, imageTag) {
-		dn.ImageTags = append(dn.ImageTags, imageTag)
-	}
+	dn.ImageTags, _ = AppendIfNotPresent(dn.ImageTags, imageTag)
 }
 
 func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {
