@@ -544,6 +544,8 @@ def test(
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
         info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
+    if not quick:
+        prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages)
 
     infra = build_infrastructure(stack, ssh_key)
     arch = arch_mapping[platform.machine()]
