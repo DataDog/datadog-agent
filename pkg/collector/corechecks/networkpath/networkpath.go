@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -42,6 +43,9 @@ func (c *Check) Run() error {
 
 	cfg := traceroute.Config{
 		DestHostname: c.config.DestHostname,
+		DestPort:     c.config.DestPort,
+		MaxTTL:       c.config.MaxTTL,
+		TimeoutMs:    c.config.TimeoutMs,
 	}
 
 	tr := traceroute.New(cfg)
@@ -57,11 +61,11 @@ func (c *Check) Run() error {
 	}
 
 	duration := time.Since(startTime)
-	log.Debugf("check duration: %2f for destination: '%s' %s", duration.Seconds(), c.config.DestHostname, c.config.DestName)
+	log.Debugf("check duration: %2f for destination: '%s'", duration.Seconds(), c.config.DestHostname)
 
 	if !c.lastCheckTime.IsZero() {
 		interval := startTime.Sub(c.lastCheckTime)
-		log.Tracef("time since last check %2f for destination: '%s' %s", interval.Seconds(), c.config.DestHostname, c.config.DestName)
+		log.Tracef("time since last check %2f for destination: '%s'", interval.Seconds(), c.config.DestHostname)
 	}
 	c.lastCheckTime = startTime
 
@@ -69,14 +73,19 @@ func (c *Check) Run() error {
 }
 
 // SendNetPathMDToEP sends a traced network path to EP
-func (c *Check) SendNetPathMDToEP(_ sender.Sender, path traceroute.NetworkPath) error {
+func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkPath) error {
 	payloadBytes, err := json.Marshal(path)
 	if err != nil {
 		return fmt.Errorf("error marshalling device metadata: %s", err)
 	}
 	log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
-	//sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
+	sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
 	return nil
+}
+
+// Interval returns the scheduling time for the check
+func (c *Check) Interval() time.Duration {
+	return c.config.MinCollectionInterval
 }
 
 // Configure the networkpath check

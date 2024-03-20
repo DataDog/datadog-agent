@@ -172,7 +172,7 @@ func Test_injectTags(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectTags(tt.pod, "ns", nil, wmeta)
+			_, err := injectTags(tt.pod, "ns", nil, wmeta)
 			assert.NoError(t, err)
 			assert.Len(t, tt.pod.Spec.Containers, 1)
 			assert.Len(t, tt.wantPodFunc().Spec.Containers, 1)

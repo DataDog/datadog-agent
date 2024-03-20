@@ -1,2 +1,0 @@
-service_monitoring_config:
-  max_tracked_http_connections: 1025

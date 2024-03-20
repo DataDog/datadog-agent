@@ -348,7 +348,7 @@ def list_major_change(_, milestone):
     List all PR labeled "major_changed" for this release.
     """
 
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
     if pull_requests is None:
         return
@@ -1086,10 +1086,10 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
     # Step 4: add release changelog preludes
     print(color_message("Adding Agent release changelog prelude", "bold"))
-    add_prelude(ctx, new_version)
+    add_prelude(ctx, str(new_version))
 
     print(color_message("Adding DCA release changelog prelude", "bold"))
-    add_dca_prelude(ctx, new_version)
+    add_dca_prelude(ctx, str(new_version))
 
     ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
     if not ok:
@@ -1562,7 +1562,7 @@ def cleanup(ctx):
       - Updates the scheduled nightly pipeline to target the new stable branch
       - Updates the release.json last_stable fields
     """
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     latest_release = gh.latest_release()
     match = VERSION_RE.search(latest_release)
     if not match:
@@ -1693,7 +1693,7 @@ def get_active_release_branch(_ctx):
     If release started and code freeze is in place - main branch is considered active.
     If release started and code freeze is over - release branch is considered active.
     """
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     latest_release = gh.latest_release()
     version = _create_version_from_match(VERSION_RE.search(latest_release))
     next_version = version.next_version(bump_minor=True)

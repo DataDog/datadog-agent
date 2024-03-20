@@ -28,6 +28,33 @@ build_serverless*                    @DataDog/serverless
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
 
+# Package build
+agent_deb*                           @DataDog/agent-build-and-releases
+iot_agent_deb*                       @DataDog/agent-build-and-releases
+dogstatsd_deb*                       @DataDog/agent-build-and-releases
+agent_heroku_deb*                    @DataDog/agent-build-and-releases
+agentless_scanner_deb*               @DataDog/agent-build-and-releases
+updater_deb*                         @DataDog/agent-build-and-releases
+agent_rpm*                           @DataDog/agent-build-and-releases
+iot_agent_rpm*                       @DataDog/agent-build-and-releases
+dogstatsd_rpm*                       @DataDog/agent-build-and-releases
+agentless_scanner_rpm*               @DataDog/agent-build-and-releases
+agent_suse*                          @DataDog/agent-build-and-releases
+iot_agent_suse*                      @DataDog/agent-build-and-releases
+dogstatsd_suse*                      @DataDog/agent-build-and-releases
+agentless_scanner_suse*              @DataDog/agent-build-and-releases
+agent_dmg*                           @DataDog/agent-build-and-releases
+windows_msi*                         @DataDog/windows-agent
+
+# Packaging
+packaging_oci                        @DataDog/agent-build-and-releases
+
+# Testing package deploy
+deploy_deb_testing*                  @DataDog/agent-build-and-releases
+deploy_rpm_testing*                  @DataDog/agent-build-and-releases
+deploy_suse_rpm_testing*             @DataDog/agent-build-and-releases
+deploy_windows_testing*              @DataDog/agent-build-and-releases
+
 # Kitchen tests
 kitchen_windows*                     @DataDog/windows-agent
 
@@ -59,8 +86,17 @@ docker_trigger_cws_instrumentation_internal* @DataDog/agent-security
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @DataDog/container-integrations
 
-# Deploy
+# Deploy packages
+deploy_packages*                       @DataDog/agent-build-and-releases
+publish_winget*                        @DataDog/windows-agent
+
+# Deploy containers
 deploy_containers*                     @DataDog/container-integrations
+
+# Trigger release
+trigger_manual_prod_release            @DataDog/agent-build-and-releases
+trigger_auto_staging_release           @DataDog/agent-build-and-releases
+
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent

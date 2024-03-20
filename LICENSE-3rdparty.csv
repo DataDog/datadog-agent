@@ -815,7 +815,6 @@ core,github.com/cilium/ebpf/btf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright
 core,github.com/cilium/ebpf/features,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/epoll,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
-core,github.com/cilium/ebpf/internal/kallsyms,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/kconfig,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sys,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sysenc,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -2438,6 +2437,7 @@ core,google.golang.org/protobuf/encoding/protowire,BSD-3-Clause,Copyright (c) 20
 core,google.golang.org/protobuf/internal/descfmt,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/descopts,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/detrand,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/internal/editiondefaults,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/encoding/defval,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/encoding/json,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/encoding/messageset,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -2456,6 +2456,7 @@ core,google.golang.org/protobuf/internal/set,BSD-3-Clause,Copyright (c) 2018 The
 core,google.golang.org/protobuf/internal/strs,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/internal/version,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/proto,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/protoadapt,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protodesc,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protopath,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/reflect/protorange,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
@@ -2465,6 +2466,7 @@ core,google.golang.org/protobuf/runtime/protoiface,BSD-3-Clause,Copyright (c) 20
 core,google.golang.org/protobuf/runtime/protoimpl,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/descriptorpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/dynamicpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
+core,google.golang.org/protobuf/types/gofeaturespb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/anypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/durationpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/emptypb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
