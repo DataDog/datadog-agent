@@ -26,10 +26,10 @@ periodic_kitchen_cleanup_azure:
   # the job to be run one at a time.
   resource_group: azure_cleanup
   script:
-    - export ARM_SUBSCRIPTION_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_subscription_id`
-    - export ARM_CLIENT_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_id`
-    - export ARM_CLIENT_SECRET=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_client_secret`
-    - export ARM_TENANT_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.azure_kitchen_tenant_id`
+    - export ARM_SUBSCRIPTION_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME`
+    - export ARM_CLIENT_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_ID_SSM_NAME`
+    - export ARM_CLIENT_SECRET=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME`
+    - export ARM_TENANT_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_TENANT_ID_SSM_NAME`
     # Remove kitchen resources for all existing test suite prefixes
     - RESOURCE_GROUP_PREFIX=kitchen-chef python3 /deploy_scripts/cleanup_azure.py
     - RESOURCE_GROUP_PREFIX=kitchen-install-script python3 /deploy_scripts/cleanup_azure.py

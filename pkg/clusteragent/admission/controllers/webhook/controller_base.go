@@ -75,7 +75,7 @@ func mutatingWebhooks(wmeta workloadmeta.Component) []MutatingWebhook {
 		agentsidecar.NewWebhook(),
 	}
 
-	apm, err := autoinstrumentation.NewWebhook(wmeta)
+	apm, err := autoinstrumentation.GetWebhook(wmeta)
 	if err == nil {
 		webhooks = append(webhooks, apm)
 	} else {

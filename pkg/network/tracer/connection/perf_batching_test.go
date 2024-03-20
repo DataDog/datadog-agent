@@ -32,13 +32,14 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 
 		batch := new(netebpf.Batch)
 		batch.Id = 0
+		batch.Cpu = 0
 		batch.C0.Tup.Pid = 1
 		batch.C1.Tup.Pid = 2
 		batch.C2.Tup.Pid = 3
 		batch.C3.Tup.Pid = 4
 
 		buffer := network.NewConnectionBuffer(256, 256)
-		manager.ExtractBatchInto(buffer, batch, 0)
+		manager.ExtractBatchInto(buffer, batch)
 		conns := buffer.Connections()
 		assert.Len(t, conns, 4)
 		assert.Equal(t, uint32(1), conns[0].Pid)
@@ -52,6 +53,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 
 		batch := new(netebpf.Batch)
 		batch.Id = 0
+		batch.Cpu = 0
 		batch.C0.Tup.Pid = 1
 		batch.C1.Tup.Pid = 2
 		batch.C2.Tup.Pid = 3
@@ -63,7 +65,7 @@ func TestPerfBatchManagerExtract(t *testing.T) {
 		}
 
 		buffer := network.NewConnectionBuffer(256, 256)
-		manager.ExtractBatchInto(buffer, batch, 0)
+		manager.ExtractBatchInto(buffer, batch)
 		conns := buffer.Connections()
 		assert.Len(t, conns, 1)
 		assert.Equal(t, uint32(4), conns[0].Pid)
@@ -162,7 +164,7 @@ func newEmptyBatchManager() *perfBatchManager {
 }
 
 func newTestBatchManager(t *testing.T) *perfBatchManager {
-	rlimit.RemoveMemlock()
+	require.NoError(t, rlimit.RemoveMemlock())
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		KeySize:    4,

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace
 
-go 1.21.7
+go 1.21.8
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -46,7 +46,7 @@ require (
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2 // indirect
 	github.com/DataDog/go-sqllexer v0.0.9 // indirect
-	github.com/DataDog/go-tuf v1.0.2-0.5.2 // indirect
+	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/cgroups/v3 v3.0.2 // indirect

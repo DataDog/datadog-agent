@@ -57,13 +57,17 @@ type testMetricArgs struct {
 
 type testMetricFilterArgs struct {
 	Name string
+	// Tags are used to filter the metrics
+	// Regexes are supported
 	Tags []string
 }
 
 type testMetricExpectArgs struct {
+	// Tags are the tags expected to be present
+	// Regexes are supported
 	Tags                 *[]string
-	AcceptUnexpectedTags bool
 	Value                *testMetricExpectValueArgs
+	AcceptUnexpectedTags bool
 }
 
 type testMetricExpectValueArgs struct {
@@ -152,9 +156,13 @@ func (suite *baseSuite) testMetric(args *testMetricArgs) {
 				}
 			}()
 
+			filterTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				args.Filter.Name,
-				fakeintake.WithTags[*aggregator.MetricSeries](args.Filter.Tags),
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries](filterTags),
 			)
 			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 			if !assert.NoErrorf(c, err, "Failed to query fake intake") {

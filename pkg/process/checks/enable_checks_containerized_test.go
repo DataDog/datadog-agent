@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -24,6 +25,9 @@ import (
 
 func TestContainerCheck(t *testing.T) {
 	deps := createDeps(t)
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+
 	// Make sure the container check can be enabled if the process check is disabled
 	t.Run("containers enabled; rt enabled", func(t *testing.T) {
 		cfg := config.Mock(t)
@@ -74,6 +78,26 @@ func TestContainerCheck(t *testing.T) {
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
+	})
+
+	// Make sure container checks run on the core agent only
+	// when run in core agent mode is enabled
+	t.Run("run in core agent", func(t *testing.T) {
+		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
+		config.SetFeatures(t, config.Docker)
+
+		flavor.SetFlavor("process_agent")
+		enabledChecks := getEnabledChecks(t, cfg, scfg)
+		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
+		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
+
+		flavor.SetFlavor("agent")
+		enabledChecks = getEnabledChecks(t, cfg, scfg)
+		assertContainsCheck(t, enabledChecks, ContainerCheckName)
+		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
 }
 

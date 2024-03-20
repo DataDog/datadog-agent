@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -92,10 +93,14 @@ func TestProcessCheck(t *testing.T) {
 
 func TestConnectionsCheck(t *testing.T) {
 	deps := creatProcessCheckDeps(t)
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+
 	t.Run("enabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		scfg.SetWithoutSource("network_config.enabled", true)
 		scfg.SetWithoutSource("system_probe_config.enabled", true)
+		flavor.SetFlavor("process_agent")
 
 		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		if runtime.GOOS == "darwin" {

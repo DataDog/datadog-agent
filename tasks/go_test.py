@@ -28,7 +28,7 @@ from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags
 from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.junit_upload_core import add_flavor_to_junitxml, produce_junit_tar
+from tasks.libs.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -232,7 +232,7 @@ def test_flavor(
 
         if junit_tar:
             module_result.junit_file_path = os.path.join(module_path, junit_file)
-            add_flavor_to_junitxml(module_result.junit_file_path, flavor)
+            enrich_junitxml(module_result.junit_file_path, flavor)
 
         test_results.append(module_result)
 
@@ -424,6 +424,7 @@ def test(
             modules = get_modified_packages(ctx, build_tags=build_tags)
         if only_impacted_packages:
             modules = get_impacted_packages(ctx, build_tags=build_tags)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -743,6 +744,8 @@ def parse_test_log(log_file):
 
 @task
 def get_impacted_packages(ctx, build_tags=None):
+    if build_tags is None:
+        build_tags = []
     dependencies = create_dependencies(ctx, build_tags)
     files = get_modified_files(ctx)
 
@@ -751,6 +754,15 @@ def get_impacted_packages(ctx, build_tags=None):
         for file in files
         if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     }
+
+    # Modification to go.mod and go.sum should force the tests of the whole module to run
+    for file in files:
+        if file.endswith("go.mod") or file.endswith("go.sum"):
+            with ctx.cd(os.path.dirname(file)):
+                all_packages = ctx.run(
+                    f'go list -tags "{" ".join(build_tags)}" ./...', hide=True, warn=True
+                ).stdout.splitlines()
+                modified_packages.update(set(all_packages))
 
     # Modification to fixture folders count as modification to their parent package
     for file in files:
@@ -774,7 +786,9 @@ def create_dependencies(ctx, build_tags=None):
     for modules in DEFAULT_MODULES:
         with ctx.cd(modules):
             res = ctx.run(
-                'go list ' + f'-tags "{" ".join(build_tags)}" ' + '-f "{{.ImportPath}} {{.Imports}}" ./...',
+                'go list '
+                + f'-tags "{" ".join(build_tags)}" '
+                + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...',
                 hide=True,
                 warn=True,
             )
@@ -785,6 +799,7 @@ def create_dependencies(ctx, build_tags=None):
                 for imported_package in imported_packages:
                     if imported_package.startswith("github.com/DataDog/datadog-agent"):
                         modules_deps[imported_package].add(package)
+
     return modules_deps
 
 
@@ -816,7 +831,7 @@ def format_packages(ctx, impacted_packages):
 
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
-    go_mod_modified_modules = set()
+
     for package in packages:
         match_precision = 0
         best_module_path = None
@@ -835,10 +850,6 @@ def format_packages(ctx, impacted_packages):
                 targeted = True
                 break
         if not targeted:
-            continue
-
-        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
-        if best_module_path in go_mod_modified_modules:
             continue
 
         # If the package has been deleted we do not try to run tests

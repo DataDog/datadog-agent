@@ -38,6 +38,7 @@
       -e GO_VERSION_CHECK="true"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e API_KEY_ORG2_SSM_NAME=${API_KEY_ORG2_SSM_NAME}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -122,6 +123,7 @@ windows_zip_agent_binaries_x64-a7:
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e API_KEY_ORG2_SSM_NAME=${API_KEY_ORG2_SSM_NAME}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

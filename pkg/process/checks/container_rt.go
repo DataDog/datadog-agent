@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -49,6 +50,10 @@ func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) e
 
 // IsEnabled returns true if the check is enabled by configuration
 func (r *RTContainerCheck) IsEnabled() bool {
+	if r.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	rtChecksEnabled := !r.config.GetBool("process_config.disable_realtime_checks")
 	return canEnableContainerChecks(r.config, false) && rtChecksEnabled
 }
