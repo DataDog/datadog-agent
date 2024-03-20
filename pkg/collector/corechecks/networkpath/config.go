@@ -12,15 +12,22 @@ import (
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
-	DestName     string `yaml:"name"`
 	DestHostname string `yaml:"hostname"`
+
+	DestPort uint16 `yaml:"port"`
+
+	MaxTTL uint8 `yaml:"max_ttl"`
+
+	TimeoutMs uint `yaml:"timeout"` // millisecond
 }
 
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
 	DestHostname string
-	DestName     string
+	DestPort     uint16
+	MaxTTL       uint8
+	TimeoutMs    uint
 }
 
 // NewCheckConfig builds a new check config
@@ -35,7 +42,9 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 	c := &CheckConfig{}
 
 	c.DestHostname = instance.DestHostname
-	c.DestName = instance.DestName
+	c.DestPort = instance.DestPort
+	c.MaxTTL = instance.MaxTTL
+	c.TimeoutMs = instance.TimeoutMs
 
 	return c, nil
 }

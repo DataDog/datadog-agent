@@ -127,7 +127,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _, _ any) { ia.Refresh() })
 	}
 
 	return provides{
@@ -212,7 +212,7 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	}
 
 	ia.data["config_dd_url"] = scrub(ia.conf.GetString("dd_url"))
-	ia.data["config_site"] = scrub(ia.conf.GetString("dd_site"))
+	ia.data["config_site"] = scrub(ia.conf.GetString("site"))
 	ia.data["config_logs_dd_url"] = scrub(ia.conf.GetString("logs_config.logs_dd_url"))
 	ia.data["config_logs_socks5_proxy_address"] = scrub(ia.conf.GetString("logs_config.socks5_proxy_address"))
 	ia.data["config_no_proxy"] = cfgSlice("proxy.no_proxy")
