@@ -106,10 +106,14 @@ func TestApplyProviderOverrides(t *testing.T) {
 									Name:  "DD_TRACE_AGENT_URL",
 									Value: "unix:///var/run/datadog/apm.socket",
 								},
+								{
+									Name:  "DD_DOGSTATSD_URL",
+									Value: "unix:///var/run/datadog/dsd.socket",
+								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "apmsocket",
+									Name:      "ddsockets",
 									MountPath: "/var/run/datadog",
 									ReadOnly:  false,
 								},
@@ -126,10 +130,14 @@ func TestApplyProviderOverrides(t *testing.T) {
 									Name:  "DD_APM_RECEIVER_SOCKET",
 									Value: "/var/run/datadog/apm.socket",
 								},
+								{
+									Name:  "DD_DOGSTATSD_SOCKET",
+									Value: "/var/run/datadog/dsd.socket",
+								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "apmsocket",
+									Name:      "ddsockets",
 									MountPath: "/var/run/datadog",
 									ReadOnly:  false,
 								},
@@ -138,7 +146,7 @@ func TestApplyProviderOverrides(t *testing.T) {
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: "apmsocket",
+							Name: "ddsockets",
 							VolumeSource: corev1.VolumeSource{
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},
@@ -201,10 +209,14 @@ func TestApplyProviderOverrides(t *testing.T) {
 									Name:  "DD_TRACE_AGENT_URL",
 									Value: "unix:///var/run/datadog/apm.socket",
 								},
+								{
+									Name:  "DD_DOGSTATSD_URL",
+									Value: "unix:///var/run/datadog/dsd.socket",
+								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "apmsocket",
+									Name:      "ddsockets",
 									MountPath: "/var/run/datadog",
 									ReadOnly:  false,
 								},
@@ -221,10 +233,14 @@ func TestApplyProviderOverrides(t *testing.T) {
 									Name:  "DD_APM_RECEIVER_SOCKET",
 									Value: "/var/run/datadog/apm.socket",
 								},
+								{
+									Name:  "DD_DOGSTATSD_SOCKET",
+									Value: "/var/run/datadog/dsd.socket",
+								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "apmsocket",
+									Name:      "ddsockets",
 									MountPath: "/var/run/datadog",
 									ReadOnly:  false,
 								},
@@ -233,7 +249,7 @@ func TestApplyProviderOverrides(t *testing.T) {
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: "apmsocket",
+							Name: "ddsockets",
 							VolumeSource: corev1.VolumeSource{
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},

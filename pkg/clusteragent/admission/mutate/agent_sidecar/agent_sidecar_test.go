@@ -162,11 +162,15 @@ func TestInjectAgentSidecar(t *testing.T) {
 						Name:  "DD_APM_RECEIVER_SOCKET",
 						Value: "/var/run/datadog/apm.socket",
 					},
+					corev1.EnvVar{
+						Name:  "DD_DOGSTATSD_SOCKET",
+						Value: "/var/run/datadog/dsd.socket",
+					},
 				)
 
 				sidecar.VolumeMounts = []corev1.VolumeMount{
 					{
-						Name:      "apmsocket",
+						Name:      "ddsockets",
 						MountPath: "/var/run/datadog",
 						ReadOnly:  false,
 					},
@@ -185,10 +189,14 @@ func TestInjectAgentSidecar(t *testing.T) {
 										Name:  "DD_TRACE_AGENT_URL",
 										Value: "unix:///var/run/datadog/apm.socket",
 									},
+									{
+										Name:  "DD_DOGSTATSD_URL",
+										Value: "unix:///var/run/datadog/dsd.socket",
+									},
 								},
 								VolumeMounts: []corev1.VolumeMount{
 									{
-										Name:      "apmsocket",
+										Name:      "ddsockets",
 										MountPath: "/var/run/datadog",
 										ReadOnly:  false,
 									},
@@ -198,7 +206,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 						},
 						Volumes: []corev1.Volume{
 							{
-								Name: "apmsocket",
+								Name: "ddsockets",
 								VolumeSource: corev1.VolumeSource{
 									EmptyDir: &corev1.EmptyDirVolumeSource{},
 								},
@@ -253,6 +261,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 						Value: "/var/run/datadog/apm.socket",
 					},
 					corev1.EnvVar{
+						Name:  "DD_DOGSTATSD_SOCKET",
+						Value: "/var/run/datadog/dsd.socket",
+					},
+					corev1.EnvVar{
 						Name: "ENV_VAR_1",
 						ValueFrom: &corev1.EnvVarSource{
 							SecretKeyRef: &corev1.SecretKeySelector{
@@ -274,7 +286,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 				sidecar.VolumeMounts = []corev1.VolumeMount{
 					{
-						Name:      "apmsocket",
+						Name:      "ddsockets",
 						MountPath: "/var/run/datadog",
 						ReadOnly:  false,
 					},
@@ -293,10 +305,14 @@ func TestInjectAgentSidecar(t *testing.T) {
 										Name:  "DD_TRACE_AGENT_URL",
 										Value: "unix:///var/run/datadog/apm.socket",
 									},
+									{
+										Name:  "DD_DOGSTATSD_URL",
+										Value: "unix:///var/run/datadog/dsd.socket",
+									},
 								},
 								VolumeMounts: []corev1.VolumeMount{
 									{
-										Name:      "apmsocket",
+										Name:      "ddsockets",
 										MountPath: "/var/run/datadog",
 										ReadOnly:  false,
 									},
@@ -306,7 +322,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 						},
 						Volumes: []corev1.Volume{
 							{
-								Name: "apmsocket",
+								Name: "ddsockets",
 								VolumeSource: corev1.VolumeSource{
 									EmptyDir: &corev1.EmptyDirVolumeSource{},
 								},

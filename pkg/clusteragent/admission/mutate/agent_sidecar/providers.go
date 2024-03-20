@@ -23,9 +23,14 @@ import (
 //                            //
 ////////////////////////////////
 
-const apmSocketDir = "/var/run/datadog"
-const apmSocket = apmSocketDir + "/apm.socket"
-const apmSocketVolumeName = "apmsocket"
+const socketDir = "/var/run/datadog"
+const apmSocket = socketDir + "/apm.socket"
+const dogstatsdSocket = socketDir + "/dsd.socket"
+
+// ddSocketsVolumeName is the name of the volume used to mount the APM and
+// DogStatsD sockets. It needs to be different from the name used by the config
+// webhook to distinguish them easily.
+const ddSocketsVolumeName = "ddsockets"
 
 // providerIsSupported indicates whether the provider is supported by agent sidecar injection
 func providerIsSupported(provider string) bool {
@@ -66,10 +71,12 @@ func applyProviderOverrides(pod *corev1.Pod) (bool, error) {
 //     the agent sidecar webhook needs to be run after the config one. This is
 //     guaranteed by the mutatingWebhooks function in the webhook package.
 //   - Creates an "emptyDir" volume instead.
-//   - Configures the APM UDS path with DD_APM_RECEIVER_SOCKET.
+//   - Configures the APM UDS path with DD_APM_RECEIVER_SOCKET and the DogStatsD
+//     socket with DD_DOGSTATSD_SOCKET.
 //
 // For the application containers:
 //   - Sets DD_TRACE_AGENT_URL to the APM UDS path configured for the agent.
+//   - Sets DD_DOGSTATSD_URL to the DogStatsD UDS path configured for the agent.
 //
 // This function returns a boolean that indicates if the pod was mutated.
 func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
@@ -82,7 +89,7 @@ func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
 	deleted := deleteConfigWebhookVolumeAndMounts(pod)
 	mutated = mutated || deleted
 
-	volume, volumeMount := apmSocketVolume()
+	volume, volumeMount := socketsVolume()
 	injected := common.InjectVolume(pod, volume, volumeMount)
 	mutated = mutated || injected
 
@@ -116,27 +123,40 @@ func applyOverridesAgentContainer(container *corev1.Container) (bool, error) {
 			Name:  "DD_APM_RECEIVER_SOCKET",
 			Value: apmSocket,
 		},
+		corev1.EnvVar{
+			Name:  "DD_DOGSTATSD_SOCKET",
+			Value: dogstatsdSocket,
+		},
 	)
 }
 
 func applyOverridesAppContainer(container *corev1.Container) (bool, error) {
-	return withEnvOverrides(container, corev1.EnvVar{
-		Name:  "DD_TRACE_AGENT_URL",
-		Value: "unix://" + apmSocket,
-	})
+	return withEnvOverrides(
+		container,
+		corev1.EnvVar{
+			Name:  "DD_TRACE_AGENT_URL",
+			Value: "unix://" + apmSocket,
+		},
+		corev1.EnvVar{
+			Name:  "DD_DOGSTATSD_URL",
+			Value: "unix://" + dogstatsdSocket,
+		},
+	)
 }
 
-func apmSocketVolume() (corev1.Volume, corev1.VolumeMount) {
+// socketsVolume returns the volume and volume mounts used for the APM and the
+// DogStatsD sockets.
+func socketsVolume() (corev1.Volume, corev1.VolumeMount) {
 	volume := corev1.Volume{
-		Name: apmSocketVolumeName,
+		Name: ddSocketsVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	}
 
 	volumeMount := corev1.VolumeMount{
-		Name:      apmSocketVolumeName,
-		MountPath: apmSocketDir,
+		Name:      ddSocketsVolumeName,
+		MountPath: socketDir,
 		ReadOnly:  false, // Need RW for UDS APM socket
 	}
 
