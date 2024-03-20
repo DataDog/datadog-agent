@@ -87,7 +87,6 @@ def trigger_agent_pipeline(
     branch="nightly",
     deploy=False,
     all_builds=False,
-    kitchen_tests=False,
     e2e_tests=False,
     rc_build=False,
     rc_k8s_deployments=False,
@@ -111,17 +110,12 @@ def trigger_agent_pipeline(
     if all_builds:
         args["RUN_ALL_BUILDS"] = "true"
 
-    # Kitchen tests can be selectively enabled, or disabled on pipelines where they're
-    # enabled by default (default branch and deploy pipelines).
-    if kitchen_tests:
-        args["RUN_KITCHEN_TESTS"] = "true"
-    else:
-        args["RUN_KITCHEN_TESTS"] = "false"
-
     # End to end tests can be selectively enabled, or disabled on pipelines where they're
     # enabled by default (default branch and deploy pipelines).
     if e2e_tests:
-        args["RUN_E2E_TESTS"] = "true"
+        args["RUN_E2E_TESTS"] = "on"
+    else:
+        args["RUN_E2E_TESTS"] = "off"
 
     if release_version_6 is not None:
         args["RELEASE_VERSION_6"] = release_version_6

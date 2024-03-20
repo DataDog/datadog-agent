@@ -293,6 +293,8 @@ labels that can be use:
 - `backport/<branch-name>`: Add this label to automatically create a PR against the `<branch-name>` branch with your backported changes. The backport PR creation is triggered:
   - When a PR with the label is merged
   - When an already-merged PR gets the label
+
+  If there is a conflict, the bot prompts you with a list of instructions to follow ([example](https://github.com/DataDog/datadog-agent/pull/23316#issuecomment-1973207164)) to manually backport your PR.
 - `qa/done` or `qa/no-code-change`: used to skip the QA week:
   - `qa/done` label is recommended in case of code changes **and** manual / automated qa done before merge.
   - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.

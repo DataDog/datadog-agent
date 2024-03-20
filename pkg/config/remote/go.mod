@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/remote
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
@@ -31,7 +31,7 @@ require (
 	github.com/benbjohnson/clock v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/secure-systems-lab/go-securesystemslib v0.7.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.7
 	go.uber.org/atomic v1.11.0
 	google.golang.org/protobuf v1.31.0
@@ -55,8 +55,8 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3 // indirect
-	github.com/DataDog/go-tuf v1.0.2-0.5.2
-	github.com/DataDog/viper v1.12.0 // indirect
+	github.com/DataDog/go-tuf v1.1.0-0.5.2
+	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
@@ -73,7 +73,7 @@ require (
 	github.com/spf13/cast v1.3.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect

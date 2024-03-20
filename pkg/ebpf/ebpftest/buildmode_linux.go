@@ -10,6 +10,9 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/cilium/ebpf/rlimit"
+
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -37,8 +40,13 @@ func TestBuildModes(t *testing.T, modes []BuildMode, name string, fn func(t *tes
 	}
 }
 
+var removeMemlock = funcs.MemoizeNoError(rlimit.RemoveMemlock)
+
 // TestBuildMode runs the test under the provided build mode
 func TestBuildMode(t *testing.T, mode BuildMode, name string, fn func(t *testing.T)) {
+	if err := removeMemlock(); err != nil {
+		t.Fatal(err)
+	}
 	t.Run(mode.String(), func(t *testing.T) {
 		for k, v := range mode.Env() {
 			t.Setenv(k, v)

@@ -9,12 +9,9 @@ package probe
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -27,7 +24,7 @@ const (
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
 	p := &Probe{
@@ -44,7 +41,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		}
 		p.PlatformProbe = pp
 	} else {
-		pp, err := NewEBPFProbe(p, config, opts)
+		pp, err := NewEBPFProbe(p, config, opts, wmeta)
 		if err != nil {
 			return nil, err
 		}
@@ -60,50 +57,4 @@ func (p *Probe) Origin() string {
 		return EBPFLessOrigin
 	}
 	return EBPFOrigin
-}
-
-func handleKillActions(action *rules.ActionDefinition, ev *model.Event, kill func(pid uint32, sig uint32) error) *KillActionReport {
-	entry, exists := ev.ResolveProcessCacheEntry()
-	if !exists {
-		return nil
-	}
-
-	var pids []uint32
-	var scope string
-
-	if entry.ContainerID != "" && action.Kill.Scope == "container" {
-		pids = entry.GetContainerPIDs()
-		scope = "container"
-	} else {
-		pids = []uint32{ev.ProcessContext.Pid}
-		scope = "process"
-	}
-
-	sig := model.SignalConstants[action.Kill.Signal]
-
-	killedAt := time.Now()
-	for _, pid := range pids {
-		if pid <= 1 || pid == utils.Getpid() {
-			continue
-		}
-
-		log.Debugf("requesting signal %s to be sent to %d", action.Kill.Signal, pid)
-
-		if err := kill(uint32(pid), uint32(sig)); err != nil {
-			seclog.Debugf("failed to kill process %d: %s", pid, err)
-		}
-	}
-
-	report := &KillActionReport{
-		Scope:      scope,
-		Signal:     action.Kill.Signal,
-		Pid:        ev.ProcessContext.Pid,
-		CreatedAt:  ev.ProcessContext.ExecTime,
-		DetectedAt: ev.ResolveEventTime(),
-		KilledAt:   killedAt,
-	}
-
-	ev.ActionReports = append(ev.ActionReports, report)
-
-	return report
 }

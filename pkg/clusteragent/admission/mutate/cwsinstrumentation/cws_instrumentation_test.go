@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -406,10 +407,15 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
-				err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, MockK8sClientInterface{
+				injected, err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, MockK8sClientInterface{
 					annotations: tt.args.apiClientAnnotations,
 					shouldFail:  tt.args.apiClientShouldFail,
 				})
+
+				if tt.wantErr {
+					assert.False(t, injected)
+				}
+
 				if err != nil && !tt.wantErr {
 					require.Fail(t, "CWS instrumentation shouldn't have produced an error: got %v", err)
 				}
@@ -420,6 +426,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 						require.Fail(t, "CWS instrumentation failed", "invalid exec command length %d", l)
 						return
 					}
+					assert.True(t, injected)
 					expectedCommand := fmt.Sprintf("%s%s", filepath.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
 					require.Equal(t, expectedCommand, strings.Join(tt.args.exec.Command[0:5], " "), "incorrect CWS instrumentation")
 					require.Equal(t, "--", tt.args.exec.Command[6], "incorrect CWS instrumentation")
@@ -445,6 +452,8 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 }
 
 func Test_injectCWSPodInstrumentation(t *testing.T) {
+	commonRegistry := "gcr.io/datadoghq"
+
 	type args struct {
 		pod *corev1.Pod
 		ns  string
@@ -457,7 +466,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		cwsInjectorImageTag          string
 		cwsInjectorContainerRegistry string
 	}
-	mockConfig := config.Mock(t)
 	tests := []struct {
 		name                  string
 		args                  args
@@ -490,7 +498,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -513,7 +521,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:my-tag",
+				Image:   fmt.Sprintf("%s/my-image:my-tag", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -570,7 +578,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -630,7 +638,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -670,7 +678,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   "my-image:latest",
+				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -684,11 +692,15 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.image_tag", tt.args.cwsInjectorImageTag)
-			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
+			mockConfig.SetWithoutSource("admission_controller.container_registry", commonRegistry)
+			if tt.args.cwsInjectorContainerRegistry != "" {
+				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
+			}
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.cpu", "")
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.memory", "")
 
@@ -696,11 +708,18 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
-				if err := ci.injectCWSPodInstrumentation(tt.args.pod, tt.args.ns, nil); err != nil && !tt.wantErr {
+				injected, err := ci.injectCWSPodInstrumentation(tt.args.pod, tt.args.ns, nil)
+
+				if tt.wantErr {
+					assert.False(t, injected)
+				}
+
+				if err != nil && !tt.wantErr {
 					require.Fail(t, "CWS instrumentation shouldn't have produced an error: got %v", err)
 				}
 
 				if tt.wantInstrumentation {
+					assert.True(t, injected)
 					testInjectCWSVolume(t, tt.args.pod)
 					testInjectCWSVolumeMount(t, tt.args.pod)
 					testInjectCWSInitContainer(t, tt.args.pod, tt.expectedInitContainer)
