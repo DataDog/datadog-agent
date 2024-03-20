@@ -20,6 +20,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -31,17 +32,17 @@ import (
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func (g *gui) agentHandler(r *mux.Router) {
-	r.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, g.startTimestamp) }).Methods("POST")
-	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, g.status) }).Methods("POST")
+func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, startTimestamp int64) {
+	r.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) }).Methods("POST")
+	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
 	r.HandleFunc("/hostname", http.HandlerFunc(getHostname)).Methods("POST")
-	r.HandleFunc("/log/{flip}", func(w http.ResponseWriter, r *http.Request) { getLog(w, r, g.config) }).Methods("POST")
-	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, g.flare) }).Methods("POST")
+	r.HandleFunc("/log/{flip}", func(w http.ResponseWriter, r *http.Request) { getLog(w, r, config) }).Methods("POST")
+	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
 	r.HandleFunc("/restart", http.HandlerFunc(restartAgent)).Methods("POST")
-	r.HandleFunc("/getConfig", func(w http.ResponseWriter, _ *http.Request) { getConfigFile(w, g.config) }).Methods("POST")
-	r.HandleFunc("/getConfig/{setting}", func(w http.ResponseWriter, r *http.Request) { getConfigSetting(w, r, g.config) }).Methods("GET")
-	r.HandleFunc("/setConfig", func(w http.ResponseWriter, r *http.Request) { setConfigFile(w, r, g.config) }).Methods("POST")
+	r.HandleFunc("/getConfig", func(w http.ResponseWriter, _ *http.Request) { getConfigFile(w, config) }).Methods("POST")
+	r.HandleFunc("/getConfig/{setting}", func(w http.ResponseWriter, r *http.Request) { getConfigSetting(w, r, config) }).Methods("GET")
+	r.HandleFunc("/setConfig", func(w http.ResponseWriter, r *http.Request) { setConfigFile(w, r, config) }).Methods("POST")
 }
 
 // Sends a simple reply (for checking connection to server)
