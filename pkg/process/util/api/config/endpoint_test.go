@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Modified
 func TestRemovePathIfPresent(t *testing.T) {
 	for _, tt := range []struct {
 		input    string
