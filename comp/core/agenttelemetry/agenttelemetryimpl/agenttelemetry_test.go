@@ -207,27 +207,34 @@ func getTestAtel(t *testing.T,
 	return atel
 }
 
+func getCommonOverrideConfig(enabled bool, site string) map[string]any {
+	return map[string]any{
+		"agent_telemetry.enabled": enabled,
+		"site":                    site,
+	}
+}
+
 func TestEnabled(t *testing.T) {
-	o := map[string]any{"agent_telemetry.enabled": true}
+	o := getCommonOverrideConfig(true, "foo.bar")
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.True(t, a.enabled)
 }
 
 func TestDisable(t *testing.T) {
-	o := map[string]any{"agent_telemetry.enabled": false}
+	o := getCommonOverrideConfig(false, "foo.bar")
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.False(t, a.enabled)
 }
 
 func TestDisableByDefault(t *testing.T) {
-	o := map[string]any{"foo": "bar"}
+	o := map[string]any{"foo": "bar", "site": "foo.bar"}
 	a := getTestAtel(t, nil, o, nil, nil, nil)
 	assert.False(t, a.enabled)
 }
 
 func TestRun(t *testing.T) {
 	r := newRunnerMock()
-	o := map[string]any{"agent_telemetry.enabled": true}
+	o := getCommonOverrideConfig(true, "foo.bar")
 	a := getTestAtel(t, nil, o, nil, nil, r)
 	assert.True(t, a.enabled)
 
@@ -248,7 +255,7 @@ func TestReportMetricBasic(t *testing.T) {
 	counter := telemetrypkg.NewCounter("checks", "execution_time", []string{"check_name"}, "")
 	counter.Inc("mycheck")
 
-	o := map[string]any{"agent_telemetry.enabled": true}
+	o := getCommonOverrideConfig(true, "foo.bar")
 	c := newClientMock()
 	r := newRunnerMock()
 	a := getTestAtel(t, tel, o, nil, c, r)

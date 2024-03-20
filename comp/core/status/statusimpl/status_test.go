@@ -984,15 +984,17 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 	statusComponent := provides.Comp
 
 	testCases := []struct {
-		name       string
-		format     string
-		sections   []string
-		assertFunc func(*testing.T, []byte)
+		name          string
+		format        string
+		sections      []string
+		shouldSuccess bool
+		assertFunc    func(*testing.T, []byte)
 	}{
 		{
-			name:     "single section",
-			format:   "json",
-			sections: []string{"moo_1"},
+			name:          "single section",
+			format:        "json",
+			sections:      []string{"moo_1"},
+			shouldSuccess: true,
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
 				err := json.Unmarshal(bytes, &result)
@@ -1003,9 +1005,10 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			},
 		},
 		{
-			name:     "triple section",
-			format:   "json",
-			sections: []string{"moo_1", "moo_2", "moo_4"},
+			name:          "triple section",
+			format:        "json",
+			sections:      []string{"moo_1", "moo_2", "moo_4"},
+			shouldSuccess: true,
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
 				err := json.Unmarshal(bytes, &result)
@@ -1018,9 +1021,10 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			},
 		},
 		{
-			name:     "only one section exists",
-			format:   "json",
-			sections: []string{"moo_1", "fake_moo_2", "fake_moo_4"},
+			name:          "only one section exists",
+			format:        "json",
+			sections:      []string{"moo_1", "fake_moo_2", "fake_moo_4"},
+			shouldSuccess: true,
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
 				err := json.Unmarshal(bytes, &result)
@@ -1031,14 +1035,12 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 			},
 		},
 		{
-			name:     "no section exists",
-			format:   "json",
-			sections: []string{"fake_moo_1"},
+			name:          "no section exists",
+			format:        "json",
+			sections:      []string{"fake_moo_1"},
+			shouldSuccess: false,
 			assertFunc: func(t *testing.T, bytes []byte) {
 				result := map[string]interface{}{}
-				err := json.Unmarshal(bytes, &result)
-
-				assert.NoError(t, err)
 				assert.Equal(t, 0, len(result))
 			},
 		},
@@ -1048,8 +1050,11 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			bytesResult, err := statusComponent.GetStatusBySections(testCase.sections, testCase.format, false)
 
-			assert.NoError(t, err)
-
+			if testCase.shouldSuccess {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
 			testCase.assertFunc(t, bytesResult)
 		})
 	}

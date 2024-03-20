@@ -513,6 +513,11 @@ func (a *atel) reportAgentStatus(session *senderSession, p *Profile) {
 // run runs the agent telemetry for a given profile. It is triggered by the runner
 // according to the profiles schedule.
 func (a *atel) run(profiles []*Profile) {
+	if a.sender == nil {
+		a.logComp.Errorf("Agent telemetry sender is not initialized")
+		return
+	}
+
 	a.logComp.Info("Starting agent telemetry run")
 
 	session := a.sender.startSession(a.cancelCtx)
