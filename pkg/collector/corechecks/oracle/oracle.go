@@ -61,10 +61,12 @@ type hostingCode string
 
 const (
 	// CheckName is the name of the check
-	CheckName               = common.IntegrationNameScheduler
-	selfManaged hostingCode = "self-managed"
-	rds         hostingCode = "RDS"
-	oci         hostingCode = "OCI"
+	CheckName = common.IntegrationNameScheduler
+	// OracleDbmCheckName is the name of the check that was renamed to `oracle`.
+	OracleDbmCheckName             = "oracle-dbm"
+	selfManaged        hostingCode = "self-managed"
+	rds                hostingCode = "RDS"
+	oci                hostingCode = "OCI"
 )
 
 type pgaOverAllocationCount struct {
