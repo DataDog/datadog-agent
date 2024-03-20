@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -186,6 +187,7 @@ func start(
 	_ host.Component,
 	_ inventoryagent.Component,
 	_ inventoryhost.Component,
+	_ healthprobe.Component,
 ) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())

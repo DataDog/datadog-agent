@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -185,7 +186,9 @@ func start(log log.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	rcService optional.Option[rccomp.Component]) error {
+	rcService optional.Option[rccomp.Component],
+	_ healthprobe.Component,
+) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())

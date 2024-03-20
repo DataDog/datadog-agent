@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -113,7 +114,9 @@ func run(log log.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	collector collector.Component,
-	statusComponent status.Component) error {
+	statusComponent status.Component,
+	_ healthprobe.Component,
+) error {
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 

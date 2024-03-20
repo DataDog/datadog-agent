@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -99,7 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams, wmeta optional.Option[workloadmeta.Component]) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()

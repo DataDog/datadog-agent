@@ -52,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -218,6 +219,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ healthprobe.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
