@@ -534,7 +534,7 @@ func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Componen
 		rcclient.WithCluster(clusterName, clusterID),
 		rcclient.WithProducts(state.ProductAPMTracing),
 		rcclient.WithPollInterval(5*time.Second),
-		rcclient.WithDirectorRootOverride(config.GetString("remote_configuration.director_root")),
+		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)

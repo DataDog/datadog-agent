@@ -83,7 +83,13 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 		switch proc.name {
 		case "etcd":
 			node.Components.Etcd = l.newK8sEtcdConfig(proc.flags)
-		case "kube-apiserver", "apiserver":
+		case "apiserver":
+			// excludes apiserver process that is running on Bottlerocket OS.
+			// identitied via --datastore-path flag that is not a valid flag of K8s's apiserver
+			if _, ok := proc.flags["--datastore-path"]; !ok {
+				node.Components.KubeApiserver = l.newK8sKubeApiserverConfig(proc.flags)
+			}
+		case "kube-apiserver":
 			node.Components.KubeApiserver = l.newK8sKubeApiserverConfig(proc.flags)
 		case "kube-controller-manager", "kube-controller", "controller-manager":
 			node.Components.KubeControllerManager = l.newK8sKubeControllerManagerConfig(proc.flags)
