@@ -238,7 +238,7 @@ func TestGetRequestUnmarshallingError(t *testing.T) {
 	mux, handler := setupCommonServerMuxWithFixture("/test", fixtures.FakePayload(`
 [
 	{
-		"lastupdated": 1.0
+		"lastupdated": "1.0"
 	}
 ]
 `))
@@ -250,7 +250,7 @@ func TestGetRequestUnmarshallingError(t *testing.T) {
 	require.NoError(t, err)
 
 	resp, err := get[Device](client, "/test", nil)
-	require.ErrorContains(t, err, "cannot unmarshal number 1.0 into Go struct field Device.data.lastupdated of type int64")
+	require.ErrorContains(t, err, "cannot unmarshal string into Go struct field Device.data.lastupdated of type float64")
 
 	var empty *Response[Device]
 	require.Equal(t, empty, resp)

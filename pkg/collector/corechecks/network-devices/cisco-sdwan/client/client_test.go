@@ -166,7 +166,7 @@ func TestGetVEdgeInterfaces(t *testing.T) {
 
 	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
 	require.Equal(t, "system", devices[0].Ifname)
-	require.Equal(t, 3, devices[0].Ifindex)
+	require.Equal(t, float64(3), devices[0].Ifindex)
 	require.Equal(t, "", devices[0].Desc)
 	require.Equal(t, "", devices[0].Hwaddr)
 	require.Equal(t, "Up", devices[0].IfAdminStatus)
@@ -245,17 +245,17 @@ func TestGetInterfacesMetrics(t *testing.T) {
 
 	require.Equal(t, "10.10.1.22", devices[0].VmanageSystemIP)
 	require.Equal(t, "GigabitEthernet3", devices[0].Interface)
-	require.Equal(t, int64(1709049697985), devices[0].EntryTime)
-	require.Equal(t, int64(0), devices[0].TxOctets)
-	require.Equal(t, int64(0), devices[0].RxOctets)
+	require.Equal(t, float64(1709049697985), devices[0].EntryTime)
+	require.Equal(t, float64(0), devices[0].TxOctets)
+	require.Equal(t, float64(0), devices[0].RxOctets)
 	require.Equal(t, float64(0), devices[0].TxKbps)
 	require.Equal(t, float64(0), devices[0].RxKbps)
 	require.Equal(t, float64(0), devices[0].DownCapacityPercentage)
 	require.Equal(t, float64(0), devices[0].UpCapacityPercentage)
-	require.Equal(t, int64(0), devices[0].RxErrors)
-	require.Equal(t, int64(0), devices[0].TxErrors)
-	require.Equal(t, int64(0), devices[0].RxDrops)
-	require.Equal(t, int64(0), devices[0].TxDrops)
+	require.Equal(t, float64(0), devices[0].RxErrors)
+	require.Equal(t, float64(0), devices[0].TxErrors)
+	require.Equal(t, float64(0), devices[0].RxDrops)
+	require.Equal(t, float64(0), devices[0].TxDrops)
 
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
@@ -293,12 +293,12 @@ func TestGetDeviceHardwareMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
-	require.Equal(t, int64(1709050342874), devices[0].EntryTime)
+	require.Equal(t, float64(1709050342874), devices[0].EntryTime)
 	require.Equal(t, 0.29, devices[0].CPUUserNew)
 	require.Equal(t, 0.41, devices[0].CPUSystemNew)
 	require.Equal(t, 0.15, devices[0].MemUtil)
-	require.Equal(t, int64(293187584), devices[0].DiskUsed)
-	require.Equal(t, int64(7245897728), devices[0].DiskAvail)
+	require.Equal(t, float64(293187584), devices[0].DiskUsed)
+	require.Equal(t, float64(7245897728), devices[0].DiskAvail)
 
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
@@ -340,7 +340,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 	require.Equal(t, "10.10.1.11", devices[0].RemoteSystemIP)
 	require.Equal(t, "mpls", devices[0].LocalColor)
 	require.Equal(t, "public-internet", devices[0].RemoteColor)
-	require.Equal(t, int64(1709050725125), devices[0].EntryTime)
+	require.Equal(t, float64(1709050725125), devices[0].EntryTime)
 	require.Equal(t, float64(202), devices[0].Latency)
 	require.Equal(t, float64(0), devices[0].Jitter)
 	require.Equal(t, 0.301, devices[0].LossPercentage)
