@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package initcontainer
+package mode
 
 import (
 	"os"
@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
-	"time"
 
-	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-sidecar/log"
+	"github.com/spf13/afero"
 
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,43 +32,6 @@ func TestBuildCommandParam(t *testing.T) {
 	name, args := buildCommandParam([]string{"superCmd"})
 	assert.Equal(t, "superCmd", name)
 	assert.Equal(t, []string{}, args)
-}
-
-type TestTimeoutFlushableAgent struct {
-	hasBeenCalled bool
-}
-
-type TestFlushableAgent struct {
-	hasBeenCalled bool
-}
-
-func (tfa *TestTimeoutFlushableAgent) Flush() {
-	time.Sleep(1 * time.Hour)
-	tfa.hasBeenCalled = true
-}
-
-func (tfa *TestFlushableAgent) Flush() {
-	tfa.hasBeenCalled = true
-}
-
-func TestFlushSucess(t *testing.T) {
-	metricAgent := &TestFlushableAgent{}
-	traceAgent := &TestFlushableAgent{}
-	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
-	flush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
-	assert.Equal(t, true, metricAgent.hasBeenCalled)
-	assert.Equal(t, true, mockLogsAgent.DidFlush())
-}
-
-func TestFlushTimeout(t *testing.T) {
-	metricAgent := &TestTimeoutFlushableAgent{}
-	traceAgent := &TestTimeoutFlushableAgent{}
-	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
-	mockLogsAgent.SetFlushDelay(time.Hour)
-
-	flush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
-	assert.Equal(t, false, metricAgent.hasBeenCalled)
-	assert.Equal(t, false, mockLogsAgent.DidFlush())
 }
 
 func TestPropagateChildSuccess(t *testing.T) {
@@ -118,4 +81,68 @@ func runTestOnLinuxOnly(t *testing.T, targetTest func(*testing.T)) {
 	} else {
 		t.Skip("Test case is skipped on this platform")
 	}
+}
+
+func TestNodeTracerIsAutoInstrumented(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/node/")
+
+	autoInstrumentTracer(fs)
+
+	assert.Equal(t, "--require dd-trace/init", os.Getenv("NODE_OPTIONS"))
+	assert.Equal(t, "/dd_tracer/node/", os.Getenv("NODE_PATH"))
+}
+
+func TestDotNetTracerIsAutoInstrumented(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/dotnet/")
+
+	autoInstrumentTracer(fs)
+
+	assert.Equal(t, "1", os.Getenv("CORECLR_ENABLE_PROFILING"))
+	assert.Equal(t, "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}", os.Getenv("CORECLR_PROFILER"))
+	assert.Equal(t, "/dd_tracer/dotnet/Datadog.Trace.ClrProfiler.Native.so", os.Getenv("CORECLR_PROFILER_PATH"))
+	assert.Equal(t, "/dd_tracer/dotnet/", os.Getenv("DD_DOTNET_TRACER_HOME"))
+}
+
+func TestJavaTracerIsAutoInstrumented(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/java/")
+
+	autoInstrumentTracer(fs)
+
+	assert.Equal(t, "-javaagent:/dd_tracer/java/dd-java-agent.jar", os.Getenv("JAVA_TOOL_OPTIONS"))
+}
+
+func TestJavaTracerInstrumentationAddsSecondAgent(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/java/")
+
+	t.Setenv("JAVA_TOOL_OPTIONS", "-javaagent:some_agent.jar")
+
+	autoInstrumentTracer(fs)
+
+	assert.Equal(t, "-javaagent:some_agent.jar -javaagent:/dd_tracer/java/dd-java-agent.jar", os.Getenv("JAVA_TOOL_OPTIONS"))
+}
+
+func TestPythonTracerIsAutoInstrumented(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	fs.Create("/dd_tracer/python/")
+
+	t.Setenv("PYTHONPATH", "/path1:/path2")
+
+	autoInstrumentTracer(fs)
+
+	assert.Equal(t, "/path1:/path2:/dd_tracer/python/", os.Getenv("PYTHONPATH"))
+}
+
+func TestAddToString(t *testing.T) {
+	oldStr := "123"
+	assert.Equal(t, "1234", addToString(oldStr, "", "4"))
+
+	oldStr = ""
+	assert.Equal(t, "", addToString(oldStr, "", ""))
+
+	oldStr = "0"
+	assert.Equal(t, "0:1", addToString(oldStr, ":", "1"))
 }
