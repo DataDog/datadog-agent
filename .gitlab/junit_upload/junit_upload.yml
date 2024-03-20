@@ -26,7 +26,7 @@ kmt_arm64_junit_upload:
   tags: ["arch:amd64"]
   allow_failure: true
   needs:
-    - job: kernel_matrix_testing_run_system_probe_tests_arm64
+    - job: kmt_run_sysprobe_tests_arm64
       parallel:
         matrix:
           - TAG:
@@ -46,7 +46,7 @@ kmt_arm64_junit_upload:
             - "centos_8"
             TEST_SET: ["no_tracersuite", "only_tracersuite"]
       optional: true
-    - job: kernel_matrix_testing_run_security_agent_tests_arm64
+    - job: kmt_run_secagent_tests_arm64
       parallel:
         matrix:
           - TAG:
