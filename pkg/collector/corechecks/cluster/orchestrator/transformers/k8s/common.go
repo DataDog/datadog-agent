@@ -5,6 +5,7 @@
 
 //go:build orchestrator
 
+// Package k8s provides methods for converting kubernetes resources to protobuf model.
 package k8s
 
 import (

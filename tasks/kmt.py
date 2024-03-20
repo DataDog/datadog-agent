@@ -15,8 +15,9 @@ from tasks.kernel_matrix_testing.compiler import compiler_running, docker_exec
 from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import build_infrastructure
-from tasks.kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
@@ -82,6 +83,7 @@ def gen_config(
             arch=arch,
             output_file=output_file,
             use_local_if_possible=use_local_if_possible,
+            vmconfig_template=vmconfig_template,
         )
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -103,6 +105,7 @@ def gen_config_from_ci_pipeline(
     use_local_if_possible=False,
     arch="",
     output_file="vmconfig.json",
+    vmconfig_template="system-probe",
 ):
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
@@ -165,7 +168,9 @@ def gen_config_from_ci_pipeline(
     info(f"[+] generating vmconfig.json file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
-    return vmconfig.gen_config(ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file)
+    return vmconfig.gen_config(
+        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+    )
 
 
 @task
@@ -610,14 +615,17 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
             continue
 
         for _, instance in build_infrastructure(stack, remote_ssh_key="").items():
-            print(f"Host kmt-{stack_name}-{instance.arch}")
-            print(f"    HostName {instance.ip}")
-            print("    User ubuntu")
-            print("")
+            if instance.arch != "local":
+                print(f"Host kmt-{stack_name}-{instance.arch}")
+                print(f"    HostName {instance.ip}")
+                print("    User ubuntu")
+                print("")
+
             for domain in instance.microvms:
                 print(f"Host kmt-{stack_name}-{instance.arch}-{domain.tag}")
                 print(f"    HostName {domain.ip}")
-                print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
+                if instance.arch != "local":
+                    print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
                 print("    User root")
                 # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant

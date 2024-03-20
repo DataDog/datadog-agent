@@ -16,4 +16,6 @@ const (
 	ObjectKindContainer = "container"
 	// ObjectKindPod represents pod events
 	ObjectKindPod = "pod"
+	// ObjectKindTask represents task events
+	ObjectKindTask = "task"
 )

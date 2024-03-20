@@ -126,7 +126,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 			rc.WithAgent(rcClientName, version.AgentVersion),
 			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
 			rc.WithPollInterval(rcClientPollInterval),
-			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
+			rc.WithDirectorRootOverride(c.GetString("site"), c.GetString("remote_configuration.director_root")),
 		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)

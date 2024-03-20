@@ -10,8 +10,10 @@
 package connectivity
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // endpointInfo is a value object that contains all the information we need to
@@ -29,24 +31,26 @@ type endpointInfo struct {
 	Payload []byte
 }
 
-var (
+func getEndpointsInfo(cfg config.Reader) []endpointInfo {
+	emptyPayload := []byte("{}")
+	checkRunPayload := []byte("{\"check\": \"test\", \"status\": 0}")
+
 	// Each added/modified endpointInfo should be tested on all sites.
+	return []endpointInfo{
+		// v1 endpoints
+		{endpoints.V1SeriesEndpoint, "POST", emptyPayload},
+		{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload},
+		{endpoints.V1IntakeEndpoint, "POST", emptyPayload},
 
-	emptyPayload    = []byte("{}")
-	checkRunPayload = []byte("{\"check\": \"test\", \"status\": 0}")
+		// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
+		{endpoints.V1ValidateEndpoint, "GET", nil},
+		{endpoints.V1MetadataEndpoint, "POST", emptyPayload},
 
-	// v1 endpoints
-	v1SeriesEndpointInfo    = endpointInfo{endpoints.V1SeriesEndpoint, "POST", emptyPayload}
-	v1CheckRunsEndpointInfo = endpointInfo{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload}
-	v1IntakeEndpointInfo    = endpointInfo{endpoints.V1IntakeEndpoint, "POST", emptyPayload}
-	// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
-	v1ValidateEndpointInfo = endpointInfo{endpoints.V1ValidateEndpoint, "GET", nil}
-	v1MetadataEndpointInfo = endpointInfo{endpoints.V1MetadataEndpoint, "POST", emptyPayload}
+		// v2 endpoints
+		{endpoints.SeriesEndpoint, "POST", emptyPayload},
+		{endpoints.SketchSeriesEndpoint, "POST", emptyPayload},
 
-	// v2 endpoints
-	seriesEndpointInfo       = endpointInfo{endpoints.SeriesEndpoint, "POST", emptyPayload}
-	sketchSeriesEndpointInfo = endpointInfo{endpoints.SketchSeriesEndpoint, "POST", emptyPayload}
-
-	endpointsInfo = []endpointInfo{v1SeriesEndpointInfo, v1CheckRunsEndpointInfo, v1MetadataEndpointInfo, v1IntakeEndpointInfo,
-		seriesEndpointInfo, sketchSeriesEndpointInfo, v1ValidateEndpointInfo}
-)
+		// Flare endpoint
+		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil},
+	}
+}
