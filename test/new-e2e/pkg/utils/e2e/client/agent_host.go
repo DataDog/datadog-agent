@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/test-infra-definitions/components/os"
 )
 
@@ -19,10 +20,24 @@ type agentHostExecutor struct {
 }
 
 func newAgentHostExecutor(host *components.RemoteHost) agentCommandExecutor {
+	var err error
+	var path string
+	switch host.OSFamily {
+	case os.WindowsFamily:
+		// If the agent is installed get the path from the registry, fallback to default path
+		path, err = windowsAgent.GetInstallPathFromRegistry(host)
+		if err != nil {
+			path = windowsAgent.DefaultInstallPath
+		}
+	}
+	return newAgentHostExecutorWithInstallPath(host, path)
+}
+
+func newAgentHostExecutorWithInstallPath(host *components.RemoteHost, installPath string) agentCommandExecutor {
 	var baseCommand string
 	switch host.OSFamily {
 	case os.WindowsFamily:
-		baseCommand = `& "$env:ProgramFiles\Datadog\Datadog Agent\bin\agent.exe"`
+		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
 	case os.LinuxFamily:
 		baseCommand = "sudo datadog-agent"
 	case os.MacOSFamily:

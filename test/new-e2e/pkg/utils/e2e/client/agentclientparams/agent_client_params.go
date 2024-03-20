@@ -11,10 +11,12 @@ package agentclientparams
 //
 // The available options are:
 //   - [WithSkipWaitForAgentReady]
+//   - [WithAgentInstallPath]
 //
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 type Params struct {
 	ShouldWaitForReady bool
+	AgentInstallPath   string
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -41,5 +43,12 @@ func applyOption(instance *Params, options ...Option) *Params {
 func WithSkipWaitForAgentReady() Option {
 	return func(p *Params) {
 		p.ShouldWaitForReady = false
+	}
+}
+
+// WithAgentInstallPath sets the agent installation path
+func WithAgentInstallPath(path string) Option {
+	return func(p *Params) {
+		p.AgentInstallPath = path
 	}
 }

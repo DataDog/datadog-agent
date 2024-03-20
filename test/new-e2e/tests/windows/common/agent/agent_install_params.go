@@ -18,10 +18,12 @@ import (
 type InstallAgentParams struct {
 	Package *Package
 	// Installer parameters
-	AgentUser           string `installer_arg:"DDAGENTUSER_NAME"`
-	AgentUserPassword   string `installer_arg:"DDAGENTUSER_PASSWORD"`
-	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
-	InstallLogFile      string
+	AgentUser                string `installer_arg:"DDAGENTUSER_NAME"`
+	AgentUserPassword        string `installer_arg:"DDAGENTUSER_PASSWORD"`
+	WixFailWhenDeferred      string `installer_arg:"WIXFAILWHENDEFERRED"`
+	ProjectLocation          string `installer_arg:"PROJECTLOCATION"`
+	ApplicationDataDirectory string `installer_arg:"APPLICATIONDATADIRECTORY"`
+	InstallLogFile           string
 	// Installer parameters for agent config
 	Site                    string `installer_arg:"SITE"`
 	DdURL                   string `installer_arg:"DD_URL"`
@@ -265,6 +267,22 @@ func WithProcessDiscoveryEnabled(processDiscoveryEnabled string) InstallAgentOpt
 func WithAPMEnabled(apmEnabled string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.APMEnabled = apmEnabled
+		return nil
+	}
+}
+
+// WithApplicationDataDirectory specifies the APPLICATIONDATADIRECTORY parameter.
+func WithApplicationDataDirectory(applicationDataDirectory string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ApplicationDataDirectory = applicationDataDirectory
+		return nil
+	}
+}
+
+// WithProjectLocation specifies the PROJECTLOCATION parameter.
+func WithProjectLocation(projectLocation string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProjectLocation = projectLocation
 		return nil
 	}
 }
