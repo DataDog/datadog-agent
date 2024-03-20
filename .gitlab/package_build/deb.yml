@@ -293,7 +293,6 @@ updater_deb-amd64:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-
 updater_deb-arm64:
   extends: .updater_build_common_deb
   rules: !reference [.on_a7]
@@ -308,7 +307,6 @@ updater_deb-arm64:
     DESTINATION_DBG_DEB: "datadog-updater-dbg_7_arm64.deb"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-
 
 agentless_scanner_deb-x64:
   rules:
