@@ -68,6 +68,7 @@ notify_github:
     - changes:
       paths:
         - ./**/*.go
+      when: never
     - when: on_success
   needs:
     - job: "deploy_deb_testing-a7_x64"
