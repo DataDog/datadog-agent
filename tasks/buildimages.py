@@ -21,11 +21,7 @@ def update(_: Context, image_tag: str, test_version: Optional[str] = True):
     update_circleci_config(".circleci/config.yml", image_tag, test_version=test_version)
 
 
-@task(
-    help={
-        "commit_sha": "commit sha from the test-infra-definitions repository"
-    }
-)
+@task(help={"commit_sha": "commit sha from the test-infra-definitions repository"})
 def update_test_infra_definitions(ctx: Context, commit_sha: str):
     """
     Update the test-infra-definition image version in the Gitlab CI as well as in the e2e go.mod
