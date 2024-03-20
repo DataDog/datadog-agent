@@ -27,18 +27,18 @@ func (client *Client) login() error {
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	httpRes, err := client.httpClient.Do(req)
+	sessionRes, err := client.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 
-	defer httpRes.Body.Close()
+	defer sessionRes.Body.Close()
 
-	if httpRes.StatusCode != 200 {
-		return fmt.Errorf("authentication failed, status code: %v", httpRes.StatusCode)
+	if sessionRes.StatusCode != 200 {
+		return fmt.Errorf("authentication failed, status code: %v", sessionRes.StatusCode)
 	}
 
-	bodyBytes, err := io.ReadAll(httpRes.Body)
+	bodyBytes, err := io.ReadAll(sessionRes.Body)
 	if err != nil {
 		return err
 	}
@@ -52,17 +52,18 @@ func (client *Client) login() error {
 	if err != nil {
 		return err
 	}
-	httpRes, err = client.httpClient.Do(req)
+	tokenRes, err := client.httpClient.Do(req)
 	if err != nil {
 		return err
 	}
 
-	if httpRes.StatusCode != 200 {
-		return fmt.Errorf("failed to retrieve csrf prevention token, status code: %v", httpRes.StatusCode)
-	}
-	defer httpRes.Body.Close()
+	defer tokenRes.Body.Close()
 
-	token, _ := io.ReadAll(httpRes.Body)
+	if tokenRes.StatusCode != 200 {
+		return fmt.Errorf("failed to retrieve csrf prevention token, status code: %v", tokenRes.StatusCode)
+	}
+
+	token, _ := io.ReadAll(tokenRes.Body)
 	if string(token) == "" {
 		return fmt.Errorf("no csrf prevention token in payload")
 	}
@@ -87,7 +88,9 @@ func (client *Client) authenticate() error {
 
 // clearAuth clears auth state
 func (client *Client) clearAuth() {
+	client.authenticationMutex.Lock()
 	client.token = ""
+	client.authenticationMutex.Unlock()
 }
 
 // isAuthenticated determine if a request was successful from the headers

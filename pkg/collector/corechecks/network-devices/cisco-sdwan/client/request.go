@@ -23,7 +23,9 @@ func (client *Client) newRequest(method, uri string, body io.Reader) (*http.Requ
 // do exec a request with authentication
 func (client *Client) do(req *http.Request) ([]byte, int, error) {
 	// Cross-forgery token
+	client.authenticationMutex.Lock()
 	req.Header.Add("X-XSRF-TOKEN", client.token)
+	client.authenticationMutex.Unlock()
 
 	log.Tracef("Executing cisco sd-wan api request %s %s", req.Method, req.URL.Path)
 	resp, err := client.httpClient.Do(req)
