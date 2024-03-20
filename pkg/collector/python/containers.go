@@ -8,6 +8,8 @@
 package python
 
 import (
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -23,14 +25,27 @@ import "C"
 var filter *containers.Filter
 
 // IsContainerExcluded returns whether a container should be excluded,
-// based on it's name, image name and namespace. Exclusion patterns are configured
-// via the global options (ac_include/ac_exclude/exclude_pause_container)
+// based on its annotation, name, image name and namespace. Exclusion
+// patterns are configured via the global options
+// (ac_include/ac_exclude/exclude_pause_container)
 //
 //export IsContainerExcluded
-func IsContainerExcluded(name, image, namespace *C.char) C.int {
+func IsContainerExcluded(annotation, name, image, namespace *C.char) C.int {
 	// If init failed, fallback to False
+	log.Debugf("TEST-CONT got annotation %s for name %s", annotation, name)
 	if filter == nil {
 		return 0
+	}
+
+	var annotationMap map[string]string
+	var goAnnotation map[string]string
+	if annotation != nil {
+		err := json.Unmarshal([]byte(C.GoString(annotation)), &annotationMap)
+		if err != nil {
+			log.Errorf("Error unmarshalling annotation: %s", err)
+		} else {
+			goAnnotation = annotationMap
+		}
 	}
 
 	goName := C.GoString(name)
@@ -40,7 +55,7 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 		goNs = C.GoString(namespace)
 	}
 
-	if filter.IsExcluded(nil, goName, goImg, goNs) {
+	if filter.IsExcluded(goAnnotation, goName, goImg, goNs) {
 		return 1
 	}
 	return 0

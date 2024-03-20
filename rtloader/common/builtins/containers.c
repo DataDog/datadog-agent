@@ -14,7 +14,7 @@ static PyObject *is_excluded(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "is_excluded", (PyCFunction)is_excluded, METH_VARARGS,
-      "Returns whether a container is excluded per name, image and namespace." },
+      "Returns whether a container is excluded per anotation, name, image and namespace." },
     { NULL, NULL } // guards
 };
 
@@ -60,14 +60,15 @@ PyObject *is_excluded(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
 
+    char *annotation;
     char *name;
     char *image;
     char *namespace = NULL;
-    if (!PyArg_ParseTuple(args, "ss|s", &name, &image, &namespace)) {
+    if (!PyArg_ParseTuple(args, "sss|s", &annotation, &name, &image, &namespace)) {
         return NULL;
     }
 
-    int result = cb_is_excluded(name, image, namespace);
+    int result = cb_is_excluded(annotation, name, image, namespace);
 
     if (result > 0) {
         Py_RETURN_TRUE;
