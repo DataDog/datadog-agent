@@ -181,11 +181,12 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_CI_UPLOADER_IMAGE: v30094440-66830d2d
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 5642ab39608a
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: f2ab6e511638
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -1013,8 +1014,8 @@ workflow:
   - test/kitchen/test/integration/security-agent-test/**/*
   - test/kitchen/test/integration/security-agent-stress/**/*
   - .gitlab/functional_test/security_agent.yml
-  - .gitlab/kernel_version_testing/security_agent.yml
-  - .gitlab/kernel_version_testing/common.yml
+  - .gitlab/kernel_matrix_testing/security_agent.yml
+  - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/runner/**/*
@@ -1434,6 +1435,9 @@ workflow:
     variables:
       FAST_TESTS: "false"
   - <<: *if_release_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_tagged_commit
     variables:
       FAST_TESTS: "false"
   - <<: *if_triggered_pipeline
