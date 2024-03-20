@@ -5,17 +5,15 @@
 
 //go:build linux
 
-// Package selector holds selector related files
-package selector
+// Package model holds model related files
+package model
 
 import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
-
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 )
 
 // WorkloadSelectorToProto incode a WorkloadSelector to its protobuf representation
-func WorkloadSelectorToProto(input *cgroupModel.WorkloadSelector) *proto.ProfileSelector {
+func WorkloadSelectorToProto(input *WorkloadSelector) *proto.ProfileSelector {
 	if input == nil {
 		return nil
 	}

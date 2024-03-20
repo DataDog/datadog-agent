@@ -14,10 +14,10 @@ import (
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile/selector"
 )
 
 // ActivityDumpToSecurityProfileProto serializes an Activity Dump to a Security Profile protobuf representation
@@ -35,7 +35,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityPro
 		Metadata:        mtdt.ToProto(&input.Metadata),
 		ProfileContexts: make(map[string]*proto.ProfileContext),
 		Tree:            activity_tree.ToProto(input.ActivityTree),
-		Selector:        selector.WorkloadSelectorToProto(wSelector),
+		Selector:        cgroupModel.WorkloadSelectorToProto(wSelector),
 	}
 	timeResolver, err := timeResolver.NewResolver()
 	if err != nil {
