@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -27,6 +29,11 @@ func TestMkURL(t *testing.T) {
 
 func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
+
+	cfg := fxutil.Test[config.Component](
+		t,
+		config.MockModule(),
+	)
 
 	testCases := []struct {
 		name        string
@@ -53,7 +60,7 @@ func TestFlareHasRightForm(t *testing.T) {
 					w.Header().Set("Content-Type", "application/json")
 					lastRequest = r
 					err := lastRequest.ParseMultipartForm(1000000)
-					assert.Nil(t, err)
+					assert.NoError(t, err)
 					io.WriteString(w, "{}")
 				} else {
 					w.WriteHeader(500)
@@ -85,7 +92,7 @@ func TestFlareHasRightForm(t *testing.T) {
 			apiKey := "abcdef"
 			source := FlareSource{}
 
-			_, err := SendTo(archivePath, caseID, email, apiKey, ddURL, source)
+			_, err := SendTo(cfg, archivePath, caseID, email, apiKey, ddURL, source)
 
 			if testCase.fail {
 				assert.Error(t, err)
@@ -94,7 +101,7 @@ func TestFlareHasRightForm(t *testing.T) {
 					" via redirects: 503 Service Unavailable"
 				assert.Equal(t, expectedErrorMessage, err.Error())
 			} else {
-				assert.Nil(t, err)
+				assert.NoError(t, err)
 				av, _ := version.Agent()
 
 				assert.Equal(t, caseID, lastRequest.FormValue("case_id"))

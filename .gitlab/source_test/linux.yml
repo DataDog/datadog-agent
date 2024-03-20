@@ -1,6 +1,7 @@
 ---
 .rtloader_tests:
   stage: source_test
+  needs: ["go_deps"]
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
     - !reference [.retrieve_linux_go_deps]
@@ -13,6 +14,11 @@
 
 .linux_tests:
   stage: source_test
+  needs: ["go_deps", "go_tools_deps"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
   variables:
     FLAVORS: '--flavors base'
     KUBERNETES_CPU_REQUEST: 16
@@ -27,7 +33,9 @@
     - pushd test/kitchen
     - inv -e kitchen.invoke-unit-tests
     - popd
-    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib
+    - FAST_TESTS_FLAG=""
+    - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
+    - inv -e test $FLAVORS --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -39,6 +47,7 @@
 
 .linux_lint:
   stage: source_test
+  needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors base'
     KUBERNETES_CPU_REQUEST: 16
@@ -62,8 +71,8 @@ tests_deb-x64-py2:
     - .rtloader_tests
     - .linux_x64
   rules:
-    !reference [.on_a6]
-  needs: ["go_deps"]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.on_a6]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -73,39 +82,19 @@ tests_deb-x64-py3:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-
-tests_deb-x64-py3-fast-v2:
-  extends:
-    - .rtloader_tests
-    - .linux_tests
-    - .linux_x64
-  needs: ["go_deps", "go_tools_deps"]
-  variables:
-    PYTHON_RUNTIMES: '3'
-    CONDA_ENV: ddpy3
-    EXTRA_OPTS: '--only-impacted-packages'
-    TEST_OUTPUT_FILE: test_output_fast.json
-  allow_failure: true
 
 lint_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
-  needs: ["go_deps", "go_tools_deps"]
-
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -115,7 +104,6 @@ lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors iot'
 
@@ -124,10 +112,6 @@ tests_flavor_dogstatsd_deb-x64:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -137,7 +121,6 @@ lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors dogstatsd'
 
@@ -146,10 +129,6 @@ tests_flavor_heroku_deb-x64:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -159,10 +138,6 @@ lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     FLAVORS: '--flavors heroku'
 
@@ -172,10 +147,10 @@ lint_flavor_heroku_linux-x64:
 tests_rpm-x64-py2:
   extends: .rtloader_tests
   rules:
-    !reference [.on_a6]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -187,7 +162,6 @@ tests_rpm-x64-py3:
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
@@ -197,10 +171,10 @@ tests_rpm-x64-py3:
 tests_deb-arm64-py2:
   extends: .rtloader_tests
   rules:
-    !reference [.on_a6]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -209,7 +183,6 @@ tests_deb-arm64-py3:
   extends:
     - .rtloader_tests
     - .linux_tests
-  needs: ["go_deps", "go_tools_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -219,17 +192,16 @@ tests_deb-arm64-py3:
 lint_linux-arm64:
   extends:
     - .linux_lint
-  needs: ["go_deps", "go_tools_deps"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
 
 tests_rpm-arm64-py2:
   extends: .rtloader_tests
   rules:
-    !reference [.on_a6]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.on_a6]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_deps"]
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -240,7 +212,6 @@ tests_rpm-arm64-py3:
     - .linux_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3

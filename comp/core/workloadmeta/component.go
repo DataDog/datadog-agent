@@ -10,6 +10,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: container-integrations
@@ -74,6 +75,10 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
+	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
+	// entities with kind KindECSTask.
+	ListECSTasks() []*ECSTask
+
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
@@ -128,7 +133,11 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(
 			newWorkloadMeta,
-		))
+		),
+		fx.Provide(func(wmeta Component) optional.Option[Component] {
+			return optional.NewOption(wmeta)
+		}),
+	)
 }
 
 // OptionalModule defines the fx options when workloadmeta should be used as an optional.

@@ -9,25 +9,28 @@ package agentsidecar
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"reflect"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
-func TestInjectAgentSidecar(t *testing.T) {
-	mockConfig := config.Mock(t)
+const commonRegistry = "gcr.io/datadoghq"
 
+func TestInjectAgentSidecar(t *testing.T) {
 	tests := []struct {
 		Name                      string
 		Pod                       *corev1.Pod
 		provider                  string
 		profilesJSON              string
 		ExpectError               bool
+		ExpectInjection           bool
 		ExpectedPodAfterInjection func() *corev1.Pod
 	}{
 		{
@@ -36,6 +39,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			provider:                  "",
 			profilesJSON:              "",
 			ExpectError:               true,
+			ExpectInjection:           false,
 			ExpectedPodAfterInjection: func() *corev1.Pod { return nil },
 		},
 		{
@@ -50,9 +54,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -61,7 +66,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(),
+							*getDefaultSidecarTemplate(commonRegistry),
 						},
 					},
 				}
@@ -80,9 +85,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -106,13 +112,14 @@ func TestInjectAgentSidecar(t *testing.T) {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{Name: "container-name"},
-						*getDefaultSidecarTemplate(),
+						*getDefaultSidecarTemplate(commonRegistry),
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -121,7 +128,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{Name: "container-name"},
-							*getDefaultSidecarTemplate(),
+							*getDefaultSidecarTemplate(commonRegistry),
 						},
 					},
 				}
@@ -139,11 +146,12 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "fargate",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "fargate",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate()
+				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 				withEnvOverrides(&sidecar, corev1.EnvVar{
 					Name:  "DD_EKS_FARGATE",
 					Value: "true",
@@ -191,9 +199,10 @@ func TestInjectAgentSidecar(t *testing.T) {
             }
         }
     }]`,
-			ExpectError: false,
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
-				sidecar := *getDefaultSidecarTemplate()
+				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 
 				withEnvOverrides(&sidecar, corev1.EnvVar{
 					Name:  "DD_EKS_FARGATE",
@@ -225,15 +234,24 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(tt *testing.T) {
+			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.profiles", test.profilesJSON)
 
-			err := injectAgentSidecar(test.Pod, "", nil)
+			webhook := NewWebhook()
+
+			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
 			} else {
 				assert.NoError(tt, err, "expected returned error to be nil")
+			}
+
+			if test.ExpectInjection {
+				assert.True(t, injected)
+			} else {
+				assert.False(t, injected)
 			}
 
 			expectedPod := test.ExpectedPodAfterInjection()
@@ -257,21 +275,23 @@ func TestInjectAgentSidecar(t *testing.T) {
 }
 
 func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
-	mockConfig := config.Mock(t)
-
 	tests := []struct {
-		name          string
-		setConfig     func()
-		expectedImage string
+		name              string
+		setConfig         func()
+		containerRegistry string
+		expectedImage     string
 	}{
 		{
-			name:          "no configuration set",
-			setConfig:     func() {},
-			expectedImage: "gcr.io/datadoghq/agent:latest",
+			name:              "no configuration set",
+			setConfig:         func() {},
+			containerRegistry: commonRegistry,
+			expectedImage:     fmt.Sprintf("%s/agent:latest", commonRegistry),
 		},
 		{
-			name: "setting custom registry, image and tag",
+			name:              "setting custom registry, image and tag",
+			containerRegistry: "my-registry",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.container_registry", "my-registry")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_name", "my-image")
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.image_tag", "my-tag")
@@ -283,14 +303,13 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate()
+			sidecar := getDefaultSidecarTemplate(test.containerRegistry)
 			assert.Equal(tt, test.expectedImage, sidecar.Image)
 		})
 	}
 }
 
 func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
-	mockConfig := config.Mock(t)
 
 	tests := []struct {
 		name              string
@@ -301,6 +320,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent not enabled",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", false)
 			},
 			unexpectedEnvVars: []string{
@@ -313,6 +333,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent enabled with default values",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 			},
 			expectedEnvVars: []corev1.EnvVar{
@@ -344,6 +365,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 		{
 			name: "cluster agent enabled with custom values",
 			setConfig: func() {
+				mockConfig := config.Mock(t)
 				mockConfig.SetWithoutSource("admission_controller.agent_sidecar.cluster_agent.enabled", true)
 				mockConfig.SetWithoutSource("cluster_agent.cmd_port", 12345)
 				mockConfig.SetWithoutSource("cluster_agent.kubernetes_service_name", "test-service-name")
@@ -379,7 +401,7 @@ func TestDefaultSidecarTemplateClusterAgentEnvVars(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			test.setConfig()
-			sidecar := getDefaultSidecarTemplate()
+			sidecar := getDefaultSidecarTemplate(commonRegistry)
 			envVarsMap := make(map[string]corev1.EnvVar)
 			for _, envVar := range sidecar.Env {
 				envVarsMap[envVar.Name] = envVar

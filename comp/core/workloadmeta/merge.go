@@ -83,7 +83,8 @@ func mergeContainerPort(mergeMap map[string]ContainerPort, port ContainerPort) {
 	existingPort, found := mergeMap[portKey]
 
 	if found {
-		if existingPort.Name == "" && port.Name != "" {
+		if (existingPort.Name == "" && port.Name != "") ||
+			(existingPort.HostPort == 0 && port.HostPort != 0) {
 			mergeMap[portKey] = port
 		}
 	} else {

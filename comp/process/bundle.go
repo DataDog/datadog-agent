@@ -12,6 +12,7 @@
 package process
 
 import (
+	"github.com/DataDog/datadog-agent/comp/process/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
@@ -31,6 +32,8 @@ import (
 // team: processes
 
 // Bundle defines the fx options for this bundle.
+// Do not add modules not owned by the processes team here as it breaks fx best practices
+// See: https://uber-go.github.io/fx/modules.html#don-t-provide-what-you-don-t-own
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runnerimpl.Module(),
@@ -45,8 +48,11 @@ func Bundle() fxutil.BundleOptions {
 		rtcontainercheckimpl.Module(),
 		processdiscoverycheckimpl.Module(),
 
+		agentimpl.Module(),
+
 		hostinfoimpl.Module(),
 		expvarsimpl.Module(),
+
 		apiserver.Module(),
 		forwardersimpl.Module(),
 	)

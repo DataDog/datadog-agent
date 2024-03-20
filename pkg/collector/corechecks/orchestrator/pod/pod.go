@@ -14,8 +14,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -130,12 +130,14 @@ func (c *Check) Run() error {
 	}
 
 	groupID := nextGroupID()
-	ctx := &processors.ProcessorContext{
-		ClusterID:          c.clusterID,
-		Cfg:                c.config,
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:        c.config,
+			MsgGroupID: groupID,
+			NodeType:   orchestrator.K8sPod,
+			ClusterID:  c.clusterID,
+		},
 		HostName:           c.hostName,
-		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: "kube_api_version:v1",
 	}
 

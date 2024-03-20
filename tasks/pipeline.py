@@ -108,8 +108,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     should be cancelled.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if here:
@@ -171,11 +170,10 @@ def auto_cancel_previous_pipelines(ctx):
     Automatically cancel previous pipelines running on the same ref
     """
 
-    project_name = "DataDog/datadog-agent"
     if not os.environ.get('GITLAB_TOKEN'):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     git_ref = os.getenv("CI_COMMIT_REF_NAME")
@@ -221,8 +219,7 @@ def run(
     repo_branch="dev",
     deploy=False,
     all_builds=True,
-    kitchen_tests=True,
-    e2e_tests=False,
+    e2e_tests=True,
     rc_build=False,
     rc_k8s_deployments=False,
 ):
@@ -267,8 +264,7 @@ def run(
       inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if (not git_ref and not here) or (git_ref and here):
@@ -302,14 +298,14 @@ def run(
                 )
             )
             all_builds = True
-        if not kitchen_tests:
+        if not e2e_tests:
             print(
                 color_message(
-                    "WARNING: ignoring --no-kitchen-tests option, RUN_KITCHEN_TESTS is automatically set to true on deploy pipelines",
+                    "WARNING: ignoring --no-e2e-tests option, RUN_E2E_TESTS is automatically set to true on deploy pipelines",
                     "orange",
                 )
             )
-            kitchen_tests = True
+            e2e_tests = True
 
     pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
 
@@ -332,7 +328,6 @@ def run(
             repo_branch,
             deploy=deploy,
             all_builds=all_builds,
-            kitchen_tests=kitchen_tests,
             e2e_tests=e2e_tests,
             rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
@@ -498,7 +493,12 @@ def is_system_probe(owners, files):
     return False
 
 
-EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "U01009CUG9X"}
+EMAIL_SLACK_ID_MAP = {
+    "guy20495@gmail.com": "U03LJSCAPK2",
+    "safchain@gmail.com": "U01009CUG9X",
+    "usamasaqib.96@live.com": "U03D807V94J",
+    "leeavital@gmail.com": "UDG2223C1",
+}
 
 
 @task
@@ -509,7 +509,7 @@ def changelog(ctx, new_commit_sha):
     else:
         parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_changelog_commit_sha",
+        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh $CHANGELOG_COMMIT_SHA_SSM_NAME",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:
@@ -581,8 +581,7 @@ def changelog(ctx, new_commit_sha):
 
 
 def _init_pipeline_schedule_task():
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_bot_token())
+    gitlab = Gitlab(api_token=get_gitlab_bot_token())
     gitlab.test_project_found()
     return gitlab
 
@@ -730,6 +729,21 @@ def verify_workspace(ctx, branch_name=None):
     return branch_name
 
 
+def update_test_infra_def(file_path, image_tag):
+    """
+    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in .gitlab-ci.yml file
+    """
+    with open(file_path, "r") as gl:
+        file_content = gl.readlines()
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
+            if test_infra_def:
+                gl.write(line.replace(test_infra_def.group(1), image_tag))
+            else:
+                gl.write(line)
+
+
 def update_gitlab_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
@@ -792,3 +806,76 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
         print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
         time.sleep(10)
         run(ctx, here=True)
+
+
+@task(
+    help={
+        'owner-branch-name': 'Owner and branch names in the format <owner-name>/<branch-name>',
+        'no-verify': 'Adds --no-verify flag when git push',
+    }
+)
+def trigger_external(ctx, owner_branch_name: str, no_verify=False):
+    """
+    Trigger a pipeline from an external owner.
+    """
+    # Verify parameters
+    owner_branch_name = owner_branch_name.lower()
+
+    assert (
+        owner_branch_name.count('/') == 1
+    ), f'owner_branch_name should be "<owner-name>/<branch-name>" but is {owner_branch_name}'
+    assert "'" not in owner_branch_name
+
+    owner, branch = owner_branch_name.split('/')
+    no_verify_flag = ' --no-verify' if no_verify else ''
+
+    # Can checkout
+    status_res = ctx.run('git status --porcelain')
+    assert status_res.stdout.strip() == '', 'Cannot run this task if changes have not been committed'
+    branch_res = ctx.run('git branch', hide='stdout')
+    assert (
+        re.findall(f'\\b{owner_branch_name}\\b', branch_res.stdout) == []
+    ), f'{owner_branch_name} branch already exists'
+    remote_res = ctx.run('git remote', hide='stdout')
+    assert re.findall(f'\\b{owner}\\b', remote_res.stdout) == [], f'{owner} remote already exists'
+
+    # Get current branch
+    curr_branch_res = ctx.run('git branch --show-current', hide='stdout')
+    curr_branch = curr_branch_res.stdout.strip()
+
+    # Commands to restore current state
+    restore_commands = [
+        f"git remote remove '{owner}'",
+        f"git checkout '{curr_branch}'",
+        f"git branch -d '{owner}/{branch}'",
+    ]
+
+    # Commands to push the branch
+    commands = [
+        # Fetch
+        f"git remote add {owner} git@github.com:{owner}/datadog-agent.git",
+        f"git fetch '{owner}'",
+        # Create branch
+        f"git checkout '{owner}/{branch}'",  # This first checkout puts us in a detached head state, thus the second checkout below
+        f"git checkout -b '{owner}/{branch}'",
+        # Push
+        f"git push --set-upstream origin '{owner}/{branch}'{no_verify_flag}",
+    ] + restore_commands
+
+    # Run commands then restore commands
+    ret_code = 0
+    for command in commands:
+        ret_code = ctx.run(command, warn=True, echo=True).exited
+        if ret_code != 0:
+            print('The last command exited with code', ret_code)
+            print('You might want to run these commands to restore the current state:')
+            print('\n'.join(restore_commands))
+
+            exit(1)
+
+    # Show links
+    repo = f'https://github.com/DataDog/datadog-agent/tree/{owner}/{branch}'
+    pipeline = f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.provider.name%3Agitlab%20%40git.repository.name%3A%22DataDog%2Fdatadog-agent%22%20%40git.branch%3A%22{owner}%2F{branch}%22&colorBy=meta%5B%27ci.stage.name%27%5D&colorByAttr=meta%5B%27ci.stage.name%27%5D&currentTab=json&fromUser=false&index=cipipeline&sort=time&spanViewType=logs'
+
+    print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
+    print(f'CI-Visibility pipeline link: {pipeline}')

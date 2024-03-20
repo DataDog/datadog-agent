@@ -5,11 +5,10 @@ import os
 import platform
 from urllib.parse import urlparse
 
-from tasks.kernel_matrix_testing.download import arch_mapping, platforms_file, vmconfig_file
-from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
-from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.stacks import create_stack, stack_exists
+from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
+from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping, platforms_file
 
 local_arch = "local"
 
@@ -110,6 +109,19 @@ table = [
     ["debian 10 - v4.19.0", TICK, TICK],
     ["debian 11 - v5.10.0", TICK, TICK],
 ]
+
+
+def get_vmconfig_file(template="system-probe"):
+    return f"test/new-e2e/system-probe/config/vmconfig-{template}.json"
+
+
+def get_vmconfig_template(template="system-probe"):
+    vmconfig_file = get_vmconfig_file(template)
+
+    with open(vmconfig_file) as f:
+        data = json.load(f)
+
+    return data
 
 
 def lte_414(version):
@@ -350,6 +362,14 @@ def add_disks(vmconfig_template, vmset):
         if tname in template["tags"]:
             vmset["disks"] = copy.deepcopy(template["disks"])
 
+            if vmset["arch"] == local_arch:
+                kmt_os = get_kmt_os()
+            else:
+                kmt_os = Linux
+
+            for disk in vmset.get("disks", []):
+                disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
+
 
 def add_console(vmset):
     vmset["console_type"] = "file"
@@ -446,12 +466,11 @@ def build_vmsets(normalized_vm_defs, sets):
     return vmsets
 
 
-def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
+def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci, template):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
-    with open(vmconfig_file) as f:
-        vmconfig_template = json.load(f)
+    vmconfig_template = get_vmconfig_template(template)
 
     vmsets = build_vmsets(normalized_vm_defs, sets)
 
@@ -507,9 +526,7 @@ def build_normalized_vm_def_set(vms):
     return normalized_vms
 
 
-def gen_config_for_stack(
-    ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False
-):
+def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, template):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
@@ -530,7 +547,7 @@ def gen_config_for_stack(
         orig_vm_config = f.read()
     vm_config = json.loads(orig_vm_config)
 
-    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci)
+    vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_set(vms), vcpu, memory, sets, ci, template)
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -565,7 +582,7 @@ def list_all_distro_normalized_vms(archs):
     return vms
 
 
-def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file):
+def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, template):
     vcpu_ls = vcpu.split(',')
     memory_ls = memory.split(',')
 
@@ -576,7 +593,16 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
 
     if not ci:
         return gen_config_for_stack(
-            ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci
+            ctx,
+            stack,
+            vms,
+            set_ls,
+            init_stack,
+            ls_to_int(vcpu_ls),
+            ls_to_int(memory_ls),
+            new,
+            ci,
+            template,
         )
 
     arch_ls = ["x86_64", "arm64"]
@@ -584,7 +610,9 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
         arch_ls = [arch_mapping[arch]]
 
     vms_to_generate = list_all_distro_normalized_vms(arch_ls)
-    vm_config = generate_vmconfig({"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
+    vm_config = generate_vmconfig(
+        {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, template
+    )
 
     with open(output_file, "w") as f:
         f.write(json.dumps(vm_config, indent=4))

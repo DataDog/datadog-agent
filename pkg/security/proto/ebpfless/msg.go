@@ -99,13 +99,14 @@ type Credentials struct {
 
 // ExecSyscallMsg defines an exec message
 type ExecSyscallMsg struct {
-	File          OpenSyscallMsg
+	File          FileSyscallMsg
 	Args          []string
 	ArgsTruncated bool
 	Envs          []string
 	EnvsTruncated bool
 	TTY           string
 	Credentials   *Credentials
+	PPID          uint32
 }
 
 // ForkSyscallMsg defines a fork message
@@ -119,14 +120,19 @@ type ExitSyscallMsg struct {
 	Cause model.ExitCause
 }
 
-// OpenSyscallMsg defines an open message
-type OpenSyscallMsg struct {
+// FileSyscallMsg defines a file message
+type FileSyscallMsg struct {
 	Filename    string
 	CTime       uint64
 	MTime       uint64
-	Flags       uint32
 	Mode        uint32
 	Credentials *Credentials
+}
+
+// OpenSyscallMsg defines an open message
+type OpenSyscallMsg struct {
+	FileSyscallMsg
+	Flags uint32
 }
 
 // DupSyscallFakeMsg defines a dup message
@@ -175,29 +181,29 @@ type CapsetSyscallMsg struct {
 
 // UnlinkSyscallMsg defines a unlink message
 type UnlinkSyscallMsg struct {
-	File OpenSyscallMsg
+	File FileSyscallMsg
 }
 
 // RmdirSyscallMsg defines a rmdir message
 type RmdirSyscallMsg struct {
-	File OpenSyscallMsg
+	File FileSyscallMsg
 }
 
 // RenameSyscallMsg defines a rename/renameat/renameat2 message
 type RenameSyscallMsg struct {
-	OldFile OpenSyscallMsg
-	NewFile OpenSyscallMsg
+	OldFile FileSyscallMsg
+	NewFile FileSyscallMsg
 }
 
 // MkdirSyscallMsg defines a mkdir/mkdirat message
 type MkdirSyscallMsg struct {
-	Dir  OpenSyscallMsg
+	Dir  FileSyscallMsg
 	Mode uint32
 }
 
 // UtimesSyscallMsg defines a utime/utimes/utimensat/futimesat message
 type UtimesSyscallMsg struct {
-	File  OpenSyscallMsg
+	File  FileSyscallMsg
 	ATime uint64 // in nanoseconds
 	MTime uint64 // in nanoseconds
 }
@@ -215,19 +221,19 @@ const (
 // LinkSyscallMsg defines a link/linkat/symlink/symlinkat message
 type LinkSyscallMsg struct {
 	Type   LinkType
-	Target OpenSyscallMsg
-	Link   OpenSyscallMsg
+	Target FileSyscallMsg
+	Link   FileSyscallMsg
 }
 
 // ChmodSyscallMsg defines a chmod/fchmod/fchmodat/fchmodat2 message
 type ChmodSyscallMsg struct {
-	File OpenSyscallMsg
+	File FileSyscallMsg
 	Mode uint32
 }
 
 // ChownSyscallMsg defines a chown/fchown/lchown/fchownat/fchownat2 message
 type ChownSyscallMsg struct {
-	File  OpenSyscallMsg
+	File  FileSyscallMsg
 	UID   int32
 	User  string
 	GID   int32
@@ -236,7 +242,7 @@ type ChownSyscallMsg struct {
 
 // LoadModuleSyscallMsg defines a init_module/finit_module message
 type LoadModuleSyscallMsg struct {
-	File             OpenSyscallMsg
+	File             FileSyscallMsg
 	LoadedFromMemory bool
 	Name             string
 	Args             string

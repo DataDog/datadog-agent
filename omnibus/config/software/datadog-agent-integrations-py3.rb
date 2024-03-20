@@ -22,11 +22,6 @@ whitelist_file "embedded/lib/python3.11/site-packages/pymqi"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
-gcc_version = ENV['GCC_VERSION']
-if gcc_version.nil? || gcc_version.empty?
-  gcc_version = '10.4.0'
-end
-
 integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
 if integrations_core_version.nil? || integrations_core_version.empty?
   integrations_core_version = 'master'
@@ -59,13 +54,6 @@ if arm_target?
   excluded_folders.push('ibm_ace')
   excluded_folders.push('ibm_mq')
   excluded_packages.push(/^pymqi==/)
-end
-
-# We explicitly check for redhat builder, not target
-# Our centos/redhat builder uses glibc 2.12 while pydantic
-# requires glibc 2.17
-if redhat? && !arm_target?
-  excluded_packages.push(/^pydantic-core==/)
 end
 
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
@@ -159,25 +147,6 @@ build do
   # See: https://github.com/python/cpython/blob/v3.8.8/Lib/distutils/sysconfig.py#L227
   if linux_target? || windows_target?
     nix_build_env["CFLAGS"] += " -std=c99"
-  end
-
-  # We only have gcc 10.4.0 on linux for now
-  if linux_target?
-    nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
-    nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
-  end
-
-  # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
-  # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
-  if redhat_target? && !arm_target?
-    nix_specific_build_env["cryptography"] = nix_build_env.merge(
-      {
-        "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
-        "OPENSSL_DIR" => "#{install_dir}/embedded/",
-        "PIP_NO_CACHE_DIR" => "off",
-        "PIP_FORCE_REINSTALL" => "1",
-      }
-    )
   end
 
   #

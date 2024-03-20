@@ -149,7 +149,7 @@ func TestInitData(t *testing.T) {
 		"process_config.process_dd_url":    "http://name:sekrit@someintake.example.com/",
 		"proxy.http":                       "http://name:sekrit@proxy.example.com/",
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
-		"dd_site":                          "test",
+		"site":                             "test",
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
@@ -261,7 +261,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Datadog.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
