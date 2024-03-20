@@ -37,7 +37,7 @@ const (
 var (
 	statsd *ddogstatsd.Client
 
-	globalConfigs   sync.Map
+	globalConfigs   map[confKey]aws.Config
 	globalConfigsMu sync.Mutex
 )
 
@@ -66,13 +66,14 @@ func GetConfigFromCloudID(ctx context.Context, sc *types.ScannerConfig, roles ty
 
 // GetConfig returns an AWS Config for the given region and assumed role.
 func GetConfig(ctx context.Context, sc *types.ScannerConfig, region string, assumedRole types.CloudID) aws.Config {
-	key := confKey{assumedRole, region}
-	if cfg, ok := globalConfigs.Load(key); ok {
-		return cfg.(aws.Config)
-	}
-
 	globalConfigsMu.Lock()
 	defer globalConfigsMu.Unlock()
+
+	key := confKey{assumedRole, region}
+	if cfg, ok := globalConfigs[key]; ok {
+		return cfg
+	}
+
 	if statsd == nil {
 		statsd, _ = ddogstatsd.New("localhost:8125")
 	}
@@ -125,7 +126,10 @@ func GetConfig(ctx context.Context, sc *types.ScannerConfig, region string, assu
 			config.WithCredentialsProvider(aws.NewCredentialsCache(stsassume)))
 	}
 
-	globalConfigs.Store(key, delegateCfg)
+	if globalConfigs == nil {
+		globalConfigs = make(map[confKey]aws.Config)
+	}
+	globalConfigs[key] = delegateCfg
 	return delegateCfg
 }
 
