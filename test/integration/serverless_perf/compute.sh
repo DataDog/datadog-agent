@@ -40,6 +40,7 @@ log "Median=$medianMs | Threshold=$STARTUP_TIME_THRESHOLD"
 
 # check whether or not the median duration exceeds the threshold
 if (( medianMs > STARTUP_TIME_THRESHOLD )); then
+    echo "Median startup time above threshold"
     exit 1
 fi
 
