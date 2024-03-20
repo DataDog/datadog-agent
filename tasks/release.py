@@ -1086,10 +1086,10 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
     # Step 4: add release changelog preludes
     print(color_message("Adding Agent release changelog prelude", "bold"))
-    add_prelude(ctx, new_version)
+    add_prelude(ctx, str(new_version))
 
     print(color_message("Adding DCA release changelog prelude", "bold"))
-    add_dca_prelude(ctx, new_version)
+    add_dca_prelude(ctx, str(new_version))
 
     ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
     if not ok:
