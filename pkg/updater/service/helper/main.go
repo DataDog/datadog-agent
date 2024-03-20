@@ -33,7 +33,7 @@ type privilegeCommand struct {
 }
 
 func isValidUnitChar(c rune) bool {
-	return unicode.IsLower(c) || c == '.' || c == '-' || c == ' '
+	return unicode.IsLower(c) || c == '.' || c == '-'
 }
 
 func isValidUnitString(s string) bool {
@@ -91,7 +91,7 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	case "chown dd-agent":
 		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
 	case "rm":
-		return exec.Command("rm", "-rf", "dd-agent:dd-agent", path), nil
+		return exec.Command("rm", "-rf", path), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
