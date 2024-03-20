@@ -60,13 +60,14 @@ func (dn *DNSNode) appendImageTag(imageTag string) {
 }
 
 func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bool {
-	if imageTag != "" && slices.Contains(dn.ImageTags, imageTag) {
-		dn.ImageTags = removeImageTagFromList(dn.ImageTags, imageTag)
-		if len(dn.ImageTags) == 0 {
+	imageTags, removed := removeImageTagFromList(dn.ImageTags, imageTag)
+	if removed {
+		if len(imageTags) == 0 {
 			return true
 		}
+		dn.ImageTags = imageTags
 	}
-	// also, reconstruct the list of all DNS requests
+	// reconstruct the list of all DNS requests
 	if len(dn.Requests) > 0 {
 		DNSNames.Insert(dn.Requests[0].Name)
 	}

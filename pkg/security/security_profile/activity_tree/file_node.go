@@ -183,15 +183,17 @@ func (fn *FileNode) tagAllNodes(imageTag string) {
 }
 
 func (fn *FileNode) evictImageTag(imageTag string) bool {
-	if imageTag != "" && slices.Contains(fn.ImageTags, imageTag) {
-		fn.ImageTags = removeImageTagFromList(fn.ImageTags, imageTag)
-		if len(fn.ImageTags) == 0 {
-			return true
-		}
-		for filename, child := range fn.Children {
-			if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
-				delete(fn.Children, filename)
-			}
+	imageTags, removed := removeImageTagFromList(fn.ImageTags, imageTag)
+	if !removed {
+		return false
+	}
+	if len(imageTags) == 0 {
+		return true
+	}
+	fn.ImageTags = imageTags
+	for filename, child := range fn.Children {
+		if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
+			delete(fn.Children, filename)
 		}
 	}
 	return false

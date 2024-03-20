@@ -341,14 +341,12 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 }
 
 func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
-	if imageTag != "" {
-		if !slices.Contains(pn.ImageTags, imageTag) {
-			pn.ImageTags = append(pn.ImageTags, imageTag)
-			parent := pn.GetParent()
-			for parent != nil {
-				parent.AppendImageTag(imageTag)
-				parent = parent.GetParent()
-			}
+	if imageTag != "" && !slices.Contains(pn.ImageTags, imageTag) {
+		pn.ImageTags = append(pn.ImageTags, imageTag)
+		parent := pn.GetParent()
+		for parent != nil {
+			parent.AppendImageTag(imageTag)
+			parent = parent.GetParent()
 		}
 	}
 }
@@ -376,28 +374,32 @@ func (pn *ProcessNode) TagAllNodes(imageTag string) {
 	}
 }
 
-func removeImageTagFromList(imageTags []string, imageTag string) []string {
-	if index := slices.Index(imageTags, imageTag); index != -1 {
-		return slices.Delete(imageTags, index, index+1)
+func removeImageTagFromList(imageTags []string, imageTag string) ([]string, bool) {
+	if imageTag == "" {
+		return imageTags, false
 	}
-	return imageTags
+	removed := false
+	return slices.DeleteFunc(imageTags, func(tag string) bool {
+		if tag == imageTag {
+			removed = true
+			return true
+		}
+		return false
+	}), removed
 }
 
 // EvictImageTag will remmove every trace of this image tag, and returns true if the process node should be removed
 // also, recompute the list of dnsnames and syscalls
 func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys, SyscallsMask map[int]int) bool {
-	if imageTag == "" {
-		return false
-	}
-
-	if !slices.Contains(pn.ImageTags, imageTag) {
+	imageTags, removed := removeImageTagFromList(pn.ImageTags, imageTag)
+	if !removed {
 		return false // this node don't have the tag, and all his childs/files/dns/etc shouldn't have neither
 	}
-	pn.ImageTags = removeImageTagFromList(pn.ImageTags, imageTag)
-	if len(pn.ImageTags) == 0 {
+	if len(imageTags) == 0 {
 		// if we removed the last tag, remove entirely the process node from the tree
 		return true
 	}
+	pn.ImageTags = imageTags
 
 	for filename, file := range pn.Files {
 		if shouldRemoveNode := file.evictImageTag(imageTag); shouldRemoveNode {

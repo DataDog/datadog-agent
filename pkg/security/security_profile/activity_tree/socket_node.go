@@ -53,12 +53,14 @@ func (sn *SocketNode) appendImageTag(imageTag string) {
 }
 
 func (bn *BindNode) evictImageTag(imageTag string) bool {
-	if imageTag != "" && slices.Contains(bn.ImageTags, imageTag) {
-		removeImageTagFromList(bn.ImageTags, imageTag)
-		if len(bn.ImageTags) == 0 {
-			return true
-		}
+	imageTags, removed := removeImageTagFromList(bn.ImageTags, imageTag)
+	if !removed {
+		return false
 	}
+	if len(imageTags) == 0 {
+		return true
+	}
+	bn.ImageTags = imageTags
 	return false
 }
 
