@@ -862,7 +862,7 @@ def _get_build_images(ctx):
     # We intentionally include both build images & their test suffixes in the pattern
     # as a test image and the merged version shouldn't share their cache
     tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES' .gitlab-ci.yml | cut -d ':' -f 2", hide='stdout').stdout
-    return map(lambda t: t.strip(), tags.splitlines())
+    return (t.strip() for t in tags.splitlines())
 
 
 def _get_environment_for_cache() -> dict:
