@@ -83,6 +83,11 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 	return nil
 }
 
+// Interval returns the scheduling time for the check
+func (c *Check) Interval() time.Duration {
+	return c.config.MinCollectionInterval
+}
+
 // Configure the networkpath check
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	// Must be called before c.CommonConfigure
