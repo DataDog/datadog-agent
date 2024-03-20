@@ -174,6 +174,9 @@ func (p *SecurityProfile) SendStats(client statsd.ClientInterface) error {
 
 // ToSecurityProfileMessage returns a SecurityProfileMessage filled with the content of the current Security Profile
 func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage {
+	p.versionContextsLock.Lock()
+	defer p.versionContextsLock.Unlock()
+
 	// construct the list of image tags for this profile
 	imageTags := ""
 	for key := range p.versionContexts {
@@ -194,10 +197,9 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 		Metadata: &api.MetadataMessage{
 			Name: p.Metadata.Name,
 		},
-		ProfileGlobalState: p.GetGlobalState().String(),
+		ProfileGlobalState: p.getGlobalState().String(),
 		ProfileContexts:    make(map[string]*api.ProfileContextMessage),
 	}
-	p.versionContextsLock.Lock()
 	for imageTag, ctx := range p.versionContexts {
 		msgCtx := &api.ProfileContextMessage{
 			FirstSeen:      ctx.firstSeenNano,
@@ -213,7 +215,6 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 		}
 		msg.ProfileContexts[imageTag] = msgCtx
 	}
-	p.versionContextsLock.Unlock()
 
 	if p.ActivityTree != nil {
 		msg.Stats = &api.ActivityTreeStatsMessage{
@@ -262,10 +263,7 @@ func (p *SecurityProfile) GetState(imageTag string) EventFilteringProfileState {
 	return state
 }
 
-// GetGlobalState returns the global state of a profile: AutoLearning, StableEventType or UnstableEventType
-func (p *SecurityProfile) GetGlobalState() EventFilteringProfileState {
-	p.versionContextsLock.Lock()
-	defer p.versionContextsLock.Unlock()
+func (p *SecurityProfile) getGlobalState() EventFilteringProfileState {
 	globalState := AutoLearning
 	for imageTag := range p.versionContexts {
 		state := p.GetState(imageTag)
@@ -276,6 +274,13 @@ func (p *SecurityProfile) GetGlobalState() EventFilteringProfileState {
 		}
 	}
 	return globalState // AutoLearning or StableEventType
+}
+
+// GetGlobalState returns the global state of a profile: AutoLearning, StableEventType or UnstableEventType
+func (p *SecurityProfile) GetGlobalState() EventFilteringProfileState {
+	p.versionContextsLock.Lock()
+	defer p.versionContextsLock.Unlock()
+	return p.getGlobalState()
 }
 
 // GetGlobalEventTypeState returns the global state of a profile for a given event type: AutoLearning, StableEventType or UnstableEventType
