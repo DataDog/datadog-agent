@@ -729,6 +729,21 @@ def verify_workspace(ctx, branch_name=None):
     return branch_name
 
 
+def update_test_infra_def(file_path, image_tag):
+    """
+    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in .gitlab-ci.yml file
+    """
+    with open(file_path, "r") as gl:
+        file_content = gl.readlines()
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
+            if test_infra_def:
+                gl.write(line.replace(test_infra_def.group(1), image_tag))
+            else:
+                gl.write(line)
+
+
 def update_gitlab_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
