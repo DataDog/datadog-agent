@@ -737,7 +737,7 @@ def update_test_infra_def(file_path, image_tag):
         file_content = gl.readlines()
     with open(file_path, "w") as gl:
         for line in file_content:
-            test_infra_def = re.search(fr"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
+            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
             if test_infra_def:
                 gl.write(line.replace(test_infra_def.group(1), image_tag))
             else:
