@@ -42,11 +42,7 @@ const (
 	trivyDefaultJavaDBRepository = "ghcr.io/aquasecurity/trivy-java-db"
 )
 
-var trivyDefaultJavaInitOnce sync.Once
-
-func init() {
-	trivyhandler.DeregisterPostHandler(ftypes.UnpackagedPostHandler)
-}
+var trivyInitOnce sync.Once
 
 func getTrivyDisabledAnalyzers(allowedAnalyzers []analyzer.Type) []analyzer.Type {
 	var trivyAnalyzersAll = []analyzer.Type{}
@@ -100,9 +96,6 @@ func LaunchTrivyHost(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, 
 
 // LaunchTrivyApp launches a trivy scan on a directory for application SBOMs.
 func LaunchTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, error) {
-	trivyDefaultJavaInitOnce.Do(func() {
-		javadb.Init(tyivyCacheDir, trivyDefaultJavaDBRepository, false, false, ftypes.RegistryOptions{})
-	})
 	var allowedAnalyzers []analyzer.Type
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLanguages...)
 	allowedAnalyzers = append(allowedAnalyzers, analyzer.TypeLockfiles...)
@@ -124,6 +117,15 @@ func LaunchTrivyApp(ctx context.Context, opts types.ScannerOptions) (*cdx.BOM, e
 }
 
 func doTrivyScan(ctx context.Context, scan *types.ScanTask, trivyArtifact artifact.Artifact, trivyCache cache.LocalArtifactCache) (*cdx.BOM, error) {
+	trivyInitOnce.Do(func() {
+		// Init the JavaDB required for trivy application scans
+		javadb.Init(tyivyCacheDir, trivyDefaultJavaDBRepository, false, false, ftypes.RegistryOptions{})
+
+		// Making sure the Unpackaged post handler relying on external DBs is
+		// deregistered
+		trivyhandler.DeregisterPostHandler(ftypes.UnpackagedPostHandler)
+	})
+
 	trivyOSScanner := ospkg.NewScanner()
 	trivyLangScanner := langpkg.NewScanner()
 	trivyVulnClient := vulnerability.NewClient(db.Config{})
