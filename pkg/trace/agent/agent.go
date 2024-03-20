@@ -292,7 +292,7 @@ func (a *Agent) Process(p *api.Payload) {
 
 		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
 		root := traceutil.GetRoot(chunk.Spans)
-		setChunkAttributesFromRoot(chunk, root)
+		setChunkAttributes(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
 			ts.TracesFiltered.Inc()
@@ -548,7 +548,7 @@ func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
 	if priority != sampler.PriorityUserDrop {
 		return false
 	}
-	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
+	dm, hasDm := pt.TraceChunk.Tags[tagDecisionMaker]
 	if !hasDm {
 		return false
 	}
