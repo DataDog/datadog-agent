@@ -107,7 +107,7 @@ func All(config, sysprobeYamlCfg ddconfig.ReaderWriter, syscfg *sysconfigtypes.C
 		NewProcessCheck(config, sysprobeYamlCfg, wmeta),
 		NewContainerCheck(config, wmeta),
 		NewRTContainerCheck(config, wmeta),
-		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg),
+		NewConnectionsCheck(config, sysprobeYamlCfg, syscfg, wmeta),
 		NewProcessDiscoveryCheck(config),
 		NewProcessEventsCheck(config),
 	}
