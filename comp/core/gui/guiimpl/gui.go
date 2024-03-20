@@ -50,12 +50,7 @@ func Module() fxutil.Module {
 }
 
 type gui struct {
-	logger    log.Component
-	config    config.Component
-	flare     flare.Component
-	status    status.Component
-	collector collector.Component
-	ac        autodiscovery.Component
+	logger log.Component
 
 	port      string
 	listener  net.Listener
@@ -104,40 +99,9 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 	}
 
 	g := gui{
-		port:      guiPort,
-		logger:    deps.Log,
-		config:    deps.Config,
-		flare:     deps.Flare,
-		status:    deps.Status,
-		collector: deps.Collector,
-		ac:        deps.Ac,
+		port:   guiPort,
+		logger: deps.Log,
 	}
-
-	// Instantiate the gorilla/mux router
-	g.router = mux.NewRouter()
-
-	// Serve the only public file at the authentication endpoint
-	g.router.HandleFunc("/authenticate", g.generateAuthEndpoint)
-
-	// Serve the (secured) index page on the default endpoint
-	g.router.Handle("/", g.authorizeAccess(http.HandlerFunc(generateIndex)))
-
-	// Mount our (secured) filesystem at the view/{path} route
-	g.router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", g.authorizeAccess(http.HandlerFunc(serveAssets))))
-
-	// Set up handlers for the API
-	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
-	g.agentHandler(agentRouter)
-	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
-	g.checkHandler(checkRouter)
-
-	// Add authorization middleware to all the API endpoints
-	g.router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(g.authorizePOST), negroni.Wrap(agentRouter)))
-	g.router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(g.authorizePOST), negroni.Wrap(checkRouter)))
-
-	deps.Lc.Append(fx.Hook{
-		OnStart: g.start,
-		OnStop:  g.stop})
 
 	// Create a CSRF token (unique to each session)
 	e := g.createCSRFToken()
@@ -150,6 +114,34 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 	if e != nil {
 		return optional.NewNoneOption[guicomp.Component](), e
 	}
+
+	// Instantiate the gorilla/mux router
+	router := mux.NewRouter()
+
+	// Serve the only public file at the authentication endpoint
+	router.HandleFunc("/authenticate", g.generateAuthEndpoint)
+
+	// Serve the (secured) index page on the default endpoint
+	router.Handle("/", g.authorizeAccess(http.HandlerFunc(generateIndex)))
+
+	// Mount our (secured) filesystem at the view/{path} route
+	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", g.authorizeAccess(http.HandlerFunc(serveAssets))))
+
+	// Set up handlers for the API
+	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
+	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, g.startTimestamp)
+	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
+	checkHandler(checkRouter, deps.Collector, deps.Ac)
+
+	// Add authorization middleware to all the API endpoints
+	router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(g.authorizePOST), negroni.Wrap(agentRouter)))
+	router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(g.authorizePOST), negroni.Wrap(checkRouter)))
+
+	g.router = router
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: g.start,
+		OnStop:  g.stop})
 
 	return optional.NewOption[guicomp.Component](g), nil
 }
