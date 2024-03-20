@@ -7,6 +7,8 @@
 
 package check
 
+import "go.uber.org/fx"
+
 func getPlatformModules() fx.Option {
 	return fx.Options()
 }
