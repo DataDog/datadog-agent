@@ -3,6 +3,8 @@ try:
 except ImportError:
     colored = None
 
+import os
+
 import invoke.exceptions as ie
 
 
@@ -28,3 +30,7 @@ def error(msg: str):
 
 def Exit(msg: str):
     return ie.Exit(colored(msg, "red"))
+
+
+def is_root():
+    return os.getuid() == 0
