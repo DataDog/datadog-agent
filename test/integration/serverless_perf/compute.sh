@@ -18,7 +18,7 @@ calculate_median() {
 }
 
 log() {
-    echo "Pipeline Id=$CI_PIPELINE_ID | Job Id=$CI_JOB_ID | $1"
+    echo "Job Name=$CI_JOB_NAME | Pipeline Id=$CI_PIPELINE_ID | Job Id=$CI_JOB_ID | Branch Name=$CI_COMMIT_BRANCH | $1"
 }
 
 startupTimes=()
