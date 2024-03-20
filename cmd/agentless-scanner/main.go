@@ -138,7 +138,7 @@ func rootCommand(statsd ddogstatsd.Client, sc types.ScannerConfig, evp eventplat
 	}
 
 	cmd.AddCommand(runCommand(&statsd, &sc, &evp))
-	cmd.AddCommand(runScannerCommand(&sc))
+	cmd.AddCommand(runScannerCommand(&statsd, &sc))
 	cmd.AddCommand(awsGroupCommand(cmd, &statsd, &sc, &evp))
 	cmd.AddCommand(localGroupCommand(cmd, &statsd, &sc))
 
@@ -221,23 +221,23 @@ func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eve
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
-	if err := scanner.CleanSlate(sc); err != nil {
+	if err := scanner.CleanSlate(statsd, sc); err != nil {
 		log.Error(err)
 	}
 	if err := scanner.SubscribeRemoteConfig(ctx); err != nil {
 		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
 	}
-	scanner.Start(ctx, sc)
+	scanner.Start(ctx, statsd, sc)
 	return nil
 }
 
-func runScannerCommand(sc *types.ScannerConfig) *cobra.Command {
+func runScannerCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
 	var sock string
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScannerCmd(sc, sock)
+			return runScannerCmd(statsd, sc, sock)
 		},
 	}
 	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
@@ -245,7 +245,7 @@ func runScannerCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func runScannerCmd(sc *types.ScannerConfig, sock string) error {
+func runScannerCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, sock string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -267,7 +267,7 @@ func runScannerCmd(sc *types.ScannerConfig, sock string) error {
 		return err
 	}
 
-	result := runner.LaunchScannerInSameProcess(ctx, sc, opts)
+	result := runner.LaunchScannerInSameProcess(ctx, statsd, sc, opts)
 	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
 	if err := enc.Encode(result); err != nil {
 		return err
