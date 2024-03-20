@@ -69,6 +69,9 @@ func (i *installer) installExperiment(pkg string, version string, image oci.Imag
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
+	if pkg == "datadog-agent" {
+		service.ChownDDAgent(tmpDir)
+	}
 	repository := i.repositories.Get(pkg)
 	err = repository.SetExperiment(version, tmpDir)
 	if err != nil {
