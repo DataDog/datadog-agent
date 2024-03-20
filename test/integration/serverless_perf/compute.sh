@@ -17,6 +17,10 @@ calculate_median() {
     echo "$median"
 }
 
+log() {
+    echo "Pipeline Id=$CI_PIPELINE_ID | Job Id=$CI_JOB_ID | $1"
+}
+
 startupTimes=()
 
 # loop 10 times to incur no false positive/negative alarms
@@ -27,13 +31,12 @@ do
     sleep 10
     numberOfMillisecs=$(docker logs "$dockerId" | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1)
     startupTimes+=($numberOfMillisecs)
-    echo "Iteration $i - Startup time = $numberOfMillisecs"
+    log "Iteration=$i | Startup Time=$numberOfMillisecs"
 done
 
 medianMs=$(calculate_median "${startupTimes[@]}")
 
-echo "Median computed : $medianMs"
-echo "Threshold : $STARTUP_TIME_THRESHOLD"
+log "Median=$medianMs | Threshold=$STARTUP_TIME_THRESHOLD"
 
 # check whether or not the median duration exceeds the threshold
 if (( medianMs > STARTUP_TIME_THRESHOLD )); then
