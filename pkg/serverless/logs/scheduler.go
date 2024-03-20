@@ -6,11 +6,9 @@
 package logs
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/channel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,8 +27,7 @@ func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, so
 	}
 
 	logsScheduler = channel.NewScheduler(sourceName, source, logChannel)
-	agent.AddScheduler(logsScheduler)
-	agent.AddScheduler(adScheduler.New(common.AC))
+
 	return agent, nil
 }
 
