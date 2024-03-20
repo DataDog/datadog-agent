@@ -945,4 +945,5 @@ def sync_secl_win_pkg(ctx):
             fto = ffrom
 
         ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
-        ctx.run(f"sed -i '/^\/\/go:build/d' pkg/security/seclwin/model/{fto}")
+        ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")
