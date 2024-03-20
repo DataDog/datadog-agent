@@ -94,7 +94,7 @@ deploy_packages_oci:
     - git clone https://github.com/DataDog/datadog-packages /tmp/datadog-packages
     - cd /tmp/datadog-packages/cmd/datadog-package
     - go build .
-    - ./datadog-package push registry.ddbuild.io/ci/datadog-agent/datadog-agent-ociru:${VERSION} ${OMNIBUS_PACKAGE_DIR}/datadog-agent-${MAJOR_VERSION}.*.oci.tar
+    - ./datadog-package push registry.ddbuild.io/ci/remote-updates/datadog-agent:${VERSION} ${OMNIBUS_PACKAGE_DIR}/datadog-agent-${MAJOR_VERSION}.*.oci.tar
   variables:
     MAJOR_VERSION: 7
 
