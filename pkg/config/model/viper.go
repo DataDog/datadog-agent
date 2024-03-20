@@ -28,17 +28,18 @@ type Source string
 
 // Declare every known Source
 const (
-	SourceDefault      Source = "default"
-	SourceUnknown      Source = "unknown"
-	SourceFile         Source = "file"
-	SourceEnvVar       Source = "environment-variable"
-	SourceAgentRuntime Source = "agent-runtime"
-	SourceRC           Source = "remote-config"
-	SourceCLI          Source = "cli"
+	SourceDefault            Source = "default"
+	SourceUnknown            Source = "unknown"
+	SourceFile               Source = "file"
+	SourceEnvVar             Source = "environment-variable"
+	SourceAgentRuntime       Source = "agent-runtime"
+	SourceLocalConfigProcess Source = "local-config-process"
+	SourceRC                 Source = "remote-config"
+	SourceCLI                Source = "cli"
 )
 
 // sources list the known sources, following the order of hierarchy between them
-var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceRC, SourceCLI}
+var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceLocalConfigProcess, SourceRC, SourceCLI}
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {

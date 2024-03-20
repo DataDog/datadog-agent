@@ -23,6 +23,7 @@ This include the following:
 `agent_runtime_configuration`
 `remote_configuration`
 `cli_configuration`
+`source_local_configuration`
 
 Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
 
@@ -122,6 +123,7 @@ The payload is a JSON dict with the following fields
     Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
     Only the settings set in the CLI are included, they cannot be overriden by any other sources.
+  - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
 

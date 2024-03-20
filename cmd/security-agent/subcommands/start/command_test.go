@@ -6,6 +6,8 @@
 package start
 
 import (
+	"os"
+	"path"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -42,10 +44,21 @@ func TestCommand(t *testing.T) {
 
 	for _, test := range tests {
 		fxutil.TestOneShotSubcommand(t,
-			Commands(&command.GlobalParams{}),
+			Commands(newGlobalParamsTest(t)),
 			test.cliInput,
 			start,
 			test.check,
 		)
+	}
+}
+
+func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
+	// the config needs an existing config file when initializing
+	config := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	require.NoError(t, err)
+
+	return &command.GlobalParams{
+		ConfigFilePaths: []string{config},
 	}
 }
