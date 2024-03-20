@@ -64,7 +64,7 @@ notify_github:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.if_version_7]
+    - if: $RELEASE_VERSION_7 != ""
       changes:
         paths:
           - '**/*.go'
