@@ -90,7 +90,7 @@ func TestAuth(t *testing.T) {
 }
 
 func TestClearAuth(t *testing.T) {
-	client, err := NewClient("", "", "", false)
+	client, err := NewClient("test", "testuser", "testpass", false)
 	require.NoError(t, err)
 
 	client.token = "testtoken"

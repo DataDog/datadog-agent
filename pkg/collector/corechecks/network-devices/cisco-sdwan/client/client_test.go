@@ -16,6 +16,54 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures"
 )
 
+func TestNewClientParams(t *testing.T) {
+	tests := []struct {
+		name          string
+		endpoint      string
+		username      string
+		password      string
+		expectedError string
+	}{
+		{
+			name:          "all good",
+			endpoint:      "test",
+			username:      "testuser",
+			password:      "testpassword",
+			expectedError: "",
+		},
+		{
+			name:          "no endpoint",
+			endpoint:      "",
+			username:      "testuser",
+			password:      "testpassword",
+			expectedError: "invalid endpoint",
+		},
+		{
+			name:          "no username",
+			endpoint:      "test",
+			username:      "",
+			password:      "testpassword",
+			expectedError: "invalid username",
+		},
+		{
+			name:          "no password",
+			endpoint:      "test",
+			username:      "testuser",
+			password:      "",
+			expectedError: "invalid password",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewClient(tt.endpoint, tt.username, tt.password, false)
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
+			}
+		})
+	}
+}
+
 func TestNewClientDefaults(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -77,7 +125,7 @@ func TestNewClientDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewClient("", "", "", false, tt.options...)
+			client, err := NewClient("test", "testuser", "testpass", false, tt.options...)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectedMaxAttempts, client.maxAttempts)

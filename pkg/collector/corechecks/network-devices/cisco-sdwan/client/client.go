@@ -52,6 +52,11 @@ type ClientOptions func(*Client)
 
 // NewClient creates a new Cisco SD-WAN HTTP client.
 func NewClient(endpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+	err := validateParams(endpoint, username, password)
+	if err != nil {
+		return nil, err
+	}
+
 	cookieJar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
@@ -89,6 +94,19 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	}
 
 	return client, nil
+}
+
+func validateParams(endpoint, username, password string) error {
+	if endpoint == "" {
+		return fmt.Errorf("invalid endpoint")
+	}
+	if username == "" {
+		return fmt.Errorf("invalid username")
+	}
+	if password == "" {
+		return fmt.Errorf("invalid password")
+	}
+	return nil
 }
 
 // WithTLSConfig is a functional option to set the HTTP Client TLS Config
