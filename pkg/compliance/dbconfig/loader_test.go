@@ -37,11 +37,15 @@ func TestDBConfLoader(t *testing.T) {
 		proc := launchFakeProcess(ctx, t, "postgres")
 
 		res, ok := LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
-		assert.False(t, ok)
-		assert.Nil(t, res)
+		assert.True(t, ok)
+		assert.NotNil(t, res)
+		assert.Equal(t, postgresqlResourceType, res.Type)
+		assert.NotNil(t, res.Config)
+		assert.NotNil(t, res.Config.ConfigData)
 
 		err := proc.Kill()
 		assert.NoError(t, err)
+		proc.Wait()
 
 		res, ok = LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
 		assert.False(t, ok)
@@ -70,6 +74,11 @@ func TestDBConfLoader(t *testing.T) {
 
 		err = proc.Kill()
 		assert.NoError(t, err)
+		proc.Wait()
+
+		res, ok = LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
+		assert.False(t, ok)
+		assert.Nil(t, res)
 	}
 }
 

@@ -167,6 +167,12 @@ func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Proce
 	configPath := filepath.Join(hostroot, configLocalPath)
 	fi, err := os.Stat(configPath)
 	if err != nil || fi.IsDir() {
+		if proc != nil {
+			result.ConfigFileUser = "<none>"
+			result.ConfigFileGroup = "<none>"
+			result.ConfigData = map[string]interface{}{}
+			return &result, true
+		}
 		return nil, false
 	}
 
@@ -259,6 +265,13 @@ func LoadPostgreSQLConfig(ctx context.Context, hostroot string, proc *process.Pr
 
 	configPath, ok := locatePGConfigFile(hostroot, hintPath)
 	if !ok {
+		if proc != nil {
+			// postgres can be setup without a configuration file.
+			result.ConfigFileUser = "<none>"
+			result.ConfigFileGroup = "<none>"
+			result.ConfigData = map[string]interface{}{}
+			return &result, true
+		}
 		return nil, false
 	}
 	fi, err := os.Stat(filepath.Join(hostroot, configPath))
