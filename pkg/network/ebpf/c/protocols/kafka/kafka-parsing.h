@@ -156,7 +156,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         break;
     }
     case KAFKA_FETCH:
-        // We currently lack support for fetch context record counts as they are only accessible within the Kafka response
+        // We currently lack support for fetch record counts as they are only accessible within the Kafka response
         kafka_transaction->records_count = 1;
         break;
     default:
