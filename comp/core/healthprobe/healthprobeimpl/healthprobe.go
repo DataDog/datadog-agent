@@ -66,12 +66,12 @@ func (h *healthprobe) stop() error {
 func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Component, error) {
 	healthPort := deps.Config.GetInt("health_port")
 	if healthPort <= 0 {
-		return healthprobe{}, nil
+		return nil, nil
 	}
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", healthPort))
 	if err != nil {
-		return healthprobe{}, err
+		return nil, err
 	}
 
 	server := buildServer(deps.Config, deps.Log)

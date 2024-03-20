@@ -17,9 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
-	"gotest.tools/assert"
 )
 
 func TestServer(t *testing.T) {
@@ -30,20 +30,35 @@ func TestServer(t *testing.T) {
 		"health_port": port,
 	}
 
-	_, err := newHealthProbe(lc,
+	probe, err := newHealthProbe(lc,
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
-		))
+		),
+	)
+	assert.Nil(t, err)
 
-	assert.NilError(t, err)
+	assert.NotNil(t, probe)
 
 	ctx := context.Background()
-	assert.NilError(t, lc.Start(ctx))
+	assert.Nil(t, lc.Start(ctx))
 
-	assert.NilError(t, lc.Stop(ctx))
+	assert.Nil(t, lc.Stop(ctx))
+}
+
+func TestServerNoHealthPort(t *testing.T) {
+	probe, err := newHealthProbe(fxtest.NewLifecycle(t),
+		fxutil.Test[dependencies](
+			t,
+			logimpl.MockModule(),
+			config.MockModule(),
+		),
+	)
+	assert.Nil(t, err)
+
+	assert.Nil(t, probe)
 }
 
 func TestLiveHandler(t *testing.T) {
