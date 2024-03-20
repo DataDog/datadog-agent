@@ -85,8 +85,9 @@
 
 /.gitlab/common/                                     @DataDog/container-integrations @DataDog/agent-ci-experience
 
-/.gitlab/e2e.yml                                     @DataDog/container-integrations @DataDog/agent-developer-tools
-/.gitlab/fakeintake.yml                              @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
+/.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-developer-tools
+/.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
+/.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-ci-experience
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-ci-experience

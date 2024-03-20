@@ -13,6 +13,7 @@ type Endpoint struct {
 	Name string
 }
 
+// String returns the route of the endpoint
 func (e Endpoint) String() string {
 	return e.Route
 }
