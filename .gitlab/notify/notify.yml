@@ -64,7 +64,6 @@ notify_github:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
     - changes:
         paths:
           - ./**/*.go
@@ -72,8 +71,8 @@ notify_github:
       when: on_success
     - when: never
   needs:
-    - job: "deploy_deb_testing-a7_x64"
-      optional: true
+    - job: "github_rate_limit_info"
+      optional: true # - job: "deploy_deb_testing-a7_x64"
   dependencies: []
   allow_failure: true
   script:
