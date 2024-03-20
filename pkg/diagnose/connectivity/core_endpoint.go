@@ -78,11 +78,13 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	}
 
+	endpointsInfo := getEndpointsInfo(config.Datadog)
+
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
 		for _, apiKey := range domainResolver.GetAPIKeys() {
-			for _, endpointInfo := range getEndpointsInfo(config.Datadog) {
+			for _, endpointInfo := range endpointsInfo {
 				// Initialize variables
 				var logURL string
 				var responseBody []byte
