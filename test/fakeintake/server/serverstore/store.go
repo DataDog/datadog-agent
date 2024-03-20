@@ -118,7 +118,7 @@ func (s *Store) Flush() {
 }
 
 // encodeToJSONRawPayload used to decode a raw Payload into a Json Payload
-// to how to parse the raw payload that could be JSON or Protobuf, the function
+// to know how to parse the raw payload that could be JSON or Protobuf, the function
 // need to know the route.
 func (s *Store) encodeToJSONRawPayload(rawPayload api.Payload, route string) (*api.ParsedPayload, error) {
 	if parsePayload, ok := parserMap[route]; ok {
