@@ -30,6 +30,14 @@ func NewLRUStringInterner(size int) *LRUStringInterner {
 	}
 }
 
+// DeduplicateBytes returns a possibly de-duplicated string from bytes
+func (si *LRUStringInterner) DeduplicateBytes(value []byte) string {
+	si.Lock()
+	defer si.Unlock()
+
+	return si.deduplicateUnsafe(string(value))
+}
+
 // Deduplicate returns a possibly de-duplicated string
 func (si *LRUStringInterner) Deduplicate(value string) string {
 	si.Lock()
@@ -45,14 +53,4 @@ func (si *LRUStringInterner) deduplicateUnsafe(value string) string {
 
 	si.store.Add(value, value)
 	return value
-}
-
-// DeduplicateSlice returns a possibly de-duplicated string slice
-func (si *LRUStringInterner) DeduplicateSlice(values []string) {
-	si.Lock()
-	defer si.Unlock()
-
-	for i := range values {
-		values[i] = si.deduplicateUnsafe(values[i])
-	}
 }
