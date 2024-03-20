@@ -1476,7 +1476,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	var interner model.StringInterner
 	if config.Probe.EventStreamInternStrings {
-		interner = utils.NewStringInterner()
+		interner = utils.NewLRUStringInterner(8192)
 	}
 
 	p := &EBPFProbe{
