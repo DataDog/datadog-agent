@@ -121,6 +121,48 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
 
     log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
 
+    switch (kafka_header.api_key) {
+    case KAFKA_PRODUCE:
+    {
+        READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, skb, offset);
+        if (number_of_partitions > 1) {
+            log_debug("We have more than a single partition for produce request, we currently support only the first partition");
+            return false;
+        }
+        offset += sizeof(s32); // Skipping Partition ID
+        offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
+        offset += sizeof(s64); // Skipping record batch baseOffset
+        offset += sizeof(s32); // Skipping record batch batchLength
+        offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch
+        READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, skb, offset);
+        if (magic_byte != 2) {
+            log_debug("Got magic byte != 2, the protocol state it should be 2");
+            return false;
+        }
+        offset += sizeof(u32); // Skipping crc
+        offset += sizeof(s16); // Skipping attributes
+        offset += sizeof(s32); // Skipping last offset delta
+        offset += sizeof(s64); // Skipping base timestamp
+        offset += sizeof(s64); // Skipping max timestamp
+        offset += sizeof(s64); // Skipping producer id
+        offset += sizeof(s16); // Skipping producer epoch
+        offset += sizeof(s32); // Skipping base sequence
+        READ_BIG_ENDIAN_WRAPPER(s32, records_count, skb, offset);
+        if (records_count <= 0) {
+            log_debug("Got number of Kafka produce records <= 0");
+            return false;
+        }
+        kafka_transaction->records_count = records_count;
+        break;
+    }
+    case KAFKA_FETCH:
+        // We currently lack support for fetch context record counts as they are only accessible within the Kafka response
+        kafka_transaction->records_count = 1;
+        break;
+    default:
+        return false;
+     }
+
     kafka_batch_enqueue(kafka_transaction);
     return true;
 }

@@ -30,3 +30,7 @@ func (tx *EbpfTx) APIKey() uint16 {
 func (tx *EbpfTx) APIVersion() uint16 {
 	return tx.Request_api_version
 }
+
+func (tx *EbpfTx) RecordsCount() uint32 {
+	return tx.Records_count
+}
