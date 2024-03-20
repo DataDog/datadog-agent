@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	statsd *ddogstatsd.Client
+	statsd ddogstatsd.ClientInterface
 
 	globalConfigs   map[confKey]aws.Config
 	globalConfigsMu sync.Mutex

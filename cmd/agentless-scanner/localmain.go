@@ -10,11 +10,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/spf13/cobra"
 )
 
-func localGroupCommand(parent *cobra.Command, sc *types.ScannerConfig) *cobra.Command {
+func localGroupCommand(parent *cobra.Command, statsd statsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "local",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -22,11 +23,11 @@ func localGroupCommand(parent *cobra.Command, sc *types.ScannerConfig) *cobra.Co
 		SilenceUsage:      true,
 		PersistentPreRunE: parent.PersistentPreRunE,
 	}
-	cmd.AddCommand(localScanCommand(sc))
+	cmd.AddCommand(localScanCommand(statsd, sc))
 	return cmd
 }
 
-func localScanCommand(sc *types.ScannerConfig) *cobra.Command {
+func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
 	var flags struct {
 		Hostname string
 	}
@@ -39,7 +40,7 @@ func localScanCommand(sc *types.ScannerConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return localScanCmd(sc, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return localScanCmd(statsd, sc, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
 		},
 	}
 
@@ -47,7 +48,7 @@ func localScanCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func localScanCmd(sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := ctxTerminated()
 
 	hostname := tryGetHostname(ctx)
