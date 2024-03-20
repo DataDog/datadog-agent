@@ -226,6 +226,11 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 	)
 	assert.NoError(tt, err, "uninstall should not remove agent user")
+
+	for _, serviceName := range servicetest.ExpectedInstalledServices() {
+		_, err := windows.GetServiceConfig(t.host, serviceName)
+		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
+	}
 }
 
 // Only do some basic checks on the agent since it's a previous version
