@@ -2517,6 +2517,8 @@ func TestMockConfig(t *testing.T) {
 		fx.Supply(corecomp.Params{}),
 		corecomp.MockModule(),
 		MockModule(),
+		// disable fetching the hostname from the core agent
+		fx.Replace(corecomp.MockParams{Overrides: map[string]interface{}{"serverless.enabled": true}}),
 	))
 	// underlying config
 	cfg := config.Object()
