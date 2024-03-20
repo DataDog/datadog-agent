@@ -33,7 +33,8 @@ static __always_inline bool is_sql_command(const char *buf, __u32 buf_size) {
         || check_command(tmp, SQL_DROP, buf_size)
         || check_command(tmp, SQL_INSERT, buf_size)
         || check_command(tmp, SQL_SELECT, buf_size)
-        || check_command(tmp, SQL_UPDATE, buf_size);
+        || check_command(tmp, SQL_UPDATE, buf_size)
+        || check_command(tmp, SQL_SHOW, buf_size);
 }
 
 #endif // __SQL_HELPERS_H

@@ -10,5 +10,6 @@
 #define SQL_INSERT "INSERT"
 #define SQL_SELECT "SELECT"
 #define SQL_UPDATE "UPDATE"
+#define SQL_SHOW "SHOW"
 
 #endif /*__SQL_DEFS_H*/
