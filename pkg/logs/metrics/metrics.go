@@ -65,6 +65,9 @@ var (
 	//nolint:revive // TODO(AML) Fix revive linter
 	TlmDestinationHttpRespByStatusAndUrl = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 
+	TlmLogsInput = telemetry.NewCounter("logs", "input", nil, "Total number of log messages read.")
+	// For output see `TlmLogsSent`.
+	TlmFileRead = telemetry.NewGauge("processing", "file_read", []string{"file_name"}, "File read progress.")
 	TlmChanTime = telemetry.NewHistogram("processing",
 		"channel_time",
 		[]string{"channel"},

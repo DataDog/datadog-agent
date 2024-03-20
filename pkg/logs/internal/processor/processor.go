@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -86,20 +85,35 @@ func (p *Processor) Flush(ctx context.Context) {
 	}
 }
 
+var (
+	tlmInUse = telemetry.NewCounter("processing", "in_use_ms", nil, "Time spent processing payloads in ms")
+	tlmIdle  = telemetry.NewCounter("processing", "idle_ms", nil, "Time spent idle while not processing payloads in ms")
+)
+
 // run starts the processing of the inputChan
 func (p *Processor) run() {
 	defer func() {
 		p.done <- struct{}{}
 	}()
-	for msg := range p.inputChan {
-		p.processMessage(msg.Inner)
+	startIdle := time.Now()
 
+	for msg := range p.inputChan {
 		metrics.TlmChanTime.Observe(float64(msg.SendDuration().Nanoseconds()), "processing")
 		metrics.TlmChanTimeSkew.Set(telemetry.GetSkew(metrics.TlmChanTime, "processing"), "processing")
+
+		idle := float64(time.Since(startIdle) / time.Millisecond)
+		tlmIdle.Add(idle)
+
+		var startInUse = time.Now()
+		p.processMessage(msg.Inner)
 
 		p.mu.Lock() // block here if we're trying to flush synchronously
 		//nolint:staticcheck
 		p.mu.Unlock()
+
+		inUse := float64(time.Since(startInUse) / time.Millisecond)
+		tlmInUse.Add(inUse)
+		startIdle = time.Now()
 	}
 }
 
@@ -132,6 +146,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.outputChan <- message.NewTimedMessage(msg)
 	}
 }
+
+var tlmBiggestPrime = telemetry.NewGauge("processing", "biggest_prime", nil, "Biggest prime found")
 
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
@@ -182,7 +198,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			}
 		}
 
-		fmt.Println("Biggest prime found:", biggest)
+		tlmBiggestPrime.Set(float64(biggest))
 	}
 
 	msg.SetContent(content)
