@@ -155,6 +155,7 @@ def lint_licenses(ctx):
             licenses.append(line.rstrip())
 
     new_licenses = get_licenses_list(ctx)
+    _verify_unknown_licenses(new_licenses, file)
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -184,10 +185,23 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
     new_licenses = get_licenses_list(ctx)
+    _verify_unknown_licenses(new_licenses, filename)
 
-    # check that all deps have a non-"UNKNOWN" copyright and license
+    with open(filename, 'w') as f:
+        f.write("Component,Origin,License,Copyright\n")
+        for license in new_licenses:
+            if verbose:
+                print(license)
+            f.write(f'{license}\n')
+    print("licenses files generated")
+
+
+def _verify_unknown_licenses(licenses, licenses_filename):
+    """
+    Check that all deps have a non-"UNKNOWN" copyright and license
+    """
     unknown_licenses = False
-    for line in new_licenses:
+    for line in licenses:
         if ',UNKNOWN' in line:
             unknown_licenses = True
             print(f"! {line}")
@@ -201,17 +215,9 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
                 Consult the dependency's source, update
                 `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
                 `inv generate-licenses` to update {}."""
-            ).format(filename),
+            ).format(licenses_filename),
             code=1,
         )
-
-    with open(filename, 'w') as f:
-        f.write("Component,Origin,License,Copyright\n")
-        for license in new_licenses:
-            if verbose:
-                print(license)
-            f.write(f'{license}\n')
-    print("licenses files generated")
 
 
 @task
