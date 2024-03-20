@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -106,4 +107,41 @@ func AssertUserRights(t *testing.T, host *components.RemoteHost, username string
 		return false
 	}
 	return assert.ElementsMatch(t, expectedRights, actualRights, "user %s should have user rights", username)
+}
+
+// RequireAgentRunningWithNoErrors checks the agent is running with no errors
+func RequireAgentRunningWithNoErrors(t *testing.T, client *common.TestClient) {
+	common.CheckAgentBehaviour(t, client)
+}
+
+// getExpectedSignedFilesForAgentMajorVersion returns the list of files that should be signed for the given agent major version
+// as relative paths from the agent install directory.
+func getExpectedSignedFilesForAgentMajorVersion(majorVersion string) []string {
+	paths := []string{
+		// user binaries
+		`bin\agent.exe`,
+		`bin\libdatadog-agent-three.dll`,
+		`bin\agent\trace-agent.exe`,
+		`bin\agent\process-agent.exe`,
+		`bin\agent\system-probe.exe`,
+		// drivers
+		`bin\agent\driver\ddnpm.sys`,
+	}
+	// As of 7.5?, the embedded Python3 should be signed by Python, not Datadog
+	// We still build our own Python2, so we need to check that
+	if ExpectPython2Installed(majorVersion) {
+		paths = append(paths, []string{
+			`bin\libdatadog-agent-three.dll`,
+			`embedded2\python.exe`,
+			`embedded2\pythonw.exe`,
+			`embedded2\python27.dll`,
+		}...)
+	}
+	return paths
+}
+
+// ExpectPython2Installed returns true if the provided agent major version is expected
+// to contain an embedded Python2.
+func ExpectPython2Installed(majorVersion string) bool {
+	return majorVersion == "6"
 }
