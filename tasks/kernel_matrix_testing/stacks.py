@@ -92,7 +92,7 @@ def local_vms_in_config(vmconfig):
 
 
 def kvm_ok(ctx):
-    if os.path.exists("/dev/kvm"):
+    if not os.path.exists("/dev/kvm"):
         error(f"[-] /dev/kvm not found. KVM not available on system")
         raise Exit("KVM not available")
 
