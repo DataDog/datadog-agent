@@ -831,6 +831,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	}
 	if withVersion {
 		tags = append(tags, "version:"+version.AgentVersion)
+		if version.AgentPackageVersion != "" {
+			tags = append(tags, "package_version:"+version.AgentPackageVersion)
+		}
 	}
 	// nil to empty string
 	// This is expected by other components/tests
