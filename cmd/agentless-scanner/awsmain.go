@@ -32,6 +32,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +42,7 @@ var awsFlags struct {
 	account string
 }
 
-func awsGroupCommand(parent *cobra.Command, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func awsGroupCommand(parent *cobra.Command, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "aws",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -51,15 +53,15 @@ func awsGroupCommand(parent *cobra.Command, sc *types.ScannerConfig, evp *eventp
 	pflags := cmd.PersistentFlags()
 	pflags.StringVar(&awsFlags.region, "region", "", "AWS region")
 	pflags.StringVar(&awsFlags.account, "account-id", "", "AWS account ID")
-	cmd.AddCommand(awsScanCommand(sc, evp))
+	cmd.AddCommand(awsScanCommand(statsd, sc, evp))
 	cmd.AddCommand(awsSnapshotCommand(sc))
-	cmd.AddCommand(awsOfflineCommand(sc, evp))
+	cmd.AddCommand(awsOfflineCommand(statsd, sc, evp))
 	cmd.AddCommand(awsAttachCommand(sc))
 	cmd.AddCommand(awsCleanupCommand(sc))
 	return cmd
 }
 
-func awsScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func awsScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	var flags struct {
 		Hostname string
 		Region   string
@@ -78,8 +80,7 @@ func awsScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobr
 			if err != nil {
 				return err
 			}
-			fmt.Println("EVP", evp)
-			return awsScanCmd(ctx, sc, evp, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return awsScanCmd(ctx, statsd, sc, evp, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
 		},
 	}
 
@@ -131,7 +132,7 @@ func awsSnapshotCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func awsOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func awsOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	parseFilters := func(filters string) ([]ec2types.Filter, error) {
 		var fs []ec2types.Filter
 		if filter := filters; filter != "" {
@@ -187,6 +188,7 @@ func awsOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *c
 			}
 			return awsOfflineCmd(
 				ctx,
+				statsd,
 				sc,
 				evp,
 				flags.workers,
@@ -257,7 +259,7 @@ func awsCleanupCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	hostname := tryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -304,7 +306,7 @@ func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform
 	return nil
 }
 
-func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	defer statsd.Flush()
 
 	hostname, err := utils.GetHostnameWithContext(ctx)

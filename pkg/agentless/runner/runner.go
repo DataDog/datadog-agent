@@ -60,7 +60,7 @@ type Options struct {
 	NoFork         bool
 	DefaultRoles   types.RolesMapping
 	DefaultActions []types.ScanAction
-	Statsd         *ddogstatsd.Client
+	Statsd         ddogstatsd.ClientInterface
 	EventForwarder eventplatform.Component
 	ScannerConfig  *types.ScannerConfig
 }

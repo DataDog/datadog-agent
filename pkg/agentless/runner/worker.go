@@ -26,6 +26,7 @@ import (
 	"time"
 
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
@@ -33,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/agentless/scanners"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // WorkerOptions holds the configuration for a worker.
@@ -42,7 +41,7 @@ type WorkerOptions struct {
 	ScannerID   types.ScannerID
 	ScannersMax int
 	NoFork      bool
-	Statsd      *ddogstatsd.Client
+	Statsd      statsd.ClientInterface
 }
 
 // Worker is a worker that runs scans.
