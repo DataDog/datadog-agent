@@ -5,7 +5,7 @@
 
 //go:build linux
 
-// Package selector holds profile related files
+// Package selector holds selector related files
 package selector
 
 import (
