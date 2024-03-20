@@ -774,7 +774,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
-	if !profile.IsEventTypeValid(event.GetEventType()) {
+	if !profile.IsEventTypeValid(event.GetEventType()) || !profile.loadedInKernel {
 		return
 	}
 
