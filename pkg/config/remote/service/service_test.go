@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	_ "embed"
 	"encoding/base32"
 	"encoding/json"
 	"errors"
@@ -938,4 +939,201 @@ func TestOrgStatus(t *testing.T) {
 	service.pollOrgStatus()
 	assert.True(t, service.previousOrgStatus.Enabled)
 	assert.False(t, service.previousOrgStatus.Authorized)
+}
+
+func TestWithTraceAgentEnv(t *testing.T) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	dir := t.TempDir()
+	cfg.SetWithoutSource("run_path", dir)
+
+	baseRawURL := "https://localhost"
+	traceAgentEnv := "dog"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithTraceAgentEnv(traceAgentEnv),
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, "dog", service.traceAgentEnv)
+}
+
+func TestWithDatabaseFileName(t *testing.T) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithDatabaseFileName("test.db"),
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, "/tmp/test.db", service.db.Path())
+}
+
+func TestWithDirectorRootOverride(t *testing.T) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithDirectorRootOverride("{\"a\": \"b\"}"),
+		WithAPIKey("abc"),
+	}
+	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	// Because we used an invalid root, we should get an error. All we're trying to capture
+	// with this test is that the builder method is propagating the value properly
+	assert.Errorf(t, err, "failed to set embedded root in roots bucket: invalid meta: version field is missing")
+}
+
+type refreshIntervalTest struct {
+	name                                   string
+	interval                               time.Duration
+	expected                               time.Duration
+	expectedRefreshIntervalOverrideAllowed bool
+}
+
+func TestWithRefreshInterval(t *testing.T) {
+	tests := []refreshIntervalTest{
+		{
+			name:                                   "valid interval",
+			interval:                               42 * time.Second,
+			expected:                               42 * time.Second,
+			expectedRefreshIntervalOverrideAllowed: false,
+		},
+		{
+			name:                                   "interval too short",
+			interval:                               1 * time.Second,
+			expected:                               defaultRefreshInterval,
+			expectedRefreshIntervalOverrideAllowed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg.SetWithoutSource("run_path", "/tmp")
+
+			baseRawURL := "https://localhost"
+			mockTelemetryReporter := newMockRcTelemetryReporter()
+			options := []Option{
+				WithRefreshInterval(tt.interval, "test.refresh_interval"),
+				WithAPIKey("abc"),
+			}
+			service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, service.defaultRefreshInterval)
+			assert.Equal(t, tt.expectedRefreshIntervalOverrideAllowed, service.refreshIntervalOverrideAllowed)
+			service.Stop()
+		})
+	}
+}
+
+type maxBackoffIntervalTest struct {
+	name     string
+	interval time.Duration
+	expected time.Duration
+}
+
+func TestWithMaxBackoffInterval(t *testing.T) {
+
+	tests := []maxBackoffIntervalTest{
+		{
+			name:     "valid interval",
+			interval: 3 * time.Minute,
+			expected: 3 * time.Minute,
+		},
+		{
+			name:     "interval too short",
+			interval: 1 * time.Second,
+			expected: minimalMaxBackoffTime,
+		},
+		{
+			name:     "interval too long",
+			interval: 1 * time.Hour,
+			expected: maximalMaxBackoffTime,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := WithMaxBackoffInterval(tt.interval, "test.max_backoff_interval")
+			defaultOptions := &options{}
+			opt(defaultOptions)
+			assert.Equal(t, tt.expected, defaultOptions.maxBackoff)
+		})
+	}
+}
+
+type clientCacheBypassLimitTest struct {
+	name     string
+	limit    int
+	expected int
+}
+
+func TestWithClientCacheBypassLimit(t *testing.T) {
+	tests := []clientCacheBypassLimitTest{
+		{
+			name:     "valid limit",
+			limit:    5,
+			expected: 5,
+		},
+		{
+			name:     "limit too small",
+			limit:    -1,
+			expected: defaultCacheBypassLimit,
+		},
+		{
+			name:     "limit too large",
+			limit:    100000,
+			expected: defaultCacheBypassLimit,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := WithClientCacheBypassLimit(tt.limit, "test.client_cache_bypass_limit")
+			defaultOptions := &options{}
+			opt(defaultOptions)
+			assert.Equal(t, tt.expected, defaultOptions.clientCacheBypassLimit)
+		})
+	}
+}
+
+type clientTTLTest struct {
+	name     string
+	ttl      time.Duration
+	expected time.Duration
+}
+
+func TestWithClientTTL(t *testing.T) {
+	tests := []clientTTLTest{
+		{
+			name:     "valid ttl",
+			ttl:      10 * time.Second,
+			expected: 10 * time.Second,
+		},
+		{
+			name:     "ttl too short",
+			ttl:      1 * time.Second,
+			expected: defaultClientsTTL,
+		},
+		{
+			name:     "ttl too long",
+			ttl:      1 * time.Hour,
+			expected: defaultClientsTTL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := WithClientTTL(tt.ttl, "test.client_ttl")
+			defaultOptions := &options{}
+			opt(defaultOptions)
+			assert.Equal(t, tt.expected, defaultOptions.clientTTL)
+		})
+	}
 }
