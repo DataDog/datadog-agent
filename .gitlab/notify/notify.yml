@@ -71,8 +71,8 @@ notify_github:
       when: on_success
     - when: never
   needs:
-    - job: "github_rate_limit_info"
-      optional: true # - job: "deploy_deb_testing-a7_x64"
+    - job: "deploy_deb_testing-a7_x64"
+      optional: true
   dependencies: []
   allow_failure: true
   script:
