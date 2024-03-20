@@ -8,8 +8,6 @@
 package healthprobeimpl
 
 import (
-	"context"
-
 	"go.uber.org/fx"
 
 	healthprobeComp "github.com/DataDog/datadog-agent/comp/core/healthprobe"
@@ -24,10 +22,6 @@ func MockModule() fxutil.Module {
 }
 
 type mock struct{}
-
-func (m mock) Serve(context.Context) error {
-	return nil
-}
 
 func newMock() healthprobeComp.Component {
 	return mock{}
