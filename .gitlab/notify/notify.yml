@@ -66,8 +66,8 @@ notify_github:
     - !reference [.except_no_tests_no_deploy]
     - changes:
         paths:
-          - ./**/*.go
-        compare_to: 'refs/heads/main'
+          - '**/*.go'
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
       when: on_success
     - when: never
   needs:
