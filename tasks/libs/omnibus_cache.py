@@ -59,7 +59,6 @@ def _get_environment_for_cache() -> dict:
             "CONSUL_HTTP_ADDR",
             "DOGSTATSD_BINARIES_DIR",
             "EXPERIMENTS_EVALUATION_ADDRESS",
-            "GCC_VERSION",
             "GCE_METADATA_HOST",
             "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
             "GET_SOURCES_ATTEMPTS",
