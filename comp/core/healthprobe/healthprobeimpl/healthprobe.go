@@ -74,23 +74,12 @@ func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Co
 		return healthprobe{}, err
 	}
 
-	r := mux.NewRouter()
-	r.HandleFunc("/live", liveHandler(deps.Config, deps.Log))
-	r.HandleFunc("/ready", readyHandler(deps.Config, deps.Log))
-	// Default route for backward compatibility
-	r.NewRoute().HandlerFunc(liveHandler(deps.Config, deps.Log))
-
-	srv := &http.Server{
-		Handler:           r,
-		ReadTimeout:       defaultTimeout,
-		ReadHeaderTimeout: defaultTimeout,
-		WriteTimeout:      defaultTimeout,
-	}
+	server := buildServer(deps.Config, deps.Log)
 
 	probe := &healthprobe{
 		config:   deps.Config,
 		log:      deps.Log,
-		server:   srv,
+		server:   server,
 		listener: ln,
 	}
 
@@ -107,15 +96,47 @@ func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Co
 	return probe, nil
 }
 
-func liveHandler(config config.Component, log log.Component) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		healthHandler(config, log, health.GetLiveNonBlocking, w, r)
-	}
+type liveHandler struct {
+	config config.Component
+	log    log.Component
 }
 
-func readyHandler(config config.Component, log log.Component) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		healthHandler(config, log, health.GetReadyNonBlocking, w, r)
+func (lh liveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	healthHandler(lh.config, lh.log, health.GetLiveNonBlocking, w, r)
+}
+
+type readyHandler struct {
+	config config.Component
+	log    log.Component
+}
+
+func (rh readyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	healthHandler(rh.config, rh.log, health.GetReadyNonBlocking, w, r)
+}
+
+func buildServer(config config.Component, log log.Component) *http.Server {
+	r := mux.NewRouter()
+
+	liveHandler := liveHandler{
+		config: config,
+		log:    log,
+	}
+
+	readyHandler := readyHandler{
+		config: config,
+		log:    log,
+	}
+
+	r.Handle("/live", liveHandler)
+	r.Handle("/ready", readyHandler)
+	// Default route for backward compatibility
+	r.NewRoute().Handler(liveHandler)
+
+	return &http.Server{
+		Handler:           r,
+		ReadTimeout:       defaultTimeout,
+		ReadHeaderTimeout: defaultTimeout,
+		WriteTimeout:      defaultTimeout,
 	}
 }
 
