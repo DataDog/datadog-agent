@@ -15,6 +15,8 @@ import (
 const (
 	// CheckName is the name of the check
 	CheckName = "oracle"
+	// OracleDbmCheckName is the name of the check that was renamed to `oracle`
+	OracleDbmCheckName = "oracle-dbm"
 )
 
 // Factory creates a new check factory
