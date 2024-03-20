@@ -76,15 +76,14 @@
 deploy_packages_oci:
   resource_group: oci_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-    #needs: [ "packaging_oci" ]
-  needs: ["setup_agent_version"]
+  needs: [ "packaging_oci" ]
   tags: ["arch:amd64"]
   stage: deploy_packages
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
   rules:
     !reference [.on_deploy_a7]
   script:
-    # TMP:
-    - $S3_CP_CMD s3://dd-release-artifacts/datadog-agent/30083175/oci/datadog-agent-7.53.0-devel.git.450.6fa4fc7.pipeline.30083175-1.oci.tar /tmp/
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - set +x
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
@@ -95,7 +94,7 @@ deploy_packages_oci:
     - git clone https://github.com/DataDog/datadog-packages /tmp/datadog-packages
     - cd /tmp/datadog-packages/cmd/datadog-package
     - go build .
-    - ./datadog-package push registry.ddbuild.io/ci/datadog-agent/datadog-agent-ociru:${VERSION} /tmp/datadog-agent-7.53.0-devel.git.450.6fa4fc7.pipeline.30083175-1.oci.tar
+    - ./datadog-package push registry.ddbuild.io/ci/datadog-agent/datadog-agent-ociru:${VERSION} ${OMNIBUS_PACKAGE_DIR}/datadog-agent-${MAJOR_VERSION}.*.oci.tar
   variables:
     MAJOR_VERSION: 7
 
