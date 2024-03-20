@@ -35,7 +35,8 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutationFunc, dc dy
 	}
 
 	if injected, err := m(&pod, ns, dc); err != nil {
-		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(injected), err.Error())
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
+		return nil, fmt.Errorf("failed to mutate pod: %v", err)
 	} else {
 		metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 	}
