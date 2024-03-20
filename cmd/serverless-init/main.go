@@ -43,7 +43,7 @@ import (
 )
 
 const (
-	datadogConfigPath = "/var/task/datadog.yaml"
+	datadogConfigPath = "/datadog.yaml"
 	logLevelEnvVar    = "DD_LOG_LEVEL"
 )
 
@@ -76,6 +76,8 @@ func setup(loggerName string, secretsManager secrets.Component) (cloudservice.Cl
 	config.LoadProxyFromEnv(config.Datadog)
 
 	cloudService := cloudservice.GetCloudServiceType()
+
+	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 
 	// Ignore errors for now. Once we go GA, check for errors
 	// and exit right away.
