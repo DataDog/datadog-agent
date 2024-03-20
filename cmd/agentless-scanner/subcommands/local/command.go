@@ -3,10 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package main
+// Package local implements the agentless-scanner local subcommand
+package local
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
@@ -15,7 +19,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func localGroupCommand(parent *cobra.Command, statsd statsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
+// GroupCommand returns the local commands
+func GroupCommand(parent *cobra.Command, statsd statsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "local",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -28,7 +33,7 @@ func localGroupCommand(parent *cobra.Command, statsd statsd.ClientInterface, sc 
 }
 
 func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
-	var flags struct {
+	var localFlags struct {
 		Hostname string
 	}
 	cmd := &cobra.Command{
@@ -40,24 +45,24 @@ func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *c
 			if err != nil {
 				return err
 			}
-			return localScanCmd(statsd, sc, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return localScanCmd(statsd, sc, resourceID, localFlags.Hostname, flags.GlobalFlags.DefaultActions, flags.GlobalFlags.DiskMode, flags.GlobalFlags.NoForkScanners)
 		},
 	}
 
-	cmd.Flags().StringVar(&flags.Hostname, "hostname", "unknown", "scan hostname")
+	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
 	return cmd
 }
 
 func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
-	ctx := ctxTerminated()
+	ctx := common.CtxTerminated()
 
-	hostname := tryGetHostname(ctx)
+	hostname := common.TryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
 	}
 	scannerID := types.NewScannerID(types.CloudProviderNone, hostname)
-	roles := getDefaultRolesMapping(sc, types.CloudProviderNone)
+	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderNone)
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),

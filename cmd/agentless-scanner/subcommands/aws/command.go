@@ -3,17 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package main
+// Package aws implements the agentless-scanner aws subcommand
+package aws
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
@@ -42,7 +44,8 @@ var awsFlags struct {
 	account string
 }
 
-func awsGroupCommand(parent *cobra.Command, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+// GroupCommand returns the AWS commands
+func GroupCommand(parent *cobra.Command, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "aws",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -62,7 +65,7 @@ func awsGroupCommand(parent *cobra.Command, statsd ddogstatsd.ClientInterface, s
 }
 
 func awsScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
-	var flags struct {
+	var localFlags struct {
 		Hostname string
 		Region   string
 	}
@@ -71,7 +74,7 @@ func awsScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, 
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := ctxTerminated()
+			ctx := common.CtxTerminated()
 			self, err := probeAWSEnv(ctx, sc)
 			if err != nil {
 				return err
@@ -80,11 +83,11 @@ func awsScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, 
 			if err != nil {
 				return err
 			}
-			return awsScanCmd(ctx, statsd, sc, evp, resourceID, flags.Hostname, globalFlags.defaultActions, globalFlags.diskMode, globalFlags.noForkScanners)
+			return awsScanCmd(ctx, statsd, sc, evp, resourceID, localFlags.Hostname, flags.GlobalFlags.DefaultActions, flags.GlobalFlags.DiskMode, flags.GlobalFlags.NoForkScanners)
 		},
 	}
 
-	cmd.Flags().StringVar(&flags.Hostname, "hostname", "unknown", "scan hostname")
+	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
 	return cmd
 }
 
@@ -94,8 +97,8 @@ func awsSnapshotCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConf
 		Short: "Create a snapshot of the given (server-less mode)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := ctxTerminated()
-			hostname := tryGetHostname(ctx)
+			ctx := common.CtxTerminated()
+			hostname := common.TryGetHostname(ctx)
 			scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 			self, err := probeAWSEnv(ctx, sc)
 			if err != nil {
@@ -105,16 +108,16 @@ func awsSnapshotCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConf
 			if err != nil {
 				return err
 			}
-			roles := getDefaultRolesMapping(sc, types.CloudProviderAWS)
+			roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 			scan, err := types.NewScanTask(
 				types.TaskTypeEBS,
 				volumeID.AsText(),
 				scannerID,
 				"unknown",
 				nil,
-				globalFlags.defaultActions,
+				flags.GlobalFlags.DefaultActions,
 				roles,
-				globalFlags.diskMode)
+				flags.GlobalFlags.DiskMode)
 			if err != nil {
 				return err
 			}
@@ -159,7 +162,7 @@ func awsOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 		return fs, nil
 	}
 
-	var flags struct {
+	var localFlags struct {
 		workers      int
 		filters      string
 		taskType     string
@@ -170,19 +173,19 @@ func awsOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := ctxTerminated()
+			ctx := common.CtxTerminated()
 			self, err := probeAWSEnv(ctx, sc)
 			if err != nil {
 				return err
 			}
-			if flags.workers <= 0 {
+			if localFlags.workers <= 0 {
 				return fmt.Errorf("workers must be greater than 0")
 			}
-			filters, err := parseFilters(flags.filters)
+			filters, err := parseFilters(localFlags.filters)
 			if err != nil {
 				return err
 			}
-			taskType, err := types.ParseTaskType(flags.taskType)
+			taskType, err := types.ParseTaskType(localFlags.taskType)
 			if err != nil {
 				return err
 			}
@@ -191,29 +194,29 @@ func awsOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 				statsd,
 				sc,
 				evp,
-				flags.workers,
+				localFlags.workers,
 				taskType,
 				self.AccountID,
 				self.Region,
-				flags.maxScans,
-				flags.printResults,
+				localFlags.maxScans,
+				localFlags.printResults,
 				filters,
-				globalFlags.diskMode,
-				globalFlags.defaultActions,
-				globalFlags.noForkScanners)
+				flags.GlobalFlags.DiskMode,
+				flags.GlobalFlags.DefaultActions,
+				flags.GlobalFlags.NoForkScanners)
 		},
 	}
 
-	cmd.Flags().IntVar(&flags.workers, "workers", 40, "number of scans running in parallel")
-	cmd.Flags().StringVar(&flags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
-	cmd.Flags().StringVar(&flags.taskType, "task-type", string(types.TaskTypeEBS), fmt.Sprintf("scan type (%s, %s, %s or %s)", types.TaskTypeEBS, types.TaskTypeLambda, types.TaskTypeAMI, types.TaskTypeHost))
-	cmd.Flags().IntVar(&flags.maxScans, "max-scans", 0, "maximum number of scans to perform")
-	cmd.Flags().BoolVar(&flags.printResults, "print-results", false, "print scan results to stdout")
+	cmd.Flags().IntVar(&localFlags.workers, "workers", 40, "number of scans running in parallel")
+	cmd.Flags().StringVar(&localFlags.filters, "filters", "", "list of filters to filter the resources (format: Name=string,Values=string,string)")
+	cmd.Flags().StringVar(&localFlags.taskType, "task-type", string(types.TaskTypeEBS), fmt.Sprintf("scan type (%s, %s, %s or %s)", types.TaskTypeEBS, types.TaskTypeLambda, types.TaskTypeAMI, types.TaskTypeHost))
+	cmd.Flags().IntVar(&localFlags.maxScans, "max-scans", 0, "maximum number of scans to perform")
+	cmd.Flags().BoolVar(&localFlags.printResults, "print-results", false, "print scan results to stdout")
 	return cmd
 }
 
 func awsAttachCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
-	var flags struct {
+	var localFlags struct {
 		noMount bool
 	}
 	cmd := &cobra.Command{
@@ -221,7 +224,7 @@ func awsAttachCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig
 		Short: "Attaches a snapshot or volume to the current instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := ctxTerminated()
+			ctx := common.CtxTerminated()
 			self, err := probeAWSEnv(ctx, sc)
 			if err != nil {
 				return err
@@ -230,10 +233,10 @@ func awsAttachCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig
 			if err != nil {
 				return err
 			}
-			return awsAttachCmd(ctx, statsd, sc, resourceID, !flags.noMount, globalFlags.diskMode, globalFlags.defaultActions)
+			return awsAttachCmd(ctx, statsd, sc, resourceID, !localFlags.noMount, flags.GlobalFlags.DiskMode, flags.GlobalFlags.DefaultActions)
 		},
 	}
-	cmd.Flags().BoolVar(&flags.noMount, "no-mount", false, "mount the device")
+	cmd.Flags().BoolVar(&localFlags.noMount, "no-mount", false, "mount the device")
 	return cmd
 }
 
@@ -246,7 +249,7 @@ func awsCleanupCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 		Use:   "cleanup",
 		Short: "Cleanup resources created by the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := ctxTerminated()
+			ctx := common.CtxTerminated()
 			self, err := probeAWSEnv(ctx, sc)
 			if err != nil {
 				return err
@@ -260,13 +263,13 @@ func awsCleanupCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 }
 
 func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
-	hostname := tryGetHostname(ctx)
+	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
 	}
-	roles := getDefaultRolesMapping(sc, types.CloudProviderAWS)
+	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),
@@ -315,7 +318,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	}
 
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	roles := getDefaultRolesMapping(sc, types.CloudProviderAWS)
+	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 	scanner, err := runner.New(runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
@@ -585,7 +588,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 }
 
 func awsCleanupCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, region, account string, dryRun bool, delay time.Duration) error {
-	assumedRole := getDefaultRolesMapping(sc, types.CloudProviderAWS).GetRole(account)
+	assumedRole := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS).GetRole(account)
 	toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, statsd, sc, delay, region, assumedRole)
 	if err != nil {
 		return err
@@ -605,9 +608,9 @@ func awsCleanupCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 }
 
 func awsAttachCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
-	hostname := tryGetHostname(ctx)
+	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	roles := getDefaultRolesMapping(sc, types.CloudProviderAWS)
+	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 	scan, err := types.NewScanTask(
 		types.TaskTypeEBS,
 		resourceID.AsText(),
@@ -730,18 +733,4 @@ func probeAWSEnv(ctx context.Context, sc *types.ScannerConfig) (*awsEnv, error) 
 		Region:    region,
 		AccountID: account,
 	}, nil
-}
-
-func ctxTerminated() context.Context {
-	ctx, cancel := context.WithCancel(context.Background())
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		select {
-		case <-ch:
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-	return ctx
 }
