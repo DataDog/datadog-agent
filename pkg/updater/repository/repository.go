@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -360,6 +361,12 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	err = os.Rename(sourcePath, targetPath)
 	if err != nil {
 		return "", fmt.Errorf("could not move source: %w", err)
+	}
+
+	if filepath.Base(rootPath) == "datadog-updater" {
+		if err = service.SetUpdaterHelperCapabilities(packageName); err != nil {
+			return "", fmt.Errorf("failed to set updater-helper cap: %w", err)
+		}
 	}
 
 	return targetPath, nil

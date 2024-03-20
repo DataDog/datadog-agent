@@ -59,11 +59,16 @@ build do
       mkdir "/usr/lib/systemd/system/"
       systemdPath = "/usr/lib/systemd/system/"
     end
+
     erb source: "datadog-updater.service.erb",
        dest: systemdPath + "datadog-updater.service",
        mode: 0644,
-       vars: { install_dir: install_dir, etc_dir: etc_dir}
+       vars: { install_dir: "/opt/datadog-packages/datadog-updater/stable", etc_dir: etc_dir}
 
+    erb source: "datadog-updater-exp.service.erb",
+       dest: systemdPath + "datadog-updater-exp.service",
+       mode: 0644,
+       vars: { install_dir: "/opt/datadog-packages/datadog-updater/experiment", etc_dir: etc_dir}
 
     systemdPath = "#{install_dir}/systemd/"
     # Add stable agent units
@@ -73,7 +78,6 @@ build do
       "datadog-agent-process.service.erb" => "datadog-agent-process.service",
       "datadog-agent-security.service.erb" => "datadog-agent-security.service",
       "datadog-agent-sysprobe.service.erb" => "datadog-agent-sysprobe.service",
-      "datadog-updater.service.erb" => "datadog-updater.service",
     }
     templateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/stable"
@@ -89,7 +93,6 @@ build do
       "datadog-agent-process-exp.service.erb" => "datadog-agent-process-exp.service",
       "datadog-agent-security-exp.service.erb" => "datadog-agent-security-exp.service",
       "datadog-agent-sysprobe-exp.service.erb" => "datadog-agent-sysprobe-exp.service",
-      "datadog-updater.service-exp.erb" => "datadog-updater-exp.service",
     }
     expTemplateToFile.each do |template, file|
       agent_dir = "/opt/datadog-packages/datadog-agent/experiment"

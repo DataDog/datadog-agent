@@ -46,6 +46,10 @@ func RemoveUpdaterUnit() {
 	}
 }
 
+func SetUpdaterHelperCapabilities(target string) error {
+	return executeCommand("set-updater-helper-capabilities " + target)
+}
+
 func StartUpdaterExperiment() error {
 	return startUnit(updaterUnitExp)
 }

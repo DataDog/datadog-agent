@@ -52,8 +52,11 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	if pkg == "datadog-agent" {
+	switch pkg {
+	case "datadog-agent":
 		return service.SetupAgentUnits()
+	case "datadog-updater":
+		return service.SetupUpdaterUnit()
 	}
 	return nil
 }
