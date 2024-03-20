@@ -1324,6 +1324,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	OTLP(config)
 	setupProcesses(config)
 	setupHighAvailability(config)
+
+	// Updater configuration
+	config.BindEnv("updater.registry")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables

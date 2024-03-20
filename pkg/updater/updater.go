@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
@@ -78,7 +79,7 @@ type disk interface {
 // Bootstrap bootstraps the default version for the given package.
 func Bootstrap(ctx context.Context, pkg string) error {
 	rc := newNoopRemoteConfig()
-	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
+	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, "")
 	return u.Bootstrap(ctx, pkg)
 }
 
@@ -94,20 +95,20 @@ func Purge() {
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(rcFetcher client.ConfigFetcher) (Updater, error) {
+func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, error) {
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath), nil
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config.GetString("updater.registry")), nil
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string) *updaterImpl {
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, remoteRegistryOverride string) *updaterImpl {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	u := &updaterImpl{
 		rc:                rc,
 		repositories:      repositories,
-		downloader:        newDownloader(http.DefaultClient),
+		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
 		catalog:           defaultCatalog,
 		requests:          make(chan remoteAPIRequest, 32),
