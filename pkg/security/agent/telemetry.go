@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -28,13 +29,13 @@ type telemetry struct {
 }
 
 //nolint:unused // TODO(SEC) Fix unused linter
-func newTelemetry(senderManager sender.SenderManager, logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
+func newTelemetry(senderManager sender.SenderManager, wmeta workloadmeta.Component, logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	containersTelemetry, err := sectelemetry.NewContainersTelemetry(senderManager)
+	containersTelemetry, err := sectelemetry.NewContainersTelemetry(senderManager, wmeta)
 	if err != nil {
 		return nil, err
 	}

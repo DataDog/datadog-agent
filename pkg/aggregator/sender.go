@@ -180,10 +180,16 @@ func (s *checkSender) sendMetricSample(
 	tags []string,
 	mType metrics.MetricType,
 	flushFirstValue bool,
-	noIndex bool) {
+	noIndex bool,
+	timestamp float64,
+) {
 	tags = append(tags, s.checkTags...)
 
 	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+
+	if timestamp == 0 {
+		timestamp = timeNowNano()
+	}
 
 	metricSample := &metrics.MetricSample{
 		Name:            metric,
@@ -192,7 +198,7 @@ func (s *checkSender) sendMetricSample(
 		Tags:            tags,
 		Host:            hostname,
 		SampleRate:      1,
-		Timestamp:       timeNowNano(),
+		Timestamp:       timestamp,
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         s.noIndex || noIndex,
 		Source:          metrics.CoreCheckToMetricSource(checkid.IDToCheckName(s.id)),
@@ -211,47 +217,47 @@ func (s *checkSender) sendMetricSample(
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, false, 0)
 }
 
 // GaugeNoIndex should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 // This value is not indexed by the backend.
 func (s *checkSender) GaugeNoIndex(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, true)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType, false, true, 0)
 }
 
 // Rate should be used to track the rate of a metric over each check run
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.RateType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.RateType, false, false, 0)
 }
 
 // Count should be used to count a number of events that occurred during the check run
 func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, false, 0)
 }
 
 // MonotonicCount should be used to track the increase of a monotonic raw counter
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, false, false, 0)
 }
 
 // MonotonicCountWithFlushFirstValue should be used to track the increase of a monotonic raw counter,
 // and allows specifying whether the aggregator should flush the first sampled value as-is.
 func (s *checkSender) MonotonicCountWithFlushFirstValue(metric string, value float64, hostname string, tags []string, flushFirstValue bool) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, flushFirstValue, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, flushFirstValue, false, 0)
 }
 
 // Counter is DEPRECATED and only implemented to preserve backward compatibility with python checks. Prefer using either:
 // * `Gauge` if you're counting states
 // * `Count` if you're counting events
 func (s *checkSender) Counter(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.CounterType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CounterType, false, false, 0)
 }
 
 // Histogram should be used to track the statistical distribution of a set of values during a check run
 // Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType, false, false, 0)
 }
 
 // HistogramBucket should be called to directly send raw buckets to be submitted as distribution metrics
@@ -295,11 +301,33 @@ func (s *checkSender) HistogramBucket(metric string, value int64, lowerBound, up
 // Historate should be used to create a histogram metric for "rate" like metrics.
 // Warning this doesn't use the harmonic mean, beware of what it means when using it.
 func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType, false, false, 0)
 }
 
 func (s *checkSender) Distribution(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, metrics.DistributionType, false, false)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.DistributionType, false, false, 0)
+}
+
+// GaugeWithTimestamp reports a new gauge value to the intake with the given timestamp.
+// Gauge time series measure a simple value over time.
+// Unlike Gauge(), each submitted value will be passed to the intake as is, without aggregation. Each time series can have only one value per timestamp.
+func (s *checkSender) GaugeWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	if timestamp <= 0 {
+		return fmt.Errorf("invalid timestamp")
+	}
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeWithTimestampType, false, false, timestamp)
+	return nil
+}
+
+// CountWithTimestamp reports a new count value to the intake with the given timestamp.
+// Count time series measure how many times something happened in some time period.
+// Unlike Count(), each submitted value will be passed to the intake as is, without aggregation. Each time series can have only one value per timestamp.
+func (s *checkSender) CountWithTimestamp(metric string, value float64, hostname string, tags []string, timestamp float64) error {
+	if timestamp <= 0 {
+		return fmt.Errorf("invalid timestamp")
+	}
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CountWithTimestampType, false, false, timestamp)
+	return nil
 }
 
 // SendRawServiceCheck sends the raw service check

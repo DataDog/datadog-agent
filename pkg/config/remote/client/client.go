@@ -86,6 +86,7 @@ type Options struct {
 	agentName            string
 	products             []string
 	directorRootOverride string
+	site                 string
 	pollInterval         time.Duration
 	clusterName          string
 	clusterID            string
@@ -222,8 +223,11 @@ func WithoutTufVerification() func(opts *Options) {
 }
 
 // WithDirectorRootOverride specifies the director root to
-func WithDirectorRootOverride(directorRootOverride string) func(opts *Options) {
-	return func(opts *Options) { opts.directorRootOverride = directorRootOverride }
+func WithDirectorRootOverride(site string, directorRootOverride string) func(opts *Options) {
+	return func(opts *Options) {
+		opts.site = site
+		opts.directorRootOverride = directorRootOverride
+	}
 }
 
 // WithAgent specifies the client name and version
@@ -249,7 +253,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	var err error
 
 	if !options.skipTufVerification {
-		repository, err = state.NewRepository(meta.RootsDirector(options.directorRootOverride).Last())
+		repository, err = state.NewRepository(meta.RootsDirector(options.site, options.directorRootOverride).Last())
 	} else {
 		repository, err = state.NewUnverifiedRepository()
 	}
@@ -387,6 +391,7 @@ func (c *Client) pollLoop() {
 		successfulFirstRun = true
 	}
 
+	logLimit := log.NewLogLimit(5, time.Minute)
 	for {
 		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
 		if !successfulFirstRun && interval > time.Second {
@@ -414,7 +419,9 @@ func (c *Client) pollLoop() {
 				if !successfulFirstRun {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
-					log.Infof("retrying the first update of remote-config state (%v)", err)
+					if logLimit.ShouldLog() {
+						log.Infof("retrying the first update of remote-config state (%v)", err)
+					}
 				} else {
 					c.lastUpdateError = err
 					c.backoffPolicy.IncError(c.backoffErrorCount)

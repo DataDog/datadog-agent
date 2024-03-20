@@ -1,10 +1,10 @@
 module github.com/DataDog/datadog-agent/pkg/util/fxutil
 
-go 1.21.7
+go 1.21.8
 
 require (
 	github.com/spf13/cobra v1.7.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
 

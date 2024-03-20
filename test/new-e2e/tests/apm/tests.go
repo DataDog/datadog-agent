@@ -9,13 +9,17 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
 func testBasicTraces(c *assert.CollectT, service string, intake *components.FakeIntake, agent agentclient.Agent) {
@@ -70,6 +74,59 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)))
 }
 
+func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	t.Helper()
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	t.Log("Got traces", traces)
+	for _, tr := range traces {
+		for _, tp := range tr.TracerPayloads {
+			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
+			ctags, ok := getContainerTags(t, tp)
+			assert.True(t, ok)
+			imageTag, ok := ctags["image_tag"]
+			assert.True(t, ok)
+			t.Logf("Got image Tag: %v", imageTag)
+			assert.Equal(t, "main", imageTag)
+		}
+	}
+}
+
+func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	t.Helper()
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, stats)
+	t.Log("Got apm stats:", spew.Sdump(stats))
+	for _, p := range stats {
+		for _, s := range p.StatsPayload.Stats {
+			t.Log("Client Payload:", spew.Sdump(s))
+			t.Logf("Got image Tag: %v", s.GetImageTag())
+			assert.Equal(t, "main", s.GetImageTag())
+			t.Logf("Got git commit sha: %v", s.GetGitCommitSha())
+			assert.Equal(t, "abcd1234", s.GetGitCommitSha())
+		}
+	}
+}
+
+func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
+	ctags, ok := tp.Tags["_dd.tags.container"]
+	if !ok {
+		return nil, false
+	}
+	splits := strings.Split(ctags, ",")
+	m := make(map[string]string)
+	for _, s := range splits {
+		kv := strings.SplitN(s, ":", 2)
+		if !assert.Len(t, kv, 2, "malformed container tag: %v", s) {
+			continue
+		}
+		m[kv[0]] = kv[1]
+	}
+	return m, true
+}
+
 func hasStatsForService(payloads []*aggregator.APMStatsPayload, service string) bool {
 	for _, p := range payloads {
 		for _, s := range p.StatsPayload.Stats {
@@ -100,7 +157,7 @@ func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 func testTraceAgentMetrics(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	expected := map[string]struct{}{
-		// "datadog.trace_agent.started":                         {}, // FIXME: this metric is flaky
+		"datadog.trace_agent.started":                          {},
 		"datadog.trace_agent.heartbeat":                        {},
 		"datadog.trace_agent.heap_alloc":                       {},
 		"datadog.trace_agent.cpu_percent":                      {},
@@ -182,4 +239,72 @@ func testTraceAgentMetricTags(t *testing.T, c *assert.CollectT, service string, 
 		}
 	}
 	assert.Empty(c, expected)
+}
+
+func hasStatsForResource(payloads []*aggregator.APMStatsPayload, resource string) bool {
+	for _, p := range payloads {
+		for _, s := range p.StatsPayload.Stats {
+			for _, bucket := range s.Stats {
+				for _, ss := range bucket.Stats {
+					if ss.Resource == resource {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func hasTraceForResource(payloads []*aggregator.TracePayload, resource string) bool {
+	for _, p := range payloads {
+		for _, t := range p.AgentPayload.TracerPayloads {
+			for _, c := range t.Chunks {
+				for _, s := range c.Spans {
+					if s.Resource == resource {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func waitTracegenShutdown(s *suite.Suite, intake *components.FakeIntake) {
+	// TODO(knusbaum): we can ideally assert the poison pill eventually arrives,
+	// but currently it seems it does not always.
+	//s.EventuallyWithTf(func(c *assert.CollectT) {
+	//	hasPoisonPill(s.T(), c, intake)
+	//}, 20*time.Second, 1*time.Second, "Failed to find poison pill from tracegen shutdown.")
+
+	s.T().Helper()
+	begin := time.Now()
+	max := begin.Add(20 * time.Second)
+	for {
+		if hasPoisonPill(s.T(), intake) {
+			// success
+			return
+		}
+		if time.Now().After(max) {
+			// Timeout, continue tests assuming
+			// it's long enough that the pipeline is clear.
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func hasPoisonPill(t *testing.T, intake *components.FakeIntake) bool {
+	t.Helper()
+	stats, err := intake.Client().GetAPMStats()
+	assert.NoError(t, err)
+	t.Log("Got apm stats", stats)
+	if !hasStatsForResource(stats, "poison_pill") { // tracegen sends this resource as the last trace before shutting down.
+		return false
+	}
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(t, err)
+	t.Log("Got traces", traces)
+	return hasTraceForResource(traces, "poison_pill")
 }

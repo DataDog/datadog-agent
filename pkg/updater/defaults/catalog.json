@@ -1,11 +1,10 @@
 {
   "packages": [
     {
-      "package": "dd-trace-java",
-      "version": "1.31.0",
-      "url": "https://storage.googleapis.com/updater-dev/dd-trace-java-1.31.0.tar",
-      "sha256": "9c0e49e671430a4a10f1dfbf64624bab34b7b190576669a37f3aaeef8fbf4a7f",
-      "size": 26594816
+      "package": "datadog-apm-library-java",
+      "version": "1.32.0-SNAPSHOT-a1309de641-pipeline.30019975.beta.a1309de6-1",
+      "url": "oci://public.ecr.aws/b1o7r7e0/updater-sandbox/datadog-apm-library-java@sha256:f26e286e73e0691578306425463f1af13fecb355dc8fae341281187122876092",
+      "sha256": "f26e286e73e0691578306425463f1af13fecb355dc8fae341281187122876092"
     },
     {
       "package": "datadog-agent",
