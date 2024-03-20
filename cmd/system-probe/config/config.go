@@ -38,7 +38,6 @@ const (
 	EBPFModule                   types.ModuleName = "ebpf"
 	LanguageDetectionModule      types.ModuleName = "language_detection"
 	WindowsCrashDetectModule     types.ModuleName = "windows_crash_detection"
-	ComplianceModule             types.ModuleName = "compliance"
 	PingModule                   types.ModuleName = "ping"
 	TracerouteModule             types.ModuleName = "traceroute"
 )
@@ -121,9 +120,6 @@ func load() (*types.Config, error) {
 		cfg.GetBool(evNS("process.enabled")) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
-	}
-	if cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")) {
-		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
