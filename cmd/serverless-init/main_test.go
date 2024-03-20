@@ -9,6 +9,9 @@ package main
 
 import (
 	"testing"
+	"time"
+
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +36,7 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, traceAgent, metricAgent, _ := setup()
+	_, _, traceAgent, metricAgent, _ := setup("", nil)
 	defer traceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
@@ -42,4 +45,41 @@ func TestTagsSetup(t *testing.T) {
 
 func TestFxApp(t *testing.T) {
 	fxutil.TestOneShot(t, main)
+}
+
+type TestTimeoutFlushableAgent struct {
+	hasBeenCalled bool
+}
+
+type TestFlushableAgent struct {
+	hasBeenCalled bool
+}
+
+func (tfa *TestTimeoutFlushableAgent) Flush() {
+	time.Sleep(1 * time.Hour)
+	tfa.hasBeenCalled = true
+}
+
+func (tfa *TestFlushableAgent) Flush() {
+	tfa.hasBeenCalled = true
+}
+
+func TestFlushSucess(t *testing.T) {
+	metricAgent := &TestFlushableAgent{}
+	traceAgent := &TestFlushableAgent{}
+	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
+	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
+	assert.Equal(t, true, metricAgent.hasBeenCalled)
+	assert.Equal(t, true, mockLogsAgent.DidFlush())
+}
+
+func TestFlushTimeout(t *testing.T) {
+	metricAgent := &TestTimeoutFlushableAgent{}
+	traceAgent := &TestTimeoutFlushableAgent{}
+	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
+	mockLogsAgent.SetFlushDelay(time.Hour)
+
+	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
+	assert.Equal(t, false, metricAgent.hasBeenCalled)
+	assert.Equal(t, false, mockLogsAgent.DidFlush())
 }
