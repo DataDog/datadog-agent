@@ -19,6 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/smithy-go"
@@ -29,15 +32,15 @@ const (
 )
 
 // SetupLambda downloads and extracts the code of a lambda function.
-func SetupLambda(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask) (string, error) {
+func SetupLambda(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask) (string, error) {
 	lambdaDir := scan.Path()
 	if err := os.MkdirAll(lambdaDir, 0700); err != nil {
 		return "", err
 	}
-	return downloadAndUnzipLambda(ctx, sc, scan, lambdaDir)
+	return downloadAndUnzipLambda(ctx, statsd, sc, scan, lambdaDir)
 }
 
-func downloadAndUnzipLambda(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask, lambdaDir string) (codePath string, err error) {
+func downloadAndUnzipLambda(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, lambdaDir string) (codePath string, err error) {
 	if err := statsd.Count("datadog.agentless_scanner.functions.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -64,7 +67,7 @@ func downloadAndUnzipLambda(ctx context.Context, sc *types.ScannerConfig, scan *
 		}
 	}()
 
-	cfg := GetConfigFromCloudID(ctx, sc, scan.Roles, scan.TargetID)
+	cfg := GetConfigFromCloudID(ctx, statsd, sc, scan.Roles, scan.TargetID)
 	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
 		return "", err

@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -23,7 +25,7 @@ import (
 
 // CleanSlate removes all volumes that are currently attached to the instance
 // and have no mountpoints.
-func CleanSlate(ctx context.Context, sc *types.ScannerConfig, bds []devices.BlockDevice, roles types.RolesMapping) {
+func CleanSlate(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, bds []devices.BlockDevice, roles types.RolesMapping) {
 	var attachedVolumes []string
 	for _, bd := range bds {
 		if strings.HasPrefix(bd.Serial, "vol") && len(bd.Children) > 0 {
@@ -55,7 +57,7 @@ func CleanSlate(ctx context.Context, sc *types.ScannerConfig, bds []devices.Bloc
 				log.Warnf("clean slate: %v", err)
 				continue
 			}
-			if errd := CleanupScanVolume(ctx, sc, nil, volumeID, roles); err != nil {
+			if errd := CleanupScanVolume(ctx, statsd, sc, nil, volumeID, roles); err != nil {
 				log.Warnf("clean slate: %v", errd)
 			}
 		}
@@ -64,8 +66,8 @@ func CleanSlate(ctx context.Context, sc *types.ScannerConfig, bds []devices.Bloc
 
 // ListResourcesForCleanup lists all AWS resources that are created by our
 // scanner.
-func ListResourcesForCleanup(ctx context.Context, sc *types.ScannerConfig, maxTTL time.Duration, region string, assumedRole types.CloudID) ([]types.CloudID, error) {
-	cfg := GetConfig(ctx, sc, region, assumedRole)
+func ListResourcesForCleanup(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, maxTTL time.Duration, region string, assumedRole types.CloudID) ([]types.CloudID, error) {
+	cfg := GetConfig(ctx, statsd, sc, region, assumedRole)
 	ec2client := ec2.NewFromConfig(cfg)
 	var toBeDeleted []types.CloudID
 	var nextToken *string
@@ -132,8 +134,8 @@ func ListResourcesForCleanup(ctx context.Context, sc *types.ScannerConfig, maxTT
 }
 
 // ResourcesCleanup removes all resources provided in the map.
-func ResourcesCleanup(ctx context.Context, sc *types.ScannerConfig, toBeDeleted []types.CloudID, region string, assumedRole types.CloudID) {
-	ec2client := ec2.NewFromConfig(GetConfig(ctx, sc, region, assumedRole))
+func ResourcesCleanup(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, toBeDeleted []types.CloudID, region string, assumedRole types.CloudID) {
+	ec2client := ec2.NewFromConfig(GetConfig(ctx, statsd, sc, region, assumedRole))
 	for _, resourceID := range toBeDeleted {
 		if err := ctx.Err(); err != nil {
 			return

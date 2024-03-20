@@ -92,6 +92,6 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 		})
 		scanner.Stop()
 	}()
-	scanner.Start(ctx, sc)
+	scanner.Start(ctx, statsd, sc)
 	return nil
 }

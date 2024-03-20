@@ -18,6 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -31,20 +33,20 @@ const (
 )
 
 // SetupEBSSnapshot prepares the EBS snapshot for scanning.
-func SetupEBSSnapshot(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter) (types.CloudID, error) {
-	cfg := GetConfigFromCloudID(ctx, sc, scan.Roles, scan.TargetID)
+func SetupEBSSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter) (types.CloudID, error) {
+	cfg := GetConfigFromCloudID(ctx, statsd, sc, scan.Roles, scan.TargetID)
 	ec2client := ec2.NewFromConfig(cfg)
 	switch scan.TargetID.ResourceType() {
 	case types.ResourceTypeVolume:
-		return CreateSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
+		return CreateSnapshot(ctx, statsd, scan, waiter, ec2client, scan.TargetID)
 	case types.ResourceTypeSnapshot:
-		return CopySnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
+		return CopySnapshot(ctx, statsd, scan, waiter, ec2client, scan.TargetID)
 	case types.ResourceTypeHostImage:
 		snapshotID, err := getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 		if err != nil {
 			return types.CloudID{}, err
 		}
-		return CopySnapshot(ctx, scan, waiter, ec2client, snapshotID)
+		return CopySnapshot(ctx, statsd, scan, waiter, ec2client, snapshotID)
 	default:
 		return types.CloudID{}, fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.TargetID)
 	}
@@ -53,12 +55,12 @@ func SetupEBSSnapshot(ctx context.Context, sc *types.ScannerConfig, scan *types.
 // SetupEBSVolume prepares the EBS volume for scanning. It attaches the given
 // snapshot to the instance and returns the list of partitions that were
 // mounted.
-func SetupEBSVolume(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
+func SetupEBSVolume(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
 	switch scan.DiskMode {
 	case types.DiskModeVolumeAttach:
-		return AttachSnapshotWithVolume(ctx, sc, scan, waiter, snapshotID)
+		return AttachSnapshotWithVolume(ctx, statsd, sc, scan, waiter, snapshotID)
 	case types.DiskModeNBDAttach:
-		return AttachSnapshotWithNBD(ctx, sc, scan, snapshotID)
+		return AttachSnapshotWithNBD(ctx, statsd, sc, scan, snapshotID)
 	case types.DiskModeNoAttach:
 		return fmt.Errorf("ebs-volume: could not setup volume in no attach mode defined for task %q", scan)
 	default:
@@ -67,7 +69,7 @@ func SetupEBSVolume(ctx context.Context, sc *types.ScannerConfig, scan *types.Sc
 }
 
 // CreateSnapshot creates a snapshot of the given EBS volume and returns its Cloud Identifier.
-func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
+func CreateSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -145,7 +147,7 @@ func CreateSnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceW
 }
 
 // CopySnapshot copies an EBS snapshot.
-func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
+func CopySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return types.CloudID{}, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
@@ -197,8 +199,8 @@ func CopySnapshot(ctx context.Context, scan *types.ScanTask, waiter *ResourceWai
 
 // AttachSnapshotWithNBD attaches the given snapshot to the instance using a
 // Network Block Device (NBD).
-func AttachSnapshotWithNBD(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask, snapshotID types.CloudID) error {
-	ebsclient := ebs.NewFromConfig(GetConfigFromCloudID(ctx, sc, scan.Roles, scan.TargetID))
+func AttachSnapshotWithNBD(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, snapshotID types.CloudID) error {
+	ebsclient := ebs.NewFromConfig(GetConfigFromCloudID(ctx, statsd, sc, scan.Roles, scan.TargetID))
 	device, ok := devices.NextNBD()
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")
@@ -220,16 +222,16 @@ func AttachSnapshotWithNBD(ctx context.Context, sc *types.ScannerConfig, scan *t
 
 // AttachSnapshotWithVolume attaches the given snapshot to the instance as a
 // new volume.
-func AttachSnapshotWithVolume(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
+func AttachSnapshotWithVolume(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 	}
 
-	remoteEC2Client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, sc, scan.Roles, snapshotID))
+	remoteEC2Client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, statsd, sc, scan.Roles, snapshotID))
 	var localSnapshotID types.CloudID
 	if snapshotID.Region() != self.Region {
-		localSnapshotID, err = CopySnapshot(ctx, scan, waiter, remoteEC2Client, snapshotID)
+		localSnapshotID, err = CopySnapshot(ctx, statsd, scan, waiter, remoteEC2Client, snapshotID)
 	} else {
 		localSnapshotID = snapshotID
 	}
@@ -237,7 +239,7 @@ func AttachSnapshotWithVolume(ctx context.Context, sc *types.ScannerConfig, scan
 		return err
 	}
 
-	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, sc, self.Region, scan.Roles.GetRole(self.AccountID)))
+	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, statsd, sc, self.Region, scan.Roles.GetRole(self.AccountID)))
 	if localSnapshotID.AccountID() != "" && localSnapshotID.AccountID() != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
 			SnapshotId:    aws.String(snapshotID.ResourceName()),
@@ -320,14 +322,14 @@ func AttachSnapshotWithVolume(ctx context.Context, sc *types.ScannerConfig, scan
 }
 
 // CleanupScanEBS removes all resources associated with a scan.
-func CleanupScanEBS(ctx context.Context, sc *types.ScannerConfig, scan *types.ScanTask, resourceID types.CloudID) error {
+func CleanupScanEBS(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, resourceID types.CloudID) error {
 	switch resourceID.ResourceType() {
 	case types.ResourceTypeVolume:
-		if err := CleanupScanVolume(ctx, sc, scan, resourceID, scan.Roles); err != nil {
+		if err := CleanupScanVolume(ctx, statsd, sc, scan, resourceID, scan.Roles); err != nil {
 			return fmt.Errorf("could not delete volume %q: %v", resourceID, err)
 		}
 	case types.ResourceTypeSnapshot:
-		if err := CleanupScanSnapshot(ctx, sc, scan, resourceID, scan.Roles); err != nil {
+		if err := CleanupScanSnapshot(ctx, statsd, sc, scan, resourceID, scan.Roles); err != nil {
 			return fmt.Errorf("could not delete snapshot %s: %v", resourceID, err)
 		}
 	}
@@ -335,9 +337,9 @@ func CleanupScanEBS(ctx context.Context, sc *types.ScannerConfig, scan *types.Sc
 }
 
 // CleanupScanSnapshot cleans up a snapshot resource.
-func CleanupScanSnapshot(ctx context.Context, sc *types.ScannerConfig, maybeScan *types.ScanTask, snapshotID types.CloudID, roles types.RolesMapping) error {
+func CleanupScanSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, maybeScan *types.ScanTask, snapshotID types.CloudID, roles types.RolesMapping) error {
 	log.Debugf("%s: deleting snapshot %q", maybeScan, snapshotID)
-	ec2client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, sc, roles, snapshotID))
+	ec2client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, statsd, sc, roles, snapshotID))
 	if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 		SnapshotId: aws.String(snapshotID.ResourceName()),
 	}); err != nil {
@@ -348,8 +350,8 @@ func CleanupScanSnapshot(ctx context.Context, sc *types.ScannerConfig, maybeScan
 }
 
 // CleanupScanVolume cleans up a volume resource.
-func CleanupScanVolume(ctx context.Context, sc *types.ScannerConfig, maybeScan *types.ScanTask, volumeID types.CloudID, roles types.RolesMapping) error {
-	ec2client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, sc, roles, volumeID))
+func CleanupScanVolume(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, maybeScan *types.ScanTask, volumeID types.CloudID, roles types.RolesMapping) error {
+	ec2client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, statsd, sc, roles, volumeID))
 	volumeNotFound := false
 	volumeDetached := false
 	log.Debugf("%s: detaching volume %q", maybeScan, volumeID)

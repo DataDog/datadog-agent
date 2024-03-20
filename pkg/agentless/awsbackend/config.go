@@ -35,8 +35,6 @@ const (
 )
 
 var (
-	statsd ddogstatsd.ClientInterface
-
 	globalConfigs   map[confKey]aws.Config
 	globalConfigsMu sync.Mutex
 )
@@ -60,12 +58,12 @@ func loadDefaultConfig(ctx context.Context, options ...func(*config.LoadOptions)
 }
 
 // GetConfigFromCloudID returns an AWS Config for the given region and assumed role.
-func GetConfigFromCloudID(ctx context.Context, sc *types.ScannerConfig, roles types.RolesMapping, cloudID types.CloudID) aws.Config {
-	return GetConfig(ctx, sc, cloudID.Region(), roles.GetCloudIDRole(cloudID))
+func GetConfigFromCloudID(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, roles types.RolesMapping, cloudID types.CloudID) aws.Config {
+	return GetConfig(ctx, statsd, sc, cloudID.Region(), roles.GetCloudIDRole(cloudID))
 }
 
 // GetConfig returns an AWS Config for the given region and assumed role.
-func GetConfig(ctx context.Context, sc *types.ScannerConfig, region string, assumedRole types.CloudID) aws.Config {
+func GetConfig(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, region string, assumedRole types.CloudID) aws.Config {
 	globalConfigsMu.Lock()
 	defer globalConfigsMu.Unlock()
 
@@ -74,9 +72,6 @@ func GetConfig(ctx context.Context, sc *types.ScannerConfig, region string, assu
 		return cfg
 	}
 
-	if statsd == nil {
-		statsd, _ = ddogstatsd.New("localhost:8125")
-	}
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 	}
