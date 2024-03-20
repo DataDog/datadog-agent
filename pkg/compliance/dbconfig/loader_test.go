@@ -117,7 +117,14 @@ dynamic_shared_memory_type = 'overridden'`
 		t.Fatal(err)
 	}
 
-	conf, ok := LoadPostgreSQLConfig(context.Background(), hostroot, nil)
+	p := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	defer func() {
+		p.Kill()
+		p.Wait()
+	}()
+	proc, err := process.NewProcess(int32(p.Pid))
+	assert.NoError(t, err)
+	conf, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 	assert.Equal(t, true, ok)
 	configData := conf.ConfigData.(map[string]interface{})
 	assert.Equal(t, "/etc/postgresql/postgresql.conf", conf.ConfigFilePath)
@@ -146,7 +153,14 @@ dynamic_shared_memory_type = 'overridden'
 		t.Fatal(err)
 	}
 
-	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, nil)
+	p := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	defer func() {
+		p.Kill()
+		p.Wait()
+	}()
+	proc, err := process.NewProcess(int32(p.Pid))
+	assert.NoError(t, err)
+	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 	assert.Equal(t, true, ok)
 	configData := c.ConfigData.(map[string]interface{})
 	assert.Equal(t, "bar'\b", configData["foo"])
@@ -169,7 +183,14 @@ func TestPGConfParsingCustom(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, nil)
+	p := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	defer func() {
+		p.Kill()
+		p.Wait()
+	}()
+	proc, err := process.NewProcess(int32(p.Pid))
+	assert.NoError(t, err)
+	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(map[string]interface{})
 	assert.Equal(t, `envdir "/run/etc/wal-g.d/env" wal-g wal-push "%p"`, configData["archive_command"])
@@ -267,7 +288,14 @@ func TestCassandraConfParsing(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(hostroot, "/etc/cassandra/logback.xml"), []byte(cassandraLogbackSample), 0600); err != nil {
 		t.Fatal(err)
 	}
-	c, ok := LoadCassandraConfig(context.Background(), hostroot, nil)
+	p := launchFakeProcess(context.Background(), t, "java")
+	defer func() {
+		p.Kill()
+		p.Wait()
+	}()
+	proc, err := process.NewProcess(int32(p.Pid))
+	assert.NoError(t, err)
+	c, ok := LoadCassandraConfig(context.Background(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(*cassandraDBConfig)
 	assert.Equal(t, uint32(0600), c.ConfigFileMode)
@@ -286,7 +314,14 @@ func TestMongoDBConfParsing(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(hostroot, "/etc/mongod.conf"), []byte(mongodConfigSample), 0600); err != nil {
 		t.Fatal(err)
 	}
-	c, ok := LoadMongoDBConfig(context.Background(), hostroot, nil)
+	p := launchFakeProcess(context.Background(), t, "mongod")
+	defer func() {
+		p.Kill()
+		p.Wait()
+	}()
+	proc, err := process.NewProcess(int32(p.Pid))
+	assert.NoError(t, err)
+	c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(*mongoDBConfig)
 	assert.Equal(t, uint32(0600), c.ConfigFileMode)
