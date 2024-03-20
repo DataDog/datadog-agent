@@ -132,7 +132,9 @@ fi
 chmod 750 ${UPDATER_HELPER}
 setcap cap_setuid+ep ${UPDATER_HELPER}
 
+$INSTALL_DIR/bin/updater/updater bootstrap -P datadog-updater
 $INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent
+
 # Bootstrap installs first agent with root ownership, overriding to dd-agent
 chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 

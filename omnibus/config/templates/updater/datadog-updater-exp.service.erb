@@ -1,0 +1,20 @@
+[Unit]
+Description=Datadog Updater Experiment
+After=network.target
+OnFailure=datadog-updater.service
+Conflicts=datadog-updater.service
+JobTimeoutSec=3000 #50 minutes
+
+[Service]
+Type=oneshot
+PIDFile=<%= install_dir %>/run/updater.pid
+User=dd-agent
+EnvironmentFile=-<%= etc_dir %>/environment
+ExecStart=<%= agent_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= agent_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
+ExecStart=<%= agent_dir %>/bin/updater/updater run -p <%= install_dir %>/run/agent.pid
+ExecStart=/bin/false
+ExecStop=/bin/false
+
+[Install]
+WantedBy=multi-user.target

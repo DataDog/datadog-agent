@@ -1,6 +1,7 @@
 [Unit]
 Description=Datadog Updater
 After=network.target
+Conflicts=datadog-updater-exp.service
 
 [Service]
 Type=simple
