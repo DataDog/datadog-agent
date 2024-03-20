@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -38,7 +39,6 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -84,6 +84,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				telemetry.Module(),
 				sysprobeconfigimpl.Module(),
 				rcclientimpl.Module(),
+				healthprobeimpl.Module(),
 				// use system-probe config instead of agent config for logging
 				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
@@ -217,6 +218,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		telemetry.Module(),
 		compstatsd.Module(),
 		sysprobeconfigimpl.Module(),
+		healthprobeimpl.Module(),
 		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 		// use system-probe config instead of agent config for logging
 		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
@@ -310,16 +312,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 				log.Errorf("error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 			}
 		}()
-	}
-
-	// Setup healthcheck port
-	healthPort := cfg.HealthPort
-	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, ddconfig.Datadog, healthPort)
-		if err != nil {
-			return log.Errorf("error starting health check server, exiting: %s", err)
-		}
-		log.Infof("health check server listening on port %d", healthPort)
 	}
 
 	if err = api.StartServer(cfg, telemetry, wmeta); err != nil {

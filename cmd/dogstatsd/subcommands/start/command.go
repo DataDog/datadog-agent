@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 
 	//nolint:revive // TODO(AML) Fix revive linter
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -50,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -167,6 +167,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
+		healthprobeimpl.Module(),
 	)
 }
 
@@ -261,17 +262,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	if !config.IsSet("api_key") {
 		err = log.Critical("no API key configured, exiting")
 		return
-	}
-
-	// Setup healthcheck port
-	var healthPort = config.GetInt("health_port")
-	if healthPort > 0 {
-		err = healthprobe.Serve(ctx, config, healthPort)
-		if err != nil {
-			err = log.Errorf("Error starting health port, exiting: %v", err)
-			return
-		}
-		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
