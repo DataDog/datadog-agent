@@ -16,7 +16,7 @@ import (
 	enveks "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/eks"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
-	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -74,7 +74,7 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 
 		params := enveks.GetProvisionerParams(
 			enveks.WithEKSLinuxNodeGroup(),
-			enveks.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
+			enveks.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
 			enveks.WithWorkloadApp(npmToolsWorkload),
 		)
 		enveks.Run(ctx, &env.EKS, params)
