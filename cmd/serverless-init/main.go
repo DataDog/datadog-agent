@@ -12,8 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/logs"
@@ -49,7 +54,19 @@ const (
 
 func main() {
 
-	err := fxutil.OneShot(run, fx.Supply(secrets.NewEnabledParams()), secretsimpl.Module())
+	err := fxutil.OneShot(
+		run,
+		autodiscoveryimpl.Module(),
+		workloadmeta.Module(),
+		fx.Supply(workloadmeta.NewParams()),
+		tagger.Module(),
+		fx.Supply(tagger.NewNodeRemoteTaggerParams()),
+		fx.Supply(core.BundleParams{
+			ConfigParams: coreconfig.NewAgentParams(datadogConfigPath),
+			SecretParams: secrets.NewEnabledParams(),
+			LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
+		core.Bundle(),
+	)
 
 	if err != nil {
 		log.Error(err)
@@ -57,9 +74,9 @@ func main() {
 	}
 }
 
-func run(secretsManager secrets.Component) {
+func run(secretsManager secrets.Component, ac autodiscovery.Component) {
 	loggerName, modeRunner := mode.DetectMode()
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(loggerName, secretsManager)
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(loggerName, secretsManager, ac)
 
 	modeRunner(logConfig)
 
@@ -67,7 +84,7 @@ func run(secretsManager secrets.Component) {
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 }
 
-func setup(loggerName string, secretsManager secrets.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(loggerName string, secretsManager secrets.Component, ac autodiscovery.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	setupDatadogLogger(loggerName)
 
 	tracelog.SetLogger(corelogger{})
@@ -99,10 +116,10 @@ func setup(loggerName string, secretsManager secrets.Component) (cloudservice.Cl
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	ctx := setupConfigAutoDiscovery(secretsManager)
+	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), ac, config.Datadog.GetString("confd_path"))
 	logsAgent := serverlessInitLog.SetupLogAgent(logConfig, tags)
 
-	setupHealthCheck(ctx)
+	setupHealthCheck()
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	go setupTraceAgent(traceAgent, tags)
@@ -116,18 +133,10 @@ func setup(loggerName string, secretsManager secrets.Component) (cloudservice.Cl
 	return cloudService, logConfig, traceAgent, metricAgent, logsAgent
 }
 
-func setupConfigAutoDiscovery(secretsManager secrets.Component) context.Context {
-	// AD is needed to find the config to tail the log files
-	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), config.Datadog.GetString("confd_path"))
-	ctx := context.Background()
-	common.AC.LoadAndRun(ctx)
-	return ctx
-}
-
-func setupHealthCheck(ctx context.Context) {
+func setupHealthCheck() {
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
+		err := healthprobe.Serve(context.Background(), pkgconfig.Datadog, healthPort)
 		if err != nil {
 			log.Errorf("Error starting health port, exiting: %v", err)
 		}
