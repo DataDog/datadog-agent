@@ -49,8 +49,8 @@ func CreateConfig(origin string) *Config {
 	}
 }
 
-// SetupLog creates the log agent and sets the base tags
-func SetupLog(conf *Config, tags map[string]string) logsAgent.ServerlessLogsAgent {
+// SetupLogAgent creates the log agent and sets the base tags
+func SetupLogAgent(conf *Config, tags map[string]string) logsAgent.ServerlessLogsAgent {
 	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source)
 	serverlessLogs.SetLogsTags(tag.GetBaseTagsArrayWithMetadataTags(tags))
 	return logsAgent
