@@ -162,8 +162,16 @@ func TestFilterSpanFromLambdaLibraryOrRuntimeDnsSpan(t *testing.T) {
 			"dns.address": "0.0.0.0",
 		},
 	}
+
+	dnsSpanFromXrayDaemonAddress := pb.Span{
+		Meta: map[string]string{
+			"dns.address": "169.254.79.129",
+		},
+	}
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromLocalhostAddress))
 	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromNonRoutableAddress))
+	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(&dnsSpanFromXrayDaemonAddress))
+
 }
 
 func TestFilterSpanFromLambdaLibraryOrRuntimeLegitimateSpan(t *testing.T) {
