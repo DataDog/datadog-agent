@@ -35,6 +35,8 @@ const (
 	DefaultInstallPath = `C:\Program Files\Datadog\Datadog Agent`
 	// DefaultConfigRoot is the default config root for the Datadog Agent
 	DefaultConfigRoot = `C:\ProgramData\Datadog`
+	// DefaultAgentUserName is the default user name for the Datadog Agent
+	DefaultAgentUserName = `ddagentuser`
 )
 
 // GetDatadogAgentProductCode returns the product code GUID for the Datadog Agent
