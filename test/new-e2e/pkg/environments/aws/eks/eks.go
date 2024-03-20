@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
-	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
@@ -40,7 +41,7 @@ const eksNodeSelector = "eks.amazonaws.com/nodegroup"
 
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
-	agentOptions      []ecsagentparams.Option
+	agentOptions      []kubernetesagentparams.Option
 	fakeintakeOptions []fakeintake.Option
 
 	extraConfigParams        runner.ConfigMap
@@ -56,7 +57,7 @@ type ProvisionerParams struct {
 func newProvisionerParams() *ProvisionerParams {
 	// We use nil arrays to decide if we should create or not
 	return &ProvisionerParams{
-		agentOptions:      []ecsagentparams.Option{},
+		agentOptions:      []kubernetesagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 
 		extraConfigParams:        runner.ConfigMap{},
@@ -82,7 +83,7 @@ func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 type ProvisionerOption func(*ProvisionerParams) error
 
 // WithAgentOptions sets the options for the Docker Agent
-func WithAgentOptions(opts ...ecsagentparams.Option) ProvisionerOption {
+func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = append(params.agentOptions, opts...)
 		return nil
@@ -364,11 +365,17 @@ func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) 
 
 		// Deploy the agent
 		if params.agentOptions != nil {
+			paramsAgent, err := kubernetesagentparams.NewParams(*awsEnv.CommonEnvironment, params.agentOptions...)
+			if err != nil {
+				return err
+			}
+
 			helmComponent, err := agent.NewHelmInstallation(*awsEnv.CommonEnvironment, agent.HelmInstallationArgs{
 				KubeProvider:  eksKubeProvider,
 				Namespace:     "datadog",
+				ValuesYAML:    paramsAgent.HelmValues,
 				Fakeintake:    fakeIntake,
-				DeployWindows: awsEnv.EKSWindowsNodeGroup(),
+				DeployWindows: params.eksWindowsNodeGroup,
 			}, nil)
 			if err != nil {
 				return err
@@ -376,7 +383,7 @@ func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) 
 
 			ctx.Export("agent-linux-helm-install-name", helmComponent.LinuxHelmReleaseName)
 			ctx.Export("agent-linux-helm-install-status", helmComponent.LinuxHelmReleaseStatus)
-			if awsEnv.EKSWindowsNodeGroup() {
+			if params.eksWindowsNodeGroup {
 				ctx.Export("agent-windows-helm-install-name", helmComponent.WindowsHelmReleaseName)
 				ctx.Export("agent-windows-helm-install-status", helmComponent.WindowsHelmReleaseStatus)
 			}
