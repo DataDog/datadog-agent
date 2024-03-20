@@ -95,8 +95,9 @@ The following calculations determine the number of TimeSamplerWorker and TimeSam
 `dogstatsd_pipeline_autoadjust_strategy` can be set to the following values:
 
     * `max_throughput`: The number of TimeSampler pipelines is adjusted to maximize throughput. There are `(number of core/2) - 1` instances of TimeSampler.
-    * `per_origin`: The number of TimeSampler pipelines is adjusted to minimize latency. The number of dsdWorker instances is equal to half the number of cores.
-         and the number of TimeSampler pipelines is equal `dogstatsd_pipeline_count` or twice the number of cores.
+    * `per_origin`: The number of TimeSampler pipelines is adjusted to improve data locality. The number of dsdWorker instances is equal to half the number of cores.
+         and the number of TimeSampler pipelines is equal `dogstatsd_pipeline_count` or twice the number of cores. This strategy will provide a better compression
+         ratio in shared environments and improve resource allocation fairness within the agent.
 
 ## NoAggregationStreamWorker
 

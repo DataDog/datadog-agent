@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -81,11 +82,11 @@ func (s *shardKeyGeneratorBase) Generate(sample metrics.MetricSample, shards int
 	return fastrange(h, shards)
 }
 
-type shardKeyGeneratorIsolation struct {
+type shardKeyGeneratorPerOrigin struct {
 	shardKeyGeneratorBase
 }
 
-func (s *shardKeyGeneratorIsolation) Generate(sample metrics.MetricSample, shards int) uint32 {
+func (s *shardKeyGeneratorPerOrigin) Generate(sample metrics.MetricSample, shards int) uint32 {
 	// We fall back on the generic sharding if:
 	// - the sample has a custom cardinality
 	// - we don't have the origin
@@ -137,13 +138,6 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 	samplesWithTs := demux.GetMetricSamplePool().GetBatch()
 	samplesWithTsCount := 0
 
-	shardGenerator := &shardKeyGeneratorIsolation{
-		shardKeyGeneratorBase: shardKeyGeneratorBase{
-			keyGenerator: ckey.NewKeyGenerator(),
-			tagsBuffer:   tagset.NewHashingTagsAccumulator(),
-		},
-	}
-
 	return &batcher{
 		samples:            samples,
 		samplesCount:       samplesCount,
@@ -155,10 +149,29 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
-		shardGenerator: shardGenerator,
+		shardGenerator: getShardGenerator(),
 
 		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
 	}
+}
+
+func getShardGenerator() shardKeyGenerator {
+	isolated := config.Datadog.GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
+
+	base := shardKeyGeneratorBase{
+		keyGenerator: ckey.NewKeyGenerator(),
+		tagsBuffer:   tagset.NewHashingTagsAccumulator(),
+	}
+
+	var g shardKeyGenerator
+	if isolated {
+		g = &shardKeyGeneratorPerOrigin{
+			shardKeyGeneratorBase: base,
+		}
+	} else {
+		g = &base
+	}
+	return g
 }
 
 func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
@@ -174,13 +187,6 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 		samplesCount[i] = 0
 	}
 
-	shardGenerator := &shardKeyGeneratorIsolation{
-		shardKeyGeneratorBase: shardKeyGeneratorBase{
-			keyGenerator: ckey.NewKeyGenerator(),
-			tagsBuffer:   tagset.NewHashingTagsAccumulator(),
-		},
-	}
-
 	return &batcher{
 		samples:            samples,
 		samplesCount:       samplesCount,
@@ -190,7 +196,7 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
-		shardGenerator: shardGenerator,
+		shardGenerator: getShardGenerator(),
 	}
 }
 
