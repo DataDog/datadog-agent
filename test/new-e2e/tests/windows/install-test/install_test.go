@@ -9,36 +9,28 @@ package installtest
 import (
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
 var devMode = flag.Bool("devmode", false, "enable devmode")
 
 type agentMSISuite struct {
-	windows.BaseAgentInstallerSuite[environments.Host]
+	windows.BaseAgentInstallerSuite[environments.WindowsHost]
 }
 
 func TestMSI(t *testing.T) {
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(componentos.WindowsDefault)),
-	))}
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.Provisioner())}
 	if *devMode {
 		opts = append(opts, e2e.WithDevMode())
 	}
@@ -73,22 +65,8 @@ func TestMSI(t *testing.T) {
 	})
 }
 
-func (is *agentMSISuite) prepareHost() {
-	vm := is.Env().RemoteHost
-
-	if !is.Run("prepare VM", func() {
-		is.Run("disable defender", func() {
-			err := windowsCommon.DisableDefender(vm)
-			is.Require().NoError(err, "should disable defender")
-		})
-	}) {
-		is.T().Fatal("failed to prepare VM")
-	}
-}
-
 func (is *agentMSISuite) TestInstall() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	t := is.installAgent(vm, nil)
 
@@ -101,7 +79,6 @@ func (is *agentMSISuite) TestInstall() {
 
 func (is *agentMSISuite) TestUpgrade() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	_ = is.installLastStable(vm, nil)
 
@@ -127,7 +104,6 @@ func (is *agentMSISuite) TestUpgrade() {
 // TC-INS-002
 func (is *agentMSISuite) TestUpgradeRollback() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	previousTester := is.installLastStable(vm, nil)
 
@@ -157,7 +133,6 @@ func (is *agentMSISuite) TestUpgradeRollback() {
 // TC-INS-001
 func (is *agentMSISuite) TestRepair() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	t := is.installAgent(vm, nil)
 
@@ -187,7 +162,6 @@ func (is *agentMSISuite) TestRepair() {
 // TC-INS-006
 func (is *agentMSISuite) TestAgentUser() {
 	vm := is.Env().RemoteHost
-	is.prepareHost()
 
 	hostinfo, err := windowsCommon.GetHostInfo(vm)
 	is.Require().NoError(err)
