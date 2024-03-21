@@ -2,6 +2,126 @@
 Release Notes
 =============
 
+
+.. _Release Notes_7.52.0:
+
+7.52.0 / 6.52.0
+======
+
+.. _Release Notes_7.52.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-03-21
+
+- Please refer to the `7.52.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7520>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.52.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- To prevent misconfigurations, the Windows Datadog Agent installer now raises an error if
+  the user account running the installer MSI is provided as the ``ddagentuser`` (``DDAGENTUSER_NAME``) account.
+  If the account is a service account, such as LocalSystem or a gMSA account, no action is needed.
+  If the account is a regular account, configure a different Datadog Agent service account.
+
+
+.. _Release Notes_7.52.0_New Features:
+
+New Features
+------------
+
+- Add `device_type` to the device metadata.
+
+- Attach host tags to metrics for ``expected_tags_duration`` amount of time.
+
+- APM stats will now include, if present, the Git commit SHA from traces (or container tags) and the image tag from container tags.
+
+- Creation of a new packageSigning component to collect Linux package signature information and improve signature rotation process. More information can be found in DataDog documentation at `2024 linux key rotation <https://docs.datadoghq.com/agent/guide/linux-key-rotation-2024>`_.
+
+- Adds support for `span links <https://docs.datadoghq.com/tracing/trace_collection/span_links/>`_  in the trace agent. This field
+  contains a list of casual relationships between spans and is only
+  populated when v0.4 of the Trace API is used.
+
+- The Windows Agent now supports CWS for process and network threats.
+
+- CWS: Add ``chdir`` event to allow recent container escape detection.
+
+- CWS: [BETA] Add File Integrity Monitoring support on Windows, supporting both files and registry.
+
+- CWS: The Agent now automatically suppresses benign security events if they have already been reported for a particular container image.
+
+- Updating process agent discovery configuration to include a Data Scrubber for obfuscating sensitive information such as passwords, API keys, or tokens.
+
+- Add support for pinging network devices in the SNMP integration.
+
+- [oracle] Add ``oracle.locks.transaction_duration`` metric.
+
+- APM: Add support for Single Step Instrumentation remote configuration
+
+
+.. _Release Notes_7.52.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- [DBM] Increase the DBM dbm-metrics-intake endpoint's defaultInputChanSize value to 500.
+
+- Add debug level logs when files are evicted from ``registry.json``
+  after their TTL expires.
+
+- Add the instance ID returned by the IMDSv2 metadata endpoint to the list of EC2 host aliases.
+
+- This change adds journald permissions to the flare in the
+  ``logs_file_permissions.log`` file, in the form of either the
+  journald directory or a specific file (if specified by the
+  Agent journald configuration).
+
+- The Logs Agent now creates a file in the flare, called
+  ``logs_file_permissions.log``, which lists every file and
+  that file's permissions that the Logs Agent can detect.
+
+- Add the SBOM check to the output of the Agent status command and the Agent flare.
+
+- Add the Software Bill of Materials (SBOM) for container images to the output of the flare command.
+
+- Add ``repo_digest`` to containerd ContainerImage to remove duplicate images in container images UI.
+
+- Agents are now built with Go ``1.21.7``.
+
+- Agents are now built with Go ``1.21.8``.
+
+- CWS: Improved coverage on platforms with no eBPF support.
+
+- CWS: Send context of variables in events.
+
+- Add DD_APM_DEBUGGER_DIAGNOSTICS_DD_URL, DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY,
+  and DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS to allow sending Live
+  Debugger / Dynamic Instrumentation diagnostic data to multiple intakes.
+
+- Added config that allows user to toggle on and off the collection of zombie processes in the Process Agent.
+
+- [oracle] Add ``ddagenthostname`` tag.
+
+- [oracle]: Add ``oracle.tablespace.maxsize`` metric.
+
+- OTLP ingest supports stable Java runtime metrics introduced in `opentelemetry-java-instrumentation` v2.0.0.
+  OTLP ingest supports Kafka metrics mapping. This allows users of the JMX Receiver/JMX Metrics Gatherer and Kafka metrics receiver to have access to the OOTB Kafka Dashboard.
+
+- Modified the process check to populate process with the newly created field "ProcessContext"
+
+- Rename the ``kubelet_core`` check to ``kubelet`` and change the metrics 
+  prefix from ``kubernetes_core`` to ``kubernetes`` so that it can replace 
+  the Python ``kubelet`` check.
+
+- APM: Adds `msgp_short_bytes` reason for trace payloads dropped to distinguish them from EOF errors.
+
+- When getting resource tags from an ECS task with zero containers, print a warn log instead of error log.
+
+
 .. _Release Notes_7.51.1:
 
 7.51.1 / 6.51.1
