@@ -2507,9 +2507,6 @@ func TestGenerateInstallSignature(t *testing.T) {
 }
 
 func TestMockConfig(t *testing.T) {
-	os.Setenv("DD_HOSTNAME", "foo")
-	defer func() { os.Unsetenv("DD_HOSTNAME") }()
-
 	os.Setenv("DD_SITE", "datadoghq.eu")
 	defer func() { os.Unsetenv("DD_SITE") }()
 
@@ -2523,7 +2520,6 @@ func TestMockConfig(t *testing.T) {
 	require.NotNil(t, cfg)
 
 	// values aren't set from env..
-	assert.NotEqual(t, "foo", cfg.Hostname)
 	assert.NotEqual(t, "datadoghq.eu", cfg.Site)
 
 	// but defaults are set

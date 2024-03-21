@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib && test
+//go:build zlib && test && zstd
 
 package metrics
 
@@ -25,6 +25,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 )
 
@@ -165,36 +166,57 @@ func TestPayloadsEvents(t *testing.T) {
 }
 
 func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
-	events := createEvents("3", "3", "2", "2", "1", "1")
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_max_payload_size", 500)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			events := createEvents("3", "3", "2", "2", "1", "1")
 
-	cfg := pkgconfigsetup.Conf()
-	cfg.SetWithoutSource("serializer_max_payload_size", 500)
-	expectedPayloads, err := events.MarshalJSON()
-	assert.NoError(t, err)
+			expectedPayloads, err := events.MarshalJSON()
+			assert.NoError(t, err)
 
-	payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler(), cfg)
-	assert.Equal(t, 3, len(payloadsBySourceType))
-	assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
+			payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler(), mockConfig)
+			assert.Equal(t, 3, len(payloadsBySourceType))
+			assertEqualEventsPayloads(t, expectedPayloads, payloadsBySourceType)
+		})
+	}
 }
 
 func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
-	events := createEvents("3", "3", "2", "2", "1", "1")
-
-	cfg := pkgconfigsetup.Conf()
-	cfg.SetWithoutSource("serializer_max_payload_size", 300)
-	expectedPayloads, err := events.MarshalJSON()
-	assert.NoError(t, err)
-
-	marshalers := events.CreateMarshalersBySourceType()
-	assert.Equal(t, 3, len(marshalers))
-	var payloadForEachSourceType []payloadsType
-	for _, marshaler := range marshalers {
-		payloads := buildPayload(t, marshaler, cfg)
-		assert.Equal(t, 2, len(payloads))
-		payloadForEachSourceType = append(payloadForEachSourceType, payloads...)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_max_payload_size", 300)
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			events := createEvents("3", "3", "2", "2", "1", "1")
+			expectedPayloads, err := events.MarshalJSON()
+			assert.NoError(t, err)
 
-	assertEqualEventsPayloads(t, expectedPayloads, payloadForEachSourceType)
+			marshalers := events.CreateMarshalersBySourceType()
+			assert.Equal(t, 3, len(marshalers))
+			var payloadForEachSourceType []payloadsType
+			for _, marshaler := range marshalers {
+				payloads := buildPayload(t, marshaler, mockConfig)
+				assert.Equal(t, 2, len(payloads))
+				payloadForEachSourceType = append(payloadForEachSourceType, payloads...)
+			}
+
+			assertEqualEventsPayloads(t, expectedPayloads, payloadForEachSourceType)
+		})
+	}
 }
 
 // Helpers
@@ -228,18 +250,32 @@ func createEvents(sourceTypeNames ...string) Events {
 // Check JSONPayloadBuilder for CreateSingleMarshaler and CreateMarshalersBySourceType
 // return the same results as for MarshalJSON.
 func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
-	json, err := events.MarshalJSON()
-	assert.NoError(t, err)
 
-	mockConfig := pkgconfigsetup.Conf()
-	payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler(), mockConfig)
-	assertEqualEventsPayloads(t, json, payloadsBySourceType)
-
-	var payloads []payloadsType
-	for _, e := range events.CreateMarshalersBySourceType() {
-		payloads = append(payloads, buildPayload(t, e, mockConfig)...)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
-	assertEqualEventsPayloads(t, json, payloads)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			json, err := events.MarshalJSON()
+			assert.NoError(t, err)
+
+			payloadsBySourceType := buildPayload(t, events.CreateSingleMarshaler(), mockConfig)
+			assertEqualEventsPayloads(t, json, payloadsBySourceType)
+
+			var payloads []payloadsType
+			for _, e := range events.CreateMarshalersBySourceType() {
+				payloads = append(payloads, buildPayload(t, e, mockConfig)...)
+			}
+			assertEqualEventsPayloads(t, json, payloads)
+		})
+
+	}
+
 }
 
 func assertEqualEventsPayloads(t *testing.T, expected payloadsType, actual []payloadsType) {

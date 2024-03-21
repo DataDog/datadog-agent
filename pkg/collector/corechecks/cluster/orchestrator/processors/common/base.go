@@ -5,8 +5,8 @@
 
 //go:build orchestrator
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-package k8s
+// Package common provides basic handlers used by orchestrator processor
+package common
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -17,25 +17,26 @@ import (
 type BaseHandlers struct{}
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (BaseHandlers) BeforeCacheCheck(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+func (BaseHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {}
+func (BaseHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {}
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (BaseHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
+func (BaseHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	return ExtractModelManifests(ctx, resourceManifests, groupSize)
 }
 
 // ExtractModelManifests creates the model manifest from the given manifests
-func ExtractModelManifests(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) *model.CollectorManifest {
+func ExtractModelManifests(ctx processors.ProcessorContext, resourceManifests []interface{}, groupSize int) *model.CollectorManifest {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	manifests := make([]*model.Manifest, 0, len(resourceManifests))
 
 	for _, m := range resourceManifests {
@@ -43,10 +44,10 @@ func ExtractModelManifests(ctx *processors.ProcessorContext, resourceManifests [
 	}
 
 	cm := &model.CollectorManifest{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
+		ClusterName: pctx.Cfg.KubeClusterName,
+		ClusterId:   pctx.ClusterID,
 		Manifests:   manifests,
-		GroupId:     ctx.MsgGroupID,
+		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 	}
 	return cm

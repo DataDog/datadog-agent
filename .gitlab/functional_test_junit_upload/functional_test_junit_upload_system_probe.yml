@@ -6,7 +6,7 @@ functional_test_junit_upload_system_probe:
   rules:
     - !reference [.except_mergequeue]
     - when: always
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_CI_UPLOADER_IMAGE
   tags: ["arch:amd64"]
   allow_failure: true
   needs:
@@ -22,7 +22,7 @@ functional_test_junit_upload_system_probe:
 
 .functional_test_junit_upload_kmt:
   stage: functional_test_junit_upload
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_CI_UPLOADER_IMAGE
   tags: ["arch:amd64"]
   allow_failure: true
   rules:

@@ -144,16 +144,22 @@ func (c *Check) sysMetrics() (int64, error) {
 	metricRows := []SysmetricsRowDB{}
 
 	var sysMetricsQuery string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
-		sysMetricsQuery = sysMetricsQuery12
-	} else {
+	if c.legacyIntegrationCompatibilityMode {
 		sysMetricsQuery = sysMetricsQuery11
+	} else {
+		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+			sysMetricsQuery = sysMetricsQuery12
+		} else {
+			sysMetricsQuery = sysMetricsQuery11
+		}
 	}
 
-	if isDbVersionGreaterOrEqualThan(c, "18") {
-		err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$con_sysmetric"))
-		if err != nil {
-			return n, fmt.Errorf("failed to collect container sysmetrics: %w", err)
+	if !c.legacyIntegrationCompatibilityMode {
+		if isDbVersionGreaterOrEqualThan(c, "18") {
+			err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$con_sysmetric"))
+			if err != nil {
+				return n, fmt.Errorf("failed to collect container sysmetrics: %w", err)
+			}
 		}
 	}
 
@@ -162,8 +168,14 @@ func (c *Check) sysMetrics() (int64, error) {
 		c.sendMetric(r, seenInContainerMetrics, &n)
 	}
 
+	var view string
+	if c.legacyIntegrationCompatibilityMode {
+		view = "gv$sysmetric"
+	} else {
+		view = "v$sysmetric"
+	}
 	seenInGlobalMetrics := make(map[string]bool)
-	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$sysmetric")+" ORDER BY begin_time DESC, metric_name ASC")
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, view)+" ORDER BY begin_time DESC, metric_name ASC")
 	if err != nil {
 		return 0, fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
@@ -175,17 +187,19 @@ func (c *Check) sysMetrics() (int64, error) {
 		}
 	}
 
-	var overAllocationCount float64
-	err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
-	if err != nil {
-		return n, fmt.Errorf("failed to get PGA over allocation count: %w", err)
-	}
-	if c.previousPGAOverAllocationCount.valid {
-		v := overAllocationCount - c.previousPGAOverAllocationCount.value
-		sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v)
-		c.previousPGAOverAllocationCount.value = overAllocationCount
-	} else {
-		c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount, valid: true}
+	if !c.legacyIntegrationCompatibilityMode {
+		var overAllocationCount float64
+		err = getWrapper(c, &overAllocationCount, "SELECT value FROM v$pgastat WHERE name = 'over allocation count'")
+		if err != nil {
+			return n, fmt.Errorf("failed to get PGA over allocation count: %w", err)
+		}
+		if c.previousPGAOverAllocationCount.valid {
+			v := overAllocationCount - c.previousPGAOverAllocationCount.value
+			sendMetricWithDefaultTags(c, gauge, fmt.Sprintf("%s.%s", common.IntegrationName, "pga_over_allocation_count"), v)
+			c.previousPGAOverAllocationCount.value = overAllocationCount
+		} else {
+			c.previousPGAOverAllocationCount = pgaOverAllocationCount{value: overAllocationCount, valid: true}
+		}
 	}
 
 	sender.Commit()

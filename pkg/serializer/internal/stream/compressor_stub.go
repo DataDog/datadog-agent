@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-2020 Datadog, Inc.
 
-//go:build !zlib
+//go:build !zlib && !zstd
 
 package stream
 
@@ -11,6 +11,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 const (
@@ -30,7 +32,7 @@ var (
 type Compressor struct{}
 
 // NewCompressor not implemented
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte, cfg config.Component) (*Compressor, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

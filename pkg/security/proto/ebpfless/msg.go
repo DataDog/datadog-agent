@@ -106,6 +106,7 @@ type ExecSyscallMsg struct {
 	EnvsTruncated bool
 	TTY           string
 	Credentials   *Credentials
+	PPID          uint32
 }
 
 // ForkSyscallMsg defines a fork message
