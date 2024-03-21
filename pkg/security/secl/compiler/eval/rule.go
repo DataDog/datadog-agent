@@ -242,11 +242,6 @@ func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext) error {
 }
 
 func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error) {
-	// check that field in this rule fields
-	if !slices.Contains(r.GetFields(), field) {
-		return nil, nil
-	}
-
 	macroEvaluators := make(map[MacroID]*MacroEvaluator)
 	for _, macro := range r.Opts.MacroStore.List() {
 		var err error
@@ -273,13 +268,13 @@ func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error
 
 // GenPartials - Compiles and generates partial Evaluators
 func (r *Rule) genPartials(field Field) error {
+	if !slices.Contains(r.GetFields(), field) {
+		return nil
+	}
+
 	macroPartial, err := r.genMacroPartials(field)
 	if err != nil {
 		return err
-	}
-
-	if !slices.Contains(r.GetFields(), field) {
-		return nil
 	}
 
 	state := NewState(r.Model, field, macroPartial)
