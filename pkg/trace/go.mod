@@ -36,6 +36,7 @@ require (
 	go.opentelemetry.io/collector/component v0.93.0
 	go.opentelemetry.io/collector/consumer v0.93.0
 	go.opentelemetry.io/collector/pdata v1.0.1
+	go.opentelemetry.io/collector/processor v0.93.0
 	go.opentelemetry.io/collector/semconv v0.93.0
 	go.opentelemetry.io/otel v1.22.0
 	go.uber.org/atomic v1.11.0
@@ -95,6 +96,7 @@ require (
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opencensus.io v0.24.0 // indirect
+	go.opentelemetry.io/collector v0.93.0 // indirect
 	go.opentelemetry.io/collector/config/configtelemetry v0.93.0 // indirect
 	go.opentelemetry.io/collector/confmap v0.93.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.0.1 // indirect
