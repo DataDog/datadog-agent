@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Introducing obfuscation of commands and shell commands sent by tracers.
+    APM: Introducing obfuscation of shell commands sent by tracers.
