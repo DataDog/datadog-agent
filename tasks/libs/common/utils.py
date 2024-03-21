@@ -5,6 +5,7 @@ Miscellaneous functions, no tasks here
 
 import json
 import os
+import platform
 import re
 import sys
 import time
@@ -66,6 +67,21 @@ def bin_name(name):
     if sys.platform == 'win32':
         return f"{name}.exe"
     return name
+
+
+def get_distro():
+    """
+    Get the distro name. Windows and Darwin stays the same.
+    Linux is the only one that needs to be determined using the /etc/os-release file.
+    """
+    system = platform.system()
+    if system == 'Linux':
+        if os.path.isfile('/etc/os-release'):
+            with open('/etc/os-release', encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith('ID='):
+                        return line.strip()[3:]
+    return system.lower()
 
 
 def get_goenv(ctx, var):
