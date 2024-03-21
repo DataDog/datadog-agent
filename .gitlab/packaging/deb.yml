@@ -13,9 +13,8 @@
   script:
     - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
-    - echo "About to build for $RELEASE_VERSION"
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - echo "About to package for $RELEASE_VERSION"
+    - tar xf ${OMNIBUS_BASE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz -C /
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - *setup_deb_signing_key
