@@ -80,8 +80,8 @@ func newHaRemoteConfigService(deps dependencies) (rcserviceha.Component, error) 
 	if deps.Cfg.IsSet("ha.remote_configuration.refresh_interval") {
 		options = append(options, remoteconfig.WithRefreshInterval(deps.Cfg.GetDuration("ha.remote_configuration.refresh_interval"), "ha.remote_configuration.refresh_interval"))
 	}
-	if deps.Cfg.IsSet("ha.remote_configuration.max_backoff_time") {
-		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("ha.remote_configuration.max_backoff_time"), "remote_configuration.max_backoff_time"))
+	if deps.Cfg.IsSet("ha.remote_configuration.max_backoff_interval") {
+		options = append(options, remoteconfig.WithMaxBackoffInterval(deps.Cfg.GetDuration("ha.remote_configuration.max_backoff_interval"), "remote_configuration.max_backoff_time"))
 	}
 	if deps.Cfg.IsSet("ha.remote_configuration.clients.ttl_seconds") {
 		options = append(options, remoteconfig.WithClientTTL(deps.Cfg.GetDuration("ha.remote_configuration.clients.ttl_seconds"), "ha.remote_configuration.clients.ttl_seconds"))
