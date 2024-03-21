@@ -84,7 +84,7 @@ type hostMetadata struct {
 
 	// from the agent itself
 	AgentVersion           string `json:"agent_version"`
-	AgentStartupTime       int64  `json:"agent_startup_time"`
+	AgentStartupTime       int64  `json:"agent_startup_time_ns"`
 	CloudProvider          string `json:"cloud_provider"`
 	CloudProviderSource    string `json:"cloud_provider_source"`
 	CloudProviderAccountID string `json:"cloud_provider_account_id"`

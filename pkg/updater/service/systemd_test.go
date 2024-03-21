@@ -31,10 +31,13 @@ func TestInvalidCommands(t *testing.T) {
 	// assert wrong commands
 	for input, expected := range map[string]string{
 		// fail assert_command characters assertion
-		";":                    "error: invalid command\n",
-		"&":                    "error: invalid command\n",
-		"start does-not-exist": "error: invalid unit\n",
-		"start a v c":          "error: missing unit\n",
+		";": "error: decoding command\n",
+		"&": "error: decoding command\n",
+		`{"command":"start", "unit":"does-not-exist"}`:                       "error: invalid unit\n",
+		`{"command":"start", "unit":"datadog-//"}`:                           "error: invalid unit\n",
+		`{"command":"does-not-exist", "unit":"datadog-"}`:                    "error: invalid command\n",
+		`{"command":"chown dd-agent", "path":"/"}`:                           "error: invalid path\n",
+		`{"command":"chown dd-agent", "path":"/opt/datadog-packages/../.."}`: "error: invalid path\n",
 	} {
 		assert.Equal(t, expected, executeCommand(input).Error())
 	}
