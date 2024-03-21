@@ -1,0 +1,56 @@
+---
+
+.setup_deb_signing_key: &setup_deb_signing_key
+  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
+  - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
+  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
+
+.updater_package_deb_common:
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
+  stage: packaging
+  script:
+    - source /root/.bashrc
+    - !reference [.setup_ruby_mirror_linux]
+    - echo "About to build for $RELEASE_VERSION"
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - *setup_deb_signing_key
+    - inv -e updater.omnibus-package --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING}
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
+    - !reference [.upload_sbom_artifacts]
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+updater_deb-amd64:
+  extends: .updater_package_deb_common
+  rules: !reference [.on_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["updater-amd64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PACKAGE_ARCH: amd64
+    DESTINATION_DEB: "datadog-updater_7_amd64.deb"
+    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_amd64.deb"
+
+updater_deb-arm64:
+  extends: .updater_package_deb_common
+  rules: !reference [.on_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["updater-arm64"]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    PACKAGE_ARCH: arm64
+    DESTINATION_DEB: "datadog-updater_7_arm64.deb"
+    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_arm64.deb"
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
