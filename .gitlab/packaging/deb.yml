@@ -14,7 +14,7 @@
     - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - echo "About to package for $RELEASE_VERSION"
-    - tar xf ${OMNIBUS_BASE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz -C /
+    - tar xf ${OMNIBUS_PACKAGE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz -C /
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - *setup_deb_signing_key
