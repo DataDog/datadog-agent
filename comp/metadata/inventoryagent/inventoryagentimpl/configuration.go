@@ -86,3 +86,11 @@ func (ia *inventoryagent) getCliConfiguration() (string, error) {
 
 	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceCLI))
 }
+
+func (ia *inventoryagent) getSourceLocalConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
+		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
+	}
+
+	return marshalAndScrub(ia.conf.AllSourceSettingsWithoutDefault(model.SourceLocalConfigProcess))
+}

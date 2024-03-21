@@ -91,7 +91,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240318112024-de26033b606a // indirect
-	github.com/DataDog/viper v1.12.0 // indirect
+	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

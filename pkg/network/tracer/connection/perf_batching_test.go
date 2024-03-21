@@ -164,7 +164,7 @@ func newEmptyBatchManager() *perfBatchManager {
 }
 
 func newTestBatchManager(t *testing.T) *perfBatchManager {
-	rlimit.RemoveMemlock()
+	require.NoError(t, rlimit.RemoveMemlock())
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
 		KeySize:    4,

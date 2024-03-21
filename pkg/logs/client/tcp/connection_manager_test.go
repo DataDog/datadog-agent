@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
@@ -28,7 +27,7 @@ func newConnectionManagerForAddr(addr net.Addr) *ConnectionManager {
 }
 
 func newConnectionManagerForHostPort(host string, port int) *ConnectionManager {
-	endpoint := config.Endpoint{Host: host, Port: port, UseSSL: pointer.Ptr(false)}
+	endpoint := config.NewEndpoint("", host, port, false)
 	return NewConnectionManager(endpoint, statusinterface.NewStatusProviderMock())
 }
 

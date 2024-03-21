@@ -108,8 +108,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     should be cancelled.
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if here:
@@ -171,11 +170,10 @@ def auto_cancel_previous_pipelines(ctx):
     Automatically cancel previous pipelines running on the same ref
     """
 
-    project_name = "DataDog/datadog-agent"
     if not os.environ.get('GITLAB_TOKEN'):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     git_ref = os.getenv("CI_COMMIT_REF_NAME")
@@ -266,8 +264,7 @@ def run(
       inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    gitlab = Gitlab(api_token=get_gitlab_token())
     gitlab.test_project_found()
 
     if (not git_ref and not here) or (git_ref and here):
@@ -512,7 +509,7 @@ def changelog(ctx, new_commit_sha):
     else:
         parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_changelog_commit_sha",
+        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh $CHANGELOG_COMMIT_SHA_SSM_NAME",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:
@@ -584,8 +581,7 @@ def changelog(ctx, new_commit_sha):
 
 
 def _init_pipeline_schedule_task():
-    project_name = "DataDog/datadog-agent"
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_bot_token())
+    gitlab = Gitlab(api_token=get_gitlab_bot_token())
     gitlab.test_project_found()
     return gitlab
 
@@ -731,6 +727,21 @@ def verify_workspace(ctx, branch_name=None):
         github = GithubAPI(repository=GITHUB_REPO_NAME)
         check_clean_branch_state(ctx, github, branch_name)
     return branch_name
+
+
+def update_test_infra_def(file_path, image_tag):
+    """
+    Override TEST_INFRA_DEFINITIONS_BUILDIMAGES in .gitlab-ci.yml file
+    """
+    with open(file_path, "r") as gl:
+        file_content = gl.readlines()
+    with open(file_path, "w") as gl:
+        for line in file_content:
+            test_infra_def = re.search(r"TEST_INFRA_DEFINITIONS_BUILDIMAGES:\s*(\w+)", line)
+            if test_infra_def:
+                gl.write(line.replace(test_infra_def.group(1), image_tag))
+            else:
+                gl.write(line)
 
 
 def update_gitlab_config(file_path, image_tag, test_version):

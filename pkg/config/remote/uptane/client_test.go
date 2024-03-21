@@ -45,11 +45,12 @@ func newTestConfig(repo testRepositories) model.Config {
 func newTestClient(db *bbolt.DB, name string, cfg model.Config) (*Client, error) {
 	opts := []ClientOption{
 		WithOrgIDCheck(2),
-		WithConfigRootOverride(cfg.GetString("remote_configuration.config_root")),
-		WithDirectorRootOverride(cfg.GetString("remote_configuration.director_root")),
+		WithConfigRootOverride("datadoghq.com", cfg.GetString("remote_configuration.config_root")),
+		WithDirectorRootOverride("datadoghq.com", cfg.GetString("remote_configuration.director_root")),
 	}
 	return NewClient(db, name, getTestOrgUUIDProvider(2), opts...)
 }
+
 func TestClientState(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	cfg := newTestConfig(testRepository1)
@@ -60,8 +61,8 @@ func TestClientState(t *testing.T) {
 	// Testing default state
 	clientState, err := client1.State()
 	assert.NoError(t, err)
-	assert.Equal(t, meta.RootsConfig(cfg.GetString("remote_configuration.config_root")).LastVersion(), clientState.ConfigRootVersion())
-	assert.Equal(t, meta.RootsDirector(cfg.GetString("remote_configuration.director_root")).LastVersion(), clientState.DirectorRootVersion())
+	assert.Equal(t, meta.RootsConfig("datadoghq.com", cfg.GetString("remote_configuration.config_root")).LastVersion(), clientState.ConfigRootVersion())
+	assert.Equal(t, meta.RootsDirector("datadoghq.com", cfg.GetString("remote_configuration.director_root")).LastVersion(), clientState.DirectorRootVersion())
 	_, err = client1.TargetsMeta()
 	assert.Error(t, err)
 
@@ -96,8 +97,8 @@ func TestClientState(t *testing.T) {
 	assert.NoError(t, err)
 	clientState, err = client3.State()
 	assert.NoError(t, err)
-	assert.Equal(t, meta.RootsConfig(cfg.GetString("remote_configuration.config_root")).LastVersion(), clientState.ConfigRootVersion())
-	assert.Equal(t, meta.RootsDirector(cfg.GetString("remote_configuration.config_root")).LastVersion(), clientState.DirectorRootVersion())
+	assert.Equal(t, meta.RootsConfig("datadoghq.com", cfg.GetString("remote_configuration.config_root")).LastVersion(), clientState.ConfigRootVersion())
+	assert.Equal(t, meta.RootsDirector("datadoghq.com", cfg.GetString("remote_configuration.config_root")).LastVersion(), clientState.DirectorRootVersion())
 	_, err = client3.TargetsMeta()
 	assert.Error(t, err)
 }

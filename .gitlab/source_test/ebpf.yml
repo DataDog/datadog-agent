@@ -19,6 +19,7 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - source /root/.bashrc
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
@@ -54,6 +55,7 @@ tests_ebpf_arm64:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools

@@ -12,8 +12,6 @@
 package tagger
 
 import (
-	"context"
-
 	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -24,9 +22,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// TODO(component): Start method should be removed or migrated to an internal function in favour of fx.Lifecyle.
-	Start(ctx context.Context) error
-	Stop() error
 	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)
