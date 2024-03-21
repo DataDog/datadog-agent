@@ -55,7 +55,7 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 	profilesRoot := getProfileConfdRoot(profilesFolder)
 	files, err := os.ReadDir(profilesRoot)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
+		return nil, fmt.Errorf("failed to read profile dir %q: %w", profilesRoot, err)
 	}
 
 	profiles := make(ProfileConfigMap)
@@ -71,7 +71,7 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 		absPath := filepath.Join(profilesRoot, fName)
 		definition, err := readProfileDefinition(absPath)
 		if err != nil {
-			log.Warnf("failed to read dir `%s`: %v", absPath, err)
+			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue
 		}
 		profiles[profileName] = ProfileConfig{
@@ -86,13 +86,13 @@ func readProfileDefinition(definitionFile string) (*profiledefinition.ProfileDef
 	filePath := resolveProfileDefinitionPath(definitionFile)
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
+		return nil, fmt.Errorf("unable to read file %q: %w", filePath, err)
 	}
 
 	profileDefinition := profiledefinition.NewProfileDefinition()
 	err = yaml.Unmarshal(buf, profileDefinition)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshall %q: %v", filePath, err)
+		return nil, fmt.Errorf("parse error in file %q: %w", filePath, err)
 	}
 	return profileDefinition, nil
 }
@@ -116,7 +116,7 @@ func getProfileConfdRoot(profileFolderName string) string {
 func getYamlUserProfiles() ProfileConfigMap {
 	userProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	if err != nil {
-		log.Warnf("failed to get user profile definitions: %s", err)
+		log.Warnf("failed to load user profile definitions: %s", err)
 		return ProfileConfigMap{}
 	}
 	return userProfiles
@@ -125,7 +125,7 @@ func getYamlUserProfiles() ProfileConfigMap {
 func getYamlDefaultProfiles() ProfileConfigMap {
 	userProfiles, err := getProfileDefinitions(defaultProfilesFolder, false)
 	if err != nil {
-		log.Warnf("failed to get default profile definitions: %s", err)
+		log.Warnf("failed to load default profile definitions: %s", err)
 		return ProfileConfigMap{}
 	}
 	return userProfiles
