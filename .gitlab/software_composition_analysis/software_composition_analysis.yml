@@ -15,8 +15,5 @@ datadog-sca-ci:
   script:
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")
     - export DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$APP_KEY_ORG2_SSM_NAME")
-    - trivy fs --output /tmp/trivy.sbom --format cyclonedx --offline-scan --skip-db-update .
-    # Required until we use datadog-ci version https://github.com/DataDog/datadog-ci/releases/tag/v2.30.0
-    # Current version is v2.27.0
-    - export DD_BETA_COMMANDS_ENABLED=true
-    - datadog-ci sbom upload --service datadog-agent --env ci /tmp/trivy.sbom
+    - osv-scanner --skip-git --recursive --experimental-only-packages --format=cyclonedx-1-4 --output=/tmp/sbom.json .
+    - datadog-ci sbom upload --service integrations-core --env ci /tmp/sbom.json
