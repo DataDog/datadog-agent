@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 PIDFile=<%= install_dir %>/run/updater.pid
-User=dd-agent
+User=dd-updater
 Restart=on-failure
 EnvironmentFile=-<%= etc_dir %>/environment
 ExecStart=<%= install_dir %>/bin/updater/updater run -p <%= install_dir %>/run/updater.pid
