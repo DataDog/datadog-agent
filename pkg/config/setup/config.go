@@ -240,8 +240,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
-	config.BindEnvAndSetDefault("agent_ipc_host", "localhost")
-	config.BindEnvAndSetDefault("agent_ipc_port", 0)
+	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
+	config.BindEnvAndSetDefault("agent_ipc.port", 0)
+	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
@@ -1324,6 +1325,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	OTLP(config)
 	setupProcesses(config)
 	setupHighAvailability(config)
+
+	// Updater configuration
+	config.BindEnv("updater.registry")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
