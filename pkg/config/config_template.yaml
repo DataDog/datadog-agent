@@ -1587,7 +1587,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","disable_otlp_compute_top_level_by_span_kind"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional

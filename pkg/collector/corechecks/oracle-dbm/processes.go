@@ -41,6 +41,14 @@ const pgaQuery11 = `SELECT
 FROM v$process p, v$session s
 WHERE s.paddr(+) = p.addr`
 
+const pgaQueryOldIntegration = `SELECT
+	p.pid as pid, p.program as server_process,
+	nvl(pga_used_mem,0) pga_used_mem,
+	nvl(pga_alloc_mem,0) pga_alloc_mem,
+	nvl(pga_freeable_mem,0) pga_freeable_mem,
+	nvl(pga_max_mem,0) pga_max_mem
+FROM gv$process p`
+
 type sessionTagColumns struct {
 	Sid      sql.NullInt64  `db:"SID"`
 	Username sql.NullString `db:"USERNAME"`
@@ -70,11 +78,16 @@ func (c *Check) ProcessMemory() error {
 	rows := []ProcessesRowDB{}
 
 	var pgaQuery string
-	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
-		pgaQuery = pgaQuery12
+	if c.legacyIntegrationCompatibilityMode {
+		pgaQuery = pgaQueryOldIntegration
 	} else {
-		pgaQuery = pgaQuery11
+		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+			pgaQuery = pgaQuery12
+		} else {
+			pgaQuery = pgaQuery11
+		}
 	}
+
 	err := selectWrapper(c, &rows, pgaQuery)
 	if err != nil {
 		return fmt.Errorf("failed to collect processes info: %w", err)

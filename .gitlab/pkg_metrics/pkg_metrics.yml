@@ -28,7 +28,7 @@
 .send_metrics:
   script:
     # Send the metrics accumulated by add_metric
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
     - 'curl --fail -X POST -H "Content-type: application/json" -d "$post_body" "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"'
 
 send_pkg_size-a6:
@@ -76,7 +76,7 @@ send_pkg_size-a6:
     - AMD64_SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/amd64-agent | sed 's/\([0-9]\+\).\+/\1/')
 
     - currenttime=$(date +%s)
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
     - |
       curl --fail -X POST -H "Content-type: application/json" \
       -d "{\"series\":[

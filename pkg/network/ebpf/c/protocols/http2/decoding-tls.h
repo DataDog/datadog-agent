@@ -63,10 +63,8 @@ static __always_inline bool tls_read_hpack_int(tls_dispatcher_arguments_t *info,
     return tls_read_hpack_int_with_given_current_char(info, current_char_as_number, max_number_for_bits, out);
 }
 
-// Handles the case in which a header is not a pseudo header. We don't need to save it as interesting or modify our telemetry.
-// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
-// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.4
-static __always_inline bool tls_handle_non_pseudo_headers(tls_dispatcher_arguments_t *info, __u64 index) {
+// Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
+static __always_inline bool tls_process_and_skip_literal_headers(tls_dispatcher_arguments_t *info, __u64 index) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -288,7 +286,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
 
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!tls_handle_non_pseudo_headers(info, index)) {
+        if (!tls_process_and_skip_literal_headers(info, index)) {
             break;
         }
     }
@@ -815,6 +813,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
+        current_stream->tags |= args->tags;
         tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
     }
 

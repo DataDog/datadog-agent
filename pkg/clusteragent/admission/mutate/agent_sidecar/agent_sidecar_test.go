@@ -9,14 +9,16 @@ package agentsidecar
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"reflect"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"reflect"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 const commonRegistry = "gcr.io/datadoghq"
@@ -28,6 +30,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 		provider                  string
 		profilesJSON              string
 		ExpectError               bool
+		ExpectInjection           bool
 		ExpectedPodAfterInjection func() *corev1.Pod
 	}{
 		{
@@ -36,6 +39,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			provider:                  "",
 			profilesJSON:              "",
 			ExpectError:               true,
+			ExpectInjection:           false,
 			ExpectedPodAfterInjection: func() *corev1.Pod { return nil },
 		},
 		{
@@ -50,9 +54,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -80,9 +85,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -110,9 +116,10 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: false,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -139,15 +146,35 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 				},
 			},
-			provider:     "fargate",
-			profilesJSON: "[]",
-			ExpectError:  false,
+			provider:        "fargate",
+			profilesJSON:    "[]",
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *getDefaultSidecarTemplate(commonRegistry)
-				withEnvOverrides(&sidecar, corev1.EnvVar{
-					Name:  "DD_EKS_FARGATE",
-					Value: "true",
-				})
+				_, _ = withEnvOverrides(
+					&sidecar,
+					corev1.EnvVar{
+						Name:  "DD_EKS_FARGATE",
+						Value: "true",
+					},
+					corev1.EnvVar{
+						Name:  "DD_APM_RECEIVER_SOCKET",
+						Value: "/var/run/datadog/apm.socket",
+					},
+					corev1.EnvVar{
+						Name:  "DD_DOGSTATSD_SOCKET",
+						Value: "/var/run/datadog/dsd.socket",
+					},
+				)
+
+				sidecar.VolumeMounts = []corev1.VolumeMount{
+					{
+						Name:      "ddsockets",
+						MountPath: "/var/run/datadog",
+						ReadOnly:  false,
+					},
+				}
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -155,8 +182,35 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
-							{Name: "container-name"},
+							{
+								Name: "container-name",
+								Env: []corev1.EnvVar{
+									{
+										Name:  "DD_TRACE_AGENT_URL",
+										Value: "unix:///var/run/datadog/apm.socket",
+									},
+									{
+										Name:  "DD_DOGSTATSD_URL",
+										Value: "unix:///var/run/datadog/dsd.socket",
+									},
+								},
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "ddsockets",
+										MountPath: "/var/run/datadog",
+										ReadOnly:  false,
+									},
+								},
+							},
 							sidecar,
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "ddsockets",
+								VolumeSource: corev1.VolumeSource{
+									EmptyDir: &corev1.EmptyDirVolumeSource{},
+								},
+							},
 						},
 					},
 				}
@@ -191,22 +245,52 @@ func TestInjectAgentSidecar(t *testing.T) {
             }
         }
     }]`,
-			ExpectError: false,
+			ExpectError:     false,
+			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 
-				withEnvOverrides(&sidecar, corev1.EnvVar{
-					Name:  "DD_EKS_FARGATE",
-					Value: "true",
-				}, corev1.EnvVar{Name: "ENV_VAR_1", ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{Key: "secret-key", LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
-				}},
-					corev1.EnvVar{Name: "ENV_VAR_2", Value: "value2"})
+				_, _ = withEnvOverrides(
+					&sidecar,
+					corev1.EnvVar{
+						Name:  "DD_EKS_FARGATE",
+						Value: "true",
+					},
+					corev1.EnvVar{
+						Name:  "DD_APM_RECEIVER_SOCKET",
+						Value: "/var/run/datadog/apm.socket",
+					},
+					corev1.EnvVar{
+						Name:  "DD_DOGSTATSD_SOCKET",
+						Value: "/var/run/datadog/dsd.socket",
+					},
+					corev1.EnvVar{
+						Name: "ENV_VAR_1",
+						ValueFrom: &corev1.EnvVarSource{
+							SecretKeyRef: &corev1.SecretKeySelector{
+								Key:                  "secret-key",
+								LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
+							},
+						},
+					},
+					corev1.EnvVar{
+						Name:  "ENV_VAR_2",
+						Value: "value2",
+					},
+				)
 
-				withResourceLimits(&sidecar, corev1.ResourceRequirements{
+				_ = withResourceLimits(&sidecar, corev1.ResourceRequirements{
 					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				})
+
+				sidecar.VolumeMounts = []corev1.VolumeMount{
+					{
+						Name:      "ddsockets",
+						MountPath: "/var/run/datadog",
+						ReadOnly:  false,
+					},
+				}
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
@@ -214,8 +298,35 @@ func TestInjectAgentSidecar(t *testing.T) {
 					},
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
-							{Name: "container-name"},
+							{
+								Name: "container-name",
+								Env: []corev1.EnvVar{
+									{
+										Name:  "DD_TRACE_AGENT_URL",
+										Value: "unix:///var/run/datadog/apm.socket",
+									},
+									{
+										Name:  "DD_DOGSTATSD_URL",
+										Value: "unix:///var/run/datadog/dsd.socket",
+									},
+								},
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "ddsockets",
+										MountPath: "/var/run/datadog",
+										ReadOnly:  false,
+									},
+								},
+							},
 							sidecar,
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "ddsockets",
+								VolumeSource: corev1.VolumeSource{
+									EmptyDir: &corev1.EmptyDirVolumeSource{},
+								},
+							},
 						},
 					},
 				}
@@ -231,12 +342,18 @@ func TestInjectAgentSidecar(t *testing.T) {
 
 			webhook := NewWebhook()
 
-			err := webhook.injectAgentSidecar(test.Pod, "", nil)
+			injected, err := webhook.injectAgentSidecar(test.Pod, "", nil)
 
 			if test.ExpectError {
 				assert.Error(tt, err, "expected non-nil error to be returned")
 			} else {
 				assert.NoError(tt, err, "expected returned error to be nil")
+			}
+
+			if test.ExpectInjection {
+				assert.True(t, injected)
+			} else {
+				assert.False(t, injected)
 			}
 
 			expectedPod := test.ExpectedPodAfterInjection()

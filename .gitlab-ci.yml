@@ -43,7 +43,6 @@ include:
   - /.gitlab/software_composition_analysis/software_composition_analysis.yml
   - /.gitlab/source_test/include.yml
   - /.gitlab/source_test_junit_upload/source_test_junit_upload.yml
-  - /.gitlab/source_test_stats/include.yml
   - /.gitlab/trigger_release/trigger_release.yml
 
 default:
@@ -169,43 +168,35 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v29737258-e0e63b8a
+  DATADOG_AGENT_BUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v29737258-e0e63b8a
+  DATADOG_AGENT_WINBUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v29737258-e0e63b8a
+  DATADOG_AGENT_ARMBUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v29737258-e0e63b8a
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v29737258-e0e63b8a
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v29737258-e0e63b8a
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v30094440-66830d2d
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v29737258-e0e63b8a
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_CI_UPLOADER_IMAGE: v30094440-66830d2d
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a1d921006e35
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 9d6710aed9b2
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
   DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}
   RPM_GPG_KEY_ID: fd4bf915
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}
-  # docker.io authentication
-  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
-  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   ARTIFACTORY_USERNAME: datadog-agent
-  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
-  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
@@ -213,8 +204,53 @@ variables:
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-0c54d42f8f4180b0c"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-021f04c00ecfa8590"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
+  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
+
+  # List of parameters retrieved from AWS SSM
+  # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
+  AGENT_QA_PROFILE_SSM_NAME: ci.datadog-agent.agent-qa-profile  # agent-ci-experience
+  API_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_api_key_org2  # agent-ci-experience
+  API_KEY_SSM_NAME: ci.datadog-agent.datadog_api_key  # agent-ci-experience
+  APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2  # agent-ci-experience
+  ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token  # agent-ci-experience
+  ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
+  CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.changelog_commit_sha  # agent-ci-experience
+  CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-release
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-release
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-ci-experience
+  DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-ci-experience
+  E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-developer-tools
+  E2E_TESTS_APP_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_app_key  # agent-developer-tools
+  E2E_TESTS_RC_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_rc_key  # agent-developer-tools
+  KITCHEN_EC2_SSH_KEY_SSM_NAME: ci.datadog-agent.aws_ec2_kitchen_ssh_key  # agent-developer-tools
+  KITCHEN_AZURE_CLIENT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_client_id  # agent-developer-tools
+  KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME: ci.datadog-agent.azure_kitchen_client_secret  # agent-developer-tools
+  KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_subscription_id  # agent-developer-tools
+  KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-developer-tools
+  GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
+  GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token  # ci-cd
+  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-build-and-release
+  JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-ci-experience
+  MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
+  MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
+  MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-release
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-release
+  SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
+  SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
+  SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
+  SMP_BOT_ACCESS_KEY_SSM_NAME: ci.datadog-agent.single-machine-performance-bot-access-key  # single-machine-performance
+  SMP_BOT_ACCESS_KEY_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-bot-access-key-id  # single-machine-performance
+  SSH_KEY_SSM_NAME: ci.datadog-agent.ssh_key  # system-probe
+  SSH_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_key_rsa  # agent-developer-tools
+  SSH_PUBLIC_KEY_RSA_SSM_NAME: ci.datadog-agent.ssh_public_key_rsa  # agent-developer-tools
+  VCPKG_BLOB_SAS_URL_SSM_NAME: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
+  WINGET_PAT_SSM_NAME: ci.datadog-agent.winget_pat  # windows-agent
+
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -310,6 +346,19 @@ variables:
 .if_disable_e2e_tests: &if_disable_e2e_tests
   if: $RUN_E2E_TESTS == "off"
 
+# Enable forcing all KMT tests to run
+.if_run_all_kmt_tests: &if_run_all_kmt_tests
+  if: $RUN_KMT_TESTS == 'on'
+
+.if_disable_unit_tests: &if_disable_unit_tests
+  if: $RUN_UNIT_TESTS == "off"
+
+.if_run_all_unit_tests: &if_run_all_unit_tests
+  if: $RUN_UNIT_TESTS == "on"
+
+.if_auto_unit_tests: &if_auto_unit_tests
+  if: $RUN_UNIT_TESTS == "auto"
+
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
 
@@ -396,6 +445,14 @@ workflow:
   - <<: *if_version_7
     when: manual
     allow_failure: true
+
+.except_no_a6_or_no_a7:
+  - <<: *if_mergequeue
+    when: never
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_not_version_7
+    when: never
 
 .on_dev_branch_manual:
   - <<: *if_mergequeue
@@ -823,6 +880,7 @@ workflow:
   - <<: *if_main_branch
   - <<: *if_release_branch
   - <<: *if_run_all_builds
+  - <<: *if_run_all_unit_tests
 
 .except_main_or_release_branch:
   - <<: *if_main_branch
@@ -956,20 +1014,23 @@ workflow:
   - test/kitchen/test/integration/security-agent-test/**/*
   - test/kitchen/test/integration/security-agent-stress/**/*
   - .gitlab/functional_test/security_agent.yml
-  - .gitlab/kernel_version_testing/security_agent.yml
-  - .gitlab/kernel_version_testing/common.yml
+  - .gitlab/kernel_matrix_testing/security_agent.yml
+  - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/runner/**/*
   - test/new-e2e-utils/**/*
   - test/new-e2e/go.mod
   - tasks/security_agent.py
+  - tasks/kmt.py
+  - tasks/kernel_matrix_testing/*
 
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
   - <<: *if_mergequeue
     when: never
+  - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
@@ -1021,11 +1082,14 @@ workflow:
   - test/new-e2e-utils/**/*
   - test/new-e2e/go.mod
   - tasks/system_probe.py
+  - tasks/kmt.py
+  - tasks/kernel_matrix_testing/*
 
 .on_system_probe_or_e2e_changes_or_manual:
   - <<: *if_main_branch
   - <<: *if_mergequeue
     when: never
+  - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
@@ -1154,6 +1218,7 @@ workflow:
 
 .on_any_kmt_test_component_or_manual:
   - <<: *if_main_branch
+  - <<: *if_run_all_kmt_tests
   - <<: *if_mergequeue
     when: never
   - changes:
@@ -1325,6 +1390,10 @@ workflow:
   - <<: *if_mergequeue
     when: never
 
+.except_disable_unit_tests:
+  - <<: *if_disable_unit_tests
+    when: never
+
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
@@ -1360,3 +1429,22 @@ workflow:
 .on_fakeintake_changes_on_main:
   - <<: *on_fakeintake_changes
     if: $CI_COMMIT_BRANCH == "main"
+
+.fast_on_dev_branch_only:
+  - <<: *if_main_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_release_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_tagged_commit
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_triggered_pipeline
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_run_all_unit_tests
+    variables:
+      FAST_TESTS: "false"
+  - variables:
+      FAST_TESTS: "true"

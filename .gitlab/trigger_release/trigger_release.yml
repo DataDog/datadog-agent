@@ -20,7 +20,7 @@
     # when triggered with major version 7
     - source /root/.bashrc
     - export RELEASE_VERSION=$(inv agent.version --major-version 7 --url-safe --omnibus-format)-1
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_pipelines_scheduler_token)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
     - 'inv pipeline.trigger-child-pipeline --project-name "DataDog/agent-release-management" --git-ref "ducolombier/agentless-scanner-7.52"
       --variable ACTION
       --variable AUTO_RELEASE

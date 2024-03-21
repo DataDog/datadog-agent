@@ -74,7 +74,7 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 
 func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
 	rc := &remoteConfig{client: rcc}
-	u := newUpdater(rc, t.TempDir(), t.TempDir())
+	u := newUpdater(rc, t.TempDir(), t.TempDir(), "")
 	u.installer.configsDir = t.TempDir()
 	u.catalog = s.Catalog()
 	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
