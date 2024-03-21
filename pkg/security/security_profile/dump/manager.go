@@ -136,8 +136,10 @@ func (adm *ActivityDumpManager) cleanup() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
-			if err := adm.storage.Persist(ad); err != nil {
-				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			if ad.GetWorkloadSelector() != nil {
+				if err := adm.storage.Persist(ad); err != nil {
+					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+				}
 			}
 		} else {
 			adm.emptyDropped.Inc()
@@ -611,8 +613,10 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 			// persist dump if not empty
 			if !d.IsEmpty() {
-				if err := adm.storage.Persist(d); err != nil {
-					seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
+				if d.GetWorkloadSelector() != nil {
+					if err := adm.storage.Persist(d); err != nil {
+						seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
+					}
 				}
 			} else {
 				adm.emptyDropped.Inc()
@@ -887,8 +891,10 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
-			if err := adm.storage.Persist(ad); err != nil {
-				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			if ad.GetWorkloadSelector() != nil {
+				if err := adm.storage.Persist(ad); err != nil {
+					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+				}
 			}
 		} else {
 			adm.emptyDropped.Inc()
