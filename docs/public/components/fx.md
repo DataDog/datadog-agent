@@ -1,3 +1,13 @@
+
+!!! warning "TODO: rework this entire page to include:"
+
+    * Basic info about fx and dependency injection
+    * Provide, Supply and Invoke function
+    * fx App
+    * value groups
+    * Lifecycle (TODO decide how we want to offer lifecycle within depending on FX)
+    * ...
+
 # Overview of Fx
 
 The Agent uses [Fx](https://uber-go.github.io/fx) as its application framework. While the linked Fx documentation is thorough, it can be a bit difficult to get started with. This document describes how Fx is used within the Agent in a more approachable style.
@@ -191,4 +201,4 @@ instantiation (note once again the `group` label but in `fx.In` struct).
 
 # Day-to-Day Usage
 
-Day-to-day, the Agent's use of Fx is fairly formulaic. Following the [component guidelines](../../guidelines/components/purpose.md), or just copying from other components, should be enough to make things work without a deep understanding of Fx's functionality.
+Day-to-day, the Agent's use of Fx is fairly formulaic. Following the [component guidelines](creating-components.md), or just copying from other components, should be enough to make things work without a deep understanding of Fx's functionality.
