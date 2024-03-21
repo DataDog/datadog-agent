@@ -85,28 +85,12 @@ def _verify_unknown_licenses(licenses, licenses_filename):
     """
     Check that all deps have a non-"UNKNOWN" copyright and license
     """
-
-    def distance(a, b):
-        """
-        Hamming distance between A and B
-        """
-        hamming = 0
-        for i in range(min(len(a), len(b))):
-            if a[i] != b[i]:
-                hamming += 1
-
-        return abs(len(a) - len(b)) + hamming
-
     unknown_licenses = False
     for line in licenses:
-        # Split each word separated by either ' ' or ','
-        parts = [part.strip().casefold() for part in line.replace(',', ' ').split(' ')]
-        for copyright in parts:
-            # Copyright too similar to 'unknown' (allow typos)
-            if distance(copyright, 'unknown') <= 2:
-                unknown_licenses = True
-                print(f"! {line}")
-                break
+        parts = [part.strip().casefold() for part in line.split(',')]
+        if 'unknown' in parts:
+            unknown_licenses = True
+            print(f"! {line}")
 
     if unknown_licenses:
         raise Exit(
