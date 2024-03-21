@@ -195,7 +195,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
 
-	fmt.Printf("ProvisionMicrovms: %v\n", opts.ProvisionMicrovms)
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
