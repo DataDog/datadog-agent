@@ -27,12 +27,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 )
 
 // defaultResponse is the default response returned by the fakeintake server
@@ -125,16 +126,23 @@ func NewServer(options ...func(*Server)) *Server {
 	return fi
 }
 
-// WithPort changes the server port.
-// If the port is 0, a port number is automatically chosen
-func WithPort(port int) func(*Server) {
+// WithAddress changes the server host:port.
+// If host is empty, it will bind to 0.0.0.0
+// If the port is empty or 0, a port number is automatically chosen
+func WithAddress(addr string) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
-		fi.server.Addr = fmt.Sprintf(":%d", port)
+		fi.server.Addr = addr
 	}
+}
+
+// WithPort changes the server port.
+// If the port is 0, a port number is automatically chosen
+func WithPort(port int) func(*Server) {
+	return WithAddress(fmt.Sprintf(":%d", port))
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
