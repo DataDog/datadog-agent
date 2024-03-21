@@ -1,12 +1,6 @@
-from __future__ import annotations
+platforms_file = "test/new-e2e/system-probe/config/platforms.json"
 
-from typing import TYPE_CHECKING, Dict
-
-if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch
-
-
-arch_mapping: Dict[str, Arch] = {
+arch_mapping = {
     "amd64": "x86_64",
     "x86": "x86_64",
     "x86_64": "x86_64",
@@ -14,6 +8,5 @@ arch_mapping: Dict[str, Arch] = {
     "arm": "arm64",
     "aarch64": "arm64",
 }
-
 
 VMCONFIG = "vmconfig.json"

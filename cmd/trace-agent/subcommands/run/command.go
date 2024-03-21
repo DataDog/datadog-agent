@@ -15,7 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -29,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -100,7 +104,10 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
 		trace.Bundle(),
-		fx.Invoke(func(_ agent.Component) {}),
+		fetchonlyimpl.Module(),
+		configsyncimpl.OptionalModule(),
+		// Force the instantiation of the components
+		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component]) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
 		return nil

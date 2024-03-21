@@ -1,15 +1,10 @@
-from __future__ import annotations
-
+import json
 import os
 import platform
 import tempfile
-from typing import TYPE_CHECKING, List
 
-from invoke.context import Context
-
-from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
-from tasks.kernel_matrix_testing.vars import arch_mapping
+from tasks.kernel_matrix_testing.vars import arch_mapping, platforms_file
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 
 try:
@@ -17,14 +12,8 @@ try:
 except ImportError:
     requests = None
 
-if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import PathOrStr
 
-
-def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str):
-    if requests is None:
-        raise Exit("requests module is not installed, please install it to continue")
-
+def requires_update(url_base, rootfs_dir, image, branch):
     sum_url = os.path.join(url_base, branch, image + ".sum")
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
@@ -41,15 +30,17 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     return False
 
 
-def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str):
-    platforms = get_platforms()
-    vmconfig_template = get_vmconfig_template(vmconfig_template_name)
+def download_rootfs(ctx, rootfs_dir, vmconfig_template):
+    with open(platforms_file) as f:
+        platforms = json.load(f)
+
+    vmconfig_template = get_vmconfig_template(vmconfig_template)
 
     url_base = platforms["url_base"]
 
     arch = arch_mapping[platform.machine()]
-    to_download: List[str] = list()
-    file_ls: List[str] = list()
+    to_download = list()
+    file_ls = list()
     branch_mapping: dict[str, str] = dict()
 
     for tag in platforms[arch]:
@@ -66,21 +57,19 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         if not os.path.exists(path):
             to_download.append(f)
 
-    disks_to_download: list[str] = list()
     for vmset in vmconfig_template["vmsets"]:
-        if "arch" not in vmset:
-            raise Exit("arch is not defined in vmset")
-
         if vmset["arch"] != arch:
             continue
 
-        for disk in vmset.get("disks", []):
-            d = os.path.basename(disk["source"])
+        for disk in vmset["disks"]:
+            # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
+            d = os.path.basename(disk["target"])
             if not os.path.exists(os.path.join(rootfs_dir, d)):
-                disks_to_download.append(d)
+                d = d.removesuffix(".xz")
+                to_download.append(d)
 
     # download and compare hash sums
-    present_files = list(set(file_ls) - set(to_download)) + disks_to_download
+    present_files = list(set(file_ls) - set(to_download))
     for f in present_files:
         if requires_update(url_base, rootfs_dir, f, branch_mapping.get(f, "master")):
             debug(f"[debug] updating {f} from S3.")
@@ -99,10 +88,9 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
             for f in to_download:
                 branch = branch_mapping.get(f, "master")
                 info(f"[+] {f} needs to be downloaded, using branch {branch}")
-                xz = ".xz" if f not in disks_to_download else ""
-                filename = f"{f}{xz}"
+                filename = f"{f}.xz"
                 sum_file = f"{f}.sum"
-                # remove this file and sum
+                # remove this file and sum, uncompressed file too if it exists
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, f)} || true")  # remove old file if it exists
@@ -117,23 +105,23 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
             tmp.write("\n")
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
-        if res is None or not res.ok:
+        if not res.ok:
             raise Exit("Failed to download image files")
     finally:
         os.remove(path)
 
     # extract files
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow2.xz\" -type f -exec xz -d {{}} \\;")
-    if res is None or not res.ok:
+    if not res.ok:
         raise Exit("Failed to extract qcow2 files")
 
     # set permissions
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \\;")
-    if res is None or not res.ok:
+    if not res.ok:
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str):
+def update_rootfs(ctx, rootfs_dir, vmconfig_template):
     download_rootfs(ctx, rootfs_dir, vmconfig_template)
 
     info("[+] Root filesystem and bootables images updated")

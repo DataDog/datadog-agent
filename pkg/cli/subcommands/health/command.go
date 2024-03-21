@@ -92,7 +92,7 @@ func requestHealth(_ log.Component, config config.Component, cliParams *cliParam
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
 	defer cancel()
 
-	r, err := util.DoGetWithContext(ctx, c, urlstr, util.LeaveConnectionOpen)
+	r, err := util.DoGetWithOptions(c, urlstr, &util.ReqOptions{Ctx: ctx, Conn: util.LeaveConnectionOpen})
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

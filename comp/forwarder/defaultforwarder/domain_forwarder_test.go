@@ -49,7 +49,7 @@ func TestDomainForwarderStart(t *testing.T) {
 	forwarder := newDomainForwarderForTest(mockConfig, log, 0, false)
 	err := forwarder.Start()
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	requireLenForwarderRetryQueue(t, forwarder, 0)
 	require.Len(t, forwarder.workers, 1)
 	assert.Equal(t, Started, forwarder.State())

@@ -188,8 +188,6 @@ type (
 	Listeners = pkgconfigsetup.Listeners
 	// MappingProfile Alias
 	MappingProfile = pkgconfigsetup.MappingProfile
-	// Endpoint Alias
-	Endpoint = pkgconfigsetup.Endpoint
 )
 
 // GetObsPipelineURL Alias using Datadog config

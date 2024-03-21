@@ -17,10 +17,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -77,25 +79,36 @@ type disk interface {
 // Bootstrap bootstraps the default version for the given package.
 func Bootstrap(ctx context.Context, pkg string) error {
 	rc := newNoopRemoteConfig()
-	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
+	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, "")
 	return u.Bootstrap(ctx, pkg)
 }
 
+// Purge removes files installed by the updater
+func Purge() {
+	service.RemoveAgentUnits()
+	if err := os.RemoveAll(defaultLocksPath); err != nil {
+		log.Warnf("updater: could not purge directory %s: %v", defaultLocksPath, err)
+	}
+	if err := os.RemoveAll(defaultRepositoriesPath); err != nil {
+		log.Warnf("updater: could not purge directory %s: %v", defaultRepositoriesPath, err)
+	}
+}
+
 // NewUpdater returns a new Updater.
-func NewUpdater(rcFetcher client.ConfigFetcher) (Updater, error) {
+func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, error) {
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath), nil
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config.GetString("updater.registry")), nil
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string) *updaterImpl {
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, remoteRegistryOverride string) *updaterImpl {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	u := &updaterImpl{
 		rc:                rc,
 		repositories:      repositories,
-		downloader:        newDownloader(http.DefaultClient),
+		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
 		catalog:           defaultCatalog,
 		requests:          make(chan remoteAPIRequest, 32),
@@ -188,11 +201,11 @@ func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package
 	defer os.RemoveAll(tmpDir)
 	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
 	if err != nil {
-		return fmt.Errorf("could not download experiment: %w", err)
+		return fmt.Errorf("could not download: %w", err)
 	}
 	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
 	if err != nil {
-		return fmt.Errorf("could not install experiment: %w", err)
+		return fmt.Errorf("could not install: %w", err)
 	}
 	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
 	return nil
