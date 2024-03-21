@@ -4,7 +4,7 @@ A bundle is defined in a dedicated package named `comp/<bundleName>`. The packag
 
 * Extensive package-level documentation. This should define:
     * The purpose of the bundle
-    * What components are and are not included in the bundle. Components might be omitted in the interest of binary size, as discussed in the [component overview](../../architecture/components/overview.md).
+    * What components are and are not included in the bundle. Components might be omitted in the interest of binary size, as discussed in the [component overview](../../components/overview.md).
     * Which components are automatically instantiated.
     * Which other _bundles_ this bundle depends on. Bundle dependencies are always expressed at a bundle level.
 * A team-name comment of the form `// team: <teamname>`. This is used to generate CODEOWNERS information.
