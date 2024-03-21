@@ -96,7 +96,7 @@ agent_remote_updater-arm64-a7:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater-*-${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
     - !reference [.upload_sbom_artifacts]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -114,7 +114,7 @@ updater-amd64:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
-    DESTINATION_FILE: "datadog-updater_7_amd64.tar.xz"
+    DESTINATION_FILE: "datadog-updater_7-amd64.tar.xz"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
@@ -127,7 +127,7 @@ updater-arm64:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
-    DESTINATION_FILE: "datadog-updater_7_arm64.tar.xz"
+    DESTINATION_FILE: "datadog-updater_7-arm64.tar.xz"
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
