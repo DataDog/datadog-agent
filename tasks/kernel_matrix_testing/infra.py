@@ -155,10 +155,13 @@ class HostInstance:
 def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
     stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
-        raise Exit("no stack.output file present")
+        raise Exit(f"no stack.output file present at {stack_output}")
 
     with open(stack_output, 'r') as f:
-        infra_map = json.load(f)
+        try:
+            infra_map = json.load(f)
+        except json.decoder.JSONDecodeError:
+            raise Exit(f"{stack_output} file is not a valid json file")
 
     infra: Dict[ArchOrLocal, HostInstance] = dict()
     for arch in infra_map:
