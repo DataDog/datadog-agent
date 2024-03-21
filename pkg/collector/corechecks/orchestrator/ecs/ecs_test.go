@@ -23,6 +23,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 )
 
+func TestGetRegionAndAWSAccountID(t *testing.T) {
+	region, id := getRegionAndAWSAccountID("arn:aws:ecs:us-east-1:123427279990:container-instance/ecs-my-cluster/123412345abcdefgh34999999")
+	require.Equal(t, "us-east-1", region)
+	require.Equal(t, 123427279990, id)
+}
+func TestInitClusterID(t *testing.T) {
+	id1 := initClusterID(123456789012, "us-east-1", "ecs-cluster-1")
+	require.Equal(t, "34616234-6562-3536-3733-656534636532", id1)
+
+	// same account, same region, different cluster name
+	id2 := initClusterID(123456789012, "us-east-1", "ecs-cluster-2")
+	require.Equal(t, "31643131-3131-3263-3331-383136383336", id2)
+
+	// same account, different region, same cluster name
+	id3 := initClusterID(123456789012, "us-east-2", "ecs-cluster-1")
+	require.Equal(t, "64663464-6662-3232-3635-646166613230", id3)
+
+	// different account, same region, same cluster name
+	id4 := initClusterID(123456789013, "us-east-1", "ecs-cluster-1")
+	require.Equal(t, "61623431-6137-6231-3136-366464643761", id4)
+}
+
 type fakeWorkloadmetaStore struct {
 	workloadmeta.Component
 	EnableV4       bool
@@ -85,7 +107,7 @@ func TestECSV4Disabled(t *testing.T) {
 func testECS(v4 bool, t *testing.T) {
 	check, store, sender := prepareTest(v4, "ecs")
 
-	// add 2 tasks to fake WorkloadmetaStore
+	// add 2 tasks to fake workloadmetaStore
 	task1Id := "123"
 	task2Id := "124"
 	store.AddECSTasks(task(v4, task1Id))
@@ -104,7 +126,7 @@ func testECS(v4 bool, t *testing.T) {
 	require.Equal(t, expectedTasks.ClusterId, sender.clusterIDs[0])
 	require.Equal(t, orchestrator.ECSTask, sender.nodeTypes[0])
 
-	// add another task with different id to fake WorkloadmetaStore
+	// add another task with different id to fake workloadmetaStore
 	task3Id := "125"
 	store.AddECSTasks(task(v4, task3Id))
 
@@ -139,11 +161,12 @@ func prepareTest(v4 bool, env string) (*Check, *fakeWorkloadmetaStore, *fakeSend
 
 	c := &Check{
 		sender:            sender,
-		WorkloadmetaStore: store,
+		workloadmetaStore: store,
 		config:            orchConfig,
 		groupID:           atomic.NewInt32(0),
 	}
 
+	c.isECSCollectionEnabledFunc = func() bool { return false }
 	if env == "ecs" {
 		c.isECSCollectionEnabledFunc = func() bool { return true }
 	}

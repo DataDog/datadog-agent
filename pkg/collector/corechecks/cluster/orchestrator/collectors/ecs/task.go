@@ -9,13 +9,7 @@
 package ecs
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
-	"strconv"
-	"strings"
-
-	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
@@ -52,7 +46,9 @@ func (t *TaskCollector) Metadata() *collectors.CollectorMetadata {
 }
 
 // Init is used to initialize the collector.
-func (t *TaskCollector) Init(_ *collectors.CollectorRunConfig) {}
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (t *TaskCollector) Init(rcfg *collectors.CollectorRunConfig) {}
 
 // Run triggers the collection process.
 func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
@@ -69,22 +65,11 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 			MsgGroupID:       rcfg.MsgGroupRef.Inc(),
 			NodeType:         t.metadata.NodeType,
 			ManifestProducer: t.metadata.IsManifestProducer,
+			ClusterID:        rcfg.ClusterID,
 		},
-	}
-	if len(list) > 0 {
-		ctx.AWSAccountID = list[0].AWSAccountID
-		ctx.ClusterName = list[0].ClusterName
-		ctx.Region = list[0].Region
-
-		if list[0].Region == "" || list[0].AWSAccountID == 0 {
-			ctx.Region, ctx.AWSAccountID = getRegionAndAWSAccountID(list[0].EntityID.ID)
-		}
-
-		// If the cluster ID is not set, we generate it from the first task
-		if rcfg.ClusterID == "" {
-			rcfg.ClusterID = initClusterID(ctx.AWSAccountID, ctx.Region, ctx.ClusterName)
-		}
-		ctx.ClusterID = rcfg.ClusterID
+		AWSAccountID: rcfg.AWSAccountID,
+		ClusterName:  rcfg.ClusterName,
+		Region:       rcfg.Region,
 	}
 
 	processResult, processed := t.processor.Process(ctx, tasks)
@@ -119,47 +104,4 @@ func (t *TaskCollector) fetchContainers(rcfg *collectors.CollectorRunConfig, tas
 	}
 
 	return ecsTask
-}
-
-// initClusterID generates a cluster ID from the AWS account ID, region and cluster name.
-func initClusterID(awsAccountID int, region, clusterName string) string {
-	cluster := fmt.Sprintf("%d/%s/%s", awsAccountID, region, clusterName)
-
-	hash := md5.New()
-	hash.Write([]byte(cluster))
-	hashString := hex.EncodeToString(hash.Sum(nil))
-	uuid, err := uuid.FromBytes([]byte(hashString[0:16]))
-	if err != nil {
-		log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
-		return ""
-	}
-	return uuid.String()
-}
-
-// ParseRegionAndAWSAccountID parses the region and AWS account ID from a task ARN.
-func getRegionAndAWSAccountID(taskARN string) (string, int) {
-	arnParts := strings.Split(taskARN, ":")
-	if len(arnParts) < 5 {
-		return "", 0
-	}
-	if arnParts[0] != "arn" || arnParts[1] != "aws" {
-		return "", 0
-	}
-	region := arnParts[3]
-	if strings.Count(region, "-") < 2 {
-		region = ""
-	}
-
-	id := arnParts[4]
-	// aws account id is 12 digits
-	// https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-identifiers.html
-	if len(id) != 12 {
-		return region, 0
-	}
-	awsAccountID, err := strconv.Atoi(id)
-	if err != nil {
-		return region, 0
-	}
-
-	return region, awsAccountID
 }

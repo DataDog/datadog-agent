@@ -9,9 +9,15 @@
 package ecs
 
 import (
+	"crypto/md5"
+	"encoding/hex"
+	"fmt"
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -21,6 +27,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/ecs"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -32,14 +39,16 @@ const CheckName = "orchestrator_ecs"
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	WorkloadmetaStore workloadmeta.Component
-	sender            sender.Sender
-	config            *oconfig.OrchestratorConfig
-	collectors        []collectors.Collector
-	groupID           *atomic.Int32
-
-	// isECSCollectionEnabledFunc is used for testing
+	sender                     sender.Sender
+	config                     *oconfig.OrchestratorConfig
+	collectors                 []collectors.Collector
+	groupID                    *atomic.Int32
+	workloadmetaStore          workloadmeta.Component
 	isECSCollectionEnabledFunc func() bool
+	awsAccountID               int
+	clusterName                string
+	region                     string
+	clusterID                  string
 }
 
 // Factory creates a new check factory
@@ -49,14 +58,15 @@ func Factory() optional.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase:         core.NewCheckBase(CheckName),
-		WorkloadmetaStore: workloadmeta.GetGlobalStore(),
-		config:            oconfig.NewDefaultOrchestratorConfig(),
-		groupID:           atomic.NewInt32(rand.Int31()),
+		CheckBase:                  core.NewCheckBase(CheckName),
+		workloadmetaStore:          workloadmeta.GetGlobalStore(),
+		config:                     oconfig.NewDefaultOrchestratorConfig(),
+		groupID:                    atomic.NewInt32(rand.Int31()),
+		isECSCollectionEnabledFunc: oconfig.IsOrchestratorECSExplorerEnabled,
 	}
 }
 
-// Configure the CPU check
+// Configure the Orchestrator ECS check
 // nil check to allow for overrides
 func (c *Check) Configure(
 	senderManager sender.SenderManager,
@@ -77,7 +87,11 @@ func (c *Check) Configure(
 		return err
 	}
 
-	if !c.isECSCollectionEnabled() {
+	if c.isECSCollectionEnabledFunc == nil {
+		c.isECSCollectionEnabledFunc = oconfig.IsOrchestratorECSExplorerEnabled
+	}
+
+	if !c.isECSCollectionEnabledFunc() {
 		log.Debug("Orchestrator ECS Collection is disabled")
 		return nil
 	}
@@ -94,7 +108,7 @@ func (c *Check) Configure(
 
 // Run executes the check
 func (c *Check) Run() error {
-	if !c.isECSCollectionEnabled() {
+	if !c.shouldRun() {
 		return nil
 	}
 
@@ -109,10 +123,14 @@ func (c *Check) Run() error {
 		runStartTime := time.Now()
 		runConfig := &collectors.CollectorRunConfig{
 			ECSCollectorRunConfig: collectors.ECSCollectorRunConfig{
-				WorkloadmetaStore: c.WorkloadmetaStore,
+				WorkloadmetaStore: c.workloadmetaStore,
+				AWSAccountID:      c.awsAccountID,
+				Region:            c.region,
+				ClusterName:       c.clusterName,
 			},
 			Config:      c.config,
 			MsgGroupRef: c.groupID,
+			ClusterID:   c.clusterID,
 		}
 		result, err := collector.Run(runConfig)
 		if err != nil {
@@ -127,14 +145,86 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) isECSCollectionEnabled() bool {
-	if c.isECSCollectionEnabledFunc != nil {
-		return c.isECSCollectionEnabledFunc()
+func (c *Check) shouldRun() bool {
+	if c.isECSCollectionEnabledFunc == nil || !c.isECSCollectionEnabledFunc() {
+		log.Debug("Orchestrator ECS Collection is disabled")
+		return false
 	}
 
-	return oconfig.IsOrchestratorECSExplorerEnabled()
+	c.initConfig()
+
+	if c.region == "" || c.awsAccountID == 0 || c.clusterName == "" || c.clusterID == "" {
+		log.Warnf("Orchestrator ECS check is missing required information, region: %s, awsAccountID: %d, clusterName: %s, clusterID: %s", c.region, c.awsAccountID, c.clusterName, c.clusterID)
+		return false
+	}
+	return true
+}
+
+func (c *Check) initConfig() {
+	if c.awsAccountID != 0 && c.region != "" && c.clusterName != "" && c.clusterID != "" {
+		return
+	}
+
+	tasks := c.workloadmetaStore.ListECSTasks()
+	if len(tasks) == 0 {
+		return
+	}
+
+	c.awsAccountID = tasks[0].AWSAccountID
+	c.clusterName = tasks[0].ClusterName
+	c.region = tasks[0].Region
+
+	if tasks[0].Region == "" || tasks[0].AWSAccountID == 0 {
+		c.region, c.awsAccountID = getRegionAndAWSAccountID(tasks[0].EntityID.ID)
+	}
+
+	c.clusterID = initClusterID(c.awsAccountID, c.region, tasks[0].ClusterName)
 }
 
 func (c *Check) initCollectors() {
 	c.collectors = []collectors.Collector{ecs.NewTaskCollector()}
+}
+
+// initClusterID generates a cluster ID from the AWS account ID, region and cluster name.
+func initClusterID(awsAccountID int, region, clusterName string) string {
+	cluster := fmt.Sprintf("%d/%s/%s", awsAccountID, region, clusterName)
+
+	hash := md5.New()
+	hash.Write([]byte(cluster))
+	hashString := hex.EncodeToString(hash.Sum(nil))
+	uuid, err := uuid.FromBytes([]byte(hashString[0:16]))
+	if err != nil {
+		log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
+		return ""
+	}
+	return uuid.String()
+}
+
+// ParseRegionAndAWSAccountID parses the region and AWS account ID from an ARN.
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html#arns-syntax
+func getRegionAndAWSAccountID(arn string) (string, int) {
+	arnParts := strings.Split(arn, ":")
+	if len(arnParts) < 5 {
+		return "", 0
+	}
+	if arnParts[0] != "arn" || strings.Index(arnParts[1], "aws") != 0 {
+		return "", 0
+	}
+	region := arnParts[3]
+	if strings.Count(region, "-") < 2 {
+		region = ""
+	}
+
+	id := arnParts[4]
+	// aws account id is 12 digits
+	// https://docs.aws.amazon.com/accounts/latest/reference/manage-acct-identifiers.html
+	if len(id) != 12 {
+		return region, 0
+	}
+	awsAccountID, err := strconv.Atoi(id)
+	if err != nil {
+		return region, 0
+	}
+
+	return region, awsAccountID
 }
