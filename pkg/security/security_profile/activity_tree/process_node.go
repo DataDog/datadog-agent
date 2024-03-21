@@ -88,7 +88,7 @@ func (pn *ProcessNode) AppendChild(node *ProcessNode) {
 
 // AppendImageTag appends the given image tag to the list
 func (pn *ProcessNode) AppendImageTag(imageTag string) {
-	pn.ImageTags, _ = AppendIfNotPresentString(pn.ImageTags, imageTag)
+	pn.ImageTags, _ = AppendIfNotPresent(pn.ImageTags, imageTag)
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
@@ -285,7 +285,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		// update matched rules
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
-		dnsNode.ImageTags, _ = AppendIfNotPresentString(dnsNode.ImageTags, imageTag)
+		dnsNode.ImageTags, _ = AppendIfNotPresent(dnsNode.ImageTags, imageTag)
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -337,7 +337,7 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 }
 
 func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
-	imageTags, added := AppendIfNotPresentString(pn.ImageTags, imageTag)
+	imageTags, added := AppendIfNotPresent(pn.ImageTags, imageTag)
 	if added {
 		pn.ImageTags = imageTags
 		parent := pn.GetParent()
@@ -354,7 +354,7 @@ func (pn *ProcessNode) TagAllNodes(imageTag string) {
 		return
 	}
 
-	pn.ImageTags, _ = AppendIfNotPresentString(pn.ImageTags, imageTag)
+	pn.ImageTags, _ = AppendIfNotPresent(pn.ImageTags, imageTag)
 	for _, file := range pn.Files {
 		file.tagAllNodes(imageTag)
 	}

@@ -148,7 +148,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
-			currentFn.ImageTags, _ = AppendIfNotPresentString(currentFn.ImageTags, imageTag)
+			currentFn.ImageTags, _ = AppendIfNotPresent(currentFn.ImageTags, imageTag)
 			continue
 		}
 
@@ -171,7 +171,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 }
 
 func (fn *FileNode) tagAllNodes(imageTag string) {
-	fn.ImageTags, _ = AppendIfNotPresentString(fn.ImageTags, imageTag)
+	fn.ImageTags, _ = AppendIfNotPresent(fn.ImageTags, imageTag)
 	for _, child := range fn.Children {
 		child.tagAllNodes(imageTag)
 	}

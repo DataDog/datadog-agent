@@ -34,17 +34,9 @@ func ExtractFirstParent(path string) (string, int) {
 }
 
 // AppendIfNotPresent append a token to a slice only if the token is not already present
-func AppendIfNotPresent[K comparable](slice []K, toAdd K) ([]K, bool) {
-	if !slices.Contains(slice, toAdd) {
+func AppendIfNotPresent(slice []string, toAdd string) ([]string, bool) {
+	if toAdd != "" && !slices.Contains(slice, toAdd) {
 		return append(slice, toAdd), true
-	}
-	return slice, false
-}
-
-// AppendIfNotPresentString same as AppendIfNotPresent but checks that the token is not nil
-func AppendIfNotPresentString(slice []string, toAdd string) ([]string, bool) {
-	if toAdd != "" {
-		return AppendIfNotPresent(slice, toAdd)
 	}
 	return slice, false
 }
