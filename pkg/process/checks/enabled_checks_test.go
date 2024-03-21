@@ -45,7 +45,7 @@ func getEnabledChecks(t *testing.T, cfg, sysprobeYamlConfig config.ReaderWriter,
 }
 
 func TestProcessDiscovery(t *testing.T) {
-	deps := creatProcessCheckDeps(t)
+	deps := createProcessCheckDeps(t)
 
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestProcessDiscovery(t *testing.T) {
 }
 
 func TestProcessCheck(t *testing.T) {
-	deps := creatProcessCheckDeps(t)
+	deps := createProcessCheckDeps(t)
 	t.Run("disabled", func(t *testing.T) {
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
@@ -92,7 +92,7 @@ func TestProcessCheck(t *testing.T) {
 }
 
 func TestConnectionsCheck(t *testing.T) {
-	deps := creatProcessCheckDeps(t)
+	deps := createProcessCheckDeps(t)
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 
@@ -124,6 +124,6 @@ type ProcessCheckDeps struct {
 	WMeta workloadmeta.Component
 }
 
-func creatProcessCheckDeps(t *testing.T) ProcessCheckDeps {
+func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
 	return fxutil.Test[ProcessCheckDeps](t, workloadmeta.MockModule(), core.MockBundle(), fx.Supply(workloadmeta.NewParams()))
 }
