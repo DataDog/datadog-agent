@@ -17,7 +17,7 @@
 #define STRINGIFY(a) #a
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-",
-// or, optionally, allowing any printable charachters.
+// or, optionally, allowing any printable characters.
 // The iterations reads up to MIN(max_buffer_size, real_size).
 // Has to be a template and not a function, as we have pragma unroll.
 #define CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, printable_ok)                                                \
