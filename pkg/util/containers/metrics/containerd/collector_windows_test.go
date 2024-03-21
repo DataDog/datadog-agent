@@ -121,7 +121,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 			})
 
 			collector := containerdCollector{
-				client:            containerdClient(test.containerdMetrics),
+				client: containerdClient(test.containerdMetrics),
 			}
 
 			// ID and cache TTL not relevant for these tests
@@ -187,7 +187,7 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 			})
 
 			collector := containerdCollector{
-				client:            containerdClient(test.containerdMetrics),				
+				client: containerdClient(test.containerdMetrics),
 			}
 
 			// ID and cache TTL not relevant for these tests

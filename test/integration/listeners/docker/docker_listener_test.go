@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -91,7 +92,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&config.Listeners{})
+	dl, err := listeners.NewContainerListener(&config.Listeners{}, optional.NewNoneOption[workloadmeta.Component]())
 	if err != nil {
 		panic(err)
 	}
