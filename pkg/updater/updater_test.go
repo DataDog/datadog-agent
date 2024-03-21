@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 )
 
 type testRemoteConfigClient struct {
@@ -74,8 +75,10 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 
 func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
 	rc := &remoteConfig{client: rcc}
-	u := newUpdater(rc, t.TempDir(), t.TempDir(), "")
+	rootPath := t.TempDir()
+	u := newUpdater(rc, rootPath, t.TempDir(), "")
 	u.installer.configsDir = t.TempDir()
+	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
 	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
 	u.Start(context.Background())

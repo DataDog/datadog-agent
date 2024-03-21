@@ -120,8 +120,3 @@ func StartAgentExperiment() error {
 func StopAgentExperiment() error {
 	return startUnit(agentUnit)
 }
-
-// ChownDDAgent chowns the datadog-agent directory to the dd-agent user
-func ChownDDAgent(path string) error {
-	return nil
-}

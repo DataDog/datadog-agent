@@ -11,11 +11,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 )
 
 func newTestRepositories(t *testing.T) *Repositories {
 	rootPath := t.TempDir()
 	locksRootPath := t.TempDir()
+	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	repositories := NewRepositories(rootPath, locksRootPath)
 	return repositories
 }

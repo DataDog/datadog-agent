@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/gopsutil/process"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -387,7 +388,7 @@ func (r *repositoryFiles) cleanup() error {
 			pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
 			pkgLocksPath := filepath.Join(r.locksPath, file.Name())
 			log.Debugf("package %s isn't locked, removing it", pkgRepositoryPath)
-			if err := os.RemoveAll(pkgRepositoryPath); err != nil {
+			if err := service.RmPackageVersion(pkgRepositoryPath); err != nil {
 				log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 			}
 			if err := os.RemoveAll(pkgLocksPath); err != nil {
