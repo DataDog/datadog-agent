@@ -36,14 +36,14 @@ func TestServer(t *testing.T) {
 			}),
 		),
 	)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.NotNil(t, probe)
 
 	ctx := context.Background()
-	assert.Nil(t, lc.Start(ctx))
+	assert.NoError(t, lc.Start(ctx))
 
-	assert.Nil(t, lc.Stop(ctx))
+	assert.NoError(t, lc.Stop(ctx))
 }
 
 func TestServerNoHealthPort(t *testing.T) {
@@ -58,7 +58,7 @@ func TestServerNoHealthPort(t *testing.T) {
 			}),
 		),
 	)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Nil(t, probe)
 }
