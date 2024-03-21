@@ -97,12 +97,12 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// SetEnabled marks the sampler as enabled or disabled
 func (e *RareSampler) SetEnabled(enabled bool) {
 	e.enabled.Store(enabled)
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// IsEnabled returns whether the sampler is enabled
 func (e *RareSampler) IsEnabled() bool {
 	return e.enabled.Load()
 }

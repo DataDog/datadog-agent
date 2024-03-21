@@ -81,8 +81,7 @@ func TestConsideredSpans(t *testing.T) {
 	}
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
-func TestRareSamplerRace(t *testing.T) {
+func TestRareSamplerRace(_ *testing.T) {
 	e := NewRareSampler(config.New(), &statsd.NoOpClient{})
 	e.Stop()
 	for i := 0; i < 2; i++ {

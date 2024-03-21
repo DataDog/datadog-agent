@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//
-//nolint:revive // TODO(APM) Fix revive linter
+
+// Package run implements the run subcommand for the 'trace-agent' command.
 package run
 
 import (
@@ -38,7 +38,7 @@ import (
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
 
-	cliParams := &RunParams{}
+	cliParams := &Params{}
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Start datadog trace-agent.",
@@ -54,7 +54,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	return runCmd
 }
 
-func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
+func setParamFlags(cmd *cobra.Command, cliParams *Params) {
 	cmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
 	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
 		"enables CPU profiling and specifies profile path.")
@@ -64,7 +64,7 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}

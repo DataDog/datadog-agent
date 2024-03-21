@@ -40,16 +40,14 @@ func StopService() error {
 	var err error
 	if err = winutil.StopService(config.ServiceName); err != nil {
 		return fmt.Errorf("error stopping service %v", err)
-	} else { //nolint:revive // TODO(APM) Fix revive linter
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err = winutil.WaitForState(ctx, config.ServiceName, svc.Stopped); err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return fmt.Errorf("timed out waiting for %s service to stop", config.ServiceName)
-			} else { //nolint:revive // TODO(APM) Fix revive linter
-				return fmt.Errorf("error stopping service %v", err)
-			}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err = winutil.WaitForState(ctx, config.ServiceName, svc.Stopped); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("timed out waiting for %s service to stop", config.ServiceName)
 		}
+		return fmt.Errorf("error stopping service %v", err)
 	}
 	return nil
 }
