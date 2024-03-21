@@ -366,7 +366,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
-	config.SetKnown("secret_audit_file_max_size")
+	config.SetDefault("secret_audit_file_max_size", 0)
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
