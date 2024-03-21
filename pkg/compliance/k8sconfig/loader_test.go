@@ -559,6 +559,125 @@ kube-apiserver \
 	--tls-private-key-file=/etc/kubernetes/pki/apiserver.key
 `
 
+const bottleRocketProcTable = `
+kubelet \
+	--cloud-provider external \
+	--kubeconfig /etc/kubernetes/kubelet/kubeconfig \
+	--config /etc/kubernetes/kubelet/config \
+	--container-runtime-endpoint=unix:///run/containerd/containerd.sock \
+	--containerd=/run/containerd/containerd.sock \
+	--root-dir /var/lib/kubelet \
+	--cert-dir /var/lib/kubelet/pki \
+	--image-credential-provider-bin-dir /usr/libexec/kubernetes/kubelet/plugins \
+	--image-credential-provider-config /etc/kubernetes/kubelet/credential-provider-config.yaml \
+	--hostname-override ip-192-168-84-28.us-west-2.compute.internal \
+	--node-ip 192.168.84.28 \
+	--node-labels alpha.eksctl.io/cluster-name=TestCluster,alpha.eksctl.io/nodegroup-name=ng-bottlerocket-quickstart \
+	--register-with-taints \
+	--pod-infra-container-image 602401143452.dkr.ecr.us-west-2.amazonaws.com/eks/pause:3.1-eksbuild.1
+
+kube-proxy \
+	--v=2 \
+	--config=/var/lib/kube-proxy-config/config \
+	--hostname-override=ip-192-168-84-28.us-west-2.compute.internal
+
+apiserver \
+	--datastore-path /var/lib/bottlerocket/datastore/current \
+	--socket-gid 274
+
+controller \
+	--enable-ipv6=false \
+	--enable-network-policy=false \
+	--enable-cloudwatch-logs=false \
+	--enable-policy-event-logs=false \
+	--metrics-bind-addr=:8162 \
+	--health-probe-bind-addr=:8163
+`
+
+var bottleRocketFs = []*mockFile{
+	{
+		name: "/etc/kubernetes/kubelet/config",
+		mode: 0600,
+		content: `---
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+address: 0.0.0.0
+authentication:
+  anonymous:
+    enabled: false
+  webhook:
+    cacheTTL: 2m0s
+    enabled: true
+  x509:
+    clientCAFile: "/etc/kubernetes/pki/ca.crt"
+authorization:
+  mode: Webhook
+  webhook:
+    cacheAuthorizedTTL: 5m0s
+    cacheUnauthorizedTTL: 30s
+clusterDomain: cluster.local
+clusterDNS:
+- 10.100.0.10
+kubeReserved:
+  cpu: "70m"
+  memory: "574Mi"
+  ephemeral-storage: "1Gi"
+kubeReservedCgroup: "/runtime"
+cpuCFSQuota: true
+cpuManagerPolicy: none
+podPidsLimit: 1048576
+providerID: aws:///us-west-2b/i-0f692cd3b9e0c7229
+resolvConf: "/run/netdog/resolv.conf"
+hairpinMode: hairpin-veth
+readOnlyPort: 0
+cgroupDriver: systemd
+cgroupRoot: "/"
+runtimeRequestTimeout: 15m
+featureGates:
+  RotateKubeletServerCertificate: true
+protectKernelDefaults: true
+serializeImagePulls: false
+seccompDefault: false
+serverTLSBootstrap: true
+tlsCipherSuites:
+- TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+volumePluginDir: "/var/lib/kubelet/plugins/volume/exec"
+maxPods: 29
+staticPodPath: "/etc/kubernetes/static-pods/"`,
+	},
+
+	{
+		name: "/etc/kubernetes/kubelet/kubeconfig",
+		mode: 0600,
+		content: `---
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority: "/etc/kubernetes/pki/ca.crt"
+    server: "https://EF1956239FCFDD75377A29B30083076F.yl4.us-west-2.eks.amazonaws.com"
+  name: kubernetes
+contexts:
+- context:
+    cluster: kubernetes
+    user: kubelet
+  name: kubelet
+current-context: kubelet
+users:
+- name: kubelet
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: "/usr/bin/aws-iam-authenticator"
+      args:
+      - token
+      - "-i"
+      - "TestCluster"
+      - "--region"
+      - "us-west-2"`,
+	},
+}
+
 func procTable(str string) []proc {
 	var table []proc
 	str = strings.ReplaceAll(str, "\\\n", "")
@@ -766,6 +885,31 @@ func TestKubAksConfigLoader(t *testing.T) {
 		featureGates := "CSIMigration=true,CSIMigrationAzureDisk=true,CSIMigrationAzureFile=true,DelegateFSGroupToCSIDriver=true,DisableAcceleratorUsageMetrics=false,DynamicKubeletConfig=false"
 		assert.Equal(t, &featureGates, conf.Components.Kubelet.FeatureGates)
 	}
+}
+
+func TestBottleRocketConfigLoader(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, f := range bottleRocketFs {
+		f.create(t, tmpDir)
+	}
+
+	conf := loadTestConfiguration(t, tmpDir, bottleRocketProcTable)
+	assert.Empty(t, conf.Errors)
+
+	assert.Nil(t, conf.Components.KubeApiserver)
+	assert.Nil(t, conf.Components.Etcd)
+	assert.Nil(t, conf.Components.KubeControllerManager)
+
+	assert.NotNil(t, conf.Components.Kubelet)
+	assert.NotNil(t, conf.Components.Kubelet.Config)
+	assert.NotNil(t, conf.Components.Kubelet.Config.Content)
+
+	assert.NotNil(t, conf.ManagedEnvironment)
+	assert.Equal(t, conf.ManagedEnvironment.Name, "eks")
+
+	tlsCipherSuites := conf.Components.Kubelet.Config.Content.(map[string]interface{})["tlsCipherSuites"]
+	expectedTLSCipherSuites := []interface{}{"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"}
+	assert.Equal(t, expectedTLSCipherSuites, tlsCipherSuites)
 }
 
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
