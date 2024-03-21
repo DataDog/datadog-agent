@@ -851,34 +851,26 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         if os.path.exists(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir)):
             shutil.rmtree(os.path.join(KITCHEN_ARTIFACT_DIR, test_dir))
 
-    built_object_files = False
-
     # This will compile one 'testsuite' file per package by running `go test -c -o output_path`.
     # These artifacts will be "vendored" inside a chef recipe like the following:
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/network/netlink/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
-    for pkg in target_packages:
+    for i, pkg in enumerate(target_packages):
         target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
 
-        test_files = glob.glob(f"{pkg}/*_test.go")
-
-        if len(test_files) == 0:
-            continue
-
         test(
             ctx,
             packages=pkg,
-            skip_object_files=built_object_files,
+            skip_object_files=(i != 0),
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
             kernel_release=kernel_release,
         )
-        built_object_files = True
 
         # copy ancillary data, if applicable
         for extra in ["testdata", "build"]:
