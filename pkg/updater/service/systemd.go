@@ -9,6 +9,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -21,15 +22,21 @@ import (
 type unitCommand string
 
 const (
-	startCommand         = unitCommand("start")
-	stopCommand          = unitCommand("stop")
-	enableCommand        = unitCommand("enable")
-	disableCommand       = unitCommand("disable")
-	loadCommand          = unitCommand("load-unit")
-	removeCommand        = unitCommand("remove-unit")
-	systemdReloadCommand = "systemd-reload"
-	adminExecutor        = "datadog-updater-admin.service"
+	startCommand         unitCommand = "start"
+	stopCommand          unitCommand = "stop"
+	enableCommand        unitCommand = "enable"
+	disableCommand       unitCommand = "disable"
+	loadCommand          unitCommand = "load-unit"
+	removeCommand        unitCommand = "remove-unit"
+	systemdReloadCommand             = `{"command":"systemd-reload"}`
+	adminExecutor                    = "datadog-updater-admin.service"
 )
+
+type privilegeCommand struct {
+	Command string `json:"command,omitempty"`
+	Unit    string `json:"unit,omitempty"`
+	Path    string `json:"path,omitempty"`
+}
 
 var updaterHelper = filepath.Join(setup.InstallPath, "bin", "updater", "updater-helper")
 
@@ -83,5 +90,11 @@ func executeCommand(command string) error {
 }
 
 func wrapUnitCommand(command unitCommand, unit string) string {
-	return string(command) + " " + unit
+	privilegeCommand := privilegeCommand{Command: string(command), Unit: unit}
+	rawJSON, err := json.Marshal(privilegeCommand)
+	if err != nil {
+		// can't happen as we control the struct
+		panic(err)
+	}
+	return string(rawJSON)
 }
