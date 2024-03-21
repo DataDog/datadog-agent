@@ -5,20 +5,28 @@
 
 //go:build zlib
 
+// Package compression provides a set of functions for compressing with zlib / zstd
 package compression
 
 import (
 	"bytes"
 	"compress/zlib"
 	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 )
 
-// ContentEncoding describes the HTTP header value associated with the compression method
-// var instead of const to ease testing
-var ContentEncoding = "deflate"
+// ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
+type ZlibStrategy struct {
+}
+
+// NewZlibStrategy returns a new ZlibStrategy
+func NewZlibStrategy() *ZlibStrategy {
+	return &ZlibStrategy{}
+}
 
 // Compress will compress the data with zlib
-func Compress(src []byte) ([]byte, error) {
+func (s *ZlibStrategy) Compress(src []byte) ([]byte, error) {
 	var b bytes.Buffer
 	w := zlib.NewWriter(&b)
 	_, err := w.Write(src)
@@ -34,7 +42,7 @@ func Compress(src []byte) ([]byte, error) {
 }
 
 // Decompress will decompress the data with zlib
-func Decompress(src []byte) ([]byte, error) {
+func (s *ZlibStrategy) Decompress(src []byte) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(src))
 	if err != nil {
 		return nil, err
@@ -51,7 +59,17 @@ func Decompress(src []byte) ([]byte, error) {
 // CompressBound returns the worst case size needed for a destination buffer
 // This is allowed to return a value _larger_ than 'sourceLen'.
 // Ref: https://refspecs.linuxbase.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/zlib-compressbound-1.html
-func CompressBound(sourceLen int) int {
+func (s *ZlibStrategy) CompressBound(sourceLen int) int {
 	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
 	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
+}
+
+// ContentEncoding returns the content encoding value for zlib
+func (s *ZlibStrategy) ContentEncoding() string {
+	return utils.ZlibEncoding
+}
+
+// NewZlibStreamCompressor returns a new zlib writer
+func NewZlibStreamCompressor(output *bytes.Buffer) *zlib.Writer {
+	return zlib.NewWriter(output)
 }

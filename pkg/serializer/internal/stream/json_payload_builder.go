@@ -3,12 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 
-//go:build zlib
+//go:build zlib || zstd
 
 package stream
 
 import (
 	"bytes"
+	"errors"
 	"expvar"
 	"sync"
 	"time"
@@ -157,7 +158,7 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 	compressor, err := NewCompressor(
 		input, output,
 		maxPayloadSize, maxUncompressedSize,
-		header.Bytes(), footer.Bytes(), []byte(","))
+		header.Bytes(), footer.Bytes(), []byte(","), b.config)
 	if err != nil {
 		return nil, err
 	}
@@ -177,12 +178,13 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			continue
 		}
 
-		switch compressor.AddItem(jsonStream.Buffer()) {
-		case ErrPayloadFull:
+		switch err = compressor.AddItem(jsonStream.Buffer()); {
+		case errors.Is(err, ErrPayloadFull):
 			expvarsPayloadFulls.Add(1)
 			tlmPayloadFull.Inc()
 			// payload is full, we need to create a new one
-			payload, err := compressor.Close()
+			var payload []byte
+			payload, err = compressor.Close()
 			if err != nil {
 				return payloads, err
 			}
@@ -193,18 +195,18 @@ func (b *JSONPayloadBuilder) BuildWithOnErrItemTooBigPolicy(
 			compressor, err = NewCompressor(
 				input, output,
 				maxPayloadSize, maxUncompressedSize,
-				header.Bytes(), footer.Bytes(), []byte(","))
+				header.Bytes(), footer.Bytes(), []byte(","), b.config)
 			if err != nil {
 				return nil, err
 			}
-		case nil:
+		case err == nil:
 			// All good, continue to next item
 			pointCount += m.GetCurrentItemPointCount()
 			ok = m.MoveNext()
 			expvarsTotalItems.Add(1)
 			tlmTotalItems.Inc()
 			continue
-		case ErrItemTooBig:
+		case errors.Is(err, ErrItemTooBig):
 			if policy == FailOnErrItemTooBig {
 				return nil, ErrItemTooBig
 			}

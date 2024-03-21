@@ -129,7 +129,7 @@
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
 /.gitlab/functional_test/workload_checks.yml         @DataDog/single-machine-performance
 
-/.gitlab/software_composition_analysis.yml           @DataDog/software-integrity-and-trust
+/.gitlab/software_composition_analysis/              @DataDog/software-integrity-and-trust
 
 /chocolatey/                            @DataDog/windows-agent
 
@@ -317,6 +317,7 @@
 /pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm/            @Datadog/agent-ci-experience @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/  @Datadog/agent-ci-experience @DataDog/processes
+/pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
