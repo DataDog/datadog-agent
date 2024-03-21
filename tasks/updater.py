@@ -205,6 +205,7 @@ def omnibus_package(
     ctx,
     log_level="info",
     base_dir=None,
+    gem_path=None,
     skip_sign=False,
     release_version="nightly",
     hardened_runtime=False,
@@ -218,6 +219,9 @@ def omnibus_package(
         go_mod_cache=go_mod_cache,
     )
 
+    with timed(quiet=True) as bundle_elapsed:
+        bundle_install_omnibus(ctx, gem_path, env)
+
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(
             ctx=ctx,
@@ -227,4 +231,5 @@ def omnibus_package(
             env=env,
             log_level=log_level,
         )
+    print(f"Bundle:  {bundle_elapsed.duration}")
     print(f"Packaging time: {omnibus_elapsed.duration}")
