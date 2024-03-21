@@ -204,13 +204,13 @@
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
   after_script:
     - MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
+    - mkdir -p $CI_PROJECT_DIR/logs
+    - ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log || true
+    - cat $CI_PROJECT_DIR/logs/setup-ddvm.log || true
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
     - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
     - scp "metal_instance:/home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
-    - mkdir $CI_PROJECT_DIR/logs
-    - ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log
-    - cat $CI_PROJECT_DIR/logs/setup-ddvm.log
   artifacts:
     expire_in: 2 weeks
     when: always

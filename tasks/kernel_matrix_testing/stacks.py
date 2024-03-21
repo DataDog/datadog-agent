@@ -106,25 +106,42 @@ def local_vms_in_config(vmconfig: PathOrStr):
     return False
 
 
-def kvm_ok(ctx: Context):
-    ctx.run("kvm-ok")
+def kvm_ok() -> None:
+    if not os.path.exists("/dev/kvm"):
+        error("[-] /dev/kvm not found. KVM not available on system")
+        raise Exit("KVM not available")
+
     info("[+] Kvm available on system")
 
 
-def check_user_in_group(ctx: Context, group: str):
-    ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)")
-    info(f"[+] User '{os.getlogin()}' in group '{group}'")
+def check_user_in_group(ctx: Context, group: str) -> bool:
+    res = ctx.run(
+        f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)",
+        warn=True,
+    )
+    if res is not None and res.ok:
+        return True
+
+    return False
 
 
-def check_user_in_kvm(ctx: Context):
-    check_user_in_group(ctx, "kvm")
+def check_user_in_kvm(ctx: Context) -> None:
+    if not check_user_in_group(ctx, "kvm"):
+        error("You must add user '{os.getlogin()}' to group 'kvm'")
+        raise Exit("User '{os.getlogin()}' not in group 'kvm'")
+
+    info(f"[+] User '{os.getlogin()}' in group 'kvm'")
 
 
-def check_user_in_libvirt(ctx: Context):
-    check_user_in_group(ctx, "libvirt")
+def check_user_in_libvirt(ctx: Context) -> None:
+    if not check_user_in_group(ctx, "libvirt"):
+        error("You must add user '{os.getlogin()}' to group 'libvirt'")
+        raise Exit("User '{os.getlogin()}' not in group 'libvirt'")
+
+    info(f"[+] User '{os.getlogin()}' in group 'libvirt'")
 
 
-def check_libvirt_sock_perms():
+def check_libvirt_sock_perms() -> None:
     read_libvirt_sock()
     write_libvirt_sock()
     info(f"[+] User '{os.getlogin()}' has read/write permissions on libvirt sock")
@@ -138,7 +155,7 @@ def check_env(ctx: Context):
         raise Exit("Local machines only supported on Linux and MacOS")
 
     if platform.system() == "Linux":
-        kvm_ok(ctx)
+        kvm_ok()
         # on macOS libvirt runs as the local user, so no need to check for group membership
         check_user_in_kvm(ctx)
         check_user_in_libvirt(ctx)

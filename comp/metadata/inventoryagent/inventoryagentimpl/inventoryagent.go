@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/viper"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -40,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/viper"
 )
 
 // Module defines the fx options for this component.
@@ -391,6 +391,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
 		"remote_configuration":               ia.getRemoteConfiguration,
 		"cli_configuration":                  ia.getCliConfiguration,
+		"source_local_configuration":         ia.getSourceLocalConfiguration,
 	}
 	for layer, getter := range configLayer {
 		if conf, err := getter(); err == nil {
