@@ -1188,6 +1188,17 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		}, time.Second*2, model.ExecEventType)
 	})
 
+	t.Run("life-cycle-v1-stable-v2-process", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstanceV1.Command("iconv", []string{"-l"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			return false
+		}, time.Second*2, model.ExecEventType)
+	})
+
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
@@ -1343,6 +1354,17 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	t.Run("life-cycle-v2-learning-v1-dns", func(t *testing.T) {
 		err = test.GetCustomEventSent(t, func() error {
 			cmd := dockerInstanceV2.Command("nslookup", []string{"google.fr"}, []string{})
+			_, err = cmd.CombinedOutput()
+			return err
+		}, func(r *rules.Rule, event *events.CustomEvent) bool {
+			t.Fatal(errors.New("catch a custom event that should had been reinserted"))
+			return false
+		}, time.Second*2, model.DNSEventType)
+	})
+
+	t.Run("life-cycle-v1-stable-v2-dns", func(t *testing.T) {
+		err = test.GetCustomEventSent(t, func() error {
+			cmd := dockerInstanceV1.Command("nslookup", []string{"google.es"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
 		}, func(r *rules.Rule, event *events.CustomEvent) bool {
