@@ -202,6 +202,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "language_detection.enabled"), false)
 
+	cfg.SetKnown(join(spNS, "process_service_inference", "use_improved_algorithm"))
+
 	// For backward compatibility
 	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 	cfg.BindEnv(join(spNS, "process_service_inference", "enabled"))
