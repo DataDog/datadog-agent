@@ -83,6 +83,7 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure container checks run on the core agent only
 	// when run in core agent mode is enabled
 	t.Run("run in core agent", func(t *testing.T) {
+		deps := createDeps(t)
 		cfg, scfg := config.Mock(t), config.MockSystemProbe(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
@@ -90,12 +91,12 @@ func TestContainerCheck(t *testing.T) {
 		config.SetFeatures(t, config.Docker)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
