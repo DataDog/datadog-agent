@@ -1,10 +1,5 @@
 ---
 
-.setup_deb_signing_key: &setup_deb_signing_key
-  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
-  - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
-  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
-
 .updater_package_deb_common:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
@@ -18,7 +13,7 @@
     - rm ${OMNIBUS_PACKAGE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
+    - !reference [.setup_deb_signing_key]
     - inv -e updater.omnibus-package --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_FILE
