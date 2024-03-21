@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -79,8 +80,6 @@ type TestEnv struct {
 }
 
 var (
-	customAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
-
 	ciProjectDir = getEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86    = getEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm    = getEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
@@ -176,6 +175,25 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		return nil, fmt.Errorf("No API Key for datadog-agent provided")
 	}
 
+	var customAMILocalWorkingDir string
+
+	// Remote AMI working dir is always on Linux
+	customAMIRemoteWorkingDir := filepath.Join("/", "home", "kernel-version-testing")
+
+	if runtime.GOOS == "linux" {
+		// Linux share the same working dir as the remote (which is always Linux)
+		customAMILocalWorkingDir = customAMIRemoteWorkingDir
+	} else if runtime.GOOS == "darwin" {
+		// macOS does not let us create /home/kernel-version-testing, so we use an alternative
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		customAMILocalWorkingDir = filepath.Join(homeDir, "kernel-version-testing")
+	} else {
+		return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
@@ -193,7 +211,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		"microvm:provision":                      auto.ConfigValue{Value: strconv.FormatBool(opts.Provision)},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
-		"microvm:workingDir":                     auto.ConfigValue{Value: customAMIWorkingDir},
+		"microvm:localWorkingDir":                auto.ConfigValue{Value: customAMILocalWorkingDir},
+		"microvm:remoteWorkingDir":               auto.ConfigValue{Value: customAMIRemoteWorkingDir},
 		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}

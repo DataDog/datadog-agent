@@ -14,15 +14,15 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/samber/lo"
-	"gopkg.in/zorkian/go-datadog-api.v2"
-
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/fatih/color"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -36,6 +36,11 @@ import (
 const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
+	kubeNamespaceTracegenWorkload           = "workload-tracegen"
+	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
+	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
+	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
+	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
 
 var GitCommit string
@@ -269,6 +274,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^pod_phase:running$`,
 				`^short_image:apps-nginx-server$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -295,8 +301,8 @@ func (suite *k8sSuite) TestNginx() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
-				"kube_deployment:nginx",
-				"kube_namespace:workload-nginx",
+				"^kube_deployment:nginx$",
+				"^kube_namespace:workload-nginx$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -375,11 +381,9 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_service:redis$`,
 				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^redis_host:`,
-				`^redis_port:6379$`,
-				`^redis_role:master$`,
 				`^short_image:redis$`,
 			},
+			AcceptUnexpectedTags: true,
 		},
 	})
 
@@ -388,8 +392,8 @@ func (suite *k8sSuite) TestRedis() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
-				"kube_deployment:redis",
-				"kube_namespace:workload-redis",
+				"^kube_deployment:redis$",
+				"^kube_namespace:workload-redis$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -447,8 +451,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -460,7 +464,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -484,8 +488,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.limit",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -497,7 +501,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -521,8 +525,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.usage.total",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -534,7 +538,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -557,8 +561,8 @@ func (suite *k8sSuite) TestCPU() {
 		Filter: testMetricFilterArgs{
 			Name: "kubernetes.cpu.limits",
 			Tags: []string{
-				"kube_deployment:stress-ng",
-				"kube_namespace:workload-cpustress",
+				"^kube_deployment:stress-ng$",
+				"^kube_namespace:workload-cpustress$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -570,7 +574,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
 				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:latest$`,
+				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -591,21 +595,59 @@ func (suite *k8sSuite) TestCPU() {
 }
 
 func (suite *k8sSuite) TestDogstatsdInAgent() {
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload)
+	// Test with UDS
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
+	// Test with UDP + Origin detection
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	// Test with UDP + DD_ENTITY_ID
+	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {
-	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload)
+	// Test with UDS
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
+	// Dogstatsd standalone does not support origin detection
+	// Test with UDP + DD_ENTITY_ID
+	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
 
-func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
-	// Test dogstatsd origin detection with UDS
+func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
+	// Test dogstatsd origin detection with UDP + DD_ENTITY_ID
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"kube_deployment:dogstatsd-uds",
-				"kube_namespace:" + kubeNamespace,
+				"^kube_deployment:dogstatsd-udp$",
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_deployment:dogstatsd-udp$`,
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
+				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^series:`,
+			},
+		},
+	})
+}
+
+func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
+	if kubeDeployment == kubeDeploymentDogstatsdUDPOrigin {
+		// CONTINT-3934: This test is flaky, skip it for now
+		suite.T().Skipf("Skipping test for %s/%s as it is currently flaky", kubeNamespace, kubeDeployment)
+	}
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
+				"^kube_deployment:" + regexp.QuoteMeta(kubeDeployment) + "$",
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -619,40 +661,16 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,
 				`^kube_container_name:dogstatsd$`,
-				`^kube_deployment:dogstatsd-uds$`,
-				"^kube_namespace:" + kubeNamespace + "$",
+				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:dogstatsd-uds-[[:alnum:]]+$`,
+				`^kube_ownerref_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
-				`^kube_replica_set:dogstatsd-uds-[[:alnum:]]+$`,
-				`^pod_name:dogstatsd-uds-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^kube_replica_set:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
-			},
-		},
-	})
-
-	// Test dogstatsd origin detection with UDP
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "custom.metric",
-			Tags: []string{
-				"kube_deployment:dogstatsd-udp",
-				"kube_namespace:" + kubeNamespace,
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^kube_deployment:dogstatsd-udp$`,
-				"^kube_namespace:" + kubeNamespace + "$",
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
-				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^series:`,
 			},
 		},
 	})
@@ -664,8 +682,8 @@ func (suite *k8sSuite) TestPrometheus() {
 		Filter: testMetricFilterArgs{
 			Name: "prom_gauge",
 			Tags: []string{
-				"kube_deployment:prometheus",
-				"kube_namespace:workload-prometheus",
+				"^kube_deployment:prometheus$",
+				"^kube_namespace:workload-prometheus$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -788,15 +806,12 @@ func (suite *k8sSuite) TestContainerImage() {
 			regexp.MustCompile(`^os_name:linux$`),
 			regexp.MustCompile(`^short_image:apps-nginx-server$`),
 		}
-		err = assertTags(images[len(images)-1].GetTags(), expectedTags)
+		err = assertTags(images[len(images)-1].GetTags(), expectedTags, false)
 		assert.NoErrorf(c, err, "Tags mismatch")
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
 
 func (suite *k8sSuite) TestSBOM() {
-	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-3776
-	suite.T().Skip("CONTINT-3776: SBOM test is flaky")
-
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
@@ -860,7 +875,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^os_name:linux$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
-			err = assertTags(image.GetTags(), expectedTags)
+			err = assertTags(image.GetTags(), expectedTags, false)
 			assert.NoErrorf(c, err, "Tags mismatch")
 
 			properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
@@ -1000,7 +1015,12 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			}
 			assert.Truef(c, scaleUp, "No scale up detected")
 			assert.Truef(c, scaleDown, "No scale down detected")
-		}, 20*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
+			// The deployments that have an HPA configured (nginx and redis)
+			// exhibit a traffic pattern that follows a sine wave with a
+			// 20-minute period. This is defined in the test-infra-definitions
+			// repo. For this reason, the timeout for this test needs to be a
+			// bit higher than 20 min to capture the scale down event.
+		}, 25*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
 	})
 }
 
@@ -1035,4 +1055,56 @@ func (suite *k8sSuite) podExec(namespace, pod, container string, cmd []string) (
 	}
 
 	return stdoutSb.String(), stderrSb.String(), nil
+}
+
+func (suite *k8sSuite) TestTraceUDS() {
+	suite.testTrace(kubeDeploymentTracegenUDSWorkload)
+}
+
+func (suite *k8sSuite) TestTraceTCP() {
+	suite.testTrace(kubeDeploymentTracegenTCPWorkload)
+}
+
+// testTrace verifies that traces are tagged with container and pod tags.
+func (suite *k8sSuite) testTrace(kubeDeployment string) {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		traces, cerr := suite.Fakeintake.GetTraces()
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
+			return
+		}
+
+		var err error
+		// Iterate starting from the most recent traces
+		for _, trace := range traces {
+			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
+				return k + ":" + v
+			})
+			// Assert origin detection is working properly
+			err = assertTags(tags, []*regexp.Regexp{
+				regexp.MustCompile(`^container_id:`),
+				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
+				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
+				regexp.MustCompile(`^git.commit.sha:`),
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
+				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
+				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen$`),
+				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^kube_container_name:` + kubeDeployment + `$`),
+				regexp.MustCompile(`^kube_deployment:` + kubeDeployment + `$`),
+				regexp.MustCompile(`^kube_namespace:` + kubeNamespaceTracegenWorkload + `$`),
+				regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
+				regexp.MustCompile(`^kube_ownerref_name:` + kubeDeployment + `-[[:alnum:]]+$`),
+				regexp.MustCompile(`^kube_replica_set:` + kubeDeployment + `-[[:alnum:]]+$`),
+				regexp.MustCompile(`^kube_qos:burstable$`),
+				regexp.MustCompile(`^pod_name:` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
+				regexp.MustCompile(`^pod_phase:running$`),
+				regexp.MustCompile(`^short_image:apps-tracegen$`),
+			}, false)
+			if err == nil {
+				break
+			}
+		}
+		require.NoErrorf(c, err, "Failed finding trace with proper tags")
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }

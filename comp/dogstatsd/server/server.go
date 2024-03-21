@@ -19,13 +19,11 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -66,6 +64,10 @@ var (
 
 type dependencies struct {
 	fx.In
+
+	Lc fx.Lifecycle
+
+	Demultiplexer aggregator.Demultiplexer
 
 	Log    logComponent.Component
 	Config configComponent.Component
@@ -187,19 +189,22 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 	packets.InitTelemetry(get("telemetry.dogstatsd.listeners_channel_latency_buckets"))
 }
 
-// TODO: (components) - remove once serverless is an FX app
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessServer() Component {
-	return newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true)
-}
-
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer)
+
+	if config.Datadog.GetBool("use_dogstatsd") {
+		deps.Lc.Append(fx.Hook{
+			OnStart: s.startHook,
+			OnStop:  s.stop,
+		})
+	}
+
+	return s
+
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool) Component {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -272,7 +277,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		sharedPacketPool:        nil,
 		sharedPacketPoolManager: nil,
 		sharedFloat64List:       newFloat64ListPool(),
-		demultiplexer:           nil,
+		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
 		serverlessFlushChan:     make(chan bool),
@@ -301,19 +306,27 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 	}
+
 	return s
 }
 
-func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
+func (s *server) startHook(context context.Context) error {
 
-	// TODO: (components) - DI this into Server when Demultiplexer is made into a component
-	s.demultiplexer = demultiplexer
+	err := s.start(context)
+	if err != nil {
+		s.log.Errorf("Could not start dogstatsd: %s", err)
+	} else {
+		s.log.Debug("dogstatsd started")
+	}
+	return nil
+}
+
+func (s *server) start(context.Context) error {
 
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
-	err := s.tCapture.Configure()
 
-	if err != nil {
+	if err := s.tCapture.GetStartUpError(); err != nil {
 		return err
 	}
 
@@ -444,9 +457,9 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 	return nil
 }
 
-func (s *server) Stop() {
+func (s *server) stop(context.Context) error {
 	if !s.IsRunning() {
-		return
+		return nil
 	}
 	close(s.stopChan)
 	for _, l := range s.listeners {
@@ -460,6 +473,8 @@ func (s *server) Stop() {
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false
+
+	return nil
 }
 
 func (s *server) IsRunning() bool {

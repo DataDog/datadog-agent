@@ -9,27 +9,38 @@ package updater
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"path"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
 	"github.com/DataDog/datadog-agent/pkg/updater/repository"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	// defaultRepositoryPath is the default path to the repository.
-	defaultRepositoryPath = "/opt/datadog-packages"
+	// defaultRepositoriesPath is the default path to the repositories directory.
+	defaultRepositoriesPath = "/opt/datadog-packages"
 	// defaultLocksPath is the default path to the run directory.
 	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
+)
+
+var (
+	// requiredDiskSpace is the required disk space to download and extract a package
+	// It is the sum of the maximum size of the extracted oci-layout and the maximum size of the datadog package
+	requiredDiskSpace = ociLayoutMaxSize + datadogPackageMaxSize
+	fsDisk            = filesystem.NewDisk()
 )
 
 // Updater is the updater used to update packages.
@@ -37,97 +48,102 @@ type Updater interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	StartExperiment(ctx context.Context, version string) error
-	StopExperiment() error
-	PromoteExperiment() error
+	Bootstrap(ctx context.Context, pkg string) error
+	BootstrapVersion(ctx context.Context, pkg string, version string) error
+	StartExperiment(ctx context.Context, pkg string, version string) error
+	StopExperiment(ctx context.Context, pkg string) error
+	PromoteExperiment(ctx context.Context, pkg string) error
 
-	GetRepositoryPath() string
-	GetPackage() string
-	GetState() (*repository.State, error)
+	GetState() (map[string]repository.State, error)
 }
 
 type updaterImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	pkg            string
-	repositoryPath string
-	repository     *repository.Repository
-	downloader     *downloader
+	repositories *repository.Repositories
+	downloader   *downloader
+	installer    *installer
 
 	rc                *remoteConfig
 	catalog           catalog
+	requests          chan remoteAPIRequest
+	requestsWG        sync.WaitGroup
 	bootstrapVersions bootstrapVersions
 }
 
-// Install installs the default version for the given package.
-// It is purposefully not part of the updater to avoid misuse.
-func Install(ctx context.Context, rcFetcher client.ConfigFetcher, pkg string) error {
-	updater, err := newUpdater(rcFetcher, pkg)
-	if err != nil {
-		return fmt.Errorf("could not create updater: %w", err)
+type disk interface {
+	GetUsage(path string) (*filesystem.DiskUsage, error)
+}
+
+// Bootstrap bootstraps the default version for the given package.
+func Bootstrap(ctx context.Context, pkg string) error {
+	rc := newNoopRemoteConfig()
+	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, "")
+	return u.Bootstrap(ctx, pkg)
+}
+
+// Purge removes files installed by the updater
+func Purge() {
+	service.RemoveAgentUnits()
+	if err := os.RemoveAll(defaultLocksPath); err != nil {
+		log.Warnf("updater: could not purge directory %s: %v", defaultLocksPath, err)
 	}
-	return updater.bootstrapStable(ctx)
+	if err := os.RemoveAll(defaultRepositoriesPath); err != nil {
+		log.Warnf("updater: could not purge directory %s: %v", defaultRepositoriesPath, err)
+	}
 }
 
 // NewUpdater returns a new Updater.
-func NewUpdater(rcFetcher client.ConfigFetcher, pkg string) (Updater, error) {
-	return newUpdater(rcFetcher, pkg)
-}
-
-func newUpdater(rcFetcher client.ConfigFetcher, pkg string) (*updaterImpl, error) {
-	repository := &repository.Repository{
-		RootPath:  path.Join(defaultRepositoryPath, pkg),
-		LocksPath: path.Join(defaultLocksPath, pkg),
-	}
+func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, error) {
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config.GetString("updater.registry")), nil
+}
+
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, remoteRegistryOverride string) *updaterImpl {
+	repositories := repository.NewRepositories(repositoriesPath, locksPath)
 	u := &updaterImpl{
-		pkg:               pkg,
-		repositoryPath:    defaultRepositoryPath,
 		rc:                rc,
-		repository:        repository,
-		downloader:        newDownloader(http.DefaultClient),
+		repositories:      repositories,
+		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
+		installer:         newInstaller(repositories),
 		catalog:           defaultCatalog,
+		requests:          make(chan remoteAPIRequest, 32),
 		bootstrapVersions: defaultBootstrapVersions,
 		stopChan:          make(chan struct{}),
 	}
-	u.updatePackagesState()
-	return u, nil
-}
-
-// GetRepositoryPath returns the path to the repository.
-func (u *updaterImpl) GetRepositoryPath() string {
-	return u.repositoryPath
-}
-
-// GetPackage returns the package.
-func (u *updaterImpl) GetPackage() string {
-	return u.pkg
+	u.refreshState(context.Background())
+	return u
 }
 
 // GetState returns the state.
-func (u *updaterImpl) GetState() (*repository.State, error) {
-	return u.repository.GetState()
+func (u *updaterImpl) GetState() (map[string]repository.State, error) {
+	return u.repositories.GetState()
 }
 
 // Start starts remote config and the garbage collector.
 func (u *updaterImpl) Start(_ context.Context) error {
-	u.rc.Start(u.handleCatalogUpdate, u.handleRemoteAPIRequest)
+	u.rc.Start(u.handleCatalogUpdate, u.scheduleRemoteAPIRequest)
 	go func() {
 		for {
 			select {
 			case <-time.After(gcInterval):
 				u.m.Lock()
-				err := u.repository.Cleanup()
+				err := u.repositories.Cleanup()
 				u.m.Unlock()
 				if err != nil {
 					log.Errorf("updater: could not run GC: %v", err)
 				}
 			case <-u.stopChan:
 				return
+			case request := <-u.requests:
+				err := u.handleRemoteAPIRequest(request)
+				if err != nil {
+					log.Errorf("updater: could not handle remote request: %v", err)
+				}
 			}
 		}
 	}()
@@ -138,90 +154,126 @@ func (u *updaterImpl) Start(_ context.Context) error {
 func (u *updaterImpl) Stop(_ context.Context) error {
 	u.rc.Close()
 	close(u.stopChan)
+	u.requestsWG.Wait()
+	close(u.requests)
 	return nil
 }
 
-// bootstrapStable installs the stable version of the package.
-func (u *updaterImpl) bootstrapStable(ctx context.Context) error {
+// Bootstrap installs the stable version of the package.
+func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, u.pkg, runtime.GOARCH, runtime.GOOS)
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+
+	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get default package %s for %s, %s", u.pkg, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
 	}
-	log.Infof("Updater: Installing default version %s of package %s", stablePackage.Version, u.pkg)
+	return u.boostrapPackage(ctx, stablePackage)
+}
+
+// Bootstrap installs the stable version of the package.
+func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version string) error {
+	u.m.Lock()
+	defer u.m.Unlock()
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+
+	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
+	if !ok {
+		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
+	}
+	return u.boostrapPackage(ctx, stablePackage)
+}
+
+func (u *updaterImpl) boostrapPackage(ctx context.Context, stablePackage Package) error {
+	// both tmp and repository paths are checked for available disk space in case they are on different partitions
+	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	if err != nil {
+		return fmt.Errorf("not enough disk space to install package: %w", err)
+	}
+	log.Infof("Updater: Bootstrapping stable version %s of package %s", stablePackage.Version, stablePackage.Name)
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	pkgDir := path.Join(tmpDir, "pkg")
-	err = u.downloader.Download(ctx, stablePackage, pkgDir)
+	image, err := u.downloader.Download(ctx, tmpDir, stablePackage)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return fmt.Errorf("could not download: %w", err)
 	}
-	err = u.repository.Create(stablePackage.Version, pkgDir)
+	err = u.installer.installStable(stablePackage.Name, stablePackage.Version, image)
 	if err != nil {
-		return fmt.Errorf("could not create package: %w", err)
+		return fmt.Errorf("could not install: %w", err)
 	}
-	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, u.pkg)
-	u.updatePackagesState()
+	log.Infof("Updater: Successfully installed default version %s of package %s", stablePackage.Version, stablePackage.Name)
 	return nil
 }
 
 // StartExperiment starts an experiment with the given package.
-func (u *updaterImpl) StartExperiment(ctx context.Context, version string) error {
+func (u *updaterImpl) StartExperiment(ctx context.Context, pkg string, version string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	log.Infof("Updater: Starting experiment for package %s version %s", u.pkg, version)
-	experimentPackage, ok := u.catalog.getPackage(u.pkg, version, runtime.GOARCH, runtime.GOOS)
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+
+	log.Infof("Updater: Starting experiment for package %s version %s", pkg, version)
+	// both tmp and repository paths are checked for available disk space in case they are on different partitions
+	err := checkAvailableDiskSpace(fsDisk, defaultRepositoriesPath, os.TempDir())
+	if err != nil {
+		return fmt.Errorf("not enough disk space to install package: %w", err)
+	}
+	experimentPackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get package %s, %s for %s, %s", u.pkg, version, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get package %s, %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	tmpDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
-	pkgDir := path.Join(tmpDir, "pkg")
-	err = u.downloader.Download(ctx, experimentPackage, pkgDir)
+	image, err := u.downloader.Download(ctx, tmpDir, experimentPackage)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return fmt.Errorf("could not download experiment: %w", err)
 	}
-	err = u.repository.SetExperiment(experimentPackage.Version, pkgDir)
+	err = u.installer.installExperiment(pkg, version, image)
 	if err != nil {
-		return fmt.Errorf("could not set experiment: %w", err)
+		return fmt.Errorf("could not install experiment: %w", err)
 	}
-	log.Infof("Updater: Successfully started experiment for package %s version %s", u.pkg, version)
-	u.updatePackagesState()
+	log.Infof("Updater: Successfully started experiment for package %s version %s", pkg, version)
 	return nil
 }
 
 // PromoteExperiment promotes the experiment to stable.
-func (u *updaterImpl) PromoteExperiment() error {
+func (u *updaterImpl) PromoteExperiment(ctx context.Context, pkg string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	log.Infof("Updater: Promoting experiment for package %s", u.pkg)
-	err := u.repository.PromoteExperiment()
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+
+	log.Infof("Updater: Promoting experiment for package %s", pkg)
+	err := u.installer.promoteExperiment(pkg)
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	log.Infof("Updater: Successfully promoted experiment for package %s", u.pkg)
-	u.updatePackagesState()
+	log.Infof("Updater: Successfully promoted experiment for package %s", pkg)
 	return nil
 }
 
 // StopExperiment stops the experiment.
-func (u *updaterImpl) StopExperiment() error {
+func (u *updaterImpl) StopExperiment(ctx context.Context, pkg string) error {
 	u.m.Lock()
 	defer u.m.Unlock()
-	log.Infof("Updater: Stopping experiment for package %s", u.pkg)
-	err := u.repository.DeleteExperiment()
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+
+	defer log.Infof("Updater: Stopping experiment for package %s", pkg)
+	err := u.installer.uninstallExperiment(pkg)
 	if err != nil {
-		return fmt.Errorf("could not set stable: %w", err)
+		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	log.Infof("Updater: Successfully stopped experiment for package %s", u.pkg)
-	u.updatePackagesState()
+	log.Infof("Updater: Successfully stopped experiment for package %s", pkg)
 	return nil
 }
 
@@ -233,40 +285,152 @@ func (u *updaterImpl) handleCatalogUpdate(c catalog) error {
 	return nil
 }
 
-func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) error {
-	s, err := u.GetState()
+func (u *updaterImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
+	u.requestsWG.Add(1)
+	u.requests <- request
+	return nil
+}
+
+func (u *updaterImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error) {
+	defer u.requestsWG.Done()
+	ctx := newRequestContext(request)
+	u.refreshState(ctx)
+	defer u.refreshState(ctx)
+
+	s, err := u.repositories.GetPackageState(request.Package)
 	if err != nil {
 		return fmt.Errorf("could not get updater state: %w", err)
 	}
 	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
+		setRequestInvalid(ctx)
+		u.refreshState(ctx)
 		return nil
 	}
+
+	defer func() { setRequestDone(ctx, err) }()
 	switch request.Method {
 	case methodStartExperiment:
-		log.Infof("Updater: Received remote request %s to start experiment for package %s version %s", request.ID, u.pkg, request.Params)
-		var params startExperimentParams
+		log.Infof("Updater: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
+		var params taskWithVersionParams
 		err := json.Unmarshal(request.Params, &params)
 		if err != nil {
 			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
 		}
-		return u.StartExperiment(context.Background(), params.Version)
+		return u.StartExperiment(context.Background(), request.Package, params.Version)
 	case methodStopExperiment:
-		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, u.pkg)
-		return u.StopExperiment()
+		log.Infof("Updater: Received remote request %s to stop experiment for package %s", request.ID, request.Package)
+		return u.StopExperiment(ctx, request.Package)
 	case methodPromoteExperiment:
-		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, u.pkg)
-		return u.PromoteExperiment()
+		log.Infof("Updater: Received remote request %s to promote experiment for package %s", request.ID, request.Package)
+		return u.PromoteExperiment(ctx, request.Package)
+	case methodBootstrap:
+		var params taskWithVersionParams
+		err := json.Unmarshal(request.Params, &params)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal start experiment params: %w", err)
+		}
+		log.Infof("Updater: Received remote request %s to bootstrap package %s version %s", request.ID, request.Package, params.Version)
+		if params.Version == "" {
+			return u.Bootstrap(context.Background(), request.Package)
+		}
+		return u.BootstrapVersion(context.Background(), request.Package, params.Version)
 	default:
 		return fmt.Errorf("unknown method: %s", request.Method)
 	}
 }
 
-func (u *updaterImpl) updatePackagesState() {
-	state, err := u.repository.GetState()
+// checkAvailableDiskSpace checks if there is enough disk space to download and extract a package in the given paths.
+// This will check the underlying partition of the given path. Note that the path must be an existing dir.
+//
+// On Unix, it is computed using `statfs` and is the number of free blocks available to an unprivileged used * block size
+// See https://man7.org/linux/man-pages/man2/statfs.2.html for more details
+// On Windows, it is computed using `GetDiskFreeSpaceExW` and is the number of bytes available
+// See https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw for more details
+func checkAvailableDiskSpace(fsDisk disk, paths ...string) error {
+	for _, path := range paths {
+		_, err := os.Stat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("could not stat path %s: %w", path, err)
+		}
+		s, err := fsDisk.GetUsage(path)
+		if err != nil {
+			return err
+		}
+		if s.Available < uint64(requiredDiskSpace) {
+			return fmt.Errorf("not enough disk space to download package: %d bytes available at %s, %d required", s.Available, path, requiredDiskSpace)
+		}
+	}
+	return nil
+}
+
+type requestKey int
+
+var requestStateKey requestKey
+
+// requestState represents the state of a task.
+type requestState struct {
+	Package string
+	ID      string
+	State   pbgo.TaskState
+	Err     *updaterErrors.UpdaterError
+}
+
+func newRequestContext(request remoteAPIRequest) context.Context {
+	return context.WithValue(context.Background(), requestStateKey, &requestState{
+		Package: request.Package,
+		ID:      request.ID,
+		State:   pbgo.TaskState_RUNNING,
+	})
+}
+
+func setRequestInvalid(ctx context.Context) {
+	state := ctx.Value(requestStateKey).(*requestState)
+	state.State = pbgo.TaskState_INVALID_STATE
+}
+
+func setRequestDone(ctx context.Context, err error) {
+	state := ctx.Value(requestStateKey).(*requestState)
+	state.State = pbgo.TaskState_DONE
 	if err != nil {
-		log.Warnf("could not update packages state: %s", err)
+		state.State = pbgo.TaskState_ERROR
+		state.Err = updaterErrors.From(err)
+	}
+}
+
+func (u *updaterImpl) refreshState(ctx context.Context) {
+	state, err := u.GetState()
+	if err != nil {
+		// TODO: we should report this error through RC in some way
+		log.Errorf("could not get updater state: %v", err)
 		return
 	}
-	u.rc.SetState(u.pkg, state)
+	requestState, ok := ctx.Value(requestStateKey).(*requestState)
+	var packages []*pbgo.PackageState
+	for pkg, s := range state {
+		p := &pbgo.PackageState{
+			Package:           pkg,
+			StableVersion:     s.Stable,
+			ExperimentVersion: s.Experiment,
+		}
+		if ok && pkg == requestState.Package {
+			var taskErr *pbgo.TaskError
+			if requestState.Err != nil {
+				taskErr = &pbgo.TaskError{
+					Code:    uint64(requestState.Err.Code()),
+					Message: requestState.Err.Error(),
+				}
+			}
+			p.Task = &pbgo.PackageStateTask{
+				Id:    requestState.ID,
+				State: requestState.State,
+				Error: taskErr,
+			}
+		}
+		packages = append(packages, p)
+	}
+	u.rc.SetState(packages)
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package agent implements the trace-agent.
 package agent
 
 import (
@@ -410,7 +410,7 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 	// We will first need to deprecate the `enable_cid_stats` feature flag.
 	gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(containerID, conf)
 	if err != nil {
-		log.Error("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
+		log.Debugf("Trace agent is unable to resolve container ID (%s) to container tags: %v", containerID, err)
 	} else {
 		pt.ImageTag = imageTag
 		// Only override the GitCommitSha if it was not set in the trace.
@@ -422,14 +422,12 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, contain
 }
 
 // newChunksArray creates a new array which will point only to sampled chunks.
-
 // The underlying array behind TracePayload.Chunks points to unsampled chunks
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*pb.TraceChunk, len(chunks))
-	copy(new, chunks)
-	return new
+	newChunks := make([]*pb.TraceChunk, len(chunks))
+	copy(newChunks, chunks)
+	return newChunks
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)

@@ -99,11 +99,13 @@ func newUserContextSerializer(e *model.Event) *UserContextSerializer {
 	}
 }
 
-func newRegistrySerializer(re *model.RegistryEvent, _ *model.Event, _ ...uint64) *RegistrySerializer {
+func newRegistrySerializer(re *model.RegistryEvent, e *model.Event, _ ...uint64) *RegistrySerializer {
 	rs := &RegistrySerializer{
-		KeyName:   re.KeyName,
-		KeyPath:   re.KeyPath,
-		ValueName: re.ValueName,
+		KeyName: re.KeyName,
+		KeyPath: re.KeyPath,
+	}
+	if model.EventType(e.Type) == model.SetRegistryKeyValueEventType {
+		rs.ValueName = e.SetRegistryKeyValue.ValueName
 	}
 	return rs
 }

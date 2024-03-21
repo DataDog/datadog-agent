@@ -10,9 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
-
-	"golang.org/x/exp/slices"
 )
 
 // StringCmpOpts defines options to apply during string comparison

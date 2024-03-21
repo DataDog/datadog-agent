@@ -11,21 +11,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 )
 
-func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *schedulers.MockSourceManager) {
-	ac = autodiscovery.NewAutoConfigNoStart(nil, nil)
+func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy *schedulers.MockSourceManager) {
+	ac = autodiscoveryimpl.CreateMockAutoConfig(t, nil)
 	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return
 }
 
 func TestNothingWhenNoConfig(t *testing.T) {
-	scheduler, _, spy := setup()
+	scheduler, _, spy := setup(t)
 	config := coreConfig.Mock(t)
 	config.SetWithoutSource("logs_config.container_collect_all", false)
 
@@ -35,7 +36,7 @@ func TestNothingWhenNoConfig(t *testing.T) {
 }
 
 func TestAfterACStarts(t *testing.T) {
-	scheduler, ac, spy := setup()
+	scheduler, ac, spy := setup(t)
 	config := coreConfig.Mock(t)
 	config.SetWithoutSource("logs_config.container_collect_all", true)
 

@@ -27,8 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/ntp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
@@ -56,6 +58,7 @@ func RegisterChecks(store workloadmeta.Component) {
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory())
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
 	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory())
+	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory())
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store))
@@ -69,6 +72,7 @@ func RegisterChecks(store workloadmeta.Component) {
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory())
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
+	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory())
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory())
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory())
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())

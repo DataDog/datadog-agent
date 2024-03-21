@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
@@ -44,11 +45,12 @@ const (
 func NewProcessCheck(config ddconfig.Reader, sysprobeYamlConfig ddconfig.Reader) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
+	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
 		config:           config,
 		scrubber:         procutil.NewDefaultDataScrubber(),
 		lookupIdProbe:    NewLookupIDProbe(config),
-		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName),
+		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 	}
 
 	return check
@@ -90,7 +92,7 @@ type ProcessCheck struct {
 	realtimeLastProcs   map[int32]*procutil.Stats
 	realtimeLastRun     time.Time
 
-	notInitializedLogLimit *util.LogLimit
+	notInitializedLogLimit *log.Limit
 
 	// lastPIDs is []int32 that holds PIDs that the check fetched last time,
 	// will be reused by RT process collection to get stats
@@ -127,7 +129,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 		procutil.WithIgnoreZombieProcesses(p.config.GetBool(configIgnoreZombies)))
 	p.containerProvider = proccontainers.GetSharedContainerProvider()
 
-	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
+	p.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
@@ -197,6 +199,10 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	return p.config.GetBool("process_config.process_collection.enabled")
 }
 
@@ -269,9 +275,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	for _, extractor := range p.extractors {
 		extractor.Extract(procs)
 	}
-
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
 
 	// End check early if this is our first run.
 	if p.lastProcs == nil {

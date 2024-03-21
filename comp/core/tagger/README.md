@@ -61,7 +61,7 @@ cache. Cache invalidation is triggered by the collectors (or source) by either:
 
 Tagger entities are identified by a string-typed ID, with one of the following forms:
 
-<!-- NOTE: a similar table appears in pkg/autodiscovery/README.md; please keep both in sync -->
+<!-- NOTE: a similar table appears in comp/core/autodiscovery/README.md; please keep both in sync -->
 | *Service*                               | *Tagger Entity*                                                    |
 |-----------------------------------------|--------------------------------------------------------------------|
 | workloadmeta.KindContainer              | `container_id://<sha>`                                             |

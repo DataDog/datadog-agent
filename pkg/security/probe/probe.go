@@ -239,8 +239,10 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	}
 
 	// send specific event
-	for _, handler := range p.customEventHandlers[event.GetEventType()] {
-		handler.HandleCustomEvent(rule, event)
+	if event.GetEventType() != model.UnknownEventType {
+		for _, handler := range p.customEventHandlers[event.GetEventType()] {
+			handler.HandleCustomEvent(rule, event)
+		}
 	}
 }
 

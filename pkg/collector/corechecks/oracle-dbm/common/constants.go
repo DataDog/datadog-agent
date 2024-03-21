@@ -5,20 +5,20 @@
 
 //go:build oracle
 
-//nolint:revive // TODO(DBM) Fix revive linter
+// Package common contains common constant definitions.
 package common
 
 // IntegrationName is the name of the integration.
 const IntegrationName = "oracle"
 
-/* We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
- * functionality written in Python. We will change this back to `oracle` once we migrated this functionality
- * here.
- */
+// IntegrationNameScheduler is the name of the integration for the scheduler.
+// We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
+// functionality written in Python. We will change this back to `oracle` once we migrated this functionality
+// here.
 const IntegrationNameScheduler = "oracle-dbm"
 
-//nolint:revive // TODO(DBM) Fix revive linter
+// Godror is the name of the godror driver which relies on an external Oracle client.
 const Godror = "godror"
 
-//nolint:revive // TODO(DBM) Fix revive linter
+// GoOra is the name of the go-ora driver which is a pure Go implementation.
 const GoOra = "oracle"

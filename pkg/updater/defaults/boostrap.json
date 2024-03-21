@@ -1,3 +1,4 @@
 {
-  "datadog-agent": "7.52.0-rc.1.git.15.6c19b17.pipeline.28703556-1"
+  "datadog-agent": "7.53.0-devel.git.156.4681fd9.pipeline.29311299-1",
+  "datadog-apm-library-java": "1.32.0-SNAPSHOT-a1309de641-pipeline.30019975.beta.a1309de6-1"
 }

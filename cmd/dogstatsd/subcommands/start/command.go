@@ -137,7 +137,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 				NoInstance: !instantiate,
 			}
 		}),
-		workloadmeta.OptionalModule(),
+		workloadmeta.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
@@ -276,11 +276,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	err = components.DogstatsdServer.Start(demultiplexer)
-	if err != nil {
-		log.Criticalf("Unable to start dogstatsd: %s", err)
-		return
-	}
 	return
 }
 
@@ -324,8 +319,6 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 			pkglog.Errorf("Error shutting down dogstatsd stats server: %s", err)
 		}
 	}
-
-	components.DogstatsdServer.Stop()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

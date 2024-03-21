@@ -8,8 +8,8 @@
   - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
 
 .setup_apt_signing_key: &setup_apt_signing_key
-  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
+  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
 
   - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
 
@@ -73,9 +73,7 @@ deploy_deb_testing-a6_x64:
     [
       "agent_deb-x64-a6",
       "agent_heroku_deb-x64-a6",
-      "tests_deb-x64-py2",
       "lint_linux-x64",
-      "tests_deb-x64-py3",
     ]
   script:
     - *setup_apt_signing_key
@@ -92,7 +90,7 @@ deploy_deb_testing-a6_arm64:
   rules: !reference [.on_all_kitchen_builds_a6]
   extends:
     - .deploy_deb_testing-a6
-  needs: ["agent_deb-arm64-a6", "tests_deb-arm64-py2"]
+  needs: ["agent_deb-arm64-a6"]
   script:
     - *setup_apt_signing_key
     - set +x # make sure we don't output the creds to the build log
@@ -126,7 +124,6 @@ deploy_deb_testing-a7_x64:
       "iot_agent_deb-x64",
       "dogstatsd_deb-x64",
       "lint_linux-x64",
-      "tests_deb-x64-py3",
     ]
   script:
     - *setup_apt_signing_key
@@ -143,7 +140,7 @@ deploy_deb_testing-a7_arm64:
   rules: !reference [.on_all_kitchen_builds_a7]
   extends:
     - .deploy_deb_testing-a7
-  needs: ["agent_deb-arm64-a7", "lint_linux-arm64", "tests_deb-arm64-py3"]
+  needs: ["agent_deb-arm64-a7", "lint_linux-arm64"]
   script:
     - *setup_apt_signing_key
     - set +x # make sure we don't output the creds to the build log
@@ -186,9 +183,7 @@ deploy_rpm_testing-a6_x64:
   needs:
     [
       "agent_rpm-x64-a6",
-      "tests_rpm-x64-py2",
       "lint_linux-x64",
-      "tests_rpm-x64-py3",
     ]
   script:
     - *setup_rpm_signing_key
@@ -202,9 +197,7 @@ deploy_rpm_testing-a6_arm64:
   needs:
     [
       "agent_rpm-arm64-a6",
-      "tests_rpm-arm64-py2",
       "lint_linux-arm64",
-      "tests_rpm-arm64-py3",
     ]
   script:
     - *setup_rpm_signing_key
@@ -233,7 +226,6 @@ deploy_rpm_testing-a7_x64:
       "iot_agent_rpm-x64",
       "dogstatsd_rpm-x64",
       "lint_linux-x64",
-      "tests_rpm-x64-py3",
     ]
   script:
     - *setup_rpm_signing_key
@@ -244,7 +236,7 @@ deploy_rpm_testing-a7_arm64:
   rules: !reference [.on_all_kitchen_builds_a7]
   extends:
     - .deploy_rpm_testing-a7
-  needs: ["agent_rpm-arm64-a7", "lint_linux-arm64", "tests_rpm-arm64-py3"]
+  needs: ["agent_rpm-arm64-a7", "lint_linux-arm64"]
   script:
     - *setup_rpm_signing_key
     - set +x
@@ -258,9 +250,7 @@ deploy_suse_rpm_testing_x64-a6:
   needs:
     [
       "agent_suse-x64-a6",
-      "tests_rpm-x64-py2",
       "lint_linux-x64",
-      "tests_rpm-x64-py3",
     ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
@@ -285,7 +275,6 @@ deploy_suse_rpm_testing_x64-a7:
       "iot_agent_suse-x64",
       "dogstatsd_suse-x64",
       "lint_linux-x64",
-      "tests_rpm-x64-py3",
     ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
@@ -302,7 +291,7 @@ deploy_suse_rpm_testing_arm64-a7:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
-  needs: ["agent_suse-arm64-a7", "lint_linux-arm64", "tests_rpm-arm64-py3"]
+  needs: ["agent_suse-arm64-a7", "lint_linux-arm64"]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
@@ -320,12 +309,12 @@ deploy_windows_testing-a6:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
-  needs: ["lint_windows-x64", "tests_windows-x64", "windows_msi_x64-a6"]
+  needs: ["lint_windows-x64", "windows_msi_x64-a6"]
   before_script:
     - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*$CI_PIPELINE_ID*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_windows_testing-a7:
   rules:
@@ -336,9 +325,9 @@ deploy_windows_testing-a7:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
   needs:
-    ["lint_windows-x64", "tests_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
+    ["lint_windows-x64", "windows_msi_and_bosh_zip_x64-a7"]
   before_script:
     - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*$CI_PIPELINE_ID*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732

@@ -6,7 +6,6 @@
 package marshal
 
 import (
-	"bytes"
 	"math"
 	"reflect"
 	"unsafe"
@@ -37,6 +36,19 @@ func (ipc ipCache) Get(addr util.Address) string {
 	v := addr.String()
 	ipc[addr] = v
 	return v
+}
+
+func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct{}) {
+	for _, tags := range dynamicTags {
+		if out == nil {
+			out = tags
+			continue
+		}
+		for k, v := range tags {
+			out[k] = v
+		}
+	}
+	return
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
@@ -92,19 +104,13 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
-	var (
-		staticTags  uint64
-		dynamicTags map[string]struct{}
-	)
-	staticTags, dynamicTags = httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
-	_, _ = http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
+	httpStaticTags, httpDynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
+	http2StaticTags, http2DynamicTags := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
 
-	// TODO: optimize kafkEncoder to take a writer and use gostreamer
-	if dsa := kafkaEncoder.GetKafkaAggregations(conn); dsa != nil {
-		builder.SetDataStreamsAggregations(func(b *bytes.Buffer) {
-			b.Write(dsa)
-		})
-	}
+	staticTags := httpStaticTags | http2StaticTags
+	dynamicTags := mergeDynamicTags(httpDynamicTags, http2DynamicTags)
+
+	kafkaEncoder.WriteKafkaAggregations(conn, builder)
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)

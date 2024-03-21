@@ -7,9 +7,8 @@
 package eval
 
 import (
+	"slices"
 	"testing"
-
-	"golang.org/x/exp/slices"
 )
 
 func TestStringValues(t *testing.T) {

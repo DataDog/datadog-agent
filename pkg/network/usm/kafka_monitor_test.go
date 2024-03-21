@@ -10,8 +10,6 @@ package usm
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/stretchr/testify/suite"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -19,11 +17,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -487,7 +487,7 @@ func getDefaultTestConfiguration() *config.Config {
 }
 
 func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
-	monitor, err := NewMonitor(cfg, nil, nil)
+	monitor, err := NewMonitor(cfg, nil)
 	skipIfNotSupported(t, err)
 	require.NoError(t, err)
 	t.Cleanup(func() {

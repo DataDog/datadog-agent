@@ -14,10 +14,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,8 @@ var (
 )
 
 func TestCustomBoltCache_Artifacts(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
+	deps := createCacheDeps(t)
+	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -50,7 +53,8 @@ func TestCustomBoltCache_Artifacts(t *testing.T) {
 }
 
 func TestCustomBoltCache_Blobs(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
+	deps := createCacheDeps(t)
+	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -71,7 +75,8 @@ func TestCustomBoltCache_Blobs(t *testing.T) {
 }
 
 func TestCustomBoltCache_MissingBlobs(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
+	deps := createCacheDeps(t)
+	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -103,7 +108,8 @@ func TestCustomBoltCache_MissingBlobs(t *testing.T) {
 }
 
 func TestCustomBoltCache_Clear(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
+	deps := createCacheDeps(t)
+	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -122,7 +128,8 @@ func TestCustomBoltCache_Clear(t *testing.T) {
 }
 
 func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
+	deps := createCacheDeps(t)
+	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -154,7 +161,8 @@ func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 }
 
 func TestCustomBoltCache_Eviction(t *testing.T) {
-	cache, _, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
+	deps := createCacheDeps(t)
+	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -195,7 +203,8 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 	serializedArtifactInfo, err := json.Marshal(artifact)
 	require.NoError(t, err)
 
-	cache, _, err := NewCustomBoltCache(t.TempDir(), len(serializedArtifactInfo))
+	deps := createCacheDeps(t)
+	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), len(serializedArtifactInfo))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -258,7 +267,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 
 	workloadmetaStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
 
-	cache, cacheCleaner, err := NewCustomBoltCache(t.TempDir(), defaultDiskSize)
+	cache, cacheCleaner, err := NewCustomBoltCache(optional.NewOption[workloadmeta.Component](workloadmetaStore), t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -379,4 +388,17 @@ func newTestBlobInfo() types.BlobInfo {
 			Name:   "3.17",
 		},
 	}
+}
+
+type cacheDeps struct {
+	fx.In
+	WMeta optional.Option[workloadmeta.Component]
+}
+
+func createCacheDeps(t *testing.T) cacheDeps {
+	return fxutil.Test[cacheDeps](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule(),
+	))
 }

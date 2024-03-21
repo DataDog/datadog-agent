@@ -17,11 +17,13 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode"
 
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -745,10 +747,12 @@ func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	return str
 }
 
-// PROC_SUPER_MAGIC is the superblock magic value (its unique identifier) of procfs filesystem
-//
-//nolint:revive // TODO(PROC) Fix revive linter
-const PROC_SUPER_MAGIC = 0x9fa0
+var fdDirentPool = sync.Pool{
+	New: func() interface{} {
+		s := make([]byte, blockSize)
+		return &s
+	},
+}
 
 // getFDCount gets num_fds from /proc/(pid)/fd WITHOUT using the native Readdirnames(),
 // this will skip the step of returning all file names(we don't need) in a dir which takes a lot of memory
@@ -769,7 +773,7 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	if count := fi.Size(); count > 0 {
 		// ensure the FS type is `procfs`
 		buf := new(syscall.Statfs_t)
-		if err := syscall.Statfs(path, buf); err == nil && buf.Type == PROC_SUPER_MAGIC {
+		if err := syscall.Statfs(path, buf); err == nil && buf.Type == unix.PROC_SUPER_MAGIC {
 			return int32(count)
 		}
 	}
@@ -780,9 +784,11 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	}
 	defer d.Close()
 
-	b := make([]byte, blockSize)
-	count := 0
+	ptr := fdDirentPool.Get().(*[]byte)
+	b := *ptr
+	defer fdDirentPool.Put(ptr)
 
+	count := 0
 	for i := 0; ; i++ {
 		n, err := syscall.ReadDirent(int(d.Fd()), b)
 		if err != nil {

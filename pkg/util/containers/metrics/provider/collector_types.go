@@ -40,9 +40,16 @@ type ContainerIDForPIDRetriever interface {
 
 // ContainerIDForInodeRetriever interface
 type ContainerIDForInodeRetriever interface {
-	// GetContainerIDForInode ContainerIDForInode returns a container ID for given Inode.
+	// GetContainerIDForInode returns a container ID for the given inode.
 	// ("", nil) will be returned if no error but the containerd ID was not found.
 	GetContainerIDForInode(inode uint64, cacheValidity time.Duration) (string, error)
+}
+
+// ContainerIDForPodUIDAndContNameRetriever interface
+type ContainerIDForPodUIDAndContNameRetriever interface {
+	// ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
+	// and container name. Returns ("", nil) if the containerd ID was not found.
+	ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, cacheValidity time.Duration) (string, error)
 }
 
 // SelfContainerIDRetriever interface
@@ -65,4 +72,5 @@ type MetaCollector interface {
 	ContainerIDForPIDRetriever
 	ContainerIDForInodeRetriever
 	SelfContainerIDRetriever
+	ContainerIDForPodUIDAndContNameRetriever
 }

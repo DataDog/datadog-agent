@@ -16,8 +16,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 

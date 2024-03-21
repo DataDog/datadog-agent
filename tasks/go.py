@@ -381,7 +381,13 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
-                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
+
+                files = "go.mod"
+                if os.path.exists(os.path.join(mod.full_path(), "go.sum")):
+                    # if the module has no dependency, no go.sum file will be created
+                    files += " go.sum"
+
+                res = ctx.run(f"git diff --exit-code {files}", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
@@ -414,7 +420,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.7 linux/amd64"
+    # result is like "go version go1.21.8 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

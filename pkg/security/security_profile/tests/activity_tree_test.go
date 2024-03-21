@@ -13,11 +13,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"

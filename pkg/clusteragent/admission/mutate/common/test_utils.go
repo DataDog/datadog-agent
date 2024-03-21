@@ -230,7 +230,7 @@ type MockDeployment struct {
 
 // FakeStoreWithDeployment sets up a fake workloadmeta with the given
 // deployments
-func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) {
+func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloadmeta.Component {
 	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		coreconfig.MockModule(),
@@ -260,5 +260,5 @@ func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) {
 		})
 	}
 
-	workloadmeta.SetGlobalStore(mockStore)
+	return mockStore
 }

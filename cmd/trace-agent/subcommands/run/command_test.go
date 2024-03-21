@@ -16,7 +16,7 @@ import (
 func TestFxRun(t *testing.T) {
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
-		cliParams := RunParams{GlobalParams: &subcommands.GlobalParams{}}
+		cliParams := Params{GlobalParams: &subcommands.GlobalParams{}}
 		defaultConfPath := ""
 		return runTraceAgentProcess(ctx, &cliParams, defaultConfPath)
 	})

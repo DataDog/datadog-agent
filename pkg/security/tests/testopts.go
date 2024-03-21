@@ -30,6 +30,7 @@ type testOpts struct {
 	activityDumpLoadControllerTimeout          time.Duration
 	activityDumpTracedCgroupsCount             int
 	activityDumpCgroupDifferentiateArgs        bool
+	activityDumpAutoSuppressionEnabled         bool
 	activityDumpTracedEventTypes               []string
 	activityDumpLocalStorageDirectory          string
 	activityDumpLocalStorageCompression        bool
@@ -89,6 +90,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.activityDumpLoadControllerPeriod == opts.activityDumpLoadControllerPeriod &&
 		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		to.activityDumpCgroupDifferentiateArgs == opts.activityDumpCgroupDifferentiateArgs &&
+		to.activityDumpAutoSuppressionEnabled == opts.activityDumpAutoSuppressionEnabled &&
 		to.activityDumpLoadControllerTimeout == opts.activityDumpLoadControllerTimeout &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&

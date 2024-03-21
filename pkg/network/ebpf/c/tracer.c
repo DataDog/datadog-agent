@@ -1014,6 +1014,7 @@ int kretprobe__udp_destroy_sock(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);
     return 0;
 }
+
 SEC("kretprobe/udpv6_destroy_sock")
 int kretprobe__udpv6_destroy_sock(struct pt_regs *ctx) {
     flush_conn_close_if_full(ctx);

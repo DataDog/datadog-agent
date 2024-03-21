@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/fsnotify/fsnotify"
 	"github.com/skydive-project/go-debouncer"
-	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 

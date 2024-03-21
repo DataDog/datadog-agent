@@ -66,7 +66,7 @@ type provides struct {
 	fx.Out
 
 	Comp                 hostComp.Component
-	MetadataProvider     runnerimpl.Provider
+	MetadataProvider     runnerimpl.PriorityProvider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 }
@@ -101,10 +101,12 @@ func newHostProvider(deps dependencies) provides {
 		serializer:      deps.Serializer,
 	}
 	return provides{
-		Comp:                 &h,
-		MetadataProvider:     runnerimpl.NewProvider(h.collect),
-		FlareProvider:        flaretypes.NewProvider(h.fillFlare),
-		StatusHeaderProvider: status.NewHeaderInformationProvider(&h),
+		Comp:             &h,
+		MetadataProvider: runnerimpl.NewPriorityProvider(h.collect),
+		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
+		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
+			Config: h.config,
+		}),
 	}
 }
 

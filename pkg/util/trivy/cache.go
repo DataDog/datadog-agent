@@ -12,16 +12,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/aquasecurity/trivy/pkg/fanal/cache"
 	"github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/utils"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
@@ -35,11 +37,20 @@ var telemetryTick = 1 * time.Minute
 // and a cache cleaner
 type CacheProvider func() (cache.Cache, CacheCleaner, error)
 
+// defaultCacheDir returns/creates the default cache-dir to be used for trivy operations
+func defaultCacheDir() string {
+	tmpDir, err := os.UserCacheDir()
+	if err != nil {
+		tmpDir = os.TempDir()
+	}
+	return filepath.Join(tmpDir, "trivy")
+}
+
 // NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
 // maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
+func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
-		cacheDir = utils.DefaultCacheDir()
+		cacheDir = defaultCacheDir()
 	}
 	db, err := NewBoltDB(cacheDir)
 	if err != nil {
@@ -53,13 +64,13 @@ func NewCustomBoltCache(cacheDir string, maxDiskSize int) (cache.Cache, CacheCle
 		return nil, &StubCacheCleaner{}, err
 	}
 	trivyCache := &ScannerCache{Cache: cache}
-	return trivyCache, NewScannerCacheCleaner(trivyCache), nil
+	return trivyCache, NewScannerCacheCleaner(trivyCache, wmeta), nil
 }
 
 // NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy and an empty cleaner.
 func NewBoltCache(cacheDir string) (cache.Cache, CacheCleaner, error) {
 	if cacheDir == "" {
-		cacheDir = utils.DefaultCacheDir()
+		cacheDir = defaultCacheDir()
 	}
 	cache, err := cache.NewFSCache(cacheDir)
 	return cache, &StubCacheCleaner{}, err
@@ -117,23 +128,25 @@ type ScannerCache struct {
 type ScannerCacheCleaner struct {
 	cachedKeysForEntity map[string][]string
 	target              *ScannerCache
+	wmeta               optional.Option[workloadmeta.Component]
 }
 
 // NewScannerCacheCleaner creates a new instance of ScannerCacheCleaner and returns a pointer to it.
-func NewScannerCacheCleaner(target *ScannerCache) *ScannerCacheCleaner {
+func NewScannerCacheCleaner(target *ScannerCache, wmeta optional.Option[workloadmeta.Component]) *ScannerCacheCleaner {
 	return &ScannerCacheCleaner{
 		cachedKeysForEntity: make(map[string][]string),
 		target:              target,
+		wmeta:               wmeta,
 	}
 }
 
 // Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
 func (c *ScannerCacheCleaner) Clean() error {
-	if workloadmeta.GetGlobalStore() == nil {
+	instance, ok := c.wmeta.Get()
+	if !ok {
 		return nil
 	}
-
-	images := workloadmeta.GetGlobalStore().ListImages()
+	images := instance.ListImages()
 
 	toKeep := make(map[string]struct{}, len(images))
 	for _, imageMetadata := range images {

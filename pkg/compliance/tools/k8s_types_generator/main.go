@@ -23,13 +23,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

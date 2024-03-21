@@ -115,22 +115,30 @@ message ClientUpdater {
   repeated PackageState packages = 2;
 }
 
-enum ExperimentState {
-  NO_EXPERIMENT = 0;
-  DOWNLOADING = 1;
-  INSTALLING = 2;
-  PENDING = 3;
-  RUNNING = 4;
-  ERROR = 5;
-}
-
 message PackageState {
   string package = 1;
   string stable_version = 2;
   string experiment_version = 3;
-  ExperimentState experiment_state = 4;
-  uint64 experiment_error_code = 5;
-  string experiment_error_message = 6;
+  PackageStateTask task = 4;
+}
+
+message PackageStateTask {
+  string id = 1;
+  TaskState state = 2;
+  TaskError error = 3;
+}
+
+enum TaskState {
+  IDLE = 0;
+  RUNNING = 1;
+  DONE = 2;
+  INVALID_STATE = 3;
+  ERROR = 4;
+}
+
+message TaskError {
+  uint64 code = 1;
+  string message = 2;
 }
 
 message ConfigState {

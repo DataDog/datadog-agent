@@ -10,70 +10,88 @@
   variables:
     LANG: C.UTF-8
   before_script:
-    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY)
-    - export DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key)
+    - export DOCKER_REGISTRY_LOGIN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_LOGIN_SSM_KEY)
+    - export DOCKER_REGISTRY_PWD=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DOCKER_REGISTRY_PWD_SSM_KEY)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
 
 .k8s-e2e-cws-cspm-init:
   - set +x
   - export DATADOG_AGENT_SITE=datadoghq.com
-  - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.e2e_tests_api_key)
-  - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.e2e_tests_app_key)
-  - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.e2e_tests_rc_key)
+  - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_API_KEY_SSM_NAME)
+  - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_APP_KEY_SSM_NAME)
+  - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_RC_KEY_SSM_NAME)
+
+.k8s_e2e_template_needs_dev:
+  extends: .k8s_e2e_template
+  needs:
+    - dev_branch_multiarch-a7
+    - dca_dev_branch
+
+.k8s_e2e_template_dev:
+  extends: .k8s_e2e_template_needs_dev
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=$ARGO_WORKFLOW
+
+.k8s_e2e_template_dev_with_cws_cspm_init:
+  extends: .k8s_e2e_template_needs_dev
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=$ARGO_WORKFLOW
+
+.k8s_e2e_template_needs_main:
+  extends: .k8s_e2e_template
+  needs:
+    - dev_master-a7
+    - dca_dev_master
+
+.k8s_e2e_template_main_with_cws_cspm_init:
+  extends: .k8s_e2e_template_needs_main
+  script:
+    - !reference [.k8s-e2e-cws-cspm-init]
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
+
+.k8s_e2e_template_main:
+  extends: .k8s_e2e_template_needs_main
+  script:
+    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
 
 k8s-e2e-cws-dev:
-  extends: .k8s_e2e_template
+  extends: .k8s_e2e_template_dev_with_cws_cspm_init
   rules: !reference [.on_dev_branch_manual]
-  needs: []
-  script:
-    - !reference [.k8s-e2e-cws-cspm-init]
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cws
+  variables:
+    ARGO_WORKFLOW: cws
 
 k8s-e2e-cws-main:
-  extends: .k8s_e2e_template
+  extends: .k8s_e2e_template_main_with_cws_cspm_init
   rules: !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
   retry: 1
-  script:
-    - !reference [.k8s-e2e-cws-cspm-init]
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=cws
+  variables:
+    ARGO_WORKFLOW: cws
 
 k8s-e2e-cspm-dev:
-  extends: .k8s_e2e_template
+  extends: .k8s_e2e_template_dev_with_cws_cspm_init
   rules: !reference [.on_dev_branch_manual]
-  needs: []
-  script:
-    - !reference [.k8s-e2e-cws-cspm-init]
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=cspm
+  variables:
+    ARGO_WORKFLOW: cspm
 
 k8s-e2e-cspm-main:
-  extends: .k8s_e2e_template
+  extends: .k8s_e2e_template_main_with_cws_cspm_init
   rules: !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
   retry: 1
-  script:
-    - !reference [.k8s-e2e-cws-cspm-init]
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=cspm
+  variables:
+    ARGO_WORKFLOW: cspm
 
 k8s-e2e-otlp-dev:
-  extends: .k8s_e2e_template
+  extends: .k8s_e2e_template_dev
   rules: !reference [.on_dev_branch_manual]
-  needs: [] # we can't explicitly define the dependencies because a job cannot depend on other manual jobs.
-  script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:${CI_COMMIT_REF_SLUG}-py3 --dca-image=datadog/cluster-agent-dev:${CI_COMMIT_REF_SLUG} --argo-workflow=otlp
+  variables:
+    ARGO_WORKFLOW: otlp
 
 k8s-e2e-otlp-main:
-  extends: .k8s_e2e_template
+  extends: .k8s_e2e_template_main
   rules: !reference [.on_main]
-  # needs:
-  #   - dev_master-a6
-  #   - dev_master-a7
-  script:
-    - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=otlp
+  variables:
+    ARGO_WORKFLOW: otlp
 
 .new_e2e_template:
   stage: e2e
@@ -82,11 +100,11 @@ k8s-e2e-otlp-main:
   before_script:
     # Setup AWS Credentials
     - mkdir -p ~/.aws
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.agent-qa-profile >> ~/.aws/config
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
     - export AWS_PROFILE=agent-qa-ci
     # Now all `aws` commands target the agent-qa profile
-    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.ssh_public_key_rsa > $E2E_PUBLIC_KEY_PATH
-    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.ssh_key_rsa > $E2E_PRIVATE_KEY_PATH
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_PUBLIC_KEY_RSA_SSM_NAME > $E2E_PUBLIC_KEY_PATH
+    - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   variables:
@@ -113,16 +131,31 @@ k8s-e2e-otlp-main:
     reports:
       junit: test/new-e2e/junit-*.xml
 
-new-e2e-containers:
+.new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
-  # TODO once images are deployed to ECR for dev branches, update
-  #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
-  # and move rules to template
-  rules: !reference [.on_container_or_e2e_changes_or_manual]
+  needs:
+    - deploy_deb_testing-a7_x64
+
+.new_e2e_template_needs_deb_windows_x64:
+  extends: .new_e2e_template
+  needs:
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+
+.new_e2e_template_needs_container_deploy:
+  extends: .new_e2e_template
   needs:
     - qa_agent
     - qa_dca
     - qa_dogstatsd
+
+new-e2e-containers:
+  extends:
+    - .new_e2e_template_needs_container_deploy
+  # TODO once images are deployed to ECR for dev branches, update
+  #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
+  # and move rules to template
+  rules: !reference [.on_container_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -135,45 +168,48 @@ new-e2e-containers:
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
 
 new-e2e-remote-config:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_deb_x64
   rules: !reference [.on_rc_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
 new-e2e-agent-shared-components:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_deb_x64
   rules: !reference [.on_asc_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
 
 new-e2e-agent-subcommands:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules: !reference [.on_subcommands_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestSubcommandSuite
-      - EXTRA_PARAMS: --run TestAgentConfigSuite
-      - EXTRA_PARAMS: --run TestAgentHostnameEC2Suite
-      - EXTRA_PARAMS: --run TestAgentDiagnoseEC2Suite
-      - EXTRA_PARAMS: --run TestAgentConfigCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxStatusSuite
+      - EXTRA_PARAMS: --run TestWindowsStatusSuite
+      - EXTRA_PARAMS: --run TestLinuxHealthSuite
+      - EXTRA_PARAMS: --run TestWindowsHealthSuite
+      - EXTRA_PARAMS: --run TestLinuxConfigSuite
+      - EXTRA_PARAMS: --run TestWindowsConfigSuite
+      - EXTRA_PARAMS: --run TestLinuxHostnameSuite
+      - EXTRA_PARAMS: --run TestWindowsHostnameSuite
+      - EXTRA_PARAMS: --run TestLinuxDiagnoseSuite
+      - EXTRA_PARAMS: --run TestWindowsDiagnoseSuite
+      - EXTRA_PARAMS: --run TestLinuxConfigCheckSuite
+      - EXTRA_PARAMS: --run TestWindowsConfigCheckSuite
       - EXTRA_PARAMS: --run TestLinuxFlareSuite
       - EXTRA_PARAMS: --run TestWindowsFlareSuite
       - EXTRA_PARAMS: --run TestLinuxSecretSuite
       - EXTRA_PARAMS: --run TestWindowsSecretSuite
-  allow_failure: true # TODO: To remove when the tests are stable
+      - EXTRA_PARAMS: --run TestLinuxCheckSuite
 
 new-e2e-language-detection:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_deb_x64
   rules: !reference [.on_language-detection_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
@@ -181,15 +217,18 @@ new-e2e-language-detection:
 new-e2e-npm:
   extends: .new_e2e_template
   rules: !reference [.on_npm_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7", "qa_agent"]
+  needs:
+    - qa_agent
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_x64
+    - deploy_windows_testing-a7
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
 
 new-e2e-aml:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules: !reference [.on_aml_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
@@ -197,7 +236,10 @@ new-e2e-aml:
 new-e2e-cws:
   extends: .new_e2e_template
   rules: !reference [.on_cws_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7", "qa_agent", "qa_cws_instrumentation"]
+  needs:
+    - deploy_deb_testing-a7_x64
+    - qa_cws_instrumentation
+    - qa_agent
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -208,28 +250,23 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestECSFargate
 
 new-e2e-process:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_deb_windows_x64
   rules: !reference [.on_process_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-a7_x64", "deploy_windows_testing-a7"]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
 
 new-e2e-orchestrator:
-  extends: .new_e2e_template
-  rules: !reference [.on_orchestrator_or_e2e_changes_or_manual]
-  needs:
-    - qa_agent
-    - qa_dca
-    - qa_dogstatsd
+  extends:
+    - .new_e2e_template_needs_container_deploy
+  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
 
 new-e2e-apm:
   extends: .new_e2e_template
-  rules:
-    !reference [.on_apm_or_e2e_changes_or_manual]
+  rules: !reference [.on_apm_or_e2e_changes_or_manual]
   needs:
     - qa_agent
     - deploy_deb_testing-a7_x64
@@ -247,7 +284,8 @@ new-e2e-updater:
   extends: .new_e2e_template
   rules:
     !reference [.on_updater_or_e2e_changes_or_manual]
-  needs: ["deploy_deb_testing-u7_arm64"]
+  needs:
+    - deploy_deb_testing-u7_arm64
   variables:
     TARGETS: ./tests/updater
     TEAM: fleet
