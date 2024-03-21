@@ -12,12 +12,7 @@ Release Notes
 New Features
 ------------
 
-- Add agent sidecar injection webhook in `cluster-agent` admission controller.
-
-- Allow customizing Agent sidecar injection by overriding environment variables and resource requirements for sidecar profiles.
-
-- Enable `cluster agent` in injected Agent sidecar container by default.
-  Set the default configuration for connecting with the `cluster agent`.
+- Add agent sidecar injection webhook in `cluster-agent` Kubernetes admission controller. This new webhook adds the Agent as sidecar container in applicative Pods when it is required by the environment. For example with the EKS Fargate environment.
 
 
 .. _Release Notes_7.52.0_Enhancement Notes:
