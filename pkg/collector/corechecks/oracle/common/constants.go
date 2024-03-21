@@ -12,10 +12,7 @@ package common
 const IntegrationName = "oracle"
 
 // IntegrationNameScheduler is the name of the integration for the scheduler.
-// We are temporarily using the name `oracle-dbm` to avoid scheduling clashes with the existing Oracle integration
-// functionality written in Python. We will change this back to `oracle` once we migrated this functionality
-// here.
-const IntegrationNameScheduler = "oracle-dbm"
+const IntegrationNameScheduler = "oracle"
 
 // Godror is the name of the godror driver which relies on an external Oracle client.
 const Godror = "godror"

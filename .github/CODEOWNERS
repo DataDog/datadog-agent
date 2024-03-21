@@ -152,8 +152,8 @@
 /cmd/agent/dist/conf.d/container_image.d/      @DataDog/container-integrations
 /cmd/agent/dist/conf.d/container_lifecycle.d/  @DataDog/container-integrations
 /cmd/agent/dist/conf.d/jetson.d/        @DataDog/agent-ci-experience
+/cmd/agent/dist/conf.d/oracle.d/    @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/oracle-dbm.d/    @DataDog/database-monitoring
-/cmd/agent/dist/conf.d/oracle-dbm.d/conf.yaml.default @DataDog/database-monitoring
 /cmd/agent/dist/conf.d/sbom.d/          @DataDog/container-integrations
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/install*.sh                  @DataDog/agent-build-and-releases
@@ -321,7 +321,7 @@
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
 /pkg/collector/corechecks/kubernetes/       @DataDog/container-integrations
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
-/pkg/collector/corechecks/oracle-dbm        @DataDog/database-monitoring
+/pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/platform-integrations

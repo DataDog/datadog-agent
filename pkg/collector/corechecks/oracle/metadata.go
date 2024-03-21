@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 )
 
 const pgaQuery12 = `SELECT

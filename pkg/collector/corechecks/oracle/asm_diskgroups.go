@@ -10,7 +10,7 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 )
 
 const asmDiskgroupQuery = `SELECT name, free_mb, total_mb, state, offline_disks FROM v$asm_diskgroup`

@@ -11,7 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 )
 
 const resourceManagerQuery = `SELECT c.name name, consumer_group_name, plan_name, cpu_consumed_time, cpu_wait_time
