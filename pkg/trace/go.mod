@@ -27,12 +27,14 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.6.0
 	github.com/google/gofuzz v1.2.0
-	github.com/google/uuid v1.3.1
+	github.com/google/uuid v1.5.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.93.0
 	github.com/shirou/gopsutil/v3 v3.24.1
 	github.com/stretchr/testify v1.9.0
 	github.com/tinylib/msgp v1.1.8
 	github.com/vmihailenco/msgpack/v4 v4.3.12
 	go.opentelemetry.io/collector/component v0.93.0
+	go.opentelemetry.io/collector/consumer v0.93.0
 	go.opentelemetry.io/collector/pdata v1.0.1
 	go.opentelemetry.io/collector/semconv v0.93.0
 	go.opentelemetry.io/otel v1.22.0
