@@ -18,7 +18,7 @@
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - *setup_deb_signing_key
-    - inv -e updater.omnibus-package --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING}
+    - inv -e updater.omnibus-package --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR
     - ls -la $OMNIBUS_PACKAGE_DIR
     - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
     - !reference [.upload_sbom_artifacts]
