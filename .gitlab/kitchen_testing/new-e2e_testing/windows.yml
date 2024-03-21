@@ -40,7 +40,8 @@
       - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestAgentUser
       - E2E_MSI_TEST: TestInstallOpts
-      - E2E_MSI_TEST: TestSubServicesOpts
+      - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
+      - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:

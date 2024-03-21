@@ -547,7 +547,7 @@ func (is *agentMSISuite) TestSubServicesOpts() {
 			is.T().FailNow()
 		}
 		// clean the host between test runs
-		is.cleanupAgent()
+		is.cleanupOnSuccessInDevMode()
 	}
 }
 
