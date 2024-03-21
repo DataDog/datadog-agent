@@ -62,9 +62,9 @@ func TestRunWithChan(t *testing.T) {
 		require.True(t, called)
 
 		assert.Equal(t, "value0", cs.Config.GetString("key0"))
-		requireConfigIsSet(t, cs.Config, "key1", "value1")
-		requireConfigIsSet(t, cs.Config, "key2", "value2")
-		requireConfigIsSet(t, cs.Config, "key3", "value3")
+		assertConfigIsSet(t, cs.Config, "key1", "value1")
+		assertConfigIsSet(t, cs.Config, "key2", "value2")
+		assertConfigIsSet(t, cs.Config, "key3", "value3")
 		assert.Equal(t, "set-with-cli", cs.Config.GetString("key4"))
 	})
 
@@ -99,7 +99,7 @@ func TestRunWithChan(t *testing.T) {
 		ch <- time.Now()
 		time.Sleep(50 * time.Millisecond)
 		require.EqualValues(t, errnums+1, callnb.Load())
-		requireConfigIsSet(t, cs.Config, "key1", "value1")
+		assertConfigIsSet(t, cs.Config, "key1", "value1")
 	})
 }
 
@@ -118,15 +118,21 @@ func TestRunWithInterval(t *testing.T) {
 	cs := makeConfigSyncWithServer(t, ctx, handler)
 	cs.Config.Set("api_key", "api_key_remote", pkgconfigmodel.SourceEnvVar)
 
-	refreshInterval := time.Millisecond * 100
-	sleepInterval := 2 * refreshInterval
+	refreshInterval := time.Millisecond * 200
+	maxWaitInterval := 5 * refreshInterval
 
+	t.Log("Starting config server")
 	go cs.runWithInterval(refreshInterval)
 
-	time.Sleep(sleepInterval)
-	requireConfigIsSet(t, cs.Config, "api_key", "api_key_core1")
+	t.Log("Waiting for the first config sync")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assertConfigIsSet(t, cs.Config, "api_key", "api_key_core1")
+	}, maxWaitInterval, refreshInterval)
 
+	t.Log("Updating api_key in the core config")
 	configCore.Set("api_key", "api_key_core2", pkgconfigmodel.SourceAgentRuntime)
-	time.Sleep(sleepInterval)
-	requireConfigIsSet(t, cs.Config, "api_key", "api_key_core2")
+	t.Log("Waiting for the next config sync")
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assertConfigIsSet(t, cs.Config, "api_key", "api_key_core2")
+	}, maxWaitInterval, refreshInterval)
 }
