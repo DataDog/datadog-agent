@@ -8,7 +8,6 @@ package powershell
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"strings"
 )
 
@@ -90,14 +89,20 @@ func (ps *powerShellCommandBuilder) Reboot() *powerShellCommandBuilder {
 // InstallADDSForest creates a command that promotes a server to the role of forest.
 func (ps *powerShellCommandBuilder) InstallADDSForest(activeDirectoryDomain, passwd string) *powerShellCommandBuilder {
 	ps.cmds = append(ps.cmds, fmt.Sprintf(`
-$HashArguments = @{
-    CreateDNSDelegation           = $false
-    ForestMode                    = "Win2012R2"
-    DomainMode                    = "Win2012R2"
-    DomainName                    = "%s"
-    SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
-    Force                         = $true
-}; Install-ADDSForest @HashArguments`, activeDirectoryDomain, passwd))
+try {
+	Get-ADDomainController
+} catch {
+	$HashArguments = @{
+		CreateDNSDelegation           = $false
+		ForestMode                    = "Win2016"
+		DomainMode                    = "Win2016"
+		DomainName                    = "%s"
+		SafeModeAdministratorPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
+		Force                         = $true
+	}; Install-ADDSForest @HashArguments
+}
+`, activeDirectoryDomain, passwd))
+
 	return ps
 }
 
@@ -148,11 +153,6 @@ func (ps *powerShellCommandBuilder) WaitForServiceStatus(serviceName, status str
 (Get-Service %s).WaitForStatus('%s', '00:01:00')
 `, serviceName, status))
 	return ps
-}
-
-// Execute compiles the list of PowerShell commands into one script and runs it on the given host
-func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string, error) {
-	return host.Execute(ps.Compile())
 }
 
 // Compile joins all the saved command into one valid PowerShell script command.

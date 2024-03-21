@@ -16,10 +16,11 @@ import (
 type Host struct {
 	AwsEnvironment *aws.Environment
 	// Components
-	RemoteHost *components.RemoteHost
-	FakeIntake *components.FakeIntake
-	Agent      *components.RemoteHostAgent
-	Updater    *components.RemoteHostUpdater
+	RemoteHost      *components.RemoteHost
+	FakeIntake      *components.FakeIntake
+	Agent           *components.RemoteHostAgent
+	Updater         *components.RemoteHostUpdater
+	ActiveDirectory *components.RemoteActiveDirectory
 }
 
 var _ e2e.Initializable = &Host{}
