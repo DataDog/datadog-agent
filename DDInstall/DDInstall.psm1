@@ -34,8 +34,8 @@ function Install-DDAgent
 
     Write-Host "Installing Datadog Windows Agent"
     $installerParameters = formatAgentInstallerParameters -params $PSBoundParameters
-    Start-Process -Wait msiexec -ArgumentList "/qn /i datadog-agent.msi $installerParameters"
-    if (-not $?)
+    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i datadog-agent.msi $installerParameters" -PassThru
+    if ($installResult.ExitCode -ne 0)
     {
         $logFile = "%TEMP%\MSI*.LOG"
         if ($PSBoundParameters.ContainsKey('InstallLogPath'))
@@ -56,8 +56,8 @@ function Install-DDAgent
         downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$latestVersionTag/datadog-dotnet-apm-$latestVersion-x64.msi" -outFile "datadog-dotnet-apm.msi"
 
         Write-Host "Installing .NET Tracing Library"
-        Start-Process -Wait msiexec -ArgumentList '/qn /i datadog-dotnet-apm.msi'
-        if(-not $?)
+        $installResult = Start-Process -Wait msiexec -ArgumentList '/qn /i datadog-dotnet-apm.msi' -PassThru
+        if ($installResult.ExitCode -ne 0)
         {
             $exception = [Exception]::new(".NET Tracing Library installation failed.")
             $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
