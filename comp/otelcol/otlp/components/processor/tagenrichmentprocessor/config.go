@@ -10,8 +10,8 @@ import (
 // Config defines configuration for processor.
 type Config struct {
 	Metrics MetricTagEnrichment `mapstructure:"metrics"`
-	Logs LogTagEnrichment `mapstructure:"logs"`
-	Traces TraceTagEnrichment `mapstructure:"traces"`
+	Logs    LogTagEnrichment    `mapstructure:"logs"`
+	Traces  TraceTagEnrichment  `mapstructure:"traces"`
 }
 
 type MetricTagEnrichment struct {

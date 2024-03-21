@@ -20,22 +20,12 @@ type logNameTest struct {
 	outLN  [][]string // output Log names per Resource
 }
 
-type logWithResource struct {
-	logNames           []string
-	resourceAttributes map[string]any
-	recordAttributes   map[string]any
-	severityText       string
-	body               string
-	severityNumber     plog.SeverityNumber
-}
-
 var (
 	standardLogTests = []logNameTest{
 		{
 			name:   "emptyFilterInclude",
 			inLogs: plog.NewLogs(),
-			outLN:  [][]string{
-				},
+			outLN:  [][]string{},
 		},
 	}
 )
@@ -46,8 +36,7 @@ func TestTagEnrichmentLogProcessor(t *testing.T) {
 			// next stores the results of the filter log processor
 			next := new(consumertest.LogsSink)
 			cfg := &Config{
-				Logs: LogTagEnrichment{
-				},
+				Logs: LogTagEnrichment{},
 			}
 			factory := NewFactory()
 			flp, err := factory.CreateLogsProcessor(

@@ -25,8 +25,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 		{
 			id: component.MustNewIDWithName("filter", "empty"),
 			expected: &Config{
-				Logs: LogTagEnrichment{
-				},
+				Logs: LogTagEnrichment{},
 			},
 		},
 	}
