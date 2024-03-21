@@ -11,3 +11,9 @@ package healthprobe
 // Component is the component type.
 type Component interface {
 }
+
+// Options holds the different healthprobe options
+type Options struct {
+	Port           int
+	LogsGoroutines bool
+}

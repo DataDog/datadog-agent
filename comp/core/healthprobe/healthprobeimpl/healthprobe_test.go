@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -25,17 +25,15 @@ import (
 func TestServer(t *testing.T) {
 	lc := fxtest.NewLifecycle(t)
 
-	port := "7869"
-	overrides := map[string]any{
-		"health_port": port,
-	}
-
 	probe, err := newHealthProbe(lc,
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: overrides}),
+			fx.Provide(func() healthprobeComponent.Options {
+				return healthprobeComponent.Options{
+					Port: 7869,
+				}
+			}),
 		),
 	)
 	assert.Nil(t, err)
@@ -53,7 +51,11 @@ func TestServerNoHealthPort(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
-			config.MockModule(),
+			fx.Provide(func() healthprobeComponent.Options {
+				return healthprobeComponent.Options{
+					Port: 0,
+				}
+			}),
 		),
 	)
 	assert.Nil(t, err)
@@ -62,13 +64,12 @@ func TestServerNoHealthPort(t *testing.T) {
 }
 
 func TestLiveHandler(t *testing.T) {
-	configComponent := fxutil.Test[config.Component](t, config.MockModule())
 	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	request := httptest.NewRequest(http.MethodGet, "/live", nil)
 	responseRecorder := httptest.NewRecorder()
 
-	liveHandler{config: configComponent, log: logComponent}.ServeHTTP(responseRecorder, request)
+	liveHandler{logsGoroutines: false, log: logComponent}.ServeHTTP(responseRecorder, request)
 
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
@@ -76,7 +77,6 @@ func TestLiveHandler(t *testing.T) {
 }
 
 func TestLiveHandlerUnhealthy(t *testing.T) {
-	configComponent := fxutil.Test[config.Component](t, config.MockModule())
 	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	request := httptest.NewRequest(http.MethodGet, "/live", nil)
@@ -87,7 +87,7 @@ func TestLiveHandlerUnhealthy(t *testing.T) {
 		health.Deregister(handler)
 	}()
 
-	liveHandler{config: configComponent, log: logComponent}.ServeHTTP(responseRecorder, request)
+	liveHandler{logsGoroutines: false, log: logComponent}.ServeHTTP(responseRecorder, request)
 
 	assert.Equal(t, http.StatusInternalServerError, responseRecorder.Code)
 
@@ -95,13 +95,12 @@ func TestLiveHandlerUnhealthy(t *testing.T) {
 }
 
 func TestReadyHandler(t *testing.T) {
-	configComponent := fxutil.Test[config.Component](t, config.MockModule())
 	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
 	responseRecorder := httptest.NewRecorder()
 
-	readyHandler{config: configComponent, log: logComponent}.ServeHTTP(responseRecorder, request)
+	readyHandler{logsGoroutines: false, log: logComponent}.ServeHTTP(responseRecorder, request)
 
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
@@ -109,7 +108,6 @@ func TestReadyHandler(t *testing.T) {
 }
 
 func TestReadyHandlerUnhealthy(t *testing.T) {
-	configComponent := fxutil.Test[config.Component](t, config.MockModule())
 	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
@@ -120,7 +118,7 @@ func TestReadyHandlerUnhealthy(t *testing.T) {
 		health.Deregister(handler)
 	}()
 
-	readyHandler{config: configComponent, log: logComponent}.ServeHTTP(responseRecorder, request)
+	readyHandler{logsGoroutines: false, log: logComponent}.ServeHTTP(responseRecorder, request)
 
 	assert.Equal(t, http.StatusInternalServerError, responseRecorder.Code)
 

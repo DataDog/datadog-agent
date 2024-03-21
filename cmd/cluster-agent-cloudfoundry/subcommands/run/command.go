@@ -99,6 +99,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// so there is no need to initialize the status component
 				fx.Provide(func() status.Component { return nil }),
 				autodiscoveryimpl.Module(),
+				fx.Provide(func(config config.Component) healthprobe.Options {
+					return healthprobe.Options{
+						Port:           config.GetInt("health_port"),
+						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+					}
+				}),
 				healthprobeimpl.Module(),
 			)
 		},

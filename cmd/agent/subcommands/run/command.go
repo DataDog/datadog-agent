@@ -395,6 +395,12 @@ func getSharedFxOption() fx.Option {
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
 		process.Bundle(),
+		fx.Provide(func(config config.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           config.GetInt("health_port"),
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
 		healthprobeimpl.Module(),
 	)
 }

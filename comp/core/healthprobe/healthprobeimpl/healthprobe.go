@@ -17,7 +17,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -37,19 +36,19 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Log    log.Component
-	Config config.Component
+	Log     log.Component
+	Options healthprobeComponent.Options
 }
 
 type healthprobe struct {
-	config   config.Component
+	options  healthprobeComponent.Options
 	log      log.Component
 	server   *http.Server
 	listener net.Listener
 }
 
 func (h *healthprobe) start() error {
-	h.log.Debugf("Health check listening on port %d", h.config.GetInt("health_port"))
+	h.log.Debugf("Health check listening on port %d", h.options.Port)
 
 	go h.server.Serve(h.listener) //nolint:errcheck
 
@@ -64,7 +63,7 @@ func (h *healthprobe) stop() error {
 }
 
 func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Component, error) {
-	healthPort := deps.Config.GetInt("health_port")
+	healthPort := deps.Options.Port
 	if healthPort <= 0 {
 		return nil, nil
 	}
@@ -74,10 +73,10 @@ func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Co
 		return nil, err
 	}
 
-	server := buildServer(deps.Config, deps.Log)
+	server := buildServer(deps.Options, deps.Log)
 
 	probe := &healthprobe{
-		config:   deps.Config,
+		options:  deps.Options,
 		log:      deps.Log,
 		server:   server,
 		listener: ln,
@@ -97,34 +96,34 @@ func newHealthProbe(lc fx.Lifecycle, deps dependencies) (healthprobeComponent.Co
 }
 
 type liveHandler struct {
-	config config.Component
-	log    log.Component
+	logsGoroutines bool
+	log            log.Component
 }
 
 func (lh liveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	healthHandler(lh.config, lh.log, health.GetLiveNonBlocking, w, r)
+	healthHandler(lh.logsGoroutines, lh.log, health.GetLiveNonBlocking, w, r)
 }
 
 type readyHandler struct {
-	config config.Component
-	log    log.Component
+	logsGoroutines bool
+	log            log.Component
 }
 
 func (rh readyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	healthHandler(rh.config, rh.log, health.GetReadyNonBlocking, w, r)
+	healthHandler(rh.logsGoroutines, rh.log, health.GetReadyNonBlocking, w, r)
 }
 
-func buildServer(config config.Component, log log.Component) *http.Server {
+func buildServer(options healthprobeComponent.Options, log log.Component) *http.Server {
 	r := mux.NewRouter()
 
 	liveHandler := liveHandler{
-		config: config,
-		log:    log,
+		logsGoroutines: options.LogsGoroutines,
+		log:            log,
 	}
 
 	readyHandler := readyHandler{
-		config: config,
-		log:    log,
+		logsGoroutines: options.LogsGoroutines,
+		log:            log,
 	}
 
 	r.Handle("/live", liveHandler)
@@ -140,7 +139,7 @@ func buildServer(config config.Component, log log.Component) *http.Server {
 	}
 }
 
-func healthHandler(config config.Component, log log.Component, getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
+func healthHandler(logsGoroutines bool, log log.Component, getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
 	health, err := getStatusNonBlocking()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -149,7 +148,7 @@ func healthHandler(config config.Component, log log.Component, getStatusNonBlock
 	if len(health.Unhealthy) > 0 {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Infof("Healthcheck failed on: %v", health.Unhealthy)
-		if config.GetBool("log_all_goroutines_when_unhealthy") {
+		if logsGoroutines {
 			log.Infof("Goroutines stack: \n%s\n", allStack())
 		}
 	}

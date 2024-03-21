@@ -168,6 +168,12 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
 		inventoryhostimpl.Module(),
+		fx.Provide(func(config config.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           config.GetInt("health_port"),
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
 		healthprobeimpl.Module(),
 	)
 }
