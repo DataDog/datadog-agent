@@ -372,7 +372,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			cwd:                  "java/testdata/weblogic",
 			useImprovedAlgorithm: true,
-			expectedServiceTags:  []string{"process_context:my_context", "process_context:some_context_root"},
+			expectedServiceTags:  []string{"process_context:my_context", "process_context:sample4", "process_context:some_context_root"},
 		},
 		{
 			name: "tomcat - old naming for backward compatibility",
