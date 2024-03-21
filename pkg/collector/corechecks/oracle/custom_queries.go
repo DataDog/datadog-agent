@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	godror "github.com/godror/godror"
 )

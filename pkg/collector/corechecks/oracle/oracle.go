@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -61,10 +61,12 @@ type hostingCode string
 
 const (
 	// CheckName is the name of the check
-	CheckName               = common.IntegrationNameScheduler
-	selfManaged hostingCode = "self-managed"
-	rds         hostingCode = "RDS"
-	oci         hostingCode = "OCI"
+	CheckName = common.IntegrationNameScheduler
+	// OracleDbmCheckName is the name of the check that was renamed to `oracle`.
+	OracleDbmCheckName             = "oracle-dbm"
+	selfManaged        hostingCode = "self-managed"
+	rds                hostingCode = "RDS"
+	oci                hostingCode = "OCI"
 )
 
 type pgaOverAllocationCount struct {

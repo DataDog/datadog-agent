@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	go_ora "github.com/sijms/go-ora/v2"
 )
