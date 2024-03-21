@@ -131,7 +131,7 @@ def check_env(ctx):
     check_libvirt_sock_perms()
 
 
-def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
+def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -174,12 +174,22 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
 
     provision = ""
     if remote_vms_in_config(vm_config):
-        provision = "--provision"
+        provision = "--provision-instance"
 
-    env_vars = ' '.join(env)
-    ctx.run(
-        f"{env_vars} {prefix} inv -e system-probe.start-microvms {provision} --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
-    )
+    args = {
+        "--provision-microvms" if provision_microvms else "",
+        f"--instance-type-x86={X86_INSTANCE_TYPE}",
+        f"--instance-type-arm={ARM_INSTANCE_TYPE}",
+        f"--x86-ami-id={x86_ami}",
+        f"--arm-ami-id={arm_ami}",
+        f"--ssh-key-name={ssh_key}",
+        "--infra-env=aws/sandbox",
+        f"--vmconfig={vm_config}",
+        f"--stack-name={stack}",
+        local,
+        provision,
+    }
+    ctx.run(f"{' '.join(env)} {prefix} inv -e system-probe.start-microvms {' '.join(args)}")
 
     info(f"[+] Stack {stack} successfully setup")
 

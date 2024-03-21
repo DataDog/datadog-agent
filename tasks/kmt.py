@@ -174,8 +174,8 @@ def gen_config_from_ci_pipeline(
 
 
 @task
-def launch_stack(ctx, stack=None, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_ami=ARM_AMI_ID_SANDBOX):
-    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami)
+def launch_stack(ctx, stack=None, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_ami=ARM_AMI_ID_SANDBOX, provision_microvms=True):
+    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
 
 
 @task

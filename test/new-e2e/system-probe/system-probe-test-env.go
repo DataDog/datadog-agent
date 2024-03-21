@@ -58,7 +58,8 @@ type EnvOpts struct {
 	SSHKeyPath            string
 	SSHKeyName            string
 	InfraEnv              string
-	Provision             bool
+	ProvisionInstance     bool
+	ProvisionMicrovms     bool
 	ShutdownPeriod        int
 	FailOnMissing         bool
 	DependenciesDirectory string
@@ -194,6 +195,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		return nil, fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
 
+	fmt.Printf("ProvisionMicrovms: %v\n", opts.ProvisionMicrovms)
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
@@ -208,7 +210,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
-		"microvm:provision":                      auto.ConfigValue{Value: strconv.FormatBool(opts.Provision)},
+		"microvm:provision-instance":             auto.ConfigValue{Value: strconv.FormatBool(opts.ProvisionInstance)},
+		"microvm:provision-microvms":             auto.ConfigValue{Value: strconv.FormatBool(opts.ProvisionMicrovms)},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:localWorkingDir":                auto.ConfigValue{Value: customAMILocalWorkingDir},
