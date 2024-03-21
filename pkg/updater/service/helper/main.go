@@ -91,7 +91,7 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("invalid path")
 	}
 	if !strings.HasPrefix(path, pkgDir) {
-		return nil, fmt.Errorf("invalid path")
+		return nil, fmt.Errorf("invalid path prefix")
 	}
 	switch inputCommand.Command {
 	case "chown dd-agent":

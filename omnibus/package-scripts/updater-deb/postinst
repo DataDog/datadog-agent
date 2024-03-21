@@ -134,7 +134,7 @@ fi
 chmod 750 ${UPDATER_HELPER}
 setcap cap_setuid+ep ${UPDATER_HELPER}
 
-$INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent
+$INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent || true
 
 # start updater
 SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
