@@ -76,6 +76,7 @@ const (
 	Cri                      = env.Cri
 	Containerd               = env.Containerd
 	KubeOrchestratorExplorer = env.KubeOrchestratorExplorer
+	ECSOrchestratorExplorer  = env.ECSOrchestratorExplorer
 )
 
 var (

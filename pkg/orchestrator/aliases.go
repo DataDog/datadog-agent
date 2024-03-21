@@ -79,6 +79,8 @@ const (
 	K8sHorizontalPodAutoscaler = pkgorchestratormodel.K8sHorizontalPodAutoscaler
 	// K8sNetworkPolicy alias for pkgorchestratormodel.K8sNetworkPolicy
 	K8sNetworkPolicy = pkgorchestratormodel.K8sNetworkPolicy
+	// ECSTask alias for pkgorchestratormodel.ECSTask
+	ECSTask = pkgorchestratormodel.ECSTask
 )
 
 // SetCacheStats alias for pkgorchestratormodel.SetCacheStats
