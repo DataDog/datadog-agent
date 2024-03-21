@@ -55,6 +55,8 @@ func (p *InstallAgentParams) toArgs() []string {
 			}
 		}
 	}
+	args = append(args, p.InstallAgentParams.ToArgs()...)
+
 	return args
 }
 
