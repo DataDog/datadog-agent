@@ -9,6 +9,11 @@ if TYPE_CHECKING:
     import libvirt
 
     from tasks.kernel_matrix_testing.types import TNamed
+else:
+    try:
+        import libvirt
+    except ImportError:
+        libvirt = None
 
 
 def resource_in_stack(stack: str, resource: str) -> bool:
