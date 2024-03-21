@@ -1553,8 +1553,8 @@ api_key:
   ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
   ## [BETA] Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
-  ## NOTE: Stats are now computed by span kind for OTel traces by default.
-  ## If you are sending OTel traces and do not want stats computed by span kind, this flag will need to be disabled and the "disable_otlp_compute_top_level_by_span_kind" APM Feature will need to be enabled.
+  ## NOTE: Stats are computed by span kind for OTel traces by default.
+  ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and enable the "disable_otlp_compute_top_level_by_span_kind" APM feature.
   # compute_stats_by_span_kind: false
 
   ## @param peer_service_aggregation - bool - default: false
