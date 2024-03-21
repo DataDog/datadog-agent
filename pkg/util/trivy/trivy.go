@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
@@ -49,11 +50,14 @@ import (
 const (
 	cleanupTimeout = 30 * time.Second
 
-	OSAnalyzers         = "os"        // OSAnalyzers defines an OS analyzer
-	LanguagesAnalyzers  = "languages" // LanguagesAnalyzers defines a language analyzer
-	SecretAnalyzers     = "secret"    // SecretAnalyzers defines a secret analyzer
-	ConfigFileAnalyzers = "config"    // ConfigFileAnalyzers defines a configuration file analyzer
-	LicenseAnalyzers    = "license"   // LicenseAnalyzers defines a license analyzers
+	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
+	LanguagesAnalyzers    = "languages"           // LanguagesAnalyzers defines a language analyzer
+	SecretAnalyzers       = "secret"              // SecretAnalyzers defines a secret analyzer
+	ConfigFileAnalyzers   = "config"              // ConfigFileAnalyzers defines a configuration file analyzer
+	LicenseAnalyzers      = "license"             // LicenseAnalyzers defines a license analyzer
+	TypeApkCommand        = "apk-command"         // TypeApkCommand defines a apk-command analyzer
+	HistoryDockerfile     = "history-dockerfile"  // HistoryDockerfile defines a history-dockerfile analyzer
+	TypeImageConfigSecret = "image-config-secret" // TypeImageConfigSecret defines a history-dockerfile analyzer
 )
 
 // ContainerdAccessor is a function that should return a containerd client
@@ -118,20 +122,21 @@ func getDefaultArtifactOption(root string, opts sbom.ScanOptions) artifact.Optio
 
 // defaultCollectorConfig returns a default collector configuration
 // However, accessors still need to be filled in externally
-func defaultCollectorConfig(cacheLocation string) CollectorConfig {
+func defaultCollectorConfig(wmeta optional.Option[workloadmeta.Component], cacheLocation string) CollectorConfig {
 	collectorConfig := CollectorConfig{
 		ClearCacheOnClose: true,
 	}
 
-	collectorConfig.CacheProvider = cacheProvider(cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"))
+	collectorConfig.CacheProvider = cacheProvider(wmeta, cacheLocation, config.Datadog.GetBool("sbom.cache.enabled"))
 
 	return collectorConfig
 }
 
-func cacheProvider(cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
+func cacheProvider(wmeta optional.Option[workloadmeta.Component], cacheLocation string, useCustomCache bool) func() (cache.Cache, CacheCleaner, error) {
 	if useCustomCache {
 		return func() (cache.Cache, CacheCleaner, error) {
 			return NewCustomBoltCache(
+				wmeta,
 				cacheLocation,
 				config.Datadog.GetInt("sbom.cache.max_disk_size"),
 			)
@@ -167,6 +172,15 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	if analyzersDisabled(LicenseAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLicenseFile)
 	}
+	if analyzersDisabled(TypeApkCommand) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeApkCommand)
+	}
+	if analyzersDisabled(HistoryDockerfile) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeHistoryDockerfile)
+	}
+	if analyzersDisabled(TypeImageConfigSecret) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
+	}
 
 	return disabledAnalyzers
 }
@@ -177,8 +191,8 @@ func DefaultDisabledHandlers() []ftypes.HandlerType {
 }
 
 // NewCollector returns a new collector
-func NewCollector(cfg config.Config) (*Collector, error) {
-	config := defaultCollectorConfig(cfg.GetString("sbom.cache_directory"))
+func NewCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
+	config := defaultCollectorConfig(wmeta, cfg.GetString("sbom.cache_directory"))
 	config.ClearCacheOnClose = cfg.GetBool("sbom.clear_cache_on_exit")
 
 	return &Collector{
@@ -191,12 +205,12 @@ func NewCollector(cfg config.Config) (*Collector, error) {
 }
 
 // GetGlobalCollector gets the global collector
-func GetGlobalCollector(cfg config.Config) (*Collector, error) {
+func GetGlobalCollector(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Collector, error) {
 	if globalCollector != nil {
 		return globalCollector, nil
 	}
 
-	collector, err := NewCollector(cfg)
+	collector, err := NewCollector(cfg, wmeta)
 	if err != nil {
 		return nil, err
 	}

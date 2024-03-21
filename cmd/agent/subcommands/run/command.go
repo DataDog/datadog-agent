@@ -544,7 +544,7 @@ func startAgent(
 
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
-		containerTagger, err := containertagger.NewContainerTagger()
+		containerTagger, err := containertagger.NewContainerTagger(wmeta)
 		if err != nil {
 			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
 		} else {

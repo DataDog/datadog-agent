@@ -32,7 +32,7 @@ func TestEC2VMWKitSuite(t *testing.T) {
 func (v *ec2VMWKitSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 
-	v.Env().RemoteHost.MustExecute("Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression;")
+	v.Env().RemoteHost.MustExecute("Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))")
 	v.Env().RemoteHost.MustExecute("C:\\ProgramData\\chocolatey\\choco install /y apache-httpd --params '\"/noService\"'")
 }
 
@@ -44,6 +44,13 @@ func (v *ec2VMWKitSuite) BeforeTest(suiteName, testName string) {
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	}
+}
+
+// AfterTest will be called after each test
+func (v *ec2VMWKitSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
 }
 
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds

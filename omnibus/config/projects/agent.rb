@@ -182,11 +182,10 @@ package :msi do
   skip_packager true
 end
 
-package :ociru do
+package :xz do
   skip_packager !BUILD_OCIRU
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
-  compression_algorithm "gzip"
 end
 
 # ------------------------------------

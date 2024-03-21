@@ -13,14 +13,10 @@ generator:
             inclusive:
               min: 1
               max: 200
-          tag_key_length:
+          tag_length:
             inclusive:
-              min: 1
-              max: 100
-          tag_value_length:
-            inclusive:
-              min: 1
-              max: 100
+              min: 3
+              max: 150
           tags_per_msg:
             inclusive:
               min: 2

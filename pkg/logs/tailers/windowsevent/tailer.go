@@ -124,9 +124,6 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 	}
 
 	if len(source.Config.ProcessingRules) > 0 && config.ProcessRawMessage {
-		log.Warn("The logs processing rules currently apply to the raw internal windowsevent log structure. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
-		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
-		log.Warn("Please contact Datadog support for more information.")
 		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:windowsevent"})
 	}
 

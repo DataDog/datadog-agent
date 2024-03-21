@@ -112,7 +112,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 					}
 				}),
-				workloadmeta.OptionalModule(),
+				workloadmeta.Module(),
 				tagger.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),

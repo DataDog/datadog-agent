@@ -12,6 +12,7 @@ package cwsinstrumentation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strconv"
@@ -41,17 +42,15 @@ const (
 	cwsInstrumentationPodAnotationReady  = "ready"
 	cwsInjectorInitContainerName         = "cws-instrumentation"
 	cwsUserSessionDataMaxSize            = 1024
-	cwsInjectorInitContainerUser         = int64(10000)
-	cwsInjectorInitContainerGroup        = int64(10000)
 
 	// PodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
 	PodLabelEnabled = "admission.datadoghq.com/cws-instrumentation.enabled"
 
-	webhookForPodsName     = "cws-pod-instrumentation"
-	webhookForCommandsName = "cws-command-instrumentation"
+	webhookForPodsName     = "cws_pod_instrumentation"
+	webhookForCommandsName = "cws_exec_instrumentation"
 )
 
-type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) error
+type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticationv1.UserInfo, dynamic.Interface, kubernetes.Interface) (bool, error)
 
 // WebhookForPods is the webhook that injects CWS pod instrumentation
 type WebhookForPods struct {
@@ -274,54 +273,50 @@ func (ci *CWSInstrumentation) WebhookForCommands() *WebhookForCommands {
 }
 
 func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest) ([]byte, error) {
-	return mutatePodExecOptions(request.Raw, request.Name, request.Namespace, request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient)
+	return mutatePodExecOptions(request.Raw, request.Name, request.Namespace, ci.webhookForCommands.Name(), request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient)
 }
 
-func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) error {
+func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) (bool, error) {
 	var injected bool
-	defer func() {
-		metrics.MutationAttempts.Inc(metrics.CWSExecInstrumentation, strconv.FormatBool(injected), "", "")
-	}()
 
 	if exec == nil || userInfo == nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "nil exec or user info", "", "")
-		return fmt.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
+		log.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
+		return false, errors.New(metrics.InvalidInput)
+
 	}
 	if len(exec.Command) == 0 {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "empty command", "", "")
-		return nil
+		return false, nil
 	}
 
 	// is the namespace / container targeted by the instrumentation ?
 	if ci.filter.IsExcluded(nil, exec.Container, "", ns) {
-		return nil
+		return false, nil
 	}
 
 	// check if the pod has been instrumented
 	pod, err := apiClient.CoreV1().Pods(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil || pod == nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot get pod", "", "")
-		return fmt.Errorf("couldn't describe pod %s in namespace %s from the API server: %w", name, ns, err)
+		log.Errorf("couldn't describe pod %s in namespace %s from the API server: %v", name, ns, err)
+		return false, errors.New(metrics.InternalError)
 	}
 
 	// is the pod targeted by the instrumentation ?
 	if ci.filter.IsExcluded(pod.Annotations, "", "", "") {
-		return nil
+		return false, nil
 	}
 
 	// is the pod instrumentation ready ? (i.e. has the CWS Instrumentation pod admission controller run ?)
 	if !isPodCWSInstrumentationReady(pod.Annotations) {
 		// pod isn't instrumented, do not attempt to override the pod exec command
 		log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
-		return nil
+		return false, nil
 	}
 
 	// prepare the user session context
 	userSessionCtx, err := usersessions.PrepareK8SUserSessionContext(userInfo, cwsUserSessionDataMaxSize)
 	if err != nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot serialize user info", "", "")
 		log.Debugf("ignoring instrumentation of %s: %v", common.PodString(pod), err)
-		return err
+		return false, errors.New(metrics.InternalError)
 	}
 
 	if len(exec.Command) > 7 {
@@ -335,8 +330,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 			if exec.Command[5] == string(userSessionCtx) {
 				log.Debugf("Exec request into %s is already instrumented, ignoring", common.PodString(pod))
-				injected = true
-				return nil
+				return true, nil
 			}
 		}
 	}
@@ -355,34 +349,30 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	log.Debugf("Pod exec request to %s is now instrumented for CWS", common.PodString(pod))
 	injected = true
 
-	return nil
+	return injected, nil
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, ci.injectCWSPodInstrumentation, request.DynamicClient)
+	return common.Mutate(request.Raw, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient)
 }
 
-func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) error {
+func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
 	var injected bool
-	defer func() {
-		metrics.MutationAttempts.Inc(metrics.CWSPodInstrumentation, strconv.FormatBool(injected), "", "")
-	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "nil pod", "", "")
-		return fmt.Errorf("cannot inject CWS instrumentation into nil pod")
+		return injected, errors.New(metrics.InvalidInput)
 	}
 
 	// is the pod targeted by the instrumentation ?
 	if ci.filter.IsExcluded(pod.Annotations, "", "", ns) {
-		return nil
+		return injected, nil
 	}
 
 	// check if the pod has already been instrumented
 	if isPodCWSInstrumentationReady(pod.Annotations) {
 		injected = true
 		// nothing to do, return
-		return nil
+		return injected, nil
 	}
 
 	// create a new volume that will be used to share cws-instrumentation across the containers of this pod
@@ -403,7 +393,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
 	injected = true
 	log.Debugf("Pod %s is now instrumented for CWS", common.PodString(pod))
-	return nil
+	return injected, nil
 }
 
 func injectCWSVolume(pod *corev1.Pod) {
@@ -451,9 +441,6 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 		}
 	}
 
-	runAsUser := cwsInjectorInitContainerUser
-	runAsGroup := cwsInjectorInitContainerGroup
-
 	initContainer := corev1.Container{
 		Name:    cwsInjectorInitContainerName,
 		Image:   image,
@@ -463,11 +450,6 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 				Name:      cwsVolumeName,
 				MountPath: cwsMountPath,
 			},
-		},
-		// Set a default user and group to support pod deployments with a `runAsNonRoot` security context
-		SecurityContext: &corev1.SecurityContext{
-			RunAsUser:  &runAsUser,
-			RunAsGroup: &runAsGroup,
 		},
 	}
 	if resources != nil {
@@ -510,14 +492,20 @@ func labelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelecto
 
 // mutatePodExecOptions handles mutating PodExecOptions and encoding and decoding admission
 // requests and responses for the public mutate functions
-func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, userInfo *authenticationv1.UserInfo, m mutatePodExecFunc, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
+func mutatePodExecOptions(rawPodExecOptions []byte, name string, ns string, mutationType string, userInfo *authenticationv1.UserInfo, m mutatePodExecFunc, dc dynamic.Interface, apiClient kubernetes.Interface) ([]byte, error) {
 	var exec corev1.PodExecOptions
 	if err := json.Unmarshal(rawPodExecOptions, &exec); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
 
-	if err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
+	if _, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
 		return nil, err
+	}
+
+	if injected, err := m(&exec, name, ns, userInfo, dc, apiClient); err != nil {
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(injected), err.Error())
+	} else {
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 	}
 
 	bytes, err := json.Marshal(exec)

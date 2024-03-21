@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -406,10 +407,15 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
-				err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, MockK8sClientInterface{
+				injected, err := ci.injectCWSCommandInstrumentation(tt.args.exec, tt.args.name, tt.args.ns, tt.args.userInfo, nil, MockK8sClientInterface{
 					annotations: tt.args.apiClientAnnotations,
 					shouldFail:  tt.args.apiClientShouldFail,
 				})
+
+				if tt.wantErr {
+					assert.False(t, injected)
+				}
+
 				if err != nil && !tt.wantErr {
 					require.Fail(t, "CWS instrumentation shouldn't have produced an error: got %v", err)
 				}
@@ -420,6 +426,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 						require.Fail(t, "CWS instrumentation failed", "invalid exec command length %d", l)
 						return
 					}
+					assert.True(t, injected)
 					expectedCommand := fmt.Sprintf("%s%s", filepath.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
 					require.Equal(t, expectedCommand, strings.Join(tt.args.exec.Command[0:5], " "), "incorrect CWS instrumentation")
 					require.Equal(t, "--", tt.args.exec.Command[6], "incorrect CWS instrumentation")
@@ -446,8 +453,6 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 
 func Test_injectCWSPodInstrumentation(t *testing.T) {
 	commonRegistry := "gcr.io/datadoghq"
-	runAsUser := cwsInjectorInitContainerUser
-	runAsGroup := cwsInjectorInitContainerGroup
 
 	type args struct {
 		pod *corev1.Pod
@@ -501,10 +506,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						MountPath: cwsMountPath,
 					},
 				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
-				},
 			},
 			wantInstrumentation: true,
 		},
@@ -528,10 +529,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						MountPath: cwsMountPath,
 					},
 				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
-				},
 			},
 			wantInstrumentation: true,
 		},
@@ -554,10 +551,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						Name:      cwsVolumeName,
 						MountPath: cwsMountPath,
 					},
-				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
 				},
 			},
 			wantInstrumentation: true,
@@ -592,10 +585,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						Name:      cwsVolumeName,
 						MountPath: cwsMountPath,
 					},
-				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
 				},
 			},
 			wantInstrumentation: true,
@@ -657,10 +646,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						MountPath: cwsMountPath,
 					},
 				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
-				},
 			},
 			wantInstrumentation: true,
 		},
@@ -701,10 +686,6 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 						MountPath: cwsMountPath,
 					},
 				},
-				SecurityContext: &corev1.SecurityContext{
-					RunAsUser:  &runAsUser,
-					RunAsGroup: &runAsGroup,
-				},
 			},
 			wantInstrumentation: true,
 		},
@@ -727,11 +708,18 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
-				if err := ci.injectCWSPodInstrumentation(tt.args.pod, tt.args.ns, nil); err != nil && !tt.wantErr {
+				injected, err := ci.injectCWSPodInstrumentation(tt.args.pod, tt.args.ns, nil)
+
+				if tt.wantErr {
+					assert.False(t, injected)
+				}
+
+				if err != nil && !tt.wantErr {
 					require.Fail(t, "CWS instrumentation shouldn't have produced an error: got %v", err)
 				}
 
 				if tt.wantInstrumentation {
+					assert.True(t, injected)
 					testInjectCWSVolume(t, tt.args.pod)
 					testInjectCWSVolumeMount(t, tt.args.pod)
 					testInjectCWSInitContainer(t, tt.args.pod, tt.expectedInitContainer)

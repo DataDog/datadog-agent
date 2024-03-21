@@ -512,6 +512,10 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		return
 	}
 
+	if !ad.MatchesSelector(event.ProcessCacheEntry) {
+		return
+	}
+
 	if ok, err := ad.ActivityTree.Insert(event, true, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
 		// check dump size
 		ad.checkInMemorySize()

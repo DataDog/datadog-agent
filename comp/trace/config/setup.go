@@ -126,7 +126,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 			rc.WithAgent(rcClientName, version.AgentVersion),
 			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
 			rc.WithPollInterval(rcClientPollInterval),
-			rc.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
+			rc.WithDirectorRootOverride(c.GetString("site"), c.GetString("remote_configuration.director_root")),
 		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -409,6 +409,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Obfuscation.Mongo.Enabled = true
 		c.Obfuscation.Memcached.Enabled = true
 		c.Obfuscation.Redis.Enabled = true
+		c.Obfuscation.CreditCards.Enabled = true
 
 		// TODO(x): There is an issue with coreconfig.Datadog.IsSet("apm_config.obfuscation"), probably coming from Viper,
 		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
@@ -811,7 +812,7 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
 		// no user-set hostname, try to acquire
 		if err := acquireHostname(c); err != nil {
-			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
+			log.Infof("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
 			if err := acquireHostnameFallback(c); err != nil {
 				return err
 			}
@@ -844,11 +845,11 @@ func acquireHostname(c *config.AgentConfig) error {
 		return err
 	}
 	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
-		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
+		log.Infof("Acquired empty hostname from gRPC but it's disallowed.")
 		return errors.New("empty hostname disallowed")
 	}
 	c.Hostname = reply.Hostname
-	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
+	log.Infof("Acquired hostname from gRPC: %s", c.Hostname)
 	return nil
 }
 
@@ -864,7 +865,7 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	c.Hostname = strings.TrimSpace(out.String())
 	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
 		if emptyDisallowed {
-			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
+			log.Infof("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}
 		// There was either an error retrieving the hostname from the core agent, or
 		// it was empty and its disallowed by the disable_empty_hostname feature flag.
@@ -876,10 +877,10 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 			return errors.New("empty hostname disallowed")
 		}
 		c.Hostname = host
-		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
 		return nil
 	}
-	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
 }
 

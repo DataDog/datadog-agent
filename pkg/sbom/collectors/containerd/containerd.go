@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
@@ -67,8 +68,8 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg)
+func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}

@@ -225,11 +225,13 @@ type LocalAPIClient interface {
 // LocalAPIClient is a client to interact with the locally exposed updater API.
 type localAPIClientImpl struct {
 	client *http.Client
+	addr   string
 }
 
 // NewLocalAPIClient returns a new LocalAPIClient.
 func NewLocalAPIClient() LocalAPIClient {
 	return &localAPIClientImpl{
+		addr: "updater", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
@@ -243,7 +245,7 @@ func NewLocalAPIClient() LocalAPIClient {
 // Status returns the status of the updater.
 func (c *localAPIClientImpl) Status() (StatusResponse, error) {
 	var response StatusResponse
-	req, err := http.NewRequest(http.MethodGet, "http://updater/status", nil)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s/status", c.addr), nil)
 	if err != nil {
 		return response, err
 	}
@@ -273,7 +275,7 @@ func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/start", pkg), bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/experiment/start", c.addr, pkg), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
@@ -297,7 +299,7 @@ func (c *localAPIClientImpl) StartExperiment(pkg, version string) error {
 
 // StopExperiment stops an experiment for a package.
 func (c *localAPIClientImpl) StopExperiment(pkg string) error {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/stop", pkg), nil)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/experiment/stop", c.addr, pkg), nil)
 	if err != nil {
 		return err
 	}
@@ -321,7 +323,7 @@ func (c *localAPIClientImpl) StopExperiment(pkg string) error {
 
 // PromoteExperiment promotes an experiment for a package.
 func (c *localAPIClientImpl) PromoteExperiment(pkg string) error {
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/experiment/promote", pkg), nil)
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/experiment/promote", c.addr, pkg), nil)
 	if err != nil {
 		return err
 	}
@@ -352,7 +354,7 @@ func (c *localAPIClientImpl) BootstrapVersion(pkg, version string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://updater/%s/bootstrap", pkg), bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://%s/%s/bootstrap", c.addr, pkg), bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}

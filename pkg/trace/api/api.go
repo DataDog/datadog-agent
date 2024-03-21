@@ -624,7 +624,7 @@ func (r *HTTPReceiver) loop() {
 	var lastLog time.Time
 	accStats := info.NewReceiverStats()
 
-	t := time.NewTicker(10 * time.Second)
+	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
 	tw := time.NewTicker(r.conf.WatchdogInterval)
 	defer tw.Stop()

@@ -61,9 +61,9 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 
 	cm.firstConn.Do(func() {
 		if cm.endpoint.ProxyAddress != "" {
-			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.address(), cm.endpoint.ProxyAddress, cm.endpoint.UseSSL)
+			log.Infof("Connecting to the backend: %v, via socks5: %v, with SSL: %v", cm.address(), cm.endpoint.ProxyAddress, cm.endpoint.UseSSL())
 		} else {
-			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.address(), cm.endpoint.UseSSL)
+			log.Infof("Connecting to the backend: %v, with SSL: %v", cm.address(), cm.endpoint.UseSSL())
 		}
 	})
 
@@ -110,7 +110,7 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		}
 		log.Debugf("connected to %v", cm.address())
 
-		if cm.endpoint.GetUseSSL() {
+		if cm.endpoint.UseSSL() {
 			sslConn := tls.Client(conn, &tls.Config{
 				ServerName: cm.endpoint.Host,
 			})

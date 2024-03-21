@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
@@ -198,6 +199,10 @@ func (p *ProcessCheck) getLastConnRates() ProcessConnRates {
 
 // IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
+	if p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+		return false
+	}
+
 	return p.config.GetBool("process_config.process_collection.enabled")
 }
 
@@ -270,9 +275,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	for _, extractor := range p.extractors {
 		extractor.Extract(procs)
 	}
-
-	// Keep track of containers addresses
-	LocalResolver.LoadAddrs(containers, pidToCid)
 
 	// End check early if this is our first run.
 	if p.lastProcs == nil {

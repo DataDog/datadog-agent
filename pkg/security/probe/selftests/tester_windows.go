@@ -8,7 +8,6 @@ package selftests
 
 import (
 	"fmt"
-	"runtime"
 	"time"
 
 	"go.uber.org/atomic"
@@ -28,22 +27,20 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		tmpDir    string
 	)
 
-	if runtime.GOOS == "windows" {
-		dir, err := CreateTargetDir()
-		if err != nil {
-			return nil, err
-		}
-		tmpDir = dir
-		fileToCreate := "file.txt"
+	dir, err := CreateTargetDir()
+	if err != nil {
+		return nil, err
+	}
+	tmpDir = dir
+	fileToCreate := "file.txt"
 
-		keyPath := "Software\\Datadog\\Datadog Agent"
-		if err != nil {
-			return nil, err
-		}
-		selfTests = []SelfTest{
-			&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
-			&WindowsOpenRegistryKeyTest{keyPath: keyPath},
-		}
+	keyPath := "Software\\Datadog\\Datadog Agent"
+	if err != nil {
+		return nil, err
+	}
+	selfTests = []SelfTest{
+		&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
+		&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 	}
 
 	s := &SelfTester{

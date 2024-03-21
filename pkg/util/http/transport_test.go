@@ -22,14 +22,14 @@ func TestEmptyProxy(t *testing.T) {
 	setupTest(t)
 
 	r, err := http.NewRequest("GET", "https://test.com", nil)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	proxies := &pkgconfigmodel.Proxy{}
 	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, proxyURL)
 }
 
@@ -46,11 +46,11 @@ func TestHTTPProxy(t *testing.T) {
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(rHTTP)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 
 	proxyURL, err = proxyFunc(rHTTPS)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, proxyURL)
 }
 
@@ -72,20 +72,20 @@ func TestNoProxy(t *testing.T) {
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, proxyURL)
 
 	proxyURL, err = proxyFunc(r2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 
 	proxyURL, err = proxyFunc(r3)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy_https.com:3128", proxyURL.String())
 
 	// Validate the old behavior (when no_proxy_nonexact_match is false)
 	proxyURL, err = proxyFunc(r4)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 }
 
@@ -111,27 +111,27 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, proxyURL)
 
 	proxyURL, err = proxyFunc(r2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 
 	proxyURL, err = proxyFunc(r3)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy_https.com:3128", proxyURL.String())
 
 	proxyURL, err = proxyFunc(r4)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, proxyURL)
 
 	proxyURL, err = proxyFunc(r5)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 
 	proxyURL, err = proxyFunc(r6)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, proxyURL)
 }
 
@@ -163,7 +163,7 @@ func TestBadScheme(t *testing.T) {
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, proxyURL)
 }
 
@@ -199,7 +199,7 @@ func TestNoProxyWarningMap(t *testing.T) {
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, "https://user:pass@proxy.com:3128", proxyURL.String())
 
 	assert.True(t, noProxyIgnoredWarningMap["http://api.test_http.com"])
