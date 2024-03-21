@@ -73,6 +73,9 @@ const (
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
+	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
+	DefaultCompressorKind = "zlib"
+
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -237,8 +240,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
-	config.BindEnvAndSetDefault("agent_ipc_host", "localhost")
-	config.BindEnvAndSetDefault("agent_ipc_port", 0)
+	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
+	config.BindEnvAndSetDefault("agent_ipc.port", 0)
+	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
@@ -441,6 +445,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("serializer_max_series_points_per_payload", 10000)
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
+	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1148,6 +1153,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
+	config.BindEnvAndSetDefault("container_lifecycle.ecs_task_event.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
@@ -1208,6 +1214,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
 	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
+
+	// debug config to enable a remote client to receive data from the workloadmeta agent without a timeout
+	config.BindEnvAndSetDefault("workloadmeta.remote.recv_without_timeout", false)
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -1316,6 +1325,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	OTLP(config)
 	setupProcesses(config)
 	setupHighAvailability(config)
+
+	// Updater configuration
+	config.BindEnv("updater.registry")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
