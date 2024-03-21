@@ -14,66 +14,6 @@ function Install-DDAgent
         [String]$InstallLogPath
     )
 
-    <#
-            .SYNOPSIS
-            Installs the Datadog Agent.
-
-            .DESCRIPTION
-            Downloads the latest Datadog Windows Agent installer, validates the installer's signature, and executes the installation.
-
-            .PARAMETER WithAPMTracers
-            Specify an APM Tracing library to download and install alongside the Agent.
-
-            .PARAMETER AgentInstallURL
-            Override the URL which the Agent installer is downloaded from.
-
-            .PARAMETER ApiKey
-            Adds the Datadog API KEY to the configuration file.
-
-            .PARAMETER Site
-            Set the Datadog intake site. Example: SITE=datadoghq.com
-
-            .PARAMETER Tags
-            Comma-separated list of tags to assign in the configuration file. Example: TAGS="key_1:val_1,key_2:val_2"
-
-            .PARAMETER Hostname
-            Configures the hostname reported by the Agent to Datadog (overrides any hostname calculated at runtime).
-
-            .PARAMETER DDAgentUsername
-            Override the default ddagentuser username used during Agent installation (v6.11.0+).
-
-            .PARAMETER DDAgentPassword
-            Override the cryptographically secure password generated for the ddagentuser user during Agent installation (v6.11.0+). Must be provided for installs on domain servers.
-
-            .PARAMETER ApplicationDataDirectory
-            Override the directory to use for the configuration file directory tree (v6.11.0+). May only be provided on initial install; not valid for upgrades. Default: C:\ProgramData\Datadog
-
-            .PARAMETER ProjectLocation
-            Override the directory to use for the binary file directory tree (v6.11.0+). May only be provided on initial install; not valid for upgrades. Default: %ProgramFiles%\Datadog\Datadog Agent
-
-            .PARAMETER AgentInstallURL
-            Override the URL which the Agent installer is downloaded from.
-
-            .PARAMETER InstallLogPath
-            Override the Agent installation log location.
-
-            .INPUTS
-            None. You cannot pipe objects to Install-DDAgent.
-
-            .OUTPUTS
-            None.
-
-            .EXAMPLE
-            C:\PS> Install-DDAgent -ApiKey "<YOUR_DATADOG_API_KEY>"
-
-            .EXAMPLE
-            C:\PS> Install-DDAgent -ApiKey "<YOUR_DATADOG_API_KEY>" -WithAPMTracers "DotNet"
-
-            .LINK
-            Learn more about the Datadog Windows Agent User:
-            https://docs.datadoghq.com/agent/guide/windows-agent-ddagent-user/
-    #>
-
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
     {
@@ -123,6 +63,66 @@ function Install-DDAgent
             $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
         }
     }
+
+    <#
+    .SYNOPSIS
+    Installs the Datadog Agent.
+
+    .DESCRIPTION
+    Downloads the latest Datadog Windows Agent installer, validates the installer's signature, and executes the installation.
+
+    .PARAMETER WithAPMTracers
+    Specify an APM Tracing library to download and install alongside the Agent.
+
+    .PARAMETER AgentInstallURL
+    Override the URL which the Agent installer is downloaded from.
+
+    .PARAMETER ApiKey
+    Adds the Datadog API KEY to the configuration file.
+
+    .PARAMETER Site
+    Set the Datadog intake site. Example: SITE=datadoghq.com
+
+    .PARAMETER Tags
+    Comma-separated list of tags to assign in the configuration file. Example: TAGS="key_1:val_1,key_2:val_2"
+
+    .PARAMETER Hostname
+    Configures the hostname reported by the Agent to Datadog (overrides any hostname calculated at runtime).
+
+    .PARAMETER DDAgentUsername
+    Override the default ddagentuser username used during Agent installation (v6.11.0+).
+
+    .PARAMETER DDAgentPassword
+    Override the cryptographically secure password generated for the ddagentuser user during Agent installation (v6.11.0+). Must be provided for installs on domain servers.
+
+    .PARAMETER ApplicationDataDirectory
+    Override the directory to use for the configuration file directory tree (v6.11.0+). May only be provided on initial install; not valid for upgrades. Default: C:\ProgramData\Datadog
+
+    .PARAMETER ProjectLocation
+    Override the directory to use for the binary file directory tree (v6.11.0+). May only be provided on initial install; not valid for upgrades. Default: %ProgramFiles%\Datadog\Datadog Agent
+
+    .PARAMETER AgentInstallURL
+    Override the URL which the Agent installer is downloaded from.
+
+    .PARAMETER InstallLogPath
+    Override the Agent installation log location.
+
+    .INPUTS
+    None. You cannot pipe objects to Install-DDAgent.
+
+    .OUTPUTS
+    None.
+
+    .EXAMPLE
+    C:\PS> Install-DDAgent -ApiKey "<YOUR_DATADOG_API_KEY>"
+
+    .EXAMPLE
+    C:\PS> Install-DDAgent -ApiKey "<YOUR_DATADOG_API_KEY>" -WithAPMTracers "DotNet"
+
+    .LINK
+    Learn more about the Datadog Windows Agent User:
+    https://docs.datadoghq.com/agent/guide/windows-agent-ddagent-user/
+    #>
 }
 
 ###############################
