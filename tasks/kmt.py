@@ -8,7 +8,7 @@ import shutil
 import tempfile
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -257,18 +257,26 @@ def start_compiler(ctx: Context):
         c.start()
 
 
-def filter_target_domains(vms: str, infra: Dict[ArchOrLocal, HostInstance], local_arch: Arch):
+def filter_target_domains(vms: str, infra: Dict[ArchOrLocal, HostInstance], arch: Optional[ArchOrLocal] = None):
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
     domains: List[LibvirtDomain] = list()
     for vmset in vmsets:
-        if vmset.arch != "local" and vmset.arch != local_arch:
-            raise Exit(f"KMT does not support cross-arch ({local_arch} -> {vmset.arch}) build/test at the moment")
+        if arch is not None and full_arch(vmset.arch) != full_arch(arch):
+            warn(f"Ignoring VM {vmset} as it is not of the expected architecture {arch}")
+            continue
         for vm in vmset.vms:
             for domain in infra[vmset.arch].microvms:
                 if domain.tag == vm.version:
                     domains.append(domain)
 
     return domains
+
+
+def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> Set[Arch]:
+    archs: Set[Arch] = set()
+    for d in domains:
+        archs.add(full_arch(d.instance.arch))
+    return archs
 
 
 TOOLS_PATH = '/datadog-agent/internal/tools'
@@ -357,9 +365,10 @@ def build_dependencies(
     ci=False,
     stack: Optional[str] = None,
     verbose=True,
-):
+) -> None:
     if stack is None:
         raise Exit("no stack name provided")
+    info(f"[+] Building dependencies for {arch} in stack {stack}")
     paths = KMTPaths("", arch)
     source_dir = Path(source_dir)
     paths.stack = stack
@@ -442,6 +451,10 @@ def prepare(
 
     if vms == "":
         raise Exit("No vms specified to sync with")
+    if arch is None:
+        arch = full_arch('local')
+
+    info(f"[+] Preparing VMs {vms} in stack {stack} for {arch}")
 
     infra = build_infrastructure(stack, ssh_key)
     domains = filter_target_domains(vms, infra, arch)
@@ -453,7 +466,10 @@ def prepare(
 
     constrain_pkgs = ""
     if not build_from_scratch:
+        info("[+] Dependencies already present in VMs")
         constrain_pkgs = f"--packages={packages}"
+    else:
+        warn("[!] Dependencies need to be rebuilt")
 
     info(f"[+] Compiling test binaries for {arch}")
     cc.ensure_running()
@@ -544,12 +560,16 @@ def test(
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
         info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
-    if not quick:
-        prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages)
-
     infra = build_infrastructure(stack, ssh_key)
-    arch = arch_mapping[platform.machine()]
-    domains = filter_target_domains(vms, infra, arch)
+    domains = filter_target_domains(vms, infra)
+    used_archs = get_archs_in_domains(domains)
+
+    info("[+] Detected architectures in target VMs: " + ", ".join(used_archs))
+
+    if not quick:
+        for arch in used_archs:
+            prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages, arch=arch)
+
     if run is not None and packages is None:
         raise Exit("Package must be provided when specifying test")
     pkgs = packages.split(",")

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional, cast
 from invoke.context import Context
 from invoke.runners import Result
 
-from tasks.kernel_matrix_testing.tool import full_arch, info
+from tasks.kernel_matrix_testing.tool import full_arch, info, warn
 from tasks.kernel_matrix_testing.types import ArchOrLocal
 from tasks.kernel_matrix_testing.vars import arch_mapping
 
@@ -39,6 +39,10 @@ class CompilerImage:
 
     @property
     def is_running(self):
+        if self.ctx.config.run["dry"]:
+            warn(f"[!] Dry run, not checking if compiler {self.name} is running")
+            return True
+
         res = self.ctx.run(f"docker ps -aqf \"name={self.name}\"", hide=True)
         if res is not None and res.ok:
             return res.stdout.rstrip() != ""
