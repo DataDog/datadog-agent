@@ -15,13 +15,13 @@
     - !reference [.setup_ruby_mirror_linux]
     - echo "About to package for $RELEASE_VERSION"
     - tar xf ${OMNIBUS_PACKAGE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz -C /
-    - rm ${OMNIBUS_PACKAGE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz
+    - rm ${OMNIBUS_PACKAGE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - *setup_deb_signing_key
     - inv -e updater.omnibus-package --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_FILE
     - !reference [.upload_sbom_artifacts]
   artifacts:
     expire_in: 2 weeks
