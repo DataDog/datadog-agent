@@ -89,13 +89,11 @@ func RandomTrace(maxLevels, maxSpans int) pb.Trace {
 
 // RandomTraceChunk generates a random trace chunk with a depth from 1 to
 // maxLevels of spans. Each level has at most maxSpans items.
-//
-//nolint:revive // TODO(APM) Fix revive linter
 func RandomTraceChunk(maxLevels, maxSpans int) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Priority: int32(rand.Intn(3)),
 		Origin:   "lambda",
-		Spans:    RandomTrace(maxLevels, maxLevels),
+		Spans:    RandomTrace(maxLevels, maxSpans),
 	}
 }
 
