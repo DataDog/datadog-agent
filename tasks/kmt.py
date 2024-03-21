@@ -8,7 +8,7 @@ import shutil
 import tempfile
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -23,11 +23,9 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
+from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
-
-if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
 
 try:
     from tabulate import tabulate
