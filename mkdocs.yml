@@ -49,21 +49,24 @@ nav:
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
+- Components:
+  - Overview: components/overview.md
   - Components:
+    - Creating components: components/creating-components.md
+    - Testing components: components/testing.md
+    - Creating bundles: components/creating-bundles.md
+    - Using components: components/using-components.md
+    - Integrating with existing components: components/migration.md
+    - Common patterns: components/common-patterns.md
+  - Fx overview: components/fx.md
+  - FAQ: components/faq.md
+  - MISC doc to migrate:
     - Purpose: guidelines/components/purpose.md
-    - Defining Components: guidelines/components/defining-components.md
     - Using Components: guidelines/components/using-components.md
     - Defining Bundles: guidelines/components/defining-bundles.md
     - Defining Apps: guidelines/components/defining-apps.md
     - Registrations: guidelines/components/registrations.md
     - Subscriptions: guidelines/components/subscriptions.md
-- How-to:
-  - Components:
-    - Migration: how-to/components/migration.md
-- Architecture:
-  - Components:
-    - Overview: architecture/components/overview.md
-    - Fx: architecture/components/fx.md
 
 hooks:
 - docs/public/.hooks/title_from_content.py

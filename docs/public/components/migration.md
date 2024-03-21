@@ -1,8 +1,15 @@
+
+!!! warning "Rework/update this page and add"
+
+    * How to status
+    * How to RC
+    * ...
+
 # Migrating to Components
 
 After your component has been created you can link it to other components such as flares (others like status pages, or health will come later).
 
-This page documents how to fully integrate your component in the Agent life cycle.
+This page documents how to fully integrate your component in the Agent ecosystem.
 
 ## Flare
 
