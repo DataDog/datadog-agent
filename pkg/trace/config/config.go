@@ -112,6 +112,8 @@ type ObfuscationConfig struct {
 
 	// CreditCards holds the configuration for obfuscating credit cards.
 	CreditCards CreditCardsConfig `mapstructure:"credit_cards"`
+
+	CommandExecution obfuscate.CommandExecutionConfig `mapstructure:"command_execution"`
 }
 
 // Export returns an obfuscate.Config matching o.
