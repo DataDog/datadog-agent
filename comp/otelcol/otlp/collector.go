@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichment/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -115,6 +116,13 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 
 	processors, err := processor.MakeFactoryMap(
 		batchprocessor.NewFactory(),
+	)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	processors, err := processor.MakeFactoryMap(
+		tagenrichmentprocessors.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	Type = component.MustNewType("filter")
+	Type = component.MustNewType("tagenrichment")
 )
 
 const (
@@ -19,9 +19,9 @@ const (
 )
 
 func Meter(settings component.TelemetrySettings) metric.Meter {
-	return settings.MeterProvider.Meter("otelcol/filter")
+	return settings.MeterProvider.Meter("otelcol/tagenrichment")
 }
 
 func Tracer(settings component.TelemetrySettings) trace.Tracer {
-	return settings.TracerProvider.Tracer("otelcol/filter")
+	return settings.TracerProvider.Tracer("otelcol/tagenrichment")
 }
