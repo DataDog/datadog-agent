@@ -10,10 +10,12 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -49,4 +51,18 @@ func executeCommand(command string) error {
 		return errors.New(string(stderrOutput))
 	}
 	return nil
+}
+
+// BuildHelperForTests builds the updater-helper binary for test
+func BuildHelperForTests(pkgDir, binPath string, skipUIDCheck bool) error {
+	updaterHelper = filepath.Join(binPath, "/updater-helper")
+	localPath, _ := filepath.Abs(".")
+	targetDir := "datadog-agent/pkg"
+	index := strings.Index(localPath, targetDir)
+	pkgPath := localPath[:index+len(targetDir)]
+	helperPath := filepath.Join(pkgPath, "updater", "service", "helper", "main.go")
+	cmd := exec.Command("go", "build", fmt.Sprintf(`-ldflags=-X main.pkgDir=%s -X main.testSkipUID=%v`, pkgDir, skipUIDCheck), "-o", updaterHelper, helperPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

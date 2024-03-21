@@ -17,3 +17,8 @@ func ChownDDAgent(path string) error {
 func RmPackageVersion(path string) error {
 	return os.RemoveAll(path)
 }
+
+// BuildHelperForTests builds the updater-helper binary for test
+func BuildHelperForTests(pkgDir, binPath string, skipUIDCheck bool) error {
+	return nil
+}
