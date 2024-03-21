@@ -147,6 +147,7 @@ func TraceChunkWithSpan(span *pb.Span) *pb.TraceChunk {
 	return &pb.TraceChunk{
 		Spans:    []*pb.Span{span},
 		Priority: int32(sampler.PriorityNone),
+		Tags:     make(map[string]string),
 	}
 }
 

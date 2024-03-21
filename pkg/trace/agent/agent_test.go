@@ -1197,10 +1197,12 @@ func TestSample(t *testing.T) {
 			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
 			Meta:     map[string]string{},
 		}
+		chunk := testutil.TraceChunkWithSpan(root)
 		if decisionMaker != "" {
-			root.Meta["_dd.p.dm"] = decisionMaker
+			chunk.Tags["_dd.p.dm"] = decisionMaker
+			// root.Meta["_dd.p.dm"] = decisionMaker
 		}
-		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
 		pt.TraceChunk.Priority = int32(priority)
 		return pt
 	}
