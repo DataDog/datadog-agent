@@ -34,11 +34,13 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutationFunc, dc dy
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
 
-	if injected, err := m(&pod, ns, dc); err != nil {
-		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(injected), err.Error())
-	} else {
-		metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
+	injected, err := m(&pod, ns, dc)
+	if err != nil {
+		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
+		return nil, fmt.Errorf("failed to mutate pod: %v", err)
 	}
+
+	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
 	bytes, err := json.Marshal(pod)
 	if err != nil {
