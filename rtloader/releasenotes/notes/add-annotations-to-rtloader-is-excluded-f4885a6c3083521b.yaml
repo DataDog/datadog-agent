@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Accept annotations in the ``containers.is_excluded`` C binding to allow 
+    filtering of Python check metrics via pod annotations.

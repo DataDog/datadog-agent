@@ -14,7 +14,7 @@ static PyObject *is_excluded(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
     { "is_excluded", (PyCFunction)is_excluded, METH_VARARGS,
-      "Returns whether a container is excluded per anotation, name, image and namespace." },
+      "Returns whether a container is excluded per annotation, name, image and namespace." },
     { NULL, NULL } // guards
 };
 
