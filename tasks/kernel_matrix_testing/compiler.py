@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Optional, cast
 from invoke.context import Context
 from invoke.runners import Result
 
-from tasks.kernel_matrix_testing.tool import info
+from tasks.kernel_matrix_testing.tool import full_arch, info
+from tasks.kernel_matrix_testing.types import ArchOrLocal
 from tasks.kernel_matrix_testing.vars import arch_mapping
 
 if TYPE_CHECKING:
@@ -107,8 +108,8 @@ class CompilerImage:
         self.exec(f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
 
-def get_compiler(ctx: Context, arch: Arch):
-    return CompilerImage(ctx, arch)
+def get_compiler(ctx: Context, arch: ArchOrLocal):
+    return CompilerImage(ctx, full_arch(arch))
 
 
 def all_compilers(ctx: Context):
