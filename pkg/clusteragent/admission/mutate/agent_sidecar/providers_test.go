@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestProviderIsSupported(t *testing.T) {
@@ -98,6 +99,7 @@ func TestApplyProviderOverrides(t *testing.T) {
 			},
 			expectedPodAfterOverride: &corev1.Pod{
 				Spec: corev1.PodSpec{
+					ShareProcessNamespace: pointer.Ptr(true),
 					Containers: []corev1.Container{
 						{
 							Name: "app-container",
@@ -201,6 +203,7 @@ func TestApplyProviderOverrides(t *testing.T) {
 			},
 			expectedPodAfterOverride: &corev1.Pod{
 				Spec: corev1.PodSpec{
+					ShareProcessNamespace: pointer.Ptr(true),
 					Containers: []corev1.Container{
 						{
 							Name: "app-container",
