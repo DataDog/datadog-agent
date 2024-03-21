@@ -134,8 +134,11 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         }
         offset += sizeof(s32); // Skipping Partition ID
 
-        // Parsing the message set of the partition
-        // Note that
+        // Parsing the message set of the partition.
+        // It's assumed that the message set is not in the old message format, as the format differs:
+        // https://kafka.apache.org/documentation/#messageset
+        // The old message format predates Kafka 0.11, released on September 27, 2017.
+        // It's unlikely for us to encounter these older versions in practice.
 
         offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
         offset += sizeof(s64); // Skipping record batch baseOffset
@@ -143,7 +146,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch
         READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, skb, offset);
         if (magic_byte != 2) {
-            log_debug("Kafka magic byte is %d. the protocol state it should be 2");
+            log_debug("Got magic byte != 2, the protocol state it should be 2");
             return false;
         }
         offset += sizeof(u32); // Skipping crc
