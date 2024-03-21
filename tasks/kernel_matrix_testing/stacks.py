@@ -91,16 +91,19 @@ def local_vms_in_config(vmconfig):
     return False
 
 
-def kvm_ok(ctx):
+def kvm_ok():
     if not os.path.exists("/dev/kvm"):
-        error(f"[-] /dev/kvm not found. KVM not available on system")
+        error("[-] /dev/kvm not found. KVM not available on system")
         raise Exit("KVM not available")
 
     info("[+] Kvm available on system")
 
 
 def check_user_in_group(ctx, group):
-    res = ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)", warn=True)
+    res = ctx.run(
+        f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)",
+        warn=True,
+    )
     if res.ok:
         return True
 
@@ -137,7 +140,7 @@ def check_env(ctx):
         raise Exit("Local machines only supported on Linux and MacOS")
 
     if platform.system() == "Linux":
-        kvm_ok(ctx)
+        kvm_ok()
         # on macOS libvirt runs as the local user, so no need to check for group membership
         check_user_in_kvm(ctx)
         check_user_in_libvirt(ctx)
