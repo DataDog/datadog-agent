@@ -21,7 +21,7 @@ var adjustMtx sync.Mutex
 func Adjust(cfg config.Config) {
 	adjustMtx.Lock()
 	defer adjustMtx.Unlock()
-	if cfg.IsKnown(spNS("adjusted")) {
+	if cfg.GetBool(spNS("adjusted")) {
 		return
 	}
 
@@ -54,7 +54,7 @@ func Adjust(cfg config.Config) {
 		cfg.Set(spNS("process_service_inference", "enabled"), false, model.SourceAgentRuntime)
 	}
 
-	cfg.SetKnown(spNS("adjusted"))
+	cfg.Set(spNS("adjusted"), true, model.SourceAgentRuntime)
 }
 
 // validateString validates the string configuration value at `key` using a custom provided function `valFn`.
