@@ -106,13 +106,15 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 	// Create a CSRF token (unique to each session)
 	e := g.createCSRFToken()
 	if e != nil {
-		return optional.NewNoneOption[guicomp.Component](), e
+		g.logger.Errorf("GUI server initialization failed (unable to create CSRF token): ", e)
+		return optional.NewNoneOption[guicomp.Component](), nil
 	}
 
 	// Fetch the authentication token (persists across sessions)
 	g.authToken, e = security.FetchAuthToken(deps.Config)
 	if e != nil {
-		return optional.NewNoneOption[guicomp.Component](), e
+		g.logger.Errorf("GUI server initialization failed (unable to get the AuthToken): ", e)
+		return optional.NewNoneOption[guicomp.Component](), nil
 	}
 
 	// Instantiate the gorilla/mux router
@@ -155,7 +157,8 @@ func (g *gui) start(_ context.Context) error {
 
 	g.listener, e = net.Listen("tcp", "127.0.0.1:"+g.port)
 	if e != nil {
-		return e
+		g.logger.Errorf("GUI server didn't achieved to start: ", e)
+		return nil
 	}
 	go http.Serve(g.listener, g.router) //nolint:errcheck
 	g.logger.Infof("GUI server is listening at 127.0.0.1:" + g.port)
