@@ -1015,7 +1015,12 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			}
 			assert.Truef(c, scaleUp, "No scale up detected")
 			assert.Truef(c, scaleDown, "No scale down detected")
-		}, 20*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
+			// The deployments that have an HPA configured (nginx and redis)
+			// exhibit a traffic pattern that follows a sine wave with a
+			// 20-minute period. This is defined in the test-infra-definitions
+			// repo. For this reason, the timeout for this test needs to be a
+			// bit higher than 20 min to capture the scale down event.
+		}, 25*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
 	})
 }
 
