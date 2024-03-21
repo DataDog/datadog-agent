@@ -113,10 +113,16 @@ func (is *agentMSISuite) AfterTest(suiteName, testName string) {
 		// If the test failed, export the event logs for debugging
 		vm := is.Env().RemoteHost
 		for _, logName := range []string{"System", "Application"} {
+			// collect the full event log as an evtx file
 			is.T().Logf("Exporting %s event log", logName)
 			outputPath := filepath.Join(is.OutputDir, fmt.Sprintf("%s.evtx", logName))
 			err := windowsCommon.ExportEventLog(vm, logName, outputPath)
 			is.Assert().NoError(err, "should export %s event log", logName)
+			// Log errors and warnings to the screen for easy access
+			out, err := windowsCommon.GetEventLogErrorsAndWarnings(vm, logName)
+			if is.Assert().NoError(err, "should get errors and warnings from %s event log", logName) && out != "" {
+				is.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
+			}
 		}
 	}
 }

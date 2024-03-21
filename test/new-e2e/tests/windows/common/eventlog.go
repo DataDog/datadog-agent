@@ -45,3 +45,21 @@ func ClearEventLog(host *components.RemoteHost, logName string) error {
 
 	return nil
 }
+
+// GetEventLogErrorsAndWarnings returns a formatted list of errors and warnings from an event log
+func GetEventLogErrorsAndWarnings(host *components.RemoteHost, logName string) (string, error) {
+	// ignore powershell exception if no events are found
+	cmd := fmt.Sprintf(`
+	try {
+		Get-WinEvent -FilterHashTable @{ LogName='%s'; Level=1,2,3 } -ErrorAction Stop | Select TimeCreated,RecordID,ProviderName,ID,Level,Message | fl
+	} catch [Exception] {
+		if ($_.Exception -match "No events were found that match the specified selection criteria") { Exit 0 }
+		else { throw }
+	}`, logName)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return "", fmt.Errorf("error getting errors and warnings from %s event log: %w", logName, err)
+	}
+
+	return out, nil
+}
