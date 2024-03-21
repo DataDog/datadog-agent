@@ -226,7 +226,7 @@ def omnibus_package(
         omnibus_run_task(
             ctx=ctx,
             task="build",
-            target_project="updater",
+            target_project="updater-packager",
             base_dir=base_dir,
             env=env,
             log_level=log_level,
