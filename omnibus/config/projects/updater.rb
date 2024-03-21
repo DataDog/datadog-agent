@@ -48,7 +48,7 @@ end
 package :xz do
   skip_packager false
   compression_threads COMPRESSION_THREADS
-  compression_level COMPRESSION_LEVEL
+  compression_level 5
 end
 
 # ------------------------------------
