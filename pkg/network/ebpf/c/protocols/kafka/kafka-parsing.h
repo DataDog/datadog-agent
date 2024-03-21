@@ -126,7 +126,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     {
         READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, skb, offset);
         if (number_of_partitions > 1) {
-            log_debug("We have more than a single partition for produce request, we currently support only the first partition");
+            log_debug("Multiple partitions detected in produce request, current support limited to requests with a single partition");
             return false;
         }
         offset += sizeof(s32); // Skipping Partition ID
