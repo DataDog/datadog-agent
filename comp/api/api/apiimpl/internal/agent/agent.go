@@ -101,7 +101,6 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
@@ -134,6 +133,10 @@ func SetupHandlers(
 
 	if logsAgent, ok := logsAgent.Get(); ok {
 		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
+	}
+
+	if g, ok := gui.Get(); ok {
+		r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, g) }).Methods("GET")
 	}
 
 	return r
@@ -403,12 +406,7 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Write(jsonHealth)
 }
 
-func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) {
-	// WARNING: GUI comp currently not provided to JMX
-	gui, guiExist := optGui.Get()
-	if !guiExist {
-		return
-	}
+func getCSRFToken(w http.ResponseWriter, gui gui.Component) {
 	w.Write([]byte(gui.GetCSRFToken()))
 }
 
