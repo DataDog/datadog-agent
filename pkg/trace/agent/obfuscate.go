@@ -95,6 +95,10 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
 	case "system":
 		if span.Name == "command_execution" {
+			if !a.conf.Obfuscation.CommandExecution.Enabled {
+				return
+			}
+
 			v, ok := span.Meta[tagShellCommand]
 			if span.Meta == nil || !ok {
 				v, ok = span.Meta[tagExecCommand]

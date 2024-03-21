@@ -240,6 +240,12 @@ type JSONConfig struct {
 	ObfuscateSQLValues []string `mapstructure:"obfuscate_sql_values"`
 }
 
+// CommandExecutionConfig holds the configuration settings for command execution obfuscation
+type CommandExecutionConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+}
+
 // NewObfuscator creates a new obfuscator
 func NewObfuscator(cfg Config) *Obfuscator {
 	if cfg.Logger == nil {
