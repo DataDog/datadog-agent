@@ -421,7 +421,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		testSpan(now, 9, 0, 30, 1, "A2", "resource2", 2, nil),
 		testSpan(now, 10, 0, 3600000000000, 1, "A2", "resourcefoo", 0, nil), // 1 hour trace
 		// present data, part of the third flush
-		testSpan(now, 6, 100, 24, 0, "A1", "resource2", 0, nil),
+		testSpan(now, 6, 0, 24, 0, "A1", "resource2", 0, nil),
 	}
 
 	expectedCountValByKeyByTime := make(map[int64][]*pb.ClientGroupedStats)
@@ -554,7 +554,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_FALSE,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
@@ -603,8 +603,9 @@ func TestRootTag(t *testing.T) {
 	now := time.Now()
 	spans := []*pb.Span{
 		testSpan(now, 1, 0, 40, 10, "A1", "resource1", 0, nil),
-		testSpan(now, 1, 0, 40, 10, "A1", "resource1", 0, nil),
-		testSpan(now, 1, 100, 30, 10, "A1", "resource1", 0, nil),
+		testSpan(now, 2, 1, 30, 10, "A1", "resource1", 0, nil),
+		testSpan(now, 3, 2, 20, 10, "A1", "resource1", 0, map[string]string{"span.kind": "client"}),
+		testSpan(now, 4, 1000, 10, 10, "A1", "resource1", 0, nil),
 	}
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
@@ -617,7 +618,7 @@ func TestRootTag(t *testing.T) {
 			Resource:     "resource1",
 			Type:         "db",
 			Name:         "query",
-			Duration:     80,
+			Duration:     60,
 			Hits:         2,
 			TopLevelHits: 2,
 			Errors:       0,
@@ -628,7 +629,7 @@ func TestRootTag(t *testing.T) {
 			Resource:     "resource1",
 			Type:         "db",
 			Name:         "query",
-			Duration:     30,
+			Duration:     10,
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,

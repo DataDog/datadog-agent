@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    APM Stats now includes an is_trace_root field to indicate if the stats are from the root span of a trace.
+    APM stats now include an is_trace_root field to indicate if the stats are from the root span of a trace.
