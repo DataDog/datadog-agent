@@ -95,37 +95,38 @@ def trigger_macos_workflow(
     # We then fetch workflows and check if it contains the id in its job name.
 
     # Adding another hack to check if the workflow is not waiting a concurrency to be solved before generating the workflow jobs
-    might_be_waiting = set()
+    # might_be_waiting = set()
 
-    MAX_WAITING_CONCURRENCY_RETRIES = 3  # Retries for up to 1h45
-    MAX_RETRIES = 30  # Retry for up to 5 minutes
-    for i in range(MAX_WAITING_CONCURRENCY_RETRIES):
-        for j in range(MAX_RETRIES):
-            print(f"Fetching triggered workflow (try {j + 1}/{MAX_RETRIES})")
-            recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
-            for recent_run in recent_runs:
-                jobs = recent_run.jobs()
-                if jobs.totalCount >= 2:
-                    if recent_run.id in might_be_waiting:
-                        might_be_waiting.remove(recent_run.id)
-                    for job in jobs:
-                        if any([step.name == workflow_id for step in job.steps]):
-                            return recent_run
-                else:
-                    might_be_waiting.add(recent_run.id)
-                    print(f"{might_be_waiting} workflows are waiting for jobs to popup...")
-                    sleep(5)
-            sleep(10)
-        if len(might_be_waiting) != 0:
-            print(f"Couldn't find a workflow with expected jobs, and {might_be_waiting} are workflows with no jobs")
-            print(
-                f"This is maybe due to a concurrency issue, retrying ({i + 1}/{MAX_WAITING_CONCURRENCY_RETRIES}) in 30 min"
-            )
-            sleep(1800)
+    # MAX_WAITING_CONCURRENCY_RETRIES = 3  # Retries for up to 1h45
+    # MAX_RETRIES = 30  # Retry for up to 5 minutes
+    # for i in range(MAX_WAITING_CONCURRENCY_RETRIES):
+    #     for j in range(MAX_RETRIES):
+    #         print(f"Fetching triggered workflow (try {j + 1}/{MAX_RETRIES})")
+    #         recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+    #         for recent_run in recent_runs:
+    #             jobs = recent_run.jobs()
+    #             if jobs.totalCount >= 2:
+    #                 if recent_run.id in might_be_waiting:
+    #                     might_be_waiting.remove(recent_run.id)
+    #                 for job in jobs:
+    #                     if any([step.name == workflow_id for step in job.steps]):
+    #                         return recent_run
+    #             else:
+    #                 might_be_waiting.add(recent_run.id)
+    #                 print(f"{might_be_waiting} workflows are waiting for jobs to popup...")
+    #                 sleep(5)
+    #         sleep(10)
+    #     if len(might_be_waiting) != 0:
+    #         print(f"Couldn't find a workflow with expected jobs, and {might_be_waiting} are workflows with no jobs")
+    #         print(
+    #             f"This is maybe due to a concurrency issue, retrying ({i + 1}/{MAX_WAITING_CONCURRENCY_RETRIES}) in 30 min"
+    #         )
+    #         sleep(1800)
 
     # Something went wrong :(
-    print("Couldn't fetch workflow run that was triggered.")
-    raise Exit(code=1)
+    message = f"Couldn't fetch GitHub workflow '{workflow_name}' run that was triggered on commit {github_action_ref}.\nYou should look at the Github workflow directly at https://github.com/DataDog/datadog-agent-macos-build/actions"
+
+    raise Exit(message, code=1)
 
 
 def follow_workflow_run(run):
