@@ -245,10 +245,10 @@ func normalizeContextRoot(contextRoots ...string) []string {
 func doExtractContextRoots(vendor serverVendor, deployment typedDeployment, fs afero.Fs) []string {
 	fsCloser, dt, err := vfsAndTypeFromAppPath(deployment, fs)
 	if err != nil {
-		if ear {
+		if dt == ear {
 			return nil
 		}
-		return doDefaultExtraction(vendor, app)
+		return doDefaultExtraction(vendor, deployment.path)
 	}
 	defer fsCloser.Close()
 	if dt == ear {
@@ -265,14 +265,14 @@ func doExtractContextRoots(vendor serverVendor, deployment typedDeployment, fs a
 			return []string{value}
 		}
 	}
-	return doDefaultExtraction(vendor, app)
+	return doDefaultExtraction(vendor, deployment.path)
 }
 
 // doDefaultExtraction return the default naming for an application depending on the vendor
 func doDefaultExtraction(vendor serverVendor, app string) []string {
 	defaultFinder, ok := defaultContextNameExtractors[vendor]
 	if ok {
-		return []string{defaultFinder(deployment.path)}
+		return []string{defaultFinder(app)}
 	}
 	return nil
 }
