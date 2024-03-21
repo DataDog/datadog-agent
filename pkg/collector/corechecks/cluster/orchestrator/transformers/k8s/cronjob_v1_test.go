@@ -23,7 +23,8 @@ import (
 
 func TestExtractCronJobV1(t *testing.T) {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
-	lastScheduleTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
+	lastScheduleTime := metav1.NewTime(time.Date(2021, time.April, 17, 14, 30, 0, 0, time.UTC))
+	lastSuccessfulTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
 	tests := map[string]struct {
 		input    batchv1.CronJob
@@ -63,7 +64,8 @@ func TestExtractCronJobV1(t *testing.T) {
 							UID:             "644a62fe-783f-4609-bd2b-a9ec1212c07b",
 						},
 					},
-					LastScheduleTime: &lastScheduleTime,
+					LastScheduleTime:   &lastScheduleTime,
+					LastSuccessfulTime: &lastSuccessfulTime,
 				},
 			},
 			expected: model.CronJob{
@@ -95,7 +97,8 @@ func TestExtractCronJobV1(t *testing.T) {
 							Uid:             "644a62fe-783f-4609-bd2b-a9ec1212c07b",
 						},
 					},
-					LastScheduleTime: lastScheduleTime.Unix(),
+					LastScheduleTime:   lastScheduleTime.Unix(),
+					LastSuccessfulTime: lastSuccessfulTime.Unix(),
 				},
 			},
 		},

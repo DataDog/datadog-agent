@@ -75,6 +75,7 @@ type EBPFLessProbe struct {
 	fieldHandlers *EBPFLessFieldHandlers
 	buf           []byte
 	clients       map[net.Conn]*client
+	processKiller *ProcessKiller
 }
 
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
@@ -276,9 +277,15 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Exit.Cause = uint32(syscallMsg.Exit.Cause)
 		event.Exit.Code = syscallMsg.Exit.Code
 		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
+
+		// update kill action reports
+		p.processKiller.HandleProcessExited(event)
 	}
 
 	p.DispatchEvent(event)
+
+	// flush pending kill actions
+	p.processKiller.FlushPendingReports()
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -487,7 +494,22 @@ func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 }
 
 // HandleActions handles the rule actions
-func (p *EBPFLessProbe) HandleActions(_ *eval.Context, _ *rules.Rule) {}
+func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
+	ev := ctx.Event.(*model.Event)
+
+	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
+		switch {
+		case action.Kill != nil:
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+				return p.processKiller.KillFromUserspace(pid, sig, ev)
+			})
+		}
+	}
+}
 
 // NewEvent returns a new event
 func (p *EBPFLessProbe) NewEvent() *model.Event {
@@ -527,15 +549,16 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	var grpcOpts []grpc.ServerOption
 	p := &EBPFLessProbe{
-		probe:        probe,
-		config:       config,
-		opts:         opts,
-		statsdClient: opts.StatsdClient,
-		server:       grpc.NewServer(grpcOpts...),
-		ctx:          ctx,
-		cancelFnc:    cancelFnc,
-		buf:          make([]byte, 4096),
-		clients:      make(map[net.Conn]*client),
+		probe:         probe,
+		config:        config,
+		opts:          opts,
+		statsdClient:  opts.StatsdClient,
+		server:        grpc.NewServer(grpcOpts...),
+		ctx:           ctx,
+		cancelFnc:     cancelFnc,
+		buf:           make([]byte, 4096),
+		clients:       make(map[net.Conn]*client),
+		processKiller: NewProcessKiller(),
 	}
 
 	resolversOpts := resolvers.Opts{
