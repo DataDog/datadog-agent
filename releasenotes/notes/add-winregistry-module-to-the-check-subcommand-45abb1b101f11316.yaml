@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    The `windows_registry` check can be run with the `check` sub-command.
