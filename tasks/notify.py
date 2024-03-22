@@ -57,6 +57,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
+    default_branch = os.getenv('CI_DEFAULT_BRANCH')
+    print('default_branch', default_branch)
+
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
         messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
@@ -104,13 +107,15 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            # send_slack_message(channel, str(message))  # TODO: use channel variable
+            if channel == default_branch or channel.startswith('release/'):
+                recipient = channel
+            else:
+                # DM author
+                author_email = get_git_author(format='ae')
+                recipient = email_to_slackid(ctx, author_email)
 
-            print('SEND', base)
-            author_email = get_git_author(format='ae')
-            assert author_email == 'celian.raimbault@datadoghq.com'
-            author_slack = email_to_slackid(ctx, author_email)
-            send_slack_message(author_slack, str(message))
+            print('SEND', recipient, str(message))
+            # send_slack_message(recipient, str(message))
 
 
 @task
