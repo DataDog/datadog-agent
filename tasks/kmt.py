@@ -760,7 +760,7 @@ def ssh_config(
         "all": "Show status of all stacks. --stack parameter will be ignored",
     }
 )
-def status(ctx: Context, stack: Optional[str] = None, all=False):
+def status(ctx: Context, stack: Optional[str] = None, all=False, ssh_key: Optional[str] = None):
     stacks: List[str]
 
     if all:
@@ -775,7 +775,7 @@ def status(ctx: Context, stack: Optional[str] = None, all=False):
 
     for stack in stacks:
         try:
-            infrastructure = build_infrastructure(stack, remote_ssh_key="")
+            infrastructure = build_infrastructure(stack, remote_ssh_key=ssh_key)
         except Exception:
             warn(f"Failed to get status for stack {stack}. stacks.output file might be corrupt.")
             print("")
