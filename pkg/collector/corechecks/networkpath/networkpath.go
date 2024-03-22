@@ -66,7 +66,7 @@ func (c *Check) Run() error {
 	}
 
 	tags := c.getCommonTags()
-	c.submitTelemetryMetrics(senderInstance, startTime, tags)
+	c.submitTelemetryMetrics(senderInstance, path, startTime, tags)
 	return nil
 }
 
@@ -96,7 +96,7 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 	return nil
 }
 
-func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, startTime time.Time, tags []string) {
+func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path traceroute.NetworkPath, startTime time.Time, tags []string) {
 	newTags := append(utils.CopyStrings(tags), utils.GetAgentVersionTag())
 
 	checkDuration := time.Since(startTime)
@@ -107,6 +107,16 @@ func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, startTime t
 		senderInstance.Gauge("datadog.network_path.check_interval", checkInterval.Seconds(), "", newTags)
 	}
 	c.lastCheckTime = startTime
+
+	if len(path.Hops) > 0 {
+		lastHop := path.Hops[len(path.Hops)-1]
+		pathReachable := 0
+		if lastHop.Success {
+			pathReachable = 1
+			senderInstance.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), "", newTags)
+		}
+		senderInstance.Gauge("datadog.network_path.path.reachable", float64(pathReachable), "", newTags)
+	}
 }
 
 // Interval returns the scheduling time for the check
