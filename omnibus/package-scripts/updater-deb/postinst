@@ -110,7 +110,7 @@ chown -R dd-updater:dd-updater ${PACKAGES_LOCK_DIR}
 chmod -R 755 ${PACKAGES_DIR}
 # Lock_dir is world writable as any application with a tracer injected
 # needs to write the PID
-chmod -R 666 ${PACKAGES_LOCK_DIR}
+chmod -R 766 ${PACKAGES_LOCK_DIR}
 
 # Make system-probe configs read-only
 chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
