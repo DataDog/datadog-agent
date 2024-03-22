@@ -697,8 +697,6 @@ require (
 	gotest.tools v2.2.0+incompatible
 )
 
-replace github.com/DataDog/agent-payload/v5 v5.0.108 => github.com/DataDog/agent-payload/v5 v5.0.109-0.20240320090456-c59946bf22c8
-
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
