@@ -178,7 +178,8 @@ DEFAULT_MODULES = {
     "comp/core/status": GoModule("comp/core/status", independent=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
-    "comp/serializer/compression/compressionimpl": GoModule("comp/serializer/compression/compressionimpl", independent=True),
+    "comp/serializer/compression/compressionimpl": GoModule(
+        "comp/serializer/compression/compressionimpl", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(

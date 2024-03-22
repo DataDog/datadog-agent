@@ -481,3 +481,9 @@ Package updater is the updater component.
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
+
+*Datadog Team*: agent-metrics-logs
+
+Package compression provides a compression implementation based on the configuration or avalible build tags.

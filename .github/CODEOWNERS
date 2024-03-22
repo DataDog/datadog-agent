@@ -260,6 +260,7 @@
 /comp/metadata/packagesigning @DataDog/agent-build-and-releases
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/etw @DataDog/windows-agent
+/comp/serializer/compression @DataDog/agent-metrics-logs
 # END COMPONENTS
 
 # pkg
