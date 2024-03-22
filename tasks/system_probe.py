@@ -805,7 +805,6 @@ def clean_build(ctx):
     with open(BUILD_COMMIT, 'r') as f:
         build_commit = f.read().rstrip()
         curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
-        print(f"build_commit: {build_commit}, curr_commit: {curr_commit}")
         if curr_commit != build_commit:
             return True
 
@@ -829,7 +828,6 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
 
     # Clean up previous build
     if os.path.exists(KITCHEN_ARTIFACT_DIR) and (packages == "" or clean_build(ctx)):
-        print("Cleaning up previous build")
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
     elif packages != "":
         packages = [full_pkg_path(name) for name in packages.split(",")]
@@ -876,7 +874,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         for extra in ["testdata", "build"]:
             extra_path = os.path.join(pkg, extra)
             if os.path.isdir(extra_path):
-                shutil.copytree(extra_path, os.path.join(target_path, extra), dirs_exist_ok=True)
+                shutil.copytree(extra_path, os.path.join(target_path, extra))
 
         if pkg.endswith("java"):
             shutil.copy(os.path.join(pkg, "agent-usm.jar"), os.path.join(target_path, "agent-usm.jar"))
