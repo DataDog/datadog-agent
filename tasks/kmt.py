@@ -308,8 +308,9 @@ def download_gotestsum(ctx: Context, arch: Arch):
     paths.tools.mkdir(parents=True, exist_ok=True)
 
     cc = get_compiler(ctx, arch)
+    target_path = "/datadog-agent" / paths.tools.relative_to(paths.repo_root)
     cc.exec(
-        f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum /datadog-agent/{paths.tools}",
+        f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum {target_path}",
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
@@ -327,9 +328,13 @@ class KMTPaths:
         self.arch = arch
 
     @property
-    def root(self):
+    def repo_root(self):
         # this file is tasks/kmt.py, so two parents is the agent folder
-        return Path(__file__).parent.parent / "kmt-deps"
+        return Path(__file__).parent.parent
+
+    @property
+    def root(self):
+        return self.repo_root / "kmt-deps"
 
     @property
     def arch_dir(self):
@@ -488,7 +493,6 @@ def prepare(
         warn("[!] Dependencies need to be rebuilt")
 
     info(f"[+] Compiling test binaries for {arch}")
-    cc.ensure_running()
     cc.exec(
         f"git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
         run_dir="/datadog-agent",
