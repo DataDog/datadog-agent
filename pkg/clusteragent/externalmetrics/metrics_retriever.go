@@ -62,7 +62,9 @@ func (mr *MetricsRetriever) Run(stopCh <-chan struct{}) {
 		select {
 		case <-tickerRefreshProcess.C:
 			if mr.isLeader() {
+				startTime := time.Now()
 				mr.retrieveMetricsValues()
+				retrieverElapsed.Observe(time.Since(startTime).Seconds())
 			}
 		case <-stopCh:
 			log.Infof("Stopping MetricsRetriever")
