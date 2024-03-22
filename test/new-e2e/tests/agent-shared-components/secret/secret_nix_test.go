@@ -22,7 +22,7 @@ type linuxRuntimeSecretSuite struct {
 }
 
 func TestLinuxRuntimeSecretSuite(t *testing.T) {
-	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner()), e2e.WithDevMode())
+	e2e.Run(t, &linuxRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
 
 //go:embed fixtures/secret_script.py
