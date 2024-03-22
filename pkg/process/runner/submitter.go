@@ -40,8 +40,6 @@ import (
 //nolint:revive // TODO(PROC) Fix revive linter
 type Submitter interface {
 	Submit(start time.Time, name string, messages *types.Payload)
-	Start() error
-	Stop()
 }
 
 var _ Submitter = &CheckSubmitter{}
