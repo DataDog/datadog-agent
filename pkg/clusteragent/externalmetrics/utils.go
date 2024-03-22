@@ -47,10 +47,6 @@ func metricNameToDatadogMetricID(metricName string) (id string, parsed bool, has
 	return "", false, strings.HasPrefix(metricName, datadogMetricRefPrefix)
 }
 
-func datadogMetricIDToMetricName(datadogMetricID string) string {
-	return strings.ToLower(datadogMetricRefPrefix + strings.Replace(datadogMetricID, kubernetesNamespaceSep, datadogMetricRefSep, 1))
-}
-
 func getAutogenDatadogMetricNameFromLabels(metricName string, labels map[string]string) string {
 	return getAutogenDatadogMetricName(buildDatadogQueryForExternalMetric(metricName, labels))
 }
