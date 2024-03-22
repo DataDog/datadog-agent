@@ -658,12 +658,16 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 			Cyclonedx: convertBOM(vulns.BOM),
 		},
 	}
-	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
+	payload := &sbommodel.SBOMPayload{
 		Version:  1,
 		Source:   &sourceAgent,
 		Entities: []*sbommodel.SBOMEntity{entity},
 		DdEnv:    &s.DdEnv,
-	})
+	}
+	if result.Scan.Type == types.TaskTypeEBS {
+		payload.Host = result.Scan.TargetName
+	}
+	rawEvent, err := proto.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("unable to proto marhsal sbom: %w", err)
 	}
