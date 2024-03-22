@@ -77,8 +77,9 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 	}
 }
 
-func (v *vmUpdaterSuite) TestPurgeAndInstall() {
-	v.Env().RemoteHost.MustExecute("sudo /opt/datadog/updater/bin/updater/updater purge")
+func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
+	host := v.Env().RemoteHost
+	host.MustExecute("sudo /opt/datadog/updater/bin/updater/updater purge")
 	stableUnits := []string{
 		"datadog-agent.service",
 		"datadog-agent-trace.service",
@@ -87,17 +88,29 @@ func (v *vmUpdaterSuite) TestPurgeAndInstall() {
 		"datadog-agent-security.service",
 	}
 	for _, unit := range stableUnits {
-		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf(`systemctl is-enabled %s`, unit))
+		_, err := host.Execute(fmt.Sprintf(`systemctl is-enabled %s`, unit))
 		require.Equal(
 			v.T(),
 			fmt.Sprintf("Failed to get unit file state for %s: No such file or directory\n: Process exited with status 1", unit),
 			err.Error(),
 		)
 	}
-	v.Env().RemoteHost.MustExecute("sudo /opt/datadog/updater/bin/updater/updater bootstrap -P datadog-agent")
 
+	// dir exists
+	host.MustExecute(`test -d /opt/datadog-packages`)
+	// dir does not exist
+	_, err := host.Execute(`test -d /opt/datadog-packages/datadog-agent`)
+	require.NotNil(v.T(), err)
+
+	// bootstrap
+	host.MustExecute("sudo /opt/datadog/updater/bin/updater/updater bootstrap -P datadog-agent")
+
+	agentDir := "/opt/datadog-packages/datadog-agent"
+	require.Equal(v.T(), "dd-updater\n", host.MustExecute(`stat -c "%U" `+agentDir))
+	require.Equal(v.T(), "dd-updater\n", host.MustExecute(`stat -c "%G" `+agentDir))
+	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+agentDir))
 	for _, unit := range stableUnits {
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
-	require.Equal(v.T(), "1\n", v.Env().RemoteHost.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-agent/ | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
+	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-agent | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
 }
