@@ -56,9 +56,42 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 
 READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
+static __always_inline bool get_record_count_from_record_batch_array(struct __sk_buff *skb, __u32 offset, s32 *out)
+{
+    offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
+    offset += sizeof(s64); // Skipping record batch baseOffset
+    offset += sizeof(s32); // Skipping record batch batchLength
+    offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch
+    READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, skb, offset);
+    if (magic_byte != 2) {
+        log_debug("Got magic byte != 2, the protocol state it should be 2");
+        return false;
+    }
+    offset += sizeof(u32); // Skipping crc
+    offset += sizeof(s16); // Skipping attributes
+    offset += sizeof(s32); // Skipping last offset delta
+    offset += sizeof(s64); // Skipping base timestamp
+    offset += sizeof(s64); // Skipping max timestamp
+    offset += sizeof(s64); // Skipping producer id
+    offset += sizeof(s16); // Skipping producer epoch
+    offset += sizeof(s32); // Skipping base sequence
+    READ_BIG_ENDIAN_WRAPPER(s32, records_count, skb, offset);
+    if (records_count <= 0) {
+        log_debug("Got number of Kafka produce records <= 0");
+        return false;
+    }
+
+    *out = records_count;
+    return true;
+}
+
+
 static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
     offset += sizeof(__s32); // Skip message size
     READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, skb, offset);
+    log_debug("offset: %d", offset);
+
+    log_debug("skb len: %d", skb->len);
 
     log_debug("kafka: potential response correlation_id %d", correlation_id);
 
@@ -70,9 +103,71 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
         return false;
     }
 
+    bpf_map_delete_elem(&kafka_in_flight, key);
+
     log_debug("kafka: Received response for request with correlation id %d", correlation_id);
 
-    bpf_map_delete_elem(&kafka_in_flight, key);
+    if (request->request_api_version >= 1) {
+        offset += sizeof(s32); // Skip throttle_time_ms
+    }
+    if (request->request_api_version >= 7) {
+        offset += sizeof(s16); // Skip error_code
+        offset += sizeof(s32); // Skip session_id
+    }
+
+    READ_BIG_ENDIAN_WRAPPER(s32, num_topics, skb, offset);
+    log_debug("num_topics: %d", num_topics);
+    if (num_topics <= 0) {
+        return false;
+    }
+
+    READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
+    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+        return false;
+    }
+
+    // TODO check that topic name matches the topic we expect.
+    offset += topic_name_size;
+
+    log_debug("topic_name_size: %d", topic_name_size);
+
+    READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, skb, offset);
+    if (number_of_partitions <= 0) {
+        return false;
+    }
+    if (number_of_partitions > 1) {
+        log_debug("Only examining first partition in fetch response");
+    }
+    offset += sizeof(s32); // Skip partition_index
+    offset += sizeof(s16); // Skip error_code
+    offset += sizeof(s64); // Skip high_watermark
+
+    if (request->request_api_version >= 4) {
+        offset += sizeof(s64); // Skip last_stable_offset
+
+        if (request->request_api_version >= 5) {
+            offset += sizeof(s64); // log_start_offset
+        }
+
+        READ_BIG_ENDIAN_WRAPPER(s32, aborted_transactions, skb, offset);
+        log_debug("aborted_transactions: %d", aborted_transactions);
+        if (aborted_transactions >= 0) {
+            // producer_id and first_offset in each aborted transaction
+            offset += sizeof(s64) * 2 * aborted_transactions;
+        }
+
+        if (request->request_api_version >= 11) {
+            offset += sizeof(s32); // preferred_read_replica
+        }
+    }
+
+    s32 record_count = 0;
+    if (!get_record_count_from_record_batch_array(skb, offset, &record_count)) {
+        return false;
+    }
+
+    log_debug("record_count: %d", record_count);
+
     kafka_batch_enqueue(request);
 
     return true;

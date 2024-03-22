@@ -425,12 +425,23 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
 
+				req := kmsg.NewFetchRequest()
+				topic := kmsg.NewFetchRequestTopic()
+				topic.Topic = topicName
+				partition := kmsg.NewFetchRequestTopicPartition()
+				partition.PartitionMaxBytes = 1024
+				topic.Partitions = append(topic.Partitions, partition)
+				req.Topics = append(req.Topics, topic)
+
+				_, err = req.RequestWith(ctxTimeout, client.Client)
+				require.NoError(t, err)
+
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 4,
-					expectedNumberOfFetchRequests:   0,
+					expectedNumberOfProduceRequests: 2 * 2,
+					expectedNumberOfFetchRequests:   2 * 2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
