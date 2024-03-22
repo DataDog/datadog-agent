@@ -110,7 +110,7 @@ function Install-DDAgent
     Override the default ddagentuser username used during Agent installation (v6.11.0+).
 
     .PARAMETER DDAgentPassword
-    Override the cryptographically secure password generated for the ddagentuser user during Agent installation (v6.11.0+). Must be provided for installs on domain servers.
+    Override the cryptographically secure password generated for the ddagentuser user during Agent installation (v6.11.0+). Must be provided for installs on domain servers/domain controllers.
 
     .PARAMETER ApplicationDataDirectory
     Override the directory to use for the configuration file directory tree (v6.11.0+). May only be provided on initial install; not valid for upgrades. Default: C:\ProgramData\Datadog
