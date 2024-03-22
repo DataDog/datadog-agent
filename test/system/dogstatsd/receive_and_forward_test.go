@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -46,8 +47,8 @@ func TestReceiveAndForward(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: compression.ZlibKind},
-		"zstd": {kind: compression.ZstdKind},
+		"zlib": {kind: utils.ZlibKind},
+		"zstd": {kind: utils.ZstdKind},
 	}
 
 	for name, tc := range tests {
