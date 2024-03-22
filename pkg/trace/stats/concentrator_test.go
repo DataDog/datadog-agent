@@ -267,6 +267,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         6,
 				TopLevelHits: 6,
 				Errors:       0,
+				IsTraceRoot:  pb.TraceRootFlag_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -304,6 +305,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         5,
 				TopLevelHits: 5,
 				Errors:       0,
+				IsTraceRoot:  pb.TraceRootFlag_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -324,6 +326,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         1,
 				TopLevelHits: 1,
 				Errors:       0,
+				IsTraceRoot:  pb.TraceRootFlag_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -433,6 +436,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         4,
 			TopLevelHits: 4,
 			Errors:       1,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -443,6 +447,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         2,
 			TopLevelHits: 2,
 			Errors:       2,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -453,6 +458,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -464,6 +470,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -475,6 +482,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 	}
 	// 1-bucket old flush
@@ -488,6 +496,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -498,6 +507,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -508,6 +518,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -518,6 +529,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -528,6 +540,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 	}
 	// last bucket to be flushed
@@ -541,6 +554,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
@@ -582,6 +596,49 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		})
 		flushTime += c.bsize
 	}
+}
+
+// TestRootTag tests that an aggregation will be slit up by the IsTraceRoot aggKey
+func TestRootTag(t *testing.T) {
+	now := time.Now()
+	spans := []*pb.Span{
+		testSpan(now, 1, 0, 40, 10, "A1", "resource1", 0, nil),
+		testSpan(now, 2, 1, 30, 10, "A1", "resource1", 0, nil),
+		testSpan(now, 3, 2, 20, 10, "A1", "resource1", 0, map[string]string{"span.kind": "client"}),
+		testSpan(now, 4, 1000, 10, 10, "A1", "resource1", 0, nil),
+	}
+	traceutil.ComputeTopLevel(spans)
+	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
+	c := NewTestConcentrator(now)
+	c.addNow(testTrace, "")
+
+	expected := []*pb.ClientGroupedStats{
+		{
+			Service:      "A1",
+			Resource:     "resource1",
+			Type:         "db",
+			Name:         "query",
+			Duration:     60,
+			Hits:         2,
+			TopLevelHits: 2,
+			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource1",
+			Type:         "db",
+			Name:         "query",
+			Duration:     10,
+			Hits:         1,
+			TopLevelHits: 1,
+			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_FALSE,
+		},
+	}
+
+	stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
+	assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
 }
 
 func generateDistribution(t *testing.T, now time.Time, generator func(i int) int64) *ddsketch.DDSketch {

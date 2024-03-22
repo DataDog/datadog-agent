@@ -62,6 +62,12 @@ message ClientStatsBucket {
 	int64 agentTimeShift = 4;
 }
 
+enum TraceRootFlag {
+	NOT_SET = 0;
+	TRUE = 1;
+	FALSE = 2;
+}
+
 // ClientGroupedStats aggregate stats on spans grouped by service, name, resource, status_code, type
 message ClientGroupedStats {
 	string service = 1;
@@ -82,4 +88,5 @@ message ClientGroupedStats {
 	// peer_tags are supplementary tags that further describe a peer entity
 	// E.g., `grpc.target` to describe the name of a gRPC peer, or `db.hostname` to describe the name of peer DB
 	repeated string peer_tags = 16;
+	TraceRootFlag is_trace_root = 17; // this field's value is equal to span's ParentID == 0.
 }
