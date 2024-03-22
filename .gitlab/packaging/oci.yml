@@ -22,7 +22,7 @@ packaging_oci:
     - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - cd /tmp/
-    - git clone https://github.com/DataDog/datadog-packages
+    - for i in $(seq 1 5); do git clone --depth=1 https://github.com/DataDog/datadog-packages && break; done
     - cd datadog-packages/cmd/datadog-package
     - go build .
     - OUTPUT_DIR="/tmp/oci_output"
