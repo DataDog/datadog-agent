@@ -193,7 +193,7 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms):
     if remote_vms_in_config(vm_config):
         provision = "--provision-instance"
 
-    args = {
+    args = [
         "--provision-microvms" if provision_microvms else "",
         f"--instance-type-x86={X86_INSTANCE_TYPE}",
         f"--instance-type-arm={ARM_INSTANCE_TYPE}",
@@ -205,7 +205,7 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms):
         f"--stack-name={stack}",
         local,
         provision,
-    }
+    ]
     ctx.run(f"{' '.join(env)} {prefix} inv -e system-probe.start-microvms {' '.join(args)}")
 
     info(f"[+] Stack {stack} successfully setup")
