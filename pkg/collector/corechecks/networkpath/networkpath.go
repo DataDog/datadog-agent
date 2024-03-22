@@ -112,6 +112,7 @@ func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path tracer
 	}
 	c.lastCheckTime = startTime
 
+	senderInstance.Gauge("datadog.network_path.path.monitored", float64(1), "", newTags)
 	if len(path.Hops) > 0 {
 		lastHop := path.Hops[len(path.Hops)-1]
 		if lastHop.Success {
