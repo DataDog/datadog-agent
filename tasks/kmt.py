@@ -313,7 +313,8 @@ class KMTPaths:
 
     @property
     def root(self):
-        return Path("kmt-deps")
+        # this file is tasks/kmt.py, so two parents is the agent folder
+        return Path(__file__).parent.parent / "kmt-deps"
 
     @property
     def arch_dir(self):
