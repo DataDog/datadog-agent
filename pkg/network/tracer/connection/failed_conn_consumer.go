@@ -81,7 +81,7 @@ func (c *tcpFailedConnConsumer) Stop() {
 
 func (c *tcpFailedConnConsumer) extractConn(data []byte) {
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
-	log.Infof("adamk: tcpFailedConnConsumer.extractConn: ct: %v", ct)
+	log.Infof("adamk: failed connection: %v", ct)
 	// rollup similar conns here
 }
 

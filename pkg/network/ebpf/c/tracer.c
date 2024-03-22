@@ -205,6 +205,18 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
+    int err = 0;
+    int err_soft = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    bpf_probe_read_kernel_with_telemetry(&err_soft, sizeof(err_soft), (&sk->sk_err_soft));
+    if (err != 0) {
+        log_debug("adamk kprobe/tcp_close err  %d", err); 
+        flush_tcp_failure(ctx, &t, err);
+    }
+    if (err_soft !=0) {
+        log_debug("adamk kprobe/tcp_close soft %d", err_soft);
+    }
+
     cleanup_conn(ctx, &t, sk);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
