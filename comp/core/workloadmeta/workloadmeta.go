@@ -93,9 +93,6 @@ func newWorkloadMeta(deps dependencies) provider {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	// Set global
-	SetGlobalStore(wm)
-
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 
 		var err error
