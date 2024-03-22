@@ -413,7 +413,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ConsumeTopics(topicName),
 					},
 				})
 				require.NoError(t, err)
@@ -426,13 +425,12 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
+				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
 
-				// kgo client is sending an extra fetch request before running the test, so double the expected fetch request
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 4,
-					expectedNumberOfFetchRequests:   2, // The presence of 2 fetch requests is due to kgo
+					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
