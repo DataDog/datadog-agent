@@ -3,6 +3,7 @@ function Install-DDAgent
     param (
         [Parameter()][ValidateSet('DotNet')][String[]]$WithAPMTracers,
         [String] $AgentInstallURL,
+        [String] $AgentInstallerPath,
         [Parameter(Mandatory)] [String]$ApiKey,
         [String]$Site,
         [String]$Tags,
@@ -24,17 +25,25 @@ function Install-DDAgent
     # Enable TLS 1.2
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-    Write-Host "Downloading Datadog Windows Agent installer"
-    $url = "https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7-latest.amd64.msi"
-    if ($PSBoundParameters.ContainsKey('AgentInstallURL'))
+    $installerPath = "datadog-agent.msi"
+    if ($PSBoundParameters.ContainsKey('AgentInstallerPath'))
     {
-        $url = $AgentInstallURL
+        $installerPath = $AgentInstallerPath
     }
-    downloadAsset -url $url -outFile "datadog-agent.msi"
+    else
+    {
+        Write-Host "Downloading Datadog Windows Agent installer"
+        $url = "https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7-latest.amd64.msi"
+        if ($PSBoundParameters.ContainsKey('AgentInstallURL'))
+        {
+            $url = $AgentInstallURL
+        }
+        downloadAsset -url $url -outFile $installerPath
+    }
 
     Write-Host "Installing Datadog Windows Agent"
     $installerParameters = formatAgentInstallerParameters -params $PSBoundParameters
-    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i datadog-agent.msi $installerParameters" -PassThru
+    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath $installerParameters" -PassThru
     if ($installResult.ExitCode -ne 0)
     {
         $logFile = "%TEMP%\MSI*.LOG"
@@ -76,6 +85,9 @@ function Install-DDAgent
 
     .PARAMETER AgentInstallURL
     Override the URL which the Agent installer is downloaded from.
+
+    .PARAMETER AgentInstallerPath
+    Path to a local Datadog Windows Agent installer to run. If this option is provided, an Agent installer will not be downloaded.
 
     .PARAMETER ApiKey
     Adds the Datadog API KEY to the configuration file.
