@@ -29,7 +29,7 @@ const (
 	betaChannel                   = "beta"
 	betaURL                       = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
 	stableChannel                 = "stable"
-	stableURL                     = "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json"
+	stableURL                     = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
 // Package contains identifying information about an Agent MSI package.
