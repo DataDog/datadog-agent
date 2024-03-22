@@ -63,6 +63,7 @@ type Agent struct {
 	ErrorsSampler         *sampler.ErrorsSampler
 	RareSampler           *sampler.RareSampler
 	NoPrioritySampler     *sampler.NoPrioritySampler
+	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
@@ -117,6 +118,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		ErrorsSampler:         sampler.NewErrorsSampler(conf, statsd),
 		RareSampler:           sampler.NewRareSampler(conf, statsd),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
+		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf),
 		EventProcessor:        newEventProcessor(conf, statsd),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
@@ -605,8 +607,15 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	// run this early to make sure the signature gets counted by the RareSampler.
 	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
-	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
-		return true
+	if a.conf.ProbabilisticSamplerEnabled {
+		if a.ProbabilisticSampler.Sample(pt.Root) {
+			return true
+		}
+	} else {
+		// We can do probabilistic sampling OR head based sampling - not both
+		if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
+			return true
+		}
 	}
 	if traceContainsError(pt.TraceChunk.Spans) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
@@ -617,6 +626,11 @@ func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
 func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
+	if a.conf.ProbabilisticSamplerEnabled {
+		if a.ProbabilisticSampler.Sample(pt.Root) {
+			return true
+		}
+	} //todo: is this right here? this should be a rare case
 	if traceContainsError(pt.TraceChunk.Spans) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}

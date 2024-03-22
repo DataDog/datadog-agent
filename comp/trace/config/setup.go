@@ -272,6 +272,16 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.RareSamplerCardinality = core.GetInt("apm_config.rare_sampler.cardinality")
 	}
 
+	if core.IsSet("apm_config.probabilistic_sampler.enabled") {
+		c.ProbabilisticSamplerEnabled = core.GetBool("apm_config.probabilistic_sampler.enabled")
+	}
+	if core.IsSet("apm_config.probabilistic_sampler.sampling_percentage") {
+		c.ProbabilisticSamplerSamplingPercentage = float32(core.GetFloat64("apm_config.probabilistic_sampler.sampling_percentage"))
+	}
+	if core.IsSet("apm_config.probabilistic_sampler.hash_seed") {
+		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
+	}
+
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
