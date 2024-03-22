@@ -48,20 +48,20 @@ func (v *vmUpdaterSuite) TestUserGroupsCreation() {
 
 func (v *vmUpdaterSuite) TestSharedAgentDirs() {
 	for _, dir := range []string{confDir, logDir} {
-		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%U" %s`, dir)))
-		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%G" %s`, dir)))
-		require.Equal(v.T(), "drwxrwxr-x\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%A" %s`, dir)))
+		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
+		require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
+		require.Equal(v.T(), "drwxrwxr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+dir))
 	}
 }
 
 func (v *vmUpdaterSuite) TestUpdaterDirs() {
 	for _, dir := range []string{locksDir, packagesDir, installDir} {
-		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%U" %s`, dir)))
-		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%G" %s`, dir)))
+		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
+		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
 	}
-	require.Equal(v.T(), "drw-rw-rw-\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%A" %s`, locksDir)))
-	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%A" %s`, packagesDir)))
-	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`stat -c "%A" %s`, installDir)))
+	require.Equal(v.T(), "drw-rw-rw-\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+locksDir))
+	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+packagesDir))
+	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+installDir))
 }
 
 func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
