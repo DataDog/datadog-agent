@@ -21,7 +21,7 @@ type InputPayload struct {
 	Version string   `json:"version"`
 }
 
-const appVersion = "0.1.10"
+const appVersion = "0.1.11"
 
 var Log zerolog.Logger
 
