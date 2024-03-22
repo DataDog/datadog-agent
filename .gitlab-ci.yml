@@ -1040,6 +1040,7 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     
 .on_invoke_tasks_changes:
+  - <<: *if_main_branch
   - !reference [.except_mergequeue]
   - changes:
       paths:
@@ -1047,6 +1048,7 @@ workflow:
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_kitchen_invoke_tasks_changes:
+  - <<: *if_main_branch
   - !reference [.except_mergequeue]
   - changes:
       paths:
