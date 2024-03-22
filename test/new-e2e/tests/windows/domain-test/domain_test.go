@@ -40,7 +40,7 @@ func TestInstallsOnDomainController(t *testing.T) {
 		suite := suite
 		t.Run(reflect.TypeOf(suite).Elem().Name(), func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake(
+			e2e.Run(t, suite, e2e.WithProvisioner(winawshost.ProvisionerNoAgent(
 				winawshost.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 					activedirectory.WithDomainUser(TestUser, TestPassword),

@@ -201,6 +201,15 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Wi
 	return provisioner
 }
 
+// ProvisionerNoAgent wraps Provisioner with hardcoded WithoutAgent options.
+func ProvisionerNoAgent(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutAgent())
+
+	return Provisioner(mergedOpts...)
+}
+
 // ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
 func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
