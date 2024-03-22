@@ -17,7 +17,7 @@ type testShellCommand struct {
 }
 
 func compareGeneratedTokens(t testShellCommand) bool {
-	generatedTokens := parseShell(t.command)
+	generatedTokens := ParseShell(t.command)
 	expectedTokens := t.tokens
 
 	if len(generatedTokens) != len(expectedTokens) {
@@ -25,7 +25,7 @@ func compareGeneratedTokens(t testShellCommand) bool {
 	}
 
 	for i, token := range generatedTokens {
-		if token.kind != expectedTokens[i].kind || token.val != expectedTokens[i].val {
+		if token.Kind != expectedTokens[i].Kind || token.Val != expectedTokens[i].Val {
 			return false
 		}
 	}
@@ -39,8 +39,8 @@ func TestParseBasicCommands(t *testing.T) {
 			command: "echo",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 			},
 		},
@@ -48,8 +48,8 @@ func TestParseBasicCommands(t *testing.T) {
 			command: "echo   ",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 			},
 		},
@@ -57,12 +57,12 @@ func TestParseBasicCommands(t *testing.T) {
 			command: "   test echo",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "test",
+					Kind: Executable,
+					Val:  "test",
 				},
 				{
-					kind: Field,
-					val:  "echo",
+					Kind: Field,
+					Val:  "echo",
 				},
 			},
 		},
@@ -79,16 +79,16 @@ func TestParseBasicCommandsWithArgs(t *testing.T) {
 			command: "ls dir1 dir2",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "dir1",
+					Kind: Field,
+					Val:  "dir1",
 				},
 				{
-					kind: Field,
-					val:  "dir2",
+					Kind: Field,
+					Val:  "dir2",
 				},
 			},
 		},
@@ -105,20 +105,20 @@ func TestParseBasicCommandsWithStringArg(t *testing.T) {
 			command: "ls \"dir1 dir2\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "dir1 dir2",
+					Kind: Field,
+					Val:  "dir1 dir2",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -135,20 +135,20 @@ func TestParseBasicCommandsWithStringArgSimpleQuote(t *testing.T) {
 			command: "ls 'dir1 dir2'",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Field,
-					val:  "dir1 dir2",
+					Kind: Field,
+					Val:  "dir1 dir2",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 			},
 		},
@@ -165,28 +165,28 @@ func TestParseBasicCommandsWithBackticks(t *testing.T) {
 			command: "ls `which w` -li",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Executable,
-					val:  "which",
+					Kind: Executable,
+					Val:  "which",
 				},
 				{
-					kind: Field,
-					val:  "w",
+					Kind: Field,
+					Val:  "w",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Field,
-					val:  "-li",
+					Kind: Field,
+					Val:  "-li",
 				},
 			},
 		},
@@ -194,40 +194,40 @@ func TestParseBasicCommandsWithBackticks(t *testing.T) {
 			command: "ls `TOTO=plop which w` -li",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: VariableDefinition,
-					val:  "TOTO",
+					Kind: VariableDefinition,
+					Val:  "TOTO",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "plop",
+					Kind: Field,
+					Val:  "plop",
 				},
 				{
-					kind: Executable,
-					val:  "which",
+					Kind: Executable,
+					Val:  "which",
 				},
 				{
-					kind: Field,
-					val:  "w",
+					Kind: Field,
+					Val:  "w",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Field,
-					val:  "-li",
+					Kind: Field,
+					Val:  "-li",
 				},
 			},
 		},
@@ -235,32 +235,32 @@ func TestParseBasicCommandsWithBackticks(t *testing.T) {
 			command: "`echo echo` \"plop\"",
 			tokens: []ShellToken{
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "echo",
+					Kind: Field,
+					Val:  "echo",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "plop",
+					Kind: Field,
+					Val:  "plop",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -277,32 +277,32 @@ func TestParseBasicCommandsWithDollarExec(t *testing.T) {
 			command: "ls $(which w) -li",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "which",
+					Kind: Executable,
+					Val:  "which",
 				},
 				{
-					kind: Field,
-					val:  "w",
+					Kind: Field,
+					Val:  "w",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Field,
-					val:  "-li",
+					Kind: Field,
+					Val:  "-li",
 				},
 			},
 		},
@@ -310,44 +310,44 @@ func TestParseBasicCommandsWithDollarExec(t *testing.T) {
 			command: "ls $(TOTO=plop which w) -li",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: VariableDefinition,
-					val:  "TOTO",
+					Kind: VariableDefinition,
+					Val:  "TOTO",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "plop",
+					Kind: Field,
+					Val:  "plop",
 				},
 				{
-					kind: Executable,
-					val:  "which",
+					Kind: Executable,
+					Val:  "which",
 				},
 				{
-					kind: Field,
-					val:  "w",
+					Kind: Field,
+					Val:  "w",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Field,
-					val:  "-li",
+					Kind: Field,
+					Val:  "-li",
 				},
 			},
 		},
@@ -355,36 +355,36 @@ func TestParseBasicCommandsWithDollarExec(t *testing.T) {
 			command: "$(echo echo) \"plop\"",
 			tokens: []ShellToken{
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "echo",
+					Kind: Field,
+					Val:  "echo",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "plop",
+					Kind: Field,
+					Val:  "plop",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -401,48 +401,48 @@ func TestParseCommandsWithDollarExecInQuotedString(t *testing.T) {
 			command: "ping -c 2 127.0.0.1 \"$(cat /etc/passwd)\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ping",
+					Kind: Executable,
+					Val:  "ping",
 				},
 				{
-					kind: Field,
-					val:  "-c",
+					Kind: Field,
+					Val:  "-c",
 				},
 				{
-					kind: Field,
-					val:  "2",
+					Kind: Field,
+					Val:  "2",
 				},
 				{
-					kind: Field,
-					val:  "127.0.0.1",
+					Kind: Field,
+					Val:  "127.0.0.1",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "cat",
+					Kind: Executable,
+					Val:  "cat",
 				},
 				{
-					kind: Field,
-					val:  "/etc/passwd",
+					Kind: Field,
+					Val:  "/etc/passwd",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -450,56 +450,56 @@ func TestParseCommandsWithDollarExecInQuotedString(t *testing.T) {
 			command: "ping -c 2 127.0.0.1 \"some text: $(cat /etc/passwd) and other text\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ping",
+					Kind: Executable,
+					Val:  "ping",
 				},
 				{
-					kind: Field,
-					val:  "-c",
+					Kind: Field,
+					Val:  "-c",
 				},
 				{
-					kind: Field,
-					val:  "2",
+					Kind: Field,
+					Val:  "2",
 				},
 				{
-					kind: Field,
-					val:  "127.0.0.1",
+					Kind: Field,
+					Val:  "127.0.0.1",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "some text: ",
+					Kind: Field,
+					Val:  "some text: ",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "cat",
+					Kind: Executable,
+					Val:  "cat",
 				},
 				{
-					kind: Field,
-					val:  "/etc/passwd",
+					Kind: Field,
+					Val:  "/etc/passwd",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Field,
-					val:  " and other text",
+					Kind: Field,
+					Val:  " and other text",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -507,60 +507,60 @@ func TestParseCommandsWithDollarExecInQuotedString(t *testing.T) {
 			command: "echo \"$(echo hello) $(echo world)\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "hello",
+					Kind: Field,
+					Val:  "hello",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Field,
-					val:  " ",
+					Kind: Field,
+					Val:  " ",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "world",
+					Kind: Field,
+					Val:  "world",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -568,164 +568,164 @@ func TestParseCommandsWithDollarExecInQuotedString(t *testing.T) {
 			command: "echo \"[DEBUG] $(echo hello) - $(echo $(echo $(echo world 1 2)))\" '$(echo nope)' $(echo plop) $(echo \"plop\")",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "[DEBUG] ",
+					Kind: Field,
+					Val:  "[DEBUG] ",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "hello",
+					Kind: Field,
+					Val:  "hello",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Field,
-					val:  " - ",
+					Kind: Field,
+					Val:  " - ",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "world",
+					Kind: Field,
+					Val:  "world",
 				},
 				{
-					kind: Field,
-					val:  "1",
+					Kind: Field,
+					Val:  "1",
 				},
 				{
-					kind: Field,
-					val:  "2",
+					Kind: Field,
+					Val:  "2",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Field,
-					val:  "$(echo nope)",
+					Kind: Field,
+					Val:  "$(echo nope)",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "plop",
+					Kind: Field,
+					Val:  "plop",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "plop",
+					Kind: Field,
+					Val:  "plop",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 			},
 		},
@@ -746,44 +746,44 @@ func TestParseCommandWithQuotedStringAndEscapedQuotedString(t *testing.T) {
 			command: "echo \"$(echo \\\"test\\\")\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "test",
+					Kind: Field,
+					Val:  "test",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -801,40 +801,40 @@ func TestParseCommandWithDollarExecWithinBackticks(t *testing.T) {
 			command: "echo `echo $(echo hello)`",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "hello",
+					Kind: Field,
+					Val:  "hello",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 			},
 		},
@@ -851,48 +851,48 @@ func TestParseBasicCommandsWithBackticksAndDollarExec(t *testing.T) {
 			command: "$(echo `echo echo`) \"toto\"",
 			tokens: []ShellToken{
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "echo",
+					Kind: Field,
+					Val:  "echo",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "toto",
+					Kind: Field,
+					Val:  "toto",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -900,48 +900,48 @@ func TestParseBasicCommandsWithBackticksAndDollarExec(t *testing.T) {
 			command: "`echo $(echo echo)` \"toto\"",
 			tokens: []ShellToken{
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "echo",
+					Kind: Field,
+					Val:  "echo",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "toto",
+					Kind: Field,
+					Val:  "toto",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -955,9 +955,9 @@ func TestParseBasicCommandsWithBackticksAndDollarExec(t *testing.T) {
 /*
 Unsupported test case:
 Backticks subcommands are supported but at the first level (not nested).
-Backticks that are escaped will be resolved are normal backticks, resulting of the end of the current backtick expression or the start.
+Backticks that are escaped will be resolved are normal backticks, resulting of the End of the current backtick expression or the Start.
 Executable tokens are not set as executable if they are in a backtick expression.
-We can't know the start and the end of a backtick expression if it's escaped.
+We can't know the Start and the End of a backtick expression if it's escaped.
 
 func TestParseBasicCommandsWithNestedBackticks(t *testing.T) {
 	tests := []testShellCommand{
@@ -965,36 +965,36 @@ func TestParseBasicCommandsWithNestedBackticks(t *testing.T) {
 			command: "echo `echo `echo echo``",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: Field,
-					val:  "echo",
+					Kind: Field,
+					Val:  "echo",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 				{
-					kind: Backticks,
-					val:  "`",
+					Kind: Backticks,
+					Val:  "`",
 				},
 			},
 		},
@@ -1012,16 +1012,16 @@ func TestParseBasicCommandsWithUnfinishedStringDoubleQuote(t *testing.T) {
 			command: "ls \"dir1 dir2",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "dir1 dir2",
+					Kind: Field,
+					Val:  "dir1 dir2",
 				},
 			},
 		},
@@ -1038,16 +1038,16 @@ func TestParseBasicCommandsWithUnfinishedStringSingleQuote(t *testing.T) {
 			command: "ls 'dir1 dir2",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Field,
-					val:  "dir1 dir2",
+					Kind: Field,
+					Val:  "dir1 dir2",
 				},
 			},
 		},
@@ -1064,40 +1064,40 @@ func TestParseBasicCommandsWithStringArgPseudoMulti(t *testing.T) {
 			command: "ls 'dir1\\'; cat 'dir2'",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Field,
-					val:  "dir1\\",
+					Kind: Field,
+					Val:  "dir1\\",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: Executable,
-					val:  "cat",
+					Kind: Executable,
+					Val:  "cat",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Field,
-					val:  "dir2",
+					Kind: Field,
+					Val:  "dir2",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 			},
 		},
@@ -1105,20 +1105,20 @@ func TestParseBasicCommandsWithStringArgPseudoMulti(t *testing.T) {
 			command: "ls /etc; ls",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "/etc",
+					Kind: Field,
+					Val:  "/etc",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 			},
 		},
@@ -1135,20 +1135,20 @@ func TestParseMultiCommandWithStringArg(t *testing.T) {
 			command: "ls \"dir1\\\"; cat \\\"di\\\"r2\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "dir1\\\"; cat \\\"di\\\"r2",
+					Kind: Field,
+					Val:  "dir1\\\"; cat \\\"di\\\"r2",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -1165,48 +1165,48 @@ func TestParseBasicCommandWithEnv(t *testing.T) {
 			command: "TEST=1 FOO=\"bar\" ls dir1 dir2",
 			tokens: []ShellToken{
 				{
-					kind: VariableDefinition,
-					val:  "TEST",
+					Kind: VariableDefinition,
+					Val:  "TEST",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "1",
+					Kind: Field,
+					Val:  "1",
 				},
 				{
-					kind: VariableDefinition,
-					val:  "FOO",
+					Kind: VariableDefinition,
+					Val:  "FOO",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "bar",
+					Kind: Field,
+					Val:  "bar",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "dir1",
+					Kind: Field,
+					Val:  "dir1",
 				},
 				{
-					kind: Field,
-					val:  "dir2",
+					Kind: Field,
+					Val:  "dir2",
 				},
 			},
 		},
@@ -1223,16 +1223,16 @@ func TestParseCommandUsingVariables(t *testing.T) {
 			command: "ls $TOTO",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ShellVariable,
-					val:  "TOTO",
+					Kind: ShellVariable,
+					Val:  "TOTO",
 				},
 			},
 		},
@@ -1240,24 +1240,24 @@ func TestParseCommandUsingVariables(t *testing.T) {
 			command: "TOTO=ls $TOTO",
 			tokens: []ShellToken{
 				{
-					kind: VariableDefinition,
-					val:  "TOTO",
+					Kind: VariableDefinition,
+					Val:  "TOTO",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "ls",
+					Kind: Field,
+					Val:  "ls",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ShellVariable,
-					val:  "TOTO",
+					Kind: ShellVariable,
+					Val:  "TOTO",
 				},
 			},
 		},
@@ -1265,36 +1265,36 @@ func TestParseCommandUsingVariables(t *testing.T) {
 			command: "ping google.com; TOTO=ls $TOTO",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ping",
+					Kind: Executable,
+					Val:  "ping",
 				},
 				{
-					kind: Field,
-					val:  "google.com",
+					Kind: Field,
+					Val:  "google.com",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: VariableDefinition,
-					val:  "TOTO",
+					Kind: VariableDefinition,
+					Val:  "TOTO",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "ls",
+					Kind: Field,
+					Val:  "ls",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: ShellVariable,
-					val:  "TOTO",
+					Kind: ShellVariable,
+					Val:  "TOTO",
 				},
 			},
 		},
@@ -1311,48 +1311,48 @@ func TestParseBasicCommandWithWhitespaceEnv(t *testing.T) {
 			command: "TEST=1 FOO=\"item bar\" ls dir1 dir2",
 			tokens: []ShellToken{
 				{
-					kind: VariableDefinition,
-					val:  "TEST",
+					Kind: VariableDefinition,
+					Val:  "TEST",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "1",
+					Kind: Field,
+					Val:  "1",
 				},
 				{
-					kind: VariableDefinition,
-					val:  "FOO",
+					Kind: VariableDefinition,
+					Val:  "FOO",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "item bar",
+					Kind: Field,
+					Val:  "item bar",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "dir1",
+					Kind: Field,
+					Val:  "dir1",
 				},
 				{
-					kind: Field,
-					val:  "dir2",
+					Kind: Field,
+					Val:  "dir2",
 				},
 			},
 		},
@@ -1360,28 +1360,28 @@ func TestParseBasicCommandWithWhitespaceEnv(t *testing.T) {
 			command: "TEST=1 RAILS = production",
 			tokens: []ShellToken{
 				{
-					kind: VariableDefinition,
-					val:  "TEST",
+					Kind: VariableDefinition,
+					Val:  "TEST",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "1",
+					Kind: Field,
+					Val:  "1",
 				},
 				{
-					kind: Executable,
-					val:  "RAILS",
+					Kind: Executable,
+					Val:  "RAILS",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "production",
+					Kind: Field,
+					Val:  "production",
 				},
 			},
 		},
@@ -1398,16 +1398,16 @@ func TestParseMultipleCommands(t *testing.T) {
 			command: "ls;echo",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 			},
 		},
@@ -1424,24 +1424,24 @@ func TestParseDoubleQuotedExecutable(t *testing.T) {
 			command: "ls;\"echo\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -1449,24 +1449,24 @@ func TestParseDoubleQuotedExecutable(t *testing.T) {
 			command: "ls;\"echo toto\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Executable,
-					val:  "echo toto",
+					Kind: Executable,
+					Val:  "echo toto",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -1474,40 +1474,40 @@ func TestParseDoubleQuotedExecutable(t *testing.T) {
 			command: "ping 127.0.0.1; a=eval \"ls\"",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ping",
+					Kind: Executable,
+					Val:  "ping",
 				},
 				{
-					kind: Field,
-					val:  "127.0.0.1",
+					Kind: Field,
+					Val:  "127.0.0.1",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: VariableDefinition,
-					val:  "a",
+					Kind: VariableDefinition,
+					Val:  "a",
 				},
 				{
-					kind: Equal,
-					val:  "=",
+					Kind: Equal,
+					Val:  "=",
 				},
 				{
-					kind: Field,
-					val:  "eval",
+					Kind: Field,
+					Val:  "eval",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 			},
 		},
@@ -1524,32 +1524,32 @@ func TestParseVariableSubstitution(t *testing.T) {
 			command: "ping -c 1 google.com; ${a:-ls}",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ping",
+					Kind: Executable,
+					Val:  "ping",
 				},
 				{
-					kind: Field,
-					val:  "-c",
+					Kind: Field,
+					Val:  "-c",
 				},
 				{
-					kind: Field,
-					val:  "1",
+					Kind: Field,
+					Val:  "1",
 				},
 				{
-					kind: Field,
-					val:  "google.com",
+					Kind: Field,
+					Val:  "google.com",
 				},
 				{
-					kind: Control,
-					val:  ";",
+					Kind: Control,
+					Val:  ";",
 				},
 				{
-					kind: Dollar,
-					val:  "$",
+					Kind: Dollar,
+					Val:  "$",
 				},
 				{
-					kind: Executable,
-					val:  "{a:-ls}",
+					Kind: Executable,
+					Val:  "{a:-ls}",
 				},
 			},
 		},
@@ -1566,20 +1566,20 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls > /tmp/test args",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Redirection,
-					val:  ">",
+					Kind: Redirection,
+					Val:  ">",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 			},
 		},
@@ -1587,20 +1587,20 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls args > /tmp/test",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 				{
-					kind: Redirection,
-					val:  ">",
+					Kind: Redirection,
+					Val:  ">",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 			},
 		},
@@ -1608,20 +1608,20 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls >                            /tmp/test args ",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Redirection,
-					val:  ">",
+					Kind: Redirection,
+					Val:  ">",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 			},
 		},
@@ -1629,20 +1629,20 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls args 2> /tmp/test",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 				{
-					kind: Redirection,
-					val:  "2>",
+					Kind: Redirection,
+					Val:  "2>",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 			},
 		},
@@ -1650,20 +1650,20 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls args >> /tmp/test",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 				{
-					kind: Redirection,
-					val:  ">>",
+					Kind: Redirection,
+					Val:  ">>",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 			},
 		},
@@ -1671,28 +1671,28 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls args > /tmp/test 2> /etc/stderr",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 				{
-					kind: Redirection,
-					val:  ">",
+					Kind: Redirection,
+					Val:  ">",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 				{
-					kind: Redirection,
-					val:  "2>",
+					Kind: Redirection,
+					Val:  "2>",
 				},
 				{
-					kind: Field,
-					val:  "/etc/stderr",
+					Kind: Field,
+					Val:  "/etc/stderr",
 				},
 			},
 		},
@@ -1700,28 +1700,28 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls args >(/tmp/test)",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 				{
-					kind: Redirection,
-					val:  ">",
+					Kind: Redirection,
+					Val:  ">",
 				},
 				{
-					kind: ParentheseOpen,
-					val:  "(",
+					Kind: ParentheseOpen,
+					Val:  "(",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 				{
-					kind: ParentheseClose,
-					val:  ")",
+					Kind: ParentheseClose,
+					Val:  ")",
 				},
 			},
 		},
@@ -1729,20 +1729,20 @@ func TestParseBasicRedirection(t *testing.T) {
 			command: "ls args >/tmp/test",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 				{
-					kind: Redirection,
-					val:  ">",
+					Kind: Redirection,
+					Val:  ">",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 			},
 		},
@@ -1763,27 +1763,27 @@ func TestParseAllPossibleRedirections(t *testing.T) {
 		command: "ls args > file",
 		tokens: []ShellToken{
 			{
-				kind: Executable,
-				val:  "ls",
+				Kind: Executable,
+				Val:  "ls",
 			},
 			{
-				kind: Field,
-				val:  "args",
+				Kind: Field,
+				Val:  "args",
 			},
 			{
-				kind: Redirection,
-				val:  ">",
+				Kind: Redirection,
+				Val:  ">",
 			},
 			{
-				kind: Field,
-				val:  "file",
+				Kind: Field,
+				Val:  "file",
 			},
 		},
 	}
 
 	for _, redirection := range redirections {
 		test.command = "ls args " + redirection + " file"
-		test.tokens[2].val = redirection
+		test.tokens[2].Val = redirection
 		assert.True(t, compareGeneratedTokens(test))
 	}
 }
@@ -1796,10 +1796,10 @@ func TestParseAllTrickyRedirections(t *testing.T) {
 
 	for _, redirection := range redirections {
 		cmd := "ls args " + redirection + " file"
-		tokens := parseShell(cmd)
+		tokens := ParseShell(cmd)
 
 		assert.True(t, len(tokens) > 4)
-		assert.True(t, tokens[2].val != redirection)
+		assert.True(t, tokens[2].Val != redirection)
 	}
 }
 
@@ -1809,20 +1809,20 @@ func TestParseBasicPrependRedirection(t *testing.T) {
 			command: "> /tmp/test ls args",
 			tokens: []ShellToken{
 				{
-					kind: Redirection,
-					val:  ">",
+					Kind: Redirection,
+					Val:  ">",
 				},
 				{
-					kind: Field,
-					val:  "/tmp/test",
+					Kind: Field,
+					Val:  "/tmp/test",
 				},
 				{
-					kind: Executable,
-					val:  "ls",
+					Kind: Executable,
+					Val:  "ls",
 				},
 				{
-					kind: Field,
-					val:  "args",
+					Kind: Field,
+					Val:  "args",
 				},
 			},
 		},
@@ -1839,68 +1839,68 @@ func TestParseMultipleCommandsPipeline(t *testing.T) {
 			command: "true && echo \"hello\" | tr h ' ' | tr e a",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "true",
+					Kind: Executable,
+					Val:  "true",
 				},
 				{
-					kind: Control,
-					val:  "&&",
+					Kind: Control,
+					Val:  "&&",
 				},
 				{
-					kind: Executable,
-					val:  "echo",
+					Kind: Executable,
+					Val:  "echo",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Field,
-					val:  "hello",
+					Kind: Field,
+					Val:  "hello",
 				},
 				{
-					kind: DoubleQuote,
-					val:  "\"",
+					Kind: DoubleQuote,
+					Val:  "\"",
 				},
 				{
-					kind: Control,
-					val:  "|",
+					Kind: Control,
+					Val:  "|",
 				},
 				{
-					kind: Executable,
-					val:  "tr",
+					Kind: Executable,
+					Val:  "tr",
 				},
 				{
-					kind: Field,
-					val:  "h",
+					Kind: Field,
+					Val:  "h",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Field,
-					val:  " ",
+					Kind: Field,
+					Val:  " ",
 				},
 				{
-					kind: SingleQuote,
-					val:  "'",
+					Kind: SingleQuote,
+					Val:  "'",
 				},
 				{
-					kind: Control,
-					val:  "|",
+					Kind: Control,
+					Val:  "|",
 				},
 				{
-					kind: Executable,
-					val:  "tr",
+					Kind: Executable,
+					Val:  "tr",
 				},
 				{
-					kind: Field,
-					val:  "e",
+					Kind: Field,
+					Val:  "e",
 				},
 				{
-					kind: Field,
-					val:  "a",
+					Kind: Field,
+					Val:  "a",
 				},
 			},
 		},
@@ -1917,24 +1917,24 @@ func TestParseCommandWithNewLines(t *testing.T) {
 			command: "cmd hello\ncat /etc/passwd",
 			tokens: []ShellToken{
 				{
-					kind: Executable,
-					val:  "cmd",
+					Kind: Executable,
+					Val:  "cmd",
 				},
 				{
-					kind: Field,
-					val:  "hello",
+					Kind: Field,
+					Val:  "hello",
 				},
 				{
-					kind: Control,
-					val:  "\n",
+					Kind: Control,
+					Val:  "\n",
 				},
 				{
-					kind: Executable,
-					val:  "cat",
+					Kind: Executable,
+					Val:  "cat",
 				},
 				{
-					kind: Field,
-					val:  "/etc/passwd",
+					Kind: Field,
+					Val:  "/etc/passwd",
 				},
 			},
 		},

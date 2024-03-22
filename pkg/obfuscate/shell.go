@@ -152,7 +152,7 @@ func obfuscateExecCommand(shi SHICore) ([]string, []string) {
 	// Create shell tokens from the command arguments
 	tokens := make([]ShellToken, len(shi.CommandArgs))
 	for i, arg := range shi.CommandArgs {
-		tokens[i] = ShellToken{val: arg}
+		tokens[i] = ShellToken{Val: arg}
 	}
 
 	// Obfuscate the command arguments
@@ -161,7 +161,7 @@ func obfuscateExecCommand(shi SHICore) ([]string, []string) {
 	// Rebuild the command arguments
 	var obfuscatedArgs []string
 	for _, token := range tokens {
-		obfuscatedArgs = append(obfuscatedArgs, token.val)
+		obfuscatedArgs = append(obfuscatedArgs, token.Val)
 	}
 
 	// Merge the indices
@@ -174,7 +174,7 @@ func obfuscateExecCommand(shi SHICore) ([]string, []string) {
 // returns the obfuscated command and the indices of tokens that were obfuscated as a string
 func obfuscateShellCommandString(cmd string) (string, []string) {
 	// Parse the shell command
-	tokens := parseShell(cmd)
+	tokens := ParseShell(cmd)
 
 	// Obfuscate the command tokens
 	obfuscatedSlices := obfuscateShellCommandToken(tokens)
@@ -210,30 +210,30 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 
 		if !foundBinary {
 
-			if token.kind == VariableDefinition && !stringInSlice(token.val, allowedEnvVars) {
+			if token.Kind == VariableDefinition && !stringInSlice(token.Val, allowedEnvVars) {
 				// Detected a variable definition, obfuscate the value
 				// Check if the next token is an equal sign and has a value
-				if index+2 < len(tokens) && (tokens)[index+1].kind == Equal {
+				if index+2 < len(tokens) && (tokens)[index+1].Kind == Equal {
 					// Get tokens that defines the value
 					startValueToken := index + 2
 					endValueToken, nbrGrabbed := grabFullArgument(tokens, index+2)
 
 					// Replace the startValueToken with an obfuscated value
 					if nbrGrabbed > 0 {
-						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].start, (tokens)[endValueToken].end})
+						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].Start, (tokens)[endValueToken].End})
 					}
 
 					// Increment the index to the end of the value
 					index = endValueToken
 				}
-			} else if token.kind == Executable {
+			} else if token.Kind == Executable {
 				// We found a binary, check if it is not on the deny list
-				if stringInSlice(token.val, processDenyList) {
+				if stringInSlice(token.Val, processDenyList) {
 					// Remove every parameter until the end of the command
 					i := index + 1
-					for ; i < len(tokens) && (tokens[i].kind != Control && tokens[i].kind != Redirection); i++ {
+					for ; i < len(tokens) && (tokens[i].Kind != Control && tokens[i].Kind != Redirection); i++ {
 						// If that's a parameter that have an equal sign (and possibly a value), this should be obfuscated as one value
-						if i+1 < len(tokens) && (tokens)[i+1].kind == Equal {
+						if i+1 < len(tokens) && (tokens)[i+1].Kind == Equal {
 							// Get tokens that defines the value
 							startValueToken := i
 							endValueToken, nbrGrabbed := grabFullArgument(tokens, i+2)
@@ -246,7 +246,7 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 								i++
 							}
 
-							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].start, (tokens)[endValueToken].end})
+							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{(tokens)[startValueToken].Start, (tokens)[endValueToken].End})
 
 						} else {
 							// Get tokens that defines the value
@@ -254,7 +254,7 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 							endValueToken, nbrGrabbed := grabFullArgument(tokens, i)
 
 							if nbrGrabbed > 0 {
-								obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+								obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].Start, tokens[endValueToken].End})
 								i += nbrGrabbed - 1
 							}
 						}
@@ -269,11 +269,11 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 			}
 		} else {
 			// We are on a parameter
-			if token.kind == Field && regexParamDeny.MatchString(token.val) {
+			if token.Kind == Field && regexParamDeny.MatchString(token.Val) {
 				// The parameter needs to be obfuscated
 
 				// Check if the next token is an equal sign and has a value
-				if index+1 < len(tokens) && tokens[index+1].kind == Equal {
+				if index+1 < len(tokens) && tokens[index+1].Kind == Equal {
 					// Check if the next token exists (check for end of command)
 					if index+2 == len(tokens) {
 						// Skip the equal sign, do not obfuscate the value as it doesn't exist
@@ -288,7 +288,7 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 					// Replace the startValueToken with an obfuscated value
 					// Only if it expands a value (more than one '=' token)
 					if nbrGrabbed > 0 {
-						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+						obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].Start, tokens[endValueToken].End})
 					}
 
 					// Increment the index to the end of the value
@@ -302,22 +302,22 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 
 						// Replace the startValueToken with an obfuscated value
 						if nbrGrabbed > 0 {
-							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].start, tokens[endValueToken].end})
+							obfuscatedSlices = append(obfuscatedSlices, ObfuscatedSlice{tokens[startValueToken].Start, tokens[endValueToken].End})
 						}
 
 						// Increment the index to the end of the value
 						index = endValueToken
 					}
 				}
-			} else if token.kind == Control || token.kind == Redirection {
+			} else if token.Kind == Control || token.Kind == Redirection {
 				// We found a control or redirection token, we are not on a parameter anymore
 				foundBinary = false
-			} else if token.kind == Dollar && index+1 < len(tokens) && tokens[index+1].kind == ParentheseOpen {
+			} else if token.Kind == Dollar && index+1 < len(tokens) && tokens[index+1].Kind == ParentheseOpen {
 				// We are on a subcommand $()
 				newIndex, obfuscatedSlicesSubcommand := handleSubcommands(tokens, index, index+2, ParentheseOpen)
 				index = newIndex
 				obfuscatedSlices = append(obfuscatedSlices, obfuscatedSlicesSubcommand...)
-			} else if token.kind == Backticks {
+			} else if token.Kind == Backticks {
 				// We are on a subcommand ``
 				newIndex, obfuscatedSlicesSubcommand := handleSubcommands(tokens, index, index+1, Backticks)
 				if newIndex == index {
@@ -328,7 +328,7 @@ func obfuscateShellCommandToken(tokens []ShellToken) []ObfuscatedSlice {
 
 				index = newIndex
 				obfuscatedSlices = append(obfuscatedSlices, obfuscatedSlicesSubcommand...)
-			} else if token.kind == ParentheseOpen {
+			} else if token.Kind == ParentheseOpen {
 				// We are on a subcommand ()
 				newIndex, obfuscatedSlicesSubcommand := handleSubcommands(tokens, index, index+1, ParentheseOpen)
 				if newIndex == index {
@@ -366,9 +366,9 @@ func handleSubcommands(tokens []ShellToken, index int, startIndex int, subcomman
 	i := startIndex
 
 	for ; i < len(tokens); i++ {
-		if tokens[i].kind == closingType {
+		if tokens[i].Kind == closingType {
 			nbrOpenParentheses--
-		} else if tokens[i].kind == openType {
+		} else if tokens[i].Kind == openType {
 			nbrOpenParentheses++
 		}
 
@@ -411,7 +411,7 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 
 	nbrGrabbed := 0
 	for ; index < tokensLength; index++ {
-		kind := tokens[index].kind
+		kind := tokens[index].Kind
 
 		// We can't grab a control or redirection token
 		if kind == Control || kind == Redirection {
@@ -430,12 +430,12 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 		} else if kind == ParentheseOpen {
 			// Grab the whole parentheses content
 			j := index + 1
-			for ; j < tokensLength && tokens[j].kind != ParentheseClose; j++ {
-				if tokens[j].kind == Dollar {
+			for ; j < tokensLength && tokens[j].Kind != ParentheseClose; j++ {
+				if tokens[j].Kind == Dollar {
 					// Grab the next token
 					nbrGrabbed++
 					// continue
-				} else if tokens[j].kind == ParentheseOpen {
+				} else if tokens[j].Kind == ParentheseOpen {
 					// Recursively grab the whole parentheses content
 					newIndex, newNbrGrabbed := grabFullArgument(tokens, j)
 					nbrGrabbed += newNbrGrabbed
@@ -448,7 +448,7 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 			index = j
 
 			// Add the last token if it is the same as the start token
-			if index < tokensLength && tokens[index].kind == ParentheseClose {
+			if index < tokensLength && tokens[index].Kind == ParentheseClose {
 				nbrGrabbed++
 			}
 
@@ -458,12 +458,12 @@ func grabFullArgument(tokens []ShellToken, index int) (int, int) {
 			index++
 
 			// Grab the whole quoted string
-			for ; index < tokensLength && tokens[index].kind != kind; index++ {
+			for ; index < tokensLength && tokens[index].Kind != kind; index++ {
 				nbrGrabbed++
 			}
 
 			// Add the last token if it is the same as the start token
-			if index < tokensLength && tokens[index].kind == kind {
+			if index < tokensLength && tokens[index].Kind == kind {
 				nbrGrabbed++
 			}
 
@@ -504,25 +504,25 @@ func obfuscateCommandTokens(tokens []ShellToken, isExecCmd bool, preObfuscatedIn
 
 		if !foundBinary {
 			// Is this an environment variable? Assume that the format match our regex
-			if result := regexEnvVars.FindStringSubmatch(token.val); result != nil {
+			if result := regexEnvVars.FindStringSubmatch(token.Val); result != nil {
 				// If this is an environment variable, check if it’s part of our passlist
-				if !stringInSlice(token.val, allowedEnvVars) {
-					tokens[index].val = result[1] + "=?"
+				if !stringInSlice(token.Val, allowedEnvVars) {
+					tokens[index].Val = result[1] + "=?"
 					obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa(index)+"-"+strconv.Itoa(len(result[1])+1))
 				}
 			} else {
 				// If not formatted like an env variable, likely the binary
-				if stringInSlice(token.val, processDenyList) {
+				if stringInSlice(token.Val, processDenyList) {
 					// Remove every parameter until the end of the command
 					if isExecCmd {
 						// Remove all tokens until the end (the whole command)
 						for index++; index < len(tokens); index++ {
-							tokens[index].val = "?"
+							tokens[index].Val = "?"
 							obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa(index))
 						}
 					} else {
-						for index++; index < len(tokens) && tokens[index].kind == Field; index++ {
-							tokens[index].val = "?"
+						for index++; index < len(tokens) && tokens[index].Kind == Field; index++ {
+							tokens[index].Val = "?"
 							obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa(index))
 						}
 					}
@@ -532,21 +532,21 @@ func obfuscateCommandTokens(tokens []ShellToken, isExecCmd bool, preObfuscatedIn
 			}
 		} else { // Alright, we’re in the parameters then
 			// Are we in the case of --pass=xxx or --pass xxx
-			if equalIndex := strings.Index(token.val, "="); equalIndex == -1 {
+			if equalIndex := strings.Index(token.Val, "="); equalIndex == -1 {
 
 				// if --pass xxx, check is --pass is allowed and that we have a xxx
-				if regexParamDeny.MatchString(token.val) && index < len(tokens)-1 {
-					(tokens)[index+1].val = "?"
+				if regexParamDeny.MatchString(token.Val) && index < len(tokens)-1 {
+					(tokens)[index+1].Val = "?"
 					obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa(index+1))
 				}
 
 				skipNext = true
 			} else {
 				// split at the first equal sign
-				param := token.val[:equalIndex]
+				param := token.Val[:equalIndex]
 
 				if regexParamDeny.MatchString(param) {
-					tokens[index].val = param + "=?"
+					tokens[index].Val = param + "=?"
 					obfuscatedArgsIndices = append(obfuscatedArgsIndices, strconv.Itoa(index)+"-"+strconv.Itoa(len(param)+1))
 				}
 			}
