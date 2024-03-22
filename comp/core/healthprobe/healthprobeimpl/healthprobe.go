@@ -142,7 +142,9 @@ func buildServer(options healthprobeComponent.Options, log log.Component) *http.
 func healthHandler(logsGoroutines bool, log log.Component, getStatusNonBlocking func() (health.Status, error), w http.ResponseWriter, _ *http.Request) {
 	health, err := getStatusNonBlocking()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), http.StatusInternalServerError)
+		return
 	}
 
 	if len(health.Unhealthy) > 0 {

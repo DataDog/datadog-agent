@@ -8,6 +8,7 @@ package healthprobeimpl
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -123,4 +124,18 @@ func TestReadyHandlerUnhealthy(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, responseRecorder.Code)
 
 	assert.Equal(t, "{\"Healthy\":[\"healthcheck\"],\"Unhealthy\":[\"fake\"]}", responseRecorder.Body.String())
+}
+
+func TestHealthHandlerFails(t *testing.T) {
+	logComponent := fxutil.Test[log.Component](t, logimpl.MockModule())
+
+	request := httptest.NewRequest(http.MethodGet, "/live", nil)
+	responseRecorder := httptest.NewRecorder()
+
+	healthHandler(false, logComponent, func() (health.Status, error) {
+		return health.Status{}, fmt.Errorf("fail to extract status")
+	}, responseRecorder, request)
+
+	assert.Equal(t, http.StatusInternalServerError, responseRecorder.Code)
+	assert.Equal(t, "{\"error\":\"fail to extract status\"}\n", responseRecorder.Body.String())
 }
