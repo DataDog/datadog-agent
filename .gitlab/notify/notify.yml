@@ -84,3 +84,14 @@ notify_github:
     - echo '```' >> "$messagefile"
     - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
     - rm "$messagefile"
+
+notify-celian:
+  extends: .slack-notifier-base
+  stage: notify
+  needs:
+    - job: "github_rate_limit_info"
+  dependencies: []
+  tags: ["arch:amd64"]
+  script: |
+    MESSAGE_TEXT="Hello @celian ! :rocket:"
+    postmessage "#celian-test" "$MESSAGE_TEXT"
