@@ -460,12 +460,13 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	err = check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
 	deps := newSubmitterDepsWithConfig(t, mockConfig)
-	c.Submitter, err = NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
+	submiter, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
+	c.Submitter = submiter
 	require.NoError(t, err)
 
-	err = c.Submitter.Start()
+	err = submiter.Start()
 	require.NoError(t, err)
-	defer c.Submitter.Stop()
+	defer submiter.Stop()
 
 	err = c.Run()
 	require.NoError(t, err)
