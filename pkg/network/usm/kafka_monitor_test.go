@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 	"github.com/twmb/franz-go/pkg/kversion"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -140,7 +141,6 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ConsumeTopics(topicName),
 						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
 					},
 				})
@@ -153,12 +153,16 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-				fetches := client.Client.PollFetches(context.Background())
-				errs := fetches.Errors()
-				for _, err := range errs {
-					t.Errorf("PollFetches error: %+v", err)
-					t.FailNow()
-				}
+				req := kmsg.NewFetchRequest()
+				topic := kmsg.NewFetchRequestTopic()
+				topic.Topic = topicName
+				partition := kmsg.NewFetchRequestTopicPartition()
+				partition.PartitionMaxBytes = 1024
+				topic.Partitions = append(topic.Partitions, partition)
+				req.Topics = append(req.Topics, topic)
+
+				_, err = req.RequestWith(ctxTimeout, client.Client)
+				require.NoError(t, err)
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
