@@ -177,7 +177,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 		compressor, err = stream.NewCompressor(
 			bufferContext.CompressorInput, bufferContext.CompressorOutput,
 			maxPayloadSize, maxUncompressedSize,
-			[]byte{}, []byte{}, []byte{})
+			[]byte{}, []byte{}, []byte{}, config)
 		if err != nil {
 			return err
 		}

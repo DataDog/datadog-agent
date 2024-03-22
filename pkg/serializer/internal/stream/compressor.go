@@ -3,19 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-//go:build zlib
+//go:build zlib || zstd
 
 //nolint:revive // TODO(AML) Fix revive linter
 package stream
 
 import (
 	"bytes"
-	"compress/zlib"
 	"errors"
 	"expvar"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 )
 
 const (
@@ -63,7 +65,8 @@ func init() {
 type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
-	zipper              *zlib.Writer
+	strategy            strategyUtils.Compressor
+	zipper              strategyUtils.StreamCompressor
 	header              []byte // json header to print at the beginning of the payload
 	footer              []byte // json footer to append at the end of the payload
 	uncompressedWritten int    // uncompressed bytes written
@@ -77,22 +80,23 @@ type Compressor struct {
 }
 
 // NewCompressor returns a new instance of a Compressor
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte) (*Compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte, cfg config.Component) (*Compressor, error) {
 	c := &Compressor{
 		header:              header,
 		footer:              footer,
 		input:               input,
 		compressed:          output,
+		strategy:            compression.NewCompressorStrategy(cfg),
 		firstItem:           true,
 		maxPayloadSize:      maxPayloadSize,
 		maxUncompressedSize: maxUncompressedSize,
 		maxUnzippedItemSize: maxPayloadSize - len(footer) - len(header),
-		maxZippedItemSize:   maxUncompressedSize - compression.CompressBound(len(footer)+len(header)),
 		separator:           separator,
 	}
 
-	c.zipper = zlib.NewWriter(c.compressed)
+	c.zipper = compression.NewStreamCompressor(c.compressed, cfg)
 	n, err := c.zipper.Write(header)
+	c.maxZippedItemSize = maxUncompressedSize - c.strategy.CompressBound(len(footer)+len(header))
 	c.uncompressedWritten += n
 
 	return c, err
@@ -103,8 +107,8 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 // that could actually fit after compression. That said it is probably impossible
 // to have a 2MB+ item that is valid for the backend.
 func (c *Compressor) checkItemSize(data []byte) bool {
-	maxEffectivePayloadSize := (c.maxPayloadSize - len(c.footer) - len(c.header))
-	compressedWillFit := compression.CompressBound(len(data)) < c.maxZippedItemSize && compression.CompressBound(len(data)) < maxEffectivePayloadSize
+	maxEffectivePayloadSize := c.maxPayloadSize - len(c.footer) - len(c.header)
+	compressedWillFit := c.strategy.CompressBound(len(data)) < c.maxZippedItemSize && c.strategy.CompressBound(len(data)) < maxEffectivePayloadSize
 
 	return len(data) < c.maxUnzippedItemSize && compressedWillFit
 }
@@ -115,7 +119,7 @@ func (c *Compressor) hasRoomForItem(item []byte) bool {
 	if !c.firstItem {
 		uncompressedDataSize += len(c.separator)
 	}
-	return compression.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
+	return c.strategy.CompressBound(uncompressedDataSize) <= c.remainingSpace() && c.uncompressedWritten+uncompressedDataSize <= c.maxUncompressedSize
 }
 
 // pack flushes the temporary uncompressed buffer input to the compression writer

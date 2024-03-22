@@ -45,7 +45,7 @@ notify:
 send_pipeline_stats:
   stage: notify
   # Using a buildimage image with python 3.7+, datadog-api-client and invoke installed
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_CI_UPLOADER_IMAGE
   tags: ["arch:amd64"]
   when: always
   dependencies: []

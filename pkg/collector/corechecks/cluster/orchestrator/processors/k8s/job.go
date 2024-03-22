@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -20,13 +21,13 @@ import (
 
 // JobHandlers implements the Handlers interface for Kubernetes Jobs.
 type JobHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *JobHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+func (h *JobHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Job)
 	m.Yaml = yaml
 	return
@@ -34,7 +35,8 @@ func (h *JobHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resourc
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *JobHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *JobHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.Job, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -42,19 +44,19 @@ func (h *JobHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 	}
 
 	return &model.CollectorJob{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		GroupId:     ctx.MsgGroupID,
+		ClusterName: pctx.Cfg.KubeClusterName,
+		ClusterId:   pctx.ClusterID,
+		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Jobs:        models,
-		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *JobHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+func (h *JobHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*batchv1.Job)
 	return k8sTransformers.ExtractJob(r)
 }
@@ -63,7 +65,7 @@ func (h *JobHandlers) ExtractResource(ctx *processors.ProcessorContext, resource
 // interface to a list of generic interfaces.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *JobHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+func (h *JobHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*batchv1.Job)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -77,14 +79,14 @@ func (h *JobHandlers) ResourceList(ctx *processors.ProcessorContext, list interf
 // ResourceUID is a handler called to retrieve the resource UID.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *JobHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *JobHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*batchv1.Job).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *JobHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *JobHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*batchv1.Job).ResourceVersion
 }
 
@@ -92,16 +94,17 @@ func (h *JobHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource
 // it is extracted as an internal resource model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *JobHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *JobHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*batchv1.Job)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
 
 // ScrubBeforeMarshalling is a handler called to redact the raw resource before
 // it is marshalled to generate a manifest.
-func (h *JobHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *JobHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*batchv1.Job)
-	if ctx.Cfg.IsScrubbingEnabled {
-		redact.ScrubPodTemplateSpec(&r.Spec.Template, ctx.Cfg.Scrubber)
+	if pctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubPodTemplateSpec(&r.Spec.Template, pctx.Cfg.Scrubber)
 	}
 }

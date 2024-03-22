@@ -28,6 +28,16 @@ func TestStoreGenerators(t *testing.T) {
 			cfg: map[string]bool{
 				"cluster_agent.collect_kubernetes_tags": false,
 				"language_detection.reporting.enabled":  false,
+				"language_detection.enabled":            false,
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore},
+		},
+		{
+			name: "All configurations disabled",
+			cfg: map[string]bool{
+				"cluster_agent.collect_kubernetes_tags": false,
+				"language_detection.reporting.enabled":  false,
+				"language_detection.enabled":            true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore},
 		},
@@ -36,6 +46,7 @@ func TestStoreGenerators(t *testing.T) {
 			cfg: map[string]bool{
 				"cluster_agent.collect_kubernetes_tags": true,
 				"language_detection.reporting.enabled":  false,
+				"language_detection.enabled":            true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore},
 		},
@@ -44,14 +55,25 @@ func TestStoreGenerators(t *testing.T) {
 			cfg: map[string]bool{
 				"cluster_agent.collect_kubernetes_tags": false,
 				"language_detection.reporting.enabled":  true,
+				"language_detection.enabled":            true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newDeploymentStore},
+		},
+		{
+			name: "Language detection enabled",
+			cfg: map[string]bool{
+				"cluster_agent.collect_kubernetes_tags": false,
+				"language_detection.reporting.enabled":  true,
+				"language_detection.enabled":            false,
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore},
 		},
 		{
 			name: "All configurations enabled",
 			cfg: map[string]bool{
 				"cluster_agent.collect_kubernetes_tags": true,
 				"language_detection.reporting.enabled":  true,
+				"language_detection.enabled":            true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore},
 		},

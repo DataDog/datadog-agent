@@ -12,7 +12,7 @@
                 {
                     "mount_point": "/mnt/docker",
                     "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-x86_64.qcow2.xz",
-                    "target": "/home/kernel-version-testing/rootfs/docker-x86_64.qcow2",
+                    "target": "%KMTDIR%/rootfs/docker-x86_64.qcow2",
                     "type": "default"
                 }
             ]
@@ -30,7 +30,7 @@
                 {
                     "mount_point": "/mnt/docker",
                     "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-arm64.qcow2.xz",
-                    "target": "/home/kernel-version-testing/rootfs/docker-arm64.qcow2",
+                    "target": "%KMTDIR%/rootfs/docker-arm64.qcow2",
                     "type": "default"
                 }
             ]

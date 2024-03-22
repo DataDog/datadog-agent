@@ -5,11 +5,10 @@ import os
 import platform
 from urllib.parse import urlparse
 
-from tasks.kernel_matrix_testing.download import arch_mapping, get_vmconfig_file, platforms_file
-from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
-from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.stacks import create_stack, stack_exists
+from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
+from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping, platforms_file
 
 local_arch = "local"
 
@@ -110,6 +109,19 @@ table = [
     ["debian 10 - v4.19.0", TICK, TICK],
     ["debian 11 - v5.10.0", TICK, TICK],
 ]
+
+
+def get_vmconfig_file(template="system-probe"):
+    return f"test/new-e2e/system-probe/config/vmconfig-{template}.json"
+
+
+def get_vmconfig_template(template="system-probe"):
+    vmconfig_file = get_vmconfig_file(template)
+
+    with open(vmconfig_file) as f:
+        data = json.load(f)
+
+    return data
 
 
 def lte_414(version):
@@ -350,6 +362,14 @@ def add_disks(vmconfig_template, vmset):
         if tname in template["tags"]:
             vmset["disks"] = copy.deepcopy(template["disks"])
 
+            if vmset["arch"] == local_arch:
+                kmt_os = get_kmt_os()
+            else:
+                kmt_os = Linux
+
+            for disk in vmset.get("disks", []):
+                disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
+
 
 def add_console(vmset):
     vmset["console_type"] = "file"
@@ -450,8 +470,7 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci, tem
     with open(platforms_file) as f:
         platforms = json.load(f)
 
-    with open(get_vmconfig_file(template)) as f:
-        vmconfig_template = json.load(f)
+    vmconfig_template = get_vmconfig_template(template)
 
     vmsets = build_vmsets(normalized_vm_defs, sets)
 

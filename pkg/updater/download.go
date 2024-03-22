@@ -38,13 +38,15 @@ const (
 
 // downloader is the downloader used by the updater to download packages.
 type downloader struct {
-	client *http.Client
+	client        *http.Client
+	remoteBaseURL string
 }
 
 // newDownloader returns a new Downloader.
-func newDownloader(client *http.Client) *downloader {
+func newDownloader(client *http.Client, remoteBaseURL string) *downloader {
 	return &downloader{
-		client: client,
+		client:        client,
+		remoteBaseURL: remoteBaseURL,
 	}
 }
 
@@ -60,7 +62,7 @@ func (d *downloader) Download(ctx context.Context, tmpDir string, pkg Package) (
 	case "http", "https":
 		image, err = d.downloadHTTP(ctx, pkg.URL, pkg.SHA256, pkg.Size, tmpDir)
 	case "oci":
-		image, err = d.downloadRegistry(ctx, pkg.URL)
+		image, err = d.downloadRegistry(ctx, pkg)
 	default:
 		return nil, fmt.Errorf("unsupported package URL scheme: %s", url.Scheme)
 	}
@@ -71,13 +73,28 @@ func (d *downloader) Download(ctx context.Context, tmpDir string, pkg Package) (
 	return image, nil
 }
 
-func (d *downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	url = strings.TrimPrefix(url, "oci://")
+func (d *downloader) getRegistryURL(pkg Package) string {
+	downloadURL := strings.TrimPrefix(pkg.URL, "oci://")
+	if d.remoteBaseURL != "" {
+		remoteBaseURL := d.remoteBaseURL
+		if !strings.HasSuffix(d.remoteBaseURL, "/") {
+			remoteBaseURL += "/"
+		}
+		split := strings.Split(pkg.URL, "/")
+		downloadURL = remoteBaseURL + split[len(split)-1]
+	}
+	return downloadURL
+}
+
+func (d *downloader) downloadRegistry(ctx context.Context, pkg Package) (oci.Image, error) {
+	url := d.getRegistryURL(pkg)
+
 	// the image URL is parsed as a digest to ensure we use the <repository>/<image>@<digest> format
 	digest, err := name.NewDigest(url, name.StrictValidation)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse digest: %w", err)
 	}
+
 	platform := oci.Platform{
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,

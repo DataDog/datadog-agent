@@ -130,11 +130,27 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (str
 		return "", fmt.Errorf("no agent MSI found for pipeline %v", pipelineID)
 	}
 
-	// match the arch
+	// In case there are multiple artifacts, try to match the right one
+	// This is only here as a workaround for a CI issue that can cause artifacts
+	// from different pipelines to be mixed together. This should be removed once
+	// the issue is resolved.
+	// TODO: CIREL-1970
 	for _, obj := range result.Contents {
-		if strings.Contains(*obj.Key, arch) {
-			return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", agentS3BucketTesting, *obj.Key), nil
+		// Example: datadog-agent-7.52.0-1-x86_64.msi
+		// Example: datadog-agent-7.53.0-devel.git.512.41b1225.pipeline.30353507-1-x86_64.msi
+		if !strings.Contains(*obj.Key, fmt.Sprintf("datadog-agent-%s", majorVersion)) {
+			continue
 		}
+		// Not all pipelines include the pipeline ID in the artifact name, but if it is there then match against it
+		if strings.Contains(*obj.Key, "pipeline.") &&
+			!strings.Contains(*obj.Key, fmt.Sprintf("pipeline.%s", pipelineID)) {
+			continue
+		}
+		if !strings.Contains(*obj.Key, fmt.Sprintf("-%s.msi", arch)) {
+			continue
+		}
+
+		return fmt.Sprintf("https://s3.amazonaws.com/%s/%s", agentS3BucketTesting, *obj.Key), nil
 	}
 
 	return "", fmt.Errorf("no agent MSI found for pipeline %v and arch %v", pipelineID, arch)

@@ -63,5 +63,8 @@ func main() {
 	}
 
 	rootCmd := agentCmdBuilder()
+	if err := setProcessName(process); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to set process name as '%s': %s\n", process, err)
+	}
 	os.Exit(runcmd.Run(rootCmd))
 }

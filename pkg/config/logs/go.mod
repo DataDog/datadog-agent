@@ -18,7 +18,7 @@ require (
 )
 
 require (
-	github.com/DataDog/viper v1.12.0 // indirect
+	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect

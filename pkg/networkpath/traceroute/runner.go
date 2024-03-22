@@ -8,6 +8,7 @@ package traceroute
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"sort"
 	"time"
@@ -39,7 +40,7 @@ const (
 // complete implementation.
 func RunTraceroute(cfg Config) (NetworkPath, error) {
 	rawDest := cfg.DestHostname
-	dests, err := net.LookupIP(rawDest)
+	dests, err := net.DefaultResolver.LookupIP(context.Background(), "ip4", rawDest)
 	if err != nil || len(dests) == 0 {
 		return NetworkPath{}, fmt.Errorf("cannot resolve %s: %v", rawDest, err)
 	}
@@ -50,18 +51,34 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	// use first resolved IP for now
 	dest := dests[0]
 
+	destPort, srcPort, useSourcePort := getPorts(cfg.DestPort)
+
+	maxTTL := cfg.MaxTTL
+	if maxTTL == 0 {
+		maxTTL = DefaultMaxTTL
+	}
+
+	var timeout time.Duration
+	if cfg.TimeoutMs == 0 {
+		timeout = DefaultReadTimeout
+	} else {
+		timeout = time.Duration(cfg.TimeoutMs) * time.Millisecond
+	}
+
 	dt := &probev4.UDPv4{
 		Target:     dest,
-		SrcPort:    uint16(DefaultSourcePort), // TODO: what's a good value?
-		DstPort:    uint16(DefaultDestPort),   // TODO: what's a good value?
-		UseSrcPort: false,
+		SrcPort:    srcPort,
+		DstPort:    destPort,
+		UseSrcPort: useSourcePort,
 		NumPaths:   uint16(DefaultNumPaths),
 		MinTTL:     uint8(DefaultMinTTL), // TODO: what's a good value?
-		MaxTTL:     uint8(15),
+		MaxTTL:     maxTTL,
 		Delay:      time.Duration(DefaultDelay) * time.Millisecond, // TODO: what's a good value?
-		Timeout:    DefaultReadTimeout,                             // TODO: what's a good value?
+		Timeout:    timeout,                                        // TODO: what's a good value?
 		BrokenNAT:  false,
 	}
+
+	log.Debugf("Traceroute UDPv4 probe config: %+v", dt)
 	results, err := dt.Traceroute()
 	if err != nil {
 		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
@@ -79,6 +96,23 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	}
 
 	return pathResult, nil
+}
+
+func getPorts(configDestPort uint16) (uint16, uint16, bool) {
+	var destPort uint16
+	var srcPort uint16
+	var useSourcePort bool
+	if configDestPort > 0 {
+		// Fixed Destination Port
+		destPort = configDestPort
+		useSourcePort = true
+	} else {
+		// Random Destination Port
+		destPort = DefaultDestPort + uint16(rand.Intn(30))
+		useSourcePort = false
+	}
+	srcPort = DefaultSourcePort + uint16(rand.Intn(10000))
+	return destPort, srcPort, useSourcePort
 }
 
 func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {

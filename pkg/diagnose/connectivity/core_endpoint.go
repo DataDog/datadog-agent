@@ -78,16 +78,30 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	}
 
+	endpointsInfo := getEndpointsInfo(config.Datadog)
+
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
 		for _, apiKey := range domainResolver.GetAPIKeys() {
 			for _, endpointInfo := range endpointsInfo {
-				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-				httpTraces := []string{}
-				ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
+				// Initialize variables
+				var logURL string
+				var responseBody []byte
+				var err error
+				var statusCode int
+				var httpTraces []string
 
-				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+				if endpointInfo.Method == "HEAD" {
+					logURL = endpointInfo.Endpoint.Route
+					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects())
+				} else {
+					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+					httpTraces = []string{}
+					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
+
+					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+				}
 
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
@@ -212,4 +226,26 @@ func noResponseHints(err error) string {
 	}
 
 	return ""
+}
+
+func clientWithOneRedirects() *http.Client {
+	return &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+// See if the URL is redirected to another URL, and return the status code of the redirection
+func sendHTTPHEADRequestToEndpoint(url string, client *http.Client) (int, error) {
+	res, err := client.Head(url)
+	if err != nil {
+		return -1, err
+	}
+	defer res.Body.Close()
+	// Expected status codes are OK or a redirection
+	if res.StatusCode == http.StatusTemporaryRedirect || res.StatusCode == http.StatusPermanentRedirect || res.StatusCode == http.StatusOK {
+		return res.StatusCode, nil
+	}
+	return res.StatusCode, fmt.Errorf("The request wasn't redirected nor achieving his goal: %v", res.Status)
 }

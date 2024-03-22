@@ -12,6 +12,9 @@ type (
 	Config struct {
 		// TODO: add common configuration
 		DestHostname string
+		DestPort     uint16
+		MaxTTL       uint8
+		TimeoutMs    uint
 	}
 
 	// Traceroute defines an interface for running

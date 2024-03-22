@@ -5,7 +5,7 @@
 
 //go:build !apm || windows || linux
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package apm provides a stub for the APM check
 package apm
 
 import (

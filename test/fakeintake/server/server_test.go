@@ -20,10 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 func TestServer(t *testing.T) {
@@ -42,7 +43,7 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("should run after start", func(t *testing.T) {
-		fi := NewServer(WithClock(clock.NewMock()))
+		fi := NewServer(WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
 		fi.Start()
 		defer fi.Stop()
 		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -60,7 +61,7 @@ func TestServer(t *testing.T) {
 
 	t.Run("should correctly notify when a server is ready", func(t *testing.T) {
 		ready := make(chan bool, 1)
-		fi := NewServer(WithClock(clock.NewMock()), WithReadyChannel(ready))
+		fi := NewServer(WithClock(clock.NewMock()), WithReadyChannel(ready), WithAddress("127.0.0.1:0"))
 		fi.Start()
 		defer fi.Stop()
 		ok := <-ready

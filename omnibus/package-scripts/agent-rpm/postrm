@@ -14,6 +14,7 @@ case "$*" in
         # We're uninstalling.
         # We don't delete the dd-agent user/group (see https://fedoraproject.org/wiki/Packaging:UsersAndGroups#Allocation_Strategies)
         rm "$CONFIG_DIR/install_info" || true
+        rm "$CONFIG_DIR/install.json" || true
     ;;
     1)
         # We're upgrading.

@@ -141,7 +141,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 		compressor, err = stream.NewCompressor(
 			bufferContext.CompressorInput, bufferContext.CompressorOutput,
 			maxPayloadSize, maxUncompressedSize,
-			[]byte{}, footer, []byte{})
+			[]byte{}, footer, []byte{}, config)
 		if err != nil {
 			return err
 		}

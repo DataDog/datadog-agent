@@ -1,0 +1,4 @@
+go test fuzz v1
+[]byte("\"$0000\x1a\x1e2\a00000002\x0400002\x06000000Z\x00\x80\xff\xff00")
+string("0")
+string("0")

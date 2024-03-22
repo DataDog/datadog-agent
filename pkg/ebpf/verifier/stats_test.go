@@ -51,8 +51,7 @@ func TestBuildVerifierStats(t *testing.T) {
 		t.Skipf("Skipping because verifier statistics not available on kernel %s", kversion)
 	}
 
-	err = rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	objectFiles := make(map[string]string)
 	directory := ddebpf.NewConfig().BPFDir

@@ -15,8 +15,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//nolint:revive // TODO(APM) Fix revive linter
-type RunParams struct {
+// Params contains the flags of the run subcommand.
+type Params struct {
 	*subcommands.GlobalParams
 
 	// PIDFilePath contains the value of the --pidfile flag.
@@ -31,14 +31,14 @@ type RunParams struct {
 	Debug bool
 }
 
-func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *RunParams) {
+func setOSSpecificParamFlags(cmd *cobra.Command, cliParams *Params) {
 	cmd.PersistentFlags().BoolVarP(&cliParams.Foreground, "foreground", "f", false,
 		"runs the trace-agent in the foreground.")
 	cmd.PersistentFlags().BoolVarP(&cliParams.Debug, "debug", "d", false,
 		"runs the trace-agent in debug mode.")
 }
 
-func runTraceAgentCommand(cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentCommand(cliParams *Params, defaultConfPath string) error {
 	if !cliParams.Foreground {
 		if servicemain.RunningAsWindowsService() {
 			servicemain.Run(&service{cliParams: cliParams, defaultConfPath: defaultConfPath})

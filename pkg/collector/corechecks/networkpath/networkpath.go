@@ -43,6 +43,9 @@ func (c *Check) Run() error {
 
 	cfg := traceroute.Config{
 		DestHostname: c.config.DestHostname,
+		DestPort:     c.config.DestPort,
+		MaxTTL:       c.config.MaxTTL,
+		TimeoutMs:    c.config.TimeoutMs,
 	}
 
 	tr := traceroute.New(cfg)
@@ -58,11 +61,11 @@ func (c *Check) Run() error {
 	}
 
 	duration := time.Since(startTime)
-	log.Debugf("check duration: %2f for destination: '%s' %s", duration.Seconds(), c.config.DestHostname, c.config.DestName)
+	log.Debugf("check duration: %2f for destination: '%s'", duration.Seconds(), c.config.DestHostname)
 
 	if !c.lastCheckTime.IsZero() {
 		interval := startTime.Sub(c.lastCheckTime)
-		log.Tracef("time since last check %2f for destination: '%s' %s", interval.Seconds(), c.config.DestHostname, c.config.DestName)
+		log.Tracef("time since last check %2f for destination: '%s'", interval.Seconds(), c.config.DestHostname)
 	}
 	c.lastCheckTime = startTime
 
@@ -78,6 +81,11 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 	log.Debugf("traceroute path metadata payload: %s", string(payloadBytes))
 	sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkPath)
 	return nil
+}
+
+// Interval returns the scheduling time for the check
+func (c *Check) Interval() time.Duration {
+	return c.config.MinCollectionInterval
 }
 
 // Configure the networkpath check

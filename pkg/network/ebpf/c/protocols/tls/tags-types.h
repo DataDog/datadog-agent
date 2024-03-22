@@ -9,6 +9,7 @@ enum static_tags {
     GO = (1<<2),
     JAVA_TLS = (1<<3),
     CONN_TLS = (1<<4),
+    ISTIO = (1<<5),
 };
 
 #endif

@@ -22,6 +22,11 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+const (
+	istioSslReadRetprobe  = "istio_uretprobe__SSL_read"
+	istioSslWriteRetprobe = "istio_uretprobe__SSL_write"
+)
+
 var istioProbes = []manager.ProbesSelector{
 	&manager.AllOf{
 		Selectors: []manager.ProbesSelector{
@@ -47,7 +52,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslReadRetprobe,
+					EBPFFuncName: istioSslReadRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -57,7 +62,7 @@ var istioProbes = []manager.ProbesSelector{
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: sslWriteRetprobe,
+					EBPFFuncName: istioSslWriteRetprobe,
 				},
 			},
 			&manager.ProbeSelector{

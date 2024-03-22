@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -55,8 +56,10 @@ func benchmarkSplit(b *testing.B, numberOfEvents int) {
 	events := buildEvents(numberOfEvents)
 	b.ResetTimer()
 
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	for n := 0; n < b.N; n++ {
-		results, _ = split.Payloads(events, true, split.JSONMarshalFct)
+		results, _ = split.Payloads(events, true, split.JSONMarshalFct, strategy)
 	}
 }
 

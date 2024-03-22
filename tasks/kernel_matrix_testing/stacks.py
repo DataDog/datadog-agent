@@ -1,8 +1,9 @@
 import json
 import os
+import platform
+from pathlib import Path
 
 from tasks.kernel_matrix_testing.infra import ask_for_ssh, build_infrastructure, find_ssh_key
-from tasks.kernel_matrix_testing.init_kmt import VMCONFIG, check_and_get_stack
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.libvirt import (
     delete_domains,
@@ -14,6 +15,7 @@ from tasks.kernel_matrix_testing.libvirt import (
     resume_domains,
 )
 from tasks.kernel_matrix_testing.tool import Exit, error, info
+from tasks.kernel_matrix_testing.vars import VMCONFIG
 
 try:
     import libvirt
@@ -22,6 +24,28 @@ except ImportError:
 
 X86_INSTANCE_TYPE = "m5d.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
+
+
+def _get_active_branch_name():
+    head_dir = Path(".") / ".git" / "HEAD"
+    with head_dir.open() as f:
+        content = f.read().splitlines()
+
+    for line in content:
+        if line.startswith("ref:"):
+            return line.partition("refs/heads/")[2].replace("/", "-")
+
+    raise Exit("Could not find active branch name")
+
+
+def check_and_get_stack(stack):
+    if stack is None:
+        stack = _get_active_branch_name()
+
+    if not stack.endswith("-ddvm"):
+        return f"{stack}-ddvm"
+    else:
+        return stack
 
 
 def stack_exists(stack):
@@ -67,22 +91,39 @@ def local_vms_in_config(vmconfig):
     return False
 
 
-def kvm_ok(ctx):
-    ctx.run("kvm-ok")
+def kvm_ok():
+    if not os.path.exists("/dev/kvm"):
+        error("[-] /dev/kvm not found. KVM not available on system")
+        raise Exit("KVM not available")
+
     info("[+] Kvm available on system")
 
 
 def check_user_in_group(ctx, group):
-    ctx.run(f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)")
-    info(f"[+] User '{os.getlogin()}' in group '{group}'")
+    res = ctx.run(
+        f"cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep '{group}:' | cut -d ':' -f 3)",
+        warn=True,
+    )
+    if res.ok:
+        return True
+
+    return False
 
 
 def check_user_in_kvm(ctx):
-    check_user_in_group(ctx, "kvm")
+    if not check_user_in_group(ctx, "kvm"):
+        error("You must add user '{os.getlogin()}' to group 'kvm'")
+        raise Exit("User '{os.getlogin()}' not in group 'kvm'")
+
+    info(f"[+] User '{os.getlogin()}' in group 'kvm'")
 
 
 def check_user_in_libvirt(ctx):
-    check_user_in_group(ctx, "libvirt")
+    if not check_user_in_group(ctx, "libvirt"):
+        error("You must add user '{os.getlogin()}' to group 'libvirt'")
+        raise Exit("User '{os.getlogin()}' not in group 'libvirt'")
+
+    info(f"[+] User '{os.getlogin()}' in group 'libvirt'")
 
 
 def check_libvirt_sock_perms():
@@ -92,9 +133,18 @@ def check_libvirt_sock_perms():
 
 
 def check_env(ctx):
-    kvm_ok(ctx)
-    check_user_in_kvm(ctx)
-    check_user_in_libvirt(ctx)
+    info("[+] Checking environment for local machines")
+    supported_local_envs = ["Linux", "Darwin"]
+
+    if platform.system() not in supported_local_envs:
+        raise Exit("Local machines only supported on Linux and MacOS")
+
+    if platform.system() == "Linux":
+        kvm_ok()
+        # on macOS libvirt runs as the local user, so no need to check for group membership
+        check_user_in_kvm(ctx)
+        check_user_in_libvirt(ctx)
+
     check_libvirt_sock_perms()
 
 
@@ -241,7 +291,7 @@ def destroy_stack_force(ctx, stack):
     vm_config = os.path.join(stack_dir, VMCONFIG)
 
     if local_vms_in_config(vm_config):
-        conn = libvirt.open("qemu:///system")
+        conn = libvirt.open(get_kmt_os().libvirt_socket)
         if not conn:
             raise Exit("destroy_stack_force: Failed to open connection to qemu:///system")
         delete_domains(conn, stack)
@@ -293,7 +343,7 @@ def pause_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     pause_domains(conn, stack)
     conn.close()
 
@@ -302,13 +352,13 @@ def resume_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     resume_domains(conn, stack)
     conn.close()
 
 
 def read_libvirt_sock():
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("read_libvirt_sock: Failed to open connection to qemu:///system")
     conn.listAllDomains()
@@ -336,7 +386,7 @@ testPoolXML = """
 
 
 def write_libvirt_sock():
-    conn = libvirt.open("qemu:///system")
+    conn = libvirt.open(get_kmt_os().libvirt_socket)
     if not conn:
         raise Exit("write_libvirt_sock: Failed to open connection to qemu:///system")
     pool = conn.storagePoolDefineXML(testPoolXML, 0)

@@ -112,11 +112,15 @@ func newTestFixturesServer(t *testing.T) *testFixturesServer {
 }
 
 func (s *testFixturesServer) Downloader() *downloader {
-	return newDownloader(s.s.Client())
+	return newDownloader(s.s.Client(), "")
 }
 
 func (s *testFixturesServer) DownloaderOCI() *downloader {
-	return newDownloader(s.soci.Client())
+	return newDownloader(s.soci.Client(), "")
+}
+
+func (s *testFixturesServer) DownloaderOCIRegistryOverride() *downloader {
+	return newDownloader(s.soci.Client(), "my.super/registry")
 }
 
 func (s *testFixturesServer) Package(f fixture) Package {
@@ -234,6 +238,35 @@ func TestDownloadRegistry(t *testing.T) {
 	err = extractPackageLayers(image, t.TempDir(), tmpDir)
 	assert.NoError(t, err)
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
+}
+
+func TestDownloadRegistryWithOverride(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.DownloaderOCIRegistryOverride()
+
+	_, err := d.Download(context.Background(), t.TempDir(), s.PackageOCI(fixtureSimpleV1))
+	assert.Error(t, err) // Host not found
+}
+
+func TestGetRegistryURL(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+
+	pkg := Package{
+		Name:    "simple",
+		Version: "v1",
+		URL:     s.soci.URL + "/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d",
+		SHA256:  "2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d",
+	}
+
+	d := s.DownloaderOCI()
+	url := d.getRegistryURL(pkg)
+	assert.Equal(t, s.soci.URL+"/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
+
+	d = s.DownloaderOCIRegistryOverride()
+	url = d.getRegistryURL(pkg)
+	assert.Equal(t, "my.super/registry/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
 }
 
 func TestDownloadOCIPlatformNotAvailable(t *testing.T) {

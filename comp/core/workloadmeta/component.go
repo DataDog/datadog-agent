@@ -75,6 +75,10 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
+	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
+	// entities with kind KindECSTask.
+	ListECSTasks() []*ECSTask
+
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)

@@ -173,10 +173,10 @@ func (s *localStore) Flush() error {
 	return s.store.commit()
 }
 
-func newLocalStoreDirector(db *transactionalStore, cacheKey string, directorRootOverride string) (*localStore, error) {
-	return newLocalStore(db, "director", cacheKey, meta.RootsDirector(directorRootOverride))
+func newLocalStoreDirector(db *transactionalStore, cacheKey string, site string, directorRootOverride string) (*localStore, error) {
+	return newLocalStore(db, "director", cacheKey, meta.RootsDirector(site, directorRootOverride))
 }
 
-func newLocalStoreConfig(db *transactionalStore, cacheKey string, configRootOverride string) (*localStore, error) {
-	return newLocalStore(db, "config", cacheKey, meta.RootsConfig(configRootOverride))
+func newLocalStoreConfig(db *transactionalStore, cacheKey string, site string, configRootOverride string) (*localStore, error) {
+	return newLocalStore(db, "config", cacheKey, meta.RootsConfig(site, configRootOverride))
 }

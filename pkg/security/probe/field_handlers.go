@@ -9,7 +9,8 @@
 package probe
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -24,8 +25,8 @@ func bestGuessServiceTag(serviceValues []string) string {
 	firstGuess := serviceValues[0]
 
 	// first we sort base on len, biggest len first
-	sort.Slice(serviceValues, func(i, j int) bool {
-		return len(serviceValues[j]) < len(serviceValues[i]) // reverse
+	slices.SortFunc(serviceValues, func(a, b string) int {
+		return cmp.Compare(len(b), len(a)) // reverse
 	})
 
 	// we then compare [i] and [i + 1] to check if [i + 1] is a prefix of [i]

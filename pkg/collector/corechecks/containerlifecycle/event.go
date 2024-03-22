@@ -24,6 +24,7 @@ type event interface {
 	withContainerExitCode(*int32)
 	withContainerExitTimestamp(*int64)
 	withPodExitTimestamp(*int64)
+	withTaskExitTimestamp(*int64)
 	withOwnerType(string)
 	withOwnerID(string)
 	toPayloadModel() (*model.EventsPayload, error)
@@ -38,6 +39,7 @@ type eventTransformer struct {
 	contExitCode *int32
 	contExitTS   *int64
 	podExitTS    *int64
+	taskExitTS   *int64
 	ownerType    string
 	ownerID      string
 }
@@ -72,6 +74,10 @@ func (e *eventTransformer) withContainerExitTimestamp(exitTS *int64) {
 
 func (e *eventTransformer) withPodExitTimestamp(exitTS *int64) {
 	e.podExitTS = exitTS
+}
+
+func (e *eventTransformer) withTaskExitTimestamp(exitTS *int64) {
+	e.taskExitTS = exitTS
 }
 
 func (e *eventTransformer) withOwnerType(t string) {
@@ -155,6 +161,17 @@ func (e *eventTransformer) toEventModel() (*model.Event, error) {
 		}
 
 		event.TypedEvent = &model.Event_Pod{Pod: pod}
+	case types.ObjectKindTask:
+		task := &model.TaskEvent{
+			TaskARN: e.objectID,
+			Source:  e.source,
+		}
+
+		if e.taskExitTS != nil {
+			task.ExitTimestamp = e.taskExitTS
+		}
+
+		event.TypedEvent = &model.Event_Task{Task: task}
 	default:
 		return nil, fmt.Errorf("unknown kind %q", e.objectKind)
 	}
@@ -177,6 +194,8 @@ func (e *eventTransformer) kind(kind string) (model.ObjectKind, error) {
 		return model.ObjectKind_Container, nil
 	case types.ObjectKindPod:
 		return model.ObjectKind_Pod, nil
+	case types.ObjectKindTask:
+		return model.ObjectKind_Task, nil
 	default:
 		return -1, fmt.Errorf("unknown object kind %q", e.objectKind)
 	}

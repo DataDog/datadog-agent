@@ -26,12 +26,14 @@ func TestProcessQueues(t *testing.T) {
 		name            string
 		containersQueue *queue
 		podsQueue       *queue
+		tasksQueue      *queue
 		wantFunc        func(t *testing.T, s *mocksender.MockSender)
 	}{
 		{
 			name:            "empty queues",
 			containersQueue: &queue{},
 			podsQueue:       &queue{},
+			tasksQueue:      &queue{},
 			wantFunc:        func(t *testing.T, s *mocksender.MockSender) { s.AssertNotCalled(t, "ContainerLifecycleEvent") },
 		},
 		{
@@ -39,7 +41,8 @@ func TestProcessQueues(t *testing.T) {
 			containersQueue: &queue{data: []*model.EventsPayload{
 				{Version: "v1", Host: hname, Events: modelEvents("cont1")},
 			}},
-			podsQueue: &queue{},
+			podsQueue:  &queue{},
+			tasksQueue: &queue{},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
 				s.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
 			},
@@ -54,8 +57,12 @@ func TestProcessQueues(t *testing.T) {
 				{Version: "v1", Host: hname, Events: modelEvents("pod1", "pod2")},
 				{Version: "v1", Host: hname, Events: modelEvents("pod3")},
 			}},
+			tasksQueue: &queue{data: []*model.EventsPayload{
+				{Version: "v1", Host: hname, Events: modelEvents("task1", "task2")},
+				{Version: "v1", Host: hname, Events: modelEvents("task3")},
+			}},
 			wantFunc: func(t *testing.T, s *mocksender.MockSender) {
-				s.AssertNumberOfCalls(t, "EventPlatformEvent", 4)
+				s.AssertNumberOfCalls(t, "EventPlatformEvent", 6)
 			},
 		},
 	}
@@ -64,6 +71,7 @@ func TestProcessQueues(t *testing.T) {
 			p := &processor{
 				containersQueue: tt.containersQueue,
 				podsQueue:       tt.podsQueue,
+				tasksQueue:      tt.tasksQueue,
 			}
 
 			sender := mocksender.NewMockSender(checkid.ID(tt.name))

@@ -85,6 +85,7 @@ var (
 	coreTracerLoader          = loadCORETracer
 	rcTracerLoader            = loadRuntimeCompiledTracer
 	prebuiltTracerLoader      = loadPrebuiltTracer
+	tracerLoaderFromAsset     = loadTracerFromAsset
 	tracerOffsetGuesserRunner = offsetguess.TracerOffsets.Offsets
 
 	errCORETracerNotSupported = errors.New("CO-RE tracer not supported on this platform")
@@ -176,8 +177,11 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	if err := initManager(m, connCloseEventHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}
-
-	ringbufferEnabled := config.RingBufferSupportedNPM()
+	ringbufferEnabled := false
+	switch connCloseEventHandler.(type) {
+	case *ddebpf.RingBufferHandler:
+		ringbufferEnabled = true
+	}
 	util.AddBoolConst(&mgrOpts, "ringbuffers_enabled", ringbufferEnabled)
 	if ringbufferEnabled {
 		util.EnableRingbuffersViaMapEditor(&mgrOpts)
@@ -273,7 +277,8 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
-		m, closeFn, err = loadTracerFromAsset(ar, false, true, config, o, connCloseEventHandler)
+		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
+		m, closeFn, err = tracerLoaderFromAsset(ar, false, true, config, o, connCloseEventHandler)
 		return err
 	})
 
@@ -287,7 +292,7 @@ func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, c
 	}
 	defer buf.Close()
 
-	return loadTracerFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler)
+	return tracerLoaderFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler)
 }
 
 func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
@@ -306,7 +311,7 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 		config.CollectUDPv6Conns = false
 	}
 
-	return loadTracerFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
+	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler)
 }
 
 func isCORETracerSupported() error {

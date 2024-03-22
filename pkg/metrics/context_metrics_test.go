@@ -315,3 +315,47 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 		},
 		series[4])
 }
+
+func TestContextMetricsGaugeWithTimestampSampling(t *testing.T) {
+	metrics := MakeContextMetrics()
+	contextKey := ckey.ContextKey(0xffffffffffffffff)
+
+	c := setupConfig()
+	metrics.AddSample(contextKey, &MetricSample{Mtype: GaugeWithTimestampType, Value: 1}, 12340, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: GaugeWithTimestampType, Value: 5}, 12345, 10, nil, c)
+	series, err := metrics.Flush(12350)
+
+	assert.Len(t, err, 0)
+	expectedSerie := &Serie{
+		ContextKey: contextKey,
+		Points:     []Point{{12340.0, 1.}, {12345.0, 5.}},
+		MType:      APIGaugeType,
+		NameSuffix: "",
+	}
+
+	if assert.Len(t, series, 1) {
+		AssertSerieEqual(t, expectedSerie, series[0])
+	}
+}
+
+func TestContextMetricsCountWithTimestampSampling(t *testing.T) {
+	metrics := MakeContextMetrics()
+	contextKey := ckey.ContextKey(0xffffffffffffffff)
+
+	c := setupConfig()
+	metrics.AddSample(contextKey, &MetricSample{Mtype: CountWithTimestampType, Value: 1}, 12340, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: CountWithTimestampType, Value: 5}, 12345, 10, nil, c)
+	series, err := metrics.Flush(12350)
+
+	assert.Len(t, err, 0)
+	expectedSerie := &Serie{
+		ContextKey: contextKey,
+		Points:     []Point{{12340.0, 1.}, {12345.0, 5.}},
+		MType:      APICountType,
+		NameSuffix: "",
+	}
+
+	if assert.Len(t, series, 1) {
+		AssertSerieEqual(t, expectedSerie, series[0])
+	}
+}

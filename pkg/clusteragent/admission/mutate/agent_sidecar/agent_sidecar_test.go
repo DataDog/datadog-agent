@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const commonRegistry = "gcr.io/datadoghq"
@@ -152,19 +153,66 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *getDefaultSidecarTemplate(commonRegistry)
-				withEnvOverrides(&sidecar, corev1.EnvVar{
-					Name:  "DD_EKS_FARGATE",
-					Value: "true",
-				})
+				_, _ = withEnvOverrides(
+					&sidecar,
+					corev1.EnvVar{
+						Name:  "DD_EKS_FARGATE",
+						Value: "true",
+					},
+					corev1.EnvVar{
+						Name:  "DD_APM_RECEIVER_SOCKET",
+						Value: "/var/run/datadog/apm.socket",
+					},
+					corev1.EnvVar{
+						Name:  "DD_DOGSTATSD_SOCKET",
+						Value: "/var/run/datadog/dsd.socket",
+					},
+				)
+
+				sidecar.VolumeMounts = []corev1.VolumeMount{
+					{
+						Name:      "ddsockets",
+						MountPath: "/var/run/datadog",
+						ReadOnly:  false,
+					},
+				}
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
 					},
 					Spec: corev1.PodSpec{
+						ShareProcessNamespace: pointer.Ptr(true),
 						Containers: []corev1.Container{
-							{Name: "container-name"},
+							{
+								Name: "container-name",
+								Env: []corev1.EnvVar{
+									{
+										Name:  "DD_TRACE_AGENT_URL",
+										Value: "unix:///var/run/datadog/apm.socket",
+									},
+									{
+										Name:  "DD_DOGSTATSD_URL",
+										Value: "unix:///var/run/datadog/dsd.socket",
+									},
+								},
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "ddsockets",
+										MountPath: "/var/run/datadog",
+										ReadOnly:  false,
+									},
+								},
+							},
 							sidecar,
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "ddsockets",
+								VolumeSource: corev1.VolumeSource{
+									EmptyDir: &corev1.EmptyDirVolumeSource{},
+								},
+							},
 						},
 					},
 				}
@@ -204,27 +252,84 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *getDefaultSidecarTemplate(commonRegistry)
 
-				withEnvOverrides(&sidecar, corev1.EnvVar{
-					Name:  "DD_EKS_FARGATE",
-					Value: "true",
-				}, corev1.EnvVar{Name: "ENV_VAR_1", ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{Key: "secret-key", LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
-				}},
-					corev1.EnvVar{Name: "ENV_VAR_2", Value: "value2"})
+				_, _ = withEnvOverrides(
+					&sidecar,
+					corev1.EnvVar{
+						Name:  "DD_EKS_FARGATE",
+						Value: "true",
+					},
+					corev1.EnvVar{
+						Name:  "DD_APM_RECEIVER_SOCKET",
+						Value: "/var/run/datadog/apm.socket",
+					},
+					corev1.EnvVar{
+						Name:  "DD_DOGSTATSD_SOCKET",
+						Value: "/var/run/datadog/dsd.socket",
+					},
+					corev1.EnvVar{
+						Name: "ENV_VAR_1",
+						ValueFrom: &corev1.EnvVarSource{
+							SecretKeyRef: &corev1.SecretKeySelector{
+								Key:                  "secret-key",
+								LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
+							},
+						},
+					},
+					corev1.EnvVar{
+						Name:  "ENV_VAR_2",
+						Value: "value2",
+					},
+				)
 
-				withResourceLimits(&sidecar, corev1.ResourceRequirements{
+				_ = withResourceLimits(&sidecar, corev1.ResourceRequirements{
 					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
 					Requests: corev1.ResourceList{"cpu": resource.MustParse("0.5"), "memory": resource.MustParse("256Mi")},
 				})
+
+				sidecar.VolumeMounts = []corev1.VolumeMount{
+					{
+						Name:      "ddsockets",
+						MountPath: "/var/run/datadog",
+						ReadOnly:  false,
+					},
+				}
 
 				return &corev1.Pod{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "pod-name",
 					},
 					Spec: corev1.PodSpec{
+						ShareProcessNamespace: pointer.Ptr(true),
 						Containers: []corev1.Container{
-							{Name: "container-name"},
+							{
+								Name: "container-name",
+								Env: []corev1.EnvVar{
+									{
+										Name:  "DD_TRACE_AGENT_URL",
+										Value: "unix:///var/run/datadog/apm.socket",
+									},
+									{
+										Name:  "DD_DOGSTATSD_URL",
+										Value: "unix:///var/run/datadog/dsd.socket",
+									},
+								},
+								VolumeMounts: []corev1.VolumeMount{
+									{
+										Name:      "ddsockets",
+										MountPath: "/var/run/datadog",
+										ReadOnly:  false,
+									},
+								},
+							},
 							sidecar,
+						},
+						Volumes: []corev1.Volume{
+							{
+								Name: "ddsockets",
+								VolumeSource: corev1.VolumeSource{
+									EmptyDir: &corev1.EmptyDirVolumeSource{},
+								},
+							},
 						},
 					},
 				}

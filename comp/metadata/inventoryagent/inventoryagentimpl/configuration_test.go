@@ -143,3 +143,23 @@ func TestGetCliConfiguration(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, data)
 }
+
+func TestGetSourceLocalConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	_, err := ia.getSourceLocalConfiguration()
+	assert.Error(t, err)
+}
+
+func TestGetSourceLocalConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	data, err := ia.getSourceLocalConfiguration()
+	assert.NoError(t, err)
+	t.Log(data)
+	assert.NotEmpty(t, data)
+}

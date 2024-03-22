@@ -1982,8 +1982,7 @@ func TestCassQuantizer(t *testing.T) {
 	}
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
-func TestUnicodeDigit(t *testing.T) {
+func TestUnicodeDigit(_ *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)

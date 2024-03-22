@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package flags contains flags that are only available on Windows.
 package flags
 
 // Win holds a set of flags which will be populated only during the Windows build.

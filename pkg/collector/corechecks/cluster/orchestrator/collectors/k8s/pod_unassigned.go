@@ -76,7 +76,7 @@ func (c *UnassignedPodCollector) Run(rcfg *collectors.CollectorRunConfig) (*coll
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

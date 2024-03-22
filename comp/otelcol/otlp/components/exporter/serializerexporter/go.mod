@@ -33,7 +33,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../../pkg/util/backoff/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../../../pkg/util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../../../pkg/util/common/
-	github.com/DataDog/datadog-agent/pkg/util/compression => ../../../../../../pkg/util/compression/
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../../../pkg/util/executable/
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../../../pkg/util/filesystem/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../../../pkg/util/fxutil/
@@ -103,7 +102,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.52.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/compression v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.52.0-rc.3 // indirect
@@ -120,7 +118,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
-	github.com/DataDog/viper v1.12.0 // indirect
+	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect

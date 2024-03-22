@@ -31,7 +31,7 @@ type K8sNodeConfig struct {
 		KubeApiserver        *K8sConfigFileMeta `json:"kubeApiserver,omitempty"`
 		KubeScheduler        *K8sConfigFileMeta `json:"kubeScheduler,omitempty"`
 	} `json:"manifests"`
-	Errors []error `json:"errors,omitempty"`
+	Errors []string `json:"errors,omitempty"`
 }
 
 type K8sManagedEnvConfig struct {

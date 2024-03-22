@@ -243,18 +243,19 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []st
 	if err != nil {
 		return nil, err
 	}
+	site := cfg.GetString("site")
 	configRoot := cfg.GetString("remote_configuration.config_root")
 	directorRoot := cfg.GetString("remote_configuration.director_root")
-	cacheKey := generateCacheKey(apiKey, configRoot)
+	cacheKey := generateCacheKey(apiKey, site, configRoot)
 	opt := []uptane.ClientOption{}
 	if authKeys.rcKeySet {
 		opt = append(opt, uptane.WithOrgIDCheck(authKeys.rcKey.OrgID))
 	}
 	if configRoot != "" {
-		opt = append(opt, uptane.WithConfigRootOverride(configRoot))
+		opt = append(opt, uptane.WithConfigRootOverride(site, configRoot))
 	}
 	if directorRoot != "" {
-		opt = append(opt, uptane.WithDirectorRootOverride(directorRoot))
+		opt = append(opt, uptane.WithDirectorRootOverride(site, directorRoot))
 	}
 	uptaneClient, err := uptane.NewClient(
 		db,
@@ -859,14 +860,14 @@ func enforceCanonicalJSON(raw []byte) ([]byte, error) {
 	return canonical, nil
 }
 
-func generateCacheKey(apiKey, configRootOverride string) string {
+func generateCacheKey(apiKey, site, configRootOverride string) string {
 	h := sha256.New()
 	h.Write([]byte(apiKey))
 
 	// Hash the API Key with the initial root. This prevents the agent from being locked
 	// to a root chain if a developer accidentally forgets to use the development roots
 	// in a testing environment
-	embeddedRoots := meta.RootsConfig(configRootOverride)
+	embeddedRoots := meta.RootsConfig(site, configRootOverride)
 	if r, ok := embeddedRoots[1]; ok {
 		h.Write(r)
 	}

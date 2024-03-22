@@ -4,27 +4,13 @@ import platform
 import tempfile
 
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
+from tasks.kernel_matrix_testing.vars import arch_mapping, platforms_file
+from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 
 try:
     import requests
 except ImportError:
     requests = None
-
-platforms_file = "test/new-e2e/system-probe/config/platforms.json"
-
-
-def get_vmconfig_file(template="system-probe"):
-    return f"test/new-e2e/system-probe/config/vmconfig-{template}.json"
-
-
-arch_mapping = {
-    "amd64": "x86_64",
-    "x86": "x86_64",
-    "x86_64": "x86_64",
-    "arm64": "arm64",
-    "arm": "arm64",
-    "aarch64": "arm64",
-}
 
 
 def requires_update(url_base, rootfs_dir, image, branch):
@@ -48,8 +34,7 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
     with open(platforms_file) as f:
         platforms = json.load(f)
 
-    with open(get_vmconfig_file(vmconfig_template)) as f:
-        vmconfig_template = json.load(f)
+    vmconfig_template = get_vmconfig_template(vmconfig_template)
 
     url_base = platforms["url_base"]
 
@@ -72,18 +57,19 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
         if not os.path.exists(path):
             to_download.append(f)
 
-    disks_to_download = list()
     for vmset in vmconfig_template["vmsets"]:
         if vmset["arch"] != arch:
             continue
 
         for disk in vmset["disks"]:
-            d = os.path.basename(disk["source"])
+            # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
+            d = os.path.basename(disk["target"])
             if not os.path.exists(os.path.join(rootfs_dir, d)):
-                disks_to_download.append(d)
+                d = d.removesuffix(".xz")
+                to_download.append(d)
 
     # download and compare hash sums
-    present_files = list(set(file_ls) - set(to_download)) + disks_to_download
+    present_files = list(set(file_ls) - set(to_download))
     for f in present_files:
         if requires_update(url_base, rootfs_dir, f, branch_mapping.get(f, "master")):
             debug(f"[debug] updating {f} from S3.")
@@ -102,10 +88,9 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
             for f in to_download:
                 branch = branch_mapping.get(f, "master")
                 info(f"[+] {f} needs to be downloaded, using branch {branch}")
-                xz = ".xz" if f not in disks_to_download else ""
-                filename = f"{f}{xz}"
+                filename = f"{f}.xz"
                 sum_file = f"{f}.sum"
-                # remove this file and sum
+                # remove this file and sum, uncompressed file too if it exists
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, f)} || true")  # remove old file if it exists

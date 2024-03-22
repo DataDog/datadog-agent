@@ -195,8 +195,8 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 }
 
 // GetTraceroute returns the results of a traceroute to a host
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s", tracerouteURL, host, clientID), nil)
+func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, maxTTL uint8, timeout uint) ([]byte, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d", tracerouteURL, host, clientID, port, maxTTL, timeout), nil)
 	if err != nil {
 		return nil, err
 	}

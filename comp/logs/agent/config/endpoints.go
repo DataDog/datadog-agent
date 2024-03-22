@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // EPIntakeVersion is the events platform intake API version
@@ -34,15 +35,16 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
-	APIKey                  string `mapstructure:"api_key" json:"api_key"`
-	Host                    string
+	apiKeyGetter func() string
+	isReliable   bool
+	useSSL       bool
+
+	Host                    string `mapstructure:"host" json:"host"`
 	Port                    int
-	UseSSL                  *bool `mapstructure:"use_ssl" json:"use_ssl"`
-	UseCompression          bool  `mapstructure:"use_compression" json:"use_compression"`
-	CompressionLevel        int   `mapstructure:"compression_level" json:"compression_level"`
+	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
+	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
-	IsReliable              *bool `mapstructure:"is_reliable" json:"is_reliable"`
-	IsHA                    bool  `mapstructure:"-" json:"-"`
+	IsHA                    bool `mapstructure:"-" json:"-"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -57,9 +59,144 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 }
 
-// GetUseSSL returns the UseSSL config setting
-func (e *Endpoint) GetUseSSL() bool {
-	return e.UseSSL == nil || *e.UseSSL
+// unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.
+// A different type is used than Endpoint since we want some fields to be private in Endpoint (APIKey, IsReliable, ...).
+type unmarshalEndpoint struct {
+	APIKey     string `mapstructure:"api_key" json:"api_key"`
+	IsReliable *bool  `mapstructure:"is_reliable" json:"is_reliable"`
+	UseSSL     *bool  `mapstructure:"use_ssl" json:"use_ssl"`
+
+	Endpoint `mapstructure:",squash"`
+}
+
+// NewEndpoint returns a new Endpoint with the minimal field initialized.
+func NewEndpoint(apiKey string, host string, port int, useSSL bool) Endpoint {
+	apiKey = pkgconfigutils.SanitizeAPIKey(apiKey)
+	return Endpoint{
+		apiKeyGetter: func() string { return apiKey },
+		Host:         host,
+		Port:         port,
+		useSSL:       useSSL,
+		isReliable:   true, // by default endpoints are reliable
+	}
+}
+
+// NewTCPEndpoint returns a new TCP Endpoint based on LogsConfigKeys. The endpoint is by default reliable and will use
+// socks proxy and SSL settings from the configuration.
+func NewTCPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
+	return Endpoint{
+		apiKeyGetter:            logsConfig.getAPIKeyGetter(),
+		ProxyAddress:            logsConfig.socks5ProxyAddress(),
+		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		useSSL:                  logsConfig.logsNoSSL(),
+		isReliable:              true, // by default endpoints are reliable
+	}
+}
+
+// NewHTTPEndpoint returns a new HTTP Endpoint based on LogsConfigKeys The endpoint is by default reliable and will use
+// the settings related to HTTP from the configuration (compression, Backoff, recovery, ...).
+func NewHTTPEndpoint(logsConfig *LogsConfigKeys) Endpoint {
+	return Endpoint{
+		apiKeyGetter:            logsConfig.getAPIKeyGetter(),
+		UseCompression:          logsConfig.useCompression(),
+		CompressionLevel:        logsConfig.compressionLevel(),
+		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		BackoffBase:             logsConfig.senderBackoffBase(),
+		BackoffMax:              logsConfig.senderBackoffMax(),
+		BackoffFactor:           logsConfig.senderBackoffFactor(),
+		RecoveryInterval:        logsConfig.senderRecoveryInterval(),
+		RecoveryReset:           logsConfig.senderRecoveryReset(),
+		useSSL:                  logsConfig.logsNoSSL(),
+		isReliable:              true, // by default endpoints are reliable
+	}
+}
+
+// The setting from 'logs_config.additional_endpoints' is directly unmarshalled from the configuration into a
+// []unmarshalEndpoint and do not use the constructors. In this case, apiKeyGetter is initialized to returned the API
+// key from the loaded data instead of 'api_key'/'logs_config.api_key'.
+
+func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys) []Endpoint {
+	additionals := l.getAdditionalEndpoints()
+
+	newEndpoints := make([]Endpoint, 0, len(additionals))
+	for _, e := range additionals {
+		newE := NewEndpoint(e.APIKey, e.Host, e.Port, false)
+
+		newE.UseCompression = e.UseCompression
+		newE.CompressionLevel = e.CompressionLevel
+		newE.ProxyAddress = l.socks5ProxyAddress()
+		newE.isReliable = e.IsReliable == nil || *e.IsReliable
+		newE.ConnectionResetInterval = e.ConnectionResetInterval
+		newE.BackoffFactor = e.BackoffFactor
+		newE.BackoffBase = e.BackoffBase
+		newE.BackoffMax = e.BackoffMax
+		newE.RecoveryInterval = e.RecoveryInterval
+		newE.RecoveryReset = e.RecoveryReset
+		newE.Version = e.Version
+		newE.TrackType = e.TrackType
+		newE.Protocol = e.Protocol
+		newE.Origin = e.Origin
+
+		if e.UseSSL != nil {
+			newE.useSSL = *e.UseSSL
+		} else {
+			newE.useSSL = main.useSSL
+		}
+		newEndpoints = append(newEndpoints, newE)
+	}
+	return newEndpoints
+}
+
+func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) []Endpoint {
+	additionals := l.getAdditionalEndpoints()
+
+	newEndpoints := make([]Endpoint, 0, len(additionals))
+	for _, e := range additionals {
+		newE := NewEndpoint(e.APIKey, e.Host, e.Port, false)
+
+		newE.UseCompression = main.UseCompression
+		newE.CompressionLevel = main.CompressionLevel
+		newE.ProxyAddress = e.ProxyAddress
+		newE.isReliable = e.IsReliable == nil || *e.IsReliable
+		newE.ConnectionResetInterval = e.ConnectionResetInterval
+		newE.BackoffFactor = main.BackoffFactor
+		newE.BackoffBase = main.BackoffBase
+		newE.BackoffMax = main.BackoffMax
+		newE.RecoveryInterval = main.RecoveryInterval
+		newE.RecoveryReset = main.RecoveryReset
+		newE.Version = e.Version
+		newE.TrackType = e.TrackType
+		newE.Protocol = e.Protocol
+		newE.Origin = e.Origin
+
+		if e.UseSSL != nil {
+			newE.useSSL = *e.UseSSL
+		} else {
+			newE.useSSL = main.useSSL
+		}
+
+		if newE.Version == 0 {
+			newE.Version = main.Version
+		}
+		if newE.Version == EPIntakeVersion2 {
+			newE.TrackType = intakeTrackType
+			newE.Protocol = intakeProtocol
+			newE.Origin = intakeOrigin
+		}
+
+		newEndpoints = append(newEndpoints, newE)
+	}
+	return newEndpoints
+}
+
+// GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime
+func (e *Endpoint) GetAPIKey() string {
+	return e.apiKeyGetter()
+}
+
+// UseSSL returns the useSSL config setting
+func (e *Endpoint) UseSSL() bool {
+	return e.useSSL
 }
 
 // GetStatus returns the endpoint status
@@ -74,7 +211,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 
 	var protocol string
 	if useHTTP {
-		if e.GetUseSSL() {
+		if e.UseSSL() {
 			protocol = "HTTPS"
 			if port == 0 {
 				port = 443 // use default port
@@ -89,7 +226,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 			}
 		}
 	} else {
-		if e.GetUseSSL() {
+		if e.UseSSL() {
 			protocol = "SSL encrypted TCP"
 		} else {
 			protocol = "TCP"
@@ -99,9 +236,9 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	return fmt.Sprintf("%sSending %s logs in %s to %s on port %d", prefix, compression, protocol, host, port)
 }
 
-// GetIsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.
-func (e *Endpoint) GetIsReliable() bool {
-	return e.IsReliable == nil || *e.IsReliable
+// IsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.
+func (e *Endpoint) IsReliable() bool {
+	return e.isReliable
 }
 
 // Endpoints holds the main endpoint and additional ones to dualship logs.
@@ -131,22 +268,21 @@ func (e *Endpoints) GetStatus() []string {
 
 // NewEndpoints returns a new endpoints composite with default batching settings
 func NewEndpoints(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool) *Endpoints {
-	return &Endpoints{
-		Main:                   main,
-		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
-		UseProto:               useProto,
-		UseHTTP:                useHTTP,
-		BatchWait:              pkgconfigsetup.DefaultBatchWait,
-		BatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-		BatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-		BatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-		InputChanSize:          pkgconfigsetup.DefaultInputChanSize,
-	}
+	return NewEndpointsWithBatchSettings(
+		main,
+		additionalEndpoints,
+		useProto,
+		useHTTP,
+		pkgconfigsetup.DefaultBatchWait,
+		pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+		pkgconfigsetup.DefaultBatchMaxSize,
+		pkgconfigsetup.DefaultBatchMaxContentSize,
+		pkgconfigsetup.DefaultInputChanSize,
+	)
 }
 
 // NewEndpointsWithBatchSettings returns a new endpoints composite with non-default batching settings specified
 func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint, useProto bool, useHTTP bool, batchWait time.Duration, batchMaxConcurrentSend int, batchMaxSize int, batchMaxContentSize int, inputChanSize int) *Endpoints {
-
 	return &Endpoints{
 		Main:                   main,
 		Endpoints:              append([]Endpoint{main}, additionalEndpoints...),
@@ -165,7 +301,7 @@ func NewEndpointsWithBatchSettings(main Endpoint, additionalEndpoints []Endpoint
 func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if endpoint.GetIsReliable() {
+		if endpoint.IsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}
@@ -176,7 +312,7 @@ func (e *Endpoints) GetReliableEndpoints() []Endpoint {
 func (e *Endpoints) GetUnReliableEndpoints() []Endpoint {
 	endpoints := []Endpoint{}
 	for _, endpoint := range e.Endpoints {
-		if !endpoint.GetIsReliable() {
+		if !endpoint.IsReliable() {
 			endpoints = append(endpoints, endpoint)
 		}
 	}

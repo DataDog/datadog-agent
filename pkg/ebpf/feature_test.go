@@ -19,8 +19,7 @@ import (
 )
 
 func TestKprobeHelperProbe(t *testing.T) {
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
+	require.NoError(t, rlimit.RemoveMemlock())
 
 	var requiredFuncs = []asm.BuiltinFunc{
 		asm.FnMapLookupElem,

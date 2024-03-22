@@ -148,7 +148,7 @@ deploy_packages_agentless_scanner_rpm-arm64-7:
   extends: .deploy_packages_rpm-7
   needs: [ agentless_scanner_rpm-arm64 ]
   variables:
-    PACKAGE_ARCH: arm64
+    PACKAGE_ARCH: aarch64
 
 deploy_packages_suse_rpm-x64-7:
   extends: .deploy_packages_suse_rpm-7

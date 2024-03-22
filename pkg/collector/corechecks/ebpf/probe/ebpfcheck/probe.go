@@ -219,8 +219,21 @@ func (k *Probe) GetAndFlush() (results model.EBPFStats) {
 	return
 }
 
+type programKey struct {
+	name, typ, module string
+}
+
+func progKey(ps model.EBPFProgramStats) programKey {
+	return programKey{
+		name:   ps.Name,
+		typ:    ps.Type.String(),
+		module: ps.Module,
+	}
+}
+
 func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	var err error
+	uniquePrograms := make(map[programKey]struct{})
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
 		fd, err := ProgGetFdByID(&ProgGetFdByIDAttr{ID: uint32(progid)})
@@ -270,11 +283,15 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			RunCount:        info.RunCnt,
 			RecursionMisses: info.RecursionMisses,
 		}
+		key := progKey(ps)
+		if _, ok := uniquePrograms[key]; ok {
+			continue
+		}
+		uniquePrograms[key] = struct{}{}
 		stats.Programs = append(stats.Programs, ps)
 	}
 
 	log.Tracef("found %d programs", len(stats.Programs))
-	deduplicateProgramNames(stats)
 	for _, ps := range stats.Programs {
 		log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
 	}

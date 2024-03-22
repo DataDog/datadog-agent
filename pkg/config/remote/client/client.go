@@ -86,6 +86,7 @@ type Options struct {
 	agentName            string
 	products             []string
 	directorRootOverride string
+	site                 string
 	pollInterval         time.Duration
 	clusterName          string
 	clusterID            string
@@ -222,8 +223,11 @@ func WithoutTufVerification() func(opts *Options) {
 }
 
 // WithDirectorRootOverride specifies the director root to
-func WithDirectorRootOverride(directorRootOverride string) func(opts *Options) {
-	return func(opts *Options) { opts.directorRootOverride = directorRootOverride }
+func WithDirectorRootOverride(site string, directorRootOverride string) func(opts *Options) {
+	return func(opts *Options) {
+		opts.site = site
+		opts.directorRootOverride = directorRootOverride
+	}
 }
 
 // WithAgent specifies the client name and version
@@ -249,7 +253,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	var err error
 
 	if !options.skipTufVerification {
-		repository, err = state.NewRepository(meta.RootsDirector(options.directorRootOverride).Last())
+		repository, err = state.NewRepository(meta.RootsDirector(options.site, options.directorRootOverride).Last())
 	} else {
 		repository, err = state.NewUnverifiedRepository()
 	}

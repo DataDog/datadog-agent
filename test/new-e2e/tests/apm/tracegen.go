@@ -35,7 +35,6 @@ type tracegenCfg struct {
 }
 
 func runTracegenDocker(h *components.RemoteHost, service string, cfg tracegenCfg) (shutdown func()) {
-	pullLatest(h)
 	var run, rm string
 	if cfg.transport == uds {
 		run, rm = tracegenUDSCommands(service)
@@ -45,10 +44,6 @@ func runTracegenDocker(h *components.RemoteHost, service string, cfg tracegenCfg
 	h.MustExecute(rm) // kill any existing leftover container
 	h.MustExecute(run)
 	return func() { h.MustExecute(rm) }
-}
-
-func pullLatest(h *components.RemoteHost) {
-	h.MustExecute("docker pull ghcr.io/datadog/apps-tracegen:main")
 }
 
 func tracegenUDSCommands(service string) (string, string) {

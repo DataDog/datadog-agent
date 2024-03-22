@@ -125,7 +125,7 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
+	response, e := flare.SendFlare(config, filePath, params.caseID, params.customerEmail, helpers.NewLocalFlareSource())
 	fmt.Println(response)
 	if e != nil {
 		return e

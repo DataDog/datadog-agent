@@ -51,6 +51,7 @@ const (
 	Go      ConnTag = 0x4
 	Java    ConnTag = 0x8
 	TLS     ConnTag = 0x10
+	Istio   ConnTag = 0x20
 )
 
 var (
@@ -60,5 +61,6 @@ var (
 		Go:      "tls.library:go",
 		Java:    "tls.library:java",
 		TLS:     "tls.connection:encrypted",
+		Istio:   "tls.library:istio",
 	}
 )

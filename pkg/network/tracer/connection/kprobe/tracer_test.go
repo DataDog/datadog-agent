@@ -16,6 +16,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -286,4 +287,37 @@ func TestCORETracerSupported(t *testing.T) {
 		assert.True(t, coreCalled)
 		assert.False(t, prebuiltCalled)
 	}
+}
+
+func TestDefaultKprobeMaxActiveSet(t *testing.T) {
+	prevLoader := tracerLoaderFromAsset
+	tracerLoaderFromAsset = func(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+		assert.Equal(t, mgrOpts.DefaultKProbeMaxActive, 128)
+		return nil, nil, nil
+	}
+	t.Cleanup(func() { tracerLoaderFromAsset = prevLoader })
+
+	t.Run("CO-RE", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = true
+		cfg.AllowRuntimeCompiledFallback = false
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("prebuilt", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = false
+		cfg.AllowRuntimeCompiledFallback = false
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("runtime_compiled", func(t *testing.T) {
+		cfg := config.New()
+		cfg.EnableCORE = false
+		cfg.AllowRuntimeCompiledFallback = true
+		_, _, _, err := LoadTracer(cfg, manager.Options{DefaultKProbeMaxActive: 128}, nil)
+		require.NoError(t, err)
+	})
 }

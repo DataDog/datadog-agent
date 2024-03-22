@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -116,30 +117,40 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	for _, container := range pod.Spec.Containers {
-		if container.Name == agentSidecarContainerName {
-			log.Info("skipping agent sidecar injection: agent sidecar already exists")
-			return false, nil
+	agentSidecarExists := slices.ContainsFunc(pod.Spec.Containers, func(cont corev1.Container) bool {
+		return cont.Name == agentSidecarContainerName
+	})
+
+	podUpdated := false
+
+	if !agentSidecarExists {
+		agentSidecarContainer := getDefaultSidecarTemplate(w.containerRegistry)
+		pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
+		podUpdated = true
+	}
+
+	updated, err := applyProviderOverrides(pod)
+	if err != nil {
+		log.Errorf("Failed to apply provider overrides: %v", err)
+		return podUpdated, errors.New(metrics.InvalidInput)
+	}
+	podUpdated = podUpdated || updated
+
+	// User-provided overrides should always be applied last in order to have
+	// highest override-priority. They only apply to the agent sidecar container.
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
+			updated, err = applyProfileOverrides(&pod.Spec.Containers[i])
+			if err != nil {
+				log.Errorf("Failed to apply profile overrides: %v", err)
+				return podUpdated, errors.New(metrics.InvalidInput)
+			}
+			podUpdated = podUpdated || updated
+			break
 		}
 	}
 
-	agentSidecarContainer := getDefaultSidecarTemplate(w.containerRegistry)
-
-	err := applyProviderOverrides(agentSidecarContainer)
-	if err != nil {
-		log.Errorf("Failed to apply provider overrides: %v", err)
-		return false, errors.New(metrics.InvalidInput)
-	}
-
-	// User-provided overrides should always be applied last in order to have highest override-priority
-	err = applyProfileOverrides(agentSidecarContainer)
-	if err != nil {
-		log.Errorf("Failed to apply profile overrides: %v", err)
-		return false, errors.New(metrics.InvalidInput)
-	}
-
-	pod.Spec.Containers = append(pod.Spec.Containers, *agentSidecarContainer)
-	return true, nil
+	return podUpdated, nil
 }
 
 func getDefaultSidecarTemplate(containerRegistry string) *corev1.Container {
@@ -203,7 +214,7 @@ func getDefaultSidecarTemplate(containerRegistry string) *corev1.Container {
 		clusterAgentCmdPort := config.Datadog.GetInt("cluster_agent.cmd_port")
 		clusterAgentServiceName := config.Datadog.GetString("cluster_agent.kubernetes_service_name")
 
-		_ = withEnvOverrides(agentContainer, corev1.EnvVar{
+		_, _ = withEnvOverrides(agentContainer, corev1.EnvVar{
 			Name:  "DD_CLUSTER_AGENT_ENABLED",
 			Value: "true",
 		}, corev1.EnvVar{
