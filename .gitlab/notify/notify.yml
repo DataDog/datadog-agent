@@ -95,4 +95,5 @@ notify-celian:
     MESSAGE_TEXT="Hello @celian ! :rocket: (pipeline-id: $CI_PIPELINE_ID, commit: $CI_COMMIT_REF_NAME)"
     postmessage "#celian-tests" "$MESSAGE_TEXT"
     postmessage "@Célian Raimbault" "$MESSAGE_TEXT"
+    postmessage "Célian Raimbault" "$MESSAGE_TEXT"
     echo Done
