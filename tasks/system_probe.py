@@ -1583,7 +1583,7 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
             # these commands operate on relative input paths because of max argument size
             nw.rule(name="move_btf", command="mv $in $out")
-            nw.rule(name="merge_btf", command="bpftool $base_btf btf merge $out $in")
+            nw.rule(name="merge_btf", command="cd $btf_dir && bpftool $base_btf btf merge merged_btf $rel_ins")
 
             nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $bpf_programs && rm -rf $in_dir")
             nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
@@ -1611,11 +1611,13 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     # collect list of files in BTF archive, should be vmlinux and kernel module BTFs
                     vmlinux_file = None
                     tar_files = list()
+                    rel_tar_files = list()
                     with tarfile.open(os.path.join(root, file)) as txz:
                         for m in txz.getmembers():
                             if m.isfile():
                                 tf = os.path.normpath(os.path.join(btf_dir, m.name))
                                 tar_files.append(tf)
+                                rel_tar_files.append(m.name)
                                 if os.path.basename(tf) == "vmlinux":
                                     vmlinux_file = tf
 
@@ -1640,14 +1642,16 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                         merge_rule = "move_btf"
                     else:
                         if vmlinux_file:
-                            tar_files.remove(vmlinux_file)
+                            rel_tar_files.remove("vmlinux")
 
                     nw.build(
                         rule=merge_rule,
                         inputs=tar_files,
                         outputs=[merged_btf],
                         variables={
-                            "base_btf": f"-B {vmlinux_file}" if vmlinux_file else "",
+                            "base_btf": f"-B vmlinux" if vmlinux_file else "",
+                            "rel_ins": rel_tar_files,
+                            "btf_dir": btf_dir,
                         },
                     )
 
