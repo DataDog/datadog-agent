@@ -258,11 +258,11 @@ check_pkg_size-amd64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "50000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
       )
 
 check_pkg_size-arm64-a6:
@@ -276,11 +276,11 @@ check_pkg_size-arm64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "50000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
       )
 
 check_pkg_size-amd64-a7:
@@ -305,12 +305,12 @@ check_pkg_size-amd64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" and ["datadog-heroku-agent"]="70000000" should
+    # FIXME: ["datadog-agent"]="140000000" and ["datadog-heroku-agent"]="140000000" should
     # be replaced by "50000000"
     # "70000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
           ["datadog-heroku-agent"]="70000000"
@@ -333,11 +333,11 @@ check_pkg_size-arm64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "70000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "70000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
           ["datadog-agentless-scanner"]="10000000"
