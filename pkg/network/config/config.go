@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -261,6 +264,9 @@ type Config struct {
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
 
+	// NPMRingbuffersEnabled specifies whether ringbuffers are enabled or not
+	NPMRingbuffersEnabled bool
+
 	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
 	EnableUSMConnectionRollup bool
 
@@ -316,6 +322,8 @@ func New() *Config {
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
+
+		NPMRingbuffersEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
 
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
@@ -398,4 +406,8 @@ func New() *Config {
 		log.Info("network process event monitoring enabled")
 	}
 	return c
+}
+
+func (c *Config) RingBufferSupportedNPM() bool {
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
 }

@@ -368,19 +368,19 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 // DumpMaps dumps the content of the map represented by mapName &
 // currentMap, if it used by the eBPF program, to output.
 func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == InFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key HTTP2StreamKey, value HTTP2Stream
-		io.WriteString(w, "Map: '"+mapName+"', key: 'HTTP2StreamKey', value: 'HTTP2Stream'\n")
-		iter := currentMap.Iterate()
+	if mapName == InFlightMap {
 		var key HTTP2StreamKey
-		var value EbpfTx
+		var value HTTP2Stream
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
 	} else if mapName == dynamicTable {
-		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
-		iter := currentMap.Iterate()
 		var key HTTP2DynamicTableIndex
 		var value HTTP2DynamicTableEntry
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}

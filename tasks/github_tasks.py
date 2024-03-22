@@ -67,6 +67,7 @@ def trigger_macos(
     version_cache=None,
     retry_download=3,
     retry_interval=10,
+    fast_tests=None,
 ):
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
@@ -98,6 +99,7 @@ def trigger_macos(
             datadog_agent_ref=datadog_agent_ref,
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
+            fast_tests=fast_tests,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
@@ -163,7 +165,7 @@ def get_milestone_id(_, milestone):
     # dependencies, and we don't want to propagate it to files importing this one
     from libs.common.github_api import GithubAPI
 
-    gh = GithubAPI('DataDog/datadog-agent')
+    gh = GithubAPI()
     m = gh.get_milestone_by_name(milestone)
     if not m:
         raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
@@ -174,7 +176,7 @@ def get_milestone_id(_, milestone):
 def send_rate_limit_info_datadog(_, pipeline_id):
     from .libs.common.github_api import GithubAPI
 
-    gh = GithubAPI('DataDog/datadog-agent')
+    gh = GithubAPI()
     rate_limit_info = gh.get_rate_limit_info()
     print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
     metric = create_count(

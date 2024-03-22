@@ -113,12 +113,29 @@ func (c *Check) Run() error {
 		workloadmeta.NewFilter(&podFilterParams),
 	)
 
+	var taskEventsCh chan workloadmeta.EventBundle
+	if ddConfig.Datadog.GetBool("container_lifecycle.ecs_task_event.enabled") {
+		taskFilterParams := workloadmeta.FilterParams{
+			Kinds:     []workloadmeta.Kind{workloadmeta.KindECSTask},
+			Source:    workloadmeta.SourceNodeOrchestrator,
+			EventType: workloadmeta.EventTypeUnset,
+		}
+		taskEventsCh = c.workloadmetaStore.Subscribe(
+			CheckName+"-task",
+			workloadmeta.NormalPriority,
+			workloadmeta.NewFilter(&taskFilterParams),
+		)
+	}
+
 	pollInterval := time.Duration(c.instance.PollInterval) * time.Second
 
 	processorCtx, stopProcessor := context.WithCancel(context.Background())
 	c.processor.start(processorCtx, pollInterval)
 
-	defer stopProcessor()
+	defer func() {
+		c.sendFargateTaskEvent()
+		stopProcessor()
+	}()
 	for {
 		select {
 		case eventBundle, ok := <-contEventsCh:
@@ -127,6 +144,12 @@ func (c *Check) Run() error {
 			}
 			c.processor.processEvents(eventBundle)
 		case eventBundle, ok := <-podEventsCh:
+			if !ok {
+				stopProcessor()
+				return nil
+			}
+			c.processor.processEvents(eventBundle)
+		case eventBundle, ok := <-taskEventsCh:
 			if !ok {
 				stopProcessor()
 				return nil
@@ -153,5 +176,30 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
 		})
+	})
+}
+
+// sendFargateTaskEvent sends Fargate task lifecycle event at the end of the check
+func (c *Check) sendFargateTaskEvent() {
+	if !ddConfig.Datadog.GetBool("container_lifecycle.ecs_task_event.enabled") ||
+		!ddConfig.IsECSFargate() {
+		return
+	}
+
+	tasks := c.workloadmetaStore.ListECSTasks()
+	if len(tasks) != 1 {
+		log.Infof("Unable to send Fargate task lifecycle event, expected 1 task, got %d", len(tasks))
+		return
+	}
+
+	log.Infof("Send fargate task lifecycle event, task arn:%s", tasks[0].EntityID.ID)
+	c.processor.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: tasks[0],
+			},
+		},
+		Ch: make(chan struct{}),
 	})
 }

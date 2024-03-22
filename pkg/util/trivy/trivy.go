@@ -50,11 +50,14 @@ import (
 const (
 	cleanupTimeout = 30 * time.Second
 
-	OSAnalyzers         = "os"        // OSAnalyzers defines an OS analyzer
-	LanguagesAnalyzers  = "languages" // LanguagesAnalyzers defines a language analyzer
-	SecretAnalyzers     = "secret"    // SecretAnalyzers defines a secret analyzer
-	ConfigFileAnalyzers = "config"    // ConfigFileAnalyzers defines a configuration file analyzer
-	LicenseAnalyzers    = "license"   // LicenseAnalyzers defines a license analyzers
+	OSAnalyzers           = "os"                  // OSAnalyzers defines an OS analyzer
+	LanguagesAnalyzers    = "languages"           // LanguagesAnalyzers defines a language analyzer
+	SecretAnalyzers       = "secret"              // SecretAnalyzers defines a secret analyzer
+	ConfigFileAnalyzers   = "config"              // ConfigFileAnalyzers defines a configuration file analyzer
+	LicenseAnalyzers      = "license"             // LicenseAnalyzers defines a license analyzer
+	TypeApkCommand        = "apk-command"         // TypeApkCommand defines a apk-command analyzer
+	HistoryDockerfile     = "history-dockerfile"  // HistoryDockerfile defines a history-dockerfile analyzer
+	TypeImageConfigSecret = "image-config-secret" // TypeImageConfigSecret defines a history-dockerfile analyzer
 )
 
 // ContainerdAccessor is a function that should return a containerd client
@@ -168,6 +171,15 @@ func DefaultDisabledCollectors(enabledAnalyzers []string) []analyzer.Type {
 	}
 	if analyzersDisabled(LicenseAnalyzers) {
 		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeLicenseFile)
+	}
+	if analyzersDisabled(TypeApkCommand) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeApkCommand)
+	}
+	if analyzersDisabled(HistoryDockerfile) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeHistoryDockerfile)
+	}
+	if analyzersDisabled(TypeImageConfigSecret) {
+		disabledAnalyzers = append(disabledAnalyzers, analyzer.TypeImageConfigSecret)
 	}
 
 	return disabledAnalyzers

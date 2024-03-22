@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1861,6 +1863,22 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
+	t.Run("ringbuf_enabled", func(t *testing.T) {
+		if features.HaveMapType(ebpf.RingBuf) != nil {
+			t.Skip("skipping test as ringbuffers are not supported on this kernel")
+		}
+		c := testConfig()
+		c.NPMRingbuffersEnabled = true
+		testPreexistingEmptyIncomingConnectionDirection(t, c)
+	})
+	t.Run("ringbuf_disabled", func(t *testing.T) {
+		c := testConfig()
+		c.NPMRingbuffersEnabled = false
+		testPreexistingEmptyIncomingConnectionDirection(t, c)
+	})
+}
+
+func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *config.Config) {
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 
@@ -1876,7 +1894,7 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	require.NoError(t, err)
 
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, config)
 
 	// close the server connection so the tracer picks it up
 	close(ch)

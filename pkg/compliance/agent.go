@@ -455,9 +455,15 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
 		for keyGroup, proc := range groups {
 			rootPath := filepath.Join(a.opts.HostRoot, keyGroup.rootPath)
-			resource, ok := dbconfig.LoadDBResource(ctx, rootPath, proc, keyGroup.containerID)
+			resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, rootPath, proc)
 			if ok {
-				a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+				log := NewResourceLog(a.opts.Hostname, resourceType, resource)
+				if keyGroup.containerID != "" {
+					log.Container = &CheckContainerMeta{
+						ContainerID: string(keyGroup.containerID),
+					}
+				}
+				a.reportResourceLog(defaultCheckIntervalLowPriority, log)
 			}
 		}
 		if sleepAborted(ctx, runTicker.C) {
