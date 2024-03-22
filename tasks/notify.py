@@ -59,6 +59,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     """
     default_branch = os.getenv('CI_DEFAULT_BRANCH')
     print('default_branch', default_branch)
+    branch = os.getenv('CI_COMMIT_REF_NAME')
+    print('branch', branch)
+    exit()
 
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
@@ -114,8 +117,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
                 author_email = get_git_author(format='ae')
                 recipient = email_to_slackid(ctx, author_email)
 
-            print('SEND', recipient, str(message))
-            # send_slack_message(recipient, str(message))
+            send_slack_message(recipient, str(message))
 
 
 @task
