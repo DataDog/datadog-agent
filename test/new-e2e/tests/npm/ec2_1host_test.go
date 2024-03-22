@@ -59,7 +59,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
 		if err != nil {
 			return err
 		}

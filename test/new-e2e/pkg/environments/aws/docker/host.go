@@ -147,7 +147,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 		return err
 	}
 
-	manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return err
 	}

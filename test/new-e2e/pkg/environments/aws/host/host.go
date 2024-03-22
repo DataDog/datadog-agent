@@ -180,7 +180,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	if params.installDocker {
-		_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host, true)
+		_, dockerRes, err := docker.NewManager(*awsEnv.CommonEnvironment, host)
 		if err != nil {
 			return err
 		}
