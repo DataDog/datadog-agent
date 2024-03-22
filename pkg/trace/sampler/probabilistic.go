@@ -23,6 +23,8 @@ const (
 	percentageScaleFactor   = numProbabilisticBuckets / 100.0
 )
 
+// ProbabilisticSampler is a sampler that overrides all other samplers,
+// it deterministically samples incoming traces by a hash of their trace ID
 type ProbabilisticSampler struct {
 	enabled                  bool
 	hashSeed                 []byte
