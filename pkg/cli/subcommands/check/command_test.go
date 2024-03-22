@@ -6,6 +6,8 @@
 package check
 
 import (
+	"os"
+	"path"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -19,7 +21,14 @@ import (
 func TestCommand(t *testing.T) {
 	commands := []*cobra.Command{
 		MakeCommand(func() GlobalParams {
-			return GlobalParams{}
+			// the config needs an existing config file when initializing
+			config := path.Join(t.TempDir(), "datadog.yaml")
+			err := os.WriteFile(config, []byte("hostname: test"), 0644)
+			require.NoError(t, err)
+
+			return GlobalParams{
+				ConfFilePath: config,
+			}
 		}),
 	}
 

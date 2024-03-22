@@ -215,6 +215,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() packagesigning.Component { return nil }),
 				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
 				fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
+
+				getPlatformModules(),
 			)
 		},
 	}
