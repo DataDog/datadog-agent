@@ -24,8 +24,12 @@ SSH_OPTIONS = {
 }
 
 
-def ssh_options_command():
-    return " ".join([f"-o {k}={v}" for k, v in SSH_OPTIONS.items()])
+def ssh_options_command(extra_opts: Optional[Dict[str, str]] = None):
+    opts = SSH_OPTIONS.copy()
+    if extra_opts is not None:
+        opts.update(extra_opts)
+
+    return " ".join([f"-o {k}={v}" for k, v in opts.items()])
 
 
 class LocalCommandRunner:
@@ -122,8 +126,13 @@ class LibvirtDomain:
         self.ssh_key = ssh_key_path
         self.instance = instance
 
-    def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False):
-        run = f"ssh {ssh_options_command()} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
+    def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False, timeout_sec=None):
+        if timeout_sec is not None:
+            extra_opts = {"ConnectTimeout": str(timeout_sec)}
+        else:
+            extra_opts = None
+
+        run = f"ssh {ssh_options_command(extra_opts)} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
     def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr):
@@ -132,6 +141,9 @@ class LibvirtDomain:
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
+
+    def check_reachable(self, ctx: Context) -> bool:
+        return self.run_cmd(ctx, "true", allow_fail=True, timeout_sec=2)
 
 
 class HostInstance:
