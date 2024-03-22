@@ -1947,8 +1947,8 @@ go.opentelemetry.io/collector/otelcol v0.91.0 h1:gq/PY/tHgkTr2fuMLp+F+NAm+03iiU+
 go.opentelemetry.io/collector/otelcol v0.91.0/go.mod h1:9j8gKdZvuEgZoeUhz5f5D/fwCxx7M7Tg+6D207/KjNs=
 go.opentelemetry.io/collector/pdata v1.0.1 h1:dGX2h7maA6zHbl5D3AsMnF1c3Nn+3EUftbVCLzeyNvA=
 go.opentelemetry.io/collector/pdata v1.0.1/go.mod h1:jutXeu0QOXYY8wcZ/hege+YAnSBP3+jpTqYU1+JTI5Y=
-go.opentelemetry.io/collector/processor v0.91.0 h1:Xi52gYMXTG4zYmNhsqJ8ly/9f7b0n0crMhKxVVI9HpY=
-go.opentelemetry.io/collector/processor v0.91.0/go.mod h1:naTuusZNfzM5MSqoTVzkKbR1MaJ8oD8v5ginR5JreDE=
+go.opentelemetry.io/collector/processor v0.93.0 h1:P4/AXaeMNzmImsD1dONlLOk5Ky4txS+Yf52eIulIg0k=
+go.opentelemetry.io/collector/processor v0.93.0/go.mod h1:VQqYLgdC04Bp8ArfkERaOFaRCDvyCMdwULvTn66l6AA=
 go.opentelemetry.io/collector/processor/batchprocessor v0.91.0 h1:YuPG52D7otNr4lNd8KGsIIBHvawAAaOqGoNTK9799ko=
 go.opentelemetry.io/collector/processor/batchprocessor v0.91.0/go.mod h1:U2ZVSMwgr4OsaKKMfvX9OGaurG83zAPKjVdpTgmj0ok=
 go.opentelemetry.io/collector/receiver v0.91.0 h1:0TZF/0OXoJtxgm+mvOinRRXo9LgVyOsOgCQfWkNGXJA=

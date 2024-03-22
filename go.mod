@@ -692,7 +692,7 @@ require (
 	github.com/vibrantbyte/go-antpath v1.1.1
 	go.opentelemetry.io/collector/extension v0.91.0
 	go.opentelemetry.io/collector/otelcol v0.91.0
-	go.opentelemetry.io/collector/processor v0.91.0
+	go.opentelemetry.io/collector/processor v0.93.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	gotest.tools v2.2.0+incompatible
 )
