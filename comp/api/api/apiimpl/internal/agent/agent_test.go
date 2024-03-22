@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
+	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 
 	// package dependencies
@@ -152,20 +153,14 @@ func TestSetupHandlers(t *testing.T) {
 	defer ts.Close()
 
 	res, err := http.Get(ts.URL + "/version")
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
+	require.NoError(t, err)
 
 	want, err := version.Agent()
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
+	require.NoError(t, err)
 
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		t.Fatalf("%s", err)
-	}
+	require.NoError(t, err)
 
 	wantjson, _ := json.Marshal(want)
 
