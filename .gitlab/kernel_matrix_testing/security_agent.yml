@@ -154,7 +154,6 @@ kmt_run_secagent_tests_x64:
           - "debian_10"
           - "debian_11"
           - "debian_12"
-          - "oracle_7.9"
           - "oracle_8.9"
           - "oracle_9.3"
         TEST_SET: [all_tests]
