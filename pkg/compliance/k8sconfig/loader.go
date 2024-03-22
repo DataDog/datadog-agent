@@ -68,6 +68,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 		"/etc/systemd/system/kubelet.service.d/kubelet.conf",
 		"/etc/systemd/system/kubelet.service.d/10-kubeadm.conf",
 		"/etc/systemd/system/kubelet.service.d/10-kubelet-args.conf",
+		"/etc/systemd/system/kubelet.service",
 		"/usr/lib/systemd/system/kubelet.service",
 		"/lib/systemd/system/kubelet.service",
 	})

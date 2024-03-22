@@ -78,12 +78,12 @@ func GetProcResourceType(proc *process.Process) (string, bool) {
 	return "", false
 }
 
-// LoadDBResource loads and returns an optional DBResource associated with the
+// LoadConfiguration loads and returns an optional DBResource associated with the
 // given process PID.
-func LoadDBResource(ctx context.Context, rootPath string, proc *process.Process, containerID utils.ContainerID) (*DBResource, bool) {
+func LoadConfiguration(ctx context.Context, rootPath string, proc *process.Process) (string, *DBConfig, bool) {
 	resourceType, ok := GetProcResourceType(proc)
 	if !ok {
-		return nil, false
+		return "", nil, false
 	}
 	var conf *DBConfig
 	switch resourceType {
@@ -97,13 +97,9 @@ func LoadDBResource(ctx context.Context, rootPath string, proc *process.Process,
 		ok = false
 	}
 	if !ok || conf == nil {
-		return nil, false
+		return "", nil, false
 	}
-	return &DBResource{
-		Type:        resourceType,
-		ContainerID: string(containerID),
-		Config:      *conf,
-	}, true
+	return resourceType, conf, true
 }
 
 // LoadDBResourceFromPID loads and returns an optional DBResource associated

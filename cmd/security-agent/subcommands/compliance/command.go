@@ -106,15 +106,15 @@ func loadRun(_ log.Component, _ config.Component, loadArgs *loadCliParams) error
 		if loadArgs.procPid == 0 {
 			return fmt.Errorf("missing required flag --proc-pid")
 		}
-		proc, containerID, rootPath, err := getProcMeta(hostroot, int32(loadArgs.procPid))
+		proc, _, rootPath, err := getProcMeta(hostroot, int32(loadArgs.procPid))
 		if err != nil {
 			return err
 		}
-		dbresource, ok := dbconfig.LoadDBResource(ctx, rootPath, proc, containerID)
+		var ok bool
+		resourceType, resource, ok = dbconfig.LoadConfiguration(ctx, rootPath, proc)
 		if !ok {
 			return fmt.Errorf("failed to load database config from process %d in %q", loadArgs.procPid, rootPath)
 		}
-		resourceType, resource = dbresource.Type, dbresource.Config
 	default:
 		return fmt.Errorf("unknown config type %q", loadArgs.confType)
 	}
