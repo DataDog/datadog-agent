@@ -377,6 +377,10 @@ func shouldRetryError(err error) retryType {
 		return reUp
 	}
 
+	if strings.Contains(err.Error(), "create: timeout while waiting for state to become 'tfSTABLE'") {
+		return reUp
+	}
+
 	return noRetry
 }
 
