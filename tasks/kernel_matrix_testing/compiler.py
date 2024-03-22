@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, cast
 
 from invoke.context import Context
@@ -73,14 +74,22 @@ class CompilerImage:
 
         docker_build_args = ["--platform", docker_platform]
 
+        agent_path = Path(__file__).parent.parent.parent
+        buildimages_path = (agent_path.parent / "datadog-agent-buildimages").resolve()
+
+        if not buildimages_path.is_dir():
+            raise FileNotFoundError(
+                f"datadog-agent-buildimages not found at {buildimages_path}. Please clone the repository there to access compiler images"
+            )
+
         # Add build arguments (such as go version) from go.env
-        with open("../datadog-agent-buildimages/go.env", "r") as f:
+        with open(buildimages_path / "go.env", "r") as f:
             for line in f:
                 docker_build_args += ["--build-arg", line.strip()]
 
         docker_build_args_s = " ".join(docker_build_args)
         res = self.ctx.run(
-            f"cd ../datadog-agent-buildimages && docker build {docker_build_args_s} -f system-probe_{buildimages_arch}/Dockerfile -t {self.image} ."
+            f"cd {buildimages_path} && docker build {docker_build_args_s} -f system-probe_{buildimages_arch}/Dockerfile -t {self.image} ."
         )
         return cast('Result', res)  # Avoid mypy error about res being None
 
