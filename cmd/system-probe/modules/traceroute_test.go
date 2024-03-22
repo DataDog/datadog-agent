@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,12 +53,13 @@ func TestParseParams(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t1 *testing.T) {
-			req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("http://example.com/host/%s", tt.host), nil)
+			req, err := http.NewRequestWithContext(context.Background(), "GET", fmt.Sprintf("http://example.com"), nil)
 			q := req.URL.Query()
 			for k, v := range tt.params {
 				q.Add(k, v)
 			}
 			req.URL.RawQuery = q.Encode()
+			req = mux.SetURLVars(req, map[string]string{"host": tt.host})
 
 			require.NoError(t, err)
 			config, err := parseParams(req)
