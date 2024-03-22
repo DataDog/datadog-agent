@@ -14,7 +14,7 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.compiler import CompilerImage, get_compiler
+from tasks.kernel_matrix_testing.compiler import all_compilers, get_compiler
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import SSH_OPTIONS, HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
@@ -245,16 +245,14 @@ def update_resources(ctx: Context, vmconfig_template="system-probe"):
 
 @task
 def build_compiler(ctx: Context):
-    for arch in arch_mapping.values():
-        c = CompilerImage(ctx, arch)
-        c.build()
+    for cc in all_compilers(ctx):
+        cc.build()
 
 
 @task
 def start_compiler(ctx: Context):
-    for arch in arch_mapping.values():
-        c = CompilerImage(ctx, arch)
-        c.start()
+    for cc in all_compilers(ctx):
+        cc.start()
 
 
 def filter_target_domains(vms: str, infra: Dict[ArchOrLocal, HostInstance], arch: Optional[ArchOrLocal] = None):
