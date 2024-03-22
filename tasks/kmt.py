@@ -289,7 +289,7 @@ def download_gotestsum(ctx: Context, arch: Arch):
         if file_arch == arch:
             return
 
-    paths = KMTPaths("", arch)
+    paths = KMTPaths(None, arch)
     paths.tools.mkdir(parents=True, exist_ok=True)
 
     cc = get_compiler(ctx, arch)
@@ -307,7 +307,7 @@ def full_arch(arch: ArchOrLocal) -> Arch:
 
 
 class KMTPaths:
-    def __init__(self, stack: str, arch: Arch):
+    def __init__(self, stack: Optional[str], arch: Arch):
         self.stack = stack
         self.arch = arch
 
@@ -321,6 +321,9 @@ class KMTPaths:
 
     @property
     def stack_dir(self):
+        if self.stack is None:
+            raise Exit("no stack name provided, cannot use stack-specific paths")
+
         return self.root / self.stack
 
     @property
@@ -367,9 +370,8 @@ def build_dependencies(
     if stack is None:
         raise Exit("no stack name provided")
     info(f"[+] Building dependencies for {arch} in stack {stack}")
-    paths = KMTPaths("", arch)
+    paths = KMTPaths(stack, arch)
     source_dir = Path(source_dir)
-    paths.stack = stack
     if not ci:
         # in the CI we can rely on gotestsum being present
         download_gotestsum(ctx, arch)
