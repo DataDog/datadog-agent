@@ -26,7 +26,7 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

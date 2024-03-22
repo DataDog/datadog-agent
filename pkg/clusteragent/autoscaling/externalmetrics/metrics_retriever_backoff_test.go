@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 
 	"github.com/stretchr/testify/assert"
@@ -1169,7 +1169,6 @@ func TestRetryIncTimingWithBackoff(t *testing.T) {
 }
 
 func TestBatchSplittingWithBackoff(t *testing.T) {
-
 	// In this case we only care about how many queries batch queries are made
 	// to verify the backoff logic. Backoff timing is tested in the previous test
 

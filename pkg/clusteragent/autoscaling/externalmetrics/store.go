@@ -10,7 +10,7 @@ package externalmetrics
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 )
 
 const (
@@ -147,9 +147,7 @@ func (ds *DatadogMetricsInternalStore) LockRead(id string, lockOnMissing bool) *
 }
 
 // Unlock allows to unlock after a read that do not require any modification to the internal object
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (ds *DatadogMetricsInternalStore) Unlock(id string) {
+func (ds *DatadogMetricsInternalStore) Unlock(string) {
 	ds.lock.Unlock()
 }
 
