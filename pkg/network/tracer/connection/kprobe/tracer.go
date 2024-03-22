@@ -113,10 +113,13 @@ func ClassificationSupported(config *config.Config) bool {
 }
 
 func FailedConnectionsSupported(config *config.Config) bool {
+	log.Info("adamk FailedConnectionsSupported?")
 	if !config.FailedConnectionsEnabled {
+		log.Info("adamk FailedConnectionsSupported? config disabled; failed connections monitoring disabled.")
 		return false
 	}
 	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
+		log.Info("adamk FailedConnectionsSupported? tcp disabled; failed connections monitoring disabled.")
 		return false
 	}
 	currentKernelVersion, err := kernel.HostVersion()
@@ -263,9 +266,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	failedConnectionsEnabled := FailedConnectionsSupported(config)
 	if failedConnectionsEnabled {
-		//addBoolConst(&mgrOpts, true, "failed_connections_enabled")
+		util.AddBoolConst(&mgrOpts, "failed_connections_enabled", true)
 		log.Errorf("adamk failed connections monitoring supported")
-		mgrOpts.MapSpecEditors[probes.ConnCloseEventMap] = manager.MapSpecEditor{
+		mgrOpts.MapSpecEditors[probes.FailedConnEventMap] = manager.MapSpecEditor{
 			Type:       ebpf.RingBuf,
 			MaxEntries: uint32(computeDefaultFailedConnectionsRingBufferSize()),
 			KeySize:    0,

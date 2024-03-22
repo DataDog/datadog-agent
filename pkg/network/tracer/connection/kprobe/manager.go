@@ -11,7 +11,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -35,6 +34,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
+	probes.TCPConnectReturn,
 	probes.TCPv4ConnectReturn,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -85,21 +85,7 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.TCPCloseProgsMap},
 	}
 	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
-
-	options := manager.RingBufferOptions{
-		RecordGetter:     failedConnsHandler.RecordGetter,
-		RecordHandler:    failedConnsHandler.RecordHandler,
-		TelemetryEnabled: cfg.InternalTelemetryEnabled,
-		// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-		RingBufferSize: 0,
-	}
-	rb := &manager.RingBuffer{
-		Map:               manager.Map{Name: probes.ConnCloseEventMap},
-		RingBufferOptions: options,
-	}
-
-	mgr.RingBuffers = []*manager.RingBuffer{rb}
-	ebpftelemetry.ReportRingBufferTelemetry(rb)
+	util.SetupFailedConnHandler(failedConnsHandler, mgr, cfg)
 
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{

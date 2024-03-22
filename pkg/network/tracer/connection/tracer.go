@@ -163,6 +163,8 @@ type tracer struct {
 
 	// tcp_close events
 	closeConsumer *tcpCloseConsumer
+	// tcp failure events
+	failedConnConsumer *tcpFailedConnConsumer
 
 	removeTuple *netebpf.ConnTuple
 
@@ -256,15 +258,18 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
+	failedConnConsumer := newFailedConnConsumer(failedConnsHandler, batchMgr)
+
 	tr := &tracer{
-		m:              m,
-		config:         config,
-		closeConsumer:  closeConsumer,
-		removeTuple:    &netebpf.ConnTuple{},
-		closeTracer:    closeTracerFn,
-		ebpfTracerType: tracerType,
-		exitTelemetry:  make(chan struct{}),
-		ch:             newCookieHasher(),
+		m:                  m,
+		config:             config,
+		closeConsumer:      closeConsumer,
+		failedConnConsumer: failedConnConsumer,
+		removeTuple:        &netebpf.ConnTuple{},
+		closeTracer:        closeTracerFn,
+		ebpfTracerType:     tracerType,
+		exitTelemetry:      make(chan struct{}),
+		ch:                 newCookieHasher(),
 	}
 
 	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
@@ -316,6 +321,8 @@ func (t *tracer) Start(callback func([]network.ConnectionStats)) (err error) {
 	}
 
 	t.closeConsumer.Start(callback)
+	log.Info("starting failed connection consumer")
+	t.failedConnConsumer.Start(callback)
 	return nil
 }
 

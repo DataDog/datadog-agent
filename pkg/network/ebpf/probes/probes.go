@@ -19,6 +19,8 @@ const (
 	TCPConnect ProbeFuncName = "kprobe__tcp_connect"
 	// TCPv4ConnectReturn traces the return value for the v4 connect() system call
 	TCPv4ConnectReturn = "kretprobe__tcp_v4_connect"
+	// TCPConnectReturn traces the return value for the connect() system call
+	TCPConnectReturn = "kretprobe__tcp_connect"
 	// TCPFinishConnect traces tcp_finish_connect() kernel function. This is
 	// used to know when a TCP connection switches to the ESTABLISHED state
 	TCPFinishConnect ProbeFuncName = "kprobe__tcp_finish_connect"
@@ -194,6 +196,8 @@ const (
 	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
 	// ConnCloseEventMap is the map storing connection close events
 	ConnCloseEventMap BPFMapName = "conn_close_event"
+	// FailedConnEventMap is the map for storing failed connection events
+	FailedConnEventMap BPFMapName = "failed_conn_event"
 	// TracerStatusMap is the map storing the status of the tracer
 	TracerStatusMap BPFMapName = "tracer_status"
 	// ConntrackStatusMap is the map storing the status of the conntrack

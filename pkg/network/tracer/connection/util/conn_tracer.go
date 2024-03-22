@@ -56,6 +56,29 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 	}
 }
 
+// SetupFailedConnHandler sets up the closed connection event handler
+func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
+	switch handler := connCloseEventHandler.(type) {
+	case *ebpf.RingBufferHandler:
+		options := manager.RingBufferOptions{
+			RecordGetter:     handler.RecordGetter,
+			RecordHandler:    handler.RecordHandler,
+			TelemetryEnabled: cfg.InternalTelemetryEnabled,
+			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
+			RingBufferSize: computeDefaultClosedConnRingBufferSize(),
+		}
+		rb := &manager.RingBuffer{
+			Map:               manager.Map{Name: probes.FailedConnEventMap},
+			RingBufferOptions: options,
+		}
+
+		mgr.RingBuffers = []*manager.RingBuffer{rb}
+		ebpftelemetry.ReportRingBufferTelemetry(rb)
+	case *ebpf.PerfHandler:
+		log.Info("Setting up failed connection handler with perf handler")
+	}
+}
+
 // SetupClosedConnHandler sets up the closed connection event handler
 func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
 	switch handler := connCloseEventHandler.(type) {

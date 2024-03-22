@@ -903,18 +903,38 @@ int kprobe__tcp_connect(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kretprobe/tcp_connect")
+int kretprobe__tcp_connect(struct pt_regs *ctx) {
+    conn_tuple_t tuple = {};
+    int ret = PT_REGS_RC(ctx);
+    
+    struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
+
+    if (ret != 0) {
+        log_debug("adamk kretprobe__tcp_connect: ret: %d", ret);
+        flush_tcp_failure(ctx, &tuple, ret);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
+        return 0;
+    }
+
+    
+    return 0;
+}
+
 SEC("kretprobe/tcp_v4_connect")
 int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
     conn_tuple_t tuple = {};
     int ret = PT_REGS_RC(ctx);
+    
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
     if (ret != 0) {
-        flush_tcp_failure(ctx, &tuple, skp);
+        log_debug("adamk kretprobe__tcp_v4_connect: ret: %d", ret);
+        flush_tcp_failure(ctx, &tuple, ret);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
         return 0;
     }
-
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
+    
     return 0;
 }
 
