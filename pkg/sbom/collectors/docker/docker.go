@@ -54,6 +54,7 @@ type Collector struct {
 	resChan        chan sbom.ScanResult
 	opts           sbom.ScanOptions
 	cl             client.ImageAPIClient
+	wmeta          optional.Option[workloadmeta.Component]
 
 	closed bool
 }
@@ -69,6 +70,7 @@ func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.C
 	if err != nil {
 		return err
 	}
+	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
 	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	return nil
@@ -89,12 +91,12 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		c.cl = cl.RawClient()
 	}
 
-	wlm := workloadmeta.GetGlobalStore()
-	if wlm == nil {
+	wmeta, ok := c.wmeta.Get()
+	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
 	}
 
-	imageMeta, err := wlm.GetImage(dockerScanRequest.ID())
+	imageMeta, err := wmeta.GetImage(dockerScanRequest.ID())
 	if err != nil {
 		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", dockerScanRequest.ID(), err)}
 	}

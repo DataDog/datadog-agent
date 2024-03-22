@@ -76,6 +76,8 @@ type TaggerClient struct {
 
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 	defaultTagger tagger
+
+	wmeta workloadmeta.Component
 }
 
 var (
@@ -142,6 +144,9 @@ func newTaggerClient(deps dependencies) Component {
 			defaultTagger: local.NewFakeTagger(),
 			captureTagger: nil,
 		}
+	}
+	if taggerClient != nil {
+		taggerClient.wmeta = deps.Wmeta
 	}
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	SetGlobalTaggerClient(taggerClient)
@@ -271,7 +276,7 @@ func (t *TaggerClient) Standard(entity string) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerClient) AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}

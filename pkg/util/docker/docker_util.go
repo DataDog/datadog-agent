@@ -145,7 +145,7 @@ func (d *DockerUtil) RawContainerList(ctx context.Context, options container.Lis
 }
 
 // RawContainerListWithFilter is like RawContainerList but with a container filter.
-func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options container.ListOptions, filter *containers.Filter) ([]types.Container, error) {
+func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options container.ListOptions, filter *containers.Filter, wmeta workloadmeta.Component) ([]types.Container, error) {
 	containers, err := d.RawContainerList(ctx, options)
 	if err != nil {
 		return nil, err
@@ -157,8 +157,7 @@ func (d *DockerUtil) RawContainerListWithFilter(ctx context.Context, options con
 
 	isExcluded := func(container types.Container) bool {
 		var annotations map[string]string
-		// TODO(components)L inject dependency and remove use of global
-		if pod, err := workloadmeta.GetGlobalStore().GetKubernetesPodForContainer(container.ID); err == nil {
+		if pod, err := wmeta.GetKubernetesPodForContainer(container.ID); err == nil {
 			annotations = pod.Annotations
 		}
 		for _, name := range container.Names {

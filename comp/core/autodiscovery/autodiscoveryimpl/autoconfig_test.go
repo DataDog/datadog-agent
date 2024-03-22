@@ -15,15 +15,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -143,6 +148,7 @@ func (ms *MockScheduler) Stop() {}
 
 type AutoConfigTestSuite struct {
 	suite.Suite
+	deps Deps
 }
 
 // SetupSuite saves the original listener registry
@@ -158,15 +164,19 @@ func (suite *AutoConfigTestSuite) SetupSuite() {
 	)
 }
 
-func getAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
-	ac := createNewAutoConfig(scheduler, secretResolver)
+func (suite *AutoConfigTestSuite) SetupTest() {
+	suite.deps = createDeps(suite.T())
+}
+
+func getAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
+	ac := createNewAutoConfig(scheduler, secretResolver, wmeta)
 	go ac.serviceListening()
 	return ac
 }
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
 	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
@@ -183,7 +193,7 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
 	assert.Len(suite.T(), ac.listeners, 0)
 
 	ml := &MockListener{}
@@ -221,7 +231,7 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 
 func (suite *AutoConfigTestSuite) TestStop() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
@@ -234,7 +244,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 
 func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, suite.deps.WMeta)
 
 	// Hack the retry delay to shorten the test run time
 	initialListenerCandidateIntl := listenerCandidateIntl
@@ -334,6 +344,7 @@ func TestAutoConfigTestSuite(t *testing.T) {
 }
 
 func TestResolveTemplate(t *testing.T) {
+	deps := createDeps(t)
 	ctx := context.Background()
 
 	msch := scheduler.NewMetaScheduler()
@@ -341,7 +352,7 @@ func TestResolveTemplate(t *testing.T) {
 	msch.Register("mock", sch, false)
 
 	mockResolver := MockSecretResolver{t, nil}
-	ac := getAutoConfig(msch, &mockResolver)
+	ac := getAutoConfig(msch, &mockResolver, deps.WMeta)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
@@ -372,11 +383,12 @@ func countLoadedConfigs(ac *AutoConfig) int {
 }
 
 func TestRemoveTemplate(t *testing.T) {
+	deps := createDeps(t)
 	ctx := context.Background()
 
 	mockResolver := MockSecretResolver{t, nil}
 
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, deps.WMeta)
 	// Add static config
 	c := integration.Config{
 		Name: "memory",
@@ -411,6 +423,7 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 }
 
 func TestDecryptConfig(t *testing.T) {
+	deps := createDeps(t)
 	ctx := context.Background()
 
 	mockResolver := MockSecretResolver{t, []mockSecretScenario{
@@ -428,7 +441,7 @@ func TestDecryptConfig(t *testing.T) {
 		},
 	}}
 
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, deps.WMeta)
 	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
@@ -455,6 +468,7 @@ func TestDecryptConfig(t *testing.T) {
 }
 
 func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
+	deps := createDeps(t)
 	configName := "testConfig"
 
 	mockResolver := MockSecretResolver{t, []mockSecretScenario{
@@ -471,7 +485,7 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
-	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := getAutoConfig(scheduler.NewMetaScheduler(), &mockResolver, deps.WMeta)
 
 	tpl := integration.Config{
 		Provider:     names.ClusterChecks,
@@ -499,4 +513,13 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	originalCheckID := checkid.BuildID(tpl.Name, tpl.FastDigest(), tpl.Instances[0], tpl.InitConfig)
 	newCheckID := checkid.BuildID(resolved.Name, resolved.FastDigest(), resolved.Instances[0], resolved.InitConfig)
 	assert.Equal(t, originalCheckID, ac.GetIDOfCheckWithEncryptedSecrets(newCheckID))
+}
+
+type Deps struct {
+	fx.In
+	WMeta optional.Option[workloadmeta.Component]
+}
+
+func createDeps(t *testing.T) Deps {
+	return fxutil.Test[Deps](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 }

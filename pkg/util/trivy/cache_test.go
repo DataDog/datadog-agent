@@ -240,10 +240,6 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 		workloadmeta.MockModuleV2(),
 	))
 
-	// setup workloadmeta for test
-	workloadmeta.SetGlobalStore(workloadmetaStore)
-	defer workloadmeta.SetGlobalStore(nil)
-
 	image1 := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,

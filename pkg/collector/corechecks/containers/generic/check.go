@@ -65,8 +65,7 @@ func (c *ContainerCheck) Configure(senderManager sender.SenderManager, integrati
 	if err != nil {
 		return err
 	}
-
-	c.processor = NewProcessor(metrics.GetProvider(), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store})
+	c.processor = NewProcessor(metrics.GetProvider(optional.NewOption(c.store)), NewMetadataContainerAccessor(c.store), GenericMetricsAdapter{}, LegacyContainerFilter{OldFilter: filter, Store: c.store})
 	return c.instance.Parse(config)
 }
 

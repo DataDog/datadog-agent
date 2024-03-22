@@ -12,6 +12,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -25,9 +26,10 @@ const (
 )
 
 // NewContainerCheck returns an instance of the ContainerCheck.
-func NewContainerCheck(config ddconfig.Reader) *ContainerCheck {
+func NewContainerCheck(config ddconfig.Reader, wmeta workloadmeta.Component) *ContainerCheck {
 	return &ContainerCheck{
 		config: config,
+		wmeta:  wmeta,
 	}
 }
 
@@ -45,11 +47,12 @@ type ContainerCheck struct {
 	containerFailedLogLimit *log.Limit
 
 	maxBatchSize int
+	wmeta        workloadmeta.Component
 }
 
 // Init initializes a ContainerCheck instance.
 func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
-	c.containerProvider = proccontainers.GetSharedContainerProvider()
+	c.containerProvider = proccontainers.GetSharedContainerProvider(c.wmeta)
 	c.hostInfo = info
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())

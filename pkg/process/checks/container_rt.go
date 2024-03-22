@@ -10,6 +10,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -22,9 +23,10 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck(config ddconfig.Reader) *RTContainerCheck {
+func NewRTContainerCheck(config ddconfig.Reader, wmeta workloadmeta.Component) *RTContainerCheck {
 	return &RTContainerCheck{
 		config: config,
+		wmeta:  wmeta,
 	}
 }
 
@@ -35,13 +37,14 @@ type RTContainerCheck struct {
 	containerProvider proccontainers.ContainerProvider
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	config            ddconfig.Reader
+	wmeta             workloadmeta.Component
 }
 
 // Init initializes a RTContainerCheck instance.
 func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	r.maxBatchSize = getMaxBatchSize(r.config)
 	r.hostInfo = hostInfo
-	r.containerProvider = proccontainers.GetSharedContainerProvider()
+	r.containerProvider = proccontainers.GetSharedContainerProvider(r.wmeta)
 	return nil
 }
 

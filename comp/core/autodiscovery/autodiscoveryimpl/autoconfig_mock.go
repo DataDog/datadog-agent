@@ -12,7 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
@@ -23,11 +25,12 @@ type MockParams struct {
 
 type mockdependencies struct {
 	fx.In
+	WMeta  optional.Option[workloadmeta.Component]
 	Params MockParams
 }
 
 func newMockAutoConfig(deps mockdependencies) autodiscovery.Mock {
-	return createNewAutoConfig(deps.Params.Scheduler, nil)
+	return createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta)
 }
 
 // MockModule provides the default autoconfig without other components configured, and not started

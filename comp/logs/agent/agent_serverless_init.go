@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"time"
 )
 
@@ -35,6 +37,7 @@ import (
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func (a *agent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
+	_ optional.Option[workloadmeta.Component],
 ) {
 	health := health.RegisterLiveness("logs-agent")
 

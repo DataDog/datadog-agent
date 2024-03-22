@@ -56,9 +56,6 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
-		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-			return m.(workloadmeta.Component)
-		}),
 	))
 
 	optComponent := newClient(deps).(optional.Option[clientComp.Component])
@@ -104,9 +101,6 @@ func TestClientEnabled(t *testing.T) {
 					logimpl.MockModule(),
 					fx.Supply(workloadmeta.NewParams()),
 					workloadmeta.MockModuleV2(),
-					fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-						return m.(workloadmeta.Component)
-					}),
 				))
 
 				optionalCl := newClient(deps).(optional.Option[clientComp.Component])

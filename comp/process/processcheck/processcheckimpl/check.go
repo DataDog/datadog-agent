@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -34,6 +35,7 @@ type dependencies struct {
 
 	Config    config.Component
 	Sysconfig sysprobeconfig.Component
+	WMmeta    workloadmeta.Component
 }
 
 type result struct {
@@ -45,7 +47,7 @@ type result struct {
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig),
+		processCheck: checks.NewProcessCheck(deps.Config, deps.Sysconfig, deps.WMmeta),
 	}
 	return result{
 		Check: types.ProvidesCheck{
