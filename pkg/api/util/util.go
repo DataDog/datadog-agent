@@ -34,7 +34,6 @@ func SetAuthToken(config model.Reader) error {
 		return nil
 	}
 
-	// token is only set once, no need to mutex protect
 	var err error
 	token, err = security.FetchAuthToken(config)
 	return err
@@ -51,7 +50,6 @@ func CreateAndSetAuthToken(config model.Reader) error {
 		return nil
 	}
 
-	// token is only set once, no need to mutex protect
 	var err error
 	token, err = security.CreateOrFetchToken(config)
 	return err
@@ -75,7 +73,6 @@ func InitDCAAuthToken(config model.Reader) error {
 		return nil
 	}
 
-	// dcaToken is only set once, no need to mutex protect
 	var err error
 	dcaToken, err = security.CreateOrGetClusterAgentAuthToken(config)
 	return err
