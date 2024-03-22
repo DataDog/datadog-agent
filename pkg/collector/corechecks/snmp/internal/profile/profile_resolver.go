@@ -13,8 +13,8 @@ import (
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 )
 
@@ -87,7 +87,7 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 
 		mergeProfileDefinition(definition, baseDefinition)
 
-		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
+		newExtendsHistory := append(utils.CopyStrings(extendsHistory), extendEntry)
 		err := recursivelyExpandBaseProfiles(extendEntry, definition, baseDefinition.Extends, newExtendsHistory, profiles, defaultProfiles)
 		if err != nil {
 			return err
