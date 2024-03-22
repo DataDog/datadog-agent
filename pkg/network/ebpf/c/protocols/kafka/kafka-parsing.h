@@ -9,7 +9,7 @@
 
 // forward declaration
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
-static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset);
+static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -33,22 +33,22 @@ SEC("socket/kafka_filter")
 int socket__kafka_filter(struct __sk_buff* skb) {
     const u32 zero = 0;
     skb_info_t skb_info;
-    kafka_transaction_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
     if (kafka == NULL) {
         log_debug("socket__kafka_filter: kafka_transaction state is NULL");
         return 0;
     }
-    bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
+    bpf_memset(&kafka->transaction, 0, sizeof(kafka_transaction_t));
 
-    if (!fetch_dispatching_arguments(&kafka->tup, &skb_info)) {
+    if (!fetch_dispatching_arguments(&kafka->transaction.tup, &skb_info)) {
         log_debug("socket__kafka_filter failed to fetch arguments for tail call");
         return 0;
     }
 
-    if (!kafka_allow_packet(kafka, skb, &skb_info)) {
+    if (!kafka_allow_packet(&kafka->transaction, skb, &skb_info)) {
         return 0;
     }
-    normalize_tuple(&kafka->tup);
+    normalize_tuple(&kafka->transaction.tup);
 
     (void)kafka_process(kafka, skb, skb_info.data_off);
     return 0;
@@ -56,10 +56,38 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 
 READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
-static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction, struct __sk_buff* skb, __u32 offset) {
+static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
+    offset += sizeof(__s32); // Skip message size
+    READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, skb, offset);
+
+    log_debug("kafka: potential response correlation_id %d", correlation_id);
+
+    kafka_transaction_key_t *key = &kafka->key;
+    key->correlation_id = correlation_id;
+    key->tuple = kafka->transaction.tup;
+    kafka_transaction_t *request = bpf_map_lookup_elem(&kafka_in_flight, key);
+    if (!request) {
+        return false;
+    }
+
+    log_debug("kafka: Received response for request with correlation id %d", correlation_id);
+
+    bpf_map_delete_elem(&kafka_in_flight, key);
+    kafka_batch_enqueue(request);
+
+    return true;
+}
+
+static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
     /*
         We perform Kafka request validation as we can get kafka traffic that is not relevant for parsing (unsupported requests, responses, etc)
     */
+
+    kafka_transaction_t *kafka_transaction = &kafka->transaction;
+
+    if (kafka_process_response(kafka, skb, offset)) {
+        return true;
+    }
 
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));
@@ -71,12 +99,14 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
     log_debug("kafka: kafka_header.api_key: %d", kafka_header.api_key);
+    log_debug("kafka: kafka_header.correlation_id: %d", kafka_header.correlation_id);
     log_debug("kafka: kafka_header.api_version: %d", kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
     }
 
+    kafka_transaction->request_started = bpf_ktime_get_ns();
     kafka_transaction->request_api_key = kafka_header.api_key;
     kafka_transaction->request_api_version = kafka_header.api_version;
 
@@ -120,6 +150,16 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
 
     log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
+
+    if (kafka_header.api_key == KAFKA_FETCH) {
+        log_debug("kafka: Adding fetch request to in_flight\n");
+
+        kafka_transaction_key_t *key = &kafka->key;
+        key->correlation_id = kafka_header.correlation_id;
+        key->tuple = kafka_transaction->tup;
+        bpf_map_update_elem(&kafka_in_flight, key, kafka_transaction, BPF_NOEXIST);
+        return true;
+    }
 
     kafka_batch_enqueue(kafka_transaction);
     return true;

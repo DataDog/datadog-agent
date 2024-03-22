@@ -20,10 +20,22 @@ typedef struct {
 
 typedef struct {
     conn_tuple_t tup;
+    __u64 request_started;
     __u16 request_api_key;
     __u16 request_api_version;
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
     __u16 topic_name_size;
 } kafka_transaction_t;
+
+typedef struct {
+    conn_tuple_t tuple;
+    __s32 correlation_id;
+} kafka_transaction_key_t;
+
+typedef struct {
+    kafka_transaction_t transaction;
+    kafka_transaction_key_t key;
+} kafka_info_t;
+
 
 #endif

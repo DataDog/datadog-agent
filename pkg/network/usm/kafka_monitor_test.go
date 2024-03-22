@@ -163,10 +163,9 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
 
-				// kgo client is sending an extra fetch request before running the test, so double the expected fetch request
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
-					expectedNumberOfFetchRequests:   4,
+					expectedNumberOfFetchRequests:   2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
@@ -467,7 +466,7 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 	require.Equal(t, validation.expectedNumberOfProduceRequests, numberOfProduceRequests,
 		"Expected %d produce requests but got %d", validation.expectedNumberOfProduceRequests, numberOfProduceRequests)
 	require.Equal(t, validation.expectedNumberOfFetchRequests, numberOfFetchRequests,
-		"Expected %d produce requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
+		"Expected %d fetch requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
 }
 
 func testProtocolParsingInner(t *testing.T, params kafkaParsingTestAttributes, cfg *config.Config) {
