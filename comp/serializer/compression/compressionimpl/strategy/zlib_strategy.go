@@ -5,15 +5,15 @@
 
 //go:build zlib
 
-// Package compression provides a set of functions for compressing with zlib / zstd
-package compression
+// Package strategy provides a set of functions for compressing with zlib / zstd
+package strategy
 
 import (
 	"bytes"
 	"compress/zlib"
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
 // ZlibStrategy is the strategy for when serializer_compressor_kind is zlib
@@ -66,10 +66,10 @@ func (s *ZlibStrategy) CompressBound(sourceLen int) int {
 
 // ContentEncoding returns the content encoding value for zlib
 func (s *ZlibStrategy) ContentEncoding() string {
-	return utils.ZlibEncoding
+	return compression.ZlibEncoding
 }
 
-// NewZlibStreamCompressor returns a new zlib writer
-func NewZlibStreamCompressor(output *bytes.Buffer) *zlib.Writer {
+// NewStreamCompressor returns a new zlib writer
+func (s *ZlibStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	return zlib.NewWriter(output)
 }

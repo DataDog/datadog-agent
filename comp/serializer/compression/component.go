@@ -1,21 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2024-present Datadog, Inc.
 
-// Package utils provides a set of constants for compressing with zlib / zstd
-package utils
+// Package compression provides a compression implementation based on the configuration or avalible build tags.
+package compression
 
-import "io"
+import (
+	"bytes"
+	"io"
+)
 
-// ZlibKind defines a const value for the zlib compressor
-const ZlibKind = "zlib"
-
-// ZstdKind  defines a const value for the zstd compressor
-const ZstdKind = "zstd"
-
-// NoneKind defines a const value for disabling compression
-const NoneKind = "none"
+// team: agent-metrics-logs
 
 // ZlibEncoding is the content-encoding value for Zlib
 const ZlibEncoding = "deflate"
@@ -23,12 +19,13 @@ const ZlibEncoding = "deflate"
 // ZstdEncoding is the content-encoding value for Zstd
 const ZstdEncoding = "zstd"
 
-// Compressor is the interface for the compressor used by the Serializer
-type Compressor interface {
+// Component is the component type.
+type Component interface {
 	Compress(src []byte) ([]byte, error)
 	Decompress(src []byte) ([]byte, error)
 	CompressBound(sourceLen int) int
 	ContentEncoding() string
+	NewStreamCompressor(output *bytes.Buffer) StreamCompressor
 }
 
 // StreamCompressor is the interface that zlib and zstd should implement
