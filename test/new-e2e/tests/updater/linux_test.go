@@ -59,7 +59,7 @@ func (v *vmUpdaterSuite) TestUpdaterDirs() {
 		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "dd-updater\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
 	}
-	require.Equal(v.T(), "drw-rw-rw-\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+locksDir))
+	require.Equal(v.T(), "drwxrw-rw-\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+locksDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+packagesDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" `+installDir))
 }
