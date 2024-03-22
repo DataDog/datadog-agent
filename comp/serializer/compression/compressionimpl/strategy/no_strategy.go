@@ -41,25 +41,25 @@ func (s *NoopStrategy) ContentEncoding() string {
 	return ""
 }
 
-// NewStreamCompressor returns a new NoopZipper when serializer_compressor_kind is neither zlib or zstd
+// NewStreamCompressor returns a new NoopStreamCompressor when serializer_compressor_kind is neither zlib or zstd
 func (s *NoopStrategy) NewStreamCompressor(_ *bytes.Buffer) compression.StreamCompressor {
-	return NoopZipper{}
+	return NoopStreamCompressor{}
 }
 
-// NoopZipper is the zipper for when the serializer_compressor_kind is neither zlib nor zstd
-type NoopZipper struct{}
+// NoopStreamCompressor is the zipper for when the serializer_compressor_kind is neither zlib nor zstd
+type NoopStreamCompressor struct{}
 
-// Write implements the Write method for NoopZipper to satisfy the Zipper interface
-func (s NoopZipper) Write([]byte) (int, error) {
+// Write implements the Write method for NoopStreamCompressor to satisfy the Zipper interface
+func (s NoopStreamCompressor) Write([]byte) (int, error) {
 	return 0, nil
 }
 
 // Flush implements the Flush method for NoopStrategy to satisfy the Zipper interface
-func (s NoopZipper) Flush() error {
+func (s NoopStreamCompressor) Flush() error {
 	return nil
 }
 
 // Close implements the Close method for NoopStrategy to satisfy the Zipper interface
-func (s NoopZipper) Close() error {
+func (s NoopStreamCompressor) Close() error {
 	return nil
 }
