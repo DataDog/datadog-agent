@@ -16,20 +16,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 )
 
-func ebpfConntrackerSupportedOnKernelT(t *testing.T) bool {
-	supported, err := ebpfConntrackerSupportedOnKernel()
+func ebpfPrebuiltConntrackerSupportedOnKernelT(t *testing.T) bool {
+	supported, err := ebpfPrebuiltConntrackerSupportedOnKernel()
 	require.NoError(t, err)
 	return supported
 }
 
-func skipEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
-	if !ebpfConntrackerSupportedOnKernelT(t) {
+func skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
+	if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
 		t.Skip("Skipping ebpf conntracker related test on unsupported kernel")
 	}
 }
 
 func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
-	skipEbpfConntrackerTestOnUnsupportedKernel(t)
+	skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t)
 
 	offsetguess.TracerOffsets.Reset()
 
@@ -47,7 +47,7 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 }
 
 func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
-	if ebpfConntrackerSupportedOnKernelT(t) {
+	if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
 		t.Skip("This test should only run on pre-4.14 kernels without backported eBPF support, like RHEL/CentOS")
 	}
 

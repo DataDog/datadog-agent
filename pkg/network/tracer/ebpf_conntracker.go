@@ -463,7 +463,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 }
 
 func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
-	supportedOnKernel, err := ebpfConntrackerSupportedOnKernel()
+	supportedOnKernel, err := ebpfPrebuiltConntrackerSupportedOnKernel()
 	if err != nil {
 		return nil, fmt.Errorf("could not check if ebpf conntracker is supported on kernel: %w", err)
 	}
@@ -494,7 +494,7 @@ func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	return getManager(cfg, buf, opts)
 }
 
-func ebpfConntrackerSupportedOnKernel() (bool, error) {
+func ebpfPrebuiltConntrackerSupportedOnKernel() (bool, error) {
 	kv, err := ebpfkernel.NewKernelVersion()
 	if err != nil {
 		return false, fmt.Errorf("could not get kernel version: %s", err)

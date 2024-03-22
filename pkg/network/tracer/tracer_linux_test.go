@@ -2053,7 +2053,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 	require.NoError(t, rlimit.RemoveMemlock())
 
 	prebuiltErrorValues := []bool{true}
-	if ebpfConntrackerSupportedOnKernelT(t) {
+	if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
 		prebuiltErrorValues = []bool{false, true}
 	}
 
