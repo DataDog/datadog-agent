@@ -66,18 +66,22 @@ func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.Ra
 			continue
 		}
 
-		imageName := utils.GetTagValue("image_name", profile.Tags)
-		imageTag := utils.GetTagValue("image_tag", profile.Tags)
-
+		// get image name from tags of the first version
+		if len(profile.ProfileContexts) == 0 {
+			log.Errorf("received a profile with no versions")
+			continue
+		}
+		imageName := ""
+		for _, ctx := range profile.ProfileContexts {
+			imageName = utils.GetTagValue("image_name", ctx.Tags)
+			break
+		}
 		if imageName == "" {
-			log.Errorf("no image name: %v", profile.Tags)
+			log.Errorf("received a profile with no image name")
 			continue
 		}
 
-		if imageTag == "" {
-			imageTag = "latest"
-			profile.Tags = append(profile.Tags, "image_tag:"+imageTag)
-		}
+		imageTag := "*"
 
 		selector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
 		if err != nil {

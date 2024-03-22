@@ -131,7 +131,7 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 func TestListenTCP(t *testing.T) {
 	t.Run("measured", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*measuredListener)
@@ -140,7 +140,7 @@ func TestListenTCP(t *testing.T) {
 
 	t.Run("limited", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*rateLimitedListener)

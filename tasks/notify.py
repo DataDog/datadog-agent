@@ -40,7 +40,8 @@ def check_teams(_):
     if check_for_missing_owners_slack_and_jira():
         print(
             "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
-            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP map in tasks/libs/pipeline_notifications.py."
+            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/github_slack_map.yaml"
+            " or tasks/libs/github_jira_map.yaml"
         )
         raise Exit(code=1)
     else:
@@ -327,6 +328,10 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
         gh.publish_comment(pr.number, msg)
         return
 
+    if comment is None:
+        # If no tests are executed and no previous comment exists, we stop here
+        return
+
     previous_comment_pipeline_id = pipeline_id_regex.findall(comment.body)
     # An older pipeline should not edit a message corresponding to a newer pipeline
     if previous_comment_pipeline_id and previous_comment_pipeline_id[0] > pipeline_id:
@@ -343,13 +348,17 @@ def create_msg(pipeline_id, pipeline_url, job_list):
     msg = f'''
 [Fast Unit Tests Report]
 
-Warning: On pipeline [{pipeline_id}]({pipeline_url}). The following jobs did not run any unit tests:
+On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.pipeline.id%3A{pipeline_id}&fromUser=false&index=cipipeline)). The following jobs did not run any unit tests:
+
+<details>
+<summary>Jobs:</summary>
+
 '''
     for job in job_list:
         msg += f"  - {job}\n"
+    msg += "</details>\n"
     msg += "\n"
     msg += "If you modified Go files and expected unit tests to run in these jobs, please double check the job logs. If you think tests should have been executed reach out to #agent-developer-experience"
-
     return msg
 
 

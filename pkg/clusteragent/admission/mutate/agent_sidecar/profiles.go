@@ -50,35 +50,41 @@ func loadSidecarProfiles() ([]ProfileOverride, error) {
 	return profiles, nil
 }
 
-func applyProfileOverrides(container *corev1.Container) error {
+// applyProfileOverrides applies the profile overrides to the container. It
+// returns a boolean that indicates if the container was mutated
+func applyProfileOverrides(container *corev1.Container) (bool, error) {
 	if container == nil {
-		return fmt.Errorf("can't apply profile overrides to nil containers")
+		return false, fmt.Errorf("can't apply profile overrides to nil containers")
 	}
 
 	profiles, err := loadSidecarProfiles()
 
 	if err != nil {
-		return err
+		return false, err
 	}
 	if len(profiles) == 0 {
-		return nil
+		return false, nil
 	}
 
 	overrides := profiles[0]
 
+	mutated := false
+
 	// Apply environment variable overrides
-	err = withEnvOverrides(container, overrides.EnvVars...)
+	overridden, err := withEnvOverrides(container, overrides.EnvVars...)
 	if err != nil {
-		return err
+		return false, err
 	}
+	mutated = mutated || overridden
 
 	// Apply resource requirement overrides
 	if overrides.ResourceRequirements.Limits != nil {
 		err = withResourceLimits(container, overrides.ResourceRequirements)
 		if err != nil {
-			return err
+			return mutated, err
 		}
+		mutated = true
 	}
 
-	return nil
+	return mutated, nil
 }

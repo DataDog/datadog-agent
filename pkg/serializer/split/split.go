@@ -12,7 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
+
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,8 +62,8 @@ func init() {
 
 // CheckSizeAndSerialize Check the size of a payload and marshall it (optionally compress it)
 // The dual role makes sense as you will never serialize without checking the size of the payload
-func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (bool, []byte, []byte, error) {
-	compressedPayload, payload, err := serializeMarshaller(m, compress, marshalFct)
+func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy strategyUtils.Compressor) (bool, []byte, []byte, error) {
+	compressedPayload, payload, err := serializeMarshaller(m, compress, marshalFct, strategy)
 	if err != nil {
 		return false, nil, nil, err
 	}
@@ -73,10 +74,10 @@ func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshal
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) (transaction.BytesPayloads, error) {
+func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy strategyUtils.Compressor) (transaction.BytesPayloads, error) {
 	marshallers := []marshaler.AbstractMarshaler{m}
 	smallEnoughPayloads := transaction.BytesPayloads{}
-	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct)
+	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct, strategy)
 	if err != nil {
 		return smallEnoughPayloads, err
 	}
@@ -103,7 +104,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 		for _, toSplit := range tempSlice {
 			var e error
 			// we have to do this every time to get the proper payload
-			compressedPayload, payload, e := serializeMarshaller(toSplit, compress, marshalFct)
+			compressedPayload, payload, e := serializeMarshaller(toSplit, compress, marshalFct, strategy)
 			if e != nil {
 				return smallEnoughPayloads, e
 			}
@@ -125,7 +126,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 			// after the payload has been split, loop through the chunks
 			for _, chunk := range chunks {
 				// serialize the payload
-				tooBigChunk, compressedPayload, _, err := CheckSizeAndSerialize(chunk, compress, marshalFct)
+				tooBigChunk, compressedPayload, _, err := CheckSizeAndSerialize(chunk, compress, marshalFct, strategy)
 				if err != nil {
 					log.Debugf("Error serializing a chunk: %s", err)
 					continue
@@ -159,7 +160,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 }
 
 // serializeMarshaller serializes the marshaller and returns both the compressed and uncompressed payloads
-func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct) ([]byte, []byte, error) {
+func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy strategyUtils.Compressor) ([]byte, []byte, error) {
 	var payload []byte
 	var compressedPayload []byte
 	var err error
@@ -169,7 +170,7 @@ func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, marshalFc
 		return nil, nil, err
 	}
 	if compress {
-		compressedPayload, err = compression.Compress(payload)
+		compressedPayload, err = strategy.Compress(payload)
 		if err != nil {
 			return nil, nil, err
 		}

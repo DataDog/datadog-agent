@@ -149,7 +149,7 @@ func TestInitData(t *testing.T) {
 		"process_config.process_dd_url":    "http://name:sekrit@someintake.example.com/",
 		"proxy.http":                       "http://name:sekrit@proxy.example.com/",
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
-		"dd_site":                          "test",
+		"site":                             "test",
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,

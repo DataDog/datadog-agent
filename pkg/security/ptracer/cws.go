@@ -56,7 +56,7 @@ type Opts struct {
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
 
-type shouldSendFunc func(ret int64) bool
+type shouldSendFunc func(msg *ebpfless.SyscallMsg) bool
 
 type syscallID struct {
 	ID   int
@@ -71,9 +71,10 @@ type syscallHandler struct {
 }
 
 // defaults funcs for ShouldSend:
-func shouldSendAlways(_ int64) bool { return true }
-func isAcceptedRetval(retval int64) bool {
-	return retval >= 0 || retval == -int64(syscall.EACCES) || retval == -int64(syscall.EPERM)
+func shouldSendAlways(_ *ebpfless.SyscallMsg) bool { return true }
+
+func isAcceptedRetval(msg *ebpfless.SyscallMsg) bool {
+	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM)
 }
 
 func checkEntryPoint(path string) (string, error) {
@@ -395,9 +396,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 					}
 				}
 				if handler.ShouldSend != nil {
-					ret := tracer.ReadRet(regs)
-					if handler.ShouldSend(ret) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
-						syscallMsg.Retval = ret
+					syscallMsg.Retval = tracer.ReadRet(regs)
+					if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
 						sendSyscallMsg(syscallMsg)
 					}
 				}
