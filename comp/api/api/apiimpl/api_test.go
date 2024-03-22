@@ -10,29 +10,37 @@ import (
 	"testing"
 
 	// component dependencies
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
@@ -47,70 +55,106 @@ import (
 	"go.uber.org/fx"
 )
 
-func getProvides(t *testing.T) api.Component {
-	return newAPIServer(
-		fxutil.Test[dependencies](
-			t,
-			hostnameinterface.MockModule(),
-			logimpl.MockModule(),
-			config.MockModule(),
-			flareimpl.MockModule(),
-			dogstatsdServer.MockModule(),
-			replay.MockModule(),
-			dogstatsddebug.MockModule(),
-			hostimpl.MockModule(),
-			inventoryagentimpl.MockModule(),
-			demultiplexerimpl.MockModule(),
-			inventoryhostimpl.MockModule(),
-			secretsimpl.MockModule(),
-			fx.Provide(func(secretMock secrets.Mock) secrets.Component {
-				component := secretMock.(secrets.Component)
-				return component
-			}),
-			inventorychecksimpl.MockModule(),
-			packagesigningimpl.MockModule(),
-			statusimpl.MockModule(),
-			eventplatformreceiverimpl.MockModule(),
-			fx.Provide(func() optional.Option[rcservice.Component] {
-				return optional.NewNoneOption[rcservice.Component]()
-			}),
-			fx.Provide(func() optional.Option[rcserviceha.Component] {
-				return optional.NewNoneOption[rcserviceha.Component]()
-			}),
-			fetchonlyimpl.MockModule(),
-		),
-	)
+type testdeps struct {
+	fx.In
+
+	Flare                 flare.Component
+	DogstatsdServer       dogstatsdServer.Component
+	Capture               replay.Component
+	ServerDebug           dogstatsddebug.Component
+	HostMetadata          host.Component
+	InvAgent              inventoryagent.Component
+	Demux                 demultiplexer.Component
+	InvHost               inventoryhost.Component
+	SecretResolver        secrets.Component
+	InvChecks             inventorychecks.Component
+	PkgSigning            packagesigning.Component
+	StatusComponent       status.Component
+	EventPlatformReceiver eventplatformreceiver.Component
+	RcService             optional.Option[rcservice.Component]
+	RcServiceHA           optional.Option[rcserviceha.Component]
+	AuthToken             authtoken.Component
+	WorkloadMeta          workloadmeta.Component
+	Tagger                tagger.Mock
+	Autodiscovery         autodiscovery.Mock
+	Logs                  optional.Option[logsAgent.Component]
+	Collector             optional.Option[collector.Component]
 }
 
-func getTestAPIServer(t *testing.T) *apiServer {
-	p := getProvides(t)
-	return p.(*apiServer)
-}
-
-func TestStartServer(t *testing.T) {
-
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
+func getComponentDependencies(t *testing.T) testdeps {
+	return fxutil.Test[testdeps](
+		t,
+		flareimpl.MockModule(),
+		dogstatsdServer.MockModule(),
+		replay.MockModule(),
+		serverdebugimpl.MockModule(),
+		hostimpl.MockModule(),
+		inventoryagentimpl.MockModule(),
+		demultiplexerimpl.MockModule(),
+		inventoryhostimpl.MockModule(),
+		secretsimpl.MockModule(),
+		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
+			component := secretMock.(secrets.Component)
+			return component
+		}),
+		inventorychecksimpl.MockModule(),
+		packagesigningimpl.MockModule(),
+		statusimpl.MockModule(),
+		eventplatformreceiverimpl.MockModule(),
+		fx.Provide(func() optional.Option[rcservice.Component] {
+			return optional.NewNoneOption[rcservice.Component]()
+		}),
+		fx.Provide(func() optional.Option[rcserviceha.Component] {
+			return optional.NewNoneOption[rcserviceha.Component]()
+		}),
+		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
-	))
-	tags := fxutil.Test[tagger.Mock](t, tagger.MockModule())
-	ac := autodiscoveryimpl.CreateMockAutoConfig(t, nil)
-	sender := aggregator.NewNoOpSenderManager()
-	log := fxutil.Test[optional.Option[logsAgent.Component]](t,
+		tagger.MockModule(),
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
+		autodiscoveryimpl.MockModule(),
 		fx.Provide(func() optional.Option[logsAgent.Component] {
 			return optional.NewNoneOption[logsAgent.Component]()
 		}),
-	)
-	col := fxutil.Test[optional.Option[collector.Component]](t,
 		fx.Provide(func() optional.Option[collector.Component] {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 	)
+}
 
-	srv := getTestAPIServer(t)
+func getTestAPIServer(deps testdeps) *apiServer {
+	apideps := dependencies{
+		Flare:                 deps.Flare,
+		DogstatsdServer:       deps.DogstatsdServer,
+		Capture:               deps.Capture,
+		ServerDebug:           deps.ServerDebug,
+		HostMetadata:          deps.HostMetadata,
+		InvAgent:              deps.InvAgent,
+		Demux:                 deps.Demux,
+		InvHost:               deps.InvHost,
+		SecretResolver:        deps.SecretResolver,
+		InvChecks:             deps.InvChecks,
+		PkgSigning:            deps.PkgSigning,
+		StatusComponent:       deps.StatusComponent,
+		EventPlatformReceiver: deps.EventPlatformReceiver,
+		RcService:             deps.RcService,
+		RcServiceHA:           deps.RcServiceHA,
+		AuthToken:             deps.AuthToken,
+	}
+	api := newAPIServer(apideps)
+	return api.(*apiServer)
+}
+
+func TestStartServer(t *testing.T) {
+	deps := getComponentDependencies(t)
+
+	store := deps.WorkloadMeta
+	tags := deps.Tagger
+	ac := deps.Autodiscovery
+	sender := aggregator.NewNoOpSenderManager()
+	log := deps.Logs
+	col := deps.Collector
+
+	srv := getTestAPIServer(deps)
 	err := srv.StartServer(
 		store,
 		tags,
