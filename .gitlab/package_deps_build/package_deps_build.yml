@@ -18,8 +18,9 @@
     - cd minimized-btfs
     - tar -cJf $CI_PROJECT_DIR/minimized-btfs.tar.xz *
   variables:
-    KUBERNETES_MEMORY_REQUEST: "6Gi"
-    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_CPU_REQUEST: 16
   artifacts:
     expire_in: 2 weeks
     paths:
