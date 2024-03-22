@@ -91,51 +91,67 @@ func TestRetryLogic_Error(t *testing.T) {
 		},
 	})
 
-	// Create a mock collector
-	collName := "mock"
-	mockCollector := collectors.NewMockCollector()
-	resultCh := make(chan sbom.ScanResult, 1)
-	errorResult := sbom.ScanResult{Error: errors.New("scan error")}
-	expectedResult := sbom.ScanResult{Report: mockReport{id: imageID}}
-	mockCollector.On("Options").Return(sbom.ScanOptions{})
-	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
-	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
-	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown")
-	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
-	collectors.RegisterCollector(collName, mockCollector)
+	for _, tt := range []struct {
+		name string
+		st   collectors.ScanType
+	}{
+		{
+			name: "container image scan",
+			st:   collectors.ContainerImageScanType,
+		},
+		{
+			name: "host scan",
+			st:   collectors.HostScanType,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock collector
+			collName := "mock"
+			mockCollector := collectors.NewMockCollector()
+			resultCh := make(chan sbom.ScanResult, 1)
+			errorResult := sbom.ScanResult{Error: errors.New("scan error")}
+			expectedResult := sbom.ScanResult{Report: mockReport{id: imageID}}
+			mockCollector.On("Options").Return(sbom.ScanOptions{})
+			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
+			mockCollector.On("Scan", mock.Anything, mock.Anything).Return(expectedResult).Once()
+			mockCollector.On("Channel").Return(resultCh)
+			mockCollector.On("Shutdown")
+			mockCollector.On("Type").Return(tt.st)
+			collectors.RegisterCollector(collName, mockCollector)
 
-	// Set up the configuration
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.Set("sbom.scan_queue.base_backoff", "2s", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "5s", model.SourceAgentRuntime)
+			// Set up the configuration
+			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg.Set("sbom.scan_queue.base_backoff", "2s", model.SourceAgentRuntime)
+			cfg.Set("sbom.scan_queue.max_backoff", "5s", model.SourceAgentRuntime)
 
-	// Create a scanner and start it
-	scanner := NewScanner(cfg)
-	ctx, cancel := context.WithCancel(context.Background())
-	scanner.Start(ctx)
+			// Create a scanner and start it
+			scanner := NewScanner(cfg)
+			ctx, cancel := context.WithCancel(context.Background())
+			scanner.Start(ctx)
 
-	// Enqueue a scan request for container images
-	err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
-	assert.NoError(t, err)
+			// Enqueue a scan request for container images
+			err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: imageID, scanRequestType: sbom.ScanFilesystemType}))
+			assert.NoError(t, err)
 
-	// Assert error results
-	res := <-resultCh
-	assert.Equal(t, errorResult.Error, res.Error)
-	res = <-resultCh
-	assert.Equal(t, errorResult.Error, res.Error)
-	// Assert expected result
-	res = <-resultCh
-	assert.Equal(t, expectedResult.Report, res.Report)
+			// Assert error results
+			res := <-resultCh
+			assert.Equal(t, errorResult.Error, res.Error)
+			res = <-resultCh
+			assert.Equal(t, errorResult.Error, res.Error)
+			// Assert expected result
+			res = <-resultCh
+			assert.Equal(t, expectedResult.Report, res.Report)
 
-	// Make sure we don't receive anything afterward
-	select {
-	case res := <-resultCh:
-		t.Errorf("unexpected result received %v", res)
-	case <-time.After(10 * time.Second):
+			// Make sure we don't receive anything afterward
+			select {
+			case res := <-resultCh:
+				t.Errorf("unexpected result received %v", res)
+			case <-time.After(10 * time.Second):
+			}
+
+			cancel()
+		})
 	}
-
-	cancel()
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
@@ -201,45 +217,5 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 			return true
 		}
 	}, 15*time.Second, 1*time.Second)
-	cancel()
-}
-
-func TestRetryLogic_Host(t *testing.T) {
-	// Create a mock collector
-	collName := "mock"
-	mockCollector := collectors.NewMockCollector()
-	resultCh := make(chan sbom.ScanResult, 1)
-	errorResult := sbom.ScanResult{Error: errors.New("scan error")}
-	mockCollector.On("Options").Return(sbom.ScanOptions{})
-	mockCollector.On("Scan", mock.Anything, mock.Anything).Return(errorResult).Twice()
-	mockCollector.On("Channel").Return(resultCh)
-	mockCollector.On("Shutdown")
-	mockCollector.On("Type").Return(collectors.HostScanType)
-	collectors.RegisterCollector(collName, mockCollector)
-
-	// Set up the configuration
-	cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	cfg.Set("sbom.scan_queue.base_backoff", "2s", model.SourceAgentRuntime)
-	cfg.Set("sbom.scan_queue.max_backoff", "5s", model.SourceAgentRuntime)
-
-	// Create a scanner and start it
-	scanner := NewScanner(cfg)
-	ctx, cancel := context.WithCancel(context.Background())
-	scanner.Start(ctx)
-
-	// Enqueue a scan request for container images
-	err := scanner.Scan(sbom.ScanRequest(&scanRequest{collectorName: collName, id: "hostname", scanRequestType: sbom.ScanFilesystemType}))
-	assert.NoError(t, err)
-
-	// Assert error results
-	res := <-resultCh
-	assert.Equal(t, errorResult.Error, res.Error)
-
-	// Never retry
-	select {
-	case res := <-resultCh:
-		t.Errorf("unexpected result received %v", res)
-	case <-time.After(10 * time.Second):
-	}
 	cancel()
 }
