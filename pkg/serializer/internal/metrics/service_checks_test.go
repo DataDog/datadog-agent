@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -75,12 +75,12 @@ func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
-	builder := stream.NewJSONPayloadBuilder(true, cfg)
+	strategy := compressionimpl.NewCompressor(cfg)
+	builder := stream.NewJSONPayloadBuilder(true, cfg, strategy)
 	payloads, err := stream.BuildJSONPayload(builder, m)
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
 
-	strategy := compression.NewCompressorStrategy(cfg)
 	for _, compressedPayload := range payloads {
 		payload, err := strategy.Decompress(compressedPayload.GetContent())
 		assert.NoError(t, err)
@@ -153,7 +153,7 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 }
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf(), compressionimpl.NewCompressor(pkgconfigsetup.Conf()))
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -194,7 +194,7 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 	b.ResetTimer()
 
 	mockConfig := pkgconfigsetup.Conf()
-	strategy := compression.NewCompressorStrategy(mockConfig)
+	strategy := compressionimpl.NewCompressor(mockConfig)
 	for n := 0; n < b.N; n++ {
 		split.Payloads(serviceChecks, true, split.JSONMarshalFct, strategy)
 	}

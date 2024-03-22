@@ -13,11 +13,9 @@ import (
 	"errors"
 	"expvar"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
-	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
 const (
@@ -65,8 +63,8 @@ func init() {
 type Compressor struct {
 	input               *bytes.Buffer // temporary buffer for data that has not been compressed yet
 	compressed          *bytes.Buffer // output buffer containing the compressed payload
-	strategy            strategyUtils.Compressor
-	zipper              strategyUtils.StreamCompressor
+	strategy            compression.Component
+	zipper              compression.StreamCompressor
 	header              []byte // json header to print at the beginning of the payload
 	footer              []byte // json footer to append at the end of the payload
 	uncompressedWritten int    // uncompressed bytes written
@@ -80,13 +78,13 @@ type Compressor struct {
 }
 
 // NewCompressor returns a new instance of a Compressor
-func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte, cfg config.Component) (*Compressor, error) {
+func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedSize int, header, footer []byte, separator []byte, compressor compression.Component) (*Compressor, error) {
 	c := &Compressor{
 		header:              header,
 		footer:              footer,
 		input:               input,
 		compressed:          output,
-		strategy:            compression.NewCompressorStrategy(cfg),
+		strategy:            compressor,
 		firstItem:           true,
 		maxPayloadSize:      maxPayloadSize,
 		maxUncompressedSize: maxUncompressedSize,
@@ -94,7 +92,7 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 		separator:           separator,
 	}
 
-	c.zipper = compression.NewStreamCompressor(c.compressed, cfg)
+	c.zipper = compressor.NewStreamCompressor(c.compressed)
 	n, err := c.zipper.Write(header)
 	c.maxZippedItemSize = maxUncompressedSize - c.strategy.CompressBound(len(footer)+len(header))
 	c.uncompressedWritten += n
