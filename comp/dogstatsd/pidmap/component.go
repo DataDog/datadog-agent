@@ -6,12 +6,6 @@
 // Package pidmap implements a component for tracking pid and containerID relations
 package pidmap
 
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
 // team: agent-metrics-logs
 
 // Component is the component type.
@@ -22,23 +16,4 @@ type Component interface {
 
 	// ContainerIDForPID returns the matching container id for a pid, or an error if not found.
 	ContainerIDForPID(pid int32) (string, error)
-}
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newPidMap),
-	)
-}
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockPidMap),
-	)
 }

@@ -10,6 +10,7 @@ import (
 	"context"
 
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -26,7 +27,7 @@ type ServerlessDogstatsd interface {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer(demux aggregator.Demultiplexer) (ServerlessDogstatsd, error) {
-	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), nil, serverdebugimpl.NewServerlessServerDebug(), true, demux)
+	s := newServerCompat(config.Datadog, logComponentImpl.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), pidmapimpl.NewServerlessPidMap(), serverdebugimpl.NewServerlessServerDebug(), true, demux)
 
 	err := s.start(context.TODO())
 	if err != nil {
