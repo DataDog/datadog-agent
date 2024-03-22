@@ -36,6 +36,7 @@
   - if (($Env:USE_CACHING_PROXY_PYTHON -eq "true") -and ($Env:ARTIFACTORY_BYPASS -eq "false")) { $PIP_INDEX_URL="https://${Env:ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${Env:ARTIFACTORY_URL}/${Env:ARTIFACTORY_PYPI_PATH}" }
 
 .setup_deb_signing_key: &setup_deb_signing_key
+  - set +x
   - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
   - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
   - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
