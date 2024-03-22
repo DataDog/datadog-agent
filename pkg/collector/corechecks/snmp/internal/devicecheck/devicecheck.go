@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -151,7 +152,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var pingStatus metadata.DeviceStatus
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
-	tags := common.CopyStrings(staticTags)
+	tags := utils.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
@@ -208,8 +209,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
-		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
+		deviceMetadataTags := append(utils.CopyStrings(tags), d.config.InstanceTags...)
+		deviceMetadataTags = append(deviceMetadataTags, utils.GetAgentVersionTag())
 
 		deviceDiagnosis := d.diagnoses.Report()
 
@@ -395,7 +396,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
+	newTags := append(utils.CopyStrings(tags), snmpLoaderTag, utils.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 
