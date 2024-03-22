@@ -174,8 +174,13 @@ def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
             key = ssh_key_to_path(remote_ssh_key)
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
         for vm in infra_map[arch]["microvms"]:
+            # We use the local ddvm_rsa key as the path to the key stored in the pulumi output JSON
+            # file refers to the location in the remote instance, which might not be the same as the
+            # location in the local machine.
             instance.add_microvm(
-                LibvirtDomain(vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], vm["ssh-key-path"], instance)
+                LibvirtDomain(
+                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), instance
+                )
             )
 
         infra[arch] = instance
