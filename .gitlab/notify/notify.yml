@@ -92,8 +92,11 @@ notify-celian:
     - job: "github_rate_limit_info"
   dependencies: []
   script: |
-    MESSAGE_TEXT="Hello @celian ! :rocket: (pipeline-id: $CI_PIPELINE_ID, commit: $CI_COMMIT_REF_NAME)"
-    postmessage "#celian-tests" "$MESSAGE_TEXT"
-    postmessage "@Célian Raimbault" "$MESSAGE_TEXT"
-    postmessage "Célian Raimbault" "$MESSAGE_TEXT"
+    author="$(git show -s --format='%an' HEAD)"
+    message="Hello @celian ! :rocket: (pipeline-id: $CI_PIPELINE_ID, commit: $CI_COMMIT_REF_NAME)"
+    echo "Author: $author"
+    postmessage "#celian-tests" "$message"
+    postmessage "@Célian Raimbault" "$message"
+    postmessage "Célian Raimbault" "$message"
+    postmessage "celian.raimbault@datadoghq.com" "$message"
     echo Done
