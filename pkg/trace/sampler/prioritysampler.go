@@ -76,12 +76,12 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// UpdateTargetTPS updates the target tps
 func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
 	s.sampler.updateTargetTPS(targetTPS)
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// GetTargetTPS returns the target tps
 func (s *PrioritySampler) GetTargetTPS() float64 {
 	return s.sampler.targetTPS.Load()
 }
