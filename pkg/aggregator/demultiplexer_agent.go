@@ -103,7 +103,6 @@ type statsd struct {
 }
 
 type forwarders struct {
-	shared             forwarder.Forwarder
 	containerLifecycle *forwarder.DefaultForwarder
 }
 
@@ -200,9 +199,7 @@ func initAgentDemultiplexer(
 
 		// Output
 		dataOutputs: dataOutputs{
-			forwarders: forwarders{
-				shared: sharedForwarder,
-			},
+			forwarders: forwarders{},
 
 			sharedSerializer: sharedSerializer,
 			noAggSerializer:  noAggSerializer,
@@ -267,12 +264,6 @@ func (d *AgentDemultiplexer) run() {
 			d.log.Debug("not starting the container lifecycle forwarder")
 		}
 
-		// shared forwarder
-		if d.forwarders.shared != nil {
-			d.forwarders.shared.Start() //nolint:errcheck
-		} else {
-			d.log.Debug("not starting the shared forwarder")
-		}
 		d.log.Debug("Forwarders started")
 	}
 
@@ -362,10 +353,6 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
 			d.dataOutputs.forwarders.containerLifecycle = nil
-		}
-		if d.dataOutputs.forwarders.shared != nil {
-			d.dataOutputs.forwarders.shared.Stop()
-			d.dataOutputs.forwarders.shared = nil
 		}
 	}
 

@@ -62,7 +62,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options no event platform forwarder
@@ -75,7 +75,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.False(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options noop event platform forwarder
@@ -88,7 +88,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
@@ -114,7 +114,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.NotNil(demux)
 	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options no orchestrator forwarder
@@ -128,7 +128,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options noop orchestrator forwarder
@@ -142,7 +142,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.True(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// no options to disable it, but the feature is not enabled
@@ -157,7 +157,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 }
 

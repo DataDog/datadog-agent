@@ -7,8 +7,6 @@
 package forwardersimpl
 
 import (
-	"context"
-
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -75,12 +73,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 }
 
 func createForwarder(deps dependencies, params defaultforwarder.Params) defaultforwarder.Component {
-	forwarder := defaultforwarder.NewForwarder(deps.Config, deps.Logger, params).Comp
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(context.Context) error { return forwarder.Start() },
-		OnStop:  func(context.Context) error { forwarder.Stop(); return nil }})
-
-	return forwarder
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, params).Comp
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {
