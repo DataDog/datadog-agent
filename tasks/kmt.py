@@ -247,7 +247,7 @@ def init(ctx: Context, lite=False):
 
 
 @task
-def update_resources(ctx: Context, vmconfig_template="system-probe"):
+def update_resources(ctx: Context):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -257,7 +257,7 @@ def update_resources(ctx: Context, vmconfig_template="system-probe"):
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template)
+    update_rootfs(ctx, kmt_os.rootfs_dir)
 
 
 @task

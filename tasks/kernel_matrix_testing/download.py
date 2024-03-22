@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, List
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.platforms import get_platforms
+from tasks.kernel_matrix_testing.platforms import get_merged_platforms
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
-from tasks.kernel_matrix_testing.vars import arch_mapping
+from tasks.kernel_matrix_testing.vars import COMPONENTS, arch_mapping
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 
 try:
@@ -41,9 +41,8 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     return False
 
 
-def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str):
-    platforms = get_platforms()
-    vmconfig_template = get_vmconfig_template(vmconfig_template_name)
+def download_rootfs(ctx: Context, rootfs_dir: PathOrStr):
+    platforms = get_merged_platforms()
 
     url_base = platforms["url_base"]
 
@@ -66,20 +65,23 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         if not os.path.exists(path):
             to_download.append(f)
 
-    for vmset in vmconfig_template["vmsets"]:
-        if "arch" not in vmset:
-            raise Exit("arch is not defined in vmset")
+    for component in COMPONENTS:
+        vmconfig_template = get_vmconfig_template(component)
 
-        if vmset["arch"] != arch:
-            continue
+        for vmset in vmconfig_template["vmsets"]:
+            if "arch" not in vmset:
+                raise Exit("arch is not defined in vmset")
 
-        for disk in vmset.get("disks", []):
-            # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
-            d = os.path.basename(disk["target"])
-            if not os.path.exists(os.path.join(rootfs_dir, d)):
-                if d.endswith(".xz"):
-                    d = d[: -len(".xz")]
-                to_download.append(d)
+            if vmset["arch"] != arch:
+                continue
+
+            for disk in vmset.get("disks", []):
+                # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
+                d = os.path.basename(disk["target"])
+                if not os.path.exists(os.path.join(rootfs_dir, d)):
+                    if d.endswith(".xz"):
+                        d = d[: -len(".xz")]
+                    to_download.append(d)
 
     # download and compare hash sums
     present_files = list(set(file_ls) - set(to_download))
@@ -134,7 +136,7 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str):
-    download_rootfs(ctx, rootfs_dir, vmconfig_template)
+def update_rootfs(ctx: Context, rootfs_dir: PathOrStr):
+    download_rootfs(ctx, rootfs_dir)
 
     info("[+] Root filesystem and bootables images updated")
