@@ -6,9 +6,10 @@ import platform
 import re
 import shutil
 import tempfile
+from collections import defaultdict
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -21,7 +22,7 @@ from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
@@ -33,6 +34,15 @@ try:
     from tabulate import tabulate
 except ImportError:
     tabulate = None
+
+
+try:
+    from termcolor import colored
+except ImportError:
+
+    def colored(text: str, color: Optional[str]) -> str:  # noqa: U100
+        return text
+
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
@@ -669,3 +679,90 @@ def ssh_config(
                 print("    UserKnownHostsFile /dev/null")
                 print("    StrictHostKeyChecking accept-new")
                 print("")
+
+
+@task(
+    help={
+        "stack": "Name of the stack to get the status of. If None, show status of stack associated with current branch",
+        "all": "Show status of all stacks. --stack parameter will be ignored",
+    }
+)
+def status(ctx: Context, stack: Optional[str] = None, all=False):
+    stacks: List[str]
+
+    if all:
+        stacks = [stack.name for stack in Path(get_kmt_os().stacks_dir).iterdir() if stack.is_dir()]
+    else:
+        stacks = [check_and_get_stack(stack)]
+
+    # Dict of status lines for each stack
+    status: Dict[str, List[str]] = defaultdict(list)
+    stack_status: Dict[str, Tuple[int, int, int, int]] = {}
+    info("[+] Getting status...")
+
+    for stack in stacks:
+        try:
+            infrastructure = build_infrastructure(stack, remote_ssh_key="")
+        except Exception:
+            warn(f"Failed to get status for stack {stack}. stacks.output file might be corrupt.")
+            print("")
+            continue
+
+        instances_down = 0
+        instances_up = 0
+        vms_down = 0
+        vms_up = 0
+
+        for arch, instance in infrastructure.items():
+            if arch == 'local':
+                status[stack].append("· Local VMs")
+                instances_up += 1
+            else:
+                instance_id = ec2_instance_ids(ctx, [instance.ip])
+                if len(instance_id) == 0:
+                    status[stack].append(f"· {arch} AWS instance {instance.ip} - {colored('not running', 'red')}")
+                    instances_down += 1
+                else:
+                    status[stack].append(
+                        f"· {arch} AWS instance {instance.ip} - {colored('running', 'green')} - ID {instance_id[0]}"
+                    )
+                    instances_up += 1
+
+            for vm in instance.microvms:
+                vm_id = f"{vm.tag:14} | IP {vm.ip}"
+                if vm.run_cmd(ctx, "true", allow_fail=True, timeout_sec=2):
+                    status[stack].append(f"  - {vm_id} - {colored('up', 'green')}")
+                    vms_up += 1
+                else:
+                    status[stack].append(f"  - {vm_id} - {colored('down', 'red')}")
+                    vms_down += 1
+
+            stack_status[stack] = (instances_down, instances_up, vms_down, vms_up)
+
+    info("[+] Tasks completed, printing status")
+
+    for stack, lines in status.items():
+        instances_down, instances_up, vms_down, vms_up = stack_status[stack]
+
+        if instances_down == 0 and instances_up == 0:
+            status_str = colored("Empty", "grey")
+        elif instances_up == 0:
+            status_str = colored("Hosts down", "red")
+        elif instances_down == 0:
+            status_str = colored("Hosts active", "green")
+        else:
+            status_str = colored("Hosts partially active", "yellow")
+
+        if vms_down == 0 and vms_up == 0:
+            vm_status_str = colored("No VMs defined", "grey")
+        elif vms_up == 0:
+            vm_status_str = colored("All VMs down", "red")
+        elif vms_down == 0:
+            vm_status_str = colored("All VMs up", "green")
+        else:
+            vm_status_str = colored("Some VMs down", "yellow")
+
+        print(f"Stack {stack} - {status_str} - {vm_status_str}")
+        for line in lines:
+            print(line)
+        print("")
