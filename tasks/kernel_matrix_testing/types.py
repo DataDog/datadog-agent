@@ -4,7 +4,9 @@ extra packages that might not be available in runtime.
 """
 
 import os
-from typing import Dict, List, Literal, Protocol, Tuple, TypedDict, TypeVar, Union
+from typing import Dict, List, Tuple, TypeVar, Union
+
+from typing_extensions import Literal, Protocol, TypedDict
 
 Arch = Literal['x86_64', 'arm64']
 ArchOrLocal = Union[Arch, Literal['local']]
