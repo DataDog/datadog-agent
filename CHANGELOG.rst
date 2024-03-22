@@ -64,6 +64,7 @@ New Features
 
 - Headless agent installation support on macOS 14 and later
 
+
 .. _Release Notes_7.52.0_Enhancement Notes:
 
 Enhancement Notes
@@ -121,6 +122,95 @@ Enhancement Notes
 - APM: Adds `msgp_short_bytes` reason for trace payloads dropped to distinguish them from EOF errors.
 
 - When getting resource tags from an ECS task with zero containers, print a warn log instead of error log.
+
+
+.. _Release Notes_7.52.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- Removal of the pod check from the process agent. The current check will run from the core agent.
+
+- This release drops support for Red Hat Enterprise Linux 6 and its derivatives.
+
+- [oracle] Deprecate the configuration parameter ``instant_client``. Replacing it with ``oracle_client``.
+
+- Removed the system-probe configuration value `data_streams_config.enabled` and replaced it with `service_monitoring_config.enable_kafka_monitoring`.
+  This also implies that the DsmEnabled field in the AgentConfiguration proto will consistently be set to false.
+
+
+.. _Release Notes_7.52.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Upgrade dependencies for systemd core check. This silences excessive warning logs on systemd v252.
+
+- oracle: Fix wrong tablespace metrics.
+
+- APM: Stop dropping incoming OTel payloads when the processing channel is full
+  and eliminate OOM issues in the trace agent and collector component in high
+  load scenarios, making the OTel pipeline more reliable.
+
+- Fix dogstatsd-capture. Message PID was not set after the 7.50 release.
+
+- Fix a memory exception where the flare controller tries to
+  ``stat`` a file that doesn't exist.
+
+- Fleet Automation filters in the Datadog UI now accurately reflect which products are enabled when deployed with the official DataDog Helm chart on Kubernetes.
+
+- Corrected a problem where the `ignore_autodiscovery_tags` parameter was not functioning correctly with pod
+  annotations or autodiscovery version 2 (adv2) annotations. This fix ensures that when this parameter is set
+  to `true`, autodiscovery tags are ignored as intended.
+  Example:
+  ```yaml
+  ad.datadoghq.com/redis.checks: |
+    {
+      "redisdb": {
+        "ignore_autodiscovery_tags": true,
+        "instances": [
+          {
+            "host": "%%host%%",
+            "port": "6379"
+          }
+        ]
+      }
+    }
+  ```
+  Moving forward, configurations that attempt to use hybrid setups—combining adv2 for check specification
+  while also employing `adv1` for `ignore_autodiscovery_tags`—are no longer supported by default.
+  Users should set the configuration parameter `cluster_checks.support_hybrid_ignore_ad_tags` to `true`
+  to enable this behavior.
+
+- [oracle]: Add support for more Asian character sets.
+
+- Prevention of OOMs when collecting a large number of zombie processes.
+
+- Fixed race conditions caused by concurrent execution of etw.StartEtw()
+  and etw.StopEtw() functions which may concurrently access and modify a
+  global map.
+
+- Fix recent PR #22664 which in turn fixes a race condition in the ETW package.
+  The previous PR introduced a minor error addressed in this PR.
+
+- [oracle] Add ``resource_manager`` configuration to ``conf.yaml.example``.
+
+- [oracle] Fix multi-tagging bug.
+
+- Fixes a bug in OTLP ingest where empty histograms were not being sent to the backend in the distributions mode. Empty histograms are now mapped as if they had a single `(min, max)` bucket.
+
+- Scrub authentication bearer token of any size, even invalid, from integration configuration (when being printed
+  through the `checksconfig` CLI command or other).
+
+- Empty UDS payloads no longer cause the DogStatsD server to close the socket.
+
+
+.. _Release Notes_7.52.0_Other Notes:
+
+Other Notes
+-----------
+
+- The version of Python required for tooling in README matches that which the CI uses.
 
 
 .. _Release Notes_7.51.1:
