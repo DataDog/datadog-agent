@@ -75,7 +75,7 @@ func (c *Check) Run() error {
 func (c *Check) getCommonTags() []string {
 	destPortTag := "*"
 	if c.config.DestPort > 0 {
-		strconv.Itoa(int(c.config.DestPort))
+		destPortTag = strconv.Itoa(int(c.config.DestPort))
 	}
 	tags := []string{
 		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
