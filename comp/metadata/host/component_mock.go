@@ -9,7 +9,7 @@ package host
 
 // team: agent-shared-components
 
-// Component is the component type.
+// Mock is a wrapper of the component type.
 type Mock interface {
 	Component
 }

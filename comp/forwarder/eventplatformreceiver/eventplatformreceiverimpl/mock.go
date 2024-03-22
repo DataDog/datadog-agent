@@ -15,29 +15,36 @@ import (
 	"go.uber.org/fx"
 )
 
+// MockModule defines the fx options for the mocked component
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock))
 }
 
+// MockEventPlatformReceiver is the mocked struct that implements the eventplatformreceiver interface
 type MockEventPlatformReceiver struct{}
 
+// SetEnabled is a mocked method on the component
 func (epr *MockEventPlatformReceiver) SetEnabled(e bool) bool {
 	return e
 }
 
+// IsEnabled is a mocked method on the component
 func (epr *MockEventPlatformReceiver) IsEnabled() bool {
 	return true
 }
 
-func (epr *MockEventPlatformReceiver) HandleMessage(m *message.Message, rendered []byte, eventType string) {
+// HandleMessage is a mocked method on the component
+func (epr *MockEventPlatformReceiver) HandleMessage(_ *message.Message, _ []byte, _ string) {
 }
 
-func (epr *MockEventPlatformReceiver) Filter(filters *diagnostic.Filters, done <-chan struct{}) <-chan string {
+// Filter is a mocked method on the component that returns a string channel
+func (epr *MockEventPlatformReceiver) Filter(_ *diagnostic.Filters, _ <-chan struct{}) <-chan string {
 	c := make(chan string)
 	return c
 }
 
+// newMock returns the mocked eventplatformreceiver struct
 func newMock() eprinterface.Component {
 	return &MockEventPlatformReceiver{}
 }

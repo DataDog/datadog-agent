@@ -13,18 +13,22 @@ import (
 	"go.uber.org/fx"
 )
 
+// MockModule defines the fx options for the mocked component
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock))
 }
 
+// MockPkgSigning is the mocked struct that implements the packagesigning component interface
 type MockPkgSigning struct{}
 
+// GetAsJSON is a mocked method on the component
 func (h *MockPkgSigning) GetAsJSON() ([]byte, error) {
 	str := "some bytes"
 	return []byte(str), nil
 }
 
+// newMock returns the mocked packagesigning struct
 func newMock() psinterface.Component {
 	return &MockPkgSigning{}
 }

@@ -5,11 +5,11 @@
 
 //go:build test
 
+// Package flareimpl implements the component flare
 package flareimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	finterface "github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -25,15 +25,17 @@ func MockModule() fxutil.Module {
 // MockFlare is a mock of the
 type MockFlare struct{}
 
-func (fc *MockFlare) Create(profile flare.ProfileData, ipcError error) (string, error) {
+// Create mocks the flare create function
+func (fc *MockFlare) Create(_ flare.ProfileData, _ error) (string, error) {
 	return "a string", nil
 }
 
-func (fc *MockFlare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
+// Send mocks the flare send function
+func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
 	return "a string", nil
 }
 
 // NewMock returns a new flare provider
-func NewMock() finterface.Component {
+func NewMock() flare.Component {
 	return &MockFlare{}
 }

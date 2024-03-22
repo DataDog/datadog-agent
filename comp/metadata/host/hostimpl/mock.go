@@ -15,18 +15,22 @@ import (
 	"go.uber.org/fx"
 )
 
+// MockModule defines the fx options for the mocked component
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock))
 }
 
+// MockHost is a mocked struct that implements the host component interface
 type MockHost struct{}
 
-func (h *MockHost) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
+// GetPayloadAsJSON is a mocked method that we can use for testing
+func (h *MockHost) GetPayloadAsJSON(_ context.Context) ([]byte, error) {
 	str := "some bytes"
 	return []byte(str), nil
 }
 
+// newMock returns the mocked host component
 func newMock() hostinterface.Component {
 	return &MockHost{}
 }

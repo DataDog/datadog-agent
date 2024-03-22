@@ -20,14 +20,15 @@ func MockModule() fxutil.Module {
 	)
 }
 
-// MockFlare is a mock of the
+// MockFetchOnly is a mock for fetch only authtoken
 type MockFetchOnly struct{}
 
+// Get is a mock of the fetchonly Get function
 func (fc *MockFetchOnly) Get() string {
 	return "a string"
 }
 
-// NewMock returns a new flare provider
+// NewMock returns a new fetch only authtoken mock
 func newMock() authtokeninterface.Component {
 	return &MockFetchOnly{}
 }
