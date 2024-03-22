@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -68,6 +67,11 @@ type tagger interface {
 	Component
 }
 
+type datadogConfig struct {
+	dogstatsdEntityIDPrecedenceEnabled bool
+	dogstatsdOptOutEnabled             bool
+}
+
 // TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger
 //
 // nolint:revive // TODO(containers) Fix revive linter
@@ -81,7 +85,8 @@ type TaggerClient struct {
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 	defaultTagger tagger
 
-	wmeta workloadmeta.Component
+	wmeta         workloadmeta.Component
+	datadogConfig datadogConfig
 }
 
 var (
@@ -149,9 +154,14 @@ func newTaggerClient(deps dependencies) Component {
 			captureTagger: nil,
 		}
 	}
+
 	if taggerClient != nil {
 		taggerClient.wmeta = deps.Wmeta
 	}
+
+	taggerClient.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = deps.Config.GetBool("dogstatsd_entity_id_precedence")
+	taggerClient.datadogConfig.dogstatsdOptOutEnabled = deps.Config.GetBool("dogstatsd_origin_optout_enabled")
+
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
@@ -349,8 +359,6 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // is taking care of deduping the tags while generating the context key.
 func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality)
-	optOutEnabled := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
-	entityIDPrecedenceEnabled := config.Datadog.GetBool("dogstatsd_entity_id_precedence")
 
 	switch originInfo.ProductOrigin {
 	case taggertypes.ProductOriginDogStatsD:
@@ -379,7 +387,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		// | none                   | empty           || empty                               |
 		// | empty                  | not empty       || container prefix + originFromMsg    |
 		// | none                   | not empty       || container prefix + originFromMsg    |
-		if optOutEnabled && originInfo.Cardinality == "none" {
+		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
 			originInfo.FromUDS = packets.NoOrigin
 			originInfo.FromTag = ""
 			originInfo.FromMsg = ""
@@ -389,7 +397,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggerty
 		// We use the UDS socket origin if no origin ID was specify in the tags
 		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
 		if originInfo.FromUDS != packets.NoOrigin &&
-			(originInfo.FromTag == "" || entityIDPrecedenceEnabled) {
+			(originInfo.FromTag == "" || t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
 			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
 				log.Errorf(err.Error())
 			}
