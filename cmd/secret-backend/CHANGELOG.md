@@ -8,3 +8,7 @@
 ## 0.1.10 / 2022-08-17
 
 * [Added] support for simple string value secrets in AWS Secrets Manager and Azure Key Vault.
+
+## 0.1.11 / 2024-03-20
+
+* [Added] new backend configuration for Akeyless Secrets.

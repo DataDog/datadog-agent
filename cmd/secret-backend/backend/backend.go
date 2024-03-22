@@ -2,6 +2,8 @@ package backend
 
 import (
 	"fmt"
+	"github.com/rapdev-io/datadog-secret-backend/backend/akeyless"
+	"github.com/rapdev-io/datadog-secret-backend/backend/hashicorp"
 	"io/ioutil"
 	"strings"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/rapdev-io/datadog-secret-backend/backend/aws"
 	"github.com/rapdev-io/datadog-secret-backend/backend/azure"
 	"github.com/rapdev-io/datadog-secret-backend/backend/file"
-	"github.com/rapdev-io/datadog-secret-backend/backend/hashicorp"
 	"github.com/rapdev-io/datadog-secret-backend/secret"
 )
 
@@ -105,6 +106,13 @@ func (b *Backends) InitBackend(backendId string, config map[string]interface{}) 
 		}
 	case "file.json":
 		backend, err := file.NewFileJsonBackend(backendId, config)
+		if err != nil {
+			b.Backends[backendId] = NewErrorBackend(backendId, err)
+		} else {
+			b.Backends[backendId] = backend
+		}
+	case "akeyless":
+		backend, err := akeyless.NewAkeylessBackend(backendId, config)
 		if err != nil {
 			b.Backends[backendId] = NewErrorBackend(backendId, err)
 		} else {
