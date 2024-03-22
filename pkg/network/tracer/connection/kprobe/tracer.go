@@ -112,6 +112,7 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
+// FailedConnectionsSupported returns true if the current kernel version supports ringbuffers, the config & TCP is enabled
 func FailedConnectionsSupported(config *config.Config) bool {
 	log.Info("adamk FailedConnectionsSupported?")
 	if !config.FailedConnectionsEnabled {
