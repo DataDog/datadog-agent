@@ -138,7 +138,7 @@ func sendResult(ctx context.Context, requestID string, result *sbom.ScanResult, 
 	}
 	select {
 	case channel <- *result:
-	case ctx.Done():
+	case <-ctx.Done():
 		result.Error = fmt.Errorf("context cancelled while sending scan result for '%s'", requestID)
 	case <-time.After(sendTimeout):
 		result.Error = fmt.Errorf("timeout while sending scan result for '%s'", requestID)
