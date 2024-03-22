@@ -91,16 +91,31 @@ notify-celian:
   needs:
     - job: "github_rate_limit_info"
   dependencies: []
-  script: |
-    EMAIL=celian.raimbault@datadoghq.com
-    SLACK_AUTHOR=$(echo $EMAIL | email2slackid)
-    MESSAGE="Hello @celian ! :rocket: (pipeline-id: $CI_PIPELINE_ID, commit: $CI_COMMIT_REF_NAME)"
-    postmessage "$SLACK_AUTHOR" "$MESSAGE"
+  resource_group: notification
+  timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+  script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
+    - !reference [.setup_python_mirror_linux]
+    - python3 -m pip install -r tasks/libs/requirements-notifications.txt
+    - |
+      invoke -e notify.send-message --notification-type "deploy"
 
-#     author="$(git show -s --format='%an' HEAD)"
-#     echo "Author: $author"
-#     postmessage "#celian-tests" "$message"
-#     postmessage "@Célian Raimbault" "$message"
-#     postmessage "Célian Raimbault" "$message"
-#     postmessage "celian.raimbault@datadoghq.com" "$message"
-#     echo Done
+
+  # extends: .slack-notifier-base
+  # stage: notify
+  # needs:
+  #   - job: "github_rate_limit_info"
+  # dependencies: []
+  # script: |
+#     EMAIL=celian.raimbault@datadoghq.com
+#     SLACK_AUTHOR=$(echo $EMAIL | email2slackid)
+#     MESSAGE="Hello @celian ! :rocket: (pipeline-id: $CI_PIPELINE_ID, commit: $CI_COMMIT_REF_NAME)"
+#     postmessage "$SLACK_AUTHOR" "$MESSAGE"
+
+# #     author="$(git show -s --format='%an' HEAD)"
+# #     echo "Author: $author"
+# #     postmessage "#celian-tests" "$message"
+# #     postmessage "@Célian Raimbault" "$message"
+# #     postmessage "Célian Raimbault" "$message"
+# #     postmessage "celian.raimbault@datadoghq.com" "$message"
+# #     echo Done

@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import Dict
 
 import yaml
+from invoke.context import Context
 
 from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
 from tasks.libs.types.types import FailedJobs, Test
@@ -125,9 +126,9 @@ def base_message(header, state):
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
 
 
-def get_git_author():
+def get_git_author(format='an'):
     return (
-        subprocess.check_output(["git", "show", "-s", "--format='%an'", "HEAD"])
+        subprocess.check_output(["git", "show", "-s", f"--format='%{format}'", "HEAD"])
         .decode('utf-8')
         .strip()
         .replace("'", "")
@@ -136,3 +137,11 @@ def get_git_author():
 
 def send_slack_message(recipient, message):
     subprocess.run(["postmessage", recipient, message], check=True)
+
+
+def email_to_slackid(ctx: Context, email: str) -> str:
+    slackid = ctx.run(f"echo '{email}' | email2slackid", ).stdout.strip()
+
+    assert slackid != '', 'Email not found'
+
+    return slackid
