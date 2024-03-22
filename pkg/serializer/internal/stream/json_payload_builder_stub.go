@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
@@ -31,7 +32,7 @@ type JSONPayloadBuilder struct {
 }
 
 // NewJSONPayloadBuilder is not implemented when zlib is not available.
-func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component) *JSONPayloadBuilder {
+func NewJSONPayloadBuilder(shareAndLockBuffers bool, config config.Component, compressor compression.Component) *JSONPayloadBuilder {
 	return nil
 }
 
