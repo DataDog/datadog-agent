@@ -51,5 +51,5 @@ hostname: ENC[hostname]`
 		assert.NoError(t, err)
 		assert.NotEmpty(t, checks)
 		assert.Equal(t, "e2e.test", checks[len(checks)-1].HostName)
-	}, 400*time.Second, 5*time.Second)
+	}, 30*time.Second, 2*time.Second)
 }
