@@ -87,7 +87,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 Step.AppSearch,
-                Condition.Always,
+                Conditions.Maintenance,
                 Sequence.InstallExecuteSequence | Sequence.InstallUISequence);
 
             ReadInstallState = new CustomAction<InstallStateCustomActions>(
