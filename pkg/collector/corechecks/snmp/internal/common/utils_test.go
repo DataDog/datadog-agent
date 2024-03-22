@@ -98,9 +98,3 @@ func Test_makeStringBatches(t *testing.T) {
 		})
 	}
 }
-
-func Test_BoolToFloat64(t *testing.T) {
-	assert.Equal(t, BoolToFloat64(true), 1.0)
-	assert.Equal(t, BoolToFloat64(false), 0.0)
-
-}

@@ -161,8 +161,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
-	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
-	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)
+	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), tags)
+	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), tags)
 
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
@@ -177,8 +177,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
 			pingStatus = metadata.DeviceStatusUnreachable
 			d.diagnoses.Add("error", "SNMP_FAILED_TO_PING_DEVICE", "Agent encountered an error when pinging this network device. Check agent logs for more details.")
-			d.sender.Gauge(pingReachableMetric, common.BoolToFloat64(false), tags)
-			d.sender.Gauge(pingUnreachableMetric, common.BoolToFloat64(true), tags)
+			d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(false), tags)
+			d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(true), tags)
 		} else {
 			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
 			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
@@ -424,7 +424,7 @@ func createPinger(cfg pinger.Config) (pinger.Pinger, error) {
 
 func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string) {
 	d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
-	d.sender.Gauge(pingReachableMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
-	d.sender.Gauge(pingUnreachableMetric, common.BoolToFloat64(!pingResult.CanConnect), tags)
+	d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(pingResult.CanConnect), tags)
+	d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(!pingResult.CanConnect), tags)
 	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 }

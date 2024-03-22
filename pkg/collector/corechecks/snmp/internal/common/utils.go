@@ -28,11 +28,3 @@ func CreateStringBatches(elements []string, size int) ([][]string, error) {
 
 	return batches, nil
 }
-
-// BoolToFloat64 converts a true/false boolean into a 1.0 or 0.0 float
-func BoolToFloat64(val bool) float64 {
-	if val {
-		return 1.
-	}
-	return 0.
-}

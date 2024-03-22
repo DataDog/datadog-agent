@@ -114,12 +114,11 @@ func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path tracer
 
 	if len(path.Hops) > 0 {
 		lastHop := path.Hops[len(path.Hops)-1]
-		pathReachable := 0
 		if lastHop.Success {
-			pathReachable = 1
 			senderInstance.Gauge("datadog.network_path.path.hops", float64(len(path.Hops)), "", newTags)
 		}
-		senderInstance.Gauge("datadog.network_path.path.reachable", float64(pathReachable), "", newTags)
+		senderInstance.Gauge("datadog.network_path.path.reachable", float64(utils.BoolToFloat64(lastHop.Success)), "", newTags)
+		senderInstance.Gauge("datadog.network_path.path.unreachable", float64(utils.BoolToFloat64(!lastHop.Success)), "", newTags)
 	}
 }
 
