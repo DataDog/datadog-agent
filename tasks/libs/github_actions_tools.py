@@ -26,6 +26,7 @@ def trigger_macos_workflow(
     version_cache_file_content=None,
     concurrency_key=None,
     fast_tests=None,
+    integrations_core_ref=None,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -58,6 +59,9 @@ def trigger_macos_workflow(
 
     if fast_tests is not None:
         inputs["fast_tests"] = fast_tests
+
+    if integrations_core_ref is not None:
+        inputs["integrations_core_ref"] = integrations_core_ref
 
     # Test-only input, only to be passed to the test workflow
     if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":

@@ -18,6 +18,7 @@ from tasks.libs.common.color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"
+DEFAULT_INTEGRATIONS_CORE_BRANCH = "master"
 GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
 GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
