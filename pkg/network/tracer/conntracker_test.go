@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -38,20 +36,9 @@ func TestConntrackers(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
 	t.Run("eBPF", func(t *testing.T) {
-		skipEbpfConntrackerTestOnUnsupportedKernel(t)
-		modes := []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled}
-		// TODO remove checks when BTFHub has kernel modules
-		ps := &ebpf.ProgramSpec{AttachTo: "__nf_conntrack_hash_insert", Type: ebpf.Kprobe}
-		mod, _ := ps.KernelModule()
-		if mod != "" {
-			kp, _ := kernel.Platform()
-			if kp == "amazon" && kv.Major() == 4 && kv.Minor() == 14 {
-				modes = append(modes, ebpftest.CORE)
-			} else if _, err := btf.LoadKernelModuleSpec(mod); err == nil {
-				modes = append(modes, ebpftest.CORE)
-			}
-		} else {
-			modes = append(modes, ebpftest.CORE)
+		modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
+		if ebpfConntrackerSupportedOnKernelT(t) {
+			modes = append([]ebpftest.BuildMode{ebpftest.Prebuilt}, modes...)
 		}
 		ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 			runConntrackerTest(t, "eBPF", setupEBPFConntracker)

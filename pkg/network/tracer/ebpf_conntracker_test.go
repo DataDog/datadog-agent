@@ -35,6 +35,7 @@ func TestEbpfConntrackerLoadTriggersOffsetGuessing(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
+	cfg.EnableCORE = false
 	conntracker, err := NewEBPFConntracker(cfg)
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
@@ -54,6 +55,7 @@ func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
+	cfg.EnableCORE = false
 	conntracker, err := NewEBPFConntracker(cfg)
 	assert.Error(t, err)
 	assert.Equal(t,
