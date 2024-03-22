@@ -58,8 +58,6 @@ func TestEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
 	cfg.EnableCORE = false
 	conntracker, err := NewEBPFConntracker(cfg)
 	assert.Error(t, err)
-	assert.Equal(t,
-		"could not load prebuilt ebpf conntracker: ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support",
-		err.Error())
+	assert.ErrorIs(t, err, errPrebuiltConntrackerUnsupported)
 	require.Nil(t, conntracker)
 }

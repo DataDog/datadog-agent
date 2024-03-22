@@ -462,13 +462,15 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	return mgr.Manager, nil
 }
 
+var errPrebuiltConntrackerUnsupported = errors.New("prebuilt ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
+
 func getPrebuiltConntracker(cfg *config.Config) (*manager.Manager, error) {
 	supportedOnKernel, err := ebpfPrebuiltConntrackerSupportedOnKernel()
 	if err != nil {
 		return nil, fmt.Errorf("could not check if ebpf conntracker is supported on kernel: %w", err)
 	}
 	if !supportedOnKernel {
-		return nil, fmt.Errorf("ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
+		return nil, errPrebuiltConntrackerUnsupported
 	}
 
 	buf, err := netebpf.ReadConntrackBPFModule(cfg.BPFDir, cfg.BPFDebug)
