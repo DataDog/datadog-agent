@@ -78,7 +78,6 @@ func (c *Check) getCommonTags() []string {
 		strconv.Itoa(int(c.config.DestPort))
 	}
 	tags := []string{
-		"agent_host:" + utils.GetAgentVersionTag(),
 		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
 		"destination_hostname:" + c.config.DestHostname,
 		"destination_port:" + destPortTag,
