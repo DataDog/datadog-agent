@@ -163,7 +163,9 @@ def check_env(ctx: Context):
     check_libvirt_sock_perms()
 
 
-def launch_stack(ctx: Context, stack: Optional[str], ssh_key: str, x86_ami: str, arm_ami: str, provision_microvms: bool):
+def launch_stack(
+    ctx: Context, stack: Optional[str], ssh_key: str, x86_ami: str, arm_ami: str, provision_microvms: bool
+):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
