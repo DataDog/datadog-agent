@@ -921,3 +921,29 @@ def print_fentry_stats(ctx):
 
     for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
         ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
+
+
+@task
+def sync_secl_win_pkg(ctx):
+    files_to_copy = [
+        ("model.go", None),
+        ("events.go", None),
+        ("args_envs.go", None),
+        ("consts_common.go", None),
+        ("consts_other.go", None),
+        ("consts_map_names.go", None),
+        ("model_windows.go", "model_win.go"),
+        ("field_handlers_windows.go", "field_handlers_win.go"),
+        ("accessors_windows.go", "accessors_win.go"),
+    ]
+
+    ctx.run("rm -r pkg/security/seclwin/model")
+    ctx.run("mkdir -p pkg/security/seclwin/model")
+
+    for (ffrom, fto) in files_to_copy:
+        if not fto:
+            fto = ffrom
+
+        ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
+        ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")

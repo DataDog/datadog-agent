@@ -48,6 +48,7 @@ nav:
   - Setup: setup.md
 - Guidelines:
   - Contributing: guidelines/contributing.md
+  - Documentation: guidelines/docs.md
   - Components:
     - Purpose: guidelines/components/purpose.md
     - Defining Components: guidelines/components/defining-components.md
@@ -130,6 +131,7 @@ markdown_extensions:
 - pymdownx.superfences:
 - pymdownx.tabbed:
     alternate_style: true
+    combine_header_slug: true
     slugify: !!python/object/apply:pymdownx.slugs.slugify
       kwds:
         case: lower

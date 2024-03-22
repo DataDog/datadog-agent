@@ -195,6 +195,11 @@ func collectPIDEnvVars(pid int32) ([]string, bool, error) {
 }
 
 func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
+	ppid, err := proc.Ppid()
+	if err != nil {
+		return nil, err
+	}
+
 	uids, err := proc.Uids()
 	if err != nil {
 		return nil, err
@@ -240,6 +245,7 @@ func procToMsg(proc *ProcProcess) (*ebpfless.Message, error) {
 					GID:  uint32(gids[0]),
 					EGID: uint32(gids[1]),
 				},
+				PPID: uint32(ppid),
 			},
 		},
 	}, nil

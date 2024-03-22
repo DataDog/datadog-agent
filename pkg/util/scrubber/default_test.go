@@ -493,6 +493,35 @@ func TestAddStrippedKeys(t *testing.T) {
 	assertClean(t, contents, `foobar: "********"`)
 }
 
+func TestAddStrippedKeysExceptions(t *testing.T) {
+	t.Run("single key", func(t *testing.T) {
+		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'`
+
+		AddStrippedKeys([]string{"api_key"})
+
+		scrubbed, err := ScrubYamlString(contents)
+		require.Nil(t, err)
+		require.YAMLEq(t, `api_key: '***************************aaaaa'`, scrubbed)
+	})
+
+	t.Run("multiple keys", func(t *testing.T) {
+		contents := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+		AddStrippedKeys([]string{"api_key", "some_other_key", "app_key"})
+
+		scrubbed, err := ScrubYamlString(contents)
+		require.Nil(t, err)
+		expected := `api_key: '***************************aaaaa'
+some_other_key: '********'
+app_key: '***********************************acccc'
+yet_another_key: 'dddd'`
+		require.YAMLEq(t, expected, scrubbed)
+	})
+}
+
 func TestAddStrippedKeysNewReplacer(t *testing.T) {
 	contents := `foobar: baz`
 	AddStrippedKeys([]string{"foobar"})

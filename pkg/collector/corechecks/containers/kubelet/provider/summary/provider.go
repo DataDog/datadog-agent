@@ -109,7 +109,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			log.Warnf("Couldn't get pod data from workloadmeta store, error = %v ", err)
 			continue
 		}
-		if podData.Phase == "Running" {
+		if podData.Phase == "Running" || podData.Phase == "Pending" {
 			p.processPodStats(sender, podStats, useStatsAsSource, rateFilterList)
 		}
 		p.processContainerStats(sender, podStats, podData, useStatsAsSource)

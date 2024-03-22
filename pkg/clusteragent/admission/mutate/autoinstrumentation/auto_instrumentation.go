@@ -107,7 +107,7 @@ const (
 	singleStepInstrumentationInstallType   = "k8s_single_step"
 	localLibraryInstrumentationInstallType = "k8s_lib_injection"
 
-	webhookName = "auto-instrumentation"
+	webhookName = "lib_injection"
 )
 
 var (
@@ -178,6 +178,13 @@ func GetWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 	})
 
 	return apmInstrumentationWebhook, errInitAPMInstrumentation
+}
+
+// UnsetWebhook unsets the webhook. For testing only.
+func UnsetWebhook() {
+	initOnce = sync.Once{}
+	apmInstrumentationWebhook = nil
+	errInitAPMInstrumentation = nil
 }
 
 // apmSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
@@ -271,7 +278,7 @@ func (w *Webhook) MutateFunc() admission.WebhookFunc {
 
 // injectAutoInstrumentation injects APM libraries into pods
 func (w *Webhook) injectAutoInstrumentation(request *admission.MutateRequest) ([]byte, error) {
-	return mutatecommon.Mutate(request.Raw, request.Namespace, w.inject, request.DynamicClient)
+	return mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient)
 }
 
 func initContainerName(lang language) string {
@@ -283,9 +290,9 @@ func libImageName(registry string, lang language, tag string) string {
 	return fmt.Sprintf(imageFormat, registry, lang, tag)
 }
 
-func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
-		return errors.New("cannot inject lib into nil pod")
+		return false, errors.New(metrics.InvalidInput)
 	}
 	injectApmTelemetryConfig(pod)
 
@@ -293,24 +300,24 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
 		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
 			log.Debugf("Skipping single step instrumentation of pod %q due to label", mutatecommon.PodString(pod))
-			return nil
+			return false, nil
 		}
 	} else if !mutatecommon.ShouldMutatePod(pod) {
 		log.Debugf("Skipping auto instrumentation of pod %q because pod mutation is not allowed", mutatecommon.PodString(pod))
-		return nil
+		return false, nil
 	}
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			// The admission can be reinvocated for the same pod
 			// Fast return if we injected the library already
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
-			return nil
+			return false, nil
 		}
 	}
 
 	libsToInject, autoDetected := w.extractLibInfo(pod)
 	if len(libsToInject) == 0 {
-		return nil
+		return false, nil
 	}
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
@@ -324,7 +331,12 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectionType = localLibraryInstrumentationInstallType
 	}
 
-	return w.injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType)
+	if err := w.injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType); err != nil {
+		log.Errorf("failed to inject auto instrumentation configurations: %v", err)
+		return false, errors.New(metrics.ConfigInjectionError)
+	}
+
+	return true, nil
 }
 
 func injectApmTelemetryConfig(pod *corev1.Pod) {
@@ -579,7 +591,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		langStr := string(lib.lang)
 		defer func() {
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationAttempts.Inc(metrics.LibInjectionMutationType, strconv.FormatBool(injected), langStr, strconv.FormatBool(autoDetected))
 		}()
 
 		_ = mutatecommon.InjectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
@@ -637,14 +648,12 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 				}})
 		default:
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "unsupported language", langStr, strconv.FormatBool(autoDetected))
 			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
 			continue
 		}
 
 		if err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "requirements config error", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Error injecting library config requirements: %s", err)
 		}
@@ -659,7 +668,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		if err != nil {
 			langStr := string(lang)
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject init container", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Cannot inject init container into pod %s: %s", mutatecommon.PodString(pod), err)
 		}
@@ -667,7 +675,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		if err != nil {
 			langStr := string(lang)
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject lib config", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
 		}
@@ -676,7 +683,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 	// try to inject all if the annotation is set
 	if err := injectLibConfig(pod, "all"); err != nil {
 		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
-		metrics.MutationErrors.Inc(metrics.LibInjectionMutationType, "cannot inject lib config", "all", strconv.FormatBool(autoDetected))
 		lastError = err
 		log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
 	}

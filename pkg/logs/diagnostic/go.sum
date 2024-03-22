@@ -11,8 +11,8 @@ github.com/DataDog/datadog-agent/pkg/telemetry v0.52.0-rc.3 h1:WO0MM7nHQdT3LYc2V
 github.com/DataDog/datadog-agent/pkg/telemetry v0.52.0-rc.3/go.mod h1:zAr+W+gzODxPhlq9qVG1UwvItHRk+n/9XHXJ5Myeyp8=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3 h1:C9hoL8b5XPv4PSToaUo3BmzS3HrcDti4XSXd3BJf4fU=
 github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3/go.mod h1:7/Dk+MI/JNkrYUYtR/LQG750a99T1/nCVNFjc7rLq4g=
-github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
-github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
+github.com/DataDog/viper v1.13.0 h1:XE5cJiXeXkyijwgspwZiH6iroWYLgAPXTOhcBnDBOMs=
+github.com/DataDog/viper v1.13.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=

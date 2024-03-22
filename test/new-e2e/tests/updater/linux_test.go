@@ -6,6 +6,7 @@
 package updater
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -37,4 +38,37 @@ func (v *vmUpdaterSuite) TestUpdaterOwnership() {
 	require.Equal(v.T(), "dd-agent\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" /opt/datadog/updater`))
 	// permissions
 	require.Equal(v.T(), "drwxr-xr-x\n", v.Env().RemoteHost.MustExecute(`stat -c "%A" /opt/datadog/updater`))
+}
+
+func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
+	stableUnits := []string{
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-agent-sysprobe.service",
+		"datadog-agent-security.service",
+	}
+	for _, unit := range stableUnits {
+		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
+	}
+}
+
+func (v *vmUpdaterSuite) TestPurge() {
+	v.Env().RemoteHost.MustExecute("sudo /opt/datadog/updater/bin/updater/updater purge")
+	stableUnits := []string{
+		"datadog-agent.service",
+		"datadog-agent-trace.service",
+		"datadog-agent-process.service",
+		"datadog-agent-sysprobe.service",
+		"datadog-agent-security.service",
+	}
+	for _, unit := range stableUnits {
+		_, err := v.Env().RemoteHost.Execute(fmt.Sprintf(`systemctl is-enabled %s`, unit))
+		require.Equal(
+			v.T(),
+			fmt.Sprintf("Failed to get unit file state for %s: No such file or directory\n: Process exited with status 1", unit),
+			err.Error(),
+		)
+	}
+	v.Env().RemoteHost.MustExecute("sudo /opt/datadog/updater/bin/updater/updater bootstrap -P datadog-agent")
 }

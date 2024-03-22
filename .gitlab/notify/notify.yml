@@ -25,7 +25,7 @@ notify:
   resource_group: notification
   timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
   script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
     - |
@@ -45,14 +45,14 @@ notify:
 send_pipeline_stats:
   stage: notify
   # Using a buildimage image with python 3.7+, datadog-api-client and invoke installed
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_CI_UPLOADER_IMAGE
   tags: ["arch:amd64"]
   when: always
   dependencies: []
   script:
     - source /root/.bashrc
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.gitlab_read_api_token)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.setup_python_mirror_linux]
     - invoke -e notify.send-stats
 
@@ -62,8 +62,18 @@ notify_github:
   tags: ["runner:docker"]
   rules:
     - !reference [.except_mergequeue]
-    - when: on_success
-  needs: ["deploy_deb_testing-a7_x64"]
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_no_tests_no_deploy]
+    - if: $RELEASE_VERSION_7 != ""
+      changes:
+        paths:
+          - '**/*.go'
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      when: on_success
+    - when: never
+  needs:
+    - job: "deploy_deb_testing-a7_x64"
+      optional: true
   dependencies: []
   allow_failure: true
   script:

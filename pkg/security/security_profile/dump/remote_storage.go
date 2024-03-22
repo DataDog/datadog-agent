@@ -69,7 +69,9 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
 		storage.urls = append(storage.urls, utils.GetEndpointURL(endpoint, "api/v2/secdump"))
-		storage.apiKeys = append(storage.apiKeys, endpoint.APIKey)
+		// TODO - runtime API key refresh: Storing the API key like this will no longer be valid once the
+		// security agent support API key refresh at runtime.
+		storage.apiKeys = append(storage.apiKeys, endpoint.GetAPIKey())
 	}
 
 	return storage, nil
