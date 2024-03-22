@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const commonRegistry = "gcr.io/datadoghq"
@@ -181,6 +182,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 						Name: "pod-name",
 					},
 					Spec: corev1.PodSpec{
+						ShareProcessNamespace: pointer.Ptr(true),
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",
@@ -297,6 +299,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 						Name: "pod-name",
 					},
 					Spec: corev1.PodSpec{
+						ShareProcessNamespace: pointer.Ptr(true),
 						Containers: []corev1.Container{
 							{
 								Name: "container-name",

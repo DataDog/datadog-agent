@@ -14,9 +14,9 @@ import (
 	"net/url"
 	"testing"
 
-	"go.uber.org/fx"
-
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -71,8 +71,7 @@ func makeConfigSyncWithServer(t *testing.T, ctx context.Context, handler http.Ha
 	return cs
 }
 
-func requireConfigIsSet(t *testing.T, cfg model.Reader, key string, value interface{}) {
-	t.Helper()
-	require.Equal(t, value, cfg.Get(key))
-	require.Equal(t, model.SourceLocalConfigProcess, cfg.GetSource(key))
+func assertConfigIsSet(t assert.TestingT, cfg model.Reader, key string, value interface{}) {
+	assert.Equal(t, value, cfg.Get(key))
+	assert.Equal(t, model.SourceLocalConfigProcess, cfg.GetSource(key))
 }
