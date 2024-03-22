@@ -22,9 +22,8 @@ build do
   license :project_license
 
   bundled_agents = []
-  if linux_target?
+  if heroku_target?
     bundled_agents = ["process-agent"]
-    bundled_agents << "security-agent" << "system-probe" unless heroku_target?
   end
 
   # set GOPATH on the omnibus source dir for this software
