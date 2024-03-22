@@ -49,7 +49,8 @@ function Install-DDAgent
     {
         $logFile = $InstallLogPath
     }
-    else {
+    else
+    {
         $logFile = createTemporaryLogFile -prefix "ddagent-msi"
     }
 
