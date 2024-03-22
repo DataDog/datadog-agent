@@ -94,4 +94,5 @@ notify-celian:
   tags: ["arch:amd64"]
   script: |
     MESSAGE_TEXT="Hello @celian ! :rocket:"
-    postmessage "#celian-test" "$MESSAGE_TEXT"
+    postmessage "#celian-tests" "$MESSAGE_TEXT"
+    echo Done
