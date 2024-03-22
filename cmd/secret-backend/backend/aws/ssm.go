@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog/log"
@@ -49,8 +50,8 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 	if backendConfig.ParameterPath != "" {
 		input := &ssm.GetParametersByPathInput{
 			Path:           &backendConfig.ParameterPath,
-			Recursive:      true,
-			WithDecryption: true,
+			Recursive:      aws.Bool(true),
+			WithDecryption: aws.Bool(true),
 		}
 
 		pager := ssm.NewGetParametersByPathPaginator(client, input)
@@ -79,7 +80,7 @@ func NewAwsSsmParameterStoreBackend(backendId string, bc map[string]interface{})
 	if len(backendConfig.Parameters) > 0 {
 		input := &ssm.GetParametersInput{
 			Names:          backendConfig.Parameters,
-			WithDecryption: true,
+			WithDecryption: aws.Bool(true),
 		}
 		out, err := client.GetParameters(context.TODO(), input)
 		if err != nil {
