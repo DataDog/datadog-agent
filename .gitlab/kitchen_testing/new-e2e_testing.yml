@@ -57,7 +57,7 @@
 .new-e2e_rpm:
   variables:
     TARGETS: ./tests/agent-platform/rpm
-    TEAM: agent-platform
+    TEAM: agent-build-and-releases
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.agent-linux-install-script.datadog_api_key)
