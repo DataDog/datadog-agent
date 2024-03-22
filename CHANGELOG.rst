@@ -62,6 +62,7 @@ New Features
 
 - APM: Add support for Single Step Instrumentation remote configuration
 
+- Headless agent installation support on macOS 14 and later
 
 .. _Release Notes_7.52.0_Enhancement Notes:
 
