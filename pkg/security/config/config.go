@@ -138,6 +138,8 @@ type RuntimeSecurityConfig struct {
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
+	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
+	SecurityProfileMaxImageTags int
 	// SecurityProfileDir defines the directory in which Security Profiles are stored
 	SecurityProfileDir string
 	// SecurityProfileWatchDir defines if the Security Profiles directory should be monitored
@@ -344,6 +346,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// security profiles
 		SecurityProfileEnabled:          coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileMaxImageTags:     coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.max_image_tags"),
 		SecurityProfileDir:              coreconfig.SystemProbe.GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:         coreconfig.SystemProbe.GetBool("runtime_security_config.security_profile.watch_dir"),
 		SecurityProfileCacheSize:        coreconfig.SystemProbe.GetInt("runtime_security_config.security_profile.cache_size"),
