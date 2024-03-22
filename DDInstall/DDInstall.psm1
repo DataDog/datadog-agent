@@ -43,15 +43,19 @@ function Install-DDAgent
 
     Write-Host "Installing Datadog Windows Agent"
     $installerParameters = formatAgentInstallerParameters -params $PSBoundParameters
-    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath $installerParameters" -PassThru
+
+    $logFile = ""
+    if ($PSBoundParameters.ContainsKey('InstallLogPath'))
+    {
+        $logFile = $InstallLogPath
+    }
+    else {
+        $logFile = createTemporaryLogFile -prefix "ddagent-msi"
+    }
+
+    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath $installerParameters /log $logFile" -PassThru
     if ($installResult.ExitCode -ne 0)
     {
-        $logFile = "%TEMP%\MSI*.LOG"
-        if ($PSBoundParameters.ContainsKey('InstallLogPath'))
-        {
-            $logFile = $InstallLogPath
-        }
-
         $exception = [Exception]::new("Agent installation failed. For more information, check the installation log file at $logFile.")
         $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
     }
@@ -152,7 +156,6 @@ function formatAgentInstallerParameters($params)
     if ($params.ContainsKey('DDAgentPassword'))             { $formattedparams += " DDAGENTUSER_PASSWORD=$($params.DDAgentPassword)" }
     if ($params.ContainsKey('ApplicationDataDirectory'))    { $formattedparams += " APPLICATIONDATADIRECTORY=$($params.ApplicationDataDirectory)" }
     if ($params.ContainsKey('ProjectLocation'))             { $formattedparams += " PROJECTLOCATION=$($params.ProjectLocation)" }
-    if ($params.ContainsKey('InstallLogPath'))              { $formattedparams += " /log $($params.InstallLogPath)" }
 
     return $formattedparams
 }
@@ -201,4 +204,11 @@ function hasValidDDSignature($asset)
     }
 
     return $true
+}
+
+function createTemporaryLogFile($prefix)
+{
+    $tempFile = New-TemporaryFile
+    $renamedTempFile = Rename-Item -Path $tempFile -NewName "$prefix-$((Get-ChildItem $tempFile).BaseName).log" -PassThru
+    return $renamedTempFile.FullName
 }
