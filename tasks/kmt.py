@@ -379,7 +379,7 @@ def build_dependencies(
     if paths.dependencies.exists():
         shutil.rmtree(paths.dependencies)
 
-    paths.dependencies.mkdir(parents=True)
+    ctx.run(f"mkdir -p {paths.dependencies}")
 
     with open(layout_file) as f:
         deps_layout: DependenciesLayout = cast('DependenciesLayout', json.load(f))
