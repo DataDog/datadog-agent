@@ -20,6 +20,8 @@ from tasks.libs.pipeline.notifications import (
     find_job_owners,
     get_failed_tests,
     send_slack_message,
+    get_git_author,
+    email_to_slackid,
 )
 from tasks.libs.pipeline.stats import get_failed_jobs_stats
 from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
@@ -91,20 +93,24 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
         header = f"{header_icon} :rocket: datadog-agent deploy"
     base = base_message(header, state)
 
-    print('SEND', base)
-
     # Send messages
-#     for owner, message in messages_to_send.items():
-#         channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
-#         message.base_message = base
-#         if channel is None:
-#             channel = "#datadog-agent-pipelines"
-#             message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
-#         message.coda = coda
-#         if print_to_stdout:
-#             print(f"Would send to {channel}:\n{str(message)}")
-#         else:
-#             send_slack_message(channel, str(message))  # TODO: use channel variable
+    for owner, message in messages_to_send.items():
+        channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
+        message.base_message = base
+        if channel is None:
+            channel = "#datadog-agent-pipelines"
+            message.base_message += UNKNOWN_OWNER_TEMPLATE.format(owner=owner)
+        message.coda = coda
+        if print_to_stdout:
+            print(f"Would send to {channel}:\n{str(message)}")
+        else:
+            # send_slack_message(channel, str(message))  # TODO: use channel variable
+
+            print('SEND', base)
+            author_email = get_git_author(format='ae')
+            assert author_email == 'celian.raimbault@datadoghq.com'
+            author_slack = email_to_slackid(author_email)
+            send_slack_message(author_slack, str(message))
 
 
 @task
