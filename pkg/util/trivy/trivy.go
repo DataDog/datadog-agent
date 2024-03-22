@@ -337,7 +337,7 @@ func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applie
 		if err != nil {
 			return nil, err
 		}
-		c.cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
+		cache.setKeysForEntity(imgMeta.EntityID.ID, append(artifactReference.BlobIDs, artifactReference.ID))
 	}
 
 	s := scanner.NewScanner(local.NewScanner(applier, c.osScanner, c.langScanner, c.vulnClient), artifact)
