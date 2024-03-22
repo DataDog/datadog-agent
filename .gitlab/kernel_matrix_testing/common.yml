@@ -131,7 +131,7 @@
       # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
       # by a ram backed filesystem holding the system-probe test packages
     - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS --vmconfig-template=$TEST_COMPONENT --memory=12288
-    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
+    - inv -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
@@ -204,13 +204,13 @@
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
   after_script:
     - MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
+    - mkdir -p $CI_PROJECT_DIR/logs
+    - ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log || true
+    - cat $CI_PROJECT_DIR/logs/setup-ddvm.log || true
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
     - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
     - scp "metal_instance:/home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
-    - mkdir $CI_PROJECT_DIR/logs
-    - ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log
-    - cat $CI_PROJECT_DIR/logs/setup-ddvm.log
   artifacts:
     expire_in: 2 weeks
     when: always

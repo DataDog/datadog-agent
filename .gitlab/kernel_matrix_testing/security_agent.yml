@@ -154,6 +154,8 @@ kmt_run_secagent_tests_x64:
           - "debian_10"
           - "debian_11"
           - "debian_12"
+          - "oracle_8.9"
+          - "oracle_9.3"
         TEST_SET: [all_tests]
 
 kmt_run_secagent_tests_arm64:
@@ -179,6 +181,8 @@ kmt_run_secagent_tests_arm64:
           - "fedora_38"
           - "debian_11"
           - "debian_12"
+          - "oracle_8.9"
+          - "oracle_9.3"
         TEST_SET: ["all_tests"]
 
 .kmt_secagent_cleanup:
