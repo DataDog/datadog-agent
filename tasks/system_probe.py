@@ -1582,9 +1582,7 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
             nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
 
             # these commands operate on relative input paths because of max argument size
-            nw.rule(name="move_btf", command="mv $in $out")
-            nw.rule(name="merge_btf", command="cd $btf_dir && bpftool $base_btf btf merge merged_btf $rel_ins")
-
+            nw.rule(name="merge_btf", command="/bin/bash -O extglob -c \"cd $btf_dir && bpftool -B vmlinux btf merge merged_btf !(vmlinux)\"")
             nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $bpf_programs && rm -rf $in_dir")
             nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
 
@@ -1608,28 +1606,12 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     btf_dir = os.path.normpath(os.path.join(path_from_root, file.removesuffix(".btf.tar.xz")))
                     os.makedirs(os.path.abspath(btf_dir), exist_ok=True)
 
-                    # collect list of files in BTF archive, should be vmlinux and kernel module BTFs
-                    vmlinux_file = None
-                    tar_files = list()
-                    rel_tar_files = list()
-                    with tarfile.open(os.path.join(root, file)) as txz:
-                        for m in txz.getmembers():
-                            if m.isfile():
-                                tf = os.path.normpath(os.path.join(btf_dir, m.name))
-                                tar_files.append(tf)
-                                rel_tar_files.append(m.name)
-                                if os.path.basename(tf) == "vmlinux":
-                                    vmlinux_file = tf
-
-                    if len(tar_files) == 0:
-                        print(f"tarball {file} has no files")
-                        continue
-
                     # extract source tarball to unique directory
+                    vmlinux_file = os.path.join(btf_dir, "vmlinux")
                     nw.build(
                         rule="decompress_btf",
                         inputs=[os.path.join(root, file)],
-                        outputs=tar_files,
+                        outputs=[vmlinux_file],
                         variables={
                             "target_directory": btf_dir,
                         },
@@ -1637,20 +1619,12 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
                     # merge BTF for all files in source tarball
                     merged_btf = os.path.join(btf_dir, "merged_btf")
-                    merge_rule = "merge_btf"
-                    if len(tar_files) == 1:
-                        merge_rule = "move_btf"
-                    else:
-                        if vmlinux_file:
-                            rel_tar_files.remove("vmlinux")
 
                     nw.build(
-                        rule=merge_rule,
-                        inputs=tar_files,
+                        rule="merge_btf",
+                        inputs=[vmlinux_file],
                         outputs=[merged_btf],
                         variables={
-                            "base_btf": f"-B vmlinux" if vmlinux_file else "",
-                            "rel_ins": rel_tar_files,
                             "btf_dir": btf_dir,
                         },
                     )
