@@ -81,7 +81,7 @@ func (c *tcpFailedConnConsumer) Stop() {
 
 func (c *tcpFailedConnConsumer) extractConn(data []byte) {
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
-	log.Info("adamk: tcpFailedConnConsumer.extractConn: ct: ", ct)
+	log.Infof("adamk: tcpFailedConnConsumer.extractConn: ct: %v", ct)
 	// rollup similar conns here
 }
 
@@ -105,7 +105,6 @@ func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
 			case <-c.closed:
 				return
 			case dataEvent, ok := <-dataChannel:
-				log.Debugf("adamk: received failed connection: dataEvent: %v, ok: %v", dataEvent, ok)
 				if !ok {
 					return
 				}
