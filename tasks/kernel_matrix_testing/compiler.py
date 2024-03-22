@@ -8,11 +8,10 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import full_arch, info, warn
-from tasks.kernel_matrix_testing.types import ArchOrLocal
 from tasks.kernel_matrix_testing.vars import arch_mapping
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, PathOrStr
+    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, PathOrStr
 
 
 class CompilerImage:
