@@ -602,16 +602,26 @@ def test(
         "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
         "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
         "verbose": "Enable full output of all commands executed",
+        "arch": "Architecture to build the system-probe for",
     }
 )
 def build(
-    ctx: Context, vms: str, stack: Optional[str] = None, ssh_key: Optional[str] = None, full_rebuild=False, verbose=True
+    ctx: Context,
+    vms: str,
+    stack: Optional[str] = None,
+    ssh_key: Optional[str] = None,
+    full_rebuild=False,
+    verbose=True,
+    arch: Optional[ArchOrLocal] = None,
 ):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    arch = full_arch("local")
+    if arch is None:
+        arch = "local"
+
+    arch = full_arch(arch)
     paths = KMTPaths(stack, arch)
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
