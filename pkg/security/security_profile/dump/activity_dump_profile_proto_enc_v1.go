@@ -9,27 +9,44 @@
 package dump
 
 import (
+	"errors"
+	"time"
+
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
-	security_profile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
 
 // ActivityDumpToSecurityProfileProto serializes an Activity Dump to a Security Profile protobuf representation
-func ActivityDumpToSecurityProfileProto(input *ActivityDump) *proto.SecurityProfile {
+func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityProfile, error) {
 	if input == nil {
-		return nil
+		return nil, errors.New("imput == nil")
+	}
+	selector := input.GetWorkloadSelector()
+	if selector == nil {
+		return nil, errors.New("can't get dump selector, tags shouldn't be resolved yet")
 	}
 
-	output := proto.SecurityProfile{
-		Version:  security_profile.LocalProfileVersion,
-		Metadata: mtdt.ToProto(&input.Metadata),
-		Syscalls: input.ActivityTree.ComputeSyscallsList(),
-		Tags:     make([]string, len(input.Tags)),
-		Tree:     activity_tree.ToProto(input.ActivityTree),
+	output := &proto.SecurityProfile{
+		Metadata:        mtdt.ToProto(&input.Metadata),
+		ProfileContexts: make(map[string]*proto.ProfileContext),
+		Tree:            activity_tree.ToProto(input.ActivityTree),
 	}
-	copy(output.Tags, input.Tags)
+	timeResolver, err := timeResolver.NewResolver()
+	if err != nil {
+		return nil, errors.New("can't init time resolver")
+	}
+	ts := uint64(timeResolver.ComputeMonotonicTimestamp(time.Now()))
+	ctx := &proto.ProfileContext{
+		Syscalls:  input.ActivityTree.ComputeSyscallsList(),
+		Tags:      make([]string, len(input.Tags)),
+		FirstSeen: ts,
+		LastSeen:  ts,
+	}
+	copy(ctx.Tags, input.Tags)
+	output.ProfileContexts[selector.Tag] = ctx
 
-	return &output
+	return output, nil
 }
