@@ -58,8 +58,9 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	_, found := deps.OrchestratorFwd.Get()
+	_, found := deps.EventPlatformFwd.Get()
+	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -70,7 +71,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseEventPlatformForwarder: false})
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	_, found = demux.forwarders.eventPlatform.Get()
+	_, found = deps.EventPlatformFwd.Get()
 	require.False(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
@@ -83,7 +84,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseNoopEventPlatformForwarder: true})
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
@@ -110,7 +112,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -121,7 +124,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
@@ -134,7 +138,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.True(found)
 	require.NotNil(demux.forwarders.shared)
@@ -148,7 +153,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
 	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
@@ -306,8 +312,9 @@ func createDemuxDepsWithOrchestratorFwd(
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
 	return aggregatorDeps{
-		TestDeps:        deps.TestDeps,
-		Demultiplexer:   InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, ""),
-		OrchestratorFwd: deps.OrchestratorForwarder,
+		TestDeps:         deps.TestDeps,
+		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, ""),
+		OrchestratorFwd:  deps.OrchestratorForwarder,
+		EventPlatformFwd: deps.Eventplatform,
 	}
 }

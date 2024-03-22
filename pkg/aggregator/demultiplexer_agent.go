@@ -104,7 +104,6 @@ type statsd struct {
 
 type forwarders struct {
 	shared             forwarder.Forwarder
-	eventPlatform      eventplatform.Component
 	containerLifecycle *forwarder.DefaultForwarder
 }
 
@@ -202,8 +201,7 @@ func initAgentDemultiplexer(
 		// Output
 		dataOutputs: dataOutputs{
 			forwarders: forwarders{
-				shared:        sharedForwarder,
-				eventPlatform: eventPlatformForwarder,
+				shared: sharedForwarder,
 			},
 
 			sharedSerializer: sharedSerializer,
@@ -259,14 +257,6 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 func (d *AgentDemultiplexer) run() {
 	if !d.options.DontStartForwarders {
 		d.log.Debugf("Starting forwarders")
-
-		// event platform forwarder
-		eventPlatform, found := d.forwarders.eventPlatform.Get()
-		if found {
-			eventPlatform.Start()
-		} else {
-			d.log.Debug("not starting the event platform forwarder")
-		}
 
 		// container lifecycle forwarder
 		if d.forwarders.containerLifecycle != nil {
@@ -369,12 +359,6 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// forwarders
 
 	if !d.options.DontStartForwarders {
-		eventPlatform, found := d.dataOutputs.forwarders.eventPlatform.Get()
-
-		if found {
-			eventPlatform.Stop()
-			d.dataOutputs.forwarders.eventPlatform.Reset()
-		}
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
 			d.dataOutputs.forwarders.containerLifecycle = nil
