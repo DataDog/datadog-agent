@@ -1,6 +1,6 @@
 using System;
+using System.Diagnostics;
 using System.Security.Principal;
-using System.Windows.Forms;
 using Datadog.CustomActions.Interfaces;
 using Microsoft.Deployment.WindowsInstaller;
 
@@ -20,8 +20,19 @@ namespace Datadog.CustomActions
                 {
                     try
                     {
-                        MessageBox.Show(Error, @"Privileges exception",
-                            MessageBoxButtons.OK);
+                        // Skip the fatal error dialog and run the installer again as an administrator
+                        session["SKIP_ERROR_DIALOG"] = "1";
+
+                        var startInfo = new ProcessStartInfo
+                        {
+                            UseShellExecute = true,
+                            WorkingDirectory = Environment.CurrentDirectory,
+                            FileName = "msiexec.exe",
+                            Arguments = "/i \"" + session["OriginalDatabase"] + "\"",
+                            Verb = "runas"
+                        };
+
+                        Process.Start(startInfo);
                     }
                     catch
                     {
