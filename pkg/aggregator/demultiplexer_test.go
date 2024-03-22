@@ -59,7 +59,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	_, found := demux.forwarders.orchestrator.Get()
+	_, found := deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -72,7 +72,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	require.NotNil(demux)
 	_, found = demux.forwarders.eventPlatform.Get()
 	require.False(found)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -84,7 +84,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -122,7 +122,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -135,7 +135,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.OrchestratorFwd.Get()
 	require.True(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -149,7 +149,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -306,7 +306,8 @@ func createDemuxDepsWithOrchestratorFwd(
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
 	return aggregatorDeps{
-		TestDeps:      deps.TestDeps,
-		Demultiplexer: InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, ""),
+		TestDeps:        deps.TestDeps,
+		Demultiplexer:   InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, ""),
+		OrchestratorFwd: deps.OrchestratorForwarder,
 	}
 }

@@ -15,9 +15,4 @@ import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 type Component interface {
 	// Get the forwarder instance if it exists.
 	Get() (defaultforwarder.Forwarder, bool)
-
-	// TODO: (components): This function is used to know if Stop was already called in AgentDemultiplexer.Stop.
-	// Reset results `Get` methods to return false.
-	// Remove it when Stop is not part of this interface.
-	Reset()
 }
