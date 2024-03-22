@@ -40,7 +40,8 @@ def check_teams(_):
     if check_for_missing_owners_slack_and_jira():
         print(
             "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
-            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP map in tasks/libs/pipeline_notifications.py."
+            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/github_slack_map.yaml"
+            " or tasks/libs/github_jira_map.yaml"
         )
         raise Exit(code=1)
     else:
