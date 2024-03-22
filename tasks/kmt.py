@@ -730,7 +730,7 @@ def status(ctx: Context, stack: Optional[str] = None, all=False):
 
             for vm in instance.microvms:
                 vm_id = f"{vm.tag:14} | IP {vm.ip}"
-                if vm.run_cmd(ctx, "true", allow_fail=True, timeout_sec=2):
+                if vm.check_reachable(ctx):
                     status[stack].append(f"  - {vm_id} - {colored('up', 'green')}")
                     vms_up += 1
                 else:

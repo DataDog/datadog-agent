@@ -122,6 +122,9 @@ class LibvirtDomain:
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
 
+    def check_reachable(self, ctx: Context) -> bool:
+        return self.run_cmd(ctx, "true", allow_fail=True, timeout_sec=2)
+
 
 class HostInstance:
     def __init__(self, ip: str, arch: ArchOrLocal, ssh_key: Optional[str]):
