@@ -24,7 +24,13 @@ import (
 var (
 	installPath string
 	systemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
+	pkgDir      = "/opt/datadog-packages"
+	testSkipUID = ""
 )
+
+func enforceUID() bool {
+	return testSkipUID != "true"
+}
 
 type privilegeCommand struct {
 	Command string `json:"command,omitempty"`
@@ -84,7 +90,7 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	if absPath != path || err != nil {
 		return nil, fmt.Errorf("invalid path")
 	}
-	if !strings.HasPrefix(path, "/opt/datadog-packages") {
+	if !strings.HasPrefix(path, pkgDir) {
 		return nil, fmt.Errorf("invalid path")
 	}
 	switch inputCommand.Command {
@@ -115,26 +121,25 @@ func executeCommand() error {
 		return err
 	}
 
-	// only root or dd-agent can execute this command
-	if currentUser != 0 {
-		ddAgentUser, err := user.Lookup("dd-agent")
+	// only root or dd-updater can execute this command
+	if currentUser != 0 && enforceUID() {
+		ddUpdaterUser, err := user.Lookup("dd-updater")
 		if err != nil {
-			return fmt.Errorf("failed to lookup dd-agent user: %s", err)
+			return fmt.Errorf("failed to lookup dd-updater user: %s", err)
 		}
-		if strconv.Itoa(currentUser) != ddAgentUser.Uid {
-			return fmt.Errorf("only root or dd-agent can execute this command")
+		if strconv.Itoa(currentUser) != ddUpdaterUser.Uid {
+			return fmt.Errorf("only root or dd-updater can execute this command")
 		}
+		if err := syscall.Setuid(0); err != nil {
+			return fmt.Errorf("failed to setuid: %s", err)
+		}
+		defer func() {
+			err := syscall.Setuid(currentUser)
+			if err != nil {
+				log.Printf("Failed to set back to current user: %s", err)
+			}
+		}()
 	}
-
-	if err := syscall.Setuid(0); err != nil {
-		return fmt.Errorf("failed to setuid: %s", err)
-	}
-	defer func() {
-		err := syscall.Setuid(currentUser)
-		if err != nil {
-			log.Printf("Failed to set back to current user: %s", err)
-		}
-	}()
 
 	log.Printf("Running command: %s", command.String())
 	return command.Run()
