@@ -17,11 +17,11 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
+    email_to_slackid,
     find_job_owners,
     get_failed_tests,
-    send_slack_message,
     get_git_author,
-    email_to_slackid,
+    send_slack_message,
 )
 from tasks.libs.pipeline.stats import get_failed_jobs_stats
 from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
@@ -51,7 +51,7 @@ def check_teams(_):
 
 
 @task
-def send_message(_, notification_type="merge", print_to_stdout=False):
+def send_message(ctx, notification_type="merge", print_to_stdout=False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --print-to-stdout option to test this locally, without sending
@@ -109,7 +109,7 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
             print('SEND', base)
             author_email = get_git_author(format='ae')
             assert author_email == 'celian.raimbault@datadoghq.com'
-            author_slack = email_to_slackid(author_email)
+            author_slack = email_to_slackid(ctx, author_email)
             send_slack_message(author_slack, str(message))
 
 
