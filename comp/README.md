@@ -486,4 +486,4 @@ Package etw provides an ETW tracing interface
 
 *Datadog Team*: agent-metrics-logs
 
-Package compression provides a compression implementation based on the configuration or avalible build tags.
+Package compression provides a compression implementation based on the configuration or available build tags.
