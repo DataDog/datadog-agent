@@ -73,7 +73,7 @@ func (c *Check) Run() error {
 }
 
 func (c *Check) getCommonTags() []string {
-	destPortTag := "*"
+	destPortTag := "unspecified"
 	if c.config.DestPort > 0 {
 		destPortTag = strconv.Itoa(int(c.config.DestPort))
 	}
