@@ -14,6 +14,7 @@ import (
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -24,8 +25,9 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityPro
 	if input == nil {
 		return nil, errors.New("imput == nil")
 	}
-	selector := input.GetWorkloadSelector()
-	if selector == nil {
+
+	wSelector := input.GetWorkloadSelector()
+	if wSelector == nil {
 		return nil, errors.New("can't get dump selector, tags shouldn't be resolved yet")
 	}
 
@@ -33,6 +35,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityPro
 		Metadata:        mtdt.ToProto(&input.Metadata),
 		ProfileContexts: make(map[string]*proto.ProfileContext),
 		Tree:            activity_tree.ToProto(input.ActivityTree),
+		Selector:        cgroupModel.WorkloadSelectorToProto(wSelector),
 	}
 	timeResolver, err := timeResolver.NewResolver()
 	if err != nil {
@@ -46,7 +49,7 @@ func ActivityDumpToSecurityProfileProto(input *ActivityDump) (*proto.SecurityPro
 		LastSeen:  ts,
 	}
 	copy(ctx.Tags, input.Tags)
-	output.ProfileContexts[selector.Tag] = ctx
+	output.ProfileContexts[wSelector.Tag] = ctx
 
 	return output, nil
 }
