@@ -92,11 +92,18 @@ notify-celian:
     - job: "github_rate_limit_info"
   dependencies: []
   script: |
-    author="$(git show -s --format='%an' HEAD)"
-    message="Hello @celian ! :rocket: (pipeline-id: $CI_PIPELINE_ID, commit: $CI_COMMIT_REF_NAME)"
-    echo "Author: $author"
-    postmessage "#celian-tests" "$message"
-    postmessage "@Célian Raimbault" "$message"
-    postmessage "Célian Raimbault" "$message"
-    postmessage "celian.raimbault@datadoghq.com" "$message"
-    echo Done
+    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
+    BRANCH_URL="$CI_PROJECT_URL/tree/$CI_COMMIT_BRANCH"
+    export MESSAGE="Cc commit: $COMMIT_URL branch: $BRANCH_URL"
+    /usr/local/bin/notify.sh
+    echo TEST
+    /usr/local/bin/notify.sh --help
+
+#     author="$(git show -s --format='%an' HEAD)"
+#     message="Hello @celian ! :rocket: (pipeline-id: $CI_PIPELINE_ID, commit: $CI_COMMIT_REF_NAME)"
+#     echo "Author: $author"
+#     postmessage "#celian-tests" "$message"
+#     postmessage "@Célian Raimbault" "$message"
+#     postmessage "Célian Raimbault" "$message"
+#     postmessage "celian.raimbault@datadoghq.com" "$message"
+#     echo Done
