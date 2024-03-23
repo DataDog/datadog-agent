@@ -272,7 +272,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
         variables={
             "exeflags": flags,
             "exelibs": libs,
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
+            # "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
         },
     )
     return syscall_tester_exe_file
@@ -383,7 +383,7 @@ def build_functional_tests(
                 kernel_release=kernel_release,
                 debug=debug,
             )
-        build_embed_syscall_tester(ctx)
+        build_embed_syscall_tester(ctx, static=True)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
