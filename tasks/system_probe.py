@@ -505,10 +505,10 @@ def ninja_generate(
             gobin = get_gobin(ctx)
             ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
-            ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
-            ninja_test_ebpf_programs(nw, build_dir)
+            # ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
+            # ninja_test_ebpf_programs(nw, build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
-            ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
+            # ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
 
         ninja_cgo_type_files(nw)
