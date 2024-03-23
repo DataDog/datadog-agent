@@ -1,0 +1,68 @@
+name: System tests
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron:  '00 05 * * 2-6'
+  pull_request:  # temporary, checking the job works fine
+    branches:
+      - "**"
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  system-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        weblog:
+          - library: cpp
+            variant: nginx
+          - library: golang
+            variant: echo
+          - library: nodejs
+            variant: express4
+          - library: dotnet
+            variant: poc
+          - library: java
+            variant: spring-boot
+          - library: php
+            variant: apache-mod-8.0
+          - library: python
+            variant: flask-poc
+          - library: ruby
+            variant: sinatra21
+
+    env:
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          repository: 'DataDog/system-tests'
+
+      - name: Load agent binary
+        run: ./utils/scripts/load-binary.sh agent
+
+      - name: Log in to the Container registry
+        if: ${{ matrix.weblog.library == 'ruby' }}
+        run: |
+          echo ${{ github.token }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Build
+        run: ./build.sh ${{ matrix.weblog.library }} -w ${{ matrix.weblog.variant }}
+
+      - name: Run default scenario
+        run: ./run.sh
+
+      - name: Compress artifact
+        if: ${{ always() }}
+        run: tar -czvf artifact.tar.gz $(ls | grep logs)
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v2
+        if: ${{ always() }}
+        with:
+          name: logs_${{ matrix.weblog.library }}_${{ matrix.weblog.variant }}
+          path: artifact.tar.gz
