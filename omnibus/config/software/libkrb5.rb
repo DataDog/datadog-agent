@@ -24,7 +24,8 @@ build do
   configure_options = ["--without-keyutils", # this would require additional deps/system deps, disable it
          "--without-system-verto", # do not prefer libverto from the system, if installed
          "--without-libedit", # we don't want to link with libraries outside of the install dir
-         "--disable-static"
+         "--disable-static",
+         "--disable-nls"
   ]
   env = with_standard_compiler_flags(with_embedded_path)
   configure(*configure_options, :env => env)
@@ -35,4 +36,21 @@ build do
   # are properly linked. Must whitelist for build to succeed.
   whitelist_file "#{install_dir}/embedded/lib/krb5/plugins/tls/k5tls.so"
   whitelist_file "#{install_dir}/embedded/lib/krb5/plugins/preauth/pkinit.so"
+
+  delete "#{install_dir}/embedded/bin/compile_et"
+  delete "#{install_dir}/embedded/bin/gss-client"
+  delete "#{install_dir}/embedded/bin/k5srvutil"
+  delete "#{install_dir}/embedded/bin/kadmin"
+  delete "#{install_dir}/embedded/bin/kdestroy"
+  delete "#{install_dir}/embedded/bin/kinit"
+  delete "#{install_dir}/embedded/bin/klist"
+  delete "#{install_dir}/embedded/bin/kpasswd"
+  delete "#{install_dir}/embedded/bin/krb5-config"
+  delete "#{install_dir}/embedded/bin/ksu"
+  delete "#{install_dir}/embedded/bin/kswitch"
+  delete "#{install_dir}/embedded/bin/ktutil"
+  delete "#{install_dir}/embedded/bin/kvno"
+  delete "#{install_dir}/embedded/bin/sclient"
+  delete "#{install_dir}/embedded/bin/sim_client"
+  delete "#{install_dir}/embedded/bin/uuclient"
 end
