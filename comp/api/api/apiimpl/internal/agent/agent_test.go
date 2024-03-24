@@ -74,7 +74,7 @@ type handlerdeps struct {
 	SecretResolver        secrets.Component
 	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
-	StatusComponent       status.Component
+	StatusComponent       status.Mock
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock

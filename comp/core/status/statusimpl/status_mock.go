@@ -26,7 +26,7 @@ func (s *statusMock) GetStatusBySection(string, string, bool) ([]byte, error) {
 }
 
 // newMock returns a status Mock
-func newMock() status.Component {
+func newMock() status.Mock {
 	return &statusMock{}
 }
 

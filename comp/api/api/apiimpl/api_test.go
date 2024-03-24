@@ -69,7 +69,7 @@ type testdeps struct {
 	SecretResolver        secrets.Component
 	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
-	StatusComponent       status.Component
+	StatusComponent       status.Mock
 	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
