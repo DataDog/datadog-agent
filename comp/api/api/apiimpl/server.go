@@ -15,6 +15,7 @@ import (
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -86,6 +87,7 @@ func StartServers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
+	providers []api.AgentEndpointProvider,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -136,6 +138,7 @@ func StartServers(
 		collector,
 		eventPlatformReceiver,
 		ac,
+		providers,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

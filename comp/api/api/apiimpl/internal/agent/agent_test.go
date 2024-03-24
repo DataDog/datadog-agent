@@ -16,6 +16,7 @@ import (
 	// component dependencies
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -121,6 +122,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 func setupRoutes(t *testing.T) *mux.Router {
 	deps := getComponentDeps(t)
 	sender := aggregator.NewNoOpSenderManager()
+	endpoint_providers := []api.AgentEndpointProvider{}
 
 	router := mux.NewRouter()
 	SetupHandlers(
@@ -142,6 +144,7 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Collector,
 		deps.EventPlatformReceiver,
 		deps.Ac,
+		endpoint_providers,
 	)
 
 	return router

@@ -61,6 +61,7 @@ type apiServer struct {
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
 	authToken             authtoken.Component
+	endpointProviders     []api.AgentEndpointProvider
 }
 
 type dependencies struct {
@@ -82,6 +83,7 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
+	EndpointProviders     []api.AgentEndpointProvider
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -104,6 +106,7 @@ func newAPIServer(deps dependencies) api.Component {
 		rcService:             deps.RcService,
 		rcServiceHA:           deps.RcServiceHA,
 		authToken:             deps.AuthToken,
+		endpointProviders:     deps.EndpointProviders,
 	}
 }
 
@@ -137,6 +140,7 @@ func (server *apiServer) StartServer(
 		collector,
 		server.eventPlatformReceiver,
 		ac,
+		server.endpointProviders,
 	)
 }
 

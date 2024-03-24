@@ -8,6 +8,7 @@ package api
 
 import (
 	"net"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -16,6 +17,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/fx"
 )
 
 // team: agent-shared-components
@@ -37,4 +39,26 @@ type Component interface {
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr
+}
+
+// EndpointProvider is an interface to register api endpoints
+type EndpointProvider interface {
+	http.Handler
+
+	Method() string
+	Route() string
+}
+
+// AgentEndpointProvider is the provider for registering endpoints to the internal agent api server
+type AgentEndpointProvider struct {
+	fx.Out
+
+	Provider EndpointProvider `group:"agent_endpoint"`
+}
+
+// NewAgentEndpointProvider returns a AgentEndpointProvider to register the endpoint provided to the internal agent api server
+func NewAgentEndpointProvider(provider EndpointProvider) AgentEndpointProvider {
+	return AgentEndpointProvider{
+		Provider: provider,
+	}
 }
