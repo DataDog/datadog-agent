@@ -164,7 +164,7 @@ func processResults(r *results.Results, sourceHostname string, destinationHost s
 		// then add all the other hops
 		for _, hop := range hops {
 			hop := hop
-			nodename := fmt.Sprintf("unknown_hop_%d|prev_%s)", hop.Sent.IP.TTL, prevSuccessfulHop)
+			nodename := fmt.Sprintf("unknown_hop_%d|known_parent_%s)", hop.Sent.IP.TTL, prevSuccessfulHop)
 			label := "*"
 			hostname := ""
 			if hop.Received != nil {
