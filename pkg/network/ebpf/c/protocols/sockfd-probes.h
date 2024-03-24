@@ -30,6 +30,12 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     bpf_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
     pid_fd = &pid_fd_copy;
 
+    conn_tuple_t t;
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        tls_http2_finish(ctx, &t);
+    }
+
     bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
     bpf_map_delete_elem(&pid_fd_by_sock, &sk);
     return 0;
