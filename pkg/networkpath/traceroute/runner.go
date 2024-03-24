@@ -115,7 +115,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
+func processResults(r *results.Results, sourceHostname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -127,7 +127,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		PathID:    pathID,
 		Timestamp: time.Now().UnixMilli(),
 		Source: NetworkPathSource{
-			Hostname: hname,
+			Hostname: sourceHostname,
 		},
 		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
@@ -148,6 +148,8 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 	}
 	sort.Ints(flowIDs)
 
+	prevSuccessfulHop := sourceHostname
+
 	for _, flowID := range flowIDs {
 		hops := r.Flows[uint16(flowID)]
 		if len(hops) == 0 {
@@ -162,7 +164,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		// then add all the other hops
 		for _, hop := range hops {
 			hop := hop
-			nodename := fmt.Sprintf("unknown_hop_%d)", hop.Sent.IP.TTL)
+			nodename := fmt.Sprintf("unknown_hop_%d|prev_%s)", hop.Sent.IP.TTL, prevSuccessfulHop)
 			label := "*"
 			hostname := ""
 			if hop.Received != nil {
@@ -170,6 +172,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 				if hop.Name != nodename {
 					hostname = "\n" + hop.Name
 				}
+				prevSuccessfulHop = nodename
 				// MPLS labels
 				mpls := ""
 				if len(hop.Received.ICMP.MPLSLabels) > 0 {
