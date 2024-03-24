@@ -12,6 +12,42 @@
 
 #include "sock.h"
 #include "sockfd.h"
+#include "http2/decoding-tls.h"
+
+// handle_http2_termination is a helper function that is called when a TCP connection is closed.
+static __always_inline void handle_http2_termination (struct pt_regs *ctx, struct sock *sk){
+    conn_tuple_t t;
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return;
+    }
+
+    conn_tuple_t normalized_tuple = t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    if (!stack) {
+        return;
+    }
+
+    protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+    if (protocol != PROTOCOL_HTTP2) {
+        return;
+    }
+
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        log_debug("dispatcher failed to save arguments for tls tail call");
+        return;
+    }
+    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
+    bpf_memcpy(&args->tup, &t, sizeof(conn_tuple_t));
+    tls_termination_maps_deletion(args);
+    return;
+}
 
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
@@ -33,13 +69,8 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
     bpf_map_delete_elem(&pid_fd_by_sock, &sk);
 
-    conn_tuple_t t;
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-    // tls_http2_finish can launch a tail call, thus cleanup should be done before.
-    tls_http2_finish(ctx, &t);
+    // The probe contains PID and netns information, which we utilize to attempt to clean up resources for HTTP/2 TLS.
+    handle_http2_termination(ctx, sk);
     return 0;
 }
 

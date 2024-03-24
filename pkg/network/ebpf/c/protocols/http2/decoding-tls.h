@@ -998,17 +998,8 @@ delete_iteration:
     return 0;
 }
 
-// http2_tls_termination is responsible for cleaning up the state of the HTTP2
-// decoding once the TLS connection is terminated.
-SEC("uprobe/http2_tls_termination")
-int uprobe__http2_tls_termination(struct pt_regs *ctx) {
-    const __u32 zero = 0;
-
-    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
-    if (args == NULL) {
-        return 0;
-    }
-
+// The program is responsible for cleaning the state of the HTTP2 TLS decoding once the TLS connection is terminated.
+static __always_inline void tls_termination_maps_deletion(tls_dispatcher_arguments_t *args) {
     bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
     terminated_http2_batch_enqueue(&args->tup);
@@ -1020,6 +1011,20 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     flip_tuple(&args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
     bpf_map_delete_elem(&http2_remainder, &args->tup);
+}
+
+// http2_tls_termination is responsible for cleaning up the state of the HTTP2
+// decoding once the TLS connection is terminated.
+SEC("uprobe/http2_tls_termination")
+int uprobe__http2_tls_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    tls_termination_maps_deletion(args);
 
     return 0;
 }

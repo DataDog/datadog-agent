@@ -107,37 +107,6 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_http2_finish(struct pt_regs *ctx, conn_tuple_t *t) {
-    conn_tuple_t final_tuple = {0};
-    conn_tuple_t normalized_tuple = *t;
-    normalize_tuple(&normalized_tuple);
-    normalized_tuple.pid = 0;
-    normalized_tuple.netns = 0;
-
-    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
-    if (!stack) {
-        return;
-    }
-
-    tls_prog_t prog;
-    protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
-    if (protocol != PROTOCOL_HTTP2) {
-        return;
-    }
-    prog = TLS_HTTP2_TERMINATION;
-    final_tuple = *t;
-
-    const __u32 zero = 0;
-    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
-    if (args == NULL) {
-        log_debug("dispatcher failed to save arguments for tls tail call");
-        return;
-    }
-    bpf_memset(args, 0, sizeof(tls_dispatcher_arguments_t));
-    bpf_memcpy(&args->tup, &final_tuple, sizeof(conn_tuple_t));
-    bpf_tail_call_compat(ctx, &tls_process_progs, prog);
-}
-
 static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
