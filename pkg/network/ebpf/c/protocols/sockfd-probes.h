@@ -30,14 +30,16 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     bpf_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
     pid_fd = &pid_fd_copy;
 
+    bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
+    bpf_map_delete_elem(&pid_fd_by_sock, &sk);
+
     conn_tuple_t t;
     u64 pid_tgid = bpf_get_current_pid_tgid();
     if (read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        tls_http2_finish(ctx, &t);
+        return 0;
     }
-
-    bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
-    bpf_map_delete_elem(&pid_fd_by_sock, &sk);
+    // tls_http2_finish can launch a tail call, thus cleanup should be done before.
+    tls_http2_finish(ctx, &t);
     return 0;
 }
 
