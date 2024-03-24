@@ -815,6 +815,7 @@ core,github.com/cilium/ebpf/btf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright
 core,github.com/cilium/ebpf/features,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/epoll,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
+core,github.com/cilium/ebpf/internal/kallsyms,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/kconfig,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sys,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/internal/sysenc,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -3362,6 +3363,7 @@ core,sigs.k8s.io/custom-metrics-apiserver/pkg/generated/openapi/core,Apache-2.0,
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/generated/openapi/custommetrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/generated/openapi/externalmetrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/provider,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/custom-metrics-apiserver/pkg/provider/defaults,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/registry/custom_metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/registry/external_metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/json,Apache-2.0,Copyright 2017 The Kubernetes Authors.

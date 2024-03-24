@@ -6,4 +6,4 @@
 // Package main implements 'updater'.
 package main
 
-func rootToDDAgent() {}
+func rootToDDUpdater() {}

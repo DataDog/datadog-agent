@@ -149,7 +149,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.13.2
+	github.com/cilium/ebpf v0.13.3-0.20240314165416-06282fb6ba65
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.13
 	github.com/containernetworking/cni v1.1.2
@@ -158,7 +158,7 @@ require (
 	github.com/cri-o/ocicni v0.4.0
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/docker v25.0.3+incompatible
+	github.com/docker/docker v25.0.5+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.5.0
@@ -384,7 +384,7 @@ require (
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/docker/cli v25.0.3+incompatible // indirect
+	github.com/docker/cli v25.0.5+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
@@ -604,7 +604,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
-	github.com/DataDog/agent-payload/v5 v5.0.108
+	github.com/DataDog/agent-payload/v5 v5.0.111
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.52.0-rc.3
