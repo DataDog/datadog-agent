@@ -61,7 +61,7 @@ const (
 	// TaskTypeLambda is the type of the scan for a Lambda function
 	TaskTypeLambda TaskType = "lambda"
 	// TaskTypeAzureDisk is the type of the scan for an Azure disk
-	TaskTypeAzureDisk TaskType = "azure-disk"
+	TaskTypeAzureDisk TaskType = "disk"
 )
 
 // ScanAction is the action to perform during the scan
@@ -158,9 +158,8 @@ func (r RolesMapping) GetRole(accountID string) CloudID {
 	}
 }
 
-// ScanConfigRaw is the raw representation of the scan configuration received
-// from RC.
-type ScanConfigRaw struct {
+// AWSScanConfigRaw is the raw representation of an AWS scan configuration received from RC.
+type AWSScanConfigRaw struct {
 	Type  string `json:"type"`
 	Tasks []struct {
 		Type     string   `json:"type"`
@@ -181,6 +180,21 @@ type ScanConfigRaw struct {
 		LambdaTags    []string `json:"lambda_tags,omitempty"`
 	} `json:"tasks"`
 	Roles []string `json:"roles"`
+}
+
+// AzureScanConfigRaw is the raw representation of an Azure scan configuration received from RC.
+type AzureScanConfigRaw struct {
+	Type  string `json:"type"`
+	Tasks []struct {
+		Type     string   `json:"type"`
+		TargetID string   `json:"resource_id"`
+		Actions  []string `json:"actions"`
+
+		// Optional fields: TaskTypeAzureDisk
+		Hostname string   `json:"hostname,omitempty"`
+		HostTags []string `json:"host_tags,omitempty"`
+		DiskMode string   `json:"disk_mode,omitempty"`
+	} `json:"tasks"`
 }
 
 // ScanConfig is the representation of the scan configuration after being
@@ -597,7 +611,27 @@ func ParseScanActions(actions []string) ([]ScanAction, error) {
 
 // UnmarshalConfig unmarshals a scan configuration from a JSON byte slice.
 func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
-	var configRaw ScanConfigRaw
+	var configRaw struct {
+		Type string `json:"type"`
+	}
+	err := json.Unmarshal(b, &configRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	switch ConfigType(configRaw.Type) {
+	case ConfigTypeAWS:
+		return unmarshalAWSConfig(b, scannerID, defaultActions, defaultRolesMapping)
+	case ConfigTypeAzure:
+		return unmarshalAzureConfig(b, scannerID, defaultActions, defaultRolesMapping)
+	default:
+		return nil, fmt.Errorf("unexpected config type %q", configRaw.Type)
+	}
+}
+
+// UnmarshalAWSConfig unmarshals an AWS scan configuration from a JSON byte slice.
+func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
+	var configRaw AWSScanConfigRaw
 	err := json.Unmarshal(b, &configRaw)
 	if err != nil {
 		return nil, err
@@ -671,6 +705,67 @@ func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction,
 		}
 		if config.Type == ConfigTypeAWS && scan.TargetID.Provider() != CloudProviderAWS {
 			return nil, fmt.Errorf("config: invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.TargetID, CloudProviderAWS)
+		}
+		config.Tasks = append(config.Tasks, scan)
+	}
+	return &config, nil
+}
+
+func unmarshalAzureConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
+	var configRaw AzureScanConfigRaw
+	err := json.Unmarshal(b, &configRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	config := ScanConfig{
+		Type:  ConfigType(configRaw.Type),
+		Roles: defaultRolesMapping,
+	}
+	if config.Type != ConfigTypeAzure {
+		return nil, fmt.Errorf("config: unexpected type %q", configRaw.Type)
+	}
+
+	config.Tasks = make([]*ScanTask, 0, len(configRaw.Tasks))
+	for _, rawScan := range configRaw.Tasks {
+		var actions []ScanAction
+		if rawScan.Actions == nil {
+			actions = defaultActions
+		} else {
+			actions, err = ParseScanActions(rawScan.Actions)
+			if err != nil {
+				return nil, err
+			}
+		}
+		scanType, err := ParseTaskType(rawScan.Type)
+		if err != nil {
+			return nil, err
+		}
+		diskMode, err := ParseDiskMode(rawScan.DiskMode)
+		if err != nil {
+			return nil, err
+		}
+		var targetName string
+		var targetTags []string
+		switch scanType {
+		case TaskTypeAzureDisk:
+			targetName = rawScan.Hostname
+			targetTags = rawScan.HostTags
+		}
+		scan, err := NewScanTask(scanType,
+			rawScan.TargetID,
+			scannerID,
+			targetName,
+			targetTags,
+			actions,
+			config.Roles,
+			diskMode,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if scan.TargetID.Provider() != CloudProviderAzure {
+			return nil, fmt.Errorf("config: invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.TargetID, CloudProviderAzure)
 		}
 		config.Tasks = append(config.Tasks, scan)
 	}
