@@ -3,7 +3,10 @@ module github.com/DataDog/datadog-agent/pkg/logs/message
 go 1.21.8
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../config/env
@@ -12,8 +15,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../config/utils
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../status/utils
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
@@ -22,6 +27,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )

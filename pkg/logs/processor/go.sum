@@ -3,12 +3,6 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.106 h1:A3dGX+JYoL7OJe2crpxznW7hWxLxhOk/17WbYskRWVk=
 github.com/DataDog/agent-payload/v5 v5.0.106/go.mod h1:COngtbYYCncpIPiE5D93QlXDH/3VAKk10jDNwGHcMRE=
-github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3 h1:N7cJMtcW9cmybQqwv421dXcfJEBtfRPacF9nBN3K0Iw=
-github.com/DataDog/datadog-agent/comp/core/config v0.52.0-rc.3/go.mod h1:3s80Ae8qaPOWpwM75dnM1M9YWkr6+ckA9TKU2+/sa7Q=
-github.com/DataDog/datadog-agent/comp/core/flare/types v0.52.0-rc.3 h1:pIGSbylKbhD1s06yGED9t9eFYKj2myu46k2OOIUCXAs=
-github.com/DataDog/datadog-agent/comp/core/flare/types v0.52.0-rc.3/go.mod h1:h0h6cm8eqb1JnuqHMCdTir+c4IUlOUnOy6xrmvhQXOY=
-github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3 h1:C9hoL8b5XPv4PSToaUo3BmzS3HrcDti4XSXd3BJf4fU=
-github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3/go.mod h1:7/Dk+MI/JNkrYUYtR/LQG750a99T1/nCVNFjc7rLq4g=
 github.com/DataDog/viper v1.13.0 h1:XE5cJiXeXkyijwgspwZiH6iroWYLgAPXTOhcBnDBOMs=
 github.com/DataDog/viper v1.13.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
