@@ -135,7 +135,7 @@ func TestCreateScanner(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetRuleByIdx on 0 should not fail: %v", err)
 	}
-	if s.configuredRules[0].Id != zero.Id {
+	if s.configuredRules[0].ID != zero.ID {
 		t.Error("incorrect rule returned")
 	}
 
@@ -143,7 +143,7 @@ func TestCreateScanner(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetRuleByIdx on 1 should not fail: %v", err)
 	}
-	if s.configuredRules[1].Id != one.Id {
+	if s.configuredRules[1].ID != one.ID {
 		t.Error("incorrect rule returned")
 	}
 
@@ -197,7 +197,7 @@ func TestCreateScanner(t *testing.T) {
 	if err != nil {
 		t.Error("incorrect rule returned")
 	}
-	if rule.Id != s.configuredRules[0].Id || rule.Name != "one" {
+	if rule.ID != s.configuredRules[0].ID || rule.Name != "one" {
 		t.Error("the scanner hasn't been configured with the good rule")
 	}
 
