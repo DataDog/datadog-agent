@@ -2,11 +2,11 @@
 
 .updater_package_deb_common:
   before_script:
+    - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
     - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
   stage: packaging
   script:
-    - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - echo "About to package for $RELEASE_VERSION"
     - tar xf ${OMNIBUS_PACKAGE_DIR}/datadog-updater-${AGENT_MAJOR_VERSION}*-${PACKAGE_ARCH}.tar.xz -C /
@@ -46,6 +46,4 @@ updater_deb-arm64:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-updater_7_arm64.deb"
     DESTINATION_DBG_DEB: "datadog-updater-dbg_7_arm64.deb"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
