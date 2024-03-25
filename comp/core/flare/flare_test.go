@@ -10,12 +10,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 )
@@ -36,7 +39,8 @@ func TestFlareCreation(t *testing.T) {
 			fx.Provide(func() diagnosesendermanager.Component { return nil }),
 			fx.Provide(func() Params { return Params{} }),
 			collector.NoneModule(),
-
+			fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+			fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 			// provider a nil FlareCallback
 			fx.Provide(fx.Annotate(
 				func() types.FlareCallback { return nil },

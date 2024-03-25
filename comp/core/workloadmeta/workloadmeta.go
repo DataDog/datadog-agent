@@ -93,9 +93,6 @@ func newWorkloadMeta(deps dependencies) provider {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	// Set global
-	SetGlobalStore(wm)
-
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 
 		var err error
@@ -105,7 +102,6 @@ func newWorkloadMeta(deps dependencies) provider {
 		//                   context provided to the OnStart hook.
 		mainCtx, _ := common.GetMainCtxCancel()
 
-		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
 			err = deps.Params.InitHelper(mainCtx, wm)
 			if err != nil {

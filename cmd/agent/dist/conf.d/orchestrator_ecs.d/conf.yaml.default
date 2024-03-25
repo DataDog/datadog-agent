@@ -1,0 +1,4 @@
+ad_identifiers:
+  - _ecs_orchestrator
+instances:
+  - {}

@@ -48,6 +48,22 @@ nav:
   - Setup: setup.md
 - Guidelines:
   - Contributing: guidelines/contributing.md
+  - Documentation: guidelines/docs.md
+  - Components:
+    - Purpose: guidelines/components/purpose.md
+    - Defining Components: guidelines/components/defining-components.md
+    - Using Components: guidelines/components/using-components.md
+    - Defining Bundles: guidelines/components/defining-bundles.md
+    - Defining Apps: guidelines/components/defining-apps.md
+    - Registrations: guidelines/components/registrations.md
+    - Subscriptions: guidelines/components/subscriptions.md
+- How-to:
+  - Components:
+    - Migration: how-to/components/migration.md
+- Architecture:
+  - Components:
+    - Overview: architecture/components/overview.md
+    - Fx: architecture/components/fx.md
 
 hooks:
 - docs/public/.hooks/title_from_content.py
@@ -115,6 +131,7 @@ markdown_extensions:
 - pymdownx.superfences:
 - pymdownx.tabbed:
     alternate_style: true
+    combine_header_slug: true
     slugify: !!python/object/apply:pymdownx.slugs.slugify
       kwds:
         case: lower

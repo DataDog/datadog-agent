@@ -14,7 +14,7 @@ import (
 
 func TestReadConfDir(t *testing.T) {
 	files, err := readConfDir("testdata")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	sort.Strings(files)
 	expected := []string{
@@ -32,7 +32,7 @@ func TestReadConfDir(t *testing.T) {
 
 func TestConfigsInPath(t *testing.T) {
 	files, err := getConfigsInPath("testdata")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	sort.Strings(files)
 	expected := []string{

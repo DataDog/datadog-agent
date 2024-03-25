@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
 
@@ -56,6 +57,7 @@ type Collector struct {
 	resChan          chan sbom.ScanResult
 	opts             sbom.ScanOptions
 	containerdClient cutil.ContainerdItf
+	wmeta            optional.Option[workloadmeta.Component]
 
 	fromFileSystem bool
 	closed         bool
@@ -67,11 +69,12 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg)
+func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
+	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
 	c.fromFileSystem = cfg.GetBool("sbom.container_image.use_mount")
 	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
@@ -93,11 +96,11 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		c.containerdClient = cl
 	}
 
-	wlm := workloadmeta.GetGlobalStore()
-	if wlm == nil {
+	wmeta, ok := c.wmeta.Get()
+	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
 	}
-	imageMeta, err := wlm.GetImage(containerdScanRequest.ID())
+	imageMeta, err := wmeta.GetImage(containerdScanRequest.ID())
 	if err != nil {
 		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", containerdScanRequest.ID(), err)}
 	}

@@ -8,6 +8,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -15,10 +16,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -27,14 +33,16 @@ import (
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
@@ -43,6 +51,7 @@ import (
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -55,6 +64,9 @@ process_config:
 to your datadog.yaml file.
 Exiting.`
 )
+
+// errAgentDisabled indicates that the process-agent wasn't enabled through environment variable or config.
+var errAgentDisabled = errors.New("process-agent not enabled")
 
 func runAgent(ctx context.Context, globalParams *GlobalParams) error {
 	if globalParams.PidFilePath != "" {
@@ -108,6 +120,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				LogParams:    DaemonLogParams,
 			},
 		),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: python.GetPythonVersion,
+			},
+		),
 		// Populate dependencies required for initialization in this function
 		fx.Populate(&appInitDeps),
 
@@ -126,8 +143,18 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide tagger module
 		tagger.Module(),
 
+		// Provide status modules
+		statusimpl.Module(),
+		coreStatusImpl.Module(),
+
 		// Provide statsd client module
 		compstatsd.Module(),
+
+		// Provide authtoken module
+		fetchonlyimpl.Module(),
+
+		// Provide configsync module
+		configsyncimpl.OptionalModule(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
@@ -162,14 +189,19 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Invoke the components that we want to start
 		fx.Invoke(func(
-			runner.Component,
-			profiler.Component,
-			expvars.Component,
-			apiserver.Component,
+			_ profiler.Component,
+			_ expvars.Component,
+			_ apiserver.Component,
+			_ optional.Option[configsync.Component],
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
-			tagger.Component,
-		) {
+			_ tagger.Component,
+			processAgent agent.Component,
+		) error {
+			if !processAgent.Enabled() {
+				return errAgentDisabled
+			}
+			return nil
 		}),
 
 		// Initialize the remote-config client to update the runtime settings
@@ -183,6 +215,12 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	)
 
 	if err := app.Err(); err != nil {
+
+		if errors.Is(err, errAgentDisabled) {
+			log.Info("process-agent is not enabled, exiting...")
+			return nil
+		}
+
 		// At this point it is not guaranteed that the logger has been successfully initialized. We should fall back to
 		// stdout just in case.
 		if appInitDeps.Logger == nil {

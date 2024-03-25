@@ -61,7 +61,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -93,7 +93,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -114,7 +114,7 @@ func TestGetMultipleEndpointsEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -148,7 +148,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -168,7 +168,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -200,7 +200,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -234,7 +234,7 @@ additional_endpoints:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
@@ -252,7 +252,7 @@ func TestSiteEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -272,7 +272,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
@@ -293,7 +293,7 @@ api_key: fakeapikey
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -314,7 +314,7 @@ func TestDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -335,7 +335,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -360,7 +360,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.com", externalAgentURL)
 }
@@ -385,7 +385,7 @@ external_config:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://external-agent.datadoghq.com", externalAgentURL)
 }
@@ -409,7 +409,7 @@ external_config:
 		},
 	}
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 	assert.Equal(t, "https://custom.external-agent.datadoghq.eu", externalAgentURL)
 }
@@ -477,9 +477,9 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 
 	for _, testCase := range versionURLTests {
 		appURL, err := AddAgentVersionToDomain(testCase.url, "app")
-		require.Nil(t, err)
+		require.NoError(t, err)
 		flareURL, err := AddAgentVersionToDomain(testCase.url, "flare")
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		if testCase.shouldAppendVersion {
 			assert.Equal(t, "https://"+appVersionPrefix+testCase.expectedURL, appURL)

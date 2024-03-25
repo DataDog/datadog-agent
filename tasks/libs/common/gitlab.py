@@ -18,7 +18,7 @@ class Gitlab(RemoteAPI):
 
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
-    def __init__(self, project_name="", api_token=""):
+    def __init__(self, project_name="DataDog/datadog-agent", api_token=""):
         super(Gitlab, self).__init__("Gitlab")
         self.api_token = api_token
         self.project_name = project_name

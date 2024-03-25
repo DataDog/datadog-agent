@@ -154,7 +154,7 @@ def lint_licenses(ctx):
         for line in f:
             licenses.append(line.rstrip())
 
-    new_licenses = get_licenses_list(ctx)
+    new_licenses = get_licenses_list(ctx, file)
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -183,27 +183,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
-    new_licenses = get_licenses_list(ctx)
-
-    # check that all deps have a non-"UNKNOWN" copyright and license
-    unknown_licenses = False
-    for line in new_licenses:
-        if ',UNKNOWN' in line:
-            unknown_licenses = True
-            print(f"! {line}")
-
-    if unknown_licenses:
-        raise Exit(
-            message=textwrap.dedent(
-                """\
-                At least one dependency's license or copyright could not be determined.
-
-                Consult the dependency's source, update
-                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
-                `inv generate-licenses` to update {}."""
-            ).format(filename),
-            code=1,
-        )
+    new_licenses = get_licenses_list(ctx, filename)
 
     with open(filename, 'w') as f:
         f.write("Component,Origin,License,Copyright\n")
@@ -381,7 +361,13 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
-                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
+
+                files = "go.mod"
+                if os.path.exists(os.path.join(mod.full_path(), "go.sum")):
+                    # if the module has no dependency, no go.sum file will be created
+                    files += " go.sum"
+
+                res = ctx.run(f"git diff --exit-code {files}", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
@@ -414,7 +400,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.7 linux/amd64"
+    # result is like "go version go1.21.8 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

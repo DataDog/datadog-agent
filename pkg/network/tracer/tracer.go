@@ -223,7 +223,7 @@ func (tr *Tracer) start() error {
 	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
-		return fmt.Errorf("could not start ebpf manager: %s", err)
+		return fmt.Errorf("could not start ebpf tracer: %s", err)
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
@@ -251,16 +251,18 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
 		}
 	}
-
-	if c, err = NewEBPFConntracker(cfg); err == nil {
-		return c, nil
-	}
-
-	if cfg.AllowNetlinkConntrackerFallback {
-		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
-		if c, err = netlink.NewConntracker(cfg); err == nil {
+	if cfg.EnableEbpfConntracker {
+		if c, err = NewEBPFConntracker(cfg); err == nil {
 			return c, nil
 		}
+		log.Warnf("error initializing ebpf conntracker: %s", err)
+	} else {
+		log.Info("ebpf conntracker disabled")
+	}
+
+	log.Info("falling back to netlink conntracker")
+	if c, err = netlink.NewConntracker(cfg); err == nil {
+		return c, nil
 	}
 
 	if cfg.IgnoreConntrackInitFailure {
@@ -679,6 +681,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 		"tracer": map[string]interface{}{
 			"last_check": t.lastCheck.Load(),
 		},
+		"universal_service_monitoring": t.usmMonitor.GetUSMStats(),
 	}, nil
 }
 

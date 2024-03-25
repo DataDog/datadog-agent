@@ -40,12 +40,12 @@ func TestQueryRun(t *testing.T) {
 	value, hasValue, err := RunSingleOutput(".foo", object)
 	assert.Equal(t, "bar", value)
 	assert.True(t, hasValue)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	value, hasValue, err = RunSingleOutput(".bar", object)
 	assert.Equal(t, "", value)
 	assert.False(t, hasValue)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	value, hasValue, err = RunSingleOutput(".%bar", object)
 	assert.Equal(t, "", value)

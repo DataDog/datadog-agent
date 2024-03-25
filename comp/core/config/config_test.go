@@ -56,8 +56,8 @@ func TestMockConfig(t *testing.T) {
 	// but defaults are set
 	require.Equal(t, "localhost", config.GetString("cmd_host"))
 
-	// values can also be set by the mock (config.Writer)
-	config.(Mock).Set("app_key", "newvalue", model.SourceAgentRuntime)
+	// values can also be set
+	config.Set("app_key", "newvalue", model.SourceAgentRuntime)
 	require.Equal(t, "newvalue", config.GetString("app_key"))
 }
 

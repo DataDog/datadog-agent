@@ -2,13 +2,13 @@
     "base_branch": "main",
     "current_milestone": "7.53.0",
     "last_stable": {
-        "6": "6.51.1",
-        "7": "7.51.1"
+        "6": "6.52.0",
+        "7": "7.52.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "54232eb93377d3eba704729bfcad890eddb9cadd",
-        "OMNIBUS_RUBY_VERSION": "16564c51d93ace9d70dc9d3ccba08c8fedb96d01",
+        "OMNIBUS_SOFTWARE_VERSION": "0566b54e725fcd66e841579a1d789dd5bb23870f",
+        "OMNIBUS_RUBY_VERSION": "e74158aae17d70d7b7f1d356c1b93589c84a1b0a",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
         "MACOS_BUILD_VERSION": "master",
@@ -17,8 +17,8 @@
         "WINDOWS_DDNPM_SHASUM": "b1611ad4ceb8366c88767aeb638abefb226081efbf546b8b886952dd1b18ec05",
         "SECURITY_AGENT_POLICIES_VERSION": "master",
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-        "WINDOWS_DDPROCMON_VERSION": "1.0.0",
-        "WINDOWS_DDPROCMON_SHASUM": "1224580e1ae3031b1cb786b2d671ba83b6c0f104af050ab424c57fa7541af06a",
+        "WINDOWS_DDPROCMON_VERSION": "1.0.1",
+        "WINDOWS_DDPROCMON_SHASUM": "7c13ba75f7a30704a6a4082e4cffc819c846fd6061c53372c8b9908fee11d621",
         "WINDOWS_APMINJECT_COMMENT": "The WINDOWS_APMINJECT entries below should NOT be added to the release targets",
         "WINDOWS_APMINJECT_MODULE": "release-signed",
         "WINDOWS_APMINJECT_VERSION": "1.1.1",
@@ -26,8 +26,8 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "54232eb93377d3eba704729bfcad890eddb9cadd",
-        "OMNIBUS_RUBY_VERSION": "16564c51d93ace9d70dc9d3ccba08c8fedb96d01",
+        "OMNIBUS_SOFTWARE_VERSION": "0566b54e725fcd66e841579a1d789dd5bb23870f",
+        "OMNIBUS_RUBY_VERSION": "e74158aae17d70d7b7f1d356c1b93589c84a1b0a",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
         "MACOS_BUILD_VERSION": "master",
@@ -36,8 +36,8 @@
         "WINDOWS_DDNPM_SHASUM": "b1611ad4ceb8366c88767aeb638abefb226081efbf546b8b886952dd1b18ec05",
         "SECURITY_AGENT_POLICIES_VERSION": "master",
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-        "WINDOWS_DDPROCMON_VERSION": "1.0.0",
-        "WINDOWS_DDPROCMON_SHASUM": "1224580e1ae3031b1cb786b2d671ba83b6c0f104af050ab424c57fa7541af06a",
+        "WINDOWS_DDPROCMON_VERSION": "1.0.1",
+        "WINDOWS_DDPROCMON_SHASUM": "7c13ba75f7a30704a6a4082e4cffc819c846fd6061c53372c8b9908fee11d621",
         "WINDOWS_APMINJECT_COMMENT": "The WINDOWS_APMINJECT entries below should NOT be added to the release targets",
         "WINDOWS_APMINJECT_MODULE": "release-signed",
         "WINDOWS_APMINJECT_VERSION": "1.1.1",
@@ -49,14 +49,14 @@
         "OMNIBUS_RUBY_VERSION": "7.52.0-rc.3",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.52.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.53.0",
         "MACOS_BUILD_VERSION": "6.52.0-rc.2",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.6.0",
         "WINDOWS_DDNPM_SHASUM": "b1611ad4ceb8366c88767aeb638abefb226081efbf546b8b886952dd1b18ec05",
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-        "WINDOWS_DDPROCMON_VERSION": "1.0.0",
-        "WINDOWS_DDPROCMON_SHASUM": "1224580e1ae3031b1cb786b2d671ba83b6c0f104af050ab424c57fa7541af06a"
+        "WINDOWS_DDPROCMON_VERSION": "1.0.1",
+        "WINDOWS_DDPROCMON_SHASUM": "7c13ba75f7a30704a6a4082e4cffc819c846fd6061c53372c8b9908fee11d621"
     },
     "release-a7": {
         "INTEGRATIONS_CORE_VERSION": "7.52.0-rc.3",
@@ -64,14 +64,14 @@
         "OMNIBUS_RUBY_VERSION": "7.52.0-rc.3",
         "JMXFETCH_VERSION": "0.49.0",
         "JMXFETCH_HASH": "b5c2c3ff27603f469bb11961d559f1154887963e02b9d70d5f1fc7efa527a486",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.52.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.53.0",
         "MACOS_BUILD_VERSION": "7.52.0-rc.2",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.6.0",
         "WINDOWS_DDNPM_SHASUM": "b1611ad4ceb8366c88767aeb638abefb226081efbf546b8b886952dd1b18ec05",
         "WINDOWS_DDPROCMON_DRIVER": "release-signed",
-        "WINDOWS_DDPROCMON_VERSION": "1.0.0",
-        "WINDOWS_DDPROCMON_SHASUM": "1224580e1ae3031b1cb786b2d671ba83b6c0f104af050ab424c57fa7541af06a"
+        "WINDOWS_DDPROCMON_VERSION": "1.0.1",
+        "WINDOWS_DDPROCMON_SHASUM": "7c13ba75f7a30704a6a4082e4cffc819c846fd6061c53372c8b9908fee11d621"
     },
     "dca-1.17.0": {
         "SECURITY_AGENT_POLICIES_VERSION": "v0.18.6"

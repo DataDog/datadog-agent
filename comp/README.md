@@ -69,10 +69,20 @@ Package collector defines the collector component.
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
 
+### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
+
+*Datadog Team*: container-integrations
+
+Package autodiscovery provides the autodiscovery component for the Datadog Agent
+
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
+
+### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
+
+Package configsync implements synchronizing the configuration using the core agent config API
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 

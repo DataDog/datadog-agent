@@ -55,9 +55,16 @@ type CWSConsumer struct {
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	selfTester, err := selftests.NewSelfTester(cfg, evm.Probe)
-	if err != nil {
-		seclog.Errorf("unable to instantiate self tests: %s", err)
+	var (
+		selfTester *selftests.SelfTester
+		err        error
+	)
+
+	if cfg.SelfTestEnabled {
+		selfTester, err = selftests.NewSelfTester(cfg, evm.Probe)
+		if err != nil {
+			seclog.Errorf("unable to instantiate self tests: %s", err)
+		}
 	}
 
 	family, address := config.GetFamilyAddress(cfg.SocketPath)
@@ -154,14 +161,16 @@ func (c *CWSConsumer) Start() error {
 
 		seclog.Debugf("self-test results : success : %v, failed : %v", success, fails)
 	}
-	go c.selfTester.WaitForResult(cb)
+	if c.selfTester != nil {
+		go c.selfTester.WaitForResult(cb)
+	}
 
 	return nil
 }
 
 // PostProbeStart is called after the event stream is started
 func (c *CWSConsumer) PostProbeStart() error {
-	if c.selfTester != nil && c.config.SelfTestEnabled {
+	if c.selfTester != nil {
 		c.wg.Add(1)
 		go func() {
 			defer c.wg.Done()
@@ -262,9 +271,13 @@ func (c *CWSConsumer) sendStats() {
 	if err := c.apiServer.SendStats(); err != nil {
 		seclog.Debugf("failed to send api server stats: %s", err)
 	}
-	for ruleID, counter := range c.ruleEngine.AutoSuppression.GetStats() {
+	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
 		if counter > 0 {
-			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, []string{fmt.Sprintf("rule_id:%s", ruleID)}, 1.0)
+			tags := []string{
+				fmt.Sprintf("rule_id:%s", statsTags.RuleID),
+				fmt.Sprintf("tree_type:%s", statsTags.TreeType),
+			}
+			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
 		}
 	}
 }

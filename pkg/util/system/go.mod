@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/system
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../filesystem
@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3
 	github.com/shirou/gopsutil/v3 v3.23.12
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.16.0
 )

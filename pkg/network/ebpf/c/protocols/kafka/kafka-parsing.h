@@ -40,7 +40,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     }
     bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
-    if (!fetch_dispatching_arguments(&kafka->base.tup, &skb_info)) {
+    if (!fetch_dispatching_arguments(&kafka->tup, &skb_info)) {
         log_debug("socket__kafka_filter failed to fetch arguments for tail call");
         return 0;
     }
@@ -48,7 +48,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     if (!kafka_allow_packet(kafka, skb, &skb_info)) {
         return 0;
     }
-    normalize_tuple(&kafka->base.tup);
+    normalize_tuple(&kafka->tup);
 
     (void)kafka_process(kafka, skb, skb_info.data_off);
     return 0;
@@ -77,8 +77,8 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         return false;
     }
 
-    kafka_transaction->base.request_api_key = kafka_header.api_key;
-    kafka_transaction->base.request_api_version = kafka_header.api_version;
+    kafka_transaction->request_api_key = kafka_header.api_key;
+    kafka_transaction->request_api_version = kafka_header.api_version;
 
     offset += sizeof(kafka_header_t);
 
@@ -112,16 +112,16 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
-    bpf_memset(kafka_transaction->base.topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    read_into_buffer_topic_name_parser((char *)kafka_transaction->base.topic_name, skb, offset);
+    bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+    read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, skb, offset);
     offset += topic_name_size;
-    kafka_transaction->base.topic_name_size = topic_name_size;
+    kafka_transaction->topic_name_size = topic_name_size;
 
-    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->base.topic_name);
+    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
 
-    log_debug("kafka: topic name is %s", kafka_transaction->base.topic_name);
+    log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
 
-    kafka_batch_enqueue(&kafka_transaction->base);
+    kafka_batch_enqueue(kafka_transaction);
     return true;
 }
 
@@ -130,7 +130,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
 // of interest such as empty ACKs, UDP data or encrypted traffic.
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
     // we're only interested in TCP traffic
-    if (!(kafka->base.tup.metadata&CONN_TYPE_TCP)) {
+    if (!(kafka->tup.metadata&CONN_TYPE_TCP)) {
         return false;
     }
 

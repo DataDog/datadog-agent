@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -43,11 +44,13 @@ type Scanner struct {
 	// cacheMutex is used to protect the cache from concurrent access
 	// It cannot be cleaned when a scan is running
 	cacheMutex sync.Mutex
+
+	wmeta optional.Option[workloadmeta.Component]
 }
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config) *Scanner {
+func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
 		scanQueue: workqueue.NewRateLimitingQueue(
 			workqueue.NewItemExponentialFailureRateLimiter(
@@ -55,14 +58,15 @@ func NewScanner(cfg config.Config) *Scanner {
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
 		),
-		disk: filesystem.NewDisk(),
+		disk:  filesystem.NewDisk(),
+		wmeta: wmeta,
 	}
 }
 
 // CreateGlobalScanner creates a SBOM scanner, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
+func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
 	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
@@ -72,12 +76,12 @@ func CreateGlobalScanner(cfg config.Config) (*Scanner, error) {
 	}
 
 	for name, collector := range collectors.Collectors {
-		if err := collector.Init(cfg); err != nil {
+		if err := collector.Init(cfg, wmeta); err != nil {
 			return nil, fmt.Errorf("failed to initialize SBOM collector '%s': %w", name, err)
 		}
 	}
 
-	globalScanner = NewScanner(cfg)
+	globalScanner = NewScanner(cfg, wmeta)
 	return globalScanner, nil
 }
 
@@ -219,8 +223,8 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 // getImageMetadata returns the image metadata if the collector is a container image collector
 // and the metadata is found in the store.
 func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.ContainerImageMetadata {
-	store := workloadmeta.GetGlobalStore()
-	if store == nil {
+	store, ok := s.wmeta.Get()
+	if !ok {
 		_ = log.Errorf("workloadmeta store is not initialized")
 		s.scanQueue.AddRateLimited(request)
 		return nil

@@ -8,6 +8,7 @@ package scrubber
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -60,9 +61,9 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Hints: []string{"Bearer"},
 		Repl:  []byte(`Bearer ***********************************************************$1`),
 	}
-	// For this one we match any letters, not just a -> f
+	// For this one we match any characters
 	hintedBearerInvalidReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bBearer [a-zA-Z0-9]+\b`),
+		Regex: regexp.MustCompile(`\bBearer\s+[^*]+\b`),
 		Hints: []string{"Bearer"},
 		Repl:  []byte("Bearer " + defaultReplacement),
 	}
@@ -104,8 +105,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]byte(`$1 "********"`),
 	)
 	snmpReplacer := matchYAMLKey(
-		`(community_string|authKey|privKey|community|authentication_key|privacy_key)`,
-		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key"},
+		`(community_string|authKey|privKey|community|authentication_key|privacy_key|Authorization|authorization)`,
+		[]string{"community_string", "authKey", "privKey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
 	snmpMultilineReplacer := matchYAMLKeyWithListValue(
@@ -135,7 +136,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 					return ""
 				}
 				if len(apiKey) == 32 {
-					return "***************************" + apiKey[len(apiKey)-5:]
+					return HideKeyExceptLastFiveChars(apiKey)
 				}
 			}
 			return defaultReplacement
@@ -151,7 +152,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 					return ""
 				}
 				if len(appKey) == 40 {
-					return "***********************************" + appKey[len(appKey)-5:]
+					return HideKeyExceptLastFiveChars(appKey)
 				}
 			}
 			return defaultReplacement
@@ -327,9 +328,24 @@ func ScrubLine(url string) string {
 	return DefaultScrubber.ScrubLine(url)
 }
 
+// HideKeyExceptLastFiveChars replaces all characters in the key with "*", except
+// for the last 5 characters. If the key is an unrecognized length, replace
+// all of it with the default string of "*"s instead.
+func HideKeyExceptLastFiveChars(key string) string {
+	if len(key) != 32 && len(key) != 40 {
+		return defaultReplacement
+	}
+	return strings.Repeat("*", len(key)-5) + key[len(key)-5:]
+}
+
 // AddStrippedKeys adds to the set of YAML keys that will be recognized and have their values stripped. This modifies
 // the DefaultScrubber directly and be added to any created scrubbers.
 func AddStrippedKeys(strippedKeys []string) {
+	// API and APP keys are already handled by default rules
+	strippedKeys = slices.DeleteFunc(strippedKeys, func(s string) bool {
+		return s == "api_key" || s == "app_key"
+	})
+
 	if len(strippedKeys) > 0 {
 		replacer := matchYAMLKey(
 			fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")),

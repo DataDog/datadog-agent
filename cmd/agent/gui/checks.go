@@ -21,10 +21,10 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -46,11 +46,11 @@ var (
 )
 
 // Adds the specific handlers for /checks/ endpoints
-func checkHandler(r *mux.Router, collector collector.Component) {
+func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
 	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
-	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(collector))).Methods("POST")
-	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnce)).Methods("POST")
-	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(collector))).Methods("POST")
+	r.HandleFunc("/run/{name}", http.HandlerFunc(runCheckHandler(collector, ac))).Methods("POST")
+	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnceHandler(ac))).Methods("POST")
+	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheckHandler(collector, ac))).Methods("POST")
 	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
@@ -74,11 +74,11 @@ func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Schedules a specific check
-func runCheckHandler(collector collector.Component) func(_ http.ResponseWriter, r *http.Request) {
+func runCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Fetch the desired check
 		name := mux.Vars(r)["name"]
-		instances := pkgcollector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 
 		for _, ch := range instances {
 			collector.RunCheck(ch) //nolint:errcheck
@@ -87,12 +87,20 @@ func runCheckHandler(collector collector.Component) func(_ http.ResponseWriter, 
 	}
 }
 
+// runCheckOnceHandler generates a runCheckOnce handler with the autodiscovery component
+func runCheckOnceHandler(
+	ac autodiscovery.Component) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		runCheckOnce(w, r, ac)
+	}
+}
+
 // Runs a specified check once
-func runCheckOnce(w http.ResponseWriter, r *http.Request) {
+func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
 	response := make(map[string]string)
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
-	instances := pkgcollector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+	instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 	if len(instances) == 0 {
 		html, e := renderError(name)
 		if e != nil {
@@ -143,10 +151,10 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reloads a running check
-func reloadCheckHandler(collector collector.Component) func(_ http.ResponseWriter, r *http.Request) {
+func reloadCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		name := html.EscapeString(mux.Vars(r)["name"])
-		instances := pkgcollector.GetChecksByNameForConfigs(name, common.AC.GetAllConfigs())
+		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
 		if len(instances) == 0 {
 			log.Errorf("Can't reload " + name + ": check has no new instances.")
 			w.Write([]byte("Can't reload " + name + ": check has no new instances"))
