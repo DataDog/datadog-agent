@@ -54,11 +54,14 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
     branch_mapping: dict[str, str] = dict()
 
     for tag in platforms[arch]:
-        path = os.path.basename(platforms[arch][tag])
+        platinfo = platforms[arch][tag]
+        if "image" not in platinfo:
+            continue
+        path = os.path.basename(platinfo["image"])
         if path.endswith(".xz"):
             path = path[: -len(".xz")]
 
-        branch_mapping[path] = os.path.dirname(platforms[arch][tag]) or "master"
+        branch_mapping[path] = os.path.dirname(platinfo["image"]) or "master"
         file_ls.append(os.path.basename(path))
 
     # if file does not exist download it.
