@@ -196,7 +196,10 @@ def print_failed_jobs_logs(run):
 
     for failed_step, log_file in failed_steps.items():
         print(color_message(f"Step: {failed_step} failed:", "red"))
-        print("\n".join(parse_log_file(log_file)))
+        try:
+            print("\n".join(parse_log_file(log_file)))
+        except FileNotFoundError:
+            print(f'Failed to parse {log_file}, file does not exist')
     print(color_message("Logs might be incomplete, for complete logs check directly in the worklow logs", "blue"))
 
 
