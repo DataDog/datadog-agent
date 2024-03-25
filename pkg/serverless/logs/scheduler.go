@@ -27,7 +27,6 @@ func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, so
 
 	logsScheduler = channel.NewScheduler(sourceName, source, logChannel)
 	agent.AddScheduler(logsScheduler)
-
 	return agent, nil
 }
 
