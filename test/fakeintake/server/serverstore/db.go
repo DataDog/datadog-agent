@@ -57,6 +57,12 @@ func NewSQLStore() *SQLStore {
 		log.Fatal(err)
 	}
 
+	// Enable WAL mode for better performances
+	_, err = db.Exec("PRAGMA journal_mode=WAL")
+	if err != nil {
+		log.Fatal("Failed to enable WAL mode: ", err)
+	}
+
 	s := &SQLStore{
 		path:   p,
 		db:     db,
@@ -138,7 +144,9 @@ func (s *SQLStore) AppendPayload(route string, data []byte, encoding string, col
 	if err != nil {
 		return err
 	}
-	s.metrics.insertLatency.WithLabelValues(route).Observe(time.Since(now).Seconds())
+	obs := time.Since(now).Seconds()
+	s.metrics.insertLatency.WithLabelValues(route).Observe(obs)
+	log.Printf("Inserted payload for route %s in %f seconds\n", route, obs)
 
 	rawPayload := api.Payload{
 		Timestamp: collectTime,
