@@ -32,5 +32,6 @@
 #endif
 
 BPF_HASH_MAP(kafka_in_flight, kafka_transaction_key_t, kafka_transaction_t, 0)
+BPF_HASH_MAP(kafka_response, conn_tuple_t, kafka_response_context_t, 0)
 
 #endif

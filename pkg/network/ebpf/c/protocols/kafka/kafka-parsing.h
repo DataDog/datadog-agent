@@ -10,6 +10,7 @@
 // forward declaration
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info);
 static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset);
+static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset);
 
 // A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
 // The iterations reads up to MIN(max_buffer_size, real_size).
@@ -48,6 +49,11 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     if (!kafka_allow_packet(&kafka->transaction, skb, &skb_info)) {
         return 0;
     }
+
+    if (kafka_process_response(kafka, skb, skb_info.data_off)) {
+        return 0;
+    }
+
     normalize_tuple(&kafka->transaction.tup);
 
     (void)kafka_process(kafka, skb, skb_info.data_off);
@@ -56,9 +62,123 @@ int socket__kafka_filter(struct __sk_buff* skb) {
 
 READ_INTO_BUFFER(topic_name_parser, TOPIC_NAME_MAX_STRING_SIZE, BLK_SIZE)
 
+static __always_inline bool foo(kafka_response_context_t *response, struct __sk_buff *skb, __u32 offset)
+{
+    log_debug("carry_over_offset: %d", response->carry_over_offset);
+    offset += response->carry_over_offset;
+    response->carry_over_offset = 0;
+
+#pragma unroll(2)
+    for (int i = 0; i < 2; i++) {
+        switch (response->state) {
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
+            offset += sizeof(s64); // baseOffset
+            response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH;
+            // fallthrough
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
+            if (offset + sizeof(s32) > skb->len) {
+                response->carry_over_offset = offset - skb->len;
+                return false;
+            }
+
+            if (!read_big_endian_s32(skb, offset, &response->record_batch_length)) {
+                return false;
+            }
+            offset += sizeof(response->record_batch_length);
+
+            log_debug("record_batch_length: %d", response->record_batch_length);
+
+            offset += sizeof(s32); // Skip partitionLeaderEpoch
+            response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC;
+            // fallthrough
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC:
+            if (offset + sizeof(s8) > skb->len) {
+                response->carry_over_offset = offset - skb->len;
+                return false;
+            }
+
+            READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, skb, offset);
+            if (magic_byte != 2) {
+                log_debug("Got magic byte != 2, the protocol state it should be 2");
+                return false;
+            }
+
+            offset += sizeof(u32); // Skipping crc
+            offset += sizeof(s16); // Skipping attributes
+            offset += sizeof(s32); // Skipping last offset delta
+            offset += sizeof(s64); // Skipping base timestamp
+            offset += sizeof(s64); // Skipping max timestamp
+            offset += sizeof(s64); // Skipping producer id
+            offset += sizeof(s16); // Skipping producer epoch
+            offset += sizeof(s32); // Skipping base sequence
+            response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT;
+            // fallthrough
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
+            if (offset + sizeof(s32) > skb->len) {
+                response->carry_over_offset = offset - skb->len;
+                return false;
+            }
+
+            READ_BIG_ENDIAN_WRAPPER(s32, records_count, skb, offset);
+            if (records_count <= 0) {
+                log_debug("Got number of Kafka produce records <= 0");
+                return false;
+            }
+            
+            response->transaction.records_count += records_count;
+
+            log_debug("records_count %d, total %d", records_count, response->transaction.records_count);
+            
+            offset += response->record_batch_length
+            - sizeof(s32) // Skip partitionLeaderEpoch
+            - sizeof(s8) // Skipping magic
+            - sizeof(u32) // Skipping crc
+            - sizeof(s16) // Skipping attributes
+            - sizeof(s32) // Skipping last offset delta
+            - sizeof(s64) // Skipping base timestamp
+            - sizeof(s64) // Skipping max timestamp
+            - sizeof(s64) // Skipping producer id
+            - sizeof(s16) // Skipping producer epoch
+            - sizeof(s32) // Skipping base sequence
+            - sizeof(s32); // Skipping records count
+            response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_END;
+            // fallthrough
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_END:
+            if (offset > skb->len) {
+                response->carry_over_offset = offset - skb->len;
+                return false;
+            }
+
+            log_debug("response record batch end"); 
+            log_debug("offset %d", offset); 
+            log_debug("response->record_batches_num_bytes %d", response->record_batches_num_bytes); 
+
+            // Record batch batchLength does not include batchOffset and batchLength.
+            response->record_batches_num_bytes -= response->record_batch_length + sizeof(u32) + sizeof(u64);
+            response->record_batch_length = 0;
+
+            log_debug("record_batches_num_bytes after batch end: %d", response->record_batches_num_bytes);
+
+            if (response->record_batches_num_bytes > 0) {
+                response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_START;
+                break;
+            }
+            
+            response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_ARRAY_END;
+            // fallthrough
+        case KAFKA_FETCH_RESPONSE_RECORD_BATCH_ARRAY_END:
+            log_debug("enqueue kafka");
+            kafka_batch_enqueue(&response->transaction);
+            return true;
+        }
+    }
+
+    return true;
+}
+
 static __always_inline bool get_record_count_from_record_batch_array(struct __sk_buff *skb, __u32 offset, s32 *out)
 {
-    offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
+    //offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
     offset += sizeof(s64); // Skipping record batch baseOffset
     offset += sizeof(s32); // Skipping record batch batchLength
     offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch
@@ -85,19 +205,41 @@ static __always_inline bool get_record_count_from_record_batch_array(struct __sk
     return true;
 }
 
-
 static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
+    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->transaction.tup);
+    if (response) {
+        log_debug("skb->len: %d, response->record_batches_num_bytes: %u", skb->len, response->record_batches_num_bytes);
+
+        // s32 record_count = 0;
+        // if (!get_record_count_from_record_batch_array(skb, offset, &record_count)) {
+        //     bpf_map_delete_elem(&kafka_response, &kafka->transaction.tup);
+        //     return false;
+        // }
+
+        // log_debug("record_count %d\n", record_count);
+
+//        response->transaction.records_count = record_count;
+        
+
+        if (foo(response, skb, offset)) {
+            bpf_map_delete_elem(&kafka_response, &kafka->transaction.tup);
+        }
+        return true;
+    }
+    
     offset += sizeof(__s32); // Skip message size
     READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, skb, offset);
     log_debug("offset: %d", offset);
 
     log_debug("skb len: %d", skb->len);
 
+
     log_debug("kafka: potential response correlation_id %d", correlation_id);
 
     kafka_transaction_key_t *key = &kafka->key;
     key->correlation_id = correlation_id;
     key->tuple = kafka->transaction.tup;
+    normalize_tuple(&key->tuple);
     kafka_transaction_t *request = bpf_map_lookup_elem(&kafka_in_flight, key);
     if (!request) {
         return false;
@@ -161,14 +303,16 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
         }
     }
 
-    s32 record_count = 0;
-    if (!get_record_count_from_record_batch_array(skb, offset, &record_count)) {
-        return false;
-    }
+    READ_BIG_ENDIAN_WRAPPER(s32, record_batches_num_bytes, skb, offset);
+    log_debug("record_batches_num_bytes: %d", record_batches_num_bytes);
 
-    log_debug("record_count: %d", record_count);
+    kafka->response.transaction = *request;
+    kafka->response.record_batches_num_bytes = record_batches_num_bytes;
+    kafka->response.state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_START;
+    kafka->response.carry_over_offset = 0;
+    kafka->response.record_batch_length = 0;
 
-    kafka_batch_enqueue(request);
+    bpf_map_update_elem(&kafka_response, &kafka->transaction.tup, &kafka->response, BPF_NOEXIST);
 
     return true;
 }
@@ -292,7 +436,7 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
     }
     case KAFKA_FETCH:
         // We currently lack support for fetch record counts as they are only accessible within the Kafka response
-        kafka_transaction->records_count = 1;
+        kafka_transaction->records_count = 0;
         break;
     default:
         return false;

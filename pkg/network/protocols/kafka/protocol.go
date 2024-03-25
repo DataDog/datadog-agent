@@ -37,6 +37,7 @@ const (
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaHeapMap                             = "kafka_heap"
 	InFlightMap                              = "kafka_in_flight"
+	ResponseMap                              = "kafka_response"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -51,6 +52,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: InFlightMap,
+		},
+		{
+			Name: ResponseMap,
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -92,6 +96,10 @@ func (p *protocol) Name() string {
 // option.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[ResponseMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}

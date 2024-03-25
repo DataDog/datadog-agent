@@ -33,9 +33,27 @@ typedef struct {
     __s32 correlation_id;
 } kafka_transaction_key_t;
 
+typedef enum {
+    KAFKA_FETCH_RESPONSE_RECORD_BATCH_START = 0,
+    KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH,
+    KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC,
+    KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT,
+    KAFKA_FETCH_RESPONSE_RECORD_BATCH_END,
+    KAFKA_FETCH_RESPONSE_RECORD_BATCH_ARRAY_END,
+} __attribute__ ((packed)) kafka_response_state;
+
+typedef struct {
+    kafka_response_state state;
+    __s32 record_batches_num_bytes;
+    __s32 record_batch_length;
+    __u32 carry_over_offset;
+    kafka_transaction_t transaction;
+} kafka_response_context_t;
+
 typedef struct {
     kafka_transaction_t transaction;
     kafka_transaction_key_t key;
+    kafka_response_context_t response;
 } kafka_info_t;
 
 
