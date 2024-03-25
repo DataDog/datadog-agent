@@ -34,18 +34,20 @@ def concurrency_key():
 
 
 def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
-    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
+    # github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
 
-    run = trigger_macos_workflow(
-        github_action_ref=github_action_ref,
-        concurrency_key=concurrency_key(),
-        **kwargs,
-    )
+    # run = trigger_macos_workflow(
+    #     github_action_ref=github_action_ref,
+    #     concurrency_key=concurrency_key(),
+    #     **kwargs,
+    # )
 
-    workflow_conclusion, workflow_url = follow_workflow_run(run)
+    # workflow_conclusion, workflow_url = follow_workflow_run(run)
 
     # TODO
     workflow_conclusion = 'failure'
+    workflow_url = 42
+    run = None
 
     if workflow_conclusion == "failure":
         print('------------------ Cc --------------------')
