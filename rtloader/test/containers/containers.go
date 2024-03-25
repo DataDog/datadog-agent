@@ -100,7 +100,7 @@ except Exception as e:
 }
 
 //export is_excluded
-func is_excluded(name *C.char, image *C.char, namespace *C.char) C.int {
+func is_excluded(annotation *C.char, name *C.char, image *C.char, namespace *C.char) C.int {
 	if C.GoString(name) == "foo" {
 		return 1
 	}

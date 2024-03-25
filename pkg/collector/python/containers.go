@@ -32,7 +32,6 @@ var filter *containers.Filter
 //export IsContainerExcluded
 func IsContainerExcluded(annotation, name, image, namespace *C.char) C.int {
 	// If init failed, fallback to False
-	log.Debugf("TEST-CONT got annotation %s for name %s", annotation, name)
 	if filter == nil {
 		return 0
 	}
