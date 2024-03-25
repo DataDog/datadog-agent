@@ -44,6 +44,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	maxRetry   = 3
+	retryDelay = time.Second
+)
+
 type pendingMsg struct {
 	ruleID        string
 	backendEvent  events.BackendEvent
@@ -53,26 +58,35 @@ type pendingMsg struct {
 	service       string
 	extTagsCb     func() []string
 	sendAfter     time.Time
+	retry         int
 }
 
-func (p *pendingMsg) ToJSON() ([]byte, error) {
+func (p *pendingMsg) ToJSON() ([]byte, bool, error) {
+	fullyResolved := true
+
+	p.backendEvent.RuleActions = []json.RawMessage{}
+
 	for _, report := range p.actionReports {
-		data, err := report.ToJSON()
+		data, resolved, err := report.ToJSON()
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		p.backendEvent.RuleActions = append(p.backendEvent.RuleActions, data)
+
+		if !resolved {
+			fullyResolved = false
+		}
 	}
 
 	backendEventJSON, err := easyjson.Marshal(p.backendEvent)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	data := append(p.eventJSON[:len(p.eventJSON)-1], ',')
 	data = append(data, backendEventJSON[1:]...)
 
-	return data, nil
+	return data, fullyResolved, nil
 }
 
 // APIServer represents a gRPC server in charge of receiving events sent by
@@ -161,28 +175,30 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg)) {
+func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
-	var i int
-	var msg *pendingMsg
-
-	for i != len(a.queue) {
-		msg = a.queue[i]
+	a.queue = slices.DeleteFunc(a.queue, func(msg *pendingMsg) bool {
 		if msg.sendAfter.After(now) {
-			break
+			return false
 		}
-		cb(msg)
 
-		i++
-	}
+		if cb(msg) {
+			return true
+		}
 
-	if i >= len(a.queue) {
-		a.queue = a.queue[0:0]
-	} else if i > 0 {
-		a.queue = a.queue[i:]
-	}
+		if msg.retry >= maxRetry {
+			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
+			return true
+		}
+		seclog.Debugf("failed to sent event, retry %d/%d", msg.retry, maxRetry)
+
+		msg.sendAfter = now.Add(retryDelay)
+		msg.retry++
+
+		return false
+	})
 }
 
 func (a *APIServer) start(ctx context.Context) {
@@ -192,7 +208,7 @@ func (a *APIServer) start(ctx context.Context) {
 	for {
 		select {
 		case now := <-ticker.C:
-			a.dequeue(now, func(msg *pendingMsg) {
+			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
 					// dedup
 					for _, tag := range msg.extTagsCb() {
@@ -214,10 +230,15 @@ func (a *APIServer) start(ctx context.Context) {
 					}
 				}
 
-				data, err := msg.ToJSON()
+				data, resolved, err := msg.ToJSON()
 				if err != nil {
 					seclog.Errorf("failed to marshal event context: %v", err)
-					return
+					return true
+				}
+
+				// not fully resolved, retry
+				if !resolved && msg.retry < maxRetry {
+					return false
 				}
 
 				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
@@ -234,6 +255,8 @@ func (a *APIServer) start(ctx context.Context) {
 				} else {
 					a.sendToSecurityAgent(m)
 				}
+
+				return true
 			})
 		case <-ctx.Done():
 			a.stopChan <- struct{}{}

@@ -15,5 +15,7 @@ import (
 )
 
 func main() {
+	// root user is changed to dd-updater to avoid permission issues
+	rootToDDUpdater()
 	os.Exit(runcmd.Run(command.MakeCommand(subcommands.UpdaterSubcommands())))
 }

@@ -10,9 +10,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestOneInstance(t *testing.T) {
@@ -274,23 +278,25 @@ func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedO
 }
 
 func TestParseConfigSnmpMain(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
-	// ReadConfig stores the Yaml in the config.Datadog object
-	err := config.Datadog.ReadConfig(strings.NewReader(`
-snmp_listener:
-  configs:
-   - network_address: 127.0.0.1/30
-     snmp_version: 1
-     community_string: public
-   - network_address: 127.0.0.2/30
-     snmp_version: 2
-     community_string: publicX
-   - network_address: 127.0.0.4/30
-     snmp_version: 3
-`))
-	assert.NoError(t, err)
+	bConf := []byte(strings.ReplaceAll(`
+	snmp_listener:
+	  configs:
+	  - network_address: 127.0.0.1/30
+	    snmp_version: 1
+	    community_string: public
+	  - network_address: 127.0.0.2/30
+	    snmp_version: 2
+	    community_string: publicX
+	  - network_address: 127.0.0.4/30
+	    snmp_version: 3`, "\t", ""))
+	rawConf := make(map[string]any)
+	require.NoError(t, yaml.Unmarshal(bConf, &rawConf))
+	conf := fxutil.Test[config.Component](t,
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: rawConf}),
+	)
 
-	Output, _ := parseConfigSnmpMain()
+	Output, _ := parseConfigSnmpMain(conf)
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "1",
@@ -305,6 +311,36 @@ snmp_listener:
 		{
 			Version:    "3",
 			NetAddress: "127.0.0.4/30",
+		},
+	}
+	assert.Equal(t, Exoutput, Output)
+
+}
+
+func TestIPDecodeHook(t *testing.T) {
+	bConf := []byte(`
+snmp_listener:
+    configs:
+    - network_address: 127.0.0.1/30
+      snmp_version: 1
+      community_string: public
+      ignored_ip_addresses:
+        - 10.0.1.0
+        - 10.0.1.1
+`)
+	rawConf := make(map[string]any)
+	require.NoError(t, yaml.Unmarshal(bConf, &rawConf))
+	conf := fxutil.Test[config.Component](t,
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: rawConf}),
+	)
+
+	Output, _ := parseConfigSnmpMain(conf)
+	Exoutput := []SNMPConfig{
+		{
+			Version:         "1",
+			CommunityString: "public",
+			NetAddress:      "127.0.0.1/30",
 		},
 	}
 	assert.Equal(t, Exoutput, Output)

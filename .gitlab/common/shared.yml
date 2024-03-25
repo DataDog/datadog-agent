@@ -18,7 +18,6 @@
   - set +x
   - *get_artifactory_token_linux
   - if [ "${USE_CACHING_PROXY_RUBY}" = "true" ] && [ "${ARTIFACTORY_BYPASS}" = "false" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
-  - set -x
 
 .setup_ruby_mirror_win:
   - *get_artifactory_bypass_win
@@ -30,7 +29,6 @@
   - set +x
   - *get_artifactory_token_linux
   - if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ] && [ "${ARTIFACTORY_BYPASS}" = "false" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
-  - set -x
 
 .setup_python_mirror_win:
   - *get_artifactory_bypass_win

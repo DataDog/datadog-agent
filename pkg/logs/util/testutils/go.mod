@@ -3,8 +3,11 @@ module github.com/DataDog/datadog-agent/pkg/logs/util/testutils
 go 1.21.8
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/config => ../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../comp/core/secrets
+	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../config/env
@@ -14,8 +17,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../status/utils
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../util/filesystem
+	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ../../../util/optional
@@ -24,6 +29,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ../../../util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system => ../../../util/system
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../../util/system/socket
+	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../../util/testutil
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../version
 )
@@ -51,7 +57,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3 // indirect
-	github.com/DataDog/viper v1.12.0 // indirect
+	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

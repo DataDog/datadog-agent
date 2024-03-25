@@ -27,7 +27,7 @@
 
 .write_ssh_key_file:
   - touch $AWS_EC2_SSH_KEY_FILE && chmod 600 $AWS_EC2_SSH_KEY_FILE
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.ssh_key > $AWS_EC2_SSH_KEY_FILE
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_SSM_NAME > $AWS_EC2_SSH_KEY_FILE
   # Without the newline ssh silently fails and moves on to try other auth methods
   - echo "" >> $AWS_EC2_SSH_KEY_FILE
   - chmod 600 $AWS_EC2_SSH_KEY_FILE
@@ -43,9 +43,9 @@
   - echo -e "Host metal_instance\nHostname $INSTANCE_IP\nUser ubuntu\nStrictHostKeyChecking no\nIdentityFile $AWS_EC2_SSH_KEY_FILE\n" | tee -a ~/.ssh/config
   - chmod 600 ~/.ssh/config
 
-.kernel_matrix_testing_new_profile:
+.kmt_new_profile:
   - mkdir -p ~/.aws
-  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.agent-qa-profile >> ~/.aws/config
+  - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
 .prepare_common_dependency_upload:
@@ -80,7 +80,7 @@
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   before_script:
-    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   tags: ["arch:amd64"]
   script:
@@ -98,7 +98,7 @@
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
 
 # -- Environment setup
-.kernel_matrix_testing_setup_env:
+.kmt_setup_env:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
@@ -121,9 +121,9 @@
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.retrieve_linux_go_deps]
-    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
@@ -131,7 +131,7 @@
       # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
       # by a ram backed filesystem holding the system-probe test packages
     - inv -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --sets=$TEST_SETS --vmconfig-template=$TEST_COMPONENT --memory=12288
-    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
+    - inv -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
@@ -153,13 +153,13 @@
       - $CI_PROJECT_DIR/libvirt
       - $VMCONFIG_FILE
 
-.kernel_matrix_testing_cleanup:
+.kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   when: always
   tags: ["arch:amd64"]
   before_script:
-    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
@@ -171,13 +171,13 @@
       fi
 
 # -- Test runners
-.kernel_matrix_testing_run_tests:
+.kmt_run_tests:
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
   before_script:
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - !reference [.kernel_matrix_testing_new_profile]
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - echo "CI_JOB_ID=${CI_JOB_ID}" >> $DD_AGENT_TESTING_DIR/job_env.txt
@@ -204,6 +204,9 @@
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
   after_script:
     - MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
+    - mkdir -p $CI_PROJECT_DIR/logs
+    - ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log || true
+    - cat $CI_PROJECT_DIR/logs/setup-ddvm.log || true
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
     - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
@@ -214,3 +217,4 @@
     paths:
       - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG-$TEST_SET.tar.gz
       - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG-$TEST_SET.tar.gz
+      - $CI_PROJECT_DIR/logs
