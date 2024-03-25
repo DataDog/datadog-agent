@@ -66,6 +66,7 @@ func newPidMap() pidmap.Component {
 	return &state{}
 }
 
+// NewServerlessPidMap creates a new instance of pidmap.Component
 func NewServerlessPidMap() pidmap.Component {
 	return newPidMap()
 }
