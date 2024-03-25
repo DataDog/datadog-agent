@@ -125,6 +125,7 @@ func RemoveAgentUnits() {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
+	cleanInstallInfo()
 }
 
 // StartAgentExperiment starts the agent experiment
