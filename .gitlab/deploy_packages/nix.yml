@@ -190,7 +190,7 @@ deploy_packages_dmg-x64-a7:
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.dmg" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/dmg/x86_64/ || true
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7*.dmg" $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/dmg/x86_64/
 
 # deploy dogstatsd x64, non-static binary to staging bucket
 deploy_staging_dsd:
