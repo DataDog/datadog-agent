@@ -31,18 +31,21 @@ func NewLocalResolver(processEventsEnabled bool) LocalResolver {
 //
 // An attempt is made to resolve as many local containers as possible.
 //
-// First, we go over all connections resolving the laddr container
-// using the pid to container map that we have. We also index
-// connections by (laddr, raddr, proto, netns), inserting a
-// non-loopback saddr with netns = 0 as well. Translated
-// laddr and raddr are used throughout.
+// First, we go over all connections that have a container ID
+// populated for their laddr, indexing them by (laddr, raddr, proto, netns).
+// An additional entry is also inserted for a non-loopback laddr with netns = 0
+// as well. Translated laddr and raddr are used throughout. Incoming
+// connection dest ports (the ephemeral side) are also zero-ed before
+// inserting into the index.
 //
 // Second, we go over the connections again, this time resolving
 // the raddr container id using the lookup table we built previously.
-// Translated addresses are used throughout.
+// Translated addresses are used throughout. This time outgoing connection
+// source ports are zero-ed when doing a lookup (since we zero-ed out
+// the incoming dest ports in the index).
 //
 // Only connections that are local are resolved, i.e., for
-// which conn.IntrHost is set to true.
+// which `IntraHost` is set to true.
 func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 	if !r.processEventsEnabled {
 		return
@@ -57,10 +60,6 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 	ctrsByConn := make(map[connKey]*intern.Value, conns.Len()/2)
 	conns.Iterate(func(_ int, conn *ConnectionStats) {
 		if conn.ContainerID.Source == nil || len(conn.ContainerID.Source.Get().(string)) == 0 {
-			return
-		}
-
-		if !conn.IntraHost {
 			return
 		}
 
