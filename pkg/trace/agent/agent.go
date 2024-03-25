@@ -8,7 +8,6 @@ package agent
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/trace/openlineage"
 	"runtime"
 	"strconv"
 	"sync"
@@ -22,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/openlineage"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -57,7 +57,7 @@ type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          *stats.Concentrator
-	OpenLineage           *openlineage.State
+	OpenLineageState      *dataobs.State
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
