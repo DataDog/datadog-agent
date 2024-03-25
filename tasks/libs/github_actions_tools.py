@@ -188,15 +188,17 @@ def print_failed_jobs_logs(run):
     """
     Retrieves, parses and print failed job logs for the workflow run
     """
-    failed_jobs = get_failed_jobs(run)
+    # failed_jobs = get_failed_jobs(run)
 
-    download_with_retry(download_logs, run, destination="workflow_logs")
+    # download_with_retry(download_logs, run, destination="workflow_logs")
 
-    failed_steps = get_failed_steps_log_files("workflow_logs", failed_jobs)
+    # failed_steps = get_failed_steps_log_files("workflow_logs", failed_jobs)
+    failed_steps = {'mystep': 'log1', 'step2': 'log2'}
 
     for failed_step, log_file in failed_steps.items():
         print(color_message(f"Step: {failed_step} failed:", "red"))
         try:
+            raise FileNotFoundError()
             print("\n".join(parse_log_file(log_file)))
         except FileNotFoundError:
             print(f'Failed to parse {log_file}, file does not exist')
