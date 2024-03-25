@@ -193,7 +193,7 @@ func writeInstallInfo(tool, version string) error {
 install_method:
   tool: %s
   tool_version: %s
-  installer_version: deb_package
+  installer_version: updater_package
   installer: updater
 `, tool, version)
 	return os.WriteFile(installInfoFile, []byte(installInfoContent), 0644)

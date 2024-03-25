@@ -16,9 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Masterminds/semver"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 )
 
 func TestInstallSignature(t *testing.T) {
@@ -47,4 +49,24 @@ func TestInstallSignature(t *testing.T) {
 	assert.Nil(t, err)
 	diff := time.Now().Unix() - unixInt
 	assert.True(t, diff*diff < 3600*3600)
+}
+
+func TestInstallMethod(t *testing.T) {
+	installInfoFile = filepath.Join(t.TempDir(), "install_info")
+	writeInstallInfo("dpkg", "1.2.3")
+	rawYaml, err := os.ReadFile(installInfoFile)
+	assert.Nil(t, err)
+	var config Config
+	assert.Nil(t, yaml.Unmarshal(rawYaml, &config))
+
+	assert.Equal(t, "updater", config.InstallMethod["installer"])
+	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
+	assert.Equal(t, "dpkg", config.InstallMethod["tool"])
+	_, err = semver.NewVersion(config.InstallMethod["tool_version"])
+	assert.Nil(t, err)
+}
+
+// Config yaml struct
+type Config struct {
+	InstallMethod map[string]string `yaml:"install_method"`
 }
