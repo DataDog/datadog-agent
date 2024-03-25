@@ -26,10 +26,19 @@ class DependenciesLayout(TypedDict):  # noqa: F841
     build: Dict[str, DependencyBuild]
 
 
+class PlatformInfo(TypedDict, total=False):
+    os_name: str  # Official OS name  # noqa: F841
+    version: str  # Version
+    kernel: str  # Kernel version
+    os_id: str  # Short ID for the OS (e.g., "centos" for CentOS)  # noqa: F841
+    image: str  # Name of the image file
+    alt_version_names: List[str]  # Alternative version names (e.g., "jammy" for Ubuntu 22)  # noqa: F841
+
+
 class Platforms(TypedDict):  # noqa: F841
     url_base: str
-    x86_64: Dict[str, str]  # noqa: F841
-    arm64: Dict[str, str]  # noqa: F841
+    x86_64: Dict[str, PlatformInfo]  # noqa: F841
+    arm64: Dict[str, PlatformInfo]  # noqa: F841
 
 
 class Disk(TypedDict):

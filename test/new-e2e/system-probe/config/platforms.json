@@ -1,45 +1,91 @@
 {
-    "url_base": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs",
-    "x86_64": {
-        "ubuntu_16.04": "master/ubuntu-16-x86_64.qcow2.xz",
-        "ubuntu_18.04": "master/ubuntu-18-x86_64.qcow2.xz",
-        "ubuntu_20.04": "master/ubuntu-20-x86_64.qcow2.xz",
-        "ubuntu_22.04": "master/ubuntu-22-x86_64.qcow2.xz",
-        "ubuntu_23.10": "master/ubuntu-23-x86_64.qcow2.xz",
-        "amzn_4.14": "master/amzn2-kvm-2.0-x86_64-4.14.qcow2.xz",
-        "amzn_5.4": "master/amzn2-kvm-2.0-x86_64-5.4.qcow2.xz",
-        "amzn_5.10": "master/amzn2-kvm-2.0-x86_64-5.10.qcow2.xz",
-        "fedora_37": "master/Fedora-Cloud-Base-37.x86_64.qcow2.xz",
-        "fedora_38": "master/Fedora-Cloud-Base-38.x86_64.qcow2.xz",
-        "debian_10": "master/debian-10-generic-x86_64.qcow2.xz",
-        "debian_11": "master/debian-11-generic-x86_64.qcow2.xz",
-        "debian_12": "master/debian-12-generic-x86_64.qcow2.xz",
-        "centos_79": "master/centos-7.9-x86_64.qcow2.xz",
-        "centos_8": "master/centos-8-x86_64.qcow2.xz",
-        "oracle_7.9": "master/oracle-7.9-x86_64.qcow.xz",
-        "oracle_8.9": "master/oracle-8.9-x86_64.qcow.xz",
-        "oracle_9.3": "master/oracle-9.3-x86_64.qcow.xz",
-        "rocky_8.5": "master/rocky-8.5-x86_64.qcow2.xz",
-        "rocky_9.3": "master/rocky-9.3-x86_64.qcow2.xz"
+  "url_base": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs",
+  "x86_64": {
+    "ubuntu_16.04": {
+      "image": "master/ubuntu-16-x86_64.qcow2.xz"
     },
-    "arm64": {
-        "ubuntu_18.04": "master/ubuntu-18-arm64.qcow2.xz",
-        "ubuntu_20.04": "master/ubuntu-20-arm64.qcow2.xz",
-        "ubuntu_22.04": "master/ubuntu-22-arm64.qcow2.xz",
-        "ubuntu_23.10": "master/ubuntu-23-arm64.qcow2.xz",
-        "amzn_4.14": "master/amzn2-kvm-2.0-arm64-4.14.qcow2.xz",
-        "amzn_5.4": "master/amzn2-kvm-2.0-arm64-5.4.qcow2.xz",
-        "amzn_5.10": "master/amzn2-kvm-2.0-arm64-5.10.qcow2.xz",
-        "fedora_37": "master/Fedora-Cloud-Base-37.arm64.qcow2.xz",
-        "fedora_38": "master/Fedora-Cloud-Base-38.arm64.qcow2.xz",
-        "debian_10": "master/debian-10-generic-arm64.qcow2.xz",
-        "debian_11": "master/debian-11-generic-arm64.qcow2.xz",
-        "debian_12": "master/debian-12-generic-arm64.qcow2.xz",
-        "centos_79": "master/centos-7.9-arm64.qcow2.xz",
-        "centos_8": "master/centos-8-arm64.qcow2.xz",
-        "oracle_8.9": "master/oracle-8.9-arm64.qcow.xz",
-        "oracle_9.3": "master/oracle-9.3-arm64.qcow.xz",
-        "rocky_8.5": "master/rocky-8.5-arm64.qcow2.xz",
-        "rocky_9.3": "master/rocky-9.3-arm64.qcow2.xz"
-    }
+    "ubuntu_18.04": {
+      "image": "master/ubuntu-18-x86_64.qcow2.xz"
+    },
+    "ubuntu_20.04": {
+      "image": "master/ubuntu-20-x86_64.qcow2.xz"
+    },
+    "ubuntu_22.04": {
+      "image": "master/ubuntu-22-x86_64.qcow2.xz"
+    },
+    "ubuntu_23.10": {
+      "image": "master/ubuntu-23-x86_64.qcow2.xz"
+    },
+    "amzn_4.14": "master/amzn2-kvm-2.0-x86_64-4.14.qcow2.xz",
+    "amzn_5.4": "master/amzn2-kvm-2.0-x86_64-5.4.qcow2.xz",
+    "amzn_5.10": "master/amzn2-kvm-2.0-x86_64-5.10.qcow2.xz",
+    "fedora_37": "master/Fedora-Cloud-Base-37.x86_64.qcow2.xz",
+    "fedora_38": "master/Fedora-Cloud-Base-38.x86_64.qcow2.xz",
+    "debian_10": "master/debian-10-generic-x86_64.qcow2.xz",
+    "debian_11": "master/debian-11-generic-x86_64.qcow2.xz",
+    "debian_12": "master/debian-12-generic-x86_64.qcow2.xz",
+    "centos_79": "master/centos-7.9-x86_64.qcow2.xz",
+    "centos_8": "master/centos-8-x86_64.qcow2.xz",
+    "oracle_7.9": "master/oracle-7.9-x86_64.qcow.xz",
+    "oracle_8.9": "master/oracle-8.9-x86_64.qcow.xz",
+    "oracle_9.3": "master/oracle-9.3-x86_64.qcow.xz",
+    "rocky_8.5": "master/rocky-8.5-x86_64.qcow2.xz",
+    "rocky_9.3": "master/rocky-9.3-x86_64.qcow2.xz"
+  },
+  "arm64": {
+    "ubuntu_18.04": {
+      "image": "master/ubuntu-18-arm64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "18.04",
+      "kernel": "4.18.0-25-generic",
+      "alt_version_names": [
+        "bionic"
+      ]
+    },
+    "ubuntu_20.04": {
+      "image": "master/ubuntu-20-arm64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "20.04",
+      "kernel": "5.4.0-167-generic",
+      "alt_version_names": [
+        "focal"
+      ]
+    },
+    "ubuntu_22.04": {
+      "image": "master/ubuntu-22-arm64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "22.04",
+      "kernel": "5.15.0-91-generic",
+      "alt_version_names": [
+        "jammy"
+      ]
+    },
+    "ubuntu_23.10": {
+      "image": "master/ubuntu-23-arm64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "23.10",
+      "kernel": "6.5.0-9-generic",
+      "alt_version_names": [
+        "mantic"
+      ]
+    },
+    "amzn_4.14": "master/amzn2-kvm-2.0-arm64-4.14.qcow2.xz",
+    "amzn_5.4": "master/amzn2-kvm-2.0-arm64-5.4.qcow2.xz",
+    "amzn_5.10": "master/amzn2-kvm-2.0-arm64-5.10.qcow2.xz",
+    "fedora_37": "master/Fedora-Cloud-Base-37.arm64.qcow2.xz",
+    "fedora_38": "master/Fedora-Cloud-Base-38.arm64.qcow2.xz",
+    "debian_10": "master/debian-10-generic-arm64.qcow2.xz",
+    "debian_11": "master/debian-11-generic-arm64.qcow2.xz",
+    "debian_12": "master/debian-12-generic-arm64.qcow2.xz",
+    "centos_79": "master/centos-7.9-arm64.qcow2.xz",
+    "centos_8": "master/centos-8-arm64.qcow2.xz",
+    "oracle_8.9": "master/oracle-8.9-arm64.qcow.xz",
+    "oracle_9.3": "master/oracle-9.3-arm64.qcow.xz",
+    "rocky_8.5": "master/rocky-8.5-arm64.qcow2.xz",
+    "rocky_9.3": "master/rocky-9.3-arm64.qcow2.xz"
+  }
 }
