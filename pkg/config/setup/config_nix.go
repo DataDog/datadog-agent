@@ -32,6 +32,8 @@ const (
 	defaultGuiPort              = -1
 	// DefaultUpdaterLogFile is the default updater log file
 	DefaultUpdaterLogFile = "/var/log/datadog/updater.log"
+	// DefaultAgentlessScannerLogFile is the default agentless-scanner log file
+	DefaultAgentlessScannerLogFile = "/var/log/datadog/agentless-scanner.log"
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
