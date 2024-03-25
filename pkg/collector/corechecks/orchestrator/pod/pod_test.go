@@ -88,10 +88,12 @@ type fakeSender struct {
 	manifests []process.MessageBody
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (s *fakeSender) OrchestratorMetadata(msgs []types.ProcessMessageBody, clusterID string, nodeType int) {
 	s.pods = append(s.pods, msgs...)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (s *fakeSender) OrchestratorManifest(msgs []types.ProcessMessageBody, clusterID string) {
 	s.manifests = append(s.manifests, msgs...)
 }
