@@ -29,6 +29,14 @@ const (
 	websphere
 )
 
+// deploymentType is an enum to describe the type of a deployment (can be ear or war)
+type deploymentType uint8
+
+const (
+	war deploymentType = iota + 1
+	ear
+)
+
 const (
 	// app servers hints
 	wlsServerMainClass   string = "weblogic.Server"
@@ -51,9 +59,15 @@ type (
 		XMLName     xml.Name `xml:"application"`
 		ContextRoot []string `xml:"module>web>context-root"`
 	}
+
+	// typedDeployment describes a deployment with a deploymentType if early detected
+	typedDeployment struct {
+		dt   deploymentType
+		path string
+	}
 	// deployedAppFindFn is used to find the application deployed on a domainHome
 	// args should be supplied since some vendors may require additional information from them (i.e. server name)
-	deployedAppFindFn func(domainHome string, args []string, fs afero.Fs) ([]string, bool)
+	deployedAppFindFn func(domainHome string, args []string, fs afero.Fs) ([]typedDeployment, bool)
 	// warContextRootFindFn is used to extract the context root from a vendor defined configuration inside the war.
 	// if not found it returns en empty string and false
 	warContextRootFindFn func(fs afero.Fs) (string, bool)
@@ -65,7 +79,8 @@ type (
 // definitions of standard extractors
 var (
 	deploymentFinders = map[serverVendor]deployedAppFindFn{
-		weblogic: weblogicFindDeployedApps,
+		weblogic:  weblogicFindDeployedApps,
+		websphere: websphereFindDeployedApps,
 	}
 	contextRootFinders = map[serverVendor]warContextRootFindFn{
 		weblogic: weblogicExtractWarContextRoot,
@@ -160,38 +175,43 @@ func standardExtractContextFromWarName(fileName string) string {
 }
 
 // vfsAndTypeFromAppPath inspects the appPath and returns a valid fileSystemCloser in case the deployment is an ear or a war.
-func vfsAndTypeFromAppPath(appPath string, fs afero.Fs) (*fileSystemCloser, bool, error) {
-	ext := strings.ToLower(filepath.Clean(filepath.Ext(appPath)))
-	isEar := false
-	if ext == ".ear" {
-		isEar = true
-	} else if ext != ".war" {
-		// only ear and war are supported
-		return nil, false, fmt.Errorf("unhandled deployment type %s", ext)
+func vfsAndTypeFromAppPath(deployment typedDeployment, fs afero.Fs) (*fileSystemCloser, deploymentType, error) {
+	dt := deployment.dt
+	if dt == 0 {
+		ext := strings.ToLower(filepath.Clean(filepath.Ext(deployment.path)))
+		switch ext {
+		case ".ear":
+			dt = ear
+		case ".war":
+			dt = war
+		default:
+			return nil, dt, fmt.Errorf("unhandled deployment type %s", ext)
+		}
+
 	}
-	fi, err := fs.Stat(appPath)
+	fi, err := fs.Stat(deployment.path)
 	if err != nil {
-		return nil, isEar, err
+		return nil, dt, err
 	}
 
 	if fi.IsDir() {
 		return &fileSystemCloser{
-			fs: afero.NewBasePathFs(fs, appPath),
-		}, isEar, nil
+			fs: afero.NewBasePathFs(fs, deployment.path),
+		}, dt, nil
 	}
-	f, err := fs.Open(appPath)
+	f, err := fs.Open(deployment.path)
 	if err != nil {
-		return nil, false, err
+		return nil, dt, err
 	}
 	r, err := zip.NewReader(f, fi.Size())
 	if err != nil {
 		_ = f.Close()
-		return nil, isEar, err
+		return nil, dt, err
 	}
 	return &fileSystemCloser{
 		fs: zipfs.New(r),
 		cf: f.Close,
-	}, isEar, nil
+	}, dt, nil
 }
 
 // serviceName translate service vendor enumeration to the service name tag. Returns empty if not supported
@@ -222,16 +242,16 @@ func normalizeContextRoot(contextRoots ...string) []string {
 }
 
 // doExtractContextRoots tries to extract context roots for an app, given the vendor and the fs.
-func doExtractContextRoots(vendor serverVendor, app string, fs afero.Fs) []string {
-	fsCloser, ear, err := vfsAndTypeFromAppPath(app, fs)
+func doExtractContextRoots(vendor serverVendor, deployment typedDeployment, fs afero.Fs) []string {
+	fsCloser, dt, err := vfsAndTypeFromAppPath(deployment, fs)
 	if err != nil {
-		if ear {
+		if dt == ear {
 			return nil
 		}
-		return doDefaultExtraction(vendor, app)
+		return doDefaultExtraction(vendor, deployment.path)
 	}
 	defer fsCloser.Close()
-	if ear {
+	if dt == ear {
 		value, err := extractContextRootFromApplicationXML(fsCloser.fs)
 		if err != nil {
 			return nil
@@ -245,7 +265,7 @@ func doExtractContextRoots(vendor serverVendor, app string, fs afero.Fs) []strin
 			return []string{value}
 		}
 	}
-	return doDefaultExtraction(vendor, app)
+	return doDefaultExtraction(vendor, deployment.path)
 }
 
 // doDefaultExtraction return the default naming for an application depending on the vendor

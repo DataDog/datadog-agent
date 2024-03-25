@@ -24,15 +24,15 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 	tests := []struct {
 		name       string
 		serverName string
-		expected   []string
+		expected   []typedDeployment
 	}{
 		{
 			name:       "multiple deployments for multiple server - extract for AdminServer",
 			serverName: "AdminServer",
-			expected: []string{
-				"java/testdata/weblogic/test.war",
-				"/u01/oracle/user_projects/tmp/sample4.war",
-				"java/testdata/weblogic/test.ear",
+			expected: []typedDeployment{
+				{path: "java/testdata/weblogic/test.war"},
+				{path: "/u01/oracle/user_projects/tmp/sample4.war"},
+				{path: "java/testdata/weblogic/test.ear"},
 			},
 		},
 		{

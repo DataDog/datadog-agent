@@ -44,7 +44,7 @@ type (
 // weblogicFindDeployedApps looks for deployed application in the provided domainHome.
 // The args is required here because used to determine the current server name.
 // it returns paths for staged only applications and bool being true if at least one application is found
-func weblogicFindDeployedApps(domainHome string, args []string, fs afero.Fs) ([]string, bool) {
+func weblogicFindDeployedApps(domainHome string, args []string, fs afero.Fs) ([]typedDeployment, bool) {
 	serverName, ok := extractJavaPropertyFromArgs(args, wlsServerNameSysProp)
 	if !ok {
 		return nil, false
@@ -63,13 +63,13 @@ func weblogicFindDeployedApps(domainHome string, args []string, fs afero.Fs) ([]
 	if err != nil {
 		return nil, false
 	}
-	var sourcePaths []string
+	var deployments []typedDeployment
 	for _, di := range deployInfos.AppDeployment {
 		if di.StagingMode == "stage" && di.Target == serverName {
-			sourcePaths = append(sourcePaths, di.SourcePath)
+			deployments = append(deployments, typedDeployment{path: di.SourcePath})
 		}
 	}
-	return sourcePaths, len(sourcePaths) > 0
+	return deployments, len(deployments) > 0
 }
 
 func weblogicExtractWarContextRoot(warFS afero.Fs) (string, bool) {
