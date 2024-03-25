@@ -695,6 +695,7 @@ def cws_go_generate(ctx):
         ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators")
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate ./...")
+            ctx.run("GOOS=darwin go generate ./...")
         # Disable cross generation from windows for now. Need to fix the stringer issue.
         # elif sys.platform == "win32":
         #     ctx.run("set GOOS=linux && go generate ./...")
