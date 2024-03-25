@@ -26,6 +26,13 @@ func test1HostFakeIntakeNPMDumpInfo(t *testing.T, FakeIntake *components.FakeInt
 		return
 	}
 	t.Log("==== test failed dumping fakeintake info ====")
+	m, err := FakeIntake.Client().RouteStats()
+	if err != nil {
+		t.Logf("fakeintake RouteStats() failed %s", err)
+		return
+	}
+	t.Logf("RouteStats %#+v", m)
+
 	cnx, err := FakeIntake.Client().GetConnections()
 	if err != nil {
 		t.Logf("fakeintake GetConnections() failed %s", err)
@@ -66,11 +73,6 @@ func test1HostFakeIntakeNPM[Env any](v *e2e.BaseSuite[Env], FakeIntake *componen
 	targetHostnameNetID := ""
 	// looking for 1 host to send CollectorConnections payload to the fakeintake
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		var err error
-		m, err := FakeIntake.Client().RouteStats()
-		assert.NoError(c, err, "RouteStats() errors")
-		t.Logf("RouteStats %#+v", m)
-
 		hostnameNetID, err := FakeIntake.Client().GetConnectionsNames()
 		assert.NoError(c, err, "GetConnectionsNames() errors")
 		if !assert.NotEmpty(c, hostnameNetID, "no connections yet") {

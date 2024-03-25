@@ -55,7 +55,7 @@ func TestOptionalModule(t *testing.T) {
 	_, ok := csopt.Get()
 	require.True(t, ok)
 
-	time.Sleep(2 * time.Second)
-
-	assert.Equal(t, "value1", cfg.Get("key1"))
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.Equal(t, "value1", cfg.Get("key1"))
+	}, 5*time.Second, 500*time.Millisecond)
 }
