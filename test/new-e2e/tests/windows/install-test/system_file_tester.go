@@ -37,6 +37,7 @@ func SystemPaths() []string {
 		`c:\windows\SoftwareDistribution\`,
 		`c:\windows\ServiceProfiles\NetworkService\AppData\`,
 		`C:\Windows\System32\Tasks\`,
+		`C:\Windows\System32\spp\`,
 	}
 }
 
