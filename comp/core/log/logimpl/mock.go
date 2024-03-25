@@ -14,11 +14,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/cihub/seelog"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -66,7 +66,7 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (log.Component, error) {
 	}})
 
 	// install the logger into pkg/util/log
-	pkglog.ChangeLogLevel(iface, "off")
+	pkglog.ChangeLogLevel(iface, "debug")
 
 	return &logger{}, nil
 }
