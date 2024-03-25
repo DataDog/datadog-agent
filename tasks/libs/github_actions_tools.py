@@ -124,9 +124,8 @@ def trigger_macos_workflow(
             sleep(1800)
 
     # Something went wrong :(
-    message = f"Couldn't fetch GitHub workflow '{workflow_name}' run that was triggered on commit {github_action_ref}.\nYou should look at the Github workflow directly at https://github.com/DataDog/datadog-agent-macos-build/actions"
-
-    raise Exit(message, code=1)
+    print("Couldn't fetch workflow run that was triggered.")
+    raise Exit(code=1)
 
 
 def follow_workflow_run(run):
