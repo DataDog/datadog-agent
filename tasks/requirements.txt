@@ -1,3 +1,4 @@
+-r libs/common/requirements.txt
 -r libs/requirements-github.txt
 -r libs/requirements-notifications.txt
 -r show_linters_issues/requirements.txt
