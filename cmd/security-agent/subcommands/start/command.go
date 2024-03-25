@@ -387,7 +387,7 @@ func setupInternalProfiling(config config.Component) error {
 		v, _ := version.Agent()
 
 		cfgSite := config.GetString(secAgentKey("internal_profiling.site"))
-		cfgURL := config.GetString(secAgentKey("security_agent.internal_profiling.profile_dd_url"))
+		cfgURL := config.GetString(secAgentKey("internal_profiling.profile_dd_url"))
 
 		// check if TRACE_AGENT_URL is set, in which case, forward the profiles to the trace agent
 		var site string

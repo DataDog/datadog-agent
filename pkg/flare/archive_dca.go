@@ -18,7 +18,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status/render"

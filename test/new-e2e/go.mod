@@ -27,7 +27,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240321095654-9d6710aed9b2
+	github.com/DataDog/test-infra-definitions v0.0.0-20240322160927-3eac4b5bb0c4
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -41,7 +41,6 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi/sdk/v3 v3.108.1
-	github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13
 	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
@@ -184,6 +183,7 @@ require (
 	// So, do not upgrade pulumi-random to v4.14.0 or above before migration to GO 1.21.
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.0 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
+	github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 ////////////////////////////////
@@ -92,6 +93,12 @@ func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
 	volume, volumeMount := socketsVolume()
 	injected := common.InjectVolume(pod, volume, volumeMount)
 	mutated = mutated || injected
+
+	// ShareProcessNamespace is required for the process collection feature
+	if pod.Spec.ShareProcessNamespace == nil || !*pod.Spec.ShareProcessNamespace {
+		pod.Spec.ShareProcessNamespace = pointer.Ptr(true)
+		mutated = true
+	}
 
 	for i := range pod.Spec.Containers {
 		if pod.Spec.Containers[i].Name == agentSidecarContainerName {
