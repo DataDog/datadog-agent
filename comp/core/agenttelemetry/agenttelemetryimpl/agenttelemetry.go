@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"golang.org/x/exp/maps"
 
@@ -51,7 +50,6 @@ type atel struct {
 	logComp    log.Component
 	telComp    telemetry.Component
 	statusComp status.Component
-	hostComp   host.Component
 
 	enabled bool
 	sender  sender
@@ -70,7 +68,6 @@ type dependencies struct {
 	Config    config.Component
 	Telemetry telemetry.Component
 	Status    status.Component
-	Host      host.Component
 
 	Lifecycle fx.Lifecycle
 }
@@ -96,10 +93,9 @@ type agentmetric struct {
 func createSender(
 	cfgComp config.Component,
 	logComp log.Component,
-	hostComp host.Component,
 ) (sender, error) {
 	client := newSenderClientImpl(cfgComp)
-	sender, err := newSenderImpl(cfgComp, logComp, hostComp, client)
+	sender, err := newSenderImpl(cfgComp, logComp, client)
 	if err != nil {
 		logComp.Errorf("Failed to create agent telemetry sender: %s", err.Error())
 	}
@@ -111,7 +107,6 @@ func createAtel(
 	logComp log.Component,
 	telComp telemetry.Component,
 	statusComp status.Component,
-	hostComp host.Component,
 	sender sender,
 	runner runner) *atel {
 	// Parse Agent Telemetry Configuration configuration
@@ -131,7 +126,6 @@ func createAtel(
 		logComp:    logComp,
 		telComp:    telComp,
 		statusComp: statusComp,
-		hostComp:   hostComp,
 		sender:     sender,
 		runner:     runner,
 		atelCfg:    atelCfg,
@@ -139,7 +133,7 @@ func createAtel(
 }
 
 func newAtel(deps dependencies) agenttelemetry.Component {
-	sender, err := createSender(deps.Config, deps.Log, deps.Host)
+	sender, err := createSender(deps.Config, deps.Log)
 	if err != nil {
 		return &atel{}
 	}
@@ -152,7 +146,6 @@ func newAtel(deps dependencies) agenttelemetry.Component {
 		deps.Log,
 		deps.Telemetry,
 		deps.Status,
-		deps.Host,
 		sender,
 		runner,
 	)

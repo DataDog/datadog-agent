@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"time"
 
-	gopsutilhost "github.com/shirou/gopsutil/v3/host"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
-	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -122,10 +120,6 @@ func (h *host) collect(ctx context.Context) time.Duration {
 
 func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 	return json.MarshalIndent(h.getPayload(ctx), "", "    ")
-}
-
-func (h *host) GetInformation() *gopsutilhost.InfoStat {
-	return metadatautils.GetInformation()
 }
 
 func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {

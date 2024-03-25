@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
-	gopsutilhost "github.com/shirou/gopsutil/v3/host"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
@@ -28,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	telemetrypkg "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
@@ -96,20 +94,6 @@ func (r *runnerMock) addJob(j job) {
 
 func newRunnerMock() runner {
 	return &runnerMock{}
-}
-
-// Host component currently does not have a mock
-type hostMock struct {
-}
-
-func (s hostMock) GetPayloadAsJSON(context.Context) ([]byte, error) {
-	return []byte{}, nil
-}
-func (s hostMock) GetInformation() *gopsutilhost.InfoStat {
-	return &gopsutilhost.InfoStat{}
-}
-func newHostMock() hostMock {
-	return hostMock{}
 }
 
 // Status component currently has mock but it appears to be not compatible with fx  fx fails
@@ -185,20 +169,14 @@ func getTestAtel(t *testing.T,
 				fx.Provide(newStatusMock),
 				fx.Provide(func(s statusMock) status.Component { return s }))
 		}())
-	host := fxutil.Test[host.Component](t,
-		func() fxutil.Module {
-			return fxutil.Component(
-				fx.Provide(newHostMock),
-				fx.Provide(func(m hostMock) host.Component { return m }))
-		}())
 
 	var err error
 	if sndr == nil {
-		sndr, err = newSenderImpl(cfg, log, host, client)
+		sndr, err = newSenderImpl(cfg, log, client)
 	}
 	assert.NoError(t, err)
 
-	atel := createAtel(cfg, log, tel, status, host, sndr, runner)
+	atel := createAtel(cfg, log, tel, status, sndr, runner)
 	if atel == nil {
 		err = fmt.Errorf("failed to create atel")
 	}

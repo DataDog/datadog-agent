@@ -23,7 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	metadatautils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -54,9 +54,8 @@ type client interface {
 // ---------------
 // senderImpl
 type senderImpl struct {
-	cfgComp  config.Reader
-	logComp  log.Component
-	hostComp host.Component
+	cfgComp config.Reader
+	logComp log.Component
 
 	client client
 
@@ -164,7 +163,6 @@ func newSenderClientImpl(agentCfg config.Component) client {
 func newSenderImpl(
 	cfgComp config.Component,
 	logComp log.Component,
-	hostComp host.Component,
 	client client) (sender, error) {
 
 	// Form Agent Telemetry endpoint URL
@@ -189,7 +187,7 @@ func newSenderImpl(
 	}
 
 	// Get host information (only hostid is used for now)
-	info := hostComp.GetInformation()
+	info := metadatautils.GetInformation()
 
 	// Redact all host info for now until we have a proper way to handle it
 	host := HostPayload{
@@ -204,9 +202,8 @@ func newSenderImpl(
 	agentVersion, _ := version.Agent()
 
 	return &senderImpl{
-		cfgComp:  cfgComp,
-		logComp:  logComp,
-		hostComp: hostComp,
+		cfgComp: cfgComp,
+		logComp: logComp,
 
 		client:       client,
 		endpointURL:  endpointURL,
