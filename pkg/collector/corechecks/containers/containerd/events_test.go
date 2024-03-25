@@ -142,7 +142,6 @@ func TestCheckEvents(t *testing.T) {
 	}, testTimeout, testTicker)
 
 	ev2 := sub.Flush(time.Now().Unix())
-	fmt.Printf("\n\n 2/ Flush %v\n\n", ev2)
 	assert.Len(t, ev2, 1)
 	assert.Equal(t, ev2[0].Topic, "/tasks/oom")
 }
