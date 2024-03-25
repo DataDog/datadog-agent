@@ -2,35 +2,163 @@
   "url_base": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs",
   "x86_64": {
     "ubuntu_16.04": {
-      "image": "master/ubuntu-16-x86_64.qcow2.xz"
+      "image": "master/ubuntu-16-x86_64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "16.04",
+      "alt_version_names": [
+        "xenial"
+      ],
+      "kernel": "4.4.0-210-generic"
     },
     "ubuntu_18.04": {
-      "image": "master/ubuntu-18-x86_64.qcow2.xz"
+      "image": "master/ubuntu-18-x86_64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "18.04",
+      "alt_version_names": [
+        "bionic"
+      ],
+      "kernel": "4.18.0-25-generic"
     },
     "ubuntu_20.04": {
-      "image": "master/ubuntu-20-x86_64.qcow2.xz"
+      "image": "master/ubuntu-20-x86_64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "20.04",
+      "alt_version_names": [
+        "focal"
+      ],
+      "kernel": "5.4.0-167-generic"
     },
     "ubuntu_22.04": {
-      "image": "master/ubuntu-22-x86_64.qcow2.xz"
+      "image": "master/ubuntu-22-x86_64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "22.04",
+      "alt_version_names": [
+        "jammy"
+      ],
+      "kernel": "5.15.0-91-generic"
     },
     "ubuntu_23.10": {
-      "image": "master/ubuntu-23-x86_64.qcow2.xz"
+      "image": "master/ubuntu-23-x86_64.qcow2.xz",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "version": "23.10",
+      "alt_version_names": [
+        "mantic"
+      ],
+      "kernel": "6.5.0-9-generic"
     },
-    "amzn_4.14": "master/amzn2-kvm-2.0-x86_64-4.14.qcow2.xz",
-    "amzn_5.4": "master/amzn2-kvm-2.0-x86_64-5.4.qcow2.xz",
-    "amzn_5.10": "master/amzn2-kvm-2.0-x86_64-5.10.qcow2.xz",
-    "fedora_37": "master/Fedora-Cloud-Base-37.x86_64.qcow2.xz",
-    "fedora_38": "master/Fedora-Cloud-Base-38.x86_64.qcow2.xz",
-    "debian_10": "master/debian-10-generic-x86_64.qcow2.xz",
-    "debian_11": "master/debian-11-generic-x86_64.qcow2.xz",
-    "debian_12": "master/debian-12-generic-x86_64.qcow2.xz",
-    "centos_79": "master/centos-7.9-x86_64.qcow2.xz",
-    "centos_8": "master/centos-8-x86_64.qcow2.xz",
-    "oracle_7.9": "master/oracle-7.9-x86_64.qcow.xz",
-    "oracle_8.9": "master/oracle-8.9-x86_64.qcow.xz",
-    "oracle_9.3": "master/oracle-9.3-x86_64.qcow.xz",
-    "rocky_8.5": "master/rocky-8.5-x86_64.qcow2.xz",
-    "rocky_9.3": "master/rocky-9.3-x86_64.qcow2.xz"
+    "amzn_4.14": {
+      "image": "master/amzn2-kvm-2.0-x86_64-4.14.qcow2.xz",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "version": "2",
+      "kernel": "4.14.314-237.533.amzn2.x86_64"
+    },
+    "amzn_5.4": {
+      "image": "master/amzn2-kvm-2.0-x86_64-5.4.qcow2.xz",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "version": "2",
+      "kernel": "5.4.271-184.369.amzn2"
+    },
+    "amzn_5.10": {
+      "image": "master/amzn2-kvm-2.0-x86_64-5.10.qcow2.xz",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "version": "2",
+      "kernel": "5.10.210-201.855.amzn2"
+    },
+    "fedora_37": {
+      "image": "master/Fedora-Cloud-Base-37.x86_64.qcow2.xz",
+      "os_name": "Fedora Linux",
+      "os_id": "fedora",
+      "version": "37",
+      "alt_version_names": [
+        ""
+      ],
+      "kernel": "6.0.7-301.fc37.x86_64"
+    },
+    "fedora_38": {
+      "image": "master/Fedora-Cloud-Base-38.x86_64.qcow2.xz",
+      "os_name": "Fedora Linux",
+      "os_id": "fedora",
+      "version": "38",
+      "alt_version_names": [
+        ""
+      ],
+      "kernel": "6.2.9-300.fc38.x86_64"
+    },
+    "debian_10": {
+      "image": "master/debian-10-generic-x86_64.qcow2.xz",
+      "os_name": "Debian GNU/Linux",
+      "os_id": "debian",
+      "version": "10",
+      "alt_version_names": [
+        "buster"
+      ],
+      "kernel": "4.19.0-26-amd64"
+    },
+    "debian_11": {
+      "image": "master/debian-11-generic-x86_64.qcow2.xz",
+      "os_name": "Debian GNU/Linux",
+      "os_id": "debian",
+      "version": "11",
+      "alt_version_names": [
+        "bullseye"
+      ],
+      "kernel": "5.10.0-28-amd64"
+    },
+    "debian_12": {
+      "image": "master/debian-12-generic-x86_64.qcow2.xz",
+      "os_name": "Debian GNU/Linux",
+      "os_id": "debian",
+      "version": "12",
+      "alt_version_names": [
+        "bookworm"
+      ],
+      "kernel": "6.1.0-18-amd64"
+    },
+    "centos_79": {
+      "image": "master/centos-7.9-x86_64.qcow2.xz",
+      "os_name": "CentOS Linux",
+      "os_id": "centos",
+      "version": "7.9.2009",
+      "kernel": "3.10.0-1160.80.1.el7.x86_64"
+    },
+    "centos_8": {
+      "image": "master/centos-8-x86_64.qcow2.xz",
+      "os_name": "CentOS Stream",
+      "os_id": "centos",
+      "version": "8",
+      "kernel": "4.18.0-544.el8.x86_64"
+    },
+    "oracle_7.9": {
+      "image": "master/oracle-7.9-x86_64.qcow.xz"
+    },
+    "oracle_8.9": {
+      "image": "master/oracle-8.9-x86_64.qcow.xz"
+    },
+    "oracle_9.3": {
+      "image": "master/oracle-9.3-x86_64.qcow.xz"
+    },
+    "rocky_8.5": {
+      "image": "master/rocky-8.5-x86_64.qcow2.xz",
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "version": "8.5",
+      "kernel": "4.18.0-348.el8.0.2.x86_64"
+    },
+    "rocky_9.3": {
+      "image": "master/rocky-9.3-x86_64.qcow2.xz",
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "version": "9.3",
+      "kernel": "5.14.0-362.8.1.el9_3.x86_64"
+    }
   },
   "arm64": {
     "ubuntu_18.04": {
@@ -73,19 +201,110 @@
         "mantic"
       ]
     },
-    "amzn_4.14": "master/amzn2-kvm-2.0-arm64-4.14.qcow2.xz",
-    "amzn_5.4": "master/amzn2-kvm-2.0-arm64-5.4.qcow2.xz",
-    "amzn_5.10": "master/amzn2-kvm-2.0-arm64-5.10.qcow2.xz",
-    "fedora_37": "master/Fedora-Cloud-Base-37.arm64.qcow2.xz",
-    "fedora_38": "master/Fedora-Cloud-Base-38.arm64.qcow2.xz",
-    "debian_10": "master/debian-10-generic-arm64.qcow2.xz",
-    "debian_11": "master/debian-11-generic-arm64.qcow2.xz",
-    "debian_12": "master/debian-12-generic-arm64.qcow2.xz",
-    "centos_79": "master/centos-7.9-arm64.qcow2.xz",
-    "centos_8": "master/centos-8-arm64.qcow2.xz",
-    "oracle_8.9": "master/oracle-8.9-arm64.qcow.xz",
-    "oracle_9.3": "master/oracle-9.3-arm64.qcow.xz",
-    "rocky_8.5": "master/rocky-8.5-arm64.qcow2.xz",
-    "rocky_9.3": "master/rocky-9.3-arm64.qcow2.xz"
+    "amzn_4.14": {
+      "image": "master/amzn2-kvm-2.0-arm64-4.14.qcow2.xz",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "version": "2",
+      "kernel": "4.14.314-237.533.amzn2.aarch64"
+    },
+    "amzn_5.4": {
+      "image": "master/amzn2-kvm-2.0-arm64-5.4.qcow2.xz",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "version": "2",
+      "kernel": "5.4.271-184.369.amzn2.aarch64"
+    },
+    "amzn_5.10": {
+      "image": "master/amzn2-kvm-2.0-arm64-5.10.qcow2.xz",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "version": "2",
+      "kernel": "5.10.210-201.855.amzn2"
+    },
+    "fedora_37": {
+      "image": "master/Fedora-Cloud-Base-37.arm64.qcow2.xz",
+      "os_name": "Fedora Linux",
+      "os_id": "fedora",
+      "version": "37",
+      "alt_version_names": [
+        ""
+      ],
+      "kernel": "6.0.7-301.fc37.aarch64"
+    },
+    "fedora_38": {
+      "image": "master/Fedora-Cloud-Base-38.arm64.qcow2.xz",
+      "os_name": "Fedora Linux",
+      "os_id": "fedora",
+      "version": "38",
+      "alt_version_names": [
+        ""
+      ],
+      "kernel": "6.2.9-300.fc38.aarch64"
+    },
+    "debian_10": {
+      "image": "master/debian-10-generic-arm64.qcow2.xz",
+      "os_name": "Debian GNU/Linux",
+      "os_id": "debian",
+      "version": "10",
+      "alt_version_names": [
+        "buster"
+      ],
+      "kernel": "4.19.0-26-arm64"
+    },
+    "debian_11": {
+      "image": "master/debian-11-generic-arm64.qcow2.xz",
+      "os_name": "Debian GNU/Linux",
+      "os_id": "debian",
+      "version": "11",
+      "alt_version_names": [
+        "bullseye"
+      ],
+      "kernel": "5.10.0-28-arm64"
+    },
+    "debian_12": {
+      "image": "master/debian-12-generic-arm64.qcow2.xz",
+      "os_name": "Debian GNU/Linux",
+      "os_id": "debian",
+      "version": "12",
+      "alt_version_names": [
+        "bookworm"
+      ],
+      "kernel": "6.1.0-18-arm64"
+    },
+    "centos_79": {
+      "image": "master/centos-7.9-arm64.qcow2.xz",
+      "os_name": "CentOS Linux",
+      "os_id": "centos",
+      "version": "7.9.2009",
+      "kernel": "4.18.0-348.20.1.el7.aarch64"
+    },
+    "centos_8": {
+      "image": "master/centos-8-arm64.qcow2.xz",
+      "os_name": "CentOS Stream",
+      "os_id": "centos",
+      "version": "8",
+      "kernel": "4.18.0-544.el8.aarch64"
+    },
+    "oracle_8.9": {
+      "image": "master/oracle-8.9-arm64.qcow.xz"
+    },
+    "oracle_9.3": {
+      "image": "master/oracle-9.3-arm64.qcow.xz"
+    },
+    "rocky_8.5": {
+      "image": "master/rocky-8.5-arm64.qcow2.xz",
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "version": "8.5",
+      "kernel": "4.18.0-348.el8.0.2.aarch64"
+    },
+    "rocky_9.3": {
+      "image": "master/rocky-9.3-arm64.qcow2.xz",
+      "os_name": "Rocky Linux",
+      "os_id": "rocky",
+      "version": "9.3",
+      "kernel": "5.14.0-362.8.1.el9_3.aarch64"
+    }
   }
 }
