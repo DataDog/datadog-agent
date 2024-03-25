@@ -450,7 +450,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 			configuration: getDefaultTestConfiguration,
 		},
 		{
-			name: "Multiple records without batching",
+			name: "Multiple records with and without batching",
 			context: testContext{
 				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
@@ -466,25 +466,31 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 					},
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
 				require.NoError(t, client.CreateTopic(topicName))
 
-				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+				record1 := &kgo.Record{Topic: topicName, Partition: 1, Value: []byte("Hello Kafka!")}
 				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr(), "record had a produce error while synchronously producing")
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr(), "record had a produce error while synchronously producing")
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
 
 				req := kmsg.NewFetchRequest()
 				topic := kmsg.NewFetchRequestTopic()
 				topic.Topic = topicName
 				partition := kmsg.NewFetchRequestTopicPartition()
-				partition.PartitionMaxBytes = 1024
-				topic.Partitions = append(topic.Partitions, partition)
+				partition.PartitionMaxBytes = 1024 * 128
+				partition1 := kmsg.NewFetchRequestTopicPartition()
+				partition1.Partition = 1
+				partition1.PartitionMaxBytes = 1024 * 128
+				topic.Partitions = append(topic.Partitions, partition, partition1)
 				req.Topics = append(req.Topics, topic)
 
 				_, err = req.RequestWith(ctxTimeout, client.Client)
@@ -494,8 +500,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 2 * 2,
-					expectedNumberOfFetchRequests:   2 * 2,
+					expectedNumberOfProduceRequests: 5 * 2,
+					expectedNumberOfFetchRequests:   5 * 2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})

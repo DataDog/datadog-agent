@@ -34,12 +34,14 @@ typedef struct {
 } kafka_transaction_key_t;
 
 typedef enum {
-    KAFKA_FETCH_RESPONSE_RECORD_BATCH_START = 0,
+    KAFKA_FETCH_RESPONSE_PARTITION_START = 0,
+    KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START,
+    KAFKA_FETCH_RESPONSE_RECORD_BATCH_START,
     KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH,
     KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC,
     KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT,
     KAFKA_FETCH_RESPONSE_RECORD_BATCH_END,
-    KAFKA_FETCH_RESPONSE_RECORD_BATCH_ARRAY_END,
+    KAFKA_FETCH_RESPONSE_PARTITION_END,
 } __attribute__ ((packed)) kafka_response_state;
 
 typedef struct {
@@ -47,6 +49,7 @@ typedef struct {
     __s32 record_batches_num_bytes;
     __s32 record_batch_length;
     __u32 carry_over_offset;
+    __u32 partitions_count;
     kafka_transaction_t transaction;
 } kafka_response_context_t;
 
