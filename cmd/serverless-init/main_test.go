@@ -68,7 +68,7 @@ func (tfa *TestFlushableAgent) Flush() {
 	tfa.hasBeenCalled = true
 }
 
-func TestFlushSucess(t *testing.T) {
+func TestFlushSuccess(t *testing.T) {
 	metricAgent := &TestFlushableAgent{}
 	traceAgent := &TestFlushableAgent{}
 	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
