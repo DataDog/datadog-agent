@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -128,13 +127,6 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 			statsdClient = cl
 			defer cl.Flush()
 		}
-	}
-
-	if len(checkArgs.args) == 1 && checkArgs.args[0] == "k8sconfig" {
-		_, resourceData := k8sconfig.LoadConfiguration(context.Background(), os.Getenv("HOST_ROOT"))
-		b, _ := json.MarshalIndent(resourceData, "", "  ")
-		fmt.Println(string(b))
-		return nil
 	}
 
 	var resolver compliance.Resolver
