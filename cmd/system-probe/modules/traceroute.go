@@ -47,9 +47,8 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		vars := mux.Vars(req)
 		id := getClientID(req)
-		cfg, err := parseParams(vars)
+		cfg, err := parseParams(req)
 		if err != nil {
 			log.Errorf("invalid params for host: %s: %s", cfg.DestHostname, err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -99,17 +98,18 @@ func logTracerouteRequests(host string, client string, runCount uint64, start ti
 	}
 }
 
-func parseParams(vars map[string]string) (tracerouteutil.Config, error) {
+func parseParams(req *http.Request) (tracerouteutil.Config, error) {
+	vars := mux.Vars(req)
 	host := vars["host"]
-	port, err := parseUint(vars, "port", 16)
+	port, err := parseUint(req, "port", 16)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid port: %s", err)
 	}
-	maxTTL, err := parseUint(vars, "max_ttl", 8)
+	maxTTL, err := parseUint(req, "max_ttl", 8)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
 	}
-	timeout, err := parseUint(vars, "timeout", 32)
+	timeout, err := parseUint(req, "timeout", 32)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
@@ -122,10 +122,10 @@ func parseParams(vars map[string]string) (tracerouteutil.Config, error) {
 	}, nil
 }
 
-func parseUint(vars map[string]string, field string, bitSize int) (uint64, error) {
-	value, ok := vars[field]
-	if !ok {
-		return 0, nil
+func parseUint(req *http.Request, field string, bitSize int) (uint64, error) {
+	if req.URL.Query().Has(field) {
+		return strconv.ParseUint(req.URL.Query().Get(field), 10, bitSize)
 	}
-	return strconv.ParseUint(value, 10, bitSize)
+
+	return 0, nil
 }
