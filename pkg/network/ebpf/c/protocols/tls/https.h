@@ -107,7 +107,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
+static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
@@ -123,6 +123,7 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     switch (protocol) {
     case PROTOCOL_HTTP:
+        if (skip_http) {return;}
         prog = TLS_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
         break;
