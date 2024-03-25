@@ -363,8 +363,8 @@ def check_go_mod_replaces(_ctx):
             continue
         with open(go_sum) as f:
             for line in f:
-                if "github.com/DataDog/datadog-agent" in line:
-                    err_mod = line.split(" ")[0]
+                if "github.com/datadog/datadog-agent" in line.lower():
+                    err_mod = line.split()[0]
                     errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
