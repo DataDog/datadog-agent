@@ -228,6 +228,7 @@
 # The following is managed by `inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
+/comp/agent @DataDog/agent-shared-components
 /comp/aggregator @DataDog/agent-shared-components
 /comp/api @DataDog/agent-shared-components
 /comp/checks @DataDog/agent-shared-components
