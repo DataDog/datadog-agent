@@ -10,7 +10,7 @@
 
 # Overview of Fx
 
-The Agent uses [Fx](https://uber-go.github.io/fx) as its application framework. While the linked Fx documentation is thorough, it can be a bit difficult to get started with. This document describes how Fx is used within the Agent in a more approachable style.
+The Agent uses [Fx](https://uber-go.github.io/fx) as its dependency injection framework. While the linked Fx documentation is thorough, it can be a bit difficult to get started with. This document describes how Fx is used within the Agent in a more approachable style.
 
 ## What Is It?
 

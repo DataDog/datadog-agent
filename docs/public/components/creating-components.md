@@ -1,9 +1,9 @@
 # Creating a Component
 
-This page explains how to create components in detail. Using components is cover [here](using-components.md).
+This page explains how to create components in detail. Using components is covered [here](using-components.md).
 
-Thought this page we're going to use the example of a compression component to illustrate the component creation
-process. A component in charge of compressing payloads to be sent to the Datadog backend.
+We will use the example of a compression component to illustrate the component creation
+process. Our component compresses payloads before sending to the Datadog backend.
 
 This component will have two implementations:
 
@@ -32,11 +32,11 @@ TODO: where do we put the `optional.NoneOption` ? Into its own fx-none folder ?
 
 To note:
 
-* If your component has only one implementation it should live in the `impl` folder.
-* If your component don't have a primary implementation but several version you should have no `impl` folder but
-  multiple `impl-<version>` folders. For example a component in charge of compressing data will have `impl-zstd` and `impl-zip` but not `impl` folder.
-* If your component needs to offer a dummy/empty version it should live in the `impl-none` folder.
-* A mock version is mandatory for any component exposing at least one method.
+* If your component has only one implementation, it should live in the `impl` folder.
+* If your component don't have a single implementation but several version you should have no `impl` folder but
+  multiple `impl-<version>` folders. For example our component has `impl-zstd` and `impl-zip` folders.
+* If your component needs to offer a NOOP version, it should live in the `impl-none` folder.
+* A mock version of the component. This mock version is used on tests.
 
 **Go package naming convention**:
 
@@ -45,18 +45,15 @@ All implementations must use the package name: `<component name>impl`.
 For example, a compression component with 2 implementation would use `package compressionimpl` in both
 `comp/<bundle>/compression/impl-zstd` and `comp/<bundle>/compression/impl-zip` folders.
 
-### Why all those files ?
+### Why all those files?
 
 This file hierarchy aimed at solving a few problems:
 
-* Component users should only interact with the `def` folders and never care about which implementation was loaded in the
-  main.
-* We want to support Go modules. When creating a Go module, any sub folders will be pulled into the module. For this
-  reason we need different folders for each implementation, the definition and fx. This way, external repository can pull a
-  specific implementation and definition without having to import the rest.
+* Support Go modules. With the growing popularity of reusing code from the agent into other projects, OTel, Orchestrator, etc. We want to enable exporting the agent code as easily as possible and ensure that only the needed parts are exposed. For this reason, we need different folders for each implementation, including the definition and fx. This way, external repository can pull a
+  specific implementation and definition without importing the rest.
 * We have one `fx` folder per implementation to allow binaries to import/link against a single one.
-* A main that imports a component should be able to select a specific implementation without compiling with the others.
-  For example: the ZSTD library should not be included at compile time when the ZIP version is used.
+* A main that imports a component should be able to select a specific implementation without importing/compiling the others.
+  For example, when using the ZIP version, the ZSTD library should not be included during compile time.
 
 !!! warning "Important"
     For all these reasons, components should never be nested.
@@ -65,20 +62,18 @@ This file hierarchy aimed at solving a few problems:
 
 You can use the [invoke](../../setup.md#invoke) task `inv components.new-component comp/<bundleName>/<component>` to generate a scaffold for your new component.
 
-Every public variable, function, struct, and interface of your component **must** be documented. Please refer to the [Documentation](#documentation) section below for details.
-
 ### The def folder
 
 The def folder will contain your interface and ALL public types needed by the users of your component.
 
-For our compression example is will look like this:
+On our compression example look like this:
 
 === ":octicons-file-code-16: comp/&lt;bundleName&gt;/compression/def/component.go"
     ```go
     // Package compressiondef contains all public type and interfaces for the compression component
     package compressiondef
 
-    // team: <you team>
+    // team: <your team>
 
     // Component describes the interface implemented by all compression implementations.
     type Component interface {
@@ -90,21 +85,27 @@ For our compression example is will look like this:
     }
     ```
 
-All component interfaces must be called `Component` so all imports would be similar to `compression.Component`.
+!!! info
+    All component interfaces must be called `Component` to ensure references to the different components are the same. Ex. `compression.Component`.
 
-You can see that our interface only exposes the bare minimum. You should aim at having the smallest possible interface
-for your component. Also note that there is no `Start`/`Stop` method. Anything related to lifecycle will be handle
+Our compression interface only exposes the bare minimum. It would help to aim for the most minor interface
+for your component. Avoid referencing external dependencies directly. That way, importing the component interface is light way as possible. 
+
+Also, note that there is no `Start`/`Stop` method. Anything related to lifecycle will be handle
 internally by each component (more on this [here TODO]()).
 
 TODO: write the lifecycle part and update the link above
 
 ### The impl folders
 
-You will need a folder per implementation. In those folder you are free to do whatever you want as long as you expose
-one public function to construct your interface.
+You will need a folder per implementation. In those folders, we will implement the component interface. The only requirement is to expose one public function that returns your implementation.
 
-As explained in the [fx](fx.md) documentation, we use dependency injection to provide required parameters. The nomenclature
-is to use a `require` and `provide` structure to get and return value from your constructor.
+As the [fx](fx.md) documentation explains, we use dependency injection to provide the required parameters. 
+
+We use the names `require` and `provides` to declare dependencies and the return value in the public function.
+
+The `Requires` struct lists the dependencies our components need to initialize.
+The `Provides` struct includes all the return values from our component. 
 
 === ":octicons-file-code-16: comp/&lt;bundleName&gt;/compression/fx-zstd/component.go"
     ```go
@@ -185,24 +186,21 @@ is to use a `require` and `provide` structure to get and return value from your 
     }
     ```
 
-The constructor can return either a `provides`, if it is infallible, or `(provides, error)`, if it could fail. In the
-second form, a non-nil error will crash the agent at startup with a message containing the error.
+The constructor can return either a `Provides`, if it is infallible, or `(Provides, error)`, if it could fail. In the
+second form, a non-nil error will terminate the agent at startup with a message containing the error.
 
-Each implementation follows the same pattern of `requires`, `provides` and a constructor function.
+Each implementation follows the same pattern of `Requires`, `Provides` and a constructor function.
 
 
 !!! Info "Using other components"
-    You want to use another component within your own? Simply add it to the `requires` struct and `Fx` will give it to
-    you at initialization ! Be careful of cycling dependencies though.
+    You want to use another component within your own? Simply add it to the `Requires` struct and `Fx` will ensure to
+    populate the `Requires` struct with it! Be careful of cycling dependencies though.
 
 ### The fx folders
 
-The `fx` folder must be the only folder importing and referencing `Fx`. It's meant to be as simple and basic of a
-wrapper as possible. No  conversion or specific logic should be included in this folder. It's only goal is to allow
-dependency injection with `Fx` for your component.
+The `fx` folder must be the only folder importing and referencing `Fx`. It's meant to be a simple wrapper of our initialization function. No  conversion or specific logic should be included in this folder. It's only goal is to connect all the different `Fx` components, and populate the different `Requires` struct. 
 
-All `fx.go` files must define a `func Module() fxutil.Module` function. The helpers contained in `fxutil` will handle all
-the logic for you. Most `fx/fx.go` file should look the same as this:
+We have abstracted all the `Fx` related code into a helper function `fxhelper.ProvideComponentConstructor`
 
 === ":octicons-file-code-16: comp/&lt;bundleName&gt;/compression/fx-zstd/fx.go"
     ```go
@@ -219,7 +217,7 @@ the logic for you. Most `fx/fx.go` file should look the same as this:
     // Module specifies the compression module.
     func Module() fxutil.Module {
         return fxutil.Component(
-            // ProvideComponentConstructor will automatically detect the 'requires' and 'provides' structs of your constructor function
+            // ProvideComponentConstructor will automatically detect the 'Requires' and 'Provides' structs of your constructor function
             // and map them to FX.
             fxhelper.ProvideComponentConstructor(
                 // NewCompressor is the constructor for a zstd compressor
@@ -228,18 +226,20 @@ the logic for you. Most `fx/fx.go` file should look the same as this:
         )
     }
     ```
+    
+!!! Info
+    All `fx.go` files must define a `func Module() fxutil.Module` function.
 
 You would create the same file in `fx-zip` folder for the ZIP implementation. In most case your component will have a
 single implementation. In this case you will only have one `impl` and `fx` folder.
 
 ### The mock folder
 
-To support testing, components MUST provide a mock implementation (unless your component has no public method in its
+To facilitate testing, components MUST provide a mock implementation (unless your component has no public method in its
 interface).
 
-Your mock must implement the `Component` interface of the `def` folder but can expose more methods if needed. Your mock must
-respect the same logic as other implementation: having a public constructor, being possible to take dependencies
-through fx, ...
+Your mock must implement the component `Component` interface. Depndeing on each component we might have to add extra functions if needed. If you mock requires any deppendency ensure they are provided
+through `Fx`.
 
 In the following case, our mock has no dependencies and returns the same string every time.
 
@@ -303,7 +303,7 @@ We need a `Fx` wrapper:
 
 ### Go module
 
-Go module are not mandatory, but if you want to allow your component to be used outside the datadog-agent repository you
+Go module are not mandatory, but if you want to allow your component to be used outside the `datadog-agent` repository you
 would create go module in the following places:
 
 * In the `impl`/`impl-*` folder that you want to expose (you can only expose some implementations).
@@ -354,16 +354,16 @@ comp/core/compression/
 7 directories, 7 files
 ```
 
-This can seems a lot for a simple compression component, but this design answer the exponentially increasing complexity
+This can seems a lot for a simple compression component, but this design answers the increasing complexity
 of the Agent ecosystem. Your component needs to behave correctly with many binaries composed of unique and shared
 components, outside repositories that want to pull only specific features and everything in between.
 
-!!! Info "Important"
-    No components known how and where it will be used and MUST therefore respect all the rules above. It's a very
+!!! Warning "Important"
+    Components dont known how and where it will be used and MUST therefore respect all the rules above. It's a very
     common pattern for teams to work only on their use cases thinking their code will not be used anywhere else. But
     customers want common behavior between all our products (agent, serverless, agentless, helm, operator, ...).
 
-    A key idea behind the component is to produce shareable and reusable code.
+    A key idea behind the component and its file hiearchy is to produce shareable and reusable code.
 
 ## General consideration about designing components
 
