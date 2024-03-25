@@ -13,7 +13,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../config/setup
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../config/utils
-	github.com/DataDog/datadog-agent/pkg/status/health => ../status/health
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../util/filesystem
@@ -34,11 +33,9 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.51.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/status/health v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/system v0.52.0-rc.3
-	github.com/gorilla/mux v1.8.1
 	github.com/stretchr/testify v1.9.0
 )
 

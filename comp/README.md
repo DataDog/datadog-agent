@@ -88,6 +88,10 @@ Package configsync implements synchronizing the configuration using the core age
 
 Package flare implements a component to generate flares from the agent.
 
+### [comp/core/healthprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/healthprobe)
+
+Package healthprobe implements the health check server
+
 ### [comp/core/hostname](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname)
 
 Package hostname exposes hostname.Get() as a component.
