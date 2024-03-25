@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/rickar/props"
+	"github.com/spf13/afero"
 	"github.com/vibrantbyte/go-antpath/antpath"
 )
 
@@ -42,6 +43,22 @@ func (y *mapSource) GetDefault(key string, defVal string) string {
 	return val
 }
 
+type closeFn func() error
+
+// fileSystemCloser wraps a FileSystem with a Closer in case the filesystem has been created with a stream that
+// should be closed after its usage.
+type fileSystemCloser struct {
+	fs afero.Fs
+	cf closeFn
+}
+
+func (fsc *fileSystemCloser) Close() error {
+	if fsc.cf != nil {
+		return fsc.cf()
+	}
+	return nil
+}
+
 // newArgumentSource a PropertyGetter that is taking key=value from the list of arguments provided
 // it can be done to parse both java system properties (the prefix is `-D`) or spring boot property args (the prefix is `--`)
 func newArgumentSource(arguments []string, prefix string) props.PropertyGetter {
@@ -58,6 +75,12 @@ func newArgumentSource(arguments []string, prefix string) props.PropertyGetter {
 		}
 	}
 	return &mapSource{parsed}
+}
+
+// canSafelyParse determines if a file's size is less than the maximum allowed to prevent OOM when parsing.
+func canSafelyParse(file afero.File) bool {
+	fi, err := file.Stat()
+	return err == nil && fi.Size() <= maxParseFileSize
 }
 
 // newPropertySourceFromStream create a PropertyGetter by selecting the most appropriate parser giving the file extension.
@@ -143,4 +166,16 @@ func scanSourcesFromFileSystem(profilePatterns map[string][]string) map[string]*
 		}
 	}
 	return ret
+}
+
+// extractJavaPropertyFromArgs loops through the command argument to see if a system property declaration matches the provided name.
+// name should be in the form of `-D<property_name>=` (`-D` prolog and `=` epilogue) to avoid concatenating strings on each function call.
+// The function returns the property value if found and a bool (true if found, false otherwise)
+func extractJavaPropertyFromArgs(args []string, name string) (string, bool) {
+	for _, a := range args {
+		if strings.HasPrefix(a, name) {
+			return strings.TrimPrefix(a, name), true
+		}
+	}
+	return "", false
 }

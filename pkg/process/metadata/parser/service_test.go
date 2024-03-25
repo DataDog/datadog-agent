@@ -18,6 +18,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
 		name                 string
 		cmdline              []string
+		cwd                  string
 		useImprovedAlgorithm bool
 		expectedServiceTags  []string
 	}{
@@ -351,6 +352,47 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTags: nil,
 		},
+		{
+			name: "weblogic with default context root name",
+			cmdline: []string{
+				"java",
+				"-Dwls.home=somewhere",
+				"weblogic.Server",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTags:  []string{"process_context:weblogic"},
+		},
+		{
+			name: "weblogic with multiple services found",
+			cmdline: []string{
+				"java",
+				"-Dwls.home=testdata/weblogic",
+				"-Dwls.Name=AdminServer",
+				"weblogic.Server",
+			},
+			cwd:                  "java/testdata/weblogic",
+			useImprovedAlgorithm: true,
+			expectedServiceTags:  []string{"process_context:my_context", "process_context:sample4", "process_context:some_context_root"},
+		},
+		{
+			name: "tomcat - old naming for backward compatibility",
+			cmdline: []string{
+				"java",
+				"-Dcatalina.base=somewhere",
+				"org.apache.catalina.startup.Bootstrap",
+			},
+			expectedServiceTags: []string{"process_context:catalina"},
+		},
+		{
+			name: "tomcat - improved algorithm",
+			cmdline: []string{
+				"java",
+				"-Dcatalina.base=somewhere",
+				"org.apache.catalina.startup.Bootstrap",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTags:  []string{"process_context:tomcat"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -358,6 +400,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
+				Cwd:     tt.cwd,
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 			serviceExtractorEnabled := true

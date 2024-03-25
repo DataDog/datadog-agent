@@ -15,6 +15,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/cihub/seelog"
+	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	javaparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java"
@@ -361,11 +362,11 @@ func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, ar
 			arg := removeFilePath(a)
 
 			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
+				value, ok := advancedGuessJavaServiceName(se, process, args, a)
+				if ok {
+					return value
+				}
 				if strings.HasSuffix(arg, javaJarExtension) {
-					value, ok := advancedGuessJavaServiceName(se, process, args, a)
-					if ok {
-						return value
-					}
 					// return the jar
 					jarName := arg[:len(arg)-len(javaJarExtension)]
 					if !strings.HasSuffix(jarName, javaSnapshotSuffix) {
@@ -409,6 +410,12 @@ func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, ar
 func advancedGuessJavaServiceName(se *ServiceExtractor, process *procutil.Process, args []string, jarname string) ([]string, bool) {
 	if !se.useImprovedAlgorithm {
 		return nil, false
+	}
+	// first try to guess if the process is running an application server (vendor determination is more lightweight than spring jar introspection)
+	contextRoots := javaparser.ExtractServiceNamesForJEEServer(args, process.Cwd, afero.NewOsFs())
+	if len(contextRoots) > 0 {
+		// use a `;` separated list to surface multiple service names found
+		return contextRoots, true
 	}
 	// try to introspect the jar to get service name from spring application name
 	// TODO: pass process envs
