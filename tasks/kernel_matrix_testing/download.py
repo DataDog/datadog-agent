@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform
 import tempfile
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from invoke.context import Context
 
@@ -18,7 +18,7 @@ except ImportError:
     requests = None
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import PathOrStr
+    from tasks.kernel_matrix_testing.types import Arch, PathOrStr
 
 
 def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str):
@@ -41,13 +41,14 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     return False
 
 
-def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str):
+def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str, arch: Optional[Arch] = None):
     platforms = get_platforms()
     vmconfig_template = get_vmconfig_template(vmconfig_template_name)
 
     url_base = platforms["url_base"]
 
-    arch = arch_mapping[platform.machine()]
+    if arch is None:
+        arch = arch_mapping[platform.machine()]
     to_download: List[str] = list()
     file_ls: List[str] = list()
     branch_mapping: dict[str, str] = dict()
@@ -134,7 +135,11 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str):
-    download_rootfs(ctx, rootfs_dir, vmconfig_template)
+def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str, all_archs: bool = False):
+    if all_archs:
+        arch_ls: List[Arch] = ["x86_64", "arm64"]
+        for arch in arch_ls:
+            info(f"[+] Updating root filesystem for {arch}")
+            download_rootfs(ctx, rootfs_dir, vmconfig_template, arch)
 
     info("[+] Root filesystem and bootables images updated")
