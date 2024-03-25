@@ -58,10 +58,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     real slack messages.
     """
     default_branch = os.getenv('CI_DEFAULT_BRANCH')
-    print('default_branch', default_branch)
     branch = os.getenv('CI_COMMIT_REF_NAME')
-    print('branch', branch)
-    exit()
 
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
@@ -110,7 +107,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            if channel == default_branch or channel.startswith('release/'):
+            if branch == default_branch or branch.startswith('release/'):
                 recipient = channel
             else:
                 # DM author
