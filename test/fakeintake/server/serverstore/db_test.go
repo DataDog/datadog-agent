@@ -13,7 +13,7 @@ import (
 func TestSqlStore(t *testing.T) {
 	suite.Run(t, &StoreTestSuite{
 		StoreConstructor: func() Store {
-			return NewSQLStore()
+			return newSQLStore()
 		},
 	})
 }

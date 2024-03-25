@@ -14,7 +14,7 @@ import (
 func TestInMemoryStore(t *testing.T) {
 	suite.Run(t, &StoreTestSuite{
 		StoreConstructor: func() Store {
-			return NewInMemoryStore()
+			return newInMemoryStore()
 		},
 	})
 }

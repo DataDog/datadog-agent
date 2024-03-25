@@ -15,8 +15,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// InMemoryStore implements a thread-safe storage for raw and json dumped payloads
-type InMemoryStore struct {
+// inMemoryStore implements a thread-safe storage for raw and json dumped payloads
+type inMemoryStore struct {
 	mutex sync.RWMutex
 
 	rawPayloads map[string][]api.Payload
@@ -25,9 +25,9 @@ type InMemoryStore struct {
 	NbPayloads *prometheus.GaugeVec
 }
 
-// NewInMemoryStore initialise a new payloads store
-func NewInMemoryStore() *InMemoryStore {
-	return &InMemoryStore{
+// newInMemoryStore initialise a new payloads store
+func newInMemoryStore() *inMemoryStore {
+	return &inMemoryStore{
 		mutex:       sync.RWMutex{},
 		rawPayloads: map[string][]api.Payload{},
 		NbPayloads: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -38,7 +38,7 @@ func NewInMemoryStore() *InMemoryStore {
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-func (s *InMemoryStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
+func (s *inMemoryStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	rawPayload := api.Payload{
@@ -52,7 +52,7 @@ func (s *InMemoryStore) AppendPayload(route string, data []byte, encoding string
 }
 
 // CleanUpPayloadsOlderThan removes payloads older than time
-func (s *InMemoryStore) CleanUpPayloadsOlderThan(time time.Time) {
+func (s *inMemoryStore) CleanUpPayloadsOlderThan(time time.Time) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	log.Printf("Cleaning up payloads")
@@ -70,7 +70,7 @@ func (s *InMemoryStore) CleanUpPayloadsOlderThan(time time.Time) {
 }
 
 // GetRawPayloads returns payloads collected for route `route`
-func (s *InMemoryStore) GetRawPayloads(route string) (payloads []api.Payload) {
+func (s *inMemoryStore) GetRawPayloads(route string) (payloads []api.Payload) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	payloads = make([]api.Payload, len(s.rawPayloads[route]))
@@ -79,7 +79,7 @@ func (s *InMemoryStore) GetRawPayloads(route string) (payloads []api.Payload) {
 }
 
 // GetRouteStats returns stats on collectedraw payloads by route
-func (s *InMemoryStore) GetRouteStats() map[string]int {
+func (s *inMemoryStore) GetRouteStats() map[string]int {
 	statsByRoute := map[string]int{}
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -90,7 +90,7 @@ func (s *InMemoryStore) GetRouteStats() map[string]int {
 }
 
 // Flush cleans up any stored payload
-func (s *InMemoryStore) Flush() {
+func (s *inMemoryStore) Flush() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.rawPayloads = map[string][]api.Payload{}
@@ -98,9 +98,9 @@ func (s *InMemoryStore) Flush() {
 }
 
 // GetMetrics returns the prometheus metrics for the store
-func (s *InMemoryStore) GetMetrics() []prometheus.Collector {
+func (s *inMemoryStore) GetMetrics() []prometheus.Collector {
 	return []prometheus.Collector{s.NbPayloads}
 }
 
 // Close is a noop
-func (s *InMemoryStore) Close() {}
+func (s *inMemoryStore) Close() {}

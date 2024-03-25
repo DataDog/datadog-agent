@@ -24,8 +24,8 @@ const (
 	metricsTicker = 30 * time.Second
 )
 
-// SQLStore implements a thread-safe storage for raw and json dumped payloads using SQLite
-type SQLStore struct {
+// sqlStore implements a thread-safe storage for raw and json dumped payloads using SQLite
+type sqlStore struct {
 	db   *sql.DB
 	path string
 
@@ -44,8 +44,8 @@ type sqlMetrics struct {
 	diskUsage *prometheus.GaugeVec
 }
 
-// NewSQLStore initializes a new payloads store with an SQLite DB
-func NewSQLStore() *SQLStore {
+// newSQLStore initializes a new payloads store with an SQLite DB
+func newSQLStore() *sqlStore {
 	p := os.Getenv("SQLITE_DB_PATH")
 	if p == "" {
 		f, err := os.CreateTemp("", defaultDBPath)
@@ -65,7 +65,7 @@ func NewSQLStore() *SQLStore {
 		log.Fatal("Failed to enable WAL mode: ", err)
 	}
 
-	s := &SQLStore{
+	s := &sqlStore{
 		path:   p,
 		db:     db,
 		stopCh: make(chan struct{}),
@@ -137,14 +137,14 @@ func NewSQLStore() *SQLStore {
 }
 
 // Close closes the store
-func (s *SQLStore) Close() {
+func (s *sqlStore) Close() {
 	s.db.Close()
 	s.stopCh <- struct{}{}
 	os.Remove(s.path)
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-func (s *SQLStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
+func (s *sqlStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
 	now := time.Now()
 	_, err := s.db.Exec("INSERT INTO payloads (timestamp, data, encoding, route) VALUES (?, ?, ?, ?)", collectTime.Unix(), data, encoding, route)
 	if err != nil {
@@ -166,7 +166,7 @@ func (s *SQLStore) AppendPayload(route string, data []byte, encoding string, col
 }
 
 // CleanUpPayloadsOlderThan removes payloads older than specified time
-func (s *SQLStore) CleanUpPayloadsOlderThan(time time.Time) {
+func (s *sqlStore) CleanUpPayloadsOlderThan(time time.Time) {
 	log.Printf("Cleaning up payloads")
 	_, err := s.db.Exec("DELETE FROM payloads WHERE timestamp < ?", time.Unix())
 	if err != nil {
@@ -190,7 +190,7 @@ func (s *SQLStore) CleanUpPayloadsOlderThan(time time.Time) {
 }
 
 // GetRawPayloads returns all raw payloads for a given route
-func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
+func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
 	now := time.Now()
 	rows, err := s.db.Query("SELECT timestamp, data, encoding FROM payloads WHERE route = ?", route)
 	if err != nil {
@@ -220,7 +220,7 @@ func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
 }
 
 // GetRouteStats returns the number of payloads for each route
-func (s *SQLStore) GetRouteStats() (statsByRoute map[string]int) {
+func (s *sqlStore) GetRouteStats() (statsByRoute map[string]int) {
 	statsByRoute = make(map[string]int)
 	rows, err := s.db.Query("SELECT route, COUNT(*) FROM payloads GROUP BY route")
 	if err != nil {
@@ -243,7 +243,7 @@ func (s *SQLStore) GetRouteStats() (statsByRoute map[string]int) {
 }
 
 // Flush flushes the store
-func (s *SQLStore) Flush() {
+func (s *sqlStore) Flush() {
 	_, err := s.db.Exec("DELETE FROM payloads")
 	if err != nil {
 		log.Println("Error flushing payloads: ", err)
@@ -251,7 +251,7 @@ func (s *SQLStore) Flush() {
 }
 
 // GetMetrics returns the prometheus metrics for the store
-func (s *SQLStore) GetMetrics() []prometheus.Collector {
+func (s *sqlStore) GetMetrics() []prometheus.Collector {
 	return []prometheus.Collector{
 		s.metrics.nBPayloads,
 		s.metrics.insertLatency,
