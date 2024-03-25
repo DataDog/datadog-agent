@@ -79,9 +79,9 @@ func testUDSOriginDetection(t *testing.T, network string) {
 	var err error
 	var s listeners.StatsdListener
 	if network == "unixgram" {
-		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component]())
+		s, err = listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), nil)
 	} else if network == "unix" {
-		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component]())
+		s, err = listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, nil, confComponent, nil, optional.NewNoneOption[workloadmeta.Component](), nil)
 	}
 	require.NotNil(t, s)
 	require.Nil(t, err)
