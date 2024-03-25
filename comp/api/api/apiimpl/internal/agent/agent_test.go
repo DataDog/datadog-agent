@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -63,7 +62,7 @@ import (
 type handlerdeps struct {
 	fx.In
 
-	FlareComp             flare.Component
+	// FlareComp             flare.Component
 	Server                dogstatsdServer.Component
 	ServerDebug           dogstatsddebug.Component
 	Wmeta                 workloadmeta.Component
@@ -79,6 +78,7 @@ type handlerdeps struct {
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
+	EndpointProviders     []api.AgentEndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDeps(t *testing.T) handlerdeps {
@@ -122,12 +122,11 @@ func getComponentDeps(t *testing.T) handlerdeps {
 func setupRoutes(t *testing.T) *mux.Router {
 	deps := getComponentDeps(t)
 	sender := aggregator.NewNoOpSenderManager()
-	endpoint_providers := []api.AgentEndpointProvider{}
 
 	router := mux.NewRouter()
 	SetupHandlers(
 		router,
-		deps.FlareComp,
+		//deps.FlareComp,
 		deps.Server,
 		deps.ServerDebug,
 		deps.Wmeta,
@@ -144,7 +143,7 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Collector,
 		deps.EventPlatformReceiver,
 		deps.Ac,
-		endpoint_providers,
+		deps.EndpointProviders,
 	)
 
 	return router

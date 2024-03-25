@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -47,7 +48,14 @@ type dependencies struct {
 	AC                    optional.Option[autodiscovery.Component]
 }
 
-type flare struct {
+type provides struct {
+	fx.Out
+
+	Comp     Component
+	Endpoint api.AgentEndpointProvider
+}
+
+type Flare struct {
 	log          log.Component
 	config       config.Component
 	params       Params
@@ -55,9 +63,9 @@ type flare struct {
 	diagnoseDeps diagnose.SuitesDeps
 }
 
-func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider) {
+func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) {
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
-	f := &flare{
+	f := &Flare{
 		log:          deps.Log,
 		config:       deps.Config,
 		params:       deps.Params,
@@ -65,10 +73,18 @@ func newFlare(deps dependencies) (Component, rcclienttypes.TaskListenerProvider)
 		diagnoseDeps: diagnoseDeps,
 	}
 
-	return f, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
+	var endpoint api.EndpointProvider
+	endpoint = EndpointProvider{flareComp: f}
+
+	p := provides{
+		Comp:     f,
+		Endpoint: api.NewAgentEndpointProvider(endpoint),
+	}
+
+	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
-func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+func (f *Flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
 	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
@@ -93,14 +109,14 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 }
 
 // Send sends a flare archive to Datadog
-func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
+func (f *Flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
 	return helpers.SendTo(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
 }
 
 // Create creates a new flare and returns the path to the final archive file.
-func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
+func (f *Flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	fb, err := helpers.NewFlareBuilder(f.params.local)
 	if err != nil {
 		return "", err

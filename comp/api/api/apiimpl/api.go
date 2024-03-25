@@ -16,7 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+
+	// "github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -45,7 +46,7 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
-	flare                 flare.Component
+	// flare                 flare.Component
 	dogstatsdServer       dogstatsdServer.Component
 	capture               replay.Component
 	serverDebug           dogstatsddebug.Component
@@ -67,7 +68,7 @@ type apiServer struct {
 type dependencies struct {
 	fx.In
 
-	Flare                 flare.Component
+	// Flare                 flare.Component
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
@@ -83,14 +84,14 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
-	EndpointProviders     []api.AgentEndpointProvider
+	EndpointProviders     []api.AgentEndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
 	return &apiServer{
-		flare:                 deps.Flare,
+		// flare:                 deps.Flare,
 		dogstatsdServer:       deps.DogstatsdServer,
 		capture:               deps.Capture,
 		serverDebug:           deps.ServerDebug,
@@ -121,7 +122,7 @@ func (server *apiServer) StartServer(
 ) error {
 	return StartServers(server.rcService,
 		server.rcServiceHA,
-		server.flare,
+		// server.flare,
 		server.dogstatsdServer,
 		server.capture,
 		server.serverDebug,

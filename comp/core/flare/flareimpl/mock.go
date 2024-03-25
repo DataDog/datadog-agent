@@ -9,6 +9,9 @@
 package flareimpl
 
 import (
+	"net/http"
+
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -22,8 +25,30 @@ func MockModule() fxutil.Module {
 	)
 }
 
+type provides struct {
+	fx.Out
+
+	Comp     flare.Component
+	Endpoint api.AgentEndpointProvider
+}
+
 // MockFlare is a mock of the
 type MockFlare struct{}
+
+type MockEndpoint struct {
+	Comp *MockFlare
+}
+
+func (MockEndpoint) Method() string {
+	return "POST"
+}
+
+func (MockEndpoint) Route() string {
+	return "/flare"
+}
+
+func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+}
 
 // Create mocks the flare create function
 func (fc *MockFlare) Create(_ flare.ProfileData, _ error) (string, error) {
@@ -36,6 +61,11 @@ func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (
 }
 
 // NewMock returns a new flare provider
-func NewMock() flare.Component {
-	return &MockFlare{}
+func NewMock() provides {
+	m := &MockFlare{}
+	e := api.NewAgentEndpointProvider(MockEndpoint{Comp: m})
+	return provides{
+		Comp:     m,
+		Endpoint: e,
+	}
 }
