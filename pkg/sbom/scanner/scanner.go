@@ -52,11 +52,15 @@ type Scanner struct {
 // collectors.
 func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
-		scanQueue: workqueue.NewRateLimitingQueue(
+		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
 				cfg.GetDuration("sbom.scan_queue.base_backoff"),
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
+			workqueue.RateLimitingQueueConfig{
+				Name:            "sbom",
+				MetricsProvider: telemetry.QueueMetricProvider{},
+			},
 		),
 		disk:  filesystem.NewDisk(),
 		wmeta: wmeta,
