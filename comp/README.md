@@ -73,7 +73,7 @@ agent flavors and binaries.
 
 *Datadog Team*: agent-metrics-logs
 
-Package agenttelemetry implements a component to generate agent telemetry
+Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
 
