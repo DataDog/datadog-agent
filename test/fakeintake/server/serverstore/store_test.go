@@ -43,7 +43,8 @@ func (suite *StoreTestSuite) TestAppendPayload() {
 	assert.Len(suite.T(), rawPayloads, 1)
 	assert.Equal(suite.T(), data, rawPayloads[0].Data)
 
-	jsonPayloads := store.GetJSONPayloads("testRoute")
+	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), jsonPayloads, 1)
 	assert.Equal(suite.T(), map[string]interface{}{"key": "value"}, jsonPayloads[0].Data)
 }
@@ -69,7 +70,8 @@ func (suite *StoreTestSuite) TestCleanUpPayloadsOlderThan() {
 	rawPayloads = store.GetRawPayloads("testRoute")
 	assert.Len(suite.T(), rawPayloads, 1)
 
-	jsonPayloads := store.GetJSONPayloads("testRoute")
+	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
+	require.NoError(suite.T(), err)
 	assert.Len(suite.T(), jsonPayloads, 1)
 }
 
@@ -101,6 +103,7 @@ func (suite *StoreTestSuite) TestFlush() {
 	rawPayloads := store.GetRawPayloads("testRoute")
 	assert.Len(suite.T(), rawPayloads, 0)
 
-	jsonPayloads := store.GetJSONPayloads("testRoute")
+	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
+	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), jsonPayloads, 0)
 }

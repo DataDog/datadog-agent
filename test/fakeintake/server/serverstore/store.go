@@ -39,10 +39,10 @@ type Store interface {
 
 // NewStore returns a new store
 func NewStore() Store {
-	if os.Getenv("STORAGE_DRIVER") == "memory" {
-		return NewInMemoryStore()
+	if os.Getenv("STORAGE_DRIVER") == "sql" {
+		return NewSQLStore()
 	}
-	return NewSQLStore()
+	return NewInMemoryStore()
 }
 
 func GetJSONPayloads(store Store, route string) ([]api.ParsedPayload, error) {

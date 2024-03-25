@@ -40,6 +40,8 @@ type sqlMetrics struct {
 	insertLatency *prometheus.HistogramVec
 	// ReadLatency is a prometheus metric to track the latency of reading payloads
 	readLatency *prometheus.HistogramVec
+	// diskUsage is a prometheus metric to track the disk usage of the store
+	diskUsage *prometheus.GaugeVec
 }
 
 // NewSQLStore initializes a new payloads store with an SQLite DB
@@ -82,6 +84,10 @@ func NewSQLStore() *SQLStore {
 				Name:    "read_latency",
 				Help:    "Latency of reading payloads",
 				Buckets: prometheus.DefBuckets,
+			}, []string{"route"}),
+			diskUsage: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: "disk_usage",
+				Help: "Disk usage of the store",
 			}, []string{"route"}),
 		},
 	}
@@ -148,25 +154,15 @@ func (s *SQLStore) AppendPayload(route string, data []byte, encoding string, col
 	s.metrics.insertLatency.WithLabelValues(route).Observe(obs)
 	log.Printf("Inserted payload for route %s in %f seconds\n", route, obs)
 
-	rawPayload := api.Payload{
-		Timestamp: collectTime,
-		Data:      data,
-		Encoding:  encoding,
-	}
-
-	return s.tryParseAndAppendPayload(rawPayload, route)
-}
-
-func (s *SQLStore) tryParseAndAppendPayload(rawPayload api.Payload, route string) error {
-	parsedPayload, err := tryParse(rawPayload, route)
+	// update disk usage
+	var diskUsage int
+	err = s.db.QueryRow("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()").Scan(&diskUsage)
 	if err != nil {
-		return err
+		log.Println("Error fetching disk usage: ", err)
 	}
-	if parsedPayload == nil {
-		return nil
-	}
+	s.metrics.diskUsage.WithLabelValues("all").Set(float64(diskUsage))
 
-	return nil
+	return err
 }
 
 // CleanUpPayloadsOlderThan removes payloads older than specified time
@@ -260,5 +256,6 @@ func (s *SQLStore) GetMetrics() []prometheus.Collector {
 		s.metrics.nBPayloads,
 		s.metrics.insertLatency,
 		s.metrics.readLatency,
+		s.metrics.diskUsage,
 	}
 }
