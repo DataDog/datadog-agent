@@ -45,6 +45,7 @@ func NewStore() Store {
 	return NewInMemoryStore()
 }
 
+// GetJSONPayloads returns the parsed payloads for a given route
 func GetJSONPayloads(store Store, route string) ([]api.ParsedPayload, error) {
 	parser, ok := parserMap[route]
 	if !ok {
