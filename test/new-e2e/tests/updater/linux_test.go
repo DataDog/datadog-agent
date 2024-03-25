@@ -134,7 +134,7 @@ func assertInstallMethod(t *testing.T, host *components.RemoteHost) {
 	rawYaml, err := host.ReadFile(filepath.Join(confDir, "install_info"))
 	assert.Nil(t, err)
 	var config Config
-	assert.Nil(t, yaml.Unmarshal(rawYaml, &config))
+	require.Nil(t, yaml.Unmarshal(rawYaml, &config))
 
 	assert.Equal(t, "updater", config.InstallMethod["installer"])
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])

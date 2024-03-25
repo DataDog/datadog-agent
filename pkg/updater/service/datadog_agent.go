@@ -176,7 +176,7 @@ func getToolVersion() (string, string) {
 }
 
 func getDpkgVersion() (string, error) {
-	cmd := exec.Command("dpkg-query", "--showformat='${Version}'", "--show", "dpkg")
+	cmd := exec.Command("dpkg-query", "--showformat=${Version}", "--show", "dpkg")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Warnf("Failed to get dpkg version: %s", err)
