@@ -107,7 +107,8 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            if branch == default_branch or branch.startswith('release/'):
+            release_branch_regex = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+.*$")
+            if branch == default_branch or release_branch_regex.match(branch):
                 recipient = channel
             else:
                 # DM author
