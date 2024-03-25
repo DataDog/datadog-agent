@@ -59,7 +59,7 @@ func main() {
 		workloadmeta.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		tagger.Module(),
-		fx.Supply(tagger.NewNodeRemoteTaggerParams()),
+		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(core.BundleParams{
 			ConfigParams: coreconfig.NewAgentParams(datadogConfigPath),
 			SecretParams: secrets.NewEnabledParams(),
