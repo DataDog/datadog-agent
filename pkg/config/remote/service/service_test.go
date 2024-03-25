@@ -7,6 +7,7 @@ package service
 
 import (
 	"context"
+	_ "embed"
 	"encoding/base32"
 	"encoding/json"
 	"errors"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -39,6 +39,7 @@ type mockAPI struct {
 const (
 	httpError    = "api: simulated HTTP error"
 	agentVersion = "9.9.9"
+	testEnv      = "test-env"
 )
 
 // Setup overrides for tests
@@ -138,48 +139,6 @@ var testRCKey = msgpgo.RemoteConfigKey{
 	Datacenter: "dd.com",
 }
 
-// getTraceAgentDefaultEnv returns the default env for the trace agent
-func getTraceAgentDefaultEnv(c model.Reader) string {
-	defaultEnv := ""
-	if c.IsSet("apm_config.env") {
-		defaultEnv = c.GetString("apm_config.env")
-		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", defaultEnv)
-	} else if c.IsSet("env") {
-		defaultEnv = c.GetString("env")
-		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
-	} else {
-		for _, tag := range getConfiguredTags(c, false) {
-			if strings.HasPrefix(tag, "env:") {
-				defaultEnv = strings.TrimPrefix(tag, "env:")
-				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
-				return defaultEnv
-			}
-		}
-	}
-
-	return defaultEnv
-}
-
-// getConfiguredTags returns list of tags from a configuration, based on
-// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
-// if includeDogdstatsd is true.
-func getConfiguredTags(c model.Reader, includeDogstatsd bool) []string {
-	tags := c.GetStringSlice("tags")
-	extraTags := c.GetStringSlice("extra_tags")
-
-	var dsdTags []string
-	if includeDogstatsd {
-		dsdTags = c.GetStringSlice("dogstatsd_tags")
-	}
-
-	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
-	combined = append(combined, tags...)
-	combined = append(combined, extraTags...)
-	combined = append(combined, dsdTags...)
-
-	return combined
-}
-
 func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.Clock) *Service {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
@@ -191,9 +150,13 @@ func newTestService(t *testing.T, api *mockAPI, uptane *mockUptane, clock clock.
 	serializedKey, _ := testRCKey.MarshalMsg(nil)
 	cfg.SetWithoutSource("remote_configuration.key", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(serializedKey))
 	baseRawURL := "https://localhost"
-	traceAgentEnv := getTraceAgentDefaultEnv(cfg)
+	traceAgentEnv := testEnv
 	mockTelemetryReporter := newMockRcTelemetryReporter()
-	service, err := NewService(cfg, "abc", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, WithTraceAgentEnv(traceAgentEnv))
+	options := []Option{
+		WithTraceAgentEnv(traceAgentEnv),
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
 	require.NoError(t, err)
 	t.Cleanup(func() { service.Stop() })
 	service.api = api
@@ -214,6 +177,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -241,6 +205,7 @@ func TestServiceBackoffFailure(t *testing.T) {
 	// Sending the http error too
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -297,6 +262,7 @@ func TestServiceBackoffFailureRecovery(t *testing.T) {
 	api = &mockAPI{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -427,6 +393,7 @@ func TestService(t *testing.T) {
 	}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -510,6 +477,7 @@ func TestService(t *testing.T) {
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
 		AgentUuid:                    "test-uuid",
+		TraceAgentEnv:                testEnv,
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     1,
 		CurrentConfigSnapshotVersion: 2,
@@ -619,6 +587,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
@@ -665,6 +634,7 @@ func TestServiceGetRefreshIntervalNone(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -704,6 +674,7 @@ func TestServiceGetRefreshIntervalValid(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -743,6 +714,7 @@ func TestServiceGetRefreshIntervalTooSmall(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -782,6 +754,7 @@ func TestServiceGetRefreshIntervalTooBig(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -824,6 +797,7 @@ func TestServiceGetRefreshIntervalNoOverrideAllowed(t *testing.T) {
 	lastConfigResponse := &pbgo.LatestConfigsResponse{}
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigSnapshotVersion: 0,
@@ -903,6 +877,7 @@ func TestConfigExpiration(t *testing.T) {
 	uptaneClient.On("Update", lastConfigResponse).Return(nil)
 	api.On("Fetch", mock.Anything, &pbgo.LatestConfigsRequest{
 		Hostname:                     service.hostname,
+		TraceAgentEnv:                testEnv,
 		AgentUuid:                    "test-uuid",
 		AgentVersion:                 agentVersion,
 		CurrentConfigRootVersion:     0,
@@ -964,4 +939,206 @@ func TestOrgStatus(t *testing.T) {
 	service.pollOrgStatus()
 	assert.True(t, service.previousOrgStatus.Enabled)
 	assert.False(t, service.previousOrgStatus.Authorized)
+}
+
+func TestWithTraceAgentEnv(t *testing.T) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	dir := t.TempDir()
+	cfg.SetWithoutSource("run_path", dir)
+
+	baseRawURL := "https://localhost"
+	traceAgentEnv := "dog"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithTraceAgentEnv(traceAgentEnv),
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, "dog", service.traceAgentEnv)
+	assert.NotNil(t, service)
+	t.Cleanup(func() { service.Stop() })
+}
+
+func TestWithDatabaseFileName(t *testing.T) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithDatabaseFileName("test.db"),
+		WithAPIKey("abc"),
+	}
+	service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	assert.NoError(t, err)
+	assert.Equal(t, "/tmp/test.db", service.db.Path())
+	assert.NotNil(t, service)
+	t.Cleanup(func() { service.Stop() })
+}
+
+type refreshIntervalTest struct {
+	name                                   string
+	interval                               time.Duration
+	expected                               time.Duration
+	expectedRefreshIntervalOverrideAllowed bool
+}
+
+func TestWithRefreshInterval(t *testing.T) {
+	tests := []refreshIntervalTest{
+		{
+			name:                                   "valid interval",
+			interval:                               42 * time.Second,
+			expected:                               42 * time.Second,
+			expectedRefreshIntervalOverrideAllowed: false,
+		},
+		{
+			name:                                   "interval too short",
+			interval:                               1 * time.Second,
+			expected:                               defaultRefreshInterval,
+			expectedRefreshIntervalOverrideAllowed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg.SetWithoutSource("run_path", "/tmp")
+
+			baseRawURL := "https://localhost"
+			mockTelemetryReporter := newMockRcTelemetryReporter()
+			options := []Option{
+				WithRefreshInterval(tt.interval, "test.refresh_interval"),
+				WithAPIKey("abc"),
+			}
+			service, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, service.defaultRefreshInterval)
+			assert.Equal(t, tt.expectedRefreshIntervalOverrideAllowed, service.refreshIntervalOverrideAllowed)
+			assert.NotNil(t, service)
+			service.Stop()
+		})
+	}
+}
+
+type maxBackoffIntervalTest struct {
+	name     string
+	interval time.Duration
+	expected time.Duration
+}
+
+func TestWithMaxBackoffInterval(t *testing.T) {
+
+	tests := []maxBackoffIntervalTest{
+		{
+			name:     "valid interval",
+			interval: 3 * time.Minute,
+			expected: 3 * time.Minute,
+		},
+		{
+			name:     "interval too short",
+			interval: 1 * time.Second,
+			expected: minimalMaxBackoffTime,
+		},
+		{
+			name:     "interval too long",
+			interval: 1 * time.Hour,
+			expected: maximalMaxBackoffTime,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := WithMaxBackoffInterval(tt.interval, "test.max_backoff_interval")
+			defaultOptions := &options{}
+			opt(defaultOptions)
+			assert.Equal(t, tt.expected, defaultOptions.maxBackoff)
+		})
+	}
+}
+
+type clientCacheBypassLimitTest struct {
+	name     string
+	limit    int
+	expected int
+}
+
+func TestWithClientCacheBypassLimit(t *testing.T) {
+	tests := []clientCacheBypassLimitTest{
+		{
+			name:     "valid limit",
+			limit:    5,
+			expected: 5,
+		},
+		{
+			name:     "limit too small",
+			limit:    -1,
+			expected: defaultCacheBypassLimit,
+		},
+		{
+			name:     "limit too large",
+			limit:    100000,
+			expected: defaultCacheBypassLimit,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := WithClientCacheBypassLimit(tt.limit, "test.client_cache_bypass_limit")
+			defaultOptions := &options{}
+			opt(defaultOptions)
+			assert.Equal(t, tt.expected, defaultOptions.clientCacheBypassLimit)
+		})
+	}
+}
+
+type clientTTLTest struct {
+	name     string
+	ttl      time.Duration
+	expected time.Duration
+}
+
+func TestWithDirectorRootOverride(t *testing.T) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	cfg.SetWithoutSource("run_path", "/tmp")
+
+	baseRawURL := "https://localhost"
+	mockTelemetryReporter := newMockRcTelemetryReporter()
+	options := []Option{
+		WithDirectorRootOverride("{\"a\": \"b\"}"),
+		WithAPIKey("abc"),
+	}
+	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)
+	// Because we used an invalid root, we should get an error. All we're trying to capture
+	// with this test is that the builder method is propagating the value properly
+	assert.Errorf(t, err, "failed to set embedded root in roots bucket: invalid meta: version field is missing")
+}
+
+func TestWithClientTTL(t *testing.T) {
+	tests := []clientTTLTest{
+		{
+			name:     "valid ttl",
+			ttl:      10 * time.Second,
+			expected: 10 * time.Second,
+		},
+		{
+			name:     "ttl too short",
+			ttl:      1 * time.Second,
+			expected: defaultClientsTTL,
+		},
+		{
+			name:     "ttl too long",
+			ttl:      1 * time.Hour,
+			expected: defaultClientsTTL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := WithClientTTL(tt.ttl, "test.client_ttl")
+			defaultOptions := &options{}
+			opt(defaultOptions)
+			assert.Equal(t, tt.expected, defaultOptions.clientTTL)
+		})
+	}
 }
