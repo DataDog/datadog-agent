@@ -355,6 +355,24 @@ def reset(ctx):
 
 
 @task
+def check_go_mod_replaces(_ctx):
+    errors_found = set()
+    for mod in DEFAULT_MODULES.values():
+        go_sum = os.path.join(mod.full_path(), "go.sum")
+        if not os.path.exists(go_sum):
+            continue
+        with open(go_sum) as f:
+            for line in f:
+                if "github.com/DataDog/datadog-agent" in line:
+                    err_mod = line.split(" ")[0]
+                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in sorted(errors_found))
+        raise Exit(message=message)
+
+
+@task
 def check_mod_tidy(ctx, test_folder="testmodule"):
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
