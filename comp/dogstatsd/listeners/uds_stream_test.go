@@ -18,11 +18,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func udsStreamListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component) (StatsdListener, error) {
-	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil, nil)
+	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), nil)
 }
 
 func TestNewUDSStreamListener(t *testing.T) {

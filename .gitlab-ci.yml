@@ -158,7 +158,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
-  BTFHUB_ARCHIVE_BRANCH: main
+  BTFHUB_ARCHIVE_BRANCH: no-kmod
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -186,7 +186,7 @@ variables:
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: cc072d8d59eb
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 3eac4b5bb0c4
   DATADOG_AGENT_BUILDERS: v28719213-8dc058f
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
