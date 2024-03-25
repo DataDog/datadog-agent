@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"go.uber.org/atomic"
 	"os"
@@ -114,7 +115,10 @@ func setup(loggerName string, secretsManager secrets.Component, ac autodiscovery
 		log.Debugf("Error loading config: %v\n", err)
 	}
 	common.LoadComponents(secretsManager, workloadmeta.GetGlobalStore(), ac, config.Datadog.GetString("confd_path"))
+	ac.LoadAndRun(context.Background())
 	logsAgent := serverlessInitLog.SetupLogAgent(logConfig, tags)
+
+	logsAgent.AddScheduler(adScheduler.New(ac))
 
 	setupHealthCheck()
 
