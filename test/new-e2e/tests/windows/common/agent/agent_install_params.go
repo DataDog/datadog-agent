@@ -18,6 +18,9 @@ import (
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
 	Package *Package
+	// Path on local test runner to save the MSI install log
+	LocalInstallLogFile string
+
 	msi.InstallAgentParams
 	// Installer parameters
 	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
@@ -112,10 +115,10 @@ func WithValidAPIKey() InstallAgentOption {
 	}
 }
 
-// WithInstallLogFile specifies the file where to save the MSI install logs.
+// WithInstallLogFile specifies the file on the local test runner to save the MSI install logs.
 func WithInstallLogFile(logFileName string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
-		i.InstallLogFile = logFileName
+		i.LocalInstallLogFile = logFileName
 		return nil
 	}
 }
