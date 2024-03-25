@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-//go:build zlib || zstd
-
 //nolint:revive // TODO(AML) Fix revive linter
 package stream
 
