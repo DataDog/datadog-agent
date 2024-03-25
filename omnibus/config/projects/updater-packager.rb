@@ -16,6 +16,7 @@ homepage 'http://www.datadoghq.com'
 INSTALL_DIR = '/opt/datadog/updater'
 
 install_dir INSTALL_DIR
+clear_install_dir false
 
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
   COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
