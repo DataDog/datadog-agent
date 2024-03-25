@@ -35,7 +35,9 @@ func moveToDDUpdater() error {
 	if err != nil {
 		return err
 	}
-	syscall.Setgroups([]int{agentGid, gid})
+	if err := syscall.Setgroups([]int{agentGid, gid}); err != nil {
+		return err
+	}
 	usr, err := user.Lookup("dd-updater")
 	if err != nil {
 		return err

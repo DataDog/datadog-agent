@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Masterminds/semver"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +61,7 @@ func TestInstallMethod(t *testing.T) {
 	assert.Equal(t, "updater", config.InstallMethod["installer"])
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
 	assert.Equal(t, "dpkg", config.InstallMethod["tool"])
-	_, err = semver.NewVersion(config.InstallMethod["tool_version"])
+	assert.Equal(t, "1.2.3", config.InstallMethod["tool_version"])
 	assert.Nil(t, err)
 }
 
