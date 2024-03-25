@@ -43,9 +43,9 @@ func NewLocalResolver(processEventsEnabled bool) LocalResolver {
 //
 // Only connections that are local are resolved, i.e., for
 // which conn.IntrHost is set to true.
-func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) bool {
+func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) {
 	if !r.processEventsEnabled {
-		return false
+		return
 	}
 
 	type connKey struct {
@@ -87,7 +87,7 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) bool {
 	log.TraceFunc(func() string { return fmt.Sprintf("ctrsByConn = %v", ctrsByConn) })
 
 	if len(ctrsByConn) == 0 {
-		return true
+		return
 	}
 
 	// go over connections again using hashtable computed earlier to resolve dest
@@ -120,8 +120,6 @@ func (r LocalResolver) Resolve(conns slice.Chain[ConnectionStats]) bool {
 			conn.ContainerID.Dest = cid
 		}
 	})
-
-	return true
 }
 
 func translatedSource(conn *ConnectionStats) netip.AddrPort {

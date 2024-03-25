@@ -88,7 +88,7 @@ func TestResolveLocalConnections(t *testing.T) {
 		},
 	}
 
-	require.True(t, LocalResolver{true}.Resolve(slice.NewChain(conns)))
+	LocalResolver{true}.Resolve(slice.NewChain(conns))
 	outgoing := conns[0:2]
 	incoming := conns[2:]
 
@@ -375,7 +375,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		conns = append(conns, te.conn)
 	}
 
-	require.True(t, resolver.Resolve(slice.NewChain(conns)))
+	resolver.Resolve(slice.NewChain(conns))
 
 	for i, te := range tests {
 		t.Run(te.name, func(t *testing.T) {
