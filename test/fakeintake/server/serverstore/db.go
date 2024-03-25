@@ -7,7 +7,6 @@ package serverstore
 
 import (
 	"database/sql"
-	"encoding/json"
 	"log"
 	"os"
 	"time"
@@ -20,9 +19,7 @@ import (
 )
 
 const (
-	parsedPayloadsTable = "parsed_payloads"
-	payloadsTable       = "payloads"
-	defaultDBPath       = "payloads.db"
+	defaultDBPath = "payloads.db"
 
 	metricsTicker = 30 * time.Second
 )
@@ -74,12 +71,12 @@ func NewSQLStore() *SQLStore {
 				Name:    "insert_latency",
 				Help:    "Latency of inserting payloads",
 				Buckets: prometheus.DefBuckets,
-			}, []string{"route", "table"}),
+			}, []string{"route"}),
 			readLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 				Name:    "read_latency",
 				Help:    "Latency of reading payloads",
 				Buckets: prometheus.DefBuckets,
-			}, []string{"route", "table"}),
+			}, []string{"route"}),
 		},
 	}
 
@@ -89,13 +86,6 @@ func NewSQLStore() *SQLStore {
 		timestamp INTEGER NOT NULL,
 		data BLOB NOT NULL,
 		encoding VARCHAR(10) NOT NULL,
-		route VARCHAR(20) NOT NULL
-	);
-
-	CREATE TABLE IF NOT EXISTS parsed_payloads (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		timestamp INTEGER NOT NULL,
-		data TEXT NOT NULL,
 		route VARCHAR(20) NOT NULL
 	);
 	`)
@@ -148,7 +138,7 @@ func (s *SQLStore) AppendPayload(route string, data []byte, encoding string, col
 	if err != nil {
 		return err
 	}
-	s.metrics.insertLatency.WithLabelValues(route, payloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
+	s.metrics.insertLatency.WithLabelValues(route).Observe(time.Since(now).Seconds())
 
 	rawPayload := api.Payload{
 		Timestamp: collectTime,
@@ -168,18 +158,6 @@ func (s *SQLStore) tryParseAndAppendPayload(rawPayload api.Payload, route string
 		return nil
 	}
 
-	data, err := json.Marshal(parsedPayload.Data)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now()
-	_, err = s.db.Exec("INSERT INTO parsed_payloads (timestamp, data, route) VALUES (?, ?, ?)", rawPayload.Timestamp.Unix(), data, route)
-	if err != nil {
-		return err
-	}
-	s.metrics.insertLatency.WithLabelValues(route, parsedPayloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
-
 	return nil
 }
 
@@ -189,11 +167,6 @@ func (s *SQLStore) CleanUpPayloadsOlderThan(time time.Time) {
 	_, err := s.db.Exec("DELETE FROM payloads WHERE timestamp < ?", time.Unix())
 	if err != nil {
 		log.Println("Error cleaning payloads: ", err)
-	}
-
-	_, err = s.db.Exec("DELETE FROM parsed_payloads WHERE timestamp < ?", time.Unix())
-	if err != nil {
-		log.Println("Error cleaning parsed payloads: ", err)
 	}
 
 	routes, err := s.db.Query("SELECT DISTINCT route FROM payloads")
@@ -221,7 +194,7 @@ func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
 		return nil
 	}
 	defer rows.Close()
-	s.metrics.readLatency.WithLabelValues(route, payloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
+	s.metrics.readLatency.WithLabelValues(route).Observe(time.Since(now).Seconds())
 
 	var timestamp int64
 	var data []byte
@@ -244,34 +217,7 @@ func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
 
 // GetJSONPayloads returns all parsed payloads for a given route
 func (s *SQLStore) GetJSONPayloads(route string) (payloads []api.ParsedPayload) {
-	now := time.Now()
-	rows, err := s.db.Query("SELECT timestamp, data FROM parsed_payloads WHERE route = ?", route)
-	if err != nil {
-		log.Println("Error fetching parsed payloads: ", err)
-		return nil
-	}
-	defer rows.Close()
-	s.metrics.readLatency.WithLabelValues(route, parsedPayloadsTable).Observe(float64(time.Since(now).Nanoseconds()))
-
-	var timestamp int64
-	var data string
-	for rows.Next() {
-		err := rows.Scan(&timestamp, &data)
-		if err != nil {
-			log.Println("Error scanning parsed payload: ", err)
-			continue
-		}
-		var v interface{}
-		err = json.Unmarshal([]byte(data), &v)
-		if err != nil {
-			log.Println("Error unmarshaling parsed payload: ", err)
-		}
-		payloads = append(payloads, api.ParsedPayload{
-			Timestamp: time.Unix(timestamp, 0),
-			Data:      v,
-		})
-	}
-	return payloads
+	return nil
 }
 
 // GetRouteStats returns the number of payloads for each route
@@ -303,11 +249,6 @@ func (s *SQLStore) Flush() {
 	if err != nil {
 		log.Println("Error flushing payloads: ", err)
 	}
-
-	_, err = s.db.Exec("DELETE FROM parsed_payloads")
-	if err != nil {
-		log.Println("Error flushing parsed payloads: ", err)
-	}
 }
 
 // GetMetrics returns the prometheus metrics for the store
@@ -317,47 +258,4 @@ func (s *SQLStore) GetMetrics() []prometheus.Collector {
 		s.metrics.insertLatency,
 		s.metrics.readLatency,
 	}
-}
-
-// ExecuteQuery takes a SQLite query as a string, executes it, and returns the
-// result as a slice of maps. Each map represents a row with column names as keys.
-// It returns an error if the execution fails.
-func (s *SQLStore) ExecuteQuery(query string) ([]map[string]interface{}, error) {
-	rows, err := s.db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	var results []map[string]interface{}
-
-	for rows.Next() {
-		columnsMap := make([]interface{}, len(columns))
-		columnPointers := make([]interface{}, len(columns))
-		for i := 0; i < len(columns); i++ {
-			columnPointers[i] = &columnsMap[i]
-		}
-
-		if err := rows.Scan(columnPointers...); err != nil {
-			return nil, err
-		}
-
-		resultMap := make(map[string]interface{})
-		for i, colName := range columns {
-			val := columnPointers[i].(*interface{})
-			resultMap[colName] = *val
-		}
-
-		results = append(results, resultMap)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return results, nil
 }

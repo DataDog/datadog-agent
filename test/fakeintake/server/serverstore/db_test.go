@@ -6,12 +6,8 @@
 package serverstore
 
 import (
-	"encoding/json"
-	"github.com/stretchr/testify/assert"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/suite"
+	"testing"
 )
 
 func TestSqlStore(t *testing.T) {
@@ -20,25 +16,4 @@ func TestSqlStore(t *testing.T) {
 			return NewSQLStore()
 		},
 	})
-}
-
-func TestExecuteQuery(t *testing.T) {
-	store := NewSQLStore()
-	defer store.Flush()
-	defer store.Close()
-
-	data := []byte(`{"key":"value"}`)
-	parserMap["testRoute"] = jsonParser
-	err := store.AppendPayload("testRoute", data, "json", time.Now())
-	assert.NoError(t, err)
-
-	// JSON1 query to retrieve the item such as key = value
-	payloads, err := store.ExecuteQuery("SELECT * FROM parsed_payloads WHERE data->>'key' = 'value'")
-	assert.NoError(t, err)
-	assert.Len(t, payloads, 1)
-	assert.Equal(t, "testRoute", payloads[0]["route"])
-	expected, err := json.Marshal(map[string]interface{}{"key": "value"})
-	assert.NoError(t, err)
-	assert.Equal(t, expected, payloads[0]["data"])
-
 }

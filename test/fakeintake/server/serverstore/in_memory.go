@@ -6,7 +6,6 @@
 package serverstore
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -139,8 +138,3 @@ func (s *InMemoryStore) GetMetrics() []prometheus.Collector {
 
 // Close is a noop
 func (s *InMemoryStore) Close() {}
-
-// ExecuteQuery is a noop
-func (s *InMemoryStore) ExecuteQuery(string) ([]map[string]interface{}, error) {
-	return nil, fmt.Errorf("not implemented")
-}
