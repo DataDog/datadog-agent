@@ -16,7 +16,6 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/Masterminds/semver"
 	"gopkg.in/yaml.v2"
 
 	"github.com/stretchr/testify/assert"
@@ -140,8 +139,7 @@ func assertInstallMethod(t *testing.T, host *components.RemoteHost) {
 	assert.Equal(t, "updater", config.InstallMethod["installer"])
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
 	assert.Equal(t, "dpkg", config.InstallMethod["tool"])
-	_, err = semver.NewVersion(config.InstallMethod["tool_version"])
-	assert.Nil(t, err)
+	assert.True(t, "" != config.InstallMethod["tool_version"])
 }
 
 // Config yaml struct

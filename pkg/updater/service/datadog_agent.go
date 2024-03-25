@@ -140,7 +140,8 @@ func StopAgentExperiment() error {
 
 func setInstallInfo() {
 	// avoid rewriting the files if they already exist
-	if _, err := os.Stat(installInfoFile); !os.IsNotExist(err) {
+	if _, err := os.Stat(installInfoFile); err == nil {
+		log.Info("Install info file already exists, skipping")
 		return
 	}
 	tool, version := getToolVersion()
