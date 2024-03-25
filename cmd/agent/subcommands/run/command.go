@@ -36,6 +36,8 @@ import (
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
@@ -219,6 +221,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	jmxlogger jmxlogger.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -282,6 +285,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		jmxlogger,
 	); err != nil {
 		return err
 	}
@@ -384,7 +388,7 @@ func getSharedFxOption() fx.Option {
 		fx.Supply(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
-		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
+		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
@@ -395,6 +399,7 @@ func getSharedFxOption() fx.Option {
 		collectorimpl.Module(),
 		process.Bundle(),
 		agent.Bundle(),
+		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 	)
 }
 
@@ -421,34 +426,10 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ jmxlogger.Component,
 ) error {
 
 	var err error
-
-	// Setup logger
-	syslogURI := pkgconfig.GetSyslogURI()
-	jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = path.DefaultJmxLogFile
-	}
-
-	if pkgconfig.Datadog.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		jmxLogFile = ""
-	}
-
-	// Setup JMX logger
-	jmxLoggerSetupErr := pkgconfig.SetupJMXLogger(
-		jmxLogFile,
-		syslogURI,
-		pkgconfig.Datadog.GetBool("syslog_rfc"),
-		pkgconfig.Datadog.GetBool("log_to_console"),
-		pkgconfig.Datadog.GetBool("log_format_json"),
-	)
-
-	if jmxLoggerSetupErr != nil {
-		return fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
-	}
 
 	if flavor.GetFlavor() == flavor.IotAgent {
 		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
