@@ -426,7 +426,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	_ jmxlogger.Component,
+	jmxLogger jmxlogger.Component,
 ) error {
 
 	var err error
@@ -583,7 +583,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Init JMX runner and inject dogstatsd component
-	jmx.InitRunner(server)
+	jmx.InitRunner(server, jmxLogger)
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
