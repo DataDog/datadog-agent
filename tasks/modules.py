@@ -146,6 +146,10 @@ DEFAULT_MODULES = {
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
     "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
+    "internal/tools/independent-lint": GoModule(
+        "internal/tools/independent-lint", condition=lambda: False, should_tag=False
+    ),
+    "internal/tools/modformatter": GoModule("internal/tools/modformatter", condition=lambda: False, should_tag=False),
     "test/e2e/containers/otlp_sender": GoModule(
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
@@ -162,6 +166,7 @@ DEFAULT_MODULES = {
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
+    "pkg/tagger": GoModule("pkg/tagger", independent=True),
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
@@ -203,6 +208,9 @@ DEFAULT_MODULES = {
     "pkg/logs/status/utils": GoModule("pkg/logs/status/utils", independent=True),
     "pkg/serializer": GoModule("pkg/serializer", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
+    "pkg/security/seclwin": GoModule(
+        "pkg/security/seclwin", independent=True, condition=lambda: False, legacy_go_mod_version=True
+    ),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
     "pkg/util/cgroups": GoModule(
@@ -216,7 +224,6 @@ DEFAULT_MODULES = {
     "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True),
     "pkg/util/cache": GoModule("pkg/util/cache", independent=True),
     "pkg/util/common": GoModule("pkg/util/common", independent=True),
-    "pkg/util/compression": GoModule("pkg/util/compression", independent=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
     "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),

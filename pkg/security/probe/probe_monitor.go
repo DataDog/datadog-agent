@@ -172,8 +172,7 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 		)
 	}
 
-	var processContextErr *model.ErrNoProcessContext
-	if errors.As(event.Error, &processContextErr) {
+	if errors.Is(event.Error, model.ErrNoProcessContext) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
 			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
 		)

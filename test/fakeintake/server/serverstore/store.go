@@ -8,6 +8,9 @@
 package serverstore
 
 import (
+	"errors"
+	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -24,8 +27,6 @@ type Store interface {
 	CleanUpPayloadsOlderThan(time.Time)
 	// GetRawPayloads returns all raw payloads for a given route
 	GetRawPayloads(route string) []api.Payload
-	// GetJSONPayloads returns all parsed payloads for a given route
-	GetJSONPayloads(route string) []api.ParsedPayload
 	// GetRouteStats returns the number of payloads for each route
 	GetRouteStats() map[string]int
 	// Flush flushes the store
@@ -42,4 +43,27 @@ func NewStore() Store {
 		return NewInMemoryStore()
 	}
 	return NewSQLStore()
+}
+
+func GetJSONPayloads(store Store, route string) ([]api.ParsedPayload, error) {
+	parser, ok := parserMap[route]
+	if !ok {
+		return nil, fmt.Errorf("no parser for route %s", route)
+	}
+	payloads := store.GetRawPayloads(route)
+	parsedPayloads := make([]api.ParsedPayload, 0, len(payloads))
+	var errs []error
+	for _, payload := range payloads {
+		parsedPayload, err := parser(payload)
+		if err != nil {
+			log.Printf("failed to parse payload %+v: %v\n", payload, err)
+			errs = append(errs, err)
+			continue
+		}
+		parsedPayloads = append(parsedPayloads, api.ParsedPayload{
+			Timestamp: payload.Timestamp,
+			Data:      parsedPayload,
+		})
+	}
+	return parsedPayloads, errors.Join(errs...)
 }

@@ -200,6 +200,7 @@ func TestECSFargate(t *testing.T) {
 							},
 						},
 						LogConfiguration: ecsResources.GetFirelensLogConfiguration(pulumi.String("cws-instrumentation-init"), pulumi.String(ecsFgHostnamePrefix), apiKeyParam.Name),
+						User:             pulumi.StringPtr("0"),
 					},
 					"log_router": *ecsResources.FargateFirelensContainerDefinition(),
 				},

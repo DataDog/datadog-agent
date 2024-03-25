@@ -90,10 +90,6 @@ var ebpfConntrackerPrebuiltCreator func(*config.Config) (bytecode.AssetReader, [
 
 // NewEBPFConntracker creates a netlink.Conntracker that monitor conntrack NAT entries via eBPF
 func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
-	if !cfg.EnableEbpfConntracker {
-		return nil, fmt.Errorf("ebpf conntracker is disabled")
-	}
-
 	var err error
 	var buf bytecode.AssetReader
 	if cfg.EnableRuntimeCompiler {
@@ -167,7 +163,7 @@ func NewEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		}
 		return nil, err
 	}
-	log.Infof("initialized ebpf conntrack")
+	log.Infof("initialized ebpf conntracker")
 	return e, nil
 }
 
@@ -224,6 +220,11 @@ func toConntrackTupleFromStats(src *netebpf.ConntrackTuple, stats *network.Conne
 	case network.AFINET6:
 		src.Metadata |= uint32(netebpf.IPv6)
 	}
+}
+
+// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+func (e *ebpfConntracker) GetType() string {
+	return "ebpf"
 }
 
 func (e *ebpfConntracker) GetTranslationForConn(stats network.ConnectionStats) *network.IPTranslation {

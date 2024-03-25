@@ -8,25 +8,25 @@
 package k8s
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
+	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 )
 
 // NetworkPolicyHandlers implements the Handlers interface for Kubernetes NetworkPolicy.
 type NetworkPolicyHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NetworkPolicyHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+func (h *NetworkPolicyHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.NetworkPolicy)
 	m.Yaml = yaml
 	return
@@ -34,7 +34,8 @@ func (h *NetworkPolicyHandlers) AfterMarshalling(ctx *processors.ProcessorContex
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *NetworkPolicyHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *NetworkPolicyHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.NetworkPolicy, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -42,19 +43,19 @@ func (h *NetworkPolicyHandlers) BuildMessageBody(ctx *processors.ProcessorContex
 	}
 
 	return &model.CollectorNetworkPolicy{
-		ClusterName:     ctx.Cfg.KubeClusterName,
-		ClusterId:       ctx.ClusterID,
-		GroupId:         ctx.MsgGroupID,
+		ClusterName:     pctx.Cfg.KubeClusterName,
+		ClusterId:       pctx.ClusterID,
+		GroupId:         pctx.MsgGroupID,
 		GroupSize:       int32(groupSize),
 		NetworkPolicies: models,
-		Tags:            append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:            append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NetworkPolicyHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+func (h *NetworkPolicyHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*netv1.NetworkPolicy)
 	return k8sTransformers.ExtractNetworkPolicy(r)
 }
@@ -63,7 +64,7 @@ func (h *NetworkPolicyHandlers) ExtractResource(ctx *processors.ProcessorContext
 // interface to a list of generic interfaces.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NetworkPolicyHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+func (h *NetworkPolicyHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*netv1.NetworkPolicy)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -77,14 +78,14 @@ func (h *NetworkPolicyHandlers) ResourceList(ctx *processors.ProcessorContext, l
 // ResourceUID is a handler called to retrieve the resource UID.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NetworkPolicyHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *NetworkPolicyHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*netv1.NetworkPolicy).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NetworkPolicyHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *NetworkPolicyHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*netv1.NetworkPolicy).ResourceVersion
 }
 
@@ -92,7 +93,7 @@ func (h *NetworkPolicyHandlers) ResourceVersion(ctx *processors.ProcessorContext
 // it is extracted as an internal resource model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NetworkPolicyHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *NetworkPolicyHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*netv1.NetworkPolicy)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }
@@ -101,5 +102,5 @@ func (h *NetworkPolicyHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorC
 // it is marshalled to generate a manifest.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *NetworkPolicyHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *NetworkPolicyHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
 }

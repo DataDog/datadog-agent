@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
@@ -38,12 +39,12 @@ type Controller interface {
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config, wmeta workloadmeta.Component) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
+		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta)
 	}
 
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config)
+	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta)
 }
 
 // MutatingWebhook represents a mutating webhook
@@ -67,14 +68,20 @@ type MutatingWebhook interface {
 	MutateFunc() admission.WebhookFunc
 }
 
-func mutatingWebhooks() []MutatingWebhook {
+// mutatingWebhooks returns the list of mutating webhooks. Notice that the order
+// of the webhooks returned is the order in which they will be executed. For
+// now, the only restriction is that the agent sidecar webhook needs to go after
+// the config one. The reason is that the volume mount for the APM socket added
+// by the config webhook doesn't always work on Fargate (one of the envs where
+// we use an agent sidecar), and the agent sidecar webhook needs to remove it.
+func mutatingWebhooks(wmeta workloadmeta.Component) []MutatingWebhook {
 	webhooks := []MutatingWebhook{
-		config.NewWebhook(),
-		tagsfromlabels.NewWebhook(),
+		config.NewWebhook(wmeta),
+		tagsfromlabels.NewWebhook(wmeta),
 		agentsidecar.NewWebhook(),
 	}
 
-	apm, err := autoinstrumentation.NewWebhook()
+	apm, err := autoinstrumentation.GetWebhook(wmeta)
 	if err == nil {
 		webhooks = append(webhooks, apm)
 	} else {

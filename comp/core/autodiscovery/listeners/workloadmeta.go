@@ -68,6 +68,7 @@ func newWorkloadmetaListener(
 	name string,
 	workloadFilters *workloadmeta.Filter,
 	processFn func(workloadmeta.Entity),
+	wmeta workloadmeta.Component,
 ) (workloadmetaListener, error) {
 	containerFilters, err := newContainerFilters()
 	if err != nil {
@@ -78,10 +79,8 @@ func newWorkloadmetaListener(
 		name: name,
 		stop: make(chan struct{}),
 
-		processFn: processFn,
-
-		// TODO(components): stop relying on globals and instead harness injected components.
-		store:            workloadmeta.GetGlobalStore(),
+		processFn:        processFn,
+		store:            wmeta,
 		workloadFilters:  workloadFilters,
 		containerFilters: containerFilters,
 

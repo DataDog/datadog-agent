@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 )
 
@@ -45,10 +45,12 @@ type Provider struct {
 }
 
 // GetProvider if system probe is enabled returns status.Provider otherwise returns nil
-func GetProvider(conf config.Component) status.Provider {
-	if conf.GetBool("system_probe_config.enabled") {
+func GetProvider(config sysprobeconfig.Component) status.Provider {
+	systemProbeConfig := config.SysProbeObject()
+
+	if systemProbeConfig.Enabled {
 		return Provider{
-			SocketPath: conf.GetString("system_probe_config.sysprobe_socket"),
+			SocketPath: systemProbeConfig.SocketAddress,
 		}
 	}
 
@@ -77,7 +79,7 @@ func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (p Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "clusteragent.tmpl", buffer, p.getStatusInfo())
+	return status.RenderText(templatesFS, "systemprobe.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output

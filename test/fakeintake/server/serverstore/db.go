@@ -223,11 +223,6 @@ func (s *SQLStore) GetRawPayloads(route string) []api.Payload {
 	return payloads
 }
 
-// GetJSONPayloads returns all parsed payloads for a given route
-func (s *SQLStore) GetJSONPayloads(route string) (payloads []api.ParsedPayload) {
-	return nil
-}
-
 // GetRouteStats returns the number of payloads for each route
 func (s *SQLStore) GetRouteStats() (statsByRoute map[string]int) {
 	statsByRoute = make(map[string]int)

@@ -41,7 +41,7 @@ func TestGetIAMRole(t *testing.T) {
 	defer resetPackageVars()
 
 	val, err := getIAMRole(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, val)
 }
 
@@ -54,7 +54,7 @@ func TestGetSecurityCreds(t *testing.T) {
 		} else if r.URL.Path == "/iam/security-credentials/test-role" {
 			w.Header().Set("Content-Type", "text/plain")
 			content, err := os.ReadFile("payloads/security_cred.json")
-			require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
+			require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/security_cred.json: %v", err))
 			io.WriteString(w, string(content))
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -66,7 +66,7 @@ func TestGetSecurityCreds(t *testing.T) {
 	defer resetPackageVars()
 
 	cred, err := getSecurityCreds(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "123456", cred.AccessKeyID)
 	assert.Equal(t, "secret access key", cred.SecretAccessKey)
 	assert.Equal(t, "secret token", cred.Token)
@@ -77,7 +77,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		content, err := os.ReadFile("payloads/instance_indentity.json")
-		require.Nil(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
+		require.NoError(t, err, fmt.Sprintf("failed to load json in payloads/instance_indentity.json: %v", err))
 		io.WriteString(w, string(content))
 	}))
 	defer ts.Close()
@@ -86,7 +86,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	defer resetPackageVars()
 
 	val, err := GetInstanceIdentity(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "us-east-1", val.Region)
 	assert.Equal(t, "i-aaaaaaaaaaaaaaaaa", val.InstanceID)
 	assert.Equal(t, "REMOVED", val.AccountID)
@@ -118,7 +118,7 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	confMock.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
 
 	tags, err := fetchEc2TagsFromIMDS(ctx)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []string{
 		"Name:some-vm",
 		"Purpose:mining",
@@ -156,7 +156,7 @@ func TestGetTags(t *testing.T) {
 	fetchTags = mockFetchTagsSuccess
 
 	tags, err := GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 }
 
@@ -180,7 +180,7 @@ func TestGetTagsErrorFullCache(t *testing.T) {
 	fetchTags = mockFetchTagsFailure
 
 	tags, err := GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"cachedTag"}, tags)
 }
 
@@ -194,16 +194,16 @@ func TestGetTagsFullWorkflow(t *testing.T) {
 	fetchTags = mockFetchTagsFailure
 
 	tags, err := GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"oldTag"}, tags)
 
 	fetchTags = mockFetchTagsSuccess
 	tags, err = GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 
 	fetchTags = mockFetchTagsFailure
 	tags, err = GetTags(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []string{"tag1", "tag2"}, tags)
 }

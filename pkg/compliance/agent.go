@@ -112,6 +112,7 @@ const (
 // continuously benchmarks and configuration checking.
 type Agent struct {
 	senderManager sender.SenderManager
+	wmeta         workloadmeta.Component
 	opts          AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
@@ -166,7 +167,7 @@ func DefaultRuleFilter(r *Rule) bool {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
+func NewAgent(senderManager sender.SenderManager, wmeta workloadmeta.Component, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -189,6 +190,7 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 	}
 	return &Agent{
 		senderManager: senderManager,
+		wmeta:         wmeta,
 		opts:          opts,
 		statuses:      make(map[string]*CheckStatus),
 	}
@@ -196,7 +198,7 @@ func NewAgent(senderManager sender.SenderManager, opts AgentOptions) *Agent {
 
 // Start starts the compliance agent.
 func (a *Agent) Start() error {
-	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager)
+	telemetry, err := telemetry.NewContainersTelemetry(a.senderManager, a.wmeta)
 	if err != nil {
 		log.Errorf("could not start containers telemetry: %v", err)
 		return err
@@ -453,9 +455,15 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
 		for keyGroup, proc := range groups {
 			rootPath := filepath.Join(a.opts.HostRoot, keyGroup.rootPath)
-			resource, ok := dbconfig.LoadDBResource(ctx, rootPath, proc, keyGroup.containerID)
+			resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, rootPath, proc)
 			if ok {
-				a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+				log := NewResourceLog(a.opts.Hostname, resourceType, resource)
+				if keyGroup.containerID != "" {
+					log.Container = &CheckContainerMeta{
+						ContainerID: string(keyGroup.containerID),
+					}
+				}
+				a.reportResourceLog(defaultCheckIntervalLowPriority, log)
 			}
 		}
 		if sleepAborted(ctx, runTicker.C) {
@@ -504,11 +512,10 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (str
 }
 
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
-	store := workloadmeta.GetGlobalStore()
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
-	if store != nil && resourceLog.Container != nil {
-		if ctnr, _ := store.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
+	if a.wmeta != nil && resourceLog.Container != nil {
+		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
 			resourceLog.Container.ImageID = ctnr.Image.ID
 			resourceLog.Container.ImageName = ctnr.Image.Name
 			resourceLog.Container.ImageTag = ctnr.Image.Tag
@@ -518,7 +525,6 @@ func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *Resour
 }
 
 func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent) {
-	store := workloadmeta.GetGlobalStore()
 	eventsExpireAt := time.Now().Add(2 * eventsTTL).Truncate(1 * time.Second)
 	for _, event := range events {
 		event.ExpireAt = &eventsExpireAt
@@ -526,8 +532,8 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 		if event.Result == CheckSkipped {
 			continue
 		}
-		if store != nil && event.Container != nil {
-			if ctnr, _ := store.GetContainer(event.Container.ContainerID); ctnr != nil {
+		if a.wmeta != nil && event.Container != nil {
+			if ctnr, _ := a.wmeta.GetContainer(event.Container.ContainerID); ctnr != nil {
 				event.Container.ImageID = ctnr.Image.ID
 				event.Container.ImageName = ctnr.Image.Name
 				event.Container.ImageTag = ctnr.Image.Tag

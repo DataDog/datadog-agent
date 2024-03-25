@@ -94,6 +94,7 @@ func (hei *EtwInterface) SetMaxRequestBytes(maxRequestBytes uint64) {
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) StartReadingHttpFlows() {
+	hei.OnStart()
 	hei.eventLoopWG.Add(2)
 
 	startingEtwChan := make(chan struct{})
@@ -157,6 +158,7 @@ func (hei *EtwInterface) StartReadingHttpFlows() {
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) Close() {
+	hei.OnStop()
 	if hei.session != nil {
 		_ = hei.session.StopTracing()
 		hei.eventLoopWG.Wait()

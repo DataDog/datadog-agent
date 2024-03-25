@@ -19,8 +19,7 @@ import (
 type InMemoryStore struct {
 	mutex sync.RWMutex
 
-	rawPayloads  map[string][]api.Payload
-	jsonPayloads map[string][]api.ParsedPayload
+	rawPayloads map[string][]api.Payload
 
 	// NbPayloads is a prometheus metric to track the number of payloads collected by route
 	NbPayloads *prometheus.GaugeVec
@@ -29,9 +28,8 @@ type InMemoryStore struct {
 // NewInMemoryStore initialise a new payloads store
 func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
-		mutex:        sync.RWMutex{},
-		rawPayloads:  map[string][]api.Payload{},
-		jsonPayloads: map[string][]api.ParsedPayload{},
+		mutex:       sync.RWMutex{},
+		rawPayloads: map[string][]api.Payload{},
 		NbPayloads: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "payloads",
 			Help: "Number of payloads collected by route",
@@ -50,17 +48,6 @@ func (s *InMemoryStore) AppendPayload(route string, data []byte, encoding string
 	}
 	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload)
 	s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
-	return s.tryParseAndAppendPayload(rawPayload, route)
-}
-
-func (s *InMemoryStore) tryParseAndAppendPayload(rawPayload api.Payload, route string) error {
-	parsedPayload, err := tryParse(rawPayload, route)
-	if err != nil {
-		return err
-	}
-	if parsedPayload != nil {
-		s.jsonPayloads[route] = append(s.jsonPayloads[route], *parsedPayload)
-	}
 	return nil
 }
 
@@ -80,17 +67,6 @@ func (s *InMemoryStore) CleanUpPayloadsOlderThan(time time.Time) {
 		s.rawPayloads[route] = s.rawPayloads[route][lastInvalidPayloadIndex+1:]
 		s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
 	}
-	// clean up parsed payloads
-	for route, payloads := range s.jsonPayloads {
-		// cleanup raw store
-		lastInvalidPayloadIndex := -1
-		for i, payload := range payloads {
-			if payload.Timestamp.Before(time) {
-				lastInvalidPayloadIndex = i
-			}
-		}
-		s.jsonPayloads[route] = s.jsonPayloads[route][lastInvalidPayloadIndex+1:]
-	}
 }
 
 // GetRawPayloads returns payloads collected for route `route`
@@ -99,15 +75,6 @@ func (s *InMemoryStore) GetRawPayloads(route string) (payloads []api.Payload) {
 	defer s.mutex.RUnlock()
 	payloads = make([]api.Payload, len(s.rawPayloads[route]))
 	copy(payloads, s.rawPayloads[route])
-	return payloads
-}
-
-// GetJSONPayloads returns payloads collected and parsed to json for route `route`
-func (s *InMemoryStore) GetJSONPayloads(route string) (payloads []api.ParsedPayload) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-	payloads = make([]api.ParsedPayload, len(s.jsonPayloads[route]))
-	copy(payloads, s.jsonPayloads[route])
 	return payloads
 }
 
@@ -127,7 +94,6 @@ func (s *InMemoryStore) Flush() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.rawPayloads = map[string][]api.Payload{}
-	s.jsonPayloads = map[string][]api.ParsedPayload{}
 	s.NbPayloads.Reset()
 }
 

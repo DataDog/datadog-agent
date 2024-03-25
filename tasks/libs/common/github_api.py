@@ -3,6 +3,7 @@ import os
 import platform
 import re
 import subprocess
+from typing import List
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
@@ -24,7 +25,7 @@ class GithubAPI:
 
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, repository="", public_repo=False):
+    def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
         self._repository = self._github.get_repo(repository)
@@ -111,6 +112,9 @@ class GithubAPI:
         issues = self._repository.get_issues(milestone=m, state='all', labels=labels)
         return [i.as_pull_request() for i in issues if i.pull_request is not None]
 
+    def get_pr_for_branch(self, branch_name):
+        return self._repository.get_pulls(state="open", head=f'DataDog:{branch_name}')
+
     def get_tags(self, pattern=""):
         """
         List all tags starting with the provided pattern.
@@ -190,6 +194,47 @@ class GithubAPI:
         Gets the current rate limit info.
         """
         return self._github.rate_limiting
+
+    def publish_comment(self, pull_number, comment):
+        """
+        Publish a comment on a given PR.
+        """
+        pr = self._repository.get_pull(int(pull_number))
+        pr.create_issue_comment(comment)
+
+    def find_comment(self, pull_number, content):
+        """
+        Get a comment that contains content on a given PR.
+        """
+        pr = self._repository.get_pull(int(pull_number))
+
+        comments = pr.get_issue_comments()
+        for comment in comments:
+            if content in comment.body:
+                return comment
+
+    def add_pr_label(self, pr_id: int, label: str) -> None:
+        """
+        Tries to add a label to the pull request
+        """
+        pr = self._repository.get_pull(pr_id)
+        pr.add_to_labels(label)
+
+    def get_pr_labels(self, pr_id: int) -> List[str]:
+        """
+        Returns the labels of a pull request
+        """
+        pr = self._repository.get_pull(pr_id)
+
+        return [label.name for label in pr.get_labels()]
+
+    def get_pr_files(self, pr_id: int) -> List[str]:
+        """
+        Returns the files involved in the PR
+        """
+        pr = self._repository.get_pull(pr_id)
+
+        return [f.filename for f in pr.get_files()]
 
     def _chose_auth(self, public_repo):
         """

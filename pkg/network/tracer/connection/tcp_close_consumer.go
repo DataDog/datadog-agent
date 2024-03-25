@@ -23,7 +23,7 @@ import (
 const closeConsumerModuleName = "network_tracer__ebpf"
 
 // Telemetry
-var closerConsumerTelemetry = struct {
+var closeConsumerTelemetry = struct {
 	perfReceived telemetry.Counter
 	perfLost     telemetry.Counter
 }{
@@ -32,7 +32,7 @@ var closerConsumerTelemetry = struct {
 }
 
 type tcpCloseConsumer struct {
-	perfHandler  *ddebpf.PerfHandler
+	eventHandler ddebpf.EventHandler
 	batchManager *perfBatchManager
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
@@ -41,9 +41,9 @@ type tcpCloseConsumer struct {
 	ch           *cookieHasher
 }
 
-func newTCPCloseConsumer(perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) *tcpCloseConsumer {
+func newTCPCloseConsumer(eventHandler ddebpf.EventHandler, batchManager *perfBatchManager) *tcpCloseConsumer {
 	return &tcpCloseConsumer{
-		perfHandler:  perfHandler,
+		eventHandler: eventHandler,
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
 		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
@@ -75,7 +75,7 @@ func (c *tcpCloseConsumer) Stop() {
 	if c == nil {
 		return
 	}
-	c.perfHandler.Stop()
+	c.eventHandler.Stop()
 	c.once.Do(func() {
 		close(c.closed)
 	})
@@ -108,10 +108,11 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 			}
 		}()
 
-		dataChannel := c.perfHandler.DataChannel()
-		lostChannel := c.perfHandler.LostChannel()
+		dataChannel := c.eventHandler.DataChannel()
+		lostChannel := c.eventHandler.LostChannel()
 		for {
 			select {
+
 			case <-c.closed:
 				return
 			case <-health.C:
@@ -124,7 +125,7 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				switch {
 				case l >= netebpf.SizeofBatch:
 					batch := netebpf.ToBatch(batchData.Data)
-					c.batchManager.ExtractBatchInto(c.buffer, batch, batchData.CPU)
+					c.batchManager.ExtractBatchInto(c.buffer, batch)
 				case l >= netebpf.SizeofConn:
 					c.extractConn(batchData.Data)
 				default:
@@ -132,16 +133,17 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 					continue
 				}
 
-				closerConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
+				closeConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
 				closedCount += uint64(c.buffer.Len())
 				callback(c.buffer.Connections())
 				c.buffer.Reset()
 				batchData.Done()
+			// lost events only occur when using perf buffers
 			case lc, ok := <-lostChannel:
 				if !ok {
 					return
 				}
-				closerConsumerTelemetry.perfLost.Add(float64(lc))
+				closeConsumerTelemetry.perfLost.Add(float64(lc))
 				lostSamplesCount += lc
 			case request := <-c.requests:
 				oneTimeBuffer := network.NewConnectionBuffer(32, 32)

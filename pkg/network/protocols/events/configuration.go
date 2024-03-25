@@ -123,15 +123,6 @@ func eventMapName(proto string) string {
 	return proto + eventsMapSuffix
 }
 
-// noopInstruction is used for the purposes of eBPF patching (see comments
-// below)
-// we're using here the same noop instruction used internally by the verifier:
-// https://elixir.bootlin.com/linux/v6.7/source/kernel/bpf/verifier.c#L18582
-var noopInstruction = asm.Instruction{
-	OpCode:   asm.Ja.Op(asm.ImmSource),
-	Constant: 0,
-}
-
 // removeRingBufferHelperCalls is called only in the context of kernels that
 // don't support ring buffers. our eBPF code looks more or less like the
 // following:
@@ -154,24 +145,26 @@ var noopInstruction = asm.Instruction{
 // essentially replace `bpf_ringbuf_output` helper calls by a noop operation so
 // they don't result in verifier errors even when deadcode elimination fails.
 func removeRingBufferHelperCalls(m *manager.Manager) {
-	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
-		progs, err := m.GetProgramSpecs()
-		if err != nil {
-			return err
-		}
+	// TODO: this is not the intended API usage of a `ebpf.Modifier`.
+	// Once we have access to the `ddebpf.Manager`, add this modifier to its list of
+	// `EnabledModifiers` and let it control the execution of the callbacks
+	patcher := ddebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+	err := patcher.BeforeInit(m, nil)
 
-		for _, p := range progs {
-			iter := p.Instructions.Iterate()
-			for iter.Next() {
-				ins := iter.Ins
-				if ins.IsBuiltinCall() && ins.Constant == int64(asm.FnRingbufOutput) {
-					*ins = noopInstruction
-				}
-			}
-		}
-
-		return nil
-	})
+	if err != nil {
+		// Our production code is actually loading on all Kernels we test on CI
+		// (including those that don't support Ring Buffers) *even without
+		// patching*, presumably due to pruning/dead code elimination. The only
+		// thing failing to load was actually a small eBPF test program. So we
+		// added the patching almost as an extra safety layer.
+		//
+		// All that to say that even if the patching fails, there's still a good
+		// chance that the program will succeed to load. If it doesn't,there
+		// isn't much we can do, and the loading error will bubble up and be
+		// appropriately handled by the upstream code, which is why we don't do
+		// anything here.
+		log.Errorf("error patching eBPF bytecode: %s", err)
+	}
 }
 
 func alreadySetUp(proto string, m *manager.Manager) bool {

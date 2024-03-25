@@ -1,0 +1,25 @@
+unit_tests_notify:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_disable_unit_tests]
+    - when: always
+  script:
+    - source /root/.bashrc
+    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
+    - export GITHUB_APP_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-id)
+    - export GITHUB_INSTALLATION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-installation-id)
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - inv notify.unit-tests --pipeline-id $CI_PIPELINE_ID --pipeline-url $CI_PIPELINE_URL --branch-name $CI_COMMIT_REF_NAME
+  needs:
+    - tests_deb-x64-py3
+    - tests_deb-arm64-py3
+    - tests_rpm-x64-py3
+    - tests_rpm-arm64-py3
+    - tests_windows-x64
+    - tests_flavor_iot_deb-x64
+    - tests_flavor_dogstatsd_deb-x64
+    - tests_flavor_heroku_deb-x64
+  allow_failure: true

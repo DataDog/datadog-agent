@@ -37,6 +37,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
+const (
+	maxMessageSize = 256 * 1024
+)
+
 type client struct {
 	conn             net.Conn
 	probe            *EBPFLessProbe
@@ -71,6 +75,7 @@ type EBPFLessProbe struct {
 	fieldHandlers *EBPFLessFieldHandlers
 	buf           []byte
 	clients       map[net.Conn]*client
+	processKiller *ProcessKiller
 }
 
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
@@ -125,7 +130,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
 		entry := p.Resolvers.ProcessResolver.AddExecEntry(
-			process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.File.Filename,
+			process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
 			syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
 			cl.containerContext.ID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		if syscallMsg.Exec.Credentials != nil {
@@ -272,9 +277,15 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Exit.Cause = uint32(syscallMsg.Exit.Cause)
 		event.Exit.Code = syscallMsg.Exit.Code
 		defer p.Resolvers.ProcessResolver.DeleteEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, event.ProcessContext.ExitTime)
+
+		// update kill action reports
+		p.processKiller.HandleProcessExited(event)
 	}
 
 	p.DispatchEvent(event)
+
+	// flush pending kill actions
+	p.processKiller.FlushPendingReports()
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -333,7 +344,7 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 	}
 
 	size := native.Endian.Uint32(sizeBuf)
-	if size > 64*1024 {
+	if size > maxMessageSize {
 		return fmt.Errorf("data overflow the max size: %d", size)
 	}
 
@@ -341,12 +352,16 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.Message) error {
 		p.buf = make([]byte, size)
 	}
 
-	n, err = conn.Read(p.buf[:size])
-	if err != nil {
-		return err
+	var read uint32
+	for read < size {
+		n, err = conn.Read(p.buf[read:size])
+		if err != nil {
+			return err
+		}
+		read += uint32(n)
 	}
 
-	return msgpack.Unmarshal(p.buf[0:n], msg)
+	return msgpack.Unmarshal(p.buf[0:size], msg)
 }
 
 // GetClientsCount returns the number of connected clients
@@ -479,7 +494,22 @@ func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 }
 
 // HandleActions handles the rule actions
-func (p *EBPFLessProbe) HandleActions(_ *eval.Context, _ *rules.Rule) {}
+func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
+	ev := ctx.Event.(*model.Event)
+
+	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
+		switch {
+		case action.Kill != nil:
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+				return p.processKiller.KillFromUserspace(pid, sig, ev)
+			})
+		}
+	}
+}
 
 // NewEvent returns a new event
 func (p *EBPFLessProbe) NewEvent() *model.Event {
@@ -519,15 +549,16 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	var grpcOpts []grpc.ServerOption
 	p := &EBPFLessProbe{
-		probe:        probe,
-		config:       config,
-		opts:         opts,
-		statsdClient: opts.StatsdClient,
-		server:       grpc.NewServer(grpcOpts...),
-		ctx:          ctx,
-		cancelFnc:    cancelFnc,
-		buf:          make([]byte, 4096),
-		clients:      make(map[net.Conn]*client),
+		probe:         probe,
+		config:        config,
+		opts:          opts,
+		statsdClient:  opts.StatsdClient,
+		server:        grpc.NewServer(grpcOpts...),
+		ctx:           ctx,
+		cancelFnc:     cancelFnc,
+		buf:           make([]byte, 4096),
+		clients:       make(map[net.Conn]*client),
+		processKiller: NewProcessKiller(),
 	}
 
 	resolversOpts := resolvers.Opts{

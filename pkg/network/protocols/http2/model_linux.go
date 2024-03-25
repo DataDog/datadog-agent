@@ -8,6 +8,7 @@
 package http2
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -25,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var oversizedLogLimit = util.NewLogLimit(10, time.Minute*10)
+var oversizedLogLimit = log.NewLogLimit(10, time.Minute*10)
 
 // validatePath validates the given path.
 func validatePath(str string) error {
@@ -115,7 +116,13 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
 	}
 
-	n := copy(buffer, res)
+	// Ignore query parameters
+	queryStart := bytes.IndexByte(res, byte('?'))
+	if queryStart == -1 {
+		queryStart = len(res)
+	}
+
+	n := copy(buffer, res[:queryStart])
 	return buffer[:n], true
 }
 
@@ -227,8 +234,12 @@ func (tx *EbpfTx) StatusCode() uint16 {
 			return 204
 		case K206Value:
 			return 206
+		case K304Value:
+			return 304
 		case K400Value:
 			return 400
+		case K404Value:
+			return 404
 		case K500Value:
 			return 500
 		default:
@@ -289,7 +300,7 @@ func (tx *EbpfTx) SetRequestMethod(_ http.Method) {
 
 // StaticTags returns the static tags of the transaction.
 func (tx *EbpfTx) StaticTags() uint64 {
-	return 0
+	return uint64(tx.Stream.Tags)
 }
 
 // DynamicTags returns the dynamic tags of the transaction.

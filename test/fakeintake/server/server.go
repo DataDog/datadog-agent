@@ -27,12 +27,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 )
 
 // defaultResponse is the default response returned by the fakeintake server
@@ -129,16 +130,23 @@ func NewServer(options ...func(*Server)) *Server {
 	return fi
 }
 
-// WithPort changes the server port.
-// If the port is 0, a port number is automatically chosen
-func WithPort(port int) func(*Server) {
+// WithAddress changes the server host:port.
+// If host is empty, it will bind to 0.0.0.0
+// If the port is empty or 0, a port number is automatically chosen
+func WithAddress(addr string) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
-		fi.server.Addr = fmt.Sprintf(":%d", port)
+		fi.server.Addr = addr
 	}
+}
+
+// WithPort changes the server port.
+// If the port is 0, a port number is automatically chosen
+func WithPort(port int) func(*Server) {
+	return WithAddress(fmt.Sprintf(":%d", port))
 }
 
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
@@ -314,13 +322,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		encoding = req.Header.Get("Content-Type")
 	}
 
-	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
-	if err != nil {
-		log.Printf("Error caching payload: %v", err.Error())
-		response := buildErrorResponse(err)
-		writeHTTPResponse(w, response)
-		return nil
-	}
+	fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
 
 	if response, ok := fi.getResponseFromURLPath(http.MethodPost, req.URL.Path); ok {
 		writeHTTPResponse(w, response)
@@ -364,18 +366,18 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {
-		payloads := fi.store.GetJSONPayloads(route)
-		// build response
+		payloads, payloadErr := serverstore.GetJSONPayloads(fi.store, route)
+		if payloadErr != nil {
+			writeHTTPResponse(w, buildErrorResponse(payloadErr))
+			return
+		}
+
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHTTPResponse(w, httpResponse{
-			contentType: "text/plain",
-			statusCode:  http.StatusBadRequest,
-			body:        []byte("invalid route parameter"),
-		})
+		writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid route parameter")))
 		return
 	}
 
