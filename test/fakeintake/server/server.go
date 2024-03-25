@@ -322,7 +322,12 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		encoding = req.Header.Get("Content-Type")
 	}
 
-	fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	if err != nil {
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return nil
+	}
 
 	if response, ok := fi.getResponseFromURLPath(http.MethodPost, req.URL.Path); ok {
 		writeHTTPResponse(w, response)

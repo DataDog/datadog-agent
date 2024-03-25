@@ -45,19 +45,3 @@ func IsRouteHandled(route string) bool {
 	_, ok := parserMap[route]
 	return ok
 }
-
-func tryParse(rawPayload api.Payload, route string) (*api.ParsedPayload, error) {
-	parsePayload, ok := parserMap[route]
-	if !ok {
-		return nil, nil
-	}
-	var err error
-	data, err := parsePayload(rawPayload)
-	if err != nil {
-		return nil, err
-	}
-	return &api.ParsedPayload{
-		Timestamp: rawPayload.Timestamp,
-		Data:      data,
-	}, nil
-}
