@@ -1124,7 +1124,8 @@ type aggregateConnection struct {
 }
 
 type aggregationKey struct {
-	string
+	// connKey is the key returned by ConnectionStats.ByteKey()
+	connKey    string
 	direction  ConnectionDirection
 	containers struct {
 		source, dest *intern.Value
@@ -1150,7 +1151,7 @@ func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEn
 }
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
-	key.string = string(c.ByteKey(a.buf))
+	key.connKey = string(c.ByteKey(a.buf))
 	key.direction = c.Direction
 	if a.processEventConsumerEnabled {
 		key.containers.source = c.ContainerID.Source
@@ -1198,7 +1199,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 		}()
 	}
 
-	key.string = string(c.ByteKey(a.buf))
+	key.connKey = string(c.ByteKey(a.buf))
 	return key, sportRolledUp, dportRolledUp
 }
 
