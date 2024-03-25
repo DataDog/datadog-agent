@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	"github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"go.uber.org/atomic"
 	"os"
@@ -49,11 +48,11 @@ import (
 
 const (
 	datadogConfigPath = "/datadog.yaml"
-	logLevelEnvVar    = "DD_LOG_LEVEL"
 )
 
 func main() {
 
+	loggerName, _ := mode.DetectMode()
 	err := fxutil.OneShot(
 		run,
 		autodiscoveryimpl.Module(),
@@ -64,7 +63,7 @@ func main() {
 		fx.Supply(core.BundleParams{
 			ConfigParams: coreconfig.NewAgentParams(datadogConfigPath),
 			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
+			LogParams:    logimpl.ForOneShot(loggerName, "off", true)}),
 		core.Bundle(),
 	)
 
@@ -85,8 +84,6 @@ func run(secretsManager secrets.Component, ac autodiscovery.Component) {
 }
 
 func setup(loggerName string, secretsManager secrets.Component, ac autodiscovery.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
-	setupDatadogLogger(loggerName)
-
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
@@ -141,26 +138,6 @@ func setupHealthCheck() {
 			log.Errorf("Error starting health port, exiting: %v", err)
 		}
 		log.Debugf("Health check listening on port %d", healthPort)
-	}
-}
-
-func setupDatadogLogger(loggerName string) {
-	if err := config.SetupLogger(
-		logs.LoggerName(loggerName),
-		"error", // will be re-set later with the value from the env var
-		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
-		"",      // syslog URI
-		false,   // syslog_rfc
-		true,    // log_to_console
-		false,   // log_format_json
-	); err != nil {
-		log.Errorf("Unable to setup logger: %s", err)
-	}
-
-	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
-		if err := config.ChangeLogLevel(logLevel); err != nil {
-			log.Errorf("Unable to change the log level: %s", err)
-		}
 	}
 }
 
