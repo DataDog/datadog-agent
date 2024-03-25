@@ -140,7 +140,7 @@ def send_slack_message(recipient, message):
 
 
 def email_to_slackid(ctx: Context, email: str) -> str:
-    slackid = ctx.run(f"echo '{email}' | email2slackid", ).stdout.strip()
+    slackid = ctx.run(f"echo '{email}' | email2slackid", hide='out').stdout.strip()
 
     assert slackid != '', 'Email not found'
 
