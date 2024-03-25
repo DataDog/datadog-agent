@@ -119,8 +119,8 @@ distributions = {
     "rocky_9.3": "rocky_9.3",
 }
 
-TICK = "\u2713"
-CROSS = "\u2718"
+TICK = "\033[32m\u2713\033[0m"
+CROSS = "\033[31m\u2718\033[0m"
 table = [
     ["Image", "x86_64", "arm64"],
     ["ubuntu-18 (bionic)", TICK, CROSS],
@@ -155,19 +155,61 @@ def lte_414(version: str) -> bool:
 
 
 def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
+    headers = [
+        "VM name",
+        "OS Name",
+        "Version",
+        "Kernel",
+        "x86_64",
+        "arm64",
+        "Alternative names",
+        "Example VM tag to use with --vms (fuzzy matching)",
+    ]
     custom_kernels: List[List[str]] = list()
     for k in kernels:
         if lte_414(k):
-            custom_kernels.append([f"custom kernel v{k}", TICK, CROSS])
+            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"])
         else:
-            custom_kernels.append([f"custom kernel v{k}", TICK, TICK])
+            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"])
+
+    distro_kernels: List[List[str]] = list()
+    platforms = get_platforms()
+    # Group kernels by name and kernel version, show whether one or two architectures are supported
+    for arch in cast('List[Arch]', ["x86_64", "arm64"]):
+        for name, platinfo in platforms[arch].items():
+            if isinstance(platinfo, str):
+                continue  # Old format
+
+            # See if we've already added this kernel but for a different architecture. If not, create the entry.
+            entry = None
+            for row in distro_kernels:
+                if row[0] == name and row[3] == platinfo.get('kernel'):
+                    entry = row
+                    break
+            if entry is None:
+                entry = [
+                    name,
+                    platinfo.get("os_name"),
+                    platinfo.get("version"),
+                    platinfo.get("kernel"),
+                    CROSS,
+                    CROSS,
+                    ", ".join(platinfo.get("alt_version_names", [])),
+                    f"distro-{name}-{arch}",
+                ]
+                distro_kernels.append(entry)
+
+            if arch == "x86_64":
+                entry[4] = TICK
+            else:
+                entry[5] = TICK
 
     if (not (distro or custom)) or (distro and custom):
-        return table + custom_kernels
+        return [headers] + distro_kernels + custom_kernels
     elif distro:
-        return table
+        return [headers] + distro_kernels
     elif custom:
-        return custom_kernels
+        return [headers] + custom_kernels
     else:
         return []
 
