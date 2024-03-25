@@ -53,6 +53,9 @@ var (
 	tlmProcessedOk    = tlmProcessed.WithValues("metrics", "ok", "")
 	tlmProcessedError = tlmProcessed.WithValues("metrics", "error", "")
 
+	tlmTotalPackets  = telemetry.NewSimpleCounter("dogstatsd", "packets", "Count of packets processed by DogStatsD server")
+	tlmTotalMessages = telemetry.NewCounter("dogstatsd", "messages", []string{"message_type"}, "Count of raw dogstatsd messages")
+
 	// while we try to add the origin tag in the tlmProcessed metric, we want to
 	// avoid having it growing indefinitely, hence this safeguard to limit the
 	// size of this cache for long-running agent or environment with a lot of
@@ -648,6 +651,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
+				tlmTotalMessages.IncWithTags(map[string]string{"message_type": "service_checks"})
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
 				event, err := s.parseEventMessage(parser, message, packet.Origin)
@@ -655,6 +659,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
 				}
+				tlmTotalMessages.IncWithTags(map[string]string{"message_type": "events"})
 				batcher.appendEvent(event)
 			case metricSampleType:
 				var err error
@@ -666,6 +671,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
 				}
+				tlmTotalMessages.IncWithTags(map[string]string{"message_type": "metrics"})
 
 				for idx := range samples {
 					s.Debug.StoreMetricStats(samples[idx])
@@ -684,6 +690,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					}
 				}
 			}
+			tlmTotalPackets.Inc()
 		}
 		s.sharedPacketPoolManager.Put(packet)
 	}
@@ -748,7 +755,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		dogstatsdMetricParseErrors.Add(1)
 		errorCnt.Inc()
 		return metricSamples, err
-	}
+	} // candidate to instrument # of dogstatsd messages
 
 	if s.mapper != nil {
 		mapResult := s.mapper.Map(sample.name)
