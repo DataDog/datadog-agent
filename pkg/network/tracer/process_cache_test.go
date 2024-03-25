@@ -9,6 +9,7 @@ package tracer
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -333,6 +334,27 @@ func TestProcessCacheGet(t *testing.T) {
 			require.NotNil(t, p)
 			assert.Equal(t, te.startTime, p.StartTime)
 		})
+	}
+
+}
+
+func BenchmarkProcessCacheMem(b *testing.B) {
+	pc, _ := newProcessCache(50000, nil)
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		entry := &smodel.ProcessContext{
+			Process: smodel.Process{
+				PIDContext: smodel.PIDContext{
+					Pid: uint32(rand.Int()),
+				},
+				ContainerID: "container",
+				EnvsEntry: &smodel.EnvsEntry{
+					Values: []string{"DD_SERVICE=service", "DD_VERSION=version", "DD_ENV=env"},
+				},
+			},
+		}
+		pc.handleProcessEvent(entry)
 	}
 
 }
