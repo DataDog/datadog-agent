@@ -133,6 +133,15 @@ func (h *RemoteHost) ReadDir(path string) ([]fs.DirEntry, error) {
 	return clients.ReadDir(h.client, path)
 }
 
+// DownloadAgentLogs downloads the agent logs from the remote host
+func (h *RemoteHost) DownloadAgentLogs(localPath string) error {
+	agentLogsPath := "/var/log/datadog/agent.log"
+	if h.OSFamily == osComp.WindowsFamily {
+		agentLogsPath = "C:/ProgramData/Datadog/Logs/agent.log"
+	}
+	return clients.DownloadFile(h.client, agentLogsPath, localPath)
+}
+
 // Lstat returns a FileInfo structure describing path.
 // if path is a symbolic link, the FileInfo structure describes the symbolic link.
 func (h *RemoteHost) Lstat(path string) (fs.FileInfo, error) {
