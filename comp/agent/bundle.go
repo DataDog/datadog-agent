@@ -7,9 +7,6 @@
 package agent
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/agent/runtimesettings"
 	"github.com/DataDog/datadog-agent/comp/agent/runtimesettings/runtimesettingsimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -20,6 +17,5 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runtimesettingsimpl.Module(),
-		fx.Invoke(func(runtimesettings.Component) {}),
 	)
 }
