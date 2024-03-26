@@ -14,12 +14,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/fatih/color"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	_ "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity" // no direct calls to connectivity but there is a callback
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/fatih/color"
+	_ "github.com/DataDog/datadog-agent/pkg/diagnose/ports" // no direct calls to connectivity but there is a callback
 )
 
 // Overall running statistics
