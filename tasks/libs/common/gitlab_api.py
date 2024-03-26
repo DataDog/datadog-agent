@@ -392,10 +392,16 @@ from invoke.tasks import task
 
 @task
 def test_gitlab(_):
-    branch = 'celian/gitlab-use-module-acix-65'
-    api = Gitlab(api_token=get_gitlab_token())
-    api.test_project_found()
-    # print('CREATE PIPELINE', api.create_pipeline(branch))
+    # branch = 'celian/gitlab-use-module-acix-65'
+    # api = Gitlab(api_token=get_gitlab_token())
+    # api.test_project_found()
+    # # print('CREATE PIPELINE', api.create_pipeline(branch))
 
-    print(api.all_pipelines_for_ref(branch))
-    print(api.last_pipeline_for_ref(branch))
+    # print(api.all_pipelines_for_ref(branch))
+    # print(api.last_pipeline_for_ref(branch))
+    from tasks.libs.pipeline_data import get_failed_jobs
+
+    # ok 30750076
+    # fail 30533054
+
+    print('failed', get_failed_jobs('DataDog/datadog-agent', '30533054'))
