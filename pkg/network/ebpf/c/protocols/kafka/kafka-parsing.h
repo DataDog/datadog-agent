@@ -82,6 +82,9 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
 {
     kafka_transaction_t *request = &response->transaction;
     log_debug("carry_over_offset: %d", response->carry_over_offset);
+    if (response->carry_over_offset < 0 || response->carry_over_offset > skb->len) {
+        return RET_ERR;
+    }
     offset += response->carry_over_offset;
     response->carry_over_offset = 0;
 
