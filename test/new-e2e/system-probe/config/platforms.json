@@ -56,7 +56,7 @@
       "os_name": "Amazon Linux",
       "os_id": "amzn",
       "version": "2",
-      "kernel": "4.14.314-237.533.amzn2.x86_64"
+      "kernel": "4.14.314-237.533.amzn2"
     },
     "amzn_5.4": {
       "image": "master/amzn2-kvm-2.0-x86_64-5.4.qcow2.xz",
@@ -80,7 +80,7 @@
       "alt_version_names": [
         ""
       ],
-      "kernel": "6.0.7-301.fc37.x86_64"
+      "kernel": "6.0.7-301.fc37"
     },
     "fedora_38": {
       "image": "master/Fedora-Cloud-Base-38.x86_64.qcow2.xz",
@@ -90,7 +90,7 @@
       "alt_version_names": [
         ""
       ],
-      "kernel": "6.2.9-300.fc38.x86_64"
+      "kernel": "6.2.9-300.fc38"
     },
     "debian_10": {
       "image": "master/debian-10-generic-x86_64.qcow2.xz",
@@ -100,7 +100,7 @@
       "alt_version_names": [
         "buster"
       ],
-      "kernel": "4.19.0-26-amd64"
+      "kernel": "4.19.0-26"
     },
     "debian_11": {
       "image": "master/debian-11-generic-x86_64.qcow2.xz",
@@ -110,7 +110,7 @@
       "alt_version_names": [
         "bullseye"
       ],
-      "kernel": "5.10.0-28-amd64"
+      "kernel": "5.10.0-28"
     },
     "debian_12": {
       "image": "master/debian-12-generic-x86_64.qcow2.xz",
@@ -120,44 +120,56 @@
       "alt_version_names": [
         "bookworm"
       ],
-      "kernel": "6.1.0-18-amd64"
+      "kernel": "6.1.0-18"
     },
     "centos_79": {
       "image": "master/centos-7.9-x86_64.qcow2.xz",
       "os_name": "CentOS Linux",
       "os_id": "centos",
       "version": "7.9.2009",
-      "kernel": "3.10.0-1160.80.1.el7.x86_64"
+      "kernel": "3.10.0-1160.80.1.el7"
     },
     "centos_8": {
       "image": "master/centos-8-x86_64.qcow2.xz",
       "os_name": "CentOS Stream",
       "os_id": "centos",
       "version": "8",
-      "kernel": "4.18.0-544.el8.x86_64"
+      "kernel": "4.18.0-544.el8"
     },
     "oracle_7.9": {
-      "image": "master/oracle-7.9-x86_64.qcow.xz"
+      "image": "master/oracle-7.9-x86_64.qcow.xz",
+      "os_name": "Oracle Linux Server",
+      "os_id": "ol",
+      "version": "7.9",
+      "kernel": "5.4.17-2136.325.5.el7uek"
     },
     "oracle_8.9": {
-      "image": "master/oracle-8.9-x86_64.qcow.xz"
+      "image": "master/oracle-8.9-x86_64.qcow.xz",
+      "os_name": "Oracle Linux Server",
+      "os_id": "ol",
+      "version": "8.9",
+      "kernel": "5.15.0-200.131.27.el8uek"
     },
     "oracle_9.3": {
-      "image": "master/oracle-9.3-x86_64.qcow.xz"
+      "image": "master/oracle-9.3-x86_64.qcow.xz",
+      "os_name": "Oracle Linux Server",
+      "os_id": "ol",
+      "version": "9.3",
+      "kernel": "5.15.0-200.131.27.el9uek"
     },
     "rocky_8.5": {
       "image": "master/rocky-8.5-x86_64.qcow2.xz",
       "os_name": "Rocky Linux",
       "os_id": "rocky",
       "version": "8.5",
-      "kernel": "4.18.0-348.el8.0.2.x86_64"
+      "kernel": "4.18.0-348.el8.0.2"
     },
     "rocky_9.3": {
       "image": "master/rocky-9.3-x86_64.qcow2.xz",
       "os_name": "Rocky Linux",
       "os_id": "rocky",
       "version": "9.3",
-      "kernel": "5.14.0-362.8.1.el9_3.x86_64"
+      "kernel": "5.14.0-362.8.1.el9_3"
     }
   },
   "arm64": {
@@ -206,14 +218,14 @@
       "os_name": "Amazon Linux",
       "os_id": "amzn",
       "version": "2",
-      "kernel": "4.14.314-237.533.amzn2.aarch64"
+      "kernel": "4.14.314-237.533.amzn2"
     },
     "amzn_5.4": {
       "image": "master/amzn2-kvm-2.0-arm64-5.4.qcow2.xz",
       "os_name": "Amazon Linux",
       "os_id": "amzn",
       "version": "2",
-      "kernel": "5.4.271-184.369.amzn2.aarch64"
+      "kernel": "5.4.271-184.369.amzn2"
     },
     "amzn_5.10": {
       "image": "master/amzn2-kvm-2.0-arm64-5.10.qcow2.xz",
@@ -230,7 +242,7 @@
       "alt_version_names": [
         ""
       ],
-      "kernel": "6.0.7-301.fc37.aarch64"
+      "kernel": "6.0.7-301.fc37"
     },
     "fedora_38": {
       "image": "master/Fedora-Cloud-Base-38.arm64.qcow2.xz",
@@ -240,7 +252,7 @@
       "alt_version_names": [
         ""
       ],
-      "kernel": "6.2.9-300.fc38.aarch64"
+      "kernel": "6.2.9-300.fc38"
     },
     "debian_10": {
       "image": "master/debian-10-generic-arm64.qcow2.xz",
@@ -250,7 +262,7 @@
       "alt_version_names": [
         "buster"
       ],
-      "kernel": "4.19.0-26-arm64"
+      "kernel": "4.19.0-26"
     },
     "debian_11": {
       "image": "master/debian-11-generic-arm64.qcow2.xz",
@@ -260,7 +272,7 @@
       "alt_version_names": [
         "bullseye"
       ],
-      "kernel": "5.10.0-28-arm64"
+      "kernel": "5.10.0-28"
     },
     "debian_12": {
       "image": "master/debian-12-generic-arm64.qcow2.xz",
@@ -270,41 +282,49 @@
       "alt_version_names": [
         "bookworm"
       ],
-      "kernel": "6.1.0-18-arm64"
+      "kernel": "6.1.0-18"
     },
     "centos_79": {
       "image": "master/centos-7.9-arm64.qcow2.xz",
       "os_name": "CentOS Linux",
       "os_id": "centos",
       "version": "7.9.2009",
-      "kernel": "4.18.0-348.20.1.el7.aarch64"
+      "kernel": "4.18.0-348.20.1.el7"
     },
     "centos_8": {
       "image": "master/centos-8-arm64.qcow2.xz",
       "os_name": "CentOS Stream",
       "os_id": "centos",
       "version": "8",
-      "kernel": "4.18.0-544.el8.aarch64"
+      "kernel": "4.18.0-544.el8"
     },
     "oracle_8.9": {
-      "image": "master/oracle-8.9-arm64.qcow.xz"
+      "image": "master/oracle-8.9-arm64.qcow.xz",
+      "os_name": "Oracle Linux Server",
+      "os_id": "ol",
+      "version": "8.9",
+      "kernel": "5.15.0-200.131.27.el8uek"
     },
     "oracle_9.3": {
-      "image": "master/oracle-9.3-arm64.qcow.xz"
+      "image": "master/oracle-9.3-arm64.qcow.xz",
+      "os_name": "Oracle Linux Server",
+      "os_id": "ol",
+      "version": "9.3",
+      "kernel": "5.15.0-200.131.27.el9uek"
     },
     "rocky_8.5": {
       "image": "master/rocky-8.5-arm64.qcow2.xz",
       "os_name": "Rocky Linux",
       "os_id": "rocky",
       "version": "8.5",
-      "kernel": "4.18.0-348.el8.0.2.aarch64"
+      "kernel": "4.18.0-348.el8.0.2"
     },
     "rocky_9.3": {
       "image": "master/rocky-9.3-arm64.qcow2.xz",
       "os_name": "Rocky Linux",
       "os_id": "rocky",
       "version": "9.3",
-      "kernel": "5.14.0-362.8.1.el9_3.aarch64"
+      "kernel": "5.14.0-362.8.1.el9_3"
     }
   }
 }
