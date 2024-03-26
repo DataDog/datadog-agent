@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package runtimesettings ... /* TODO: detailed doc comment for the component */
+// Package runtimesettings initialize settings that can be read/write at runtime.
 package runtimesettings
 
-// team: /* TODO: add team name */
+// team: agent-shared-components
 
 // Component is the component type.
 type Component interface {
