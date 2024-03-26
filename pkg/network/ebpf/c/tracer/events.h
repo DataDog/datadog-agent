@@ -90,7 +90,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 
     // update the `duration` field to reflect the duration of the
-    // connectgion; `duration` had the creation timestamp for
+    // connection; `duration` had the creation timestamp for
     // the conn_stats_ts_t object up to now. we re-use this field
     // for the duration since we would overrun stack size limits
     // if we added another field
