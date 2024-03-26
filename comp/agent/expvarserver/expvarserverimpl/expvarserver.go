@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,16 +29,13 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
-	Lc        fx.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Telemetry telemetry.Component
+	Lc     fx.Lifecycle
+	Config config.Component
+	Log    log.Component
 }
 
 func newExpvarServer(deps dependencies) expvarserver.Component {
-	telemetryHandler := deps.Telemetry.Handler()
 	expvarPort := deps.Config.GetString("expvar_port")
-	http.Handle("/telemetry", telemetryHandler)
 
 	var expvarServer *http.Server
 	deps.Lc.Append(fx.Hook{

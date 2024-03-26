@@ -479,6 +479,8 @@ func startAgent(
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
+	http.Handle("/telemetry", telemetryHandler)
+
 	// Setup healthcheck port
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
