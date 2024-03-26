@@ -22,13 +22,20 @@ from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file, update_image_info
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
+    from tasks.kernel_matrix_testing.types import (  # noqa: F401
+        Arch,
+        ArchOrLocal,
+        DependenciesLayout,
+        PathOrStr,
+        PlatformInfo,
+    )
 
 try:
     from tabulate import tabulate
@@ -247,7 +254,7 @@ def init(ctx: Context, lite=False):
 
 
 @task
-def update_resources(ctx: Context, vmconfig_template="system-probe"):
+def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=False):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -257,7 +264,7 @@ def update_resources(ctx: Context, vmconfig_template="system-probe"):
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template)
+    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs)
 
 
 @task
@@ -771,3 +778,44 @@ def status(ctx: Context, stack: Optional[str] = None, all=False):
         for line in lines:
             print(line)
         print("")
+
+
+@task(
+    help={
+        "path": "Path to the directory containing the rootfs images. If None, use the default path for KMT",
+    }
+)
+def update_platform_info(ctx: Context, path: Optional[str] = None, update_only_matching: Optional[str] = None):
+    """Generate a JSON file with platform information for all the images
+    found in the KMT rootfs directory. Alternative paths can be provided.
+    """
+    if path is None:
+        path_fs = get_kmt_os().rootfs_dir
+    else:
+        path_fs = Path(path)
+
+    info("[+] Generating platform info, this can take a while...")
+    platforms = get_platforms()
+    arch_ls: List[Arch] = ["x86_64", "arm64"]
+
+    for arch in arch_ls:
+        for name, platinfo in platforms[arch].items():
+            if update_only_matching is not None and re.search(update_only_matching, name) is None:
+                warn(f"[!] Image {name} does not match the filter, skipping")
+                continue
+
+            if isinstance(platinfo, str):
+                # Updat from the old format
+                platinfo = cast('PlatformInfo', {"image": platinfo})
+                platforms[arch][name] = platinfo
+
+            info(f"[+] Processing image {name}...")
+            try:
+                update_image_info(ctx, path_fs, platinfo)
+            except Exception as e:
+                warn(f"[!] Failed to update image {name}: {e}")
+
+    info(f"[+] Writing output to {platforms_file}...")
+
+    with open(platforms_file, "w") as f:
+        json.dump(platforms, f, indent=2)
