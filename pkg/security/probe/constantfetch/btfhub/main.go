@@ -305,7 +305,7 @@ outer:
 
 		switch hdr.Typeflag {
 		case tar.TypeReg:
-			if strings.HasSuffix(hdr.Name, ".btf") {
+			if hdr.Name == "vmlinux" {
 				if _, err := io.Copy(btfBuffer, tarReader); err != nil {
 					return nil, fmt.Errorf("failed to uncompress file %s: %w", hdr.Name, err)
 				}
