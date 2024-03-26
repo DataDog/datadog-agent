@@ -115,7 +115,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func processResults(r *results.Results, hname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
+func processResults(r *results.Results, sourceHostname string, destinationHost string, destinationIP net.IP) (NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -127,7 +127,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		PathID:    pathID,
 		Timestamp: time.Now().UnixMilli(),
 		Source: NetworkPathSource{
-			Hostname: hname,
+			Hostname: sourceHostname,
 		},
 		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
@@ -148,6 +148,8 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 	}
 	sort.Ints(flowIDs)
 
+	prevKnownHop := sourceHostname
+
 	for _, flowID := range flowIDs {
 		hops := r.Flows[uint16(flowID)]
 		if len(hops) == 0 {
@@ -160,9 +162,16 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		nodes = append(nodes, node{node: firstNodeName, probe: &hops[0]})
 
 		// then add all the other hops
-		for _, hop := range hops {
+		for idx, hop := range hops {
 			hop := hop
-			nodename := fmt.Sprintf("unknown_hop_%d)", hop.Sent.IP.TTL)
+
+			nextKnownHopName := destinationHost
+			nextSuccessfulHop := findNextSuccessfulHop(hops[idx:])
+			if nextSuccessfulHop != nil {
+				nextKnownHopName = nextSuccessfulHop.Received.IP.SrcIP.String()
+			}
+
+			nodename := fmt.Sprintf("unknown_hop_%d|prev_known_%s->next_known_%s)", hop.Sent.IP.TTL, prevKnownHop, nextKnownHopName)
 			label := "*"
 			hostname := ""
 			if hop.Received != nil {
@@ -170,6 +179,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 				if hop.Name != nodename {
 					hostname = "\n" + hop.Name
 				}
+				prevKnownHop = nodename
 				// MPLS labels
 				mpls := ""
 				if len(hop.Received.ICMP.MPLSLabels) > 0 {
@@ -232,6 +242,15 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 
 	log.Debugf("Traceroute path metadata payload: %+v", traceroutePath)
 	return traceroutePath, nil
+}
+
+func findNextSuccessfulHop(hops []results.Probe) *results.Probe {
+	for _, hop := range hops {
+		if hop.Received != nil {
+			return &hop
+		}
+	}
+	return nil
 }
 
 func getHostname(ipAddr string) string {
