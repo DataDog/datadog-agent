@@ -14,6 +14,8 @@
 // API may change incompatibly.
 package log
 
+// changed this package pkg/util, which is imported by pkg/api/healthprobe
+// this is the replace github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
 import (
 	"bytes"
 	"errors"

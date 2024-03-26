@@ -10,3 +10,5 @@ const (
 	// DefaultEBPFLessProbeAddr defines the default ebpfless probe address
 	DefaultEBPFLessProbeAddr = "localhost:5678"
 )
+
+// changing a package that belongs to pkg/config/setup
