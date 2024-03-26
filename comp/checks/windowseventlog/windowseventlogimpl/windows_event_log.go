@@ -11,8 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	check "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
@@ -25,13 +27,17 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
+	// Logs Agent component, used to send integration logs
+	// It is optional because the Logs Agent can be disabled
+	LogsComponent optional.Option[logsAgent.Component]
+
 	Lifecycle fx.Lifecycle
 }
 
 func newComp(deps dependencies) windowseventlog.Component {
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(check.CheckName, check.Factory())
+			core.RegisterCheck(check.CheckName, check.Factory(deps.LogsComponent))
 			return nil
 		},
 	})

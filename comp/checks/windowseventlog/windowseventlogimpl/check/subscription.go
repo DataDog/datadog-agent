@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +46,12 @@ func (c *Check) initSubscription() error {
 	}
 	channelPath, isSet := c.config.instance.ChannelPath.Get()
 	if !isSet {
-		return fmt.Errorf("channel path is not set")
+		// TODO: handle this better when the profile file is created
+		if _, isSet := c.config.instance.DDSecurityEvents.Get(); isSet {
+			channelPath = "Security"
+		} else {
+			return fmt.Errorf("channel path is not set")
+		}
 	}
 	query, isSet := c.config.instance.Query.Get()
 	if !isSet {
@@ -151,7 +157,16 @@ func (c *Check) startSubscription() error {
 
 	// pipeline: event -> message filter -> dd event submitter
 	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventCh, &pipelineWaiter)
-	c.ddEventSubmitter(sender, eventWithMessageCh, &pipelineWaiter)
+	if _, isSet := c.config.instance.ChannelPath.Get(); isSet {
+		// send events
+		c.ddEventSubmitter(sender, eventWithMessageCh, &pipelineWaiter)
+	} else if logsAgent, isSet := c.logsAgent.Get(); isSet {
+		// send logs
+		c.ddLogSubmitter(logsAgent, eventWithMessageCh, &pipelineWaiter)
+	} else {
+		// validateConfig should prevent this from happening
+		return fmt.Errorf("no sender or logs agent available")
+	}
 	return nil
 }
 
@@ -190,6 +205,18 @@ func (c *Check) ddEventSubmitter(sender sender.Sender, inCh <-chan *eventWithMes
 		channelPath:   channelPath,
 		tagEventID:    isaffirmative(c.config.instance.TagEventID),
 		tagSID:        isaffirmative(c.config.instance.TagSID),
+		// eventlog
+		evtapi: c.evtapi,
+	}
+	wg.Add(1)
+	go ddEventSubmitter.run(wg)
+}
+
+func (c *Check) ddLogSubmitter(logsAgent logsAgent.Component, inCh <-chan *eventWithMessage, wg *sync.WaitGroup) {
+	ddEventSubmitter := &ddLogSubmitter{
+		logsAgent:     logsAgent,
+		inCh:          inCh,
+		bookmarkSaver: c.bookmarkSaver,
 		// eventlog
 		evtapi: c.evtapi,
 	}
