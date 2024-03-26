@@ -82,7 +82,7 @@ func (client *Client) get(endpoint string, params map[string]string) ([]byte, er
 		}
 	}
 
-	return nil, fmt.Errorf("http responsed with %d code", statusCode)
+	return nil, fmt.Errorf("%s http responsed with %d code", endpoint, statusCode)
 }
 
 // get wraps client.get with generic type content and unmarshalling (methods can't use generics)
