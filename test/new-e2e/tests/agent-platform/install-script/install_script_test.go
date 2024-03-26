@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var (
@@ -43,6 +44,7 @@ type installScriptSuite struct {
 }
 
 func TestInstallScript(t *testing.T) {
+	flake.Mark(t)
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
