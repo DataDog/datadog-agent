@@ -186,7 +186,7 @@ variables:
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 3eac4b5bb0c4
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 203d8277a7cf
   DATADOG_AGENT_BUILDERS: v28719213-8dc058f
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
