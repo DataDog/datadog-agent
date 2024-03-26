@@ -107,8 +107,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            release_branch_regex = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+.*$")
-            if branch == default_branch or release_branch_regex.match(branch):
+            if _should_send_message_to_channel(branch, default_branch):
                 recipient = channel
             else:
                 # DM author
@@ -116,6 +115,12 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
                 recipient = email_to_slackid(ctx, author_email)
 
             send_slack_message(recipient, str(message))
+
+
+def _should_send_message_to_channel(branch, default_branch):
+    release_branch_regex = re.compile(r"^[0-9]+\.[0-9]+\.[0-9a-zA-Z]+.*$")
+
+    return branch == default_branch or release_branch_regex.match(branch)
 
 
 @task

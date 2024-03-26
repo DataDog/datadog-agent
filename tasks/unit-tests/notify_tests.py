@@ -21,6 +21,24 @@ class TestSendMessage(unittest.TestCase):
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
         get_mock.assert_called()
 
+    def test_post_to_channel1(self):
+        self.assertTrue(notify._should_send_message_to_channel('main', default_branch='main'))
+
+    def test_post_to_channel2(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.x', default_branch='main'))
+
+    def test_post_to_channel3(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.0', default_branch='main'))
+
+    def test_post_to_channel4(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.0-rc.1', default_branch='main'))
+
+    def test_post_to_channel5(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.0-beta-test-feature', default_branch='main'))
+
+    def test_post_to_channel6(self):
+        self.assertTrue(notify._should_send_message_to_channel('my-feature', default_branch='main'))
+
 
 class TestSendStats(unittest.TestCase):
     @patch("requests.get")
