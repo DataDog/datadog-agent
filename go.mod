@@ -694,6 +694,7 @@ require (
 	go.opentelemetry.io/collector/otelcol v0.91.0
 	go.opentelemetry.io/collector/processor v0.91.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
+	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	gotest.tools v2.2.0+incompatible
 )
 
