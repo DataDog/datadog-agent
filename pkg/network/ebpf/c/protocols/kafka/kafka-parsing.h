@@ -250,7 +250,7 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
         case KAFKA_FETCH_RESPONSE_PARTITION_END:
             response->partitions_count--;
             if (response->partitions_count == 0) {
-                log_debug("enqueue kafka");
+                log_debug("kafka: enqueue, records_count %d",  response->transaction.records_count);
                 kafka_batch_enqueue(&response->transaction);
                 return RET_DONE;
             }
@@ -262,7 +262,7 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
 
     // We should have exited at KAFKA_FETCH_RESPONSE_PARTITION_END if we managed to
     // parse entire packet.
-    log_debug("Packet too large");
+    log_debug("kafka: packet too large");
     return RET_ERR;
 }
 
