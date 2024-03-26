@@ -51,8 +51,7 @@ install_method:
 			versionHistoryFile: `{"entries":[{"version":"1","timestamp":"2022-04-07T14:24:58.152534935Z"}]}`,
 			installInfoFile: `
 ---
-install_method:
-  tool: install_script
+
   tool_version: install_script
   installer_version: install_script-x.x.x
 `,

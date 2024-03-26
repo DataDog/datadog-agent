@@ -18,8 +18,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -190,14 +192,18 @@ func getDpkgVersion() (string, error) {
 }
 
 func writeInstallInfo(tool, version string) error {
-	installInfoContent := fmt.Sprintf(`---
-install_method:
-  tool: %s
-  tool_version: %s
-  installer_version: updater_package
-  installer: updater
-`, tool, version)
-	return os.WriteFile(installInfoFile, []byte(installInfoContent), 0644)
+	info := installinfo.InstallMethod{
+		Method: installinfo.InstallInfo{
+			Tool:             tool,
+			ToolVersion:      version,
+			InstallerVersion: "updater_package",
+		},
+	}
+	yamlData, err := yaml.Marshal(info)
+	if err != nil {
+		panic(err)
+	}
+	return os.WriteFile(installInfoFile, yamlData, 0644)
 }
 
 func writeInstallSignature() error {

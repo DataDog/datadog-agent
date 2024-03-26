@@ -58,7 +58,6 @@ func TestInstallMethod(t *testing.T) {
 	var config Config
 	assert.Nil(t, yaml.Unmarshal(rawYaml, &config))
 
-	assert.Equal(t, "updater", config.InstallMethod["installer"])
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
 	assert.Equal(t, "dpkg", config.InstallMethod["tool"])
 	assert.Equal(t, "1.2.3", config.InstallMethod["tool_version"])

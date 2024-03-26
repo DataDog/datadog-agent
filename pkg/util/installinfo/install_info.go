@@ -31,7 +31,8 @@ type InstallInfo struct {
 	InstallerVersion string `json:"installer_version" yaml:"installer_version"`
 }
 
-type installInfoMethod struct {
+// InstallMethod contains install info
+type InstallMethod struct {
 	Method InstallInfo `json:"install_method" yaml:"install_method"`
 }
 
@@ -64,7 +65,7 @@ func getFromPath(path string) (*InstallInfo, error) {
 		return nil, err
 	}
 
-	var install installInfoMethod
+	var install InstallMethod
 	if err := yaml.UnmarshalStrict(yamlContent, &install); err != nil {
 		// file was manipulated and is not relevant to format
 		return nil, err
