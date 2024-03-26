@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.gitlab_api import Gitlab, get_gitlab_token
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
