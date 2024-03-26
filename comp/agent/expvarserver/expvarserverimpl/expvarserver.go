@@ -7,18 +7,18 @@
 package expvarserverimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Module defines the fx options for this component.
@@ -30,7 +30,9 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
+	Lc        fx.Lifecycle
 	Config    config.Component
+	Log       log.Component
 	Telemetry telemetry.Component
 }
 
@@ -38,15 +40,29 @@ func newExpvarServer(deps dependencies) expvarserver.Component {
 	telemetryHandler := deps.Telemetry.Handler()
 	expvarPort := deps.Config.GetString("expvar_port")
 	http.Handle("/telemetry", telemetryHandler)
-	go func() {
-		common.ExpvarServer = &http.Server{
-			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
-			Handler: http.DefaultServeMux,
-		}
-		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
-		}
-	}()
+
+	var expvarServer *http.Server
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			go func() {
+				expvarServer = &http.Server{
+					Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
+					Handler: http.DefaultServeMux,
+				}
+				if err := expvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					deps.Log.Errorf("Error creating expvar server on %v: %v", expvarServer.Addr, err)
+				}
+			}()
+			return nil
+		},
+		OnStop: func(context.Context) error {
+			if expvarServer == nil {
+				if err := expvarServer.Shutdown(context.Background()); err != nil {
+					deps.Log.Errorf("Error shutting down expvar server: %v", err)
+				}
+			}
+			return nil
+		}})
 
 	return struct{}{}
 }

@@ -640,12 +640,6 @@ func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	if common.ExpvarServer != nil {
-		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
-			pkglog.Errorf("Error shutting down expvar server: %v", err)
-		}
-	}
-
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}

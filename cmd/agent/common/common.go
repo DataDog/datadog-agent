@@ -23,9 +23,6 @@ import (
 )
 
 var (
-	// ExpvarServer is the global expvar server
-	ExpvarServer *http.Server
-
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler
 )
