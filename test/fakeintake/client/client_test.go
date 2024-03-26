@@ -53,6 +53,9 @@ var apiV02APMStats []byte
 //go:embed fixtures/api_v1_metadata_response
 var apiV1Metadata []byte
 
+//go:embed fixtures/api_v2_ndmflow_response
+var apiV2NDMFlow []byte
+
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -496,5 +499,17 @@ func TestClient(t *testing.T) {
 		for _, p := range payloads {
 			assert.Equal(t, expectedHostname, p.Hostname)
 		}
+	})
+
+	t.Run("getNDMFlows", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(apiV2NDMFlow)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getNDMFlows()
+		require.NoError(t, err)
+		assert.True(t, client.ndmflowAggregator.ContainsPayloadName("i-028cd2a4530c36887"))
 	})
 }
