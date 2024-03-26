@@ -223,6 +223,7 @@ func run(log log.Component,
 	collector collector.Component,
 	_ runtimesettings.Component,
 	_ healthprobe.Component,
+	_ runtimesettings.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
