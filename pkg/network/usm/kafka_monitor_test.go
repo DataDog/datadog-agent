@@ -141,6 +141,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
 					},
 				})
@@ -413,6 +414,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 					},
 				})
 				require.NoError(t, err)
