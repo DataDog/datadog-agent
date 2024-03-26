@@ -36,7 +36,7 @@ const (
 	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaHeapMap                             = "kafka_heap"
-	InFlightMap                              = "kafka_in_flight"
+	inFlightMap                              = "kafka_in_flight"
 	ResponseMap                              = "kafka_response"
 )
 
@@ -51,7 +51,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: kafkaHeapMap,
 		},
 		{
-			Name: InFlightMap,
+			Name: inFlightMap,
 		},
 		{
 			Name: ResponseMap,
@@ -95,7 +95,7 @@ func (p *protocol) Name() string {
 // Configuring the kafka event stream with the manager and its options, and enabling the kafka_monitoring_enabled eBPF
 // option.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
+	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -151,9 +151,9 @@ func (p *protocol) processKafka(events []EbpfTx) {
 }
 
 func (p *protocol) setupInFlightMapCleaner(mgr *manager.Manager) {
-	inFlightMap, _, err := mgr.GetMap(InFlightMap)
+	inFlightMap, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
-		log.Errorf("error getting %q map: %s", InFlightMap, err)
+		log.Errorf("error getting %q map: %s", inFlightMap, err)
 		return
 	}
 	mapCleaner, err := ddebpf.NewMapCleaner[KafkaTransactionKey, KafkaTransaction](inFlightMap, 1024)
