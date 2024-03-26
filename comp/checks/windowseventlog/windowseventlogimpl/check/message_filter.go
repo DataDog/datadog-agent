@@ -1,0 +1,201 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+//go:build windows
+
+// Package evtlog defines a check that reads the Windows Event Log and submits Events
+package evtlog
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+)
+
+// eventWithMessage is an event record with rendered system values and message
+type eventWithMessage struct {
+	winevent        *evtapi.EventRecord
+	systemVals      evtapi.EvtVariantValues
+	renderedMessage string
+	evtapi          evtapi.API
+}
+
+// Close frees resources associated with the event
+func (e *eventWithMessage) Close() {
+	if e.systemVals != nil {
+		e.systemVals.Close()
+	}
+	if e.winevent != nil {
+		evtapi.EvtCloseRecord(e.evtapi, e.winevent.EventRecordHandle)
+	}
+}
+
+// eventMessageFilter filters Windows Events based on the rendered message content.
+// Events that are not output are closed.
+type eventMessageFilter struct {
+	doneCh <-chan struct{}
+	inCh   <-chan *evtapi.EventRecord
+	outCh  chan<- *eventWithMessage
+
+	// config
+	includedMessages  []*regexp.Regexp
+	excludedMessages  []*regexp.Regexp
+	interpretMessages bool
+
+	// contexts
+	evtapi              evtapi.API
+	systemRenderContext evtapi.EventRenderContextHandle
+	userRenderContext   evtapi.EventRenderContextHandle
+}
+
+func (f *eventMessageFilter) run(w *sync.WaitGroup) {
+	defer w.Done()
+	defer close(f.outCh)
+	for winevent := range f.inCh {
+		e, err := f.renderEvent(winevent)
+		if err != nil {
+			log.Errorf("error processing event: %v", err)
+			e.Close()
+			continue
+		}
+
+		// If the event has rendered text, check it against the regexp patterns to see if
+		// we should send the event or not
+		if !f.includeMessage(e.renderedMessage) {
+			// event did not pass filter, do not output it
+			e.Close()
+			continue
+		}
+
+		select {
+		case f.outCh <- e:
+		case <-f.doneCh:
+			return
+		}
+	}
+}
+
+func (f *eventMessageFilter) renderEvent(event *evtapi.EventRecord) (*eventWithMessage, error) {
+	// Render the values
+	vals, err := f.evtapi.EvtRenderEventValues(f.systemRenderContext, event.EventRecordHandle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render values: %w", err)
+	}
+	defer func() {
+		// if we aren't returning the values, close them
+		if vals != nil {
+			vals.Close()
+		}
+	}()
+
+	// Provider
+	providerName, err := vals.String(evtapi.EvtSystemProviderName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get provider name: %w", err)
+	}
+
+	renderedMessage, err := f.getEventMessage(providerName, event)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get event message: %w", err)
+	}
+
+	// event passed filter, output it
+	e := &eventWithMessage{
+		winevent:        event,
+		systemVals:      vals,
+		renderedMessage: renderedMessage,
+		evtapi:          f.evtapi,
+	}
+	// transfer ownership of vals
+	vals = nil
+	return e, nil
+}
+
+func (f *eventMessageFilter) getEventMessage(providerName string, winevent *evtapi.EventRecord) (string, error) {
+	var message string
+
+	// Try to render the message via the event log API
+	pm, err := f.evtapi.EvtOpenPublisherMetadata(providerName, "")
+	if err == nil {
+		defer evtapi.EvtClosePublisherMetadata(f.evtapi, pm)
+
+		message, err = f.evtapi.EvtFormatMessage(pm, winevent.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
+		if err == nil {
+			return message, nil
+		}
+		err = fmt.Errorf("failed to render message: %w", err)
+	} else {
+		err = fmt.Errorf("failed to open event publisher: %w", err)
+	}
+	renderErr := err
+
+	// rendering failed, which may happen if
+	// * the event source/provider cannot be found/loaded
+	// * Code 15027: The message resource is present but the message was not found in the message table.
+	// * Code 15028: The message ID for the desired message could not be found.
+	// Optional: try to provide some information by including any strings from the EventData in the message.
+	if f.interpretMessages {
+		// Render the values
+		var eventValues evtapi.EvtVariantValues
+		eventValues, err = f.evtapi.EvtRenderEventValues(f.userRenderContext, winevent.EventRecordHandle)
+		if err == nil {
+			defer eventValues.Close()
+			// aggregate the string values
+			var msgstrings []string
+			for i := uint(0); i < eventValues.Count(); i++ {
+				val, err := eventValues.String(i)
+				if err == nil && len(val) > 0 {
+					msgstrings = append(msgstrings, val)
+				}
+			}
+			if len(msgstrings) > 0 {
+				message = strings.Join(msgstrings, "\n")
+			} else {
+				err = fmt.Errorf("no strings in EventData, and %w", renderErr)
+			}
+		} else {
+			err = fmt.Errorf("failed to render EventData, and %w", renderErr)
+		}
+	}
+
+	if message == "" {
+		return "", err
+	}
+
+	// Remove invisible unicode character from message
+	// https://unicode.scarfboy.com/?s=U%2b200E
+	// https://github.com/mhammond/pywin32/pull/1524#issuecomment-633152961
+	message = strings.ReplaceAll(message, "\u200e", "")
+
+	return message, nil
+}
+
+func (f *eventMessageFilter) includeMessage(message string) bool {
+	if len(f.excludedMessages) > 0 {
+		for _, re := range f.excludedMessages {
+			if re.MatchString(message) {
+				// exclude takes precedence over include, so we can stop early
+				return false
+			}
+		}
+	}
+
+	if len(f.includedMessages) > 0 {
+		// include patterns given, message must match a pattern to be included
+		for _, re := range f.includedMessages {
+			if re.MatchString(message) {
+				return true
+			}
+		}
+		// message did not match any patterns
+		return false
+	}
+
+	return true
+}

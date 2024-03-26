@@ -33,10 +33,6 @@ const (
 	CheckName = "win32_event_log"
 )
 
-// The lower cased version of the `API SOURCE ATTRIBUTE` column from the table located here:
-// https://docs.datadoghq.com/integrations/faq/list-of-api-source-attribute-value/
-const sourceTypeName = "event viewer"
-
 // Check defines a check that reads the Windows Event Log and submits Events
 type Check struct {
 	// check
@@ -99,7 +95,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) fetchEventsLoop(sender sender.Sender) {
+func (c *Check) fetchEventsLoop(outCh chan<- *evtapi.EventRecord, pipelineWaiter *sync.WaitGroup) {
 	defer c.fetchEventsLoopWaiter.Done()
 
 	// Always stop the subscription when the loop ends.
@@ -113,6 +109,11 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 			c.Warnf("error saving bookmark: %v", err)
 		}
 	}()
+
+	// Close the output channel when the loop ends to collapse the pipeline
+	// and wait for the pipeline to finish.
+	defer pipelineWaiter.Wait()
+	defer close(outCh)
 
 	// Fetch new events
 	for {
@@ -133,45 +134,15 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 				return
 			}
 			for _, event := range events {
-				// Submit Datadog Event
-				c.submitEvent(sender, event)
-
-				// bookmarkSaver manages whether or not to save/persist the bookmark
-				err := c.bookmarkSaver.updateBookmark(event)
-				if err != nil {
-					c.Warnf("%v", err)
+				select {
+				case outCh <- event:
+				case <-c.fetchEventsLoopStop:
+					log.Debug("stopping subscription")
+					return
 				}
-
-				// Must close event handle when we are done with it
-				evtapi.EvtCloseRecord(c.evtapi, event.EventRecordHandle)
 			}
 		}
 	}
-}
-
-func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) {
-	// Base event
-	ddevent := agentEvent.Event{
-		Priority:       c.eventPriority,
-		SourceTypeName: sourceTypeName,
-		Tags:           []string{},
-	}
-
-	// Render Windows event values into the DD event
-	err := c.renderEventValues(event, &ddevent)
-	if err != nil {
-		log.Error(err)
-	}
-	// If the event has rendered text, check it against the regexp patterns to see if
-	// we should send the event or not
-	if len(ddevent.Text) > 0 {
-		if !c.includeMessage(ddevent.Text) {
-			return
-		}
-	}
-
-	// submit
-	sender.Event(ddevent)
 }
 
 func (c *Check) bookmarkPersistentCacheKey() string {
