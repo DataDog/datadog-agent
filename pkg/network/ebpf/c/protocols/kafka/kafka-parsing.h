@@ -96,9 +96,24 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
                 if (request->request_api_version >= 5) {
                     offset += sizeof(s64); // log_start_offset
                 }
+            }
 
-                READ_BIG_ENDIAN_WRAPPER(s32, aborted_transactions, skb, offset);
+            response->state = KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS;
+            // fallthrough
+
+        case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
+            if (request->request_api_version >= 4) {
+                if (offset + sizeof(s32) > skb->len) {
+                    response->carry_over_offset = offset - skb->len;
+                    return RET_EOP;
+                }
+
+                s32 aborted_transactions = 0;
+                read_big_endian_s32(skb, offset, &aborted_transactions);
+                offset += sizeof(aborted_transactions);
+
                 if (aborted_transactions >= 0) {
+                    // TODO this code path needs a test case
                     // producer_id and first_offset in each aborted transaction
                     offset += sizeof(s64) * 2 * aborted_transactions;
                 }
