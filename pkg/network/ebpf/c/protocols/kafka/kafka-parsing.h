@@ -57,6 +57,9 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    // Save non-normalized version
+    kafka->tup = kafka->transaction.tup;
+
     if (kafka_process_response(kafka, skb, skb_info.data_off)) {
         return 0;
     }
@@ -279,12 +282,9 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     offset += sizeof(__s32); // Skip message size
     READ_BIG_ENDIAN_WRAPPER(s32, correlation_id, skb, offset);
 
-    log_debug("kafka: potential response correlation_id %d", correlation_id);
-
     kafka_transaction_key_t *key = &kafka->key;
     key->correlation_id = correlation_id;
-    key->tuple = kafka->transaction.tup;
-    normalize_tuple(&key->tuple);
+    key->tuple = kafka->tup;
     kafka_transaction_t *request = bpf_map_lookup_elem(&kafka_in_flight, key);
     if (!request) {
         return false;
@@ -468,7 +468,8 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
 
         kafka_transaction_key_t *key = &kafka->key;
         key->correlation_id = kafka_header.correlation_id;
-        key->tuple = kafka_transaction->tup;
+        key->tuple = kafka->tup;
+        flip_tuple(&key->tuple);
         bpf_map_update_elem(&kafka_in_flight, key, kafka_transaction, BPF_NOEXIST);
         return true;
     }
