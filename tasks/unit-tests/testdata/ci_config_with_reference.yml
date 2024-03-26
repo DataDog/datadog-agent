@@ -1,0 +1,141 @@
+---
+default:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+
+stages:
+  - .pre
+  - setup
+  - maintenance_jobs
+
+variables:
+  OMNIBUS_BASE_DIR: /omnibus
+  WIN_S3_BUCKET: dd-agent-mstesting
+  PROCESS_S3_BUCKET: datad0g-process-agent
+  GET_SOURCES_ATTEMPTS: 2
+  RESTORE_CACHE_ATTEMPTS: 2
+
+.if_main_branch: &if_main_branch
+  if: $CI_COMMIT_BRANCH == "main"
+
+.if_release_branch: &if_release_branch
+  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+
+.if_deploy: &if_deploy
+  if: $DEPLOY_AGENT == "true"
+
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
+
+.if_run_all_e2e_tests: &if_run_all_e2e_tests
+  if: $RUN_E2E_TESTS == "on"
+
+.if_disable_e2e_tests: &if_disable_e2e_tests
+  if: $RUN_E2E_TESTS == "off"
+
+.if_run_all_kmt_tests: &if_run_all_kmt_tests
+  if: $RUN_KMT_TESTS == 'on'
+
+.if_mergequeue: &if_mergequeue
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
+workflow:
+  rules:
+    - <<: *if_triggered_pipeline
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
+    - <<: *if_main_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
+        GO_TEST_SKIP_FLAKE: "false"
+    - <<: *if_release_branch
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
+    - <<: *if_deploy
+      variables:
+        USE_CACHING_PROXY_PYTHON: "true"
+        USE_CACHING_PROXY_RUBY: "true"
+    - if: $CI_COMMIT_TAG == null
+      variables:
+        USE_CACHING_PROXY_PYTHON: "false"
+        USE_CACHING_PROXY_RUBY: "false"
+
+.security_agent_change_paths: &security_agent_change_paths
+  - pkg/ebpf/**/*
+  - pkg/security/**/*
+
+.system_probe_change_paths: &system_probe_change_paths
+  - pkg/collector/corechecks/ebpf/**/*
+  - pkg/ebpf/**/*
+
+.on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
+  - <<: *if_disable_e2e_tests
+    when: never
+  - <<: *if_mergequeue
+    when: never
+  - <<: *if_run_all_e2e_tests
+    when: on_success
+  - <<: *if_main_branch
+    when: on_success
+  - <<: *if_release_branch
+    when: on_success
+  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+
+.on_container_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/core/tagger/**/*
+        - comp/core/workloadmeta/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_rc_or_e2e_changes_or_manual:
+  - !reference [.on_e2e_main_release_or_rc, .on_container_or_e2e_changes_or_manual]
+  - changes:
+      paths:
+        - pkg/config/remote/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  - when: manual
+    allow_failure: true
+
+.on_any_kmt_test_component_or_manual:
+  - <<: *if_main_branch
+  - <<: *if_run_all_kmt_tests
+  - <<: *if_mergequeue
+    when: never
+  - changes:
+      paths: *system_probe_change_paths
+      compare_to: main
+    when: on_success
+  - changes:
+      paths: *security_agent_change_paths
+      compare_to: main
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.except_mergequeue:
+  - <<: *if_mergequeue
+    when: never
+
+.on_packaging_change:
+  - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
+  - changes:
+      paths:
+        - omnibus/**/*
+        - .gitlab-ci.yml
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
