@@ -107,7 +107,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
+static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
@@ -123,6 +123,11 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     switch (protocol) {
     case PROTOCOL_HTTP:
+        // HTTP is a special case. As of today, regardless of TLS or plaintext traffic, we ignore the PID and NETNS while processing it.
+        // The termination, both for TLS and plaintext, for HTTP traffic is taken care of in the socket filter.
+        // Until we split the TLS and plaintext management for HTTP traffic, there are flows (such as those being called from tcp_close)
+        // in which we don't want to terminate HTTP traffic, but instead leave it to the socket filter.
+        if (skip_http) {return;}
         prog = TLS_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
         break;

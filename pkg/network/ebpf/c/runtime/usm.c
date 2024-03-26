@@ -319,7 +319,7 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
 
     conn_tuple_t copy = *t;
     // tls_finish can launch a tail call, thus cleanup should be done before.
-    tls_finish(ctx, &copy);
+    tls_finish(ctx, &copy, false);
     return 0;
 }
 
