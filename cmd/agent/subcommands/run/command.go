@@ -36,6 +36,7 @@ import (
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/runtimesettings"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
@@ -221,6 +222,7 @@ func run(log log.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	_ healthprobe.Component,
+	_ runtimesettings.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
