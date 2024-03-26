@@ -6,6 +6,7 @@
 package service
 
 import (
+	"crypto/sha256"
 	"encoding/base32"
 	"encoding/json"
 	"errors"
@@ -33,10 +34,16 @@ const databaseLockTimeout = time.Second
 // AgentMetadata is data stored in bolt DB to determine whether or not
 // the agent has changed and the RC cache should be cleared
 type AgentMetadata struct {
-	Version string `json:"version"`
+	Version    string `json:"version"`
+	APIKeyHash string `json:"api-key-hash"`
 }
 
-func recreate(path string, agentVersion string) (*bbolt.DB, error) {
+// hashAPIKey hashes the API key to avoid storing it in plain text using SHA256
+func hashAPIKey(apiKey string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(apiKey)))
+}
+
+func recreate(path string, agentVersion string, apiKeyHash string) (*bbolt.DB, error) {
 	log.Infof("Clear remote configuration database")
 	_, err := os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -61,17 +68,18 @@ func recreate(path string, agentVersion string) (*bbolt.DB, error) {
 		}
 		return nil, err
 	}
-	return db, addMetadata(db, agentVersion)
+	return db, addMetadata(db, agentVersion, apiKeyHash)
 }
 
-func addMetadata(db *bbolt.DB, agentVersion string) error {
+func addMetadata(db *bbolt.DB, agentVersion string, apiKeyHash string) error {
 	return db.Update(func(tx *bbolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(metaBucket))
 		if err != nil {
 			return err
 		}
 		metaData, err := json.Marshal(AgentMetadata{
-			Version: agentVersion,
+			Version:    agentVersion,
+			APIKeyHash: apiKeyHash,
 		})
 		if err != nil {
 			return err
@@ -80,7 +88,9 @@ func addMetadata(db *bbolt.DB, agentVersion string) error {
 	})
 }
 
-func openCacheDB(path string, agentVersion string) (*bbolt.DB, error) {
+func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, error) {
+	apiKeyHash := hashAPIKey(apiKey)
+
 	db, err := bbolt.Open(path, 0600, &bbolt.Options{
 		Timeout: databaseLockTimeout,
 	})
@@ -88,7 +98,7 @@ func openCacheDB(path string, agentVersion string) (*bbolt.DB, error) {
 		if errors.Is(err, bbolt.ErrTimeout) {
 			return nil, fmt.Errorf("rc db is locked. Please check if another instance of the agent is running and using the same `run_path` parameter")
 		}
-		return recreate(path, agentVersion)
+		return recreate(path, agentVersion, apiKeyHash)
 	}
 
 	metadata := new(AgentMetadata)
@@ -112,13 +122,13 @@ func openCacheDB(path string, agentVersion string) (*bbolt.DB, error) {
 	})
 	if err != nil {
 		_ = db.Close()
-		return recreate(path, agentVersion)
+		return recreate(path, agentVersion, apiKeyHash)
 	}
 
-	if metadata.Version != agentVersion {
+	if metadata.Version != agentVersion || metadata.APIKeyHash != apiKeyHash {
 		log.Infof("Different agent version detected")
 		_ = db.Close()
-		return recreate(path, agentVersion)
+		return recreate(path, agentVersion, apiKeyHash)
 	}
 
 	return db, nil
