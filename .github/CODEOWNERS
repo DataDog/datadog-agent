@@ -204,6 +204,7 @@
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /docs/public/architecture/components/                        @DataDog/agent-shared-components
+/docs/public/architecture/dogstatsd/                         @DataDog/agent-metrics-logs
 /docs/public/guidelines/components/                          @DataDog/agent-shared-components
 /docs/public/how-to/components/                              @DataDog/agent-shared-components
 
