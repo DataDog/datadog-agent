@@ -723,7 +723,7 @@ def generate_syscall_table(ctx):
             f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
-    linux_version = "v6.1"
+    linux_version = "v6.8"
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
