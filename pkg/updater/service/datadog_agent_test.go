@@ -24,28 +24,28 @@ import (
 
 func TestInstallSignature(t *testing.T) {
 	installSigFile = filepath.Join(t.TempDir(), "/install.json")
-	require.Nil(t, writeInstallSignature())
+	require.NoError(t, writeInstallSignature())
 
 	content, err := os.ReadFile(installSigFile)
 	if err != nil {
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 	var installSignature map[string]string
 	err = json.Unmarshal(content, &installSignature)
 	if err != nil {
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 	assert.Equal(t, 3, len(installSignature))
 	installUUID := installSignature["install_id"]
 	_, err = uuid.Parse(installUUID)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	installType := installSignature["install_type"]
 	assert.Equal(t, "manual_update_via_apt", installType)
 
 	installTime := installSignature["install_time"]
 	unixInt, err := strconv.ParseInt(installTime, 10, 64)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	diff := time.Now().Unix() - unixInt
 	assert.True(t, diff*diff < 3600*3600)
 }
@@ -54,14 +54,14 @@ func TestInstallMethod(t *testing.T) {
 	installInfoFile = filepath.Join(t.TempDir(), "install_info")
 	writeInstallInfo("dpkg", "1.2.3")
 	rawYaml, err := os.ReadFile(installInfoFile)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	var config Config
-	assert.Nil(t, yaml.Unmarshal(rawYaml, &config))
+	assert.NoError(t, yaml.Unmarshal(rawYaml, &config))
 
 	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
 	assert.Equal(t, "dpkg", config.InstallMethod["tool"])
 	assert.Equal(t, "1.2.3", config.InstallMethod["tool_version"])
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 // Config yaml struct
