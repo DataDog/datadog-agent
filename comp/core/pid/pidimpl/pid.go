@@ -52,14 +52,12 @@ func newPID(deps dependencies) (pid.Component, error) {
 			return struct{}{}, deps.Log.Errorf("Error while writing PID file, exiting: %v", err)
 		}
 		deps.Log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
-	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStop: func(context.Context) error {
-			if pidfilePath != "" {
+		deps.Lc.Append(fx.Hook{
+			OnStop: func(context.Context) error {
 				_ = os.Remove(pidfilePath)
-			}
-			return nil
-		}})
+				return nil
+			}})
+	}
 	return struct{}{}, nil
 }
