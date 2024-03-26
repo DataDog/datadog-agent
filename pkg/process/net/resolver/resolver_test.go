@@ -21,7 +21,7 @@ import (
 func TestLocalResolver(t *testing.T) {
 	assert := assert.New(t)
 
-	resolver := NewLocalResolver(nil, nil, 0, 0)
+	resolver := NewLocalResolver(nil, nil, 10, 0)
 	containers := []*model.Container{
 		{
 			Id: "container-1",
@@ -373,7 +373,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		},
 	}
 
-	resolver := NewLocalResolver(nil, nil, 0, 0)
+	resolver := NewLocalResolver(nil, nil, 20, 20)
 	resolver.LoadAddrs(nil, map[int]string{
 		1:  "foo1",
 		2:  "foo2",
