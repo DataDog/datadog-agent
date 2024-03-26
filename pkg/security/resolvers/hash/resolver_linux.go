@@ -86,6 +86,7 @@ type Resolver struct {
 	statsdClient   statsd.ClientInterface
 	limiter        *rate.Limiter
 	cgroupResolver *cgroup.Resolver
+	replace        map[string]string
 
 	cache *lru.Cache[model.PathKey, *LRUCacheEntry]
 
@@ -128,6 +129,7 @@ func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInte
 		hashCount:      make(map[model.EventType]map[model.HashAlgorithm]*atomic.Uint64),
 		hashMiss:       make(map[model.EventType]map[model.HashState]*atomic.Uint64),
 		hashCacheHit:   make(map[model.EventType]*atomic.Uint64),
+		replace:        c.HashResolverReplace,
 	}
 
 	// generate counters
@@ -202,6 +204,12 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	if !file.IsPathnameStrResolved || len(file.PathnameStr) == 0 {
 		resolver.hashMiss[eventType][model.PathnameResolutionError].Inc()
 		file.HashState = model.PathnameResolutionError
+		return
+	}
+
+	if hashStr, exists := resolver.replace[file.PathnameStr]; exists {
+		file.Hashes = append(file.Hashes, hashStr)
+		file.HashState = model.Done
 		return
 	}
 
