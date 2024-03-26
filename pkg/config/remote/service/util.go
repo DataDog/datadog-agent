@@ -34,8 +34,9 @@ const databaseLockTimeout = time.Second
 // AgentMetadata is data stored in bolt DB to determine whether or not
 // the agent has changed and the RC cache should be cleared
 type AgentMetadata struct {
-	Version    string `json:"version"`
-	APIKeyHash string `json:"api-key-hash"`
+	Version      string    `json:"version"`
+	APIKeyHash   string    `json:"api-key-hash"`
+	CreationTime time.Time `json:"creation-time"`
 }
 
 // hashAPIKey hashes the API key to avoid storing it in plain text using SHA256
@@ -78,8 +79,9 @@ func addMetadata(db *bbolt.DB, agentVersion string, apiKeyHash string) error {
 			return err
 		}
 		metaData, err := json.Marshal(AgentMetadata{
-			Version:    agentVersion,
-			APIKeyHash: apiKeyHash,
+			Version:      agentVersion,
+			APIKeyHash:   apiKeyHash,
+			CreationTime: time.Now(),
 		})
 		if err != nil {
 			return err
