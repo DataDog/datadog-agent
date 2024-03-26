@@ -58,7 +58,7 @@ func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
 			workqueue.RateLimitingQueueConfig{
-				Name:            "sbom",
+				Name:            "sbom_request",
 				MetricsProvider: telemetry.QueueMetricProvider{},
 			},
 		),
