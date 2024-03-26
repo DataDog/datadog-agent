@@ -84,6 +84,8 @@ kitchen_test_system_probe_linux_x64_ec2:
         KITCHEN_OSVERS: "rhel-86"
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
       - KITCHEN_PLATFORM: "debian"
+        KITCHEN_OSVERS: "debian-9"
+      - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-10"
       - KITCHEN_PLATFORM: "debian"
         KITCHEN_OSVERS: "debian-11"
