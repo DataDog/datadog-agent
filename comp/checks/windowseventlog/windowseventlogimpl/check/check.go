@@ -11,9 +11,11 @@ package evtlog
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -38,6 +40,8 @@ type Check struct {
 	// check
 	core.CheckBase
 	config *Config
+
+	logsAgent optional.Option[logsAgent.Component]
 
 	fetchEventsLoopWaiter sync.WaitGroup
 	fetchEventsLoopStop   chan struct{}
@@ -210,8 +214,25 @@ func (c *Check) validateConfig() error {
 		// style, a timeout on the "wait for events" operation is no longer applicable.
 		c.Warn("instance config `timeout` is deprecated. It is no longer used by the check and can be removed.")
 	}
-	if val, isSet := c.config.instance.ChannelPath.Get(); !isSet || len(val) == 0 {
-		return fmt.Errorf("instance config `path` must be provided and not be empty")
+	channelPathIsSetAndNotEmpty := false
+	if val, isSet := c.config.instance.ChannelPath.Get(); isSet && len(val) > 0 {
+		channelPathIsSetAndNotEmpty = true
+	}
+	ddSecurityEventsIsSetAndValid := false
+	if val, isSet := c.config.instance.DDSecurityEvents.Get(); isSet && len(val) > 0 {
+		if !strings.EqualFold(val, "high") && !strings.EqualFold(val, "low") {
+			return fmt.Errorf("instance config `dd_security_events`, if set, must be either 'high' or 'low'")
+		}
+		if _, isSet := c.logsAgent.Get(); !isSet {
+			return fmt.Errorf("instance config `dd_security_events` is set, but logs-agent is not available. Set `logs_enabled: true` in datadog.yaml to enable sending Logs to Datadog")
+		}
+		ddSecurityEventsIsSetAndValid = true
+	}
+	if !channelPathIsSetAndNotEmpty && !ddSecurityEventsIsSetAndValid {
+		return fmt.Errorf("instance config `path` or `dd_security_events` must be provided")
+	}
+	if channelPathIsSetAndNotEmpty && ddSecurityEventsIsSetAndValid {
+		return fmt.Errorf("instance config `path` and `dd_security_events` are mutually exclusive, only one must be set per instance")
 	}
 	if val, isSet := c.config.instance.Query.Get(); !isSet || len(val) == 0 {
 		// Query should always be set by this point, but might be ""
@@ -262,10 +283,11 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
+func Factory(logsAgent optional.Option[logsAgent.Component]) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
 		return &Check{
 			CheckBase: core.NewCheckBase(CheckName),
+			logsAgent: logsAgent,
 			evtapi:    winevtapi.New(),
 		}
 	})
