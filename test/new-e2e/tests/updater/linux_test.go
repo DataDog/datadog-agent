@@ -15,6 +15,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/likexian/gokit/assert"
 
 	"github.com/stretchr/testify/require"
 )
@@ -114,7 +115,8 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	_ = host.MustExecute(`test -L /usr/bin/datadog-agent`)
 	require.Equal(v.T(), "/usr/bin/datadog-agent\n", host.MustExecute("which datadog-agent"))
 	binPath := host.MustExecute("readlink -f $(which datadog-agent)")
-	require.True(v.T(), strings.HasPrefix(binPath, "/opt/datadog-packages/datadog-agent/7.") && strings.HasSuffix(binPath, "/bin/agent/agent"))
+	assert.True(v.T(), strings.HasPrefix(binPath, "/opt/datadog-packages/datadog-agent/7."))
+	assert.True(v.T(), strings.HasSuffix(binPath, "/bin/agent/agent\n"))
 
 	// assert file ownerships
 	agentDir := "/opt/datadog-packages/datadog-agent"
