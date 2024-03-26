@@ -75,7 +75,7 @@ type Collector struct {
 	osScanner        ospkg.Scanner
 	langScanner      langpkg.Scanner
 	vulnClient       vulnerability.Client
-	marshaler        *cyclonedx.Marshaler
+	marshaler        cyclonedx.Marshaler
 	wmeta            optional.Option[workloadmeta.Component]
 }
 
