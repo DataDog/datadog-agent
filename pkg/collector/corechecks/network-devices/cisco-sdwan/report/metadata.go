@@ -24,7 +24,7 @@ func (ms *SDWanSender) SendMetadata(devices []devicemetadata.DeviceMetadata, int
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {
-			log.Warnf("Error marsgalling Cisco SD-WAN metadata : %s", err)
+			log.Warnf("Error marshalling Cisco SD-WAN metadata : %s", err)
 			continue
 		}
 		ms.sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
