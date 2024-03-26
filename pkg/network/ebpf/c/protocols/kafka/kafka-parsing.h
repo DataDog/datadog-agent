@@ -349,11 +349,6 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
     */
 
     kafka_transaction_t *kafka_transaction = &kafka->transaction;
-
-    if (kafka_process_response(kafka, skb, offset)) {
-        return true;
-    }
-
     kafka_header_t kafka_header;
     bpf_memset(&kafka_header, 0, sizeof(kafka_header));
     bpf_skb_load_bytes_with_telemetry(skb, offset, (char *)&kafka_header, sizeof(kafka_header));
