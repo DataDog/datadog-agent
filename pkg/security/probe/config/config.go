@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamUseFentry specifies whether to use eBPF fentry when available instead of kprobes
 	EventStreamUseFentry bool
 
+	// EventStreamInternStrings specifies if unmarshalled strings should be interned
+	EventStreamInternStrings bool
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -163,6 +166,7 @@ func NewConfig() (*Config, error) {
 		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
 		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:         getEventStreamFentryValue(),
+		EventStreamInternStrings:     getBool("event_stream.intern_strings"),
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,

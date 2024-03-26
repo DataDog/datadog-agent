@@ -66,6 +66,7 @@ type EBPFResolver struct {
 	config       *config.Config
 	statsdClient statsd.ClientInterface
 	scrubber     *procutil.DataScrubber
+	interner     model.StringInterner
 
 	containerResolver *container.Resolver
 	mountResolver     *mount.Resolver
@@ -251,7 +252,7 @@ var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
 
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false
-	values, err := model.UnmarshalStringArray(data)
+	values, err := model.UnmarshalStringArray(data, argsEnvsInterner)
 	if err != nil || len(data) == model.MaxArgEnvSize {
 		if len(values) > 0 {
 			values[len(values)-1] += "..."
@@ -259,7 +260,6 @@ func parseStringArray(data []byte) ([]string, bool) {
 		truncated = true
 	}
 
-	argsEnvsInterner.DeduplicateSlice(values)
 	return values, truncated
 }
 
@@ -449,7 +449,7 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 	}
 
 	var fileFields model.FileFields
-	if _, err := fileFields.UnmarshalBinary(data); err != nil {
+	if _, err := fileFields.UnmarshalBinary(data, p.interner); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal entry for inode `%d`", inode)
 	}
 
@@ -784,12 +784,12 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid, ExecInode: inode})
 
 	var ctrCtx model.ContainerContext
-	read, err := ctrCtx.UnmarshalBinary(procCache)
+	read, err := ctrCtx.UnmarshalBinary(procCache, p.interner)
 	if err != nil {
 		return nil
 	}
 
-	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:]); err != nil {
+	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:], p.interner); err != nil {
 		return nil
 	}
 
@@ -798,7 +798,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 		return nil
 	}
 
-	if _, err := entry.UnmarshalPidCacheBinary(pidCache); err != nil {
+	if _, err := entry.UnmarshalPidCacheBinary(pidCache, p.interner); err != nil {
 		return nil
 	}
 
@@ -1303,7 +1303,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 }
 
 // NewEBPFResolver returns a new process resolver
-func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
+func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface, interner model.StringInterner,
 	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
@@ -1317,6 +1317,7 @@ func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClie
 		config:                    config,
 		statsdClient:              statsdClient,
 		scrubber:                  scrubber,
+		interner:                  interner,
 		entryCache:                make(map[uint32]*model.ProcessCacheEntry),
 		opts:                      *opts,
 		argsEnvsCache:             argsEnvsCache,

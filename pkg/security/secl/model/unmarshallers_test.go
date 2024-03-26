@@ -91,7 +91,7 @@ func TestSyscallsEvent_UnmarshalBinary(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := &SyscallsEvent{}
-			_, err := e.UnmarshalBinary(tt.args)
+			_, err := e.UnmarshalBinary(tt.args, nil)
 			if err != nil {
 				if err == tt.wantErr {
 					return
