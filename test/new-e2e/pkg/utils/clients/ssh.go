@@ -231,7 +231,7 @@ func ReadFile(client *ssh.Client, path string) ([]byte, error) {
 	return content.Bytes(), nil
 }
 
-// DownloadFile dowloads the file from the remote host to the local host
+// DownloadFile downloads the file from the remote host to the local host
 func DownloadFile(client *ssh.Client, remotePath, localPath string) error {
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
@@ -251,7 +251,11 @@ func DownloadFile(client *ssh.Client, remotePath, localPath string) error {
 	}
 	defer localFile.Close()
 
-	io.Copy(localFile, remoteFile)
+	_, err = io.Copy(localFile, remoteFile)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
