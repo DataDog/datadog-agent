@@ -1,9 +1,11 @@
 import glob
+import os
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.package.size import compute_package_size_metrics
 
 
 def get_package_path(glob_pattern):
@@ -65,3 +67,35 @@ def compare_size(ctx, new_package, stable_package, package_type, last_stable, th
   Stable package ({last_stable}) size is {stable_package_size_mb:.2f}MB
   Diff is {diff_mb:.2f}MB (max allowed diff: {threshold_mb:.2f}MB)"""
     )
+
+
+@task
+def send_size(
+    ctx,
+    flavor: str,
+    package_os: str,
+    package_path: str,
+    major_version: str,
+    git_ref: str,
+    bucket_branch: str,
+    arch: str,
+    send_series: bool = True,
+):
+    from tasks.libs.datadog_api import send_metrics
+
+    if not os.path.exists(package_path):
+        raise Exit(code=1, message=color_message(f"Package not found at path {package_path}", "orange"))
+
+    series = compute_package_size_metrics(
+        ctx=ctx,
+        flavor=flavor,
+        package_os=package_os,
+        package_path=package_path,
+        major_version=major_version,
+        git_ref=git_ref,
+        bucket_branch=bucket_branch,
+        arch=arch,
+    )
+    print(series)
+    if send_series:
+        send_metrics(series=series)

@@ -76,13 +76,13 @@ stages:
   - integration_test
   - benchmarks
   - package_build
+  - pkg_metrics
   - packaging
   - kitchen_deploy
   - e2e_pre_test
   - e2e_pre_test_junit_upload
   - kitchen_testing
   - kitchen_tests_upload
-  - pkg_metrics
   - container_build
   - container_scan
   - check_deploy
