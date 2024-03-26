@@ -39,7 +39,9 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
         return 0;
     }
 
-    // Currently, we lack the pid and netns when cleaning the connection (in the http2_tls_termination function).
+    // The cleanup of the map happens either in TCP termination or during TLS shutdown event.
+    // The TCP termination is manages by the socket filter, thus it cannot clean TLS entries,
+    // as it does not have the access to the PID and NETNS.
     // Therefore, we use tls_finish to clean the connection. While this approach is not ideal, it is the best option available to us for now.
     tls_finish(ctx, &t, true);
     return 0;

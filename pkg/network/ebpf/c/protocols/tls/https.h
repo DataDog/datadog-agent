@@ -123,6 +123,8 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     switch (protocol) {
     case PROTOCOL_HTTP:
+        // We use tcp_close to clean up the http2_dynamic_counter that contains TLS entries to properly clean the map.
+        // We do not want to affect the HTTP process, so we skip the case of HTTP to avoid any impact on the HTTP process.
         if (skip_http) {return;}
         prog = TLS_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
