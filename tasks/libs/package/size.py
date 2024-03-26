@@ -52,6 +52,16 @@ def extract_package(ctx, package_os, package_path, extract_dir):
         )
 
 
+def file_size(path):
+    return os.path.getsize(path)
+
+
+def directory_size(ctx, path):
+    # HACK: For uncompressed size, fall back to native Unix utilities - computing a directory size with Python
+    # TODO: To make this work on other OSes, the complete directory walk would need to be implemented
+    return int(ctx.run(f"du -sB1 {path}", hide=True).stdout.split()[0])
+
+
 def compute_package_size_metrics(
     ctx,
     flavor: str,
@@ -68,11 +78,8 @@ def compute_package_size_metrics(
     with tempfile.TemporaryDirectory() as extract_dir:
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
 
-        package_compressed_size = os.path.getsize(package_path)
-
-        # HACK: For uncompressed size, fall back to native Unix utilities - computing a directory size with Python
-        # TODO: To make this work on other OSes, the complete directory walk would need to be implemented
-        package_uncompressed_size = int(ctx.run(f"du -sB1 {extract_dir}", hide=True).stdout.split()[0])
+        package_compressed_size = file_size(path=package_path)
+        package_uncompressed_size = directory_size(ctx, path=extract_dir)
 
         timestamp = int(datetime.now().timestamp())
         common_tags = [
@@ -101,7 +108,7 @@ def compute_package_size_metrics(
         )
 
         for binary_name, binary_path in SCANNED_BINARIES[flavor].items():
-            binary_size = os.path.getsize(os.path.join(extract_dir, binary_path))
+            binary_size = file_size(os.path.join(extract_dir, binary_path))
             series.append(
                 create_gauge(
                     "datadog.agent.binary.size",
