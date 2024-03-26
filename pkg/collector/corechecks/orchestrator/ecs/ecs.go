@@ -52,14 +52,14 @@ type Check struct {
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check { return newCheck(store) })
 }
 
-func newCheck() check.Check {
+func newCheck(store workloadmeta.Component) check.Check {
 	return &Check{
 		CheckBase:                  core.NewCheckBase(CheckName),
-		workloadmetaStore:          workloadmeta.GetGlobalStore(),
+		workloadmetaStore:          store,
 		config:                     oconfig.NewDefaultOrchestratorConfig(),
 		groupID:                    atomic.NewInt32(rand.Int31()),
 		isECSCollectionEnabledFunc: oconfig.IsOrchestratorECSExplorerEnabled,
