@@ -41,14 +41,30 @@ func getEndpointsInfo(cfg config.Reader) []endpointInfo {
 		{endpoints.V1SeriesEndpoint, "POST", emptyPayload},
 		{endpoints.V1CheckRunsEndpoint, "POST", checkRunPayload},
 		{endpoints.V1IntakeEndpoint, "POST", emptyPayload},
-
+		{endpoints.V1SketchSeriesEndpoint, "POST", emptyPayload}, // This one does not work
 		// This endpoint behaves differently depending on `site` when using `emptyPayload`. Do not modify `nil` here !
 		{endpoints.V1ValidateEndpoint, "GET", nil},
 		{endpoints.V1MetadataEndpoint, "POST", emptyPayload},
 
 		// v2 endpoints
 		{endpoints.SeriesEndpoint, "POST", emptyPayload},
+		{endpoints.EventsEndpoint, "POST", emptyPayload}, // This one does not work
+		{endpoints.ServiceChecksEndpoint, "GET", emptyPayload},//  This one does not work
 		{endpoints.SketchSeriesEndpoint, "POST", emptyPayload},
+		{endpoints.HostMetadataEndpoint, "POST", emptyPayload},// This one does not work
+
+		// Process endpoints
+		{endpoints.ProcessesEndpoint, "HEAD", nil},
+		{endpoints.ProcessDiscoveryEndpoint, "HEAD", nil},
+		{endpoints.ProcessLifecycleEndpoint, "HEAD", nil},
+		{endpoints.RtProcessesEndpoint, "HEAD", nil},
+		{endpoints.ContainerEndpoint, "HEAD", nil},
+		{endpoints.RtContainerEndpoint, "HEAD", nil},
+		{endpoints.ConnectionsEndpoint, "HEAD", nil},
+		{endpoints.LegacyOrchestratorEndpoint, "HEAD", nil},
+		{endpoints.OrchestratorEndpoint, "HEAD", nil},
+		{endpoints.OrchestratorManifestEndpoint, "HEAD", nil},
+		
 
 		// Flare endpoint
 		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil},
