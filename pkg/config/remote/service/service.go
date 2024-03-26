@@ -293,6 +293,7 @@ func NewService(cfg model.Reader, apiKey, baseRawURL, hostname string, tags []st
 		hostname:                       hostname,
 		tags:                           tags,
 		clock:                          clock,
+		traceAgentEnv:                  options.traceAgentEnv,
 		db:                             db,
 		api:                            http,
 		uptane:                         uptaneClient,
