@@ -1574,82 +1574,55 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
 
     check_for_ninja(ctx)
 
-    with ctx.cd(source_dir):
-        ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
-        with open(ninja_file_path, 'w') as ninja_file:
-            nw = NinjaWriter(ninja_file, width=180)
+    ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
+    with open(ninja_file_path, 'w') as ninja_file:
+        nw = NinjaWriter(ninja_file, width=180)
 
-            nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
+        nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
+        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
+        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
 
-            # these commands operate on relative input paths because of max argument size
-            nw.rule(name="merge_btf", command="/bin/bash -O extglob -c \"cd $btf_dir && bpftool -B vmlinux btf merge merged_btf !(vmlinux)\"")
-            nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $bpf_programs && rm -rf $in_dir")
-            nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
+        for root, dirs, files in os.walk(source_dir):
+            path_from_root = os.path.relpath(root, source_dir)
 
-            for root, dirs, files in os.walk(source_dir):
-                path_from_root = os.path.relpath(root, source_dir)
+            for d in dirs:
+                output_subdir = os.path.join(output_dir, path_from_root, d)
+                os.makedirs(output_subdir, exist_ok=True)
 
-                for d in dirs:
-                    output_subdir = os.path.join(output_dir, path_from_root, d)
-                    os.makedirs(output_subdir, exist_ok=True)
+            for file in files:
+                if not file.endswith(".btf.tar.xz"):
+                    continue
 
-                for file in files:
-                    if not file.endswith(".btf.tar.xz"):
-                        continue
+                btf_filename = file.removesuffix(".tar.xz")
+                minimized_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
 
-                    # create directory named with kernel release version
-                    minimized_btf_path = os.path.normpath(
-                        os.path.join(output_dir, path_from_root, file.removesuffix(".tar.xz"))
-                    )
-                    btf_filename = os.path.basename(minimized_btf_path)
+                nw.build(
+                    rule="decompress_btf",
+                    inputs=[os.path.join(root, file)],
+                    outputs=[os.path.join(root, btf_filename)],
+                    variables={
+                        "target_directory": root,
+                    },
+                )
 
-                    btf_dir = os.path.normpath(os.path.join(path_from_root, file.removesuffix(".btf.tar.xz")))
-                    os.makedirs(os.path.abspath(btf_dir), exist_ok=True)
+                nw.build(
+                    rule="minimize_btf",
+                    inputs=[os.path.join(root, btf_filename)],
+                    outputs=[minimized_btf_path],
+                    variables={
+                        "input_bpf_programs": bpf_programs,
+                    },
+                )
 
-                    # extract source tarball to unique directory
-                    vmlinux_file = os.path.join(btf_dir, "vmlinux")
-                    nw.build(
-                        rule="decompress_btf",
-                        inputs=[os.path.join(root, file)],
-                        outputs=[vmlinux_file],
-                        variables={
-                            "target_directory": btf_dir,
-                        },
-                    )
-
-                    # merge BTF for all files in source tarball
-                    merged_btf = os.path.join(btf_dir, "merged_btf")
-
-                    nw.build(
-                        rule="merge_btf",
-                        inputs=[vmlinux_file],
-                        outputs=[merged_btf],
-                        variables={
-                            "btf_dir": btf_dir,
-                        },
-                    )
-
-                    # minimize BTF
-                    nw.build(
-                        rule="minimize_btf",
-                        inputs=[merged_btf],
-                        outputs=[minimized_btf_path],
-                        variables={
-                            "bpf_programs": bpf_programs,
-                            "in_dir": btf_dir,
-                        },
-                    )
-
-                    # compress BTF
-                    nw.build(
-                        rule="compress_minimized_btf",
-                        inputs=[minimized_btf_path],
-                        outputs=[f"{minimized_btf_path}.tar.xz"],
-                        variables={
-                            "tar_working_directory": os.path.join(output_dir, path_from_root),
-                            "rel_in": btf_filename,
-                        },
-                    )
+                nw.build(
+                    rule="compress_minimized_btf",
+                    inputs=[minimized_btf_path],
+                    outputs=[f"{minimized_btf_path}.tar.xz"],
+                    variables={
+                        "tar_working_directory": os.path.join(output_dir, path_from_root),
+                        "rel_in": btf_filename,
+                    },
+                )
 
         ctx.run(f"ninja -f {ninja_file_path}")
 
@@ -1661,11 +1634,15 @@ def process_btfhub_archive(ctx, branch="main"):
     :param ctx: invoke context
     :param branch: branch of DataDog/btfhub-archive to clone
     """
+    check_for_ninja(ctx)
+
     output_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
             ctx.run(f"git clone --depth=1 -b {branch} https://github.com/DataDog/btfhub-archive.git")
             with ctx.cd("btfhub-archive"):
+                output_files = set()
+                file_tuples = []
                 # iterate over all top-level directories, which are platforms (amzn, ubuntu, etc.)
                 with os.scandir(ctx.cwd) as pit:
                     for pdir in pit:
@@ -1701,9 +1678,51 @@ def process_btfhub_archive(ctx, branch="main"):
 
                                             os.makedirs(dst_dir, exist_ok=True)
                                             dst_file = os.path.join(dst_dir, file)
-                                            if os.path.exists(dst_file):
+                                            if dst_file in output_files:
                                                 raise Exit(message=f"{dst_file} already exists")
-                                            shutil.move(src_file, os.path.join(dst_dir, file))
+
+                                            output_files.add(dst_file)
+                                            file_tuples.append((src_file, dst_file))
+
+                ninja_file_path = os.path.join(ctx.cwd, 'process-btfs.ninja')
+                with open(ninja_file_path, 'w') as ninja_file:
+                    nw = NinjaWriter(ninja_file, width=180)
+                    nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
+                    nw.rule(name="compress_btf", command="tar -cJf $out $in -C $target_directory")
+                    nw.rule(name="merge_btf", command="/bin/bash -O extglob -c \"cd $btf_dir && bpftool -B vmlinux btf merge merged_btf !(vmlinux)\"")
+
+                    for src, dst in file_tuples:
+                        extract_dir = src.removesuffix(".btf.tar.xz")
+                        os.makedirs(extract_dir, exist_ok=True)
+                        # extract source tarball to unique directory
+                        vmlinux_file = os.path.join(extract_dir, "vmlinux")
+                        nw.build(
+                            rule="decompress_btf",
+                            inputs=[src],
+                            outputs=[vmlinux_file],
+                            variables={
+                                "target_directory": extract_dir,
+                            },
+                        )
+                        merged_btf = os.path.join(extract_dir, f"{os.path.basename(extract_dir)}.btf")
+                        nw.build(
+                            rule="merge_btf",
+                            inputs=[vmlinux_file],
+                            outputs=[merged_btf],
+                            variables={
+                                "btf_dir": extract_dir,
+                            },
+                        )
+                        nw.build(
+                            rule="compress_btf",
+                            inputs=[merged_btf],
+                            outputs=[dst],
+                            variables={
+                                "target_directory": extract_dir,
+                            },
+                        )
+
+                    ctx.run(f"ninja -f {ninja_file_path}")
 
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
