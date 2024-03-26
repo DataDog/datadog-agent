@@ -1689,7 +1689,7 @@ def process_btfhub_archive(ctx, branch="main"):
                     nw = NinjaWriter(ninja_file, width=180)
                     nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
                     nw.rule(name="compress_btf", command="tar -C $target_directory -cJf $out $rel_in")
-                    nw.rule(name="merge_btf", command="/bin/bash -O extglob -c \"cd $btf_dir && bpftool -B vmlinux btf merge merged_btf !(vmlinux)\"")
+                    nw.rule(name="merge_btf", command="/bin/bash -O extglob -c \"cd $btf_dir && bpftool -B vmlinux btf merge $rel_out !(vmlinux)\"")
 
                     for src, dst in file_tuples:
                         extract_dir = src.removesuffix(".btf.tar.xz")
@@ -1711,6 +1711,7 @@ def process_btfhub_archive(ctx, branch="main"):
                             outputs=[merged_btf],
                             variables={
                                 "btf_dir": extract_dir,
+                                "rel_out": os.path.basename(merged_btf),
                             },
                         )
                         nw.build(
