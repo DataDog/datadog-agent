@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/processor/processorhelper"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tagenrichmentprocessor/internal/metadata"
+        "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichmentprocessor/internal/metadata"
 )
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}

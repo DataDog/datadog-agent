@@ -185,6 +185,9 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/processor/tagenrichmentprocessor": GoModule(
+        "comp/otelcol/otlp/components/processor/tagenrichmentprocessor", independent=True
+    ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/api": GoModule("pkg/api", independent=True),

@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/processor/processortest"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/tagenrichmentprocessor/internal/metadata"
+        "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichmentprocessor/internal/metadata"
 )
 
 func TestType(t *testing.T) {
