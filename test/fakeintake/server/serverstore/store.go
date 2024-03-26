@@ -30,8 +30,8 @@ type Store interface {
 	GetRouteStats() map[string]int
 	// Flush flushes the store
 	Flush()
-	// GetMetrics returns the prometheus metrics for the store
-	GetMetrics() []prometheus.Collector
+	// GetInternalMetrics returns the prometheus metrics for the store
+	GetInternalMetrics() []prometheus.Collector
 	// Close closes the store
 	Close()
 }

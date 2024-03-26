@@ -87,7 +87,7 @@ func NewServer(options ...func(*Server)) *Server {
 
 	registry := prometheus.NewRegistry()
 
-	storeMetrics := fi.store.GetMetrics()
+	storeMetrics := fi.store.GetInternalMetrics()
 	registry.MustRegister(
 		append(
 			[]prometheus.Collector{
