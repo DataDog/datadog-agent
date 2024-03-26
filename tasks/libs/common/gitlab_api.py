@@ -9,7 +9,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.remote_api import APIError, RemoteAPI
 
-__all__ = ["Gitlab"]
+BASE_URL = "https://gitlab.ddbuild.io"
 
 
 class Gitlab(RemoteAPI):
@@ -17,10 +17,11 @@ class Gitlab(RemoteAPI):
     Helper class to perform API calls against the Gitlab API, using a Gitlab PAT.
     """
 
-    BASE_URL = "https://gitlab.ddbuild.io"
+    # BASE_URL = "https://gitlab.ddbuild.io"
 
     def __init__(self, project_name="DataDog/datadog-agent", api_token=None):
         super(Gitlab, self).__init__("Gitlab")
+        raise RuntimeError('Deprecated API used')
         # self.api_token = api_token
         self.project_name = project_name
         # self.authorization_error_message = (
@@ -366,6 +367,23 @@ def get_gitlab_bot_token():
         )
         raise Exit(code=1)
     return os.environ["GITLAB_BOT_TOKEN"]
+
+
+def get_gitlab_api(token=None):
+    """
+    Returns the gitlab api object with the api token.
+    The token is the one of get_gitlab_token() by default.
+    """
+    token = token or get_gitlab_token()
+
+    return gitlab.Gitlab(BASE_URL, private_token=token)
+
+
+def get_gitlab_repo(repo='DataDog/datadog-agent', token=None):
+    api = get_gitlab_api(token)
+    repo = api.projects.get(repo)
+
+    return repo
 
 
 # TODO

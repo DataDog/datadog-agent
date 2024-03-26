@@ -8,7 +8,7 @@ from typing import Dict
 
 import yaml
 
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.gitlab_api import Gitlab, get_gitlab_token
 from tasks.libs.types import FailedJobs, Test
 
 
