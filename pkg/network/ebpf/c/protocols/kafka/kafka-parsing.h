@@ -50,6 +50,13 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
+    if (is_tcp_termination(&skb_info)) {
+        bpf_map_delete_elem(&kafka_response, &kafka->transaction.tup);
+        flip_tuple(&kafka->transaction.tup);
+        bpf_map_delete_elem(&kafka_response, &kafka->transaction.tup);
+        return 0;
+    }
+
     if (kafka_process_response(kafka, skb, skb_info.data_off)) {
         return 0;
     }
