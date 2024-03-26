@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"go4.org/intern"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -21,15 +22,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultTTL = 10 * time.Second
-const cacheValidityNoRT = 2 * time.Second
+const (
+	cacheValidityNoRT     = 2 * time.Second
+	maxPidCidCacheSize    = 32768
+	maxAddrToCidCacheSize = 4096
+)
+
+type containerIDEntry struct {
+	cid   *intern.Value
+	inUse bool
+}
 
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
 	mux                sync.RWMutex
-	addrToCtrID        map[model.ContainerAddr]string
-	ctrForPid          map[int]string
-	updated            time.Time
+	addrToCtrID        map[model.ContainerAddr]*containerIDEntry
+	ctrForPid          map[int]*containerIDEntry
 	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	Clock              clock.Clock
 	ContainerProvider  proccontainers.ContainerProvider
@@ -41,6 +49,8 @@ func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock 
 		ContainerProvider: containerProvider,
 		Clock:             clock,
 		done:              make(chan bool),
+		addrToCtrID:       make(map[model.ContainerAddr]*containerIDEntry),
+		ctrForPid:         make(map[int]*containerIDEntry),
 	}
 }
 
@@ -59,10 +69,6 @@ func (l *LocalResolver) pullContainers(ticker *clock.Ticker) {
 	for {
 		select {
 		case <-ticker.C:
-			var containers []*model.Container
-			var pidToCid map[int]string
-			var lastContainerRates map[string]*proccontainers.ContainerRateMetrics
-
 			containers, lastContainerRates, pidToCid, err := l.ContainerProvider.GetContainers(cacheValidityNoRT, l.lastContainerRates)
 			if err == nil {
 				l.lastContainerRates = lastContainerRates
@@ -84,20 +90,42 @@ func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[in
 	l.mux.Lock()
 	defer l.mux.Unlock()
 
-	if time.Since(l.updated) < defaultTTL {
-		return
+	// mark everything not in use
+	for _, c := range l.addrToCtrID {
+		c.inUse = false
+	}
+	for _, c := range l.ctrForPid {
+		c.inUse = false
 	}
 
-	l.updated = time.Now()
-	l.addrToCtrID = make(map[model.ContainerAddr]string)
-	l.ctrForPid = pidToCid
+containersLoop:
 	for _, ctr := range containers {
 		for _, networkAddr := range ctr.Addresses {
+			if len(l.addrToCtrID) >= maxAddrToCidCacheSize {
+				log.Warnf("address to container ID cache has reached max size of %d entries", maxAddrToCidCacheSize)
+				break containersLoop
+			}
+
 			parsedAddr := procutil.AddressFromString(networkAddr.Ip)
 			if parsedAddr.IsLoopback() {
 				continue
 			}
-			l.addrToCtrID[*networkAddr] = ctr.Id
+			l.addrToCtrID[*networkAddr] = &containerIDEntry{
+				cid:   intern.GetByString(ctr.Id),
+				inUse: true,
+			}
+		}
+	}
+
+	for pid, cid := range pidToCid {
+		if len(l.ctrForPid) >= maxPidCidCacheSize {
+			log.Warnf("pid to container ID cache has reached max size of %d entries", maxPidCidCacheSize)
+			break
+		}
+
+		l.ctrForPid[pid] = &containerIDEntry{
+			cid:   intern.GetByString(cid),
+			inUse: true,
 		}
 	}
 }
@@ -125,6 +153,20 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 	l.mux.RLock()
 	defer l.mux.RUnlock()
 
+	defer func() {
+		// remove all not in use entries
+		for pid, ctr := range l.ctrForPid {
+			if !ctr.inUse {
+				delete(l.ctrForPid, pid)
+			}
+		}
+		for addr, ctr := range l.addrToCtrID {
+			if !ctr.inUse {
+				delete(l.addrToCtrID, addr)
+			}
+		}
+	}()
+
 	type connKey struct {
 		laddr, raddr netip.AddrPort
 		proto        model.ConnectionType
@@ -144,7 +186,9 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		// first
 		cid := conn.Laddr.ContainerId
 		if cid == "" {
-			cid = l.ctrForPid[int(conn.Pid)]
+			if v, ok := l.ctrForPid[int(conn.Pid)]; ok {
+				cid = v.cid.Get().(string)
+			}
 		}
 
 		if cid == "" {
@@ -220,11 +264,13 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			}
 		}
 
-		if conn.Raddr.ContainerId = l.addrToCtrID[model.ContainerAddr{
+		if v, ok := l.addrToCtrID[model.ContainerAddr{
 			Ip:       raddr.Addr().String(),
 			Port:     int32(raddr.Port()),
 			Protocol: conn.Type,
-		}]; conn.Raddr.ContainerId == "" {
+		}]; ok {
+			conn.Raddr.ContainerId = v.cid.Get().(string)
+		} else {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
 		}
 	}
