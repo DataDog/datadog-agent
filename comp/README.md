@@ -10,6 +10,10 @@ Click the links for more documentation.
 
 Package agent implements the "agent" bundle,
 
+### [comp/agent/runtimesettings](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/runtimesettings)
+
+Package runtimesettings initialize settings that can be read/write at runtime.
+
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
