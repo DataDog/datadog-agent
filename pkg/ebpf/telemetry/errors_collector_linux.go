@@ -8,7 +8,6 @@
 package telemetry
 
 import (
-	"fmt"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,9 +19,6 @@ import (
 const (
 	maxErrno    = 64
 	maxErrnoStr = "other"
-
-	ebpfMapTelemetryNS    = "ebpf_maps"
-	ebpfHelperTelemetryNS = "ebpf_helpers"
 )
 
 // EBPFErrorsCollector implements the prometheus Collector interface
@@ -31,6 +27,13 @@ type EBPFErrorsCollector struct {
 	T                *EBPFTelemetry
 	ebpfMapOpsErrors *prometheus.Desc
 	ebpfHelperErrors *prometheus.Desc
+	lastValues       map[metricKey]uint64
+}
+
+type metricKey struct {
+	hash uint64
+	id   int
+	err  string
 }
 
 // NewEBPFErrorsCollector initializes a new Collector object for ebpf helper and map operations errors
@@ -38,10 +41,12 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 	if supported, _ := ebpfTelemetrySupported(); !supported {
 		return nil
 	}
+
 	return &EBPFErrorsCollector{
 		T:                newEBPFTelemetry(),
-		ebpfMapOpsErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
-		ebpfHelperErrors: prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
+		ebpfMapOpsErrors: prometheus.NewDesc("ebpf__maps__errors", "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil),
+		ebpfHelperErrors: prometheus.NewDesc("ebpf__helpers__errors", "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil),
+		lastValues:       make(map[metricKey]uint64),
 	}
 }
 
@@ -68,7 +73,16 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				base := maxErrno * index
 				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
 					for errStr, errCount := range count {
-						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
+						key := metricKey{
+							hash: k,
+							id:   index,
+							err:  errStr,
+						}
+						delta := float64(errCount - e.lastValues[key])
+						if delta > 0 {
+							ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, delta, helperName, probeName, errStr)
+						}
+						e.lastValues[key] = errCount
 					}
 				}
 			}
@@ -85,7 +99,16 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 			if count := getErrCount(val.Count[:]); len(count) > 0 {
 				for errStr, errCount := range count {
-					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.GaugeValue, float64(errCount), m, errStr)
+					key := metricKey{
+						hash: k,
+						id:   mapErr,
+						err:  errStr,
+					}
+					delta := float64(errCount - e.lastValues[key])
+					if delta > 0 {
+						ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, delta, m, errStr)
+					}
+					e.lastValues[key] = errCount
 				}
 			}
 		}

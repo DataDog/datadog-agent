@@ -15,6 +15,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"io"
+	"math"
 	"slices"
 	"sync"
 
@@ -33,6 +34,7 @@ const (
 	readKernelIndx
 	skbLoadBytes
 	perfEventOutput
+	mapErr = math.MaxInt
 )
 
 var helperNames = map[int]string{
