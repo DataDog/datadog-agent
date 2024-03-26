@@ -41,3 +41,12 @@ type KafkaTransaction struct {
 	Records_count       uint32
 	Pad_cgo_0           [4]byte
 }
+
+type KafkaResponseContext struct {
+	State                    uint8
+	Record_batches_num_bytes int32
+	Record_batch_length      int32
+	Carry_over_offset        uint32
+	Partitions_count         uint32
+	Transaction              KafkaTransaction
+}

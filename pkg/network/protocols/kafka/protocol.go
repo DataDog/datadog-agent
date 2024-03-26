@@ -9,9 +9,11 @@ package kafka
 
 import (
 	"io"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -37,7 +39,7 @@ const (
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaHeapMap                             = "kafka_heap"
 	inFlightMap                              = "kafka_in_flight"
-	ResponseMap                              = "kafka_response"
+	responseMap                              = "kafka_response"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -54,7 +56,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: inFlightMap,
 		},
 		{
-			Name: ResponseMap,
+			Name: responseMap,
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -99,7 +101,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.MapSpecEditors[ResponseMap] = manager.MapSpecEditor{
+	opts.MapSpecEditors[responseMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -139,8 +141,26 @@ func (p *protocol) Stop(*manager.Manager) {
 	}
 }
 
-// DumpMaps empty implementation.
-func (p *protocol) DumpMaps(io.Writer, string, *ebpf.Map) {}
+// DumpMaps dumps map contents for debugging.
+func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
+	if mapName == inFlightMap {
+		var key KafkaTransactionKey
+		var value KafkaTransaction
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+	} else if mapName == responseMap {
+		var key ConnTuple
+		var value KafkaResponseContext
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+	}
+}
 
 func (p *protocol) processKafka(events []EbpfTx) {
 	for i := range events {
