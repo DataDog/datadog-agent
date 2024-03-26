@@ -48,6 +48,7 @@ func TestBasicRegistryTest(t *testing.T) {
 		inputargs := []string{
 			"add",
 			"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+			"/f",
 			"/v",
 			"test",
 			"/t",
@@ -62,6 +63,8 @@ func TestBasicRegistryTest(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			s := test.debugEvent(event)
+			t.Logf("event: %s", s)
 			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})
@@ -83,6 +86,7 @@ func TestBasicRegistryTest(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			t.Logf("event: %v", event)
 			assertFieldEqualCaseInsensitve(t, event, "open.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})
@@ -95,6 +99,7 @@ func TestBasicRegistryTest(t *testing.T) {
 			return nil
 
 		}, test.validateRegistryEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			t.Logf("event: %v", event)
 			assertFieldEqualCaseInsensitve(t, event, "create.registry.key_path", `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run`, "wrong registry key path")
 		}))
 	})
