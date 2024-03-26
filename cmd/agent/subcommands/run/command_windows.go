@@ -119,7 +119,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			defer StopAgentWithDefaults(agentAPI)
 
 			err := startAgent(
-				&cliParams{GlobalParams: &command.GlobalParams{}},
 				log,
 				flare,
 				telemetry,
