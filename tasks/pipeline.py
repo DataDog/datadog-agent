@@ -11,7 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from tasks.libs.common.gitlab_api import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,

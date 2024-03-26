@@ -157,9 +157,9 @@ ns.add_collection(kmt)
 ns.add_collection(diff)
 ns.add_collection(updater)
 # TODO
-from libs.common import gitlab
+from tasks.libs.common import gitlab_api
 
-ns.add_collection(gitlab)
+ns.add_collection(gitlab_api)
 ns.configure(
     {
         'run': {

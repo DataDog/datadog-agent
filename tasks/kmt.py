@@ -22,7 +22,7 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, get_binary_target_arch, info, warn
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.gitlab_api import get_gitlab_repo
 from tasks.system_probe import EMBEDDED_SHARE_DIR
 
 if TYPE_CHECKING:
@@ -132,7 +132,7 @@ def gen_config_from_ci_pipeline(
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
     """
-    gitlab = Gitlab("DataDog/datadog-agent", str(get_gitlab_token()))
+    repo = get_gitlab_repo()
     vms = set()
     local_arch = full_arch("local")
 
@@ -140,8 +140,11 @@ def gen_config_from_ci_pipeline(
         raise Exit("Pipeline ID must be provided")
 
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
-    for job in gitlab.all_jobs(pipeline):
-        name = job.get("name", "")
+    pipeline_obj = repo.pipelines.get(pipeline)
+    jobs = pipeline_obj.jobs.list(all=True)
+    for job in jobs:
+        jobinfo = job.asdict()
+        name = jobinfo.get("name", "")
 
         if (
             (vcpu is None or memory is None)
@@ -153,15 +156,10 @@ def gen_config_from_ci_pipeline(
             info(f"[+] retrieving {vmconfig_name} for {arch} from job {name}")
 
             try:
-                req = gitlab.artifact(job["id"], vmconfig_name)
-                if req is None:
-                    raise Exit(f"[-] failed to retrieve artifact {vmconfig_name}")
-                req.raise_for_status()
+                data = pipeline_obj.jobs.get(job.id).artifact(vmconfig_name).asdict()
             except Exception as e:
                 warn(f"[-] failed to retrieve artifact {vmconfig_name}: {e}")
                 continue
-
-            data = json.loads(req.content)
 
             for vmset in data.get("vmsets", []):
                 memory_list = vmset.get("memory", [])
@@ -192,6 +190,7 @@ def gen_config_from_ci_pipeline(
     info(f"[+] generating vmconfig.json file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
+
     return vmconfig.gen_config(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
     )
