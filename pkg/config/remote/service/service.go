@@ -319,7 +319,7 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tags []st
 	}
 
 	dbPath := path.Join(cfg.GetString("run_path"), options.databaseFileName)
-	db, err := openCacheDB(dbPath, agentVersion)
+	db, err := openCacheDB(dbPath, agentVersion, authKeys.apiKey)
 	if err != nil {
 		return nil, err
 	}

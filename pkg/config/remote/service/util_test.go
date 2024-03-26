@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 )
 
+const apiKey = "37d58c60b8ac337293ce2ca6b28b19eb"
+
 func TestAuthKeys(t *testing.T) {
 	tests := []struct {
 		rcKey  string
@@ -118,7 +120,7 @@ func TestRemoteConfigNewDB(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9")
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), "9.9.9", apiKey)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -134,7 +136,7 @@ func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	// should add the version to newly created databases
-	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion)
+	db, err := openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey)
 	require.NoError(t, err)
 
 	metadata, err := getVersion(db)
@@ -144,7 +146,7 @@ func TestRemoteConfigReopenNoVersionChange(t *testing.T) {
 	require.NoError(t, addData(db))
 	require.NoError(t, db.Close())
 
-	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion)
+	db, err = openCacheDB(filepath.Join(dir, "remote-config.db"), agentVersion, apiKey)
 	require.NoError(t, err)
 	defer db.Close()
 	require.NoError(t, checkData(db))
@@ -158,7 +160,7 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	dbPath := filepath.Join(dir, "remote-config.db")
 
 	// create database with current version
-	db, err := openCacheDB(dbPath, agentVersion)
+	db, err := openCacheDB(dbPath, agentVersion, apiKey)
 	require.NoError(t, err)
 
 	require.NoError(t, addData(db))
@@ -174,7 +176,7 @@ func TestRemoteConfigOldDB(t *testing.T) {
 	require.NoError(t, db.Close())
 
 	// reopen database
-	db, err = openCacheDB(dbPath, agentVersion)
+	db, err = openCacheDB(dbPath, agentVersion, apiKey)
 	require.NoError(t, err)
 
 	// check version after the database opens
