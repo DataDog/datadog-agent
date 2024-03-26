@@ -46,7 +46,7 @@ type KafkaResponseContext struct {
 	State                    uint8
 	Record_batches_num_bytes int32
 	Record_batch_length      int32
-	Carry_over_offset        uint32
+	Carry_over_offset        int32
 	Partitions_count         uint32
 	Transaction              KafkaTransaction
 }

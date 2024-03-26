@@ -49,7 +49,7 @@ typedef struct {
     kafka_response_state state;
     __s32 record_batches_num_bytes;
     __s32 record_batch_length;
-    __u32 carry_over_offset;
+    __s32 carry_over_offset;
     __u32 partitions_count;
     kafka_transaction_t transaction;
 } kafka_response_context_t;
