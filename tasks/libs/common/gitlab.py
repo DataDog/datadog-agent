@@ -4,6 +4,7 @@ import platform
 import subprocess
 from urllib.parse import quote
 
+import gitlab
 from invoke.exceptions import Exit
 
 from tasks.libs.common.remote_api import APIError, RemoteAPI
@@ -16,38 +17,35 @@ class Gitlab(RemoteAPI):
     Helper class to perform API calls against the Gitlab API, using a Gitlab PAT.
     """
 
-    BASE_URL = "https://gitlab.ddbuild.io/api/v4"
+    BASE_URL = "https://gitlab.ddbuild.io"
 
-    def __init__(self, project_name="DataDog/datadog-agent", api_token=""):
+    def __init__(self, project_name="DataDog/datadog-agent", api_token=None):
         super(Gitlab, self).__init__("Gitlab")
-        self.api_token = api_token
+        # self.api_token = api_token
         self.project_name = project_name
-        self.authorization_error_message = (
-            "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
-            "check and refresh it at "
-            "https://gitlab.ddbuild.io/-/profile/personal_access_tokens"
-        )
+        # self.authorization_error_message = (
+        #     "HTTP 401: Your GITLAB_TOKEN may have expired. You can "
+        #     "check and refresh it at "
+        #     "https://gitlab.ddbuild.io/-/profile/personal_access_tokens"
+        # )
+        self.gl = gitlab.Gitlab(self.BASE_URL, private_token=api_token)
 
     def test_project_found(self):
         """
         Checks if a project can be found. This is useful for testing access permissions to projects.
         """
-        result = self.project()
-
-        # name is arbitrary, just need to check if something is in the result
-        if "name" in result:
-            return
-
-        print(f"Cannot find GitLab project {self.project_name}")
-        print("If you cannot see it in the GitLab WebUI, you likely need permission.")
-        raise Exit(code=1)
+        try:
+            self.project()
+        except gitlab.GitlabError:
+            print(f"Cannot find GitLab project {self.project_name}")
+            print("If you cannot see it in the GitLab WebUI, you likely need permission.")
+            raise Exit(code=1)
 
     def project(self):
         """
         Gets the project info.
         """
-        path = f"/projects/{quote(self.project_name, safe='')}"
-        return self.make_request(path, json_output=True)
+        return self.gl.projects.get(self.project_name)
 
     def create_pipeline(self, ref, variables=None):
         """
@@ -57,32 +55,47 @@ class Gitlab(RemoteAPI):
         if variables is None:
             variables = {}
 
-        path = f"/projects/{quote(self.project_name, safe='')}/pipeline"
-        headers = {"Content-Type": "application/json"}
-        data = json.dumps({"ref": ref, "variables": [{"key": k, "value": v} for (k, v) in variables.items()]})
-        return self.make_request(path, headers=headers, data=data, json_output=True)
+        # path = f"/projects/{quote(self.project_name, safe='')}/pipeline"
+        # headers = {"Content-Type": "application/json"}
+        # data = json.dumps()
+        # return self.make_request(path, headers=headers, data=data, json_output=True)
+
+        repo = self.project()
+        pipeline = repo.pipelines.create(
+            {"ref": ref, "variables": [{"key": k, "value": v} for (k, v) in variables.items()]}
+        )
+
+        return pipeline
 
     def all_pipelines_for_ref(self, ref, sha=None):
         """
         Gets all pipelines for a given reference (+ optionally git sha).
         """
-        page = 1
+        # page = 1
 
-        # Go through all pages
-        results = self.pipelines_for_ref(ref, sha=sha, page=page)
-        while results:
-            yield from results
-            page += 1
-            results = self.pipelines_for_ref(ref, sha=sha, page=page)
+        # # Go through all pages
+        # results = self.pipelines_for_ref(ref, sha=sha, page=page)
+        # while results:
+        #     yield from results
+        #     page += 1
+        #     results = self.pipelines_for_ref(ref, sha=sha, page=page)
+
+        repo = self.project()
+
+        return repo.pipelines.list(ref=ref, sha=sha, all=True)
 
     def pipelines_for_ref(self, ref, sha=None, page=1, per_page=100):
         """
         Gets one page of pipelines for a given reference (+ optionally git sha).
         """
-        path = f"/projects/{quote(self.project_name, safe='')}/pipelines?ref={quote(ref, safe='')}&per_page={per_page}&page={page}"
-        if sha:
-            path = f"{path}&sha={sha}"
-        return self.make_request(path, json_output=True)
+        # path = f"/projects/{quote(self.project_name, safe='')}/pipelines?ref={quote(ref, safe='')}&per_page={per_page}&page={page}"
+        # if sha:
+        #     path = f"{path}&sha={sha}"
+        # return self.make_request(path, json_output=True)
+
+        repo = self.project()
+
+        return repo.pipelines.list(ref=ref, sha=sha, page=page, per_page=per_page)
 
     def last_pipeline_for_ref(self, ref, per_page=100):
         """
@@ -94,7 +107,7 @@ class Gitlab(RemoteAPI):
         if len(pipelines) == 0:
             return None
 
-        return sorted(pipelines, key=lambda pipeline: pipeline['created_at'], reverse=True)[0]
+        return sorted(pipelines, key=lambda pipeline: pipeline.asdict()['created_at'], reverse=True)[0]
 
     def trigger_pipeline(self, data):
         """
@@ -353,3 +366,18 @@ def get_gitlab_bot_token():
         )
         raise Exit(code=1)
     return os.environ["GITLAB_BOT_TOKEN"]
+
+
+# TODO
+from invoke.tasks import task
+
+
+@task
+def test_gitlab(_):
+    branch = 'celian/gitlab-use-module-acix-65'
+    api = Gitlab(api_token=get_gitlab_token())
+    api.test_project_found()
+    # print('CREATE PIPELINE', api.create_pipeline(branch))
+
+    print(api.all_pipelines_for_ref(branch))
+    print(api.last_pipeline_for_ref(branch))
