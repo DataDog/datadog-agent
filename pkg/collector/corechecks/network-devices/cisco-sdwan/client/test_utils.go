@@ -8,13 +8,14 @@
 package client
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"time"
 
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures"
 )
 
 // mockTimeNow mocks time.Now
