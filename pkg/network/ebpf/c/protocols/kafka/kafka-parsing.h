@@ -238,35 +238,6 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
     return RET_ERR;
 }
 
-static __always_inline bool get_record_count_from_record_batch_array(struct __sk_buff *skb, __u32 offset, s32 *out)
-{
-    //offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
-    offset += sizeof(s64); // Skipping record batch baseOffset
-    offset += sizeof(s32); // Skipping record batch batchLength
-    offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch
-    READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, skb, offset);
-    if (magic_byte != 2) {
-        log_debug("Got magic byte != 2, the protocol state it should be 2");
-        return false;
-    }
-    offset += sizeof(u32); // Skipping crc
-    offset += sizeof(s16); // Skipping attributes
-    offset += sizeof(s32); // Skipping last offset delta
-    offset += sizeof(s64); // Skipping base timestamp
-    offset += sizeof(s64); // Skipping max timestamp
-    offset += sizeof(s64); // Skipping producer id
-    offset += sizeof(s16); // Skipping producer epoch
-    offset += sizeof(s32); // Skipping base sequence
-    READ_BIG_ENDIAN_WRAPPER(s32, records_count, skb, offset);
-    if (records_count <= 0) {
-        log_debug("Got number of Kafka produce records <= 0");
-        return false;
-    }
-
-    *out = records_count;
-    return true;
-}
-
 static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->transaction.tup);
     if (response) {
