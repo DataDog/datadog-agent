@@ -87,7 +87,7 @@ func TestCreateScanner(t *testing.T) {
 		t.Errorf("the scanner should not become a nil object")
 	}
 
-	if len(s.configuredRules) > 0 {
+	if s != nil && len(s.configuredRules) > 0 {
 		t.Errorf("No rules should be configured, they're all disabled. Got (%v) rules configured instead.", len(s.configuredRules))
 	}
 
@@ -231,6 +231,10 @@ func TestCreateScanner(t *testing.T) {
 		Type:   AgentConfig,
 		Config: agentConfig,
 	})
+
+	if err != nil {
+		t.Error("no error should happen")
+	}
 
 	if len(s.configuredRules) != 0 {
 		t.Errorf("The group is disabled, no rules should be configured. len == %d", len(s.configuredRules))

@@ -60,13 +60,13 @@ func CreateScanner() *Scanner {
 // recreated to use the newly received standard rules.
 // This method is thread safe, a scan can't happen at the same time.
 func (s *Scanner) Reconfigure(order ReconfigureOrder) error {
-	s.Lock()
-	defer s.Unlock()
-
 	if s == nil {
 		log.Warn("Trying to reconfigure a nil Scanner")
 		return nil
 	}
+
+	s.Lock()
+	defer s.Unlock()
 
 	log.Debugf("Reconfiguring SDS scanner (internal id: %p)", s)
 
