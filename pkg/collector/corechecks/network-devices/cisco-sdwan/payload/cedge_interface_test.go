@@ -1,0 +1,155 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+package payload
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+)
+
+func TestCEdgeInterface(t *testing.T) {
+	tests := []struct {
+		name                string
+		namespace           string
+		itf                 client.CEdgeInterfaceState
+		expectedID          string
+		expectedIndex       int
+		expectedSpeed       int
+		expectedOperStatus  devicemetadata.IfOperStatus
+		expectedAdminStatus devicemetadata.IfAdminStatus
+		expectedMetadata    devicemetadata.InterfaceMetadata
+		expectedIPAddress   devicemetadata.IPAddressMetadata
+		expectedError       string
+	}{
+		{
+			name:      "regular interface",
+			namespace: "test-ns",
+			itf: client.CEdgeInterfaceState{
+				VmanageSystemIP: "10.0.0.1",
+				Ifname:          "test-interface",
+				Ifindex:         "10",
+				SpeedMbps:       "1000",
+				IfOperStatus:    "if-oper-state-ready",
+				IfAdminStatus:   "if-state-down",
+				Description:     "Description",
+				Hwaddr:          "00:01:02:03",
+				IPAddress:       "10.1.1.5",
+				Ipv4SubnetMask:  "255.255.255.0",
+			},
+			expectedID:          "10.0.0.1:test-interface",
+			expectedIndex:       10,
+			expectedSpeed:       1000,
+			expectedOperStatus:  devicemetadata.OperStatusUp,
+			expectedAdminStatus: devicemetadata.AdminStatusDown,
+			expectedMetadata: devicemetadata.InterfaceMetadata{
+				DeviceID:    "test-ns:10.0.0.1",
+				IDTags:      []string{"interface:test-interface"},
+				Index:       10,
+				Name:        "test-interface",
+				Description: "Description",
+				MacAddress:  "00:01:02:03",
+				OperStatus:  devicemetadata.OperStatusUp,
+				AdminStatus: devicemetadata.AdminStatusDown,
+			},
+			expectedIPAddress: devicemetadata.IPAddressMetadata{
+				InterfaceID: "test-ns:10.0.0.1:10",
+				IPAddress:   "10.1.1.5",
+				Prefixlen:   24,
+			},
+		},
+		{
+			name:      "invalid ip address",
+			namespace: "test-ns",
+			itf: client.CEdgeInterfaceState{
+				VmanageSystemIP: "10.0.0.1",
+				Ifname:          "test-interface",
+				Ifindex:         "10",
+				SpeedMbps:       "1000",
+				IfOperStatus:    "if-oper-state-ready",
+				IfAdminStatus:   "if-state-down",
+				Description:     "Description",
+				Hwaddr:          "00:01:02:03",
+				IPAddress:       "hello",
+				Ipv4SubnetMask:  "255.255.255.0",
+			},
+			expectedID:          "10.0.0.1:test-interface",
+			expectedIndex:       10,
+			expectedSpeed:       1000,
+			expectedOperStatus:  devicemetadata.OperStatusUp,
+			expectedAdminStatus: devicemetadata.AdminStatusDown,
+			expectedMetadata: devicemetadata.InterfaceMetadata{
+				DeviceID:    "test-ns:10.0.0.1",
+				IDTags:      []string{"interface:test-interface"},
+				Index:       10,
+				Name:        "test-interface",
+				Description: "Description",
+				MacAddress:  "00:01:02:03",
+				OperStatus:  devicemetadata.OperStatusUp,
+				AdminStatus: devicemetadata.AdminStatusDown,
+			},
+			expectedIPAddress: devicemetadata.IPAddressMetadata{},
+			expectedError:     "invalid ip address",
+		},
+		{
+			name:      "invalid mask",
+			namespace: "test-ns",
+			itf: client.CEdgeInterfaceState{
+				VmanageSystemIP: "10.0.0.1",
+				Ifname:          "test-interface",
+				Ifindex:         "10",
+				SpeedMbps:       "1000",
+				IfOperStatus:    "if-oper-state-ready",
+				IfAdminStatus:   "if-state-down",
+				Description:     "Description",
+				Hwaddr:          "00:01:02:03",
+				IPAddress:       "10.1.1.5",
+				Ipv4SubnetMask:  "hellohello",
+			},
+			expectedID:          "10.0.0.1:test-interface",
+			expectedIndex:       10,
+			expectedSpeed:       1000,
+			expectedOperStatus:  devicemetadata.OperStatusUp,
+			expectedAdminStatus: devicemetadata.AdminStatusDown,
+			expectedMetadata: devicemetadata.InterfaceMetadata{
+				DeviceID:    "test-ns:10.0.0.1",
+				IDTags:      []string{"interface:test-interface"},
+				Index:       10,
+				Name:        "test-interface",
+				Description: "Description",
+				MacAddress:  "00:01:02:03",
+				OperStatus:  devicemetadata.OperStatusUp,
+				AdminStatus: devicemetadata.AdminStatusDown,
+			},
+			expectedIPAddress: devicemetadata.IPAddressMetadata{},
+			expectedError:     "invalid mask",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			itf := CEdgeInterface{tt.itf}
+
+			ipAddress, err := itf.IPAddressMetadata(tt.namespace)
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			require.Equal(t, tt.expectedID, itf.ID())
+			require.Equal(t, tt.expectedIndex, itf.Index())
+			require.Equal(t, tt.expectedSpeed, itf.Speed())
+			require.Equal(t, tt.expectedOperStatus, itf.OperStatus())
+			require.Equal(t, tt.expectedAdminStatus, itf.AdminStatus())
+			require.Equal(t, tt.expectedMetadata, itf.Metadata(tt.namespace))
+			require.Equal(t, tt.expectedIPAddress, ipAddress)
+		})
+	}
+}
