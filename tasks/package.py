@@ -96,6 +96,10 @@ def send_size(
         bucket_branch=bucket_branch,
         arch=arch,
     )
+
+    print(color_message("Data collected:", "blue"))
     print(series)
     if send_series:
+        print(color_message("Sending metrics to Datadog", "blue"))
         send_metrics(series=series)
+        print(color_message("Done", "green"))
