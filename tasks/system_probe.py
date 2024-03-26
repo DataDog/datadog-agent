@@ -1688,7 +1688,7 @@ def process_btfhub_archive(ctx, branch="main"):
                 with open(ninja_file_path, 'w') as ninja_file:
                     nw = NinjaWriter(ninja_file, width=180)
                     nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
-                    nw.rule(name="compress_btf", command="tar -cJf $out $in -C $target_directory")
+                    nw.rule(name="compress_btf", command="tar -C $target_directory -cJf $out $rel_in")
                     nw.rule(name="merge_btf", command="/bin/bash -O extglob -c \"cd $btf_dir && bpftool -B vmlinux btf merge merged_btf !(vmlinux)\"")
 
                     for src, dst in file_tuples:
@@ -1719,6 +1719,7 @@ def process_btfhub_archive(ctx, branch="main"):
                             outputs=[dst],
                             variables={
                                 "target_directory": extract_dir,
+                                "rel_in": os.path.basename(merged_btf),
                             },
                         )
 
