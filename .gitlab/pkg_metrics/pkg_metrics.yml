@@ -6,6 +6,51 @@ send_pkg_size:
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  needs:
+    - job: agent_deb-arm64-a6
+      optional: true
+    - job: agent_deb-arm64-a7
+      optional: true
+    - job: agent_deb-x64-a6
+      optional: true
+    - job: agent_deb-x64-a7
+      optional: true
+    - job: agent_heroku_deb-x64-a6
+      optional: true
+    - job: agent_heroku_deb-x64-a7
+      optional: true
+    - job: agent_rpm-arm64-a6
+      optional: true
+    - job: agent_rpm-arm64-a7
+      optional: true
+    - job: agent_rpm-x64-a6
+      optional: true
+    - job: agent_rpm-x64-a7
+      optional: true
+    - job: agent_suse-arm64-a7
+      optional: true
+    - job: agent_suse-x64-a6
+      optional: true
+    - job: agent_suse-x64-a7
+      optional: true
+    - job: dogstatsd_deb-arm64
+      optional: true
+    - job: dogstatsd_deb-x64
+      optional: true
+    - job: dogstatsd_rpm-x64
+      optional: true
+    - job: dogstatsd_suse-x64
+      optional: true
+    - job: iot_agent_deb-arm64
+      optional: true
+    - job: iot_agent_deb-x64
+      optional: true
+    - job: iot_agent_rpm-arm64
+      optional: true
+    - job: iot_agent_rpm-x64
+      optional: true
+    - job: iot_agent_suse-x64
+      optional: true
   before_script:
     - source /root/.bashrc
     # FIXME: tmp while we uppdate the base image
@@ -20,9 +65,14 @@ send_pkg_size:
 
     # Agent 6
     - inv package.send-size --flavor "agent" --package-os "debian" --package-path "$OMNIBUS_PACKAGE_DIR/datadog-agent_6*_amd64.deb" --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "heroku-agent" --package-os "debian" --package-path "$OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_6*_amd64.deb" --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+
     - inv package.send-size --flavor "agent" --package-os "debian" --package-path "$OMNIBUS_PACKAGE_DIR/datadog-agent_6*_arm64.deb" --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+
     - inv package.send-size --flavor "agent" --package-os "centos" --package-path "$OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.x86_64.rpm" --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+
     - inv package.send-size --flavor "agent" --package-os "centos" --package-path "$OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.aarch64.rpm" --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+
     - inv package.send-size --flavor "agent" --package-os "suse" --package-path "$OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-6.*.x86_64.rpm" --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
     # Agent 7
