@@ -115,7 +115,7 @@ def update_image_info(ctx: Context, base_path: Path, image_info: PlatformInfo):
     image_info["os_id"] = filevars["ID"]
     image_info["version"] = filevars["VERSION_ID"]
 
-    if "VERSION_CODENAME" in filevars:
+    if "VERSION_CODENAME" in filevars and filevars["VERSION_CODENAME"].strip() != "":
         # Update without adding duplicates
         existing_alts = set(image_info.get("alt_version_names", []))
         existing_alts.add(filevars["VERSION_CODENAME"])
