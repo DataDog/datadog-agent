@@ -142,12 +142,12 @@ def update_image_info(ctx: Context, base_path: Path, image_info: PlatformInfo):
                 kernel_version = kernel_version[: -len(".gz")]
             found_kernel_versions.add(kernel_version)
 
+    kernel = None
     if len(found_kernel_versions) > 1:
         debug("Found multiple kernel versions, inspecting grub.cfg")
         boot_dir_files: List[str] = g.find("/boot")
         boot_cfg_files = [f for f in boot_dir_files if f.endswith("grub.cfg")]
 
-        found_kernel = False
         if len(boot_cfg_files) == 0:
             warn("No grub.cfg found, skipping kernel version detection")
         for boot_cfg in boot_cfg_files:
@@ -157,21 +157,20 @@ def update_image_info(ctx: Context, base_path: Path, image_info: PlatformInfo):
 
             default_entry_match = re.search("set default=\"?([0-9]+)\"?", grub_cfg)
             default_entry = int(default_entry_match.group(1)) if default_entry_match is not None else 0
-            linux_entries = re.findall("linux[^ ]* /boot/vmlinu[xz]-([^ ]+)", grub_cfg)
+            linux_entries = re.findall("linux[^ ]*[ \t]+/boot/vmlinu[xz]-([^ ]+)", grub_cfg)
+            print(linux_entries)
             if len(linux_entries) > default_entry:
                 kernel = linux_entries[default_entry]
                 debug(f"Found kernel version {kernel} from grub.cfg")
-                found_kernel = True
                 break
 
-        if not found_kernel:
+        if kernel is None:
             warn(
                 f"Could not find kernel version in grub.cfg, default entry is {default_entry}, we found {len(linux_entries)} entries"
             )
     elif len(found_kernel_versions) == 1:
         kernel = list(found_kernel_versions)[0]
     else:
-        kernel = None
         warn("No kernel found in /boot, skipping kernel version detection")
 
     if kernel is not None:
