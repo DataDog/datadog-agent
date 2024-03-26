@@ -23,9 +23,7 @@ import (
 )
 
 const (
-	cacheValidityNoRT     = 2 * time.Second
-	maxPidCidCacheSize    = 32768
-	maxAddrToCidCacheSize = 4096
+	cacheValidityNoRT = 2 * time.Second
 )
 
 type containerIDEntry struct {
@@ -37,20 +35,24 @@ type containerIDEntry struct {
 type LocalResolver struct {
 	mux                sync.RWMutex
 	addrToCtrID        map[model.ContainerAddr]*containerIDEntry
+	maxAddrToCtrIDSize int
 	ctrForPid          map[int]*containerIDEntry
+	maxCtrForPidSize   int
 	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
 	Clock              clock.Clock
 	ContainerProvider  proccontainers.ContainerProvider
 	done               chan bool
 }
 
-func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock clock.Clock) *LocalResolver {
+func NewLocalResolver(containerProvider proccontainers.ContainerProvider, clock clock.Clock, maxAddrCacheSize, maxPidCacheSize int) *LocalResolver {
 	return &LocalResolver{
-		ContainerProvider: containerProvider,
-		Clock:             clock,
-		done:              make(chan bool),
-		addrToCtrID:       make(map[model.ContainerAddr]*containerIDEntry),
-		ctrForPid:         make(map[int]*containerIDEntry),
+		ContainerProvider:  containerProvider,
+		Clock:              clock,
+		done:               make(chan bool),
+		addrToCtrID:        make(map[model.ContainerAddr]*containerIDEntry),
+		maxAddrToCtrIDSize: maxAddrCacheSize,
+		ctrForPid:          make(map[int]*containerIDEntry),
+		maxCtrForPidSize:   maxPidCacheSize,
 	}
 }
 
@@ -101,8 +103,8 @@ func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[in
 containersLoop:
 	for _, ctr := range containers {
 		for _, networkAddr := range ctr.Addresses {
-			if len(l.addrToCtrID) >= maxAddrToCidCacheSize {
-				log.Warnf("address to container ID cache has reached max size of %d entries", maxAddrToCidCacheSize)
+			if len(l.addrToCtrID) >= l.maxAddrToCtrIDSize {
+				log.Warnf("address to container ID cache has reached max size of %d entries", l.maxAddrToCtrIDSize)
 				break containersLoop
 			}
 
@@ -118,8 +120,8 @@ containersLoop:
 	}
 
 	for pid, cid := range pidToCid {
-		if len(l.ctrForPid) >= maxPidCidCacheSize {
-			log.Warnf("pid to container ID cache has reached max size of %d entries", maxPidCidCacheSize)
+		if len(l.ctrForPid) >= l.maxCtrForPidSize {
+			log.Warnf("pid to container ID cache has reached max size of %d entries", l.maxCtrForPidSize)
 			break
 		}
 

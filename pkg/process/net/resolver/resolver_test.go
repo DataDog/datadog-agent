@@ -21,7 +21,7 @@ import (
 func TestLocalResolver(t *testing.T) {
 	assert := assert.New(t)
 
-	resolver := NewLocalResolver(nil, nil)
+	resolver := NewLocalResolver(nil, nil, 0, 0)
 	containers := []*model.Container{
 		{
 			Id: "container-1",
@@ -373,7 +373,7 @@ func TestResolveLoopbackConnections(t *testing.T) {
 		},
 	}
 
-	resolver := NewLocalResolver(nil, nil)
+	resolver := NewLocalResolver(nil, nil, 0, 0)
 	resolver.LoadAddrs(nil, map[int]string{
 		1:  "foo1",
 		2:  "foo2",
@@ -407,7 +407,7 @@ func TestLocalResolverPeriodicUpdates(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockedClock := clock.NewMock()
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
-	resolver := NewLocalResolver(mockContainerProvider, mockedClock)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock, 10, 10)
 	containers := []*model.Container{
 		{
 			Id: "container-1",
@@ -497,7 +497,7 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockedClock := clock.NewMock()
 	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
-	resolver := NewLocalResolver(mockContainerProvider, mockedClock)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock, 10, 10)
 	containers := []*model.Container{
 		{
 			Id: "container-1",
@@ -662,4 +662,67 @@ addrLoop:
 	for _, missing := range missingAddrs {
 		assert.NotContains(resolver.addrToCtrID, missing)
 	}
+}
+
+func TestLocalResolverCacheLimits(t *testing.T) {
+	assert := assert.New(t)
+	mockCtrl := gomock.NewController(t)
+	mockedClock := clock.NewMock()
+	mockContainerProvider := proccontainersmocks.NewMockContainerProvider(mockCtrl)
+	resolver := NewLocalResolver(mockContainerProvider, mockedClock, 1, 1)
+	containers := []*model.Container{
+		{
+			Id: "container-1",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_tcp,
+				},
+				{
+					Ip:       "172.17.0.4",
+					Port:     6379,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-2",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "172.17.0.2",
+					Port:     80,
+					Protocol: model.ConnectionType_tcp,
+				},
+			},
+		},
+		{
+			Id: "container-3",
+			Addresses: []*model.ContainerAddr{
+				{
+					Ip:       "10.0.2.15",
+					Port:     32769,
+					Protocol: model.ConnectionType_udp,
+				},
+			},
+		},
+	}
+	pidToCid := map[int]string{
+		1: "container-1",
+		2: "container-1",
+	}
+
+	mockContainerProvider.EXPECT().GetContainers(2*time.Second, nil).Return(containers, nil, pidToCid, nil).MaxTimes(1)
+	resolver.Run()
+	mockedClock.Add(11 * time.Second)
+
+	assert.Len(resolver.addrToCtrID, 1)
+	assert.Contains(resolver.addrToCtrID, model.ContainerAddr{
+		Ip:       "10.0.2.15",
+		Port:     32769,
+		Protocol: model.ConnectionType_tcp,
+	})
+
+	assert.Len(resolver.ctrForPid, 1)
+	assert.Contains(resolver.ctrForPid, 1)
 }
