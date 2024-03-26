@@ -1,6 +1,7 @@
+from collections import defaultdict
 import re
 
-from tasks.libs.common.gitlab_api import Gitlab, get_gitlab_token
+from tasks.libs.common.gitlab_api import get_gitlab_repo
 from tasks.libs.types import FailedJobReason, FailedJobs, FailedJobType
 
 
@@ -8,19 +9,14 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
     """
     Retrieves the list of failed jobs for a given pipeline id in a given project.
     """
+    repo = get_gitlab_repo(project_name)
+    pipeline = repo.pipelines.get(pipeline_id)
+    jobs = [job.asdict() for job in pipeline.jobs.list(all=True)]
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
-
-    # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
-    # go through it twice
-    jobs = list(gitlab.all_jobs(pipeline_id))
-
-    # Get instances of failed jobs
-    failed_jobs = {job["name"]: [] for job in jobs if job["status"] == "failed"}
-
-    # Group jobs per name
+    # Get instances of failed jobs grouped by name
+    failed_jobs = defaultdict(list)
     for job in jobs:
-        if job["name"] in failed_jobs:
+        if job["status"] == "failed":
             failed_jobs[job["name"]].append(job)
 
     # There, we now have the following map:
@@ -33,7 +29,8 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
         job_name = truncate_job_name(job_name)
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
-        failure_type, failure_reason = get_job_failure_context(gitlab.job_log(jobs[-1]["id"]))
+        trace = str(repo.jobs.get(jobs[-1]["id"]).trace(), 'utf-8')
+        failure_type, failure_reason = get_job_failure_context(trace)
         final_status = {
             "name": job_name,
             "id": jobs[-1]["id"],
