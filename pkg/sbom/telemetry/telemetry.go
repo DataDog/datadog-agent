@@ -158,7 +158,7 @@ func (QueueMetricProvider) NewLatencyMetric(string) workqueue.HistogramMetric {
 		"queue_latency_seconds",
 		[]string{},
 		"SBOM queue latency",
-		prometheus.DefBuckets,
+		[]float64{1, 15, 60, 120, 600, 1200},
 		commonOpts,
 	)}
 }
