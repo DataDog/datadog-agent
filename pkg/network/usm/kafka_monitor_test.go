@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/google/uuid"
 )
 
 const (
@@ -80,12 +81,12 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 
 type KafkaProtocolParsingSuite struct {
 	suite.Suite
-	testIndex int
 }
 
 func (s *KafkaProtocolParsingSuite) getTopicName() string {
-	s.testIndex++
-	return fmt.Sprintf("%s-%d", "franz-kafka", s.testIndex)
+	// Use unique names for topics to avoid having tests cases
+	// affect each other due to, for example, returning older records.
+	return fmt.Sprintf("%s-%s", "franz-kafka", uuid.New().String())
 }
 
 func TestKafkaProtocolParsing(t *testing.T) {
