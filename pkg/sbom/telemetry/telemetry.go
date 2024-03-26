@@ -157,7 +157,7 @@ func (QueueMetricProvider) NewLatencyMetric(string) workqueue.HistogramMetric {
 		subsystem,
 		"queue_latency",
 		[]string{},
-		"SBOM queue latency",
+		"SBOM queue latency in seconds",
 		[]float64{1, 15, 60, 120, 600, 1200},
 		commonOpts,
 	)}
@@ -169,7 +169,7 @@ func (QueueMetricProvider) NewWorkDurationMetric(string) workqueue.HistogramMetr
 		subsystem,
 		"queue_work_duration",
 		[]string{},
-		"SBOM queue latency",
+		"SBOM queue latency in seconds",
 		prometheus.DefBuckets,
 		commonOpts,
 	)}
@@ -181,7 +181,7 @@ func (QueueMetricProvider) NewUnfinishedWorkSecondsMetric(string) workqueue.Sett
 		subsystem,
 		"queue_unfinished_work",
 		[]string{},
-		"SBOM queue unfinished work seconds",
+		"SBOM queue unfinished work in seconds",
 		commonOpts,
 	)}
 }
@@ -192,7 +192,7 @@ func (QueueMetricProvider) NewLongestRunningProcessorSecondsMetric(string) workq
 		subsystem,
 		"queue_longest_running_processor",
 		[]string{},
-		"SBOM queue longest running processor seconds",
+		"SBOM queue longest running processor in seconds",
 		commonOpts,
 	)}
 }
