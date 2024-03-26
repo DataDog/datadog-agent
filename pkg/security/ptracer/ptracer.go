@@ -259,7 +259,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 			break
 		}
 
-		if waitStatus.Exited() || waitStatus.CoreDump() {
+		if waitStatus.Exited() || waitStatus.CoreDump() || waitStatus.Signaled() {
 			if pid == t.PID {
 				break
 			}
