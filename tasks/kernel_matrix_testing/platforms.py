@@ -136,7 +136,7 @@ def update_image_info(ctx: Context, base_path: Path, image_info: PlatformInfo):
     for file in g.ls("/boot"):
         if echo:
             debug(f"ls /boot/{file}")
-        if file.startswith("vmlinuz-") or file.startswith("vmlinux-"):
+        if (file.startswith("vmlinuz-") or file.startswith("vmlinux-")) and "rescue" not in file:
             kernel_version = file.split("-", 1)[1]
             if kernel_version.endswith(".gz"):
                 kernel_version = kernel_version[: -len(".gz")]
