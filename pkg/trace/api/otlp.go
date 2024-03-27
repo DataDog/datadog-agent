@@ -65,11 +65,6 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
-	computeTopLevelBySpanKindVal := 0.0
-	if !cfg.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
-		computeTopLevelBySpanKindVal = 1.0
-	}
-	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing}
 }
 
@@ -94,6 +89,13 @@ func (o *OTLPReceiver) Start() {
 				}
 			}()
 			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.GRPCPort)
+
+			computeTopLevelBySpanKindVal := 0.0
+			if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
+				log.Warn("OTLP ingest now identifies top-level spans by span kind by default, which may impact the number of spans that generate trace metrics. This new logic can be disabled if needed by adding 'disable_otlp_compute_top_level_by_span_kind' in DD_APM_FEATURES.")
+				computeTopLevelBySpanKindVal = 1.0
+			}
+			_ = o.statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 		}
 	}
 }
