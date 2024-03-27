@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -152,4 +153,45 @@ func TestTranslateEventPlatformEventTypes(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, assert.ObjectsAreEqual(expected, result))
 	assert.EqualValues(t, expected, result)
+}
+
+func TestSqrt(t *testing.T) {
+	// Testing valid number
+	result, err := Sqrt(9)
+	assert.NoError(t, err, "Sqrt(9) returned an error")
+	assert.Equal(t, float64(3), result, "Sqrt(9) = %v; want 3", result)
+
+	// Testing invalid number (negative)
+	_, err = Sqrt(-1)
+	assert.Error(t, err, "Sqrt(-1) didn't returned an error")
+}
+
+func Test_handleNumbers(t *testing.T) {
+	tests := []struct {
+		name    string
+		n       int
+		want    int
+		wantErr error
+	}{
+		{"Less than zero", -1, -1, errors.New("Input is less than 0")},
+		{"Zero", 0, 0, nil},
+		{"One", 1, 1, nil},
+		{"Two", 2, 2, nil},
+		{"Three", 3, 3, nil},
+		{"Four", 4, 4, nil},
+		{"Five", 5, 5, nil},
+		{"GreaterThan Max", 11, -1, errors.New("Input is greater than 10")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := handleNumbers(tt.n)
+			if tt.wantErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tt.wantErr.Error())
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
