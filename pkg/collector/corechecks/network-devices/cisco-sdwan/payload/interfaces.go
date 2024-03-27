@@ -8,6 +8,7 @@ package payload
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CiscoInterface is an interface to abstract the underlying network interface object (vEdge vs cEdge)
@@ -15,7 +16,7 @@ type CiscoInterface interface {
 	// ID returns an unique interface ID
 	ID() string
 	// Index returns the interface index
-	Index() int
+	Index() (int, error)
 	// Speed returns the interface speed
 	Speed() int
 	// OperStatus returns the interface oper status
@@ -23,7 +24,7 @@ type CiscoInterface interface {
 	// AdminStatus returns the interface admin status
 	AdminStatus() devicemetadata.IfAdminStatus
 	// Metadata returns the interface metadata
-	Metadata(namespace string) devicemetadata.InterfaceMetadata
+	Metadata(namespace string) (devicemetadata.InterfaceMetadata, error)
 	// IPAddressMetadata returns the metadata for this interface's IP addresses
 	IPAddressMetadata(namespace string) (devicemetadata.IPAddressMetadata, error)
 }
@@ -39,12 +40,22 @@ func ProcessInterfaces(namespace string, vEdgeInterfaces []client.InterfaceState
 
 		// Avoid sending duplicated interface metadata (In case the interface is returned both for IPv4 and IPv6)
 		if !present {
-			interfaces = append(interfaces, itf.Metadata(namespace))
+			interfaceMetadata, err := itf.Metadata(namespace)
+			if err != nil {
+				log.Warnf("Unable process interface metadata for %s : %s", itf.ID(), err)
+				continue
+			}
+
+			interfaces = append(interfaces, interfaceMetadata)
 			interfacesMap[itf.ID()] = itf
 		}
-		if ipAddress, err := itf.IPAddressMetadata(namespace); err == nil {
-			ipAddresses = append(ipAddresses, ipAddress)
+
+		ipAddress, err := itf.IPAddressMetadata(namespace)
+		if err != nil {
+			log.Warnf("Unable to process IP address metdata for %s : %s", itf.ID(), err)
+			continue
 		}
+		ipAddresses = append(ipAddresses, ipAddress)
 	}
 
 	return interfaces, ipAddresses, interfacesMap

@@ -36,8 +36,8 @@ func (itf *VEdgeInterface) ID() string {
 }
 
 // Index returns the interface index
-func (itf *VEdgeInterface) Index() int {
-	return int(itf.Ifindex)
+func (itf *VEdgeInterface) Index() (int, error) {
+	return int(itf.Ifindex), nil
 }
 
 // Speed returns the interface speed
@@ -60,7 +60,7 @@ func (itf *VEdgeInterface) AdminStatus() devicemetadata.IfAdminStatus {
 }
 
 // Metadata returns the interface metadata
-func (itf *VEdgeInterface) Metadata(namespace string) devicemetadata.InterfaceMetadata {
+func (itf *VEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceMetadata, error) {
 	return devicemetadata.InterfaceMetadata{
 		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP),
 		IDTags:      []string{fmt.Sprintf("interface:%s", itf.Ifname)},
@@ -70,15 +70,14 @@ func (itf *VEdgeInterface) Metadata(namespace string) devicemetadata.InterfaceMe
 		MacAddress:  itf.Hwaddr,
 		OperStatus:  convertOperStatus(vEdgeOperStatusMap, itf.IfOperStatus),
 		AdminStatus: convertAdminStatus(vEdgeAdminStatusMap, itf.IfAdminStatus),
-	}
+	}, nil
 }
 
 // IPAddressMetadata returns the metadata for this interface's IP addresses
 func (itf *VEdgeInterface) IPAddressMetadata(namespace string) (devicemetadata.IPAddressMetadata, error) {
 	ip, prefiLen, err := parseIPFromVEdgeInterface(itf.IPAddress)
 	if err != nil {
-		log.Warnf("Unable to parse vEdge interface %s IP %s", itf.Ifname, itf.IPAddress)
-		return devicemetadata.IPAddressMetadata{}, err
+		return devicemetadata.IPAddressMetadata{}, fmt.Errorf("unable to process vEdge interface %s IP address : %s", itf.Ifname, err)
 	}
 
 	return devicemetadata.IPAddressMetadata{

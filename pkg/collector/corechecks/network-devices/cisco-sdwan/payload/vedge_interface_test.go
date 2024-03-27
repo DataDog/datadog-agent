@@ -101,6 +101,9 @@ func TestVEdgeInterface(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			itf := VEdgeInterface{tt.itf}
 
+			index, _ := itf.Index()                      // vEdge cannot return errors here
+			itfMetadata, _ := itf.Metadata(tt.namespace) // vEdge cannot return errors here
+
 			ipAddress, err := itf.IPAddressMetadata(tt.namespace)
 			if tt.expectedError != "" {
 				require.ErrorContains(t, err, tt.expectedError)
@@ -109,11 +112,11 @@ func TestVEdgeInterface(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expectedID, itf.ID())
-			require.Equal(t, tt.expectedIndex, itf.Index())
+			require.Equal(t, tt.expectedIndex, index)
 			require.Equal(t, tt.expectedSpeed, itf.Speed())
 			require.Equal(t, tt.expectedOperStatus, itf.OperStatus())
 			require.Equal(t, tt.expectedAdminStatus, itf.AdminStatus())
-			require.Equal(t, tt.expectedMetadata, itf.Metadata(tt.namespace))
+			require.Equal(t, tt.expectedMetadata, itfMetadata)
 			require.Equal(t, tt.expectedIPAddress, ipAddress)
 		})
 	}

@@ -16,17 +16,19 @@ import (
 
 func TestCEdgeInterface(t *testing.T) {
 	tests := []struct {
-		name                string
-		namespace           string
-		itf                 client.CEdgeInterfaceState
-		expectedID          string
-		expectedIndex       int
-		expectedSpeed       int
-		expectedOperStatus  devicemetadata.IfOperStatus
-		expectedAdminStatus devicemetadata.IfAdminStatus
-		expectedMetadata    devicemetadata.InterfaceMetadata
-		expectedIPAddress   devicemetadata.IPAddressMetadata
-		expectedError       string
+		name                   string
+		namespace              string
+		itf                    client.CEdgeInterfaceState
+		expectedID             string
+		expectedIndex          int
+		expectedIndexError     string
+		expectedSpeed          int
+		expectedOperStatus     devicemetadata.IfOperStatus
+		expectedAdminStatus    devicemetadata.IfAdminStatus
+		expectedMetadata       devicemetadata.InterfaceMetadata
+		expectedInterfaceError string
+		expectedIPAddress      devicemetadata.IPAddressMetadata
+		expectedIPAddressError string
 	}{
 		{
 			name:      "regular interface",
@@ -65,6 +67,32 @@ func TestCEdgeInterface(t *testing.T) {
 			},
 		},
 		{
+			name:      "invalid index",
+			namespace: "test-ns",
+			itf: client.CEdgeInterfaceState{
+				VmanageSystemIP: "10.0.0.1",
+				Ifname:          "test-interface",
+				Ifindex:         "iamnotanindex",
+				SpeedMbps:       "1000",
+				IfOperStatus:    "if-oper-state-ready",
+				IfAdminStatus:   "if-state-down",
+				Description:     "Description",
+				Hwaddr:          "00:01:02:03",
+				IPAddress:       "10.1.1.5",
+				Ipv4SubnetMask:  "255.255.255.0",
+			},
+			expectedID:             "10.0.0.1:test-interface",
+			expectedIndex:          0,
+			expectedIndexError:     "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedSpeed:          1000,
+			expectedOperStatus:     devicemetadata.OperStatusUp,
+			expectedAdminStatus:    devicemetadata.AdminStatusDown,
+			expectedMetadata:       devicemetadata.InterfaceMetadata{},
+			expectedInterfaceError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIPAddress:      devicemetadata.IPAddressMetadata{},
+			expectedIPAddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+		},
+		{
 			name:      "invalid ip address",
 			namespace: "test-ns",
 			itf: client.CEdgeInterfaceState{
@@ -94,8 +122,8 @@ func TestCEdgeInterface(t *testing.T) {
 				OperStatus:  devicemetadata.OperStatusUp,
 				AdminStatus: devicemetadata.AdminStatusDown,
 			},
-			expectedIPAddress: devicemetadata.IPAddressMetadata{},
-			expectedError:     "invalid ip address",
+			expectedIPAddress:      devicemetadata.IPAddressMetadata{},
+			expectedIPAddressError: "invalid ip address",
 		},
 		{
 			name:      "invalid mask",
@@ -127,8 +155,8 @@ func TestCEdgeInterface(t *testing.T) {
 				OperStatus:  devicemetadata.OperStatusUp,
 				AdminStatus: devicemetadata.AdminStatusDown,
 			},
-			expectedIPAddress: devicemetadata.IPAddressMetadata{},
-			expectedError:     "invalid mask",
+			expectedIPAddress:      devicemetadata.IPAddressMetadata{},
+			expectedIPAddressError: "invalid mask",
 		},
 	}
 
@@ -136,19 +164,33 @@ func TestCEdgeInterface(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			itf := CEdgeInterface{tt.itf}
 
+			index, err := itf.Index()
+			if tt.expectedIndexError != "" {
+				require.ErrorContains(t, err, tt.expectedIndexError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			itfMetadata, err := itf.Metadata(tt.namespace)
+			if tt.expectedInterfaceError != "" {
+				require.ErrorContains(t, err, tt.expectedInterfaceError)
+			} else {
+				require.NoError(t, err)
+			}
+
 			ipAddress, err := itf.IPAddressMetadata(tt.namespace)
-			if tt.expectedError != "" {
-				require.ErrorContains(t, err, tt.expectedError)
+			if tt.expectedIPAddressError != "" {
+				require.ErrorContains(t, err, tt.expectedIPAddressError)
 			} else {
 				require.NoError(t, err)
 			}
 
 			require.Equal(t, tt.expectedID, itf.ID())
-			require.Equal(t, tt.expectedIndex, itf.Index())
+			require.Equal(t, tt.expectedIndex, index)
 			require.Equal(t, tt.expectedSpeed, itf.Speed())
 			require.Equal(t, tt.expectedOperStatus, itf.OperStatus())
 			require.Equal(t, tt.expectedAdminStatus, itf.AdminStatus())
-			require.Equal(t, tt.expectedMetadata, itf.Metadata(tt.namespace))
+			require.Equal(t, tt.expectedMetadata, itfMetadata)
 			require.Equal(t, tt.expectedIPAddress, ipAddress)
 		})
 	}

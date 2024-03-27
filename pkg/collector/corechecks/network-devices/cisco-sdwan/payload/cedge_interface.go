@@ -47,12 +47,12 @@ func (itf *CEdgeInterface) ID() string {
 }
 
 // Index returns the interface index
-func (itf *CEdgeInterface) Index() int {
+func (itf *CEdgeInterface) Index() (int, error) {
 	index, err := strconv.Atoi(itf.Ifindex)
 	if err != nil {
-		log.Warnf("Unable to parse cEdge interface %s index %s", itf.Ifname, itf.Ifindex)
+		return 0, err
 	}
-	return index
+	return index, nil
 }
 
 // Speed returns the interface speed
@@ -75,10 +75,10 @@ func (itf *CEdgeInterface) AdminStatus() devicemetadata.IfAdminStatus {
 }
 
 // Metadata returns the interface metadata
-func (itf *CEdgeInterface) Metadata(namespace string) devicemetadata.InterfaceMetadata {
-	index, err := strconv.Atoi(itf.Ifindex)
+func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceMetadata, error) {
+	index, err := itf.Index()
 	if err != nil {
-		log.Warnf("Unable to parse cEdge interface %s index %s", itf.Ifname, itf.Ifindex)
+		return devicemetadata.InterfaceMetadata{}, err
 	}
 
 	return devicemetadata.InterfaceMetadata{
@@ -90,19 +90,23 @@ func (itf *CEdgeInterface) Metadata(namespace string) devicemetadata.InterfaceMe
 		MacAddress:  itf.Hwaddr,
 		OperStatus:  convertOperStatus(cEdgeOperStatusMap, itf.IfOperStatus),
 		AdminStatus: convertAdminStatus(cEdgeAdminStatusMap, itf.IfAdminStatus),
-	}
+	}, nil
 }
 
 // IPAddressMetadata returns the metadata for this interface's IP addresses
 func (itf *CEdgeInterface) IPAddressMetadata(namespace string) (devicemetadata.IPAddressMetadata, error) {
+	index, err := itf.Index()
+	if err != nil {
+		return devicemetadata.IPAddressMetadata{}, fmt.Errorf("unable to process cEdge interface %s index : %s", itf.Ifname, err)
+	}
+
 	ip, prefiLen, err := parseIPFromCEdgeInterface(itf.IPAddress, itf.Ipv4SubnetMask)
 	if err != nil {
-		log.Warnf("Unable to parse cEdge interface %s IP %s", itf.Ifname, itf.IPAddress)
-		return devicemetadata.IPAddressMetadata{}, err
+		return devicemetadata.IPAddressMetadata{}, fmt.Errorf("unable to process cEdge interface %s IP address : %s", itf.Ifname, err)
 	}
 
 	return devicemetadata.IPAddressMetadata{
-		InterfaceID: fmt.Sprintf("%s:%s:%s", namespace, itf.VmanageSystemIP, itf.Ifindex),
+		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, index),
 		IPAddress:   ip,
 		Prefixlen:   prefiLen,
 	}, nil
