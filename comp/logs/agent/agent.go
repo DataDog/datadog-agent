@@ -297,9 +297,8 @@ func (a *agent) GetPipelineProvider() pipeline.Provider {
 
 func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
 	var err error
-
 	for _, config := range updates {
-		if rerr := a.pipelineProvider.ReconfigureSDS(config.Config, nil); rerr != nil {
+		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
 			err = rerr
 		}
 	}
@@ -326,7 +325,7 @@ func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, apply
 	var err error
 
 	for _, config := range updates {
-		if rerr := a.pipelineProvider.ReconfigureSDS(nil, config.Config); rerr != nil {
+		if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
 			err = rerr
 		}
 	}
@@ -346,5 +345,4 @@ func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, apply
 			})
 		}
 	}
-
 }

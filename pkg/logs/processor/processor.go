@@ -111,6 +111,9 @@ func (p *Processor) run() {
 			p.mu.Lock()
 			if err := p.sds.Reconfigure(order); err != nil {
 				log.Error("Error while reconfiguring the SDS scanner:", err)
+				order.ResponseChan <- err
+			} else {
+				order.ResponseChan <- nil
 			}
 			p.mu.Unlock()
 		}

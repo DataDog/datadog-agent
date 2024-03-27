@@ -5,30 +5,28 @@ import (
 	"testing"
 )
 
-func testdataStandardRules() StandardRulesConfig {
-	return StandardRulesConfig{
-		Rules: []StandardRuleConfig{
-			{
-				ID:          "0",
-				Name:        "Zero",
-				Description: "Zero desc",
-				Pattern:     "zero",
-				Tags:        []string{"tag:zero"},
-			},
-			{
-				ID:          "1",
-				Name:        "One",
-				Description: "One desc",
-				Pattern:     "one",
-				Tags:        []string{"tag:one"},
-			},
-			{
-				ID:          "2",
-				Name:        "Two",
-				Description: "Two desc",
-				Pattern:     "two",
-				Tags:        []string{"tag:two"},
-			},
+func testdataStandardRules() map[string]StandardRuleConfig {
+	return map[string]StandardRuleConfig{
+		"0": {
+			ID:          "0",
+			Name:        "Zero",
+			Description: "Zero desc",
+			Pattern:     "zero",
+			Tags:        []string{"tag:zero"},
+		},
+		"1": {
+			ID:          "1",
+			Name:        "One",
+			Description: "One desc",
+			Pattern:     "one",
+			Tags:        []string{"tag:one"},
+		},
+		"2": {
+			ID:          "2",
+			Name:        "Two",
+			Description: "Two desc",
+			Pattern:     "two",
+			Tags:        []string{"tag:two"},
 		},
 	}
 }
@@ -37,8 +35,8 @@ func testdataStandardRules() StandardRulesConfig {
 func TestGetByID(t *testing.T) {
 	rules := testdataStandardRules()
 
-	two := rules.GetByID("2")
-	if two == nil {
+	two, exists := rules["2"]
+	if !exists {
 		t.Error("rule two exists, should be returned")
 	}
 	if two.ID != "2" {
@@ -54,16 +52,16 @@ func TestGetByID(t *testing.T) {
 		t.Error("not the good rule")
 	}
 
-	zero := rules.GetByID("0")
-	if zero == nil {
+	zero, exists := rules["0"]
+	if !exists {
 		t.Error("rule zero exists, should be returned")
 	}
 	if zero.Name != "Zero" {
 		t.Error("not the good rule")
 	}
 
-	unknown := rules.GetByID("meh")
-	if unknown != nil {
+	_, exists = rules["meh"]
+	if exists {
 		t.Error("rule doesn't exist, nothing should be returned")
 	}
 }

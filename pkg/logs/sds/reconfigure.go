@@ -20,6 +20,7 @@ const (
 // ReconfigureOrder are used to trigger a reconfiguration
 // of the SDS scanner.
 type ReconfigureOrder struct {
-	Type   reconfigureOrderType
-	Config []byte
+	Type         reconfigureOrderType
+	Config       []byte
+	ResponseChan chan error
 }

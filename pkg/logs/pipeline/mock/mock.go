@@ -31,7 +31,11 @@ func (p *mockProvider) Start() {}
 // Stop does nothing
 func (p *mockProvider) Stop() {}
 
-func (p *mockProvider) ReconfigureSDS(standardRules []byte, rules []byte) error {
+func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) error {
+	return nil
+}
+
+func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) error {
 	return nil
 }
 

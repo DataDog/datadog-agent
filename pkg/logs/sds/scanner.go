@@ -29,7 +29,7 @@ type Scanner struct {
 	*sds.Scanner
 	sync.Mutex
 
-	standardRules StandardRulesConfig
+	standardRules map[string]StandardRuleConfig
 	// rawConfig is the raw config previously received through RC.
 	rawConfig []byte
 	// configuredRules are stored on configuration to retrieve rules
@@ -94,12 +94,18 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 		return fmt.Errorf("Invalid nil raw configuration for standard rules")
 	}
 
-	var standardRules StandardRulesConfig
-	if err := json.Unmarshal(rawConfig, &standardRules); err != nil {
+	var unmarshaled StandardRulesConfig
+	if err := json.Unmarshal(rawConfig, &unmarshaled); err != nil {
 		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
 	}
 
+	// build a map for O(1) access when we'll receive configuration
+	standardRules := make(map[string]StandardRuleConfig)
+	for _, rule := range unmarshaled.Rules {
+		standardRules[rule.ID] = rule
+	}
 	s.standardRules = standardRules
+
 	log.Info("Reconfigured SDS standard rules.")
 	return nil
 }
@@ -113,10 +119,10 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		return fmt.Errorf("Invalid nil raw configuration received for user configuration")
 	}
 
-	if s.standardRules.Rules == nil {
+	if s.standardRules == nil || len(s.standardRules) == 0 {
 		// store it for the next try
 		s.rawConfig = rawConfig
-		log.Info("Received an user configuration before receiving the SDS standard rules.")
+		log.Info("Received an user configuration but no SDS standard rules available.")
 		return nil
 	}
 
@@ -146,8 +152,8 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	var sdsRules []sds.Rule
 	for _, userRule := range config.Rules {
 		// read the rule in the standard rules
-		standardRule := s.standardRules.GetByID(userRule.Definition.StandardRuleID)
-		if standardRule == nil {
+		standardRule, found := s.standardRules[userRule.Definition.StandardRuleID]
+		if !found {
 			log.Warnf("Referencing an unknown standard rule, id: %v", userRule.Definition.StandardRuleID)
 			continue
 		}
@@ -203,7 +209,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
 
-	log.Info("Created an SDS scanner with", len(scanner.Rules), "rules")
+	log.Infof("Created an SDS scanner with %d rules", len(scanner.Rules))
 	s.Scanner = scanner
 
 	return nil

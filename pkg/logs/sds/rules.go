@@ -40,18 +40,6 @@ type StandardRulesConfig struct {
 	Rules []StandardRuleConfig `json:"rules"`
 }
 
-// GetByID returns a StandardRule from the in-memory definitions.
-// If no definitions have been received or if the rule does not exist,
-// returns nil.
-func (sr StandardRulesConfig) GetByID(id string) *StandardRuleConfig {
-	for i, rc := range sr.Rules {
-		if rc.ID == id {
-			return &sr.Rules[i]
-		}
-	}
-	return nil
-}
-
 // RuleConfig of rule as sent by the Remote Configuration.
 type RuleConfig struct {
 	ID               string            `json:"id"`

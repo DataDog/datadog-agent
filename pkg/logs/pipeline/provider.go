@@ -7,7 +7,6 @@ package pipeline
 
 import (
 	"context"
-	"fmt"
 
 	"go.uber.org/atomic"
 
@@ -28,7 +27,8 @@ import (
 type Provider interface {
 	Start()
 	Stop()
-	ReconfigureSDS(definitions []byte, rules []byte) error
+	ReconfigureSDSStandardRules(standardRules []byte) error
+	ReconfigureSDSAgentConfig(config []byte) error
 	NextPipelineChan() chan *message.Message
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
@@ -110,29 +110,51 @@ func (p *provider) Stop() {
 	p.outputChan = nil
 }
 
-func (p *provider) ReconfigureSDS(standardRules []byte, rules []byte) error {
-	var order sds.ReconfigureOrder
+func (p *provider) reconfigureSDS(config []byte, agentConfig bool) error {
+	var responses []chan error
 
-	if standardRules != nil {
-		order.Type = sds.StandardRules
-		order.Config = standardRules
+	typ := sds.StandardRules
+	if agentConfig {
+		typ = sds.AgentConfig
 	}
 
-	if rules != nil {
-		order.Type = sds.AgentConfig
-		order.Config = rules
-	}
-
-	if order.Type == "" {
-		return fmt.Errorf("called with no standard rules or rules")
-	}
+	// send a reconfiguration order to every running pipeline
 
 	for _, pipeline := range p.pipelines {
+		order := sds.ReconfigureOrder{
+			Type:         typ,
+			Config:       config,
+			ResponseChan: make(chan error),
+		}
+		responses = append(responses, order.ResponseChan)
+
 		log.Debug("Sending SDS reconfiguration order:", string(order.Type))
 		pipeline.processor.ReconfigChan <- order
 	}
 
-	return nil
+	// reports if at least one error occurred
+
+	var rerr error
+	for _, response := range responses {
+		err := <-response
+		if err != nil {
+			rerr = err
+		}
+		close(response)
+	}
+
+	return rerr
+}
+
+// ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
+func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) error {
+	return p.reconfigureSDS(standardRules, false)
+}
+
+// ReconfigureSDSAgentConfig reconfigures the pipeline with the given
+// configuration received through Remote Configuration.
+func (p *provider) ReconfigureSDSAgentConfig(config []byte) error {
+	return p.reconfigureSDS(config, true)
 }
 
 // NextPipelineChan returns the next pipeline input channel
