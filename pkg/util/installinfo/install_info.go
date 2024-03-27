@@ -185,7 +185,19 @@ func getToolVersion() (string, string) {
 			version = toolVersion
 		}
 	}
+	if _, err := exec.LookPath("rpm"); err == nil {
+		tool = "rpm"
+		toolVersion, err := getRPMVersion()
+		if err == nil {
+			version = fmt.Sprintf("rpm-%s", toolVersion)
+		}
+	}
 	return tool, version
+}
+
+func getRPMVersion() (string, error) {
+	output, err := exec.Command("rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
+	return string(output), err
 }
 
 func getDpkgVersion() (string, error) {
