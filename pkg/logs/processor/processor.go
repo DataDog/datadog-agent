@@ -110,7 +110,7 @@ func (p *Processor) run() {
 		case order := <-p.ReconfigChan:
 			p.mu.Lock()
 			if err := p.sds.Reconfigure(order); err != nil {
-				log.Error("Error while reconfiguring the SDS scanner:", err)
+				log.Errorf("Error while reconfiguring the SDS scanner: %v", err)
 				order.ResponseChan <- err
 			} else {
 				order.ResponseChan <- nil
