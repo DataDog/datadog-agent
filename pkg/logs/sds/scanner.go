@@ -15,18 +15,11 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 )
 
 const ScannedTag = "sds_agent:true"
-
-const (
-	tlmSDSConfigurationError   = "datadog.agent.sds.configuration.error"
-	tlmSDSConfigurationSuccess = "datadog.agent.sds.configuration.success"
-	tlmSDSConfiguredRules      = "datadog.agent.sds.rules"
-)
 
 // Scanner wraps an SDS Scanner implementation, adds reconfiguration
 // capabilities and telemetry on top of it.
@@ -117,12 +110,10 @@ func (s *Scanner) reconfigureStandardRules(rawConfig []byte) error {
 // This method is NOT thread safe, caller has to ensure the thread safety.
 func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	if rawConfig == nil {
-		telemetry.GetStatsTelemetryProvider().Count(tlmSDSConfigurationError, 1, []string{"error:null_config"})
 		return fmt.Errorf("Invalid nil raw configuration received for user configuration")
 	}
 
 	if s.standardRules.Rules == nil {
-		telemetry.GetStatsTelemetryProvider().Count(tlmSDSConfigurationError, 1, []string{"error:no_standard_rules"})
 		// store it for the next try
 		s.rawConfig = rawConfig
 		log.Info("Received an user configuration before receiving the SDS standard rules.")
@@ -131,7 +122,6 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 
 	var config RulesConfig
 	if err := json.Unmarshal(rawConfig, &config); err != nil {
-		telemetry.GetStatsTelemetryProvider().Count(tlmSDSConfigurationError, 1, []string{"error:invalid_json"})
 		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
 	}
 
@@ -140,7 +130,6 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 
 	// if we received an empty array of rules or all rules disabled, interprets this as "stop SDS".
 	if len(config.Rules) == 0 {
-		telemetry.GetStatsTelemetryProvider().Count(tlmSDSConfigurationSuccess, 1, []string{})
 		log.Info("Received an empty configuration, stopping the SDS scanner.")
 		// destroy the old scanner
 		if s.Scanner != nil {
@@ -200,7 +189,6 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	var scanner *sds.Scanner
 	var err error
 	if scanner, err = sds.CreateScanner(sdsRules); err != nil {
-		telemetry.GetStatsTelemetryProvider().Count(tlmSDSConfigurationError, 1, []string{"error:cant_create_scanner"})
 		return fmt.Errorf("while configuring an SDS Scanner: %v", err)
 	}
 
@@ -214,9 +202,6 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	// if we receive new standard rules
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
-
-	telemetry.GetStatsTelemetryProvider().Count(tlmSDSConfigurationSuccess, 1, []string{})
-	telemetry.GetStatsTelemetryProvider().Count(tlmSDSConfiguredRules, float64(len(s.configuredRules)), []string{})
 
 	log.Info("Created an SDS scanner with", len(scanner.Rules), "rules")
 	s.Scanner = scanner
