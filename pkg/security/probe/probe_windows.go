@@ -233,6 +233,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					if e.EventHeader.EventDescriptor.ID == idClose {
+						log.Infof("pop fpr: %v %s (len=%d)", ca.fileObject, ca.fileName, len(filePathResolver))
 						delete(filePathResolver, ca.fileObject)
 					}
 				}

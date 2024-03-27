@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -157,6 +158,7 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	}
 
 	if ca.fileName != "" {
+		log.Infof("push fpr: %v %s (len=%d)", ca.fileObject, ca.fileName, len(filePathResolver))
 		filePathResolver[ca.fileObject] = ca.fileName
 	}
 
