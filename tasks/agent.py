@@ -847,7 +847,7 @@ def _send_build_metrics(ctx, overall_duration):
                 }
             )
     dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ.get("API_KEY_ORG2_SSM_NAME")} --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2_SSM_NAME"]} --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}
