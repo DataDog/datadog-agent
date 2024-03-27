@@ -48,7 +48,9 @@ import (
 )
 
 const (
-	datadogConfigPath = "/var/task/datadog.yaml"
+	datadogConfigPath = ""
+	// coreconfig.WithConfigMissingOK(true) does not prevent crash when datadogConfigPath is set
+	//datadogConfigPath = "/var/task/datadog.yaml"
 )
 
 func main() {
