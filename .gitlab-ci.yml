@@ -249,6 +249,8 @@ variables:
   EXECUTOR_JOB_SECTION_ATTEMPTS: 2
   GET_SOURCES_ATTEMPTS: 2
   RESTORE_CACHE_ATTEMPTS: 2
+  # Feature flags
+  FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see github.com/DataDog/datadog-agent-macos-build/actions/runs/7881203142/job/21504455924
 
 #
 # Condition mixins for simplification of rules
