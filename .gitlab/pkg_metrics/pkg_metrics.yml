@@ -51,15 +51,18 @@ send_pkg_size:
       optional: true
     - job: iot_agent_suse-x64
       optional: true
-  before_script:
+  script:
     - source /root/.bashrc
-    # FIXME: tmp while we uppdate the base image
+
+    # FIXME: Temporary fix before we update the base image
     - apt-get install -y wget rpm2cpio cpio
+
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
-    # Send the metrics accumulated by add_metric
+
+    # Get API key to send metrics
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
-  script:
+
     # Allow failures: some packages are not always built, and therefore stats cannot be sent for them
     - set +e
 
