@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -113,8 +114,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func readProfileData(seconds int) (flare.ProfileData, error) {
-	pdata := flare.ProfileData{}
+func readProfileData(seconds int) (flaretypes.ProfileData, error) {
+	pdata := flaretypes.ProfileData{}
 	c := util.GetClient(false)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
@@ -164,7 +165,7 @@ func run(cliParams *cliParams,
 	ac optional.Option[autodiscovery.Component]) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
-		profile flare.ProfileData
+		profile flaretypes.ProfileData
 		e       error
 	)
 	c := util.GetClient(false) // FIX: get certificates right then make this true

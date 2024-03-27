@@ -3,46 +3,46 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package flare
+package types
 
 // Params defines the parameters for the flare component.
 type Params struct {
-	// local is set to true when we could not contact a running Agent and the flare is created directly from the
+	// Local is set to true when we could not contact a running Agent and the flare is created directly from the
 	// CLI.
-	local bool
+	Local bool
 
-	// distPath is the fully qualified path to the 'dist' directory
-	distPath string
+	// DistPath is the fully qualified path to the 'dist' directory
+	DistPath string
 
-	// pythonChecksPath is the path to the python checks shipped with the agent
-	pythonChecksPath string
+	// PythonChecksPath is the path to the python checks shipped with the agent
+	PythonChecksPath string
 
-	// defaultLogFile the path to the default log file
-	defaultLogFile string
+	// DefaultLogFile the path to the default log file
+	DefaultLogFile string
 
-	// defaultJMXLogFile the path to the default JMX log file
-	defaultJMXLogFile string
+	// DefaultJMXLogFile the path to the default JMX log file
+	DefaultJMXLogFile string
 
-	// defaultDogstatsdLogFile the path to the default JMX log file
-	defaultDogstatsdLogFile string
+	// DefaultDogstatsdLogFile the path to the default JMX log file
+	DefaultDogstatsdLogFile string
 }
 
 // NewLocalParams returns parameters for to initialize a local flare component. Local flares are meant to be created by
 // the CLI process instead of the main Agent one.
 func NewLocalParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string, defaultDogstatsdLogFile string) Params {
 	p := NewParams(distPath, pythonChecksPath, defaultLogFile, defaultJMXLogFile, defaultDogstatsdLogFile)
-	p.local = true
+	p.Local = true
 	return p
 }
 
 // NewParams returns parameters for to initialize a non local flare component
 func NewParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string, defaultDogstatsdLogFile string) Params {
 	return Params{
-		local:                   false,
-		distPath:                distPath,
-		pythonChecksPath:        pythonChecksPath,
-		defaultLogFile:          defaultLogFile,
-		defaultJMXLogFile:       defaultJMXLogFile,
-		defaultDogstatsdLogFile: defaultDogstatsdLogFile,
+		Local:                   false,
+		DistPath:                distPath,
+		PythonChecksPath:        pythonChecksPath,
+		DefaultLogFile:          defaultLogFile,
+		DefaultJMXLogFile:       defaultJMXLogFile,
+		DefaultDogstatsdLogFile: defaultDogstatsdLogFile,
 	}
 }

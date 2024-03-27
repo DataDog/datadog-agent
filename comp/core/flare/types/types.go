@@ -153,3 +153,6 @@ func NewProvider(callback FlareCallback) Provider {
 		Provider: callback,
 	}
 }
+
+// ProfileData maps (pprof) profile names to the profile data.
+type ProfileData map[string][]byte
