@@ -124,6 +124,9 @@ func NewServer(options ...func(*Server)) *Server {
 	}))
 
 	fi.server.Handler = mux
+	if fi.server.Addr == "" {
+		fi.server.Addr = ":0"
+	}
 
 	return fi
 }
