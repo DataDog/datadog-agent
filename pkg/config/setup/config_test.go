@@ -956,26 +956,6 @@ fips:
 	require.Error(t, err)
 }
 
-func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
-	datadogYaml := `
-apm_config:
-  peer_service_aggregation: true
-`
-	testConfig := ConfFromYAML(datadogYaml)
-	err := setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
-
-	datadogYaml = `
-apm_config:
-  peer_service_aggregation: false
-`
-	testConfig = ConfFromYAML(datadogYaml)
-	err = setupFipsEndpoints(testConfig)
-	require.NoError(t, err)
-	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
-}
-
 func TestEnablePeerTagsAggregationYAML(t *testing.T) {
 	datadogYaml := `
 apm_config:
@@ -994,15 +974,6 @@ apm_config:
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
-}
-
-func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
-	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "true")
-	testConfig := ConfFromYAML("")
-	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
-	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "false")
-	testConfig = ConfFromYAML("")
-	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {
