@@ -269,6 +269,9 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
+				if signal == syscall.SIGSTOP {
+					signal = syscall.Signal(0)
+				}
 				if err := syscall.PtraceCont(pid, int(signal)); err == nil {
 					continue
 				}
