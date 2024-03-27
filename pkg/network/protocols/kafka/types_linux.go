@@ -21,5 +21,6 @@ type EbpfTx struct {
 	Request_api_version uint16
 	Topic_name          [80]byte
 	Topic_name_size     uint16
-	Pad_cgo_0           [2]byte
+	Records_count       uint32
+	Pad_cgo_0           [4]byte
 }
