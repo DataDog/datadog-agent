@@ -25,7 +25,10 @@ function Install-DDAgent
     # Enable TLS 1.2
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-    $installerPath = "datadog-agent.msi"
+    $tempDir = [System.IO.Path]::GetTempPath()
+    [string] $downloadID = [System.Guid]::NewGuid()
+    $installerPath = Join-Path -Path $tempDir -ChildPath "datadog-agent-$downloadID.msi"
+
     if ($PSBoundParameters.ContainsKey('AgentInstallerPath'))
     {
         $installerPath = $AgentInstallerPath
@@ -66,11 +69,13 @@ function Install-DDAgent
         $latestVersionTag = ((Invoke-WebRequest https://api.github.com/repos/DataDog/dd-trace-dotnet/releases/latest).Content | ConvertFrom-Json).tag_name
         $latestVersion = $latestVersionTag.TrimStart("v")
 
+        $dotnetInstallerPath = Join-Path -Path $tempDir -ChildPath "datadog-dotnet-apm-$downloadID.msi"
+
         Write-Host "Downloading Datadog .NET Tracing Library $latestVersionTag"
-        downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$latestVersionTag/datadog-dotnet-apm-$latestVersion-x64.msi" -outFile "datadog-dotnet-apm.msi"
+        downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$latestVersionTag/datadog-dotnet-apm-$latestVersion-x64.msi" -outFile "$dotnetInstallerPath"
 
         Write-Host "Installing .NET Tracing Library"
-        $installResult = Start-Process -Wait msiexec -ArgumentList '/qn /i datadog-dotnet-apm.msi' -PassThru
+        $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $dotnetInstallerPath" -PassThru
         if ($installResult.ExitCode -ne 0)
         {
             $exception = [Exception]::new(".NET Tracing Library installation failed.")
