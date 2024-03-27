@@ -33,7 +33,7 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
         # This excludes jobs that were retried and succeeded
         trace = str(repo.jobs.get(jobs[-1].id).trace(), 'utf-8')
         failure_type, failure_reason = get_job_failure_context(trace)
-        final_status = ProjectJob(attrs={
+        final_status = ProjectJob(repo.manager, attrs={
             "name": job_name,
             "id": jobs[-1].id,
             "stage": jobs[-1].stage,
