@@ -26,7 +26,7 @@ from tasks.cluster_agent import integration_tests as dca_integration_tests
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags, get_distro
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.modules import DEFAULT_MODULES, GoModule
@@ -257,6 +257,22 @@ def coverage_flavor(
     return test_core(modules, flavor, None, "code coverage", command, skip_module_class=True)
 
 
+def create_codecov_flag(module, flavor):
+    """
+    Create the codecov flag, see https://docs.codecov.com/docs/flags.
+    """
+    distro = get_distro()
+    module_name = module.codecov_path()
+    flag_args = [distro, flavor.name, module_name] if flavor.name != "base" else [distro, module_name]
+    flag = "-".join(flag_args)
+    # Codecov flags are limited to 45 characters
+    if len(flag) > 45:
+        # Best-effort attempt to get a unique and legible tag name
+        flag_args = [distro[:2], flavor.name, module_name] if flavor.name != "base" else [distro, module_name]
+        flag = "-".join(flag_args)[:45]
+    return flag
+
+
 def codecov_flavor(
     ctx,
     flavor: AgentFlavor,
@@ -269,17 +285,12 @@ def codecov_flavor(
     """
 
     def command(_empty_result, module, _module_result):
-        # Codecov flags are limited to 45 characters
-        tag = f"{platform.system()}-{flavor.name}-{module.codecov_path()}"
-        if len(tag) > 45:
-            # Best-effort attempt to get a unique and legible tag name
-            tag = f"{platform.system()[:1]}-{flavor.name}-{module.codecov_path()}"[:45]
-
+        codecov_flag = create_codecov_flag(module, flavor)
         # The codecov command has to be run from the root of the repository, otherwise
         # codecov gets confused and merges the roots of all modules, resulting in a
         # nonsensical directory tree in the codecov app
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
-        ctx.run(f"codecov -f {path} -F {tag}", warn=True)
+        ctx.run(f"codecov -f {path} -F {codecov_flag}", warn=True)
 
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
