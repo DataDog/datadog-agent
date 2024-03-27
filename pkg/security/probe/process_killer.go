@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	userSpaceKillWithinMillis = 1000
+	userSpaceKillWithinMillis = 2000
 )
 
 // ProcessKiller defines a process killer structure
@@ -141,6 +141,9 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, ev *model.Eve
 			seclog.Debugf("failed to kill process %d: %s", pid, err)
 		}
 	}
+
+	p.Lock()
+	defer p.Unlock()
 
 	report := &KillActionReport{
 		Scope:      scope,

@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -94,7 +93,6 @@ func (p *pendingMsg) ToJSON() ([]byte, bool, error) {
 type APIServer struct {
 	api.UnimplementedSecurityModuleServer
 	msgs               chan *api.SecurityEventMessage
-	directReporter     common.RawReporter
 	activityDumps      chan *api.ActivityDumpStreamMessage
 	expiredEventsLock  sync.RWMutex
 	expiredEvents      map[rules.RuleID]*atomic.Int64
@@ -109,6 +107,7 @@ type APIServer struct {
 	cwsConsumer        *CWSConsumer
 	policiesStatusLock sync.RWMutex
 	policiesStatus     []*api.PolicyStatus
+	msgSender          MsgSender
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
@@ -250,11 +249,7 @@ func (a *APIServer) start(ctx context.Context) {
 					Tags:    msg.tags,
 				}
 
-				if a.directReporter != nil {
-					a.sendDirectly(m)
-				} else {
-					a.sendToSecurityAgent(m)
-				}
+				a.msgSender.Send(m, a.expireEvent)
 
 				return true
 			})
@@ -263,36 +258,6 @@ func (a *APIServer) start(ctx context.Context) {
 			return
 		}
 	}
-}
-
-func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
-	select {
-	case a.msgs <- m:
-		break
-	default:
-		// The channel is full, consume the oldest event
-		select {
-		case oldestMsg := <-a.msgs:
-			a.expireEvent(oldestMsg)
-		default:
-			break
-		}
-
-		// Try to send the event again
-		select {
-		case a.msgs <- m:
-			break
-		default:
-			// Looks like the channel is full again, expire the current message too
-			a.expireEvent(m)
-			break
-		}
-		break
-	}
-}
-
-func (a *APIServer) sendDirectly(m *api.SecurityEventMessage) {
-	a.directReporter.ReportRaw(m.Data, m.Service, m.Tags...)
 }
 
 // Start the api server, starts to consume the msg queue
@@ -516,55 +481,38 @@ func (a *APIServer) SetCWSConsumer(consumer *CWSConsumer) {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client statsd.ClientInterface, selfTester *selftests.SelfTester) *APIServer {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester) *APIServer {
 	stopper := startstop.NewSerialStopper()
-	directReporter, err := newDirectReporter(stopper)
-	if err != nil {
-		log.Errorf("failed to setup direct reporter: %v", err)
-		directReporter = nil
+
+	as := &APIServer{
+		msgs:          make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
+		activityDumps: make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		expiredEvents: make(map[rules.RuleID]*atomic.Int64),
+		expiredDumps:  atomic.NewInt64(0),
+		statsdClient:  client,
+		probe:         probe,
+		retention:     cfg.EventServerRetention,
+		cfg:           cfg,
+		stopper:       stopper,
+		selfTester:    selfTester,
+		stopChan:      make(chan struct{}),
+		msgSender:     msgSender,
 	}
 
-	es := &APIServer{
-		msgs:           make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
-		directReporter: directReporter,
-		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
-		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
-		expiredDumps:   atomic.NewInt64(0),
-		statsdClient:   client,
-		probe:          probe,
-		retention:      cfg.EventServerRetention,
-		cfg:            cfg,
-		stopper:        stopper,
-		selfTester:     selfTester,
-		stopChan:       make(chan struct{}),
-	}
-	return es
-}
+	if as.msgSender == nil {
+		if pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe") {
+			msgSender, err := NewDirectMsgSender(stopper)
+			if err != nil {
+				log.Errorf("failed to setup direct reporter: %v", err)
+			} else {
+				as.msgSender = msgSender
+			}
+		}
 
-func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
-	directReportEnabled := pkgconfig.SystemProbe.GetBool("runtime_security_config.direct_send_from_system_probe")
-	if !directReportEnabled {
-		return nil, nil
+		if as.msgSender == nil {
+			as.msgSender = NewChanMsgSender(as.msgs)
+		}
 	}
 
-	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
-	useSecRuntimeTrack := pkgconfig.SystemProbe.GetBool("runtime_security_config.use_secruntime_track")
-
-	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create direct reported endpoints: %w", err)
-	}
-
-	for _, status := range endpoints.GetStatus() {
-		log.Info(status)
-	}
-
-	// we set the hostname to the empty string to take advantage of the out of the box message hostname
-	// resolution
-	reporter, err := reporter.NewCWSReporter("", runPath, stopper, endpoints, destinationsCtx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
-	}
-
-	return reporter, nil
+	return as
 }

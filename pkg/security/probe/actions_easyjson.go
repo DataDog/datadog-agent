@@ -41,7 +41,7 @@ func easyjsonB97b45a3DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 		}
 		switch key {
 		case "type":
-			out.Name = string(in.String())
+			out.Type = string(in.String())
 		case "signal":
 			out.Signal = string(in.String())
 		case "scope":
@@ -89,7 +89,7 @@ func easyjsonB97b45a3EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 	{
 		const prefix string = ",\"type\":"
 		out.RawString(prefix[1:])
-		out.String(string(in.Name))
+		out.String(string(in.Type))
 	}
 	{
 		const prefix string = ",\"signal\":"
