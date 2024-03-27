@@ -157,7 +157,7 @@ def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
 
     infra: Dict[ArchOrLocal, HostInstance] = dict()
     for arch in infra_map:
-        if arch != "local" and remote_ssh_key is None:
+        if arch != "local" and ssh_key_obj is None:
             if ask_for_ssh():
                 raise Exit(
                     "No ssh key provided. Pass with '--ssh-key=<key-name>' or configure it with kmt.config-ssh-key"

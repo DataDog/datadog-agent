@@ -704,6 +704,7 @@ def ssh_config(
                 print(f"Host kmt-{stack_name}-{instance.arch}")
                 print(f"    HostName {instance.ip}")
                 print("    User ubuntu")
+                print(f"    IdentityFile {instance.ssh_key_path}")
                 print("")
 
             for domain in instance.microvms:
