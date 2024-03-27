@@ -193,7 +193,6 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 }
 
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
-	log.Errorf("adamk loadTracerFromAsset")
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, &ebpftelemetry.ErrorsTelemetryModifier{})
 	if err := initManager(m, connCloseEventHandler, failedConnsHandler, runtimeTracer, config); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
