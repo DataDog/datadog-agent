@@ -9,7 +9,6 @@ import (
 	"expvar"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -196,7 +195,7 @@ func (w *noAggregationStreamWorker) run() {
 							}
 
 							// enrich metric sample tags
-							sample.GetTags(w.taggerBuffer, w.metricBuffer, tagger.EnrichTags)
+							sample.GetTags(w.taggerBuffer, w.metricBuffer, enrichTags)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
 							// if the value is a rate, we have to account for the 10s interval

@@ -24,8 +24,6 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -132,10 +130,6 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	cfg.ContainerTags = containerTagsFunc
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
 	return cfg, nil
-}
-
-func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag("container_id://"+cid, collectors.HighCardinality)
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
