@@ -855,9 +855,9 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	}
 	profile.versionContextsLock.Unlock()
 
-	// if we have one version of the profile in unstable, just skip the whole process
-	globalProfilState := profile.GetGlobalState()
-	if globalProfilState == UnstableEventType {
+	// if we have one version of the profile in unstable for this event type, just skip the whole process
+	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
+	if globalEventTypeProfilState == UnstableEventType {
 		m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
 		return
 	}
