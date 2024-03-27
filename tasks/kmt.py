@@ -18,8 +18,9 @@ from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.compiler import build_compiler as build_cc
 from tasks.kernel_matrix_testing.compiler import compiler_running, docker_exec
 from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc
+from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
-from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
+from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure, get_ssh_key_name
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
@@ -28,7 +29,7 @@ from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
+    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr, SSHKey  # noqa: F401
 
 try:
     from tabulate import tabulate
@@ -196,7 +197,7 @@ def gen_config_from_ci_pipeline(
 def launch_stack(
     ctx: Context,
     stack: Optional[str] = None,
-    ssh_key: str = "",
+    ssh_key: Optional[str] = None,
     x86_ami: str = X86_AMI_ID_SANDBOX,
     arm_ami: str = ARM_AMI_ID_SANDBOX,
     provision_microvms: bool = True,
@@ -205,7 +206,7 @@ def launch_stack(
 
 
 @task
-def destroy_stack(ctx: Context, stack: Optional[str] = None, pulumi=False, ssh_key=""):
+def destroy_stack(ctx: Context, stack: Optional[str] = None, pulumi=False, ssh_key: Optional[str] = None):
     clean(ctx, stack)
     stacks.destroy_stack(ctx, stack, pulumi, ssh_key)
 
@@ -226,7 +227,7 @@ def stack(_, stack: Optional[str] = None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    infrastructure = build_infrastructure(stack, remote_ssh_key="")
+    infrastructure = build_infrastructure(stack)
     for instance in infrastructure.values():
         print(instance)
         for vm in instance.microvms:
@@ -244,6 +245,41 @@ def ls(_, distro=False, custom=False):
 @task
 def init(ctx: Context, lite=False):
     init_kernel_matrix_testing_system(ctx, lite)
+    config_ssh_key(ctx)
+
+
+@task
+def config_ssh_key(_: Context):
+    """Automatically configure the default SSH key to use"""
+    info("[+] SSH key configuration...")
+    ssh_key_files = [Path(f) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
+    info("[-] Found these valid key files:")
+
+    for i, f in enumerate(ssh_key_files):
+        key_comment = get_ssh_key_name(f)
+        if key_comment is None:
+            warn(f" - [x] {f.name} does not have a valid key name, cannot be used")
+        else:
+            print(f" - [{i}] {f.name} - {key_comment}")
+
+    result = ask(f"Choose one of these files (0-{len(ssh_key_files) - 1}) or write the path to another SSH key: ")
+    try:
+        ssh_key_path = ssh_key_files[int(result.strip())]
+    except ValueError:
+        ssh_key_path = Path(result)
+        if not ssh_key_path.is_file():
+            raise Exit(f"Choice {result} is neither a number nor a valid path")
+    except IndexError:  # out of range
+        raise Exit(f"Invalid choice {result}, must be a number between 0 and {len(ssh_key_files) - 1} (inclusive)")
+
+    key_name = get_ssh_key_name(ssh_key_path)
+    if key_name is None:
+        raise Exit(f"No SSH key name can be parsed from public key corresponding to {ssh_key_path}")
+    cm = ConfigManager()
+    cm.config["ssh"] = cast('SSHKey', dict(path=os.fspath(ssh_key_path), name=key_name))
+    cm.save()
+
+    info(f"[+] Saved for use: SSH key '{key_name}' located at {ssh_key_path}")
 
 
 @task
@@ -492,7 +528,7 @@ def build_run_config(run: Optional[str], packages: List[str]):
         "retry": "Number of times to retry a failing test",
         "run-count": "Number of times to run a tests regardless of status",
         "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
-        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
+        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM. Can be either a name of a file in ~/.ssh, a key name (the comment in the public key) or a full path",
         "verbose": "Enable full output of all commands executed",
         "test-logs": "Set 'gotestsum' verbosity to 'standard-verbose' to print all test logs. Default is 'testname'",
         "test-extra-arguments": "Extra arguments to pass to the test runner, see `go help testflag` for more details",
@@ -551,7 +587,7 @@ def test(
     help={
         "vms": "Comma seperated list of vms to target when running tests",
         "stack": "Stack in which the VMs exist. If not provided stack is autogenerated based on branch name",
-        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM",
+        "ssh-key": "SSH key to use for connecting to a remote EC2 instance hosting the target VM. Can be either a name of a file in ~/.ssh, a key name (the comment in the public key) or a full path",
         "full-rebuild": "Do a full rebuild of all test dependencies to share with VMs, before running tests. Useful when changes are not being picked up correctly",
         "verbose": "Enable full output of all commands executed",
     }
@@ -663,7 +699,7 @@ def ssh_config(
         ):
             continue
 
-        for _, instance in build_infrastructure(stack.name, remote_ssh_key="").items():
+        for _, instance in build_infrastructure(stack.name).items():
             if instance.arch != "local":
                 print(f"Host kmt-{stack_name}-{instance.arch}")
                 print(f"    HostName {instance.ip}")
@@ -707,7 +743,7 @@ def status(ctx: Context, stack: Optional[str] = None, all=False):
 
     for stack in stacks:
         try:
-            infrastructure = build_infrastructure(stack, remote_ssh_key="")
+            infrastructure = build_infrastructure(stack)
         except Exception:
             warn(f"Failed to get status for stack {stack}. stacks.output file might be corrupt.")
             print("")

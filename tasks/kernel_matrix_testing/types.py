@@ -80,3 +80,12 @@ class HasName(Protocol):
 
 
 TNamed = TypeVar('TNamed', bound=HasName)
+
+
+class SSHKey(TypedDict):
+    path: str
+    name: str
+
+
+class KMTConfig(TypedDict, total=False):
+    ssh: SSHKey  # noqa: F841
