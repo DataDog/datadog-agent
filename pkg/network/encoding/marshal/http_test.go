@@ -496,5 +496,21 @@ func TestSketchMarshaling(t *testing.T) {
 	sketch1 := getSketch(t, payload, httpReqStats)
 	sketch2 := getSketch(t, payload, httpReqStats)
 
+	type bin struct {
+		q float64
+		v float64
+	}
+	bins1 := make([]bin, 0)
+	sketch1.ForEach(func(q float64, v float64) bool {
+		bins1 = append(bins1, bin{q, v})
+		return false
+	})
+	bins2 := make([]bin, 0)
+	sketch2.ForEach(func(q float64, v float64) bool {
+		bins2 = append(bins2, bin{q, v})
+		return false
+	})
+	require.Equal(t, bins1, bins2)
+
 	require.Equal(t, sketch1, sketch2)
 }
