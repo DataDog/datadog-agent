@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 
 	"golang.org/x/sys/windows"
 )
