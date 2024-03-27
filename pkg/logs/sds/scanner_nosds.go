@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
+const SDSEnabled = false
+
 // Scanner mock.
 type Scanner struct {
 }

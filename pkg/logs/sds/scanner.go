@@ -21,6 +21,8 @@ import (
 
 const ScannedTag = "sds_agent:true"
 
+const SDSEnabled = true
+
 // Scanner wraps an SDS Scanner implementation, adds reconfiguration
 // capabilities and telemetry on top of it.
 // Most of Scanner methods are not thread safe for performance reasons, the caller

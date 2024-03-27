@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -128,11 +129,12 @@ func newLogsAgent(deps dependencies) provides {
 			OnStop:  logsAgent.stop,
 		})
 
-		rcListener := rctypes.ListenerProvider{
-			ListenerProvider: rctypes.RCListener{
+		var rcListener rctypes.ListenerProvider
+		if sds.SDSEnabled {
+			rcListener.ListenerProvider = rctypes.RCListener{
 				state.ProductSDSAgentConfig: logsAgent.onUpdateSDSAgentConfig,
 				state.ProductSDSRules:       logsAgent.onUpdateSDSRules,
-			},
+			}
 		}
 
 		return provides{
