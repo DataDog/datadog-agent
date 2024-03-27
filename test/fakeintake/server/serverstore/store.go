@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,8 +37,8 @@ type Store interface {
 }
 
 // NewStore returns a new store
-func NewStore() Store {
-	if os.Getenv("STORAGE_DRIVER") == "sql" {
+func NewStore(driver string) Store {
+	if driver == "sql" {
 		return newSQLStore()
 	}
 	return newInMemoryStore()
