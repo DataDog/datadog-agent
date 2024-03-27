@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    eBPF networks regard show as a SQL command for MySQL and Postgres protocols
