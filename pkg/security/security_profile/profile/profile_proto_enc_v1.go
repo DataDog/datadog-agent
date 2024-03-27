@@ -11,6 +11,7 @@ package profile
 import (
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 )
@@ -22,13 +23,30 @@ func SecurityProfileToProto(input *SecurityProfile) *proto.SecurityProfile {
 	}
 
 	output := proto.SecurityProfile{
-		Version:  input.Version,
-		Metadata: mtdt.ToProto(&input.Metadata),
-		Syscalls: input.Syscalls,
-		Tags:     make([]string, len(input.Tags)),
-		Tree:     activity_tree.ToProto(input.ActivityTree),
+		Metadata:        mtdt.ToProto(&input.Metadata),
+		ProfileContexts: make(map[string]*proto.ProfileContext),
+		Tree:            activity_tree.ToProto(input.ActivityTree),
+		Selector:        cgroupModel.WorkloadSelectorToProto(&input.selector),
 	}
-	copy(output.Tags, input.Tags)
+
+	for key, ctx := range input.versionContexts {
+		outCtx := &proto.ProfileContext{
+			FirstSeen:      ctx.firstSeenNano,
+			LastSeen:       ctx.lastSeenNano,
+			EventTypeState: make(map[uint32]*proto.EventTypeState),
+			Syscalls:       make([]uint32, len(ctx.Syscalls)),
+			Tags:           make([]string, len(ctx.Tags)),
+		}
+		for evtType, evtState := range ctx.eventTypeState {
+			outCtx.EventTypeState[uint32(evtType)] = &proto.EventTypeState{
+				LastAnomalyNano:   evtState.lastAnomalyNano,
+				EventProfileState: evtState.state.toProto(),
+			}
+		}
+		copy(outCtx.Syscalls, ctx.Syscalls)
+		copy(outCtx.Tags, ctx.Tags)
+		output.ProfileContexts[key] = outCtx
+	}
 
 	return &output
 }

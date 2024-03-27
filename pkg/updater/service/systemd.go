@@ -10,13 +10,6 @@ package service
 
 import (
 	"encoding/json"
-	"errors"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type unitCommand string
@@ -37,8 +30,6 @@ type privilegeCommand struct {
 	Unit    string `json:"unit,omitempty"`
 	Path    string `json:"path,omitempty"`
 }
-
-var updaterHelper = filepath.Join(setup.InstallPath, "bin", "updater", "updater-helper")
 
 func stopUnit(unit string) error {
 	return executeCommand(wrapUnitCommand(stopCommand, unit))
@@ -66,27 +57,6 @@ func removeUnit(unit string) error {
 
 func systemdReload() error {
 	return executeCommand(systemdReloadCommand)
-}
-
-func executeCommand(command string) error {
-	cmd := exec.Command(updaterHelper, command)
-	cmd.Stdout = os.Stdout
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	stderrOutput, err := io.ReadAll(stderr)
-	if err != nil {
-		return err
-	}
-	if err := cmd.Wait(); err != nil {
-		return errors.New(string(stderrOutput))
-	}
-	return nil
 }
 
 func wrapUnitCommand(command unitCommand, unit string) string {

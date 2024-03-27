@@ -15,10 +15,11 @@ import (
 )
 
 func TestProcessEventsCheckEnabled(t *testing.T) {
+	deps := createDeps(t)
 	t.Run("default", func(t *testing.T) {
 		cfg := config.Mock(t)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -26,7 +27,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
 		assertContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 
@@ -34,12 +35,13 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.event_collection.enabled", false)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)
 	})
 }
 
 func TestConnectionsCheckLinux(t *testing.T) {
+	deps := createDeps(t)
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 
@@ -53,16 +55,17 @@ func TestConnectionsCheckLinux(t *testing.T) {
 		scfg.SetWithoutSource("system_probe_config.enabled", true)
 
 		flavor.SetFlavor("agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, ConnectionsCheckName)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertContainsCheck(t, enabledChecks, ConnectionsCheckName)
 	})
 }
 
 func TestProcessCheckLinux(t *testing.T) {
+	deps := createDeps(t)
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 
@@ -74,16 +77,17 @@ func TestProcessCheckLinux(t *testing.T) {
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 	})
 }
 
 func TestProcessDiscoveryLinux(t *testing.T) {
+	deps := createDeps(t)
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 
@@ -96,11 +100,11 @@ func TestProcessDiscoveryLinux(t *testing.T) {
 		cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", true)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertNotContainsCheck(t, enabledChecks, DiscoveryCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta)
 		assertContainsCheck(t, enabledChecks, DiscoveryCheckName)
 	})
 }

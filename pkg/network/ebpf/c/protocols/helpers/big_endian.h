@@ -10,7 +10,7 @@
 // we are converting the little-endian (default by the read) to big-endian. Return false if we exceeds boundaries, true
 // otherwise.
 #define READ_BIG_ENDIAN(type, transformer)                                                                  \
-    static __always_inline bool read_big_endian_##type(struct __sk_buff *skb, u32 offset, type *out) {      \
+    static __always_inline __maybe_unused bool read_big_endian_##type(struct __sk_buff *skb, u32 offset, type *out) {      \
         if (offset + sizeof(type) > skb->len) {                                                             \
             return false;                                                                                   \
         }                                                                                                   \

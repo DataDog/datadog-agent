@@ -7,7 +7,6 @@
 package eval
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -69,6 +68,12 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 	}
 }
 
+// IsPartialAvailable checks if partial have been generated for the given Field
+func (r *RuleEvaluator) IsPartialAvailable(field Field) bool {
+	_, exists := r.partialEvals[field]
+	return exists
+}
+
 // PartialEval partially evaluation of the Rule with the given Field.
 func (r *RuleEvaluator) PartialEval(ctx *Context, field Field) (bool, error) {
 	eval, ok := r.partialEvals[field]
@@ -103,19 +108,13 @@ func (r *Rule) GetFieldValues(field Field) []FieldValue {
 
 // PartialEval - Partial evaluation with the given Field
 func (r *Rule) PartialEval(ctx *Context, field Field) (bool, error) {
-	result, err := r.evaluator.PartialEval(ctx, field)
-	if err == nil {
-		return result, nil
-	}
-
-	var errNotFound *ErrFieldNotFound
-	if errors.As(err, &errNotFound) {
-		if err = r.genPartials(field); err != nil {
+	if !r.evaluator.IsPartialAvailable(field) {
+		if err := r.genPartials(field); err != nil {
 			return false, err
 		}
-		result, err = r.evaluator.PartialEval(ctx, field)
 	}
-	return result, err
+
+	return r.evaluator.PartialEval(ctx, field)
 }
 
 // GetPartialEval - Returns the Partial RuleEvaluator for the given Field
@@ -243,11 +242,6 @@ func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext) error {
 }
 
 func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error) {
-	// check that field in this rule fields
-	if !slices.Contains(r.GetFields(), field) {
-		return nil, nil
-	}
-
 	macroEvaluators := make(map[MacroID]*MacroEvaluator)
 	for _, macro := range r.Opts.MacroStore.List() {
 		var err error
@@ -274,13 +268,13 @@ func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error
 
 // GenPartials - Compiles and generates partial Evaluators
 func (r *Rule) genPartials(field Field) error {
+	if !slices.Contains(r.GetFields(), field) {
+		return nil
+	}
+
 	macroPartial, err := r.genMacroPartials(field)
 	if err != nil {
 		return err
-	}
-
-	if !slices.Contains(r.GetFields(), field) {
-		return nil
 	}
 
 	state := NewState(r.Model, field, macroPartial)

@@ -4,7 +4,7 @@ This component populates the Linux Packages signing information in the `inventor
 
 This is enabled by default but can be turned off using `inventories_enabled` or `enable_signing_metadata_collection` config.
 
-The payload is sent every 12h (see `inventories_max_interval` in the config). It has a different collection timeframe than the other inventory payloads.
+The payload is sent every 12h. It has a different collection timeframe than the other inventory payloads.
 
 # Format
 

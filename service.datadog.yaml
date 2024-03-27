@@ -4,7 +4,7 @@ dd-service: datadog-agent-nightly
 
 extensions:
   datadoghq.com/sdp:
-    workday_team: "Agent Platform"
+    workday_team: "Agent Build And Releases"
     conductor:
       slack: "datadog-agent-pipelines"
       schedule: "0 3 * * 1-5"

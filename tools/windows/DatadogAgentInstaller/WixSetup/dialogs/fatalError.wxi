@@ -14,10 +14,10 @@
 	</Dialog>
 
 	<InstallUISequence>
-		<Show Dialog="Custom_FatalError" OnExit="error" Overridable="yes" />
+		<Show Dialog="Custom_FatalError" OnExit="error" Overridable="yes">(NOT SKIP_ERROR_DIALOG)</Show>
 	</InstallUISequence>
 
 	<AdminUISequence>
-		<Show Dialog="Custom_FatalError" OnExit="error" Overridable="yes" />
+		<Show Dialog="Custom_FatalError" OnExit="error" Overridable="yes">(NOT SKIP_ERROR_DIALOG)</Show>
 	</AdminUISequence>
 </Include>

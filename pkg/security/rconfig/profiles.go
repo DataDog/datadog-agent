@@ -66,27 +66,13 @@ func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.Ra
 			continue
 		}
 
-		imageName := utils.GetTagValue("image_name", profile.Tags)
-		imageTag := utils.GetTagValue("image_tag", profile.Tags)
-
-		if imageName == "" {
-			log.Errorf("no image name: %v", profile.Tags)
-			continue
-		}
-
-		if imageTag == "" {
-			imageTag = "latest"
-			profile.Tags = append(profile.Tags, "image_tag:"+imageTag)
-		}
-
-		selector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
+		selector, err := cgroupModel.NewWorkloadSelector(profile.Selector.ImageName, profile.Selector.ImageTag)
 		if err != nil {
-			log.Errorf("selector error %s/%s: %v", imageName, imageTag, err)
+			log.Errorf("selector error %s/%s: %v", profile.Selector.ImageName, profile.Selector.ImageTag, err)
 			continue
 		}
 
 		log.Tracef("got a new profile for %v : %v", selector, profile)
-
 		r.onNewProfileCallback(selector, profile)
 	}
 }

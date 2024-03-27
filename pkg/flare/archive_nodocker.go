@@ -7,7 +7,12 @@
 
 package flare
 
-func getDockerSelfInspect() ([]byte, error) {
+import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+func getDockerSelfInspect(_ optional.Option[workloadmeta.Component]) ([]byte, error) {
 	return nil, nil
 }
 

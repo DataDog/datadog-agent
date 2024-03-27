@@ -14,8 +14,8 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )

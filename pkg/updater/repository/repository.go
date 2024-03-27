@@ -13,9 +13,11 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/gopsutil/process"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -361,6 +363,14 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	if err != nil {
 		return "", fmt.Errorf("could not move source: %w", err)
 	}
+	if err := os.Chmod(targetPath, 0755); err != nil {
+		return "", fmt.Errorf("could not set permissions on package: %w", err)
+	}
+	if strings.HasSuffix(rootPath, "datadog-agent") {
+		if err := service.ChownDDAgent(targetPath); err != nil {
+			return "", err
+		}
+	}
 
 	return targetPath, nil
 }
@@ -387,7 +397,7 @@ func (r *repositoryFiles) cleanup() error {
 			pkgRepositoryPath := filepath.Join(r.rootPath, file.Name())
 			pkgLocksPath := filepath.Join(r.locksPath, file.Name())
 			log.Debugf("package %s isn't locked, removing it", pkgRepositoryPath)
-			if err := os.RemoveAll(pkgRepositoryPath); err != nil {
+			if err := service.RemoveAll(pkgRepositoryPath); err != nil {
 				log.Errorf("could not remove package %s directory, will retry: %v", pkgRepositoryPath, err)
 			}
 			if err := os.RemoveAll(pkgLocksPath); err != nil {

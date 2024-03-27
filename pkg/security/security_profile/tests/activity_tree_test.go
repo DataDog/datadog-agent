@@ -702,7 +702,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 						process := craftFakeProcess(defaultContainerID, &ti)
 
-						node, newProcessNode, err := at.CreateProcessNode(process, gentype, dryRun, nil)
+						node, newProcessNode, err := at.CreateProcessNode(process, "tag", gentype, dryRun, nil)
 
 						assert.Equal(t, ti.resultErr, err)
 						assert.Equal(t, ti.resultNewProcessNode, newProcessNode)
@@ -764,7 +764,7 @@ func TestActivityTree_InsertExecEvents(t *testing.T) {
 		}
 
 		t.Run(test, func(t *testing.T) {
-			_, _, err := adInputTree.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, activity_tree.Runtime, false, nil)
+			_, _, err := adInputTree.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, "tag", activity_tree.Runtime, false, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

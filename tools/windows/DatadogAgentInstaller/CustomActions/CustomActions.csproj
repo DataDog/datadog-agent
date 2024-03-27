@@ -85,6 +85,7 @@
     <Compile Include="Native\ServiceController.cs" />
     <Compile Include="Native\ServiceControllerExtensions.cs" />
     <Compile Include="Native\WindowsService.cs" />
+    <Compile Include="PrerequisitesCustomActions.cs" />
     <Compile Include="Rollback\ServicePermissionRollbackData.cs" />
     <Compile Include="Rollback\RestoreDaclRollbackCustomAction.cs" />
     <Compile Include="Rollback\FilePermissionRollbackData.cs" />

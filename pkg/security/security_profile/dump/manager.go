@@ -136,8 +136,10 @@ func (adm *ActivityDumpManager) cleanup() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
-			if err := adm.storage.Persist(ad); err != nil {
-				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			if ad.GetWorkloadSelector() != nil {
+				if err := adm.storage.Persist(ad); err != nil {
+					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+				}
 			}
 		} else {
 			adm.emptyDropped.Inc()
@@ -288,11 +290,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 
 	var denyList []cgroupModel.WorkloadSelector
 	for _, entry := range config.RuntimeSecurity.ActivityDumpWorkloadDenyList {
-		split := strings.Split(entry, ":")
-		if len(split) != 2 {
-			return nil, fmt.Errorf("invalid activity_dump.workload_deny_list parameter: expecting following format \"{image_name}:[{image_tag}|*]\"")
-		}
-		selectorTmp, err := cgroupModel.NewWorkloadSelector(split[0], split[1])
+		selectorTmp, err := cgroupModel.NewWorkloadSelector(entry, "*")
 		if err != nil {
 			return nil, fmt.Errorf("invalid workload selector in activity_dump.workload_deny_list: %w", err)
 		}
@@ -615,8 +613,10 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 			// persist dump if not empty
 			if !d.IsEmpty() {
-				if err := adm.storage.Persist(d); err != nil {
-					seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
+				if d.GetWorkloadSelector() != nil {
+					if err := adm.storage.Persist(d); err != nil {
+						seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
+					}
 				}
 			} else {
 				adm.emptyDropped.Inc()
@@ -737,8 +737,9 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 	}
 	slices.Reverse(ancestors)
 
+	imageTag := utils.GetTagValue("image_tag", pces.ad.Tags)
 	for _, parent = range ancestors {
-		_, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false, pces.adm.resolvers)
+		_, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, imageTag, activity_tree.Snapshot, false, pces.adm.resolvers)
 		if err != nil {
 			// if one of the parents wasn't inserted, leave now
 			break
@@ -890,8 +891,10 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
-			if err := adm.storage.Persist(ad); err != nil {
-				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			if ad.GetWorkloadSelector() != nil {
+				if err := adm.storage.Persist(ad); err != nil {
+					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+				}
 			}
 		} else {
 			adm.emptyDropped.Inc()

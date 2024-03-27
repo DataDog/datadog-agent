@@ -11,6 +11,8 @@ package updater
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
@@ -19,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 )
 
 type testRemoteConfigClient struct {
@@ -73,13 +76,21 @@ func (c *testRemoteConfigClient) SubmitRequest(request remoteAPIRequest) {
 }
 
 func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
+	u, _, _ := newTestUpdaterWithPaths(t, s, rcc, defaultFixture)
+	return u
+}
+
+func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*updaterImpl, string, string) {
 	rc := &remoteConfig{client: rcc}
-	u := newUpdater(rc, t.TempDir(), t.TempDir(), "")
+	rootPath := t.TempDir()
+	locksPath := t.TempDir()
+	u := newUpdater(rc, rootPath, t.TempDir(), "")
 	u.installer.configsDir = t.TempDir()
+	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
 	u.bootstrapVersions[defaultFixture.pkg] = defaultFixture.version
 	u.Start(context.Background())
-	return u
+	return u, rootPath, locksPath
 }
 
 func TestUpdaterBootstrap(t *testing.T) {
@@ -97,6 +108,50 @@ func TestUpdaterBootstrap(t *testing.T) {
 	assert.Equal(t, fixtureSimpleV1.version, state.Stable)
 	assert.False(t, state.HasExperiment())
 	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+}
+
+func TestUpdaterPurge(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	rc := newTestRemoteConfigClient()
+	updater, rootPath, locksPath := newTestUpdaterWithPaths(t, s, rc, fixtureSimpleV1)
+
+	bootstrapAndAssert := func() {
+		err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+		assert.NoError(t, err)
+
+		r := updater.repositories.Get(fixtureSimpleV1.pkg)
+		state, err := r.GetState()
+		assert.NoError(t, err)
+		assert.Equal(t, fixtureSimpleV1.version, state.Stable)
+		assert.False(t, state.HasExperiment())
+		assertEqualFS(t, s.PackageFS(fixtureSimpleV1), r.StableFS())
+	}
+	bootstrapAndAssert()
+	assert.Nil(t, os.WriteFile(filepath.Join(locksPath, "not_empty"), []byte("morbier\n"), 0644))
+	assertDirNotEmpty(t, locksPath)
+	assertDirNotEmpty(t, rootPath)
+	purge(locksPath, rootPath)
+	assertDirExistAndEmpty(t, locksPath)
+	assertDirExistAndEmpty(t, rootPath)
+	bootstrapAndAssert()
+	assertDirNotEmpty(t, rootPath)
+}
+
+func assertDirNotEmpty(t *testing.T, path string) {
+	_, err := os.Stat(path)
+	assert.Nil(t, err)
+	entry, err := os.ReadDir(path)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, entry)
+}
+
+func assertDirExistAndEmpty(t *testing.T, path string) {
+	_, err := os.Stat(path)
+	assert.Nil(t, err)
+	entry, err := os.ReadDir(path)
+	assert.Nil(t, err)
+	assert.Len(t, entry, 0)
 }
 
 func TestUpdaterBootstrapWithRC(t *testing.T) {

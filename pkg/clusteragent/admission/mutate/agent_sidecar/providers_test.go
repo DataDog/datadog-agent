@@ -8,10 +8,11 @@
 package agentsidecar
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -277,26 +278,20 @@ func TestApplyProviderOverrides(t *testing.T) {
 		t.Run(test.name, func(tt *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.agent_sidecar.provider", test.provider)
 			mutated, err := applyProviderOverrides(test.basePod)
-			assert.Equal(tt, test.expectMutated, mutated)
 
 			if test.expectError {
 				assert.Error(tt, err)
-			} else {
-				assert.NoError(tt, err)
-
-				if test.expectedPodAfterOverride == nil {
-					assert.Nil(tt, test.basePod)
-				} else {
-					assert.NotNil(tt, test.basePod)
-					assert.Truef(tt,
-						reflect.DeepEqual(*test.basePod, *test.expectedPodAfterOverride),
-						"overrides not applied as expected. expected %v, but found %v",
-						*test.expectedPodAfterOverride,
-						*test.basePod,
-					)
-				}
+				return
 			}
 
+			require.NoError(tt, err)
+			assert.Equal(tt, test.expectMutated, mutated)
+			assert.True(
+				tt,
+				cmp.Equal(test.expectedPodAfterOverride, test.basePod),
+				"overrides not applied as expected. diff: %s",
+				cmp.Diff(test.expectedPodAfterOverride, test.basePod),
+			)
 		})
 	}
 }

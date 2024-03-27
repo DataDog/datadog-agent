@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import tempfile
+import textwrap
 
 import yaml
 from invoke.exceptions import Exit
@@ -63,7 +64,7 @@ CONTRIBUTORS_WITH_UNCOMMENTED_HEADER = [
 
 
 # FIXME: This doesn't include licenses for non-go dependencies, like the javascript libs we use for the web gui
-def get_licenses_list(ctx):
+def get_licenses_list(ctx, licenses_filename='LICENSE-3rdparty.csv'):
     # we need the full vendor tree in order to perform this analysis
     from .go import deps_vendored
 
@@ -72,9 +73,37 @@ def get_licenses_list(ctx):
     try:
         licenses = wwhrd_licenses(ctx)
         licenses = find_copyright(ctx, licenses)
-        return licenses_csv(licenses)
+        licenses = licenses_csv(licenses)
+        _verify_unknown_licenses(licenses, licenses_filename)
+
+        return licenses
     finally:
         shutil.rmtree("vendor/")
+
+
+def _verify_unknown_licenses(licenses, licenses_filename):
+    """
+    Check that all deps have a non-"UNKNOWN" copyright and license
+    """
+    unknown_licenses = False
+    for line in licenses:
+        parts = [part.strip().casefold() for part in line.split(',')]
+        if 'unknown' in parts:
+            unknown_licenses = True
+            print(f"! {line}")
+
+    if unknown_licenses:
+        raise Exit(
+            message=textwrap.dedent(
+                """\
+                At least one dependency's license or copyright could not be determined.
+
+                Consult the dependency's source, update
+                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
+                `inv generate-licenses` to update {}."""
+            ).format(licenses_filename),
+            code=1,
+        )
 
 
 def is_valid_quote(copyright):

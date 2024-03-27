@@ -9,6 +9,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -852,6 +853,11 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 				profile.loadedNano = uint64(t0.UnixNano())
 			}
 			profile.ActivityTree.Stats.ProcessNodes += ti.addFakeProcessNodes
+			ctx := profile.GetVersionContextIndex(0)
+			if ctx == nil {
+				t.Fatal(errors.New("profile should have one ctx"))
+			}
+			ctx.firstSeenNano = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 
 			if ti.loopUntil != 0 {
 				currentIncrement := time.Duration(0)
@@ -865,12 +871,12 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 					}
 					ti.eventTimestampRaw = currentIncrement
 					event := craftFakeEvent(t0, &ti, defaultContainerID)
-					assert.Equal(t, ti.result, spm.tryAutolearn(profile, event))
+					assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
 					currentIncrement += ti.loopIncrement
 				}
 			} else { // only run once
 				event := craftFakeEvent(t0, &ti, defaultContainerID)
-				assert.Equal(t, ti.result, spm.tryAutolearn(profile, event))
+				assert.Equal(t, ti.result, spm.tryAutolearn(profile, ctx, event, "tag"))
 			}
 
 			// TODO: also check profile stats and global metrics

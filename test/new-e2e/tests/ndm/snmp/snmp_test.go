@@ -98,7 +98,7 @@ func snmpDockerProvisioner() e2e.Provisioner {
 			return err
 		}
 
-		dockerManager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, false)
+		dockerManager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host)
 		if err != nil {
 			return err
 		}

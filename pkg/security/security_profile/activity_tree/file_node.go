@@ -23,6 +23,7 @@ import (
 type FileNode struct {
 	MatchedRules   []*model.MatchedRule
 	Name           string
+	ImageTags      []string
 	IsPattern      bool
 	File           *model.FileEvent
 	GenerationType NodeGenerationType
@@ -41,7 +42,7 @@ type OpenNode struct {
 }
 
 // NewFileNode returns a new FileActivityNode instance
-func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
+func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, imageTag string, generationType NodeGenerationType, reducedFilePath string, resolvers *resolvers.EBPFResolvers) *FileNode {
 	// call resolver. Safeguard: the process context might be empty if from a snapshot.
 	if resolvers != nil && fileEvent != nil && event.ProcessContext != nil {
 		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent)
@@ -52,6 +53,9 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, ge
 		GenerationType: generationType,
 		IsPattern:      strings.Contains(name, "*"),
 		Children:       make(map[string]*FileNode),
+	}
+	if imageTag != "" {
+		fan.ImageTags = []string{imageTag}
 	}
 	if fileEvent != nil {
 		fileEventTmp := *fileEvent
@@ -126,7 +130,7 @@ func (fn *FileNode) debug(w io.Writer, prefix string) {
 
 // InsertFileEvent inserts an event in a FileNode. This function returns true if a new entry was added, false if
 // the event was dropped.
-func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
+func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, remainingPath string, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducedPath string, resolvers *resolvers.EBPFResolvers) bool {
 	currentFn := fn
 	currentPath := remainingPath
 	newEntry := false
@@ -144,26 +148,48 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 		if ok {
 			currentFn = child
 			currentPath = currentPath[nextParentIndex:]
+			currentFn.ImageTags, _ = AppendIfNotPresent(currentFn.ImageTags, imageTag)
 			continue
 		}
 
 		// create new child
 		newEntry = true
-		if len(currentPath) <= nextParentIndex+1 {
-			if !dryRun {
-				currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, generationType, reducedPath, resolvers)
-				stats.FileNodes++
-			}
+		if dryRun {
 			break
 		}
-
-		newChild := NewFileNode(nil, nil, parent, generationType, "", resolvers)
-		if !dryRun {
-			currentFn.Children[parent] = newChild
+		if len(currentPath) <= nextParentIndex+1 {
+			currentFn.Children[parent] = NewFileNode(fileEvent, event, parent, imageTag, generationType, reducedPath, resolvers)
+			stats.FileNodes++
+			break
 		}
-
+		newChild := NewFileNode(nil, nil, parent, imageTag, generationType, "", resolvers)
+		currentFn.Children[parent] = newChild
 		currentFn = newChild
 		currentPath = currentPath[nextParentIndex:]
 	}
 	return newEntry
+}
+
+func (fn *FileNode) tagAllNodes(imageTag string) {
+	fn.ImageTags, _ = AppendIfNotPresent(fn.ImageTags, imageTag)
+	for _, child := range fn.Children {
+		child.tagAllNodes(imageTag)
+	}
+}
+
+func (fn *FileNode) evictImageTag(imageTag string) bool {
+	imageTags, removed := removeImageTagFromList(fn.ImageTags, imageTag)
+	if !removed {
+		return false
+	}
+	if len(imageTags) == 0 {
+		return true
+	}
+	fn.ImageTags = imageTags
+	for filename, child := range fn.Children {
+		if shouldRemoveNode := child.evictImageTag(imageTag); shouldRemoveNode {
+			delete(fn.Children, filename)
+		}
+	}
+	return false
 }

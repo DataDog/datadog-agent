@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -208,7 +209,7 @@ func TestMakeK8sSource(t *testing.T) {
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
 		cop:               containersorpods.NewDecidedChooser(containersorpods.LogPods),
-		workloadmetaStore: store,
+		workloadmetaStore: optional.NewOption[workloadmeta.Component](store),
 	}
 	for _, sourceConfigType := range []string{"docker", "containerd"} {
 		t.Run("source.Config.Type="+sourceConfigType, func(t *testing.T) {
@@ -251,7 +252,7 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
 		logimpl.MockModule(),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),

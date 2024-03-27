@@ -10,6 +10,7 @@ package agent
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -25,12 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // NewAgent returns a new Logs Agent
-func (a *agent) SetupPipeline(
-	processingRules []*config.ProcessingRule,
-) {
+func (a *agent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component]) {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
@@ -55,7 +55,7 @@ func (a *agent) SetupPipeline(
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor

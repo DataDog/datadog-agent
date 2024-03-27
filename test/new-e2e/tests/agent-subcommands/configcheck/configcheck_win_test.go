@@ -8,9 +8,11 @@ package configcheck
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
@@ -112,7 +114,7 @@ func (v *windowsConfigCheckSuite) TestWithAddedIntegrationsCheck() {
 	output := v.Env().Agent.Client.ConfigCheck()
 
 	result, err := MatchCheckToTemplate("http_check", output)
-	assert.NoError(v.T(), err)
+	require.NoError(v.T(), err)
 	assert.Contains(v.T(), result.Filepath, "file:C:\\ProgramData\\Datadog\\conf.d\\http_check.d\\conf.yaml")
 	assert.Contains(v.T(), result.InstanceID, "http_check:")
 	assert.Contains(v.T(), result.Settings, "name: My First Service")

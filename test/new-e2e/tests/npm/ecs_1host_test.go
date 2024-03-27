@@ -52,7 +52,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
 		if err != nil {
 			return err
 		}

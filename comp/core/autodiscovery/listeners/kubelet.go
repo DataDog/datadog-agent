@@ -8,6 +8,7 @@
 package listeners
 
 import (
+	"errors"
 	"sort"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // KubeletListener listens to pod creation through a subscription
@@ -26,7 +28,7 @@ type KubeletListener struct {
 }
 
 // NewKubeletListener returns a new KubeletListener.
-func NewKubeletListener(Config) (ServiceListener, error) {
+func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
@@ -37,8 +39,12 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	}
 	f := workloadmeta.NewFilter(&filterParams)
 
+	wmetaInstance, ok := wmeta.Get()
+	if !ok {
+		return nil, errors.New("workloadmeta store is not initialized")
+	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod, wmetaInstance)
 	if err != nil {
 		return nil, err
 	}

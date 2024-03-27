@@ -31,6 +31,7 @@ func (tx *EbpfTx) APIVersion() uint16 {
 	return tx.Request_api_version
 }
 
+// RecordsCount returns the number of records in the transaction
 func (tx *EbpfTx) RecordsCount() uint32 {
 	return tx.Records_count
 }

@@ -21,9 +21,9 @@ import (
 	basecmd "sigs.k8s.io/custom-metrics-apiserver/pkg/cmd"
 	"sigs.k8s.io/custom-metrics-apiserver/pkg/provider"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
-	generatedopenapi "github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics/api/generated/openapi"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
+	generatedopenapi "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"

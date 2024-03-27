@@ -1833,7 +1833,8 @@ def start_microvms(
     stack_name="kernel-matrix-testing-system",
     vmconfig=None,
     local=False,
-    provision=False,
+    provision_instance=False,
+    provision_microvms=False,
     run_agent=False,
     agent_version=None,
 ):
@@ -1850,10 +1851,11 @@ def start_microvms(
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
-        "--run-provision" if provision else "",
         "--local" if local else "",
         "--run-agent" if run_agent else "",
         f"--agent-version {agent_version}" if agent_version else "",
+        "--provision-instance" if provision_instance else "",
+        "--provision-microvms" if provision_microvms else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

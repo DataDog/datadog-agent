@@ -42,6 +42,7 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]uint32, 0, len(pan.Syscalls)),
+		ImageTags:      pan.ImageTags,
 	}
 
 	for _, rule := range pan.MatchedRules {
@@ -178,6 +179,7 @@ func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 		FirstSeen:      TimestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
+		ImageTags:      fan.ImageTags,
 	}
 
 	for _, rule := range fan.MatchedRules {
@@ -213,6 +215,7 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 	pdn := &adproto.DNSNode{
 		MatchedRules: make([]*adproto.MatchedRule, 0, len(dn.MatchedRules)),
 		Requests:     make([]*adproto.DNSInfo, 0, len(dn.Requests)),
+		ImageTags:    dn.ImageTags,
 	}
 
 	for _, rule := range dn.MatchedRules {
@@ -255,6 +258,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 			MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
 			Port:         uint32(bn.Port),
 			Ip:           bn.IP,
+			ImageTags:    bn.ImageTags,
 		}
 
 		for _, rule := range bn.MatchedRules {

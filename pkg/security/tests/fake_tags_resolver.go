@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"sync"
 
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -26,40 +27,44 @@ type FakeResolver struct {
 }
 
 // Start the resolver
-func (t *FakeResolver) Start(_ context.Context) error {
+func (fr *FakeResolver) Start(_ context.Context) error {
 	return nil
 }
 
 // Stop the resolver
-func (t *FakeResolver) Stop() error {
+func (fr *FakeResolver) Stop() error {
 	return nil
 }
 
 // Resolve returns the tags for the given id
-func (t *FakeResolver) Resolve(containerID string) []string {
-	t.Lock()
-	defer t.Unlock()
-	for index, id := range t.containerIDs {
+func (fr *FakeResolver) Resolve(containerID string) []string {
+	fakeTags := []string{
+		"image_tag:latest",
+		"container_id:" + containerID,
+	}
+	fr.Lock()
+	defer fr.Unlock()
+	for index, id := range fr.containerIDs {
 		if id == containerID {
-			return []string{"container_id:" + containerID, fmt.Sprintf("image_name:fake_ubuntu_%d", index+1)}
+			return append(fakeTags, fmt.Sprintf("image_name:fake_ubuntu_%d", index+1))
 		}
 	}
-	t.containerIDs = append(t.containerIDs, containerID)
-	return []string{"container_id:" + containerID, fmt.Sprintf("image_name:fake_ubuntu_%d", len(t.containerIDs))}
+	fr.containerIDs = append(fr.containerIDs, containerID)
+	return append(fakeTags, fmt.Sprintf("image_name:fake_ubuntu_%d", len(fr.containerIDs)))
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *FakeResolver) ResolveWithErr(id string) ([]string, error) {
-	return t.Resolve(id), nil
+func (fr *FakeResolver) ResolveWithErr(id string) ([]string, error) {
+	return fr.Resolve(id), nil
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *FakeResolver) GetValue(id string, tag string) string {
-	return utils.GetTagValue(tag, t.Resolve(id))
+func (fr *FakeResolver) GetValue(id string, tag string) string {
+	return utils.GetTagValue(tag, fr.Resolve(id))
 }
 
-// NewFakeResolver returns a new tags resolver
-func NewFakeResolver() tags.Resolver {
+// NewFakeResolverDifferentImageNames returns a new tags resolver
+func NewFakeResolverDifferentImageNames() tags.Resolver {
 	return &FakeResolver{}
 }
 
@@ -70,31 +75,114 @@ type FakeMonoResolver struct {
 }
 
 // Start the resolver
-func (t *FakeMonoResolver) Start(_ context.Context) error {
+func (fmr *FakeMonoResolver) Start(_ context.Context) error {
 	return nil
 }
 
 // Stop the resolver
-func (t *FakeMonoResolver) Stop() error {
+func (fmr *FakeMonoResolver) Stop() error {
 	return nil
 }
 
 // Resolve returns the tags for the given id
-func (t *FakeMonoResolver) Resolve(containerID string) []string {
-	return []string{"container_id:" + containerID, "image_name:fake_ubuntu"}
+func (fmr *FakeMonoResolver) Resolve(containerID string) []string {
+	return []string{"container_id:" + containerID, "image_name:fake_ubuntu", "image_tag:latest"}
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *FakeMonoResolver) ResolveWithErr(id string) ([]string, error) {
-	return t.Resolve(id), nil
+func (fmr *FakeMonoResolver) ResolveWithErr(id string) ([]string, error) {
+	return fmr.Resolve(id), nil
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *FakeMonoResolver) GetValue(id string, tag string) string {
-	return utils.GetTagValue(tag, t.Resolve(id))
+func (fmr *FakeMonoResolver) GetValue(id string, tag string) string {
+	return utils.GetTagValue(tag, fmr.Resolve(id))
 }
 
 // NewFakeMonoResolver returns a new tags resolver
 func NewFakeMonoResolver() tags.Resolver {
 	return &FakeMonoResolver{}
+}
+
+// This fake resolver will let us specify the next containerID to be resolved
+
+// FakeManualResolver represents a fake manual resolver
+type FakeManualResolver struct {
+	sync.Mutex
+	containerToSelector map[string]*cgroupModel.WorkloadSelector
+	cpt                 int
+	nextSelectors       []*cgroupModel.WorkloadSelector
+}
+
+// Start the resolver
+func (fmr *FakeManualResolver) Start(_ context.Context) error {
+	return nil
+}
+
+// Stop the resolver
+func (fmr *FakeManualResolver) Stop() error {
+	return nil
+}
+
+// SpecifyNextSelector specifies the next image name and tag to be resolved
+func (fmr *FakeManualResolver) SpecifyNextSelector(selector *cgroupModel.WorkloadSelector) {
+	fmr.Lock()
+	defer fmr.Unlock()
+	fmr.nextSelectors = append(fmr.nextSelectors, selector)
+}
+
+// GetContainerSelector returns the container selector
+func (fmr *FakeManualResolver) GetContainerSelector(containerID string) *cgroupModel.WorkloadSelector {
+	fmr.Lock()
+	defer fmr.Unlock()
+	if selector, found := fmr.containerToSelector[containerID]; found {
+		return selector
+	}
+	return nil
+}
+
+// Resolve returns the tags for the given id
+func (fmr *FakeManualResolver) Resolve(containerID string) []string {
+	fmr.Lock()
+	defer fmr.Unlock()
+
+	// first, use cache if any
+	selector, alreadyResolved := fmr.containerToSelector[containerID]
+	if alreadyResolved {
+		return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}
+	}
+
+	// if no cache and there is a pending list, use it
+	if len(fmr.nextSelectors) > 0 {
+		selector = fmr.nextSelectors[0]
+		fmr.nextSelectors = fmr.nextSelectors[1:]
+		fmr.containerToSelector[containerID] = selector
+		return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}
+	}
+
+	// otherwise generate a new selector
+	fmr.cpt++
+	selector = &cgroupModel.WorkloadSelector{
+		Image: fmt.Sprintf("fake_name_%d", fmr.cpt),
+		Tag:   "fake_tag",
+	}
+	fmr.containerToSelector[containerID] = selector
+	return []string{"container_id:" + containerID, "image_name:" + selector.Image, "image_tag:" + selector.Tag}
+}
+
+// ResolveWithErr returns the tags for the given id
+func (fmr *FakeManualResolver) ResolveWithErr(id string) ([]string, error) {
+	return fmr.Resolve(id), nil
+}
+
+// GetValue return the tag value for the given id and tag name
+func (fmr *FakeManualResolver) GetValue(id string, tag string) string {
+	return utils.GetTagValue(tag, fmr.Resolve(id))
+}
+
+// NewFakeManualResolver returns a new tags resolver
+func NewFakeManualResolver() *FakeManualResolver {
+	return &FakeManualResolver{
+		containerToSelector: make(map[string]*cgroupModel.WorkloadSelector),
+	}
 }

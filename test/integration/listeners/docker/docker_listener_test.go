@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -43,6 +44,13 @@ type DockerListenerTestSuite struct {
 	delSvc     chan listeners.Service
 	stop       chan struct{}
 	m          sync.RWMutex
+	wmeta      workloadmeta.Component
+}
+
+type deps struct {
+	fx.In
+	Tagger tagger.Component
+	WMeta  workloadmeta.Component
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
@@ -64,7 +72,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	}
 
 	var err error
-	_ = fxutil.Test[tagger.Component](suite.T(), fx.Options(
+	deps := fxutil.Test[deps](suite.T(), fx.Options(
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
@@ -76,7 +84,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		tagger.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
-
+	suite.wmeta = deps.WMeta
 	suite.dockerutil, err = docker.GetDockerUtil()
 	require.Nil(suite.T(), err, "can't connect to docker")
 
@@ -91,7 +99,7 @@ func (suite *DockerListenerTestSuite) TearDownSuite() {
 }
 
 func (suite *DockerListenerTestSuite) SetupTest() {
-	dl, err := listeners.NewContainerListener(&config.Listeners{})
+	dl, err := listeners.NewContainerListener(&config.Listeners{}, optional.NewOption(suite.wmeta))
 	if err != nil {
 		panic(err)
 	}

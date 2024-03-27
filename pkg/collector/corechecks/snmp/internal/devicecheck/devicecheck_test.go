@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -111,9 +112,9 @@ profiles:
 		"some_tag:some_tag_value",
 		"prefix:f",
 		"suffix:oo_sys_name"}
-	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
@@ -147,7 +148,7 @@ profiles:
 		"snmp_device:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
-	telemetryTags = append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 
@@ -300,9 +301,9 @@ collect_topology: false
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4"}
-	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
@@ -1046,9 +1047,9 @@ profiles:
 		"some_tag:some_tag_value",
 		"prefix:f",
 		"suffix:oo_sys_name"}
-	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
@@ -1082,7 +1083,7 @@ profiles:
 		"snmp_device:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
-	telemetryTags = append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 
@@ -1189,9 +1190,9 @@ profiles:
 		"some_tag:some_tag_value",
 		"prefix:f",
 		"suffix:oo_sys_name"}
-	telemetryTags := append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
-	row1Tags := append(common.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
-	row2Tags := append(common.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
+	telemetryTags := append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	row1Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow1", "interface_alias:descRow1", "table_static_tag:val")
+	row2Tags := append(utils.CopyStrings(snmpTags), "interface:nameRow2", "interface_alias:descRow2", "table_static_tag:val")
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 	sender.AssertMetric(t, "MonotonicCount", "snmp.ifInErrors", float64(70.5), "", row1Tags)
@@ -1225,7 +1226,7 @@ profiles:
 		"snmp_device:1.2.3.4",
 		"snmp_profile:another-profile",
 		"unknown_symbol:100"}
-	telemetryTags = append(common.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
+	telemetryTags = append(utils.CopyStrings(snmpTags), "agent_version:"+version.AgentVersion)
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysUpTimeInstance", float64(20), "", snmpTags)
 

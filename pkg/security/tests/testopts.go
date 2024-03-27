@@ -36,6 +36,7 @@ type testOpts struct {
 	activityDumpLocalStorageCompression        bool
 	activityDumpLocalStorageFormats            []string
 	enableSecurityProfile                      bool
+	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
 	enableAutoSuppression                      bool
@@ -97,6 +98,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
 		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
 		to.enableSecurityProfile == opts.enableSecurityProfile &&
+		to.securityProfileMaxImageTags == opts.securityProfileMaxImageTags &&
 		to.securityProfileDir == opts.securityProfileDir &&
 		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
 		to.enableAutoSuppression == opts.enableAutoSuppression &&

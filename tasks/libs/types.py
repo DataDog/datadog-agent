@@ -26,7 +26,7 @@ class Test:
             return output.stdout.decode('utf-8').splitlines()[0]
         except Exception as e:
             print(f"Exception '{e}' while finding test {self.name} from package {self.package}.")
-            print("Setting file to '.none' to notify Agent Platform")
+            print("Setting file to '.none' to notify Agent Developer Experience")
             return '.none'
 
     def __get_owners(self, OWNERS):
