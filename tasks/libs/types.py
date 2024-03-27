@@ -3,6 +3,8 @@ import subprocess
 from collections import defaultdict
 from enum import Enum
 
+from gitlab.v4.objects import ProjectJob
+
 
 class Test:
     PACKAGE_PREFIX = "github.com/DataDog/datadog-agent/"
@@ -59,12 +61,12 @@ class FailedJobs:
         self.mandatory_infra_job_failures = []
         self.optional_infra_job_failures = []
 
-    def add_failed_job(self, job):
-        if job["failure_type"] == FailedJobType.INFRA_FAILURE and job["allow_failure"]:
+    def add_failed_job(self, job: ProjectJob):
+        if job.failure_type == FailedJobType.INFRA_FAILURE and job.allow_failure:
             self.optional_infra_job_failures.append(job)
-        elif job["failure_type"] == FailedJobType.INFRA_FAILURE and not job["allow_failure"]:
+        elif job.failure_type == FailedJobType.INFRA_FAILURE and not job.allow_failure:
             self.mandatory_infra_job_failures.append(job)
-        elif job["allow_failure"]:
+        elif job.allow_failure:
             self.optional_job_failures.append(job)
         else:
             self.mandatory_job_failures.append(job)

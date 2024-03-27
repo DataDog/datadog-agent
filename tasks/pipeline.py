@@ -9,7 +9,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 from gitlab.v4.objects import Project
-from gitlab import GitlabGetError, GitlabError
+from gitlab import GitlabError
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
@@ -84,7 +84,7 @@ def check_deploy_pipeline(repo: Project, git_ref, release_version_6, release_ver
         tag_name = "6." + "".join(match.groups())
         try:
             repo.tags.get(tag_name)
-        except GitlabGetError:
+        except GitlabError:
             print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
             raise Exit(code=1)
 
@@ -97,7 +97,7 @@ def check_deploy_pipeline(repo: Project, git_ref, release_version_6, release_ver
             tag_name = "7." + "".join(match.groups())
             try:
                 repo.tags.get(tag_name)
-            except GitlabGetError:
+            except GitlabError:
                 print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
                 raise Exit(code=1)
 
@@ -167,7 +167,7 @@ instead.""",
     )
 
 
-# TODO Cc : Test
+# TODO Cc : Tested
 @task
 def auto_cancel_previous_pipelines(ctx):
     """
@@ -209,7 +209,6 @@ def auto_cancel_previous_pipelines(ctx):
             raise Exit(1)
 
 
-# TODO Cc
 @task
 def run(
     ctx,
@@ -339,7 +338,7 @@ def run(
     wait_for_pipeline(repo, pipeline)
 
 
-# TODO Cc
+# TODO Cc : Tested
 @task
 def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
     """
@@ -446,6 +445,8 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     )
 
     try:
+        data['variables'] = {{'key': key, 'value': value} for (key, value) in data['variables'].items()}
+
         pipeline = repo.pipelines.create(data)
     except GitlabError as e:
         raise Exit(f"Failed to create child pipeline: {e}", code=1)
@@ -590,7 +591,7 @@ def get_schedules(_):
 
     repo = get_gitlab_repo()
 
-    for sched in repo.pipelineschedules.list(all=True):
+    for sched in repo.pipelineschedules.list(per_page=100, all=True):
         sched.pprint()
 
 

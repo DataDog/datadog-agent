@@ -141,7 +141,7 @@ def gen_config_from_ci_pipeline(
 
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
     pipeline_obj = repo.pipelines.get(pipeline)
-    jobs = pipeline_obj.jobs.list(all=True)
+    jobs = pipeline_obj.jobs.list(per_page=100, all=True)
     for job in jobs:
         jobinfo = job.asdict()
         name = jobinfo.get("name", "")

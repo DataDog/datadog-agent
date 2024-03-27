@@ -13,10 +13,11 @@ from time import sleep
 
 from invoke import Failure, task
 from invoke.exceptions import Exit
+from gitlab import GitlabError
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab_api import Gitlab, get_gitlab_token
+from tasks.libs.common.gitlab_api import get_gitlab_repo
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
@@ -1328,7 +1329,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    gitlab = Gitlab(project_name=GITHUB_REPO_NAME, api_token=get_gitlab_token())
+    repo = get_gitlab_repo()
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1377,7 +1378,11 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     print(color_message(f"Waiting until the {new_version} tag appears in Gitlab", "bold"))
     gitlab_tag = None
     while not gitlab_tag:
-        gitlab_tag = gitlab.find_tag(str(new_version)).get("name", None)
+        try:
+            gitlab_tag = repo.tags.get(str(new_version))
+        except GitlabError:
+            break
+
         sleep(5)
 
     print(color_message("Creating RC pipeline", "bold"))
