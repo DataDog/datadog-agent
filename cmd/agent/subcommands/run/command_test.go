@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -23,7 +24,7 @@ func TestCommand(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(pidParam pidimpl.Params, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, secretParams.Enabled)
 		})
 }
@@ -33,8 +34,8 @@ func TestCommandPidfile(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, "/pid/file", cliParams.pidfilePath)
+		func(pidParams pidimpl.Params, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, "/pid/file", pidParams.PIDfilePath)
 			require.Equal(t, true, secretParams.Enabled)
 		})
 }

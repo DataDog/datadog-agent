@@ -8,7 +8,6 @@ package run
 
 import (
 	"context"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -17,15 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/localapi/localapiimpl"
@@ -54,13 +53,7 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 
 func runFxWrapper(params *cliParams) error {
 	ctx := context.Background()
-	if params.PIDFilePath != "" {
-		err := pidfile.WritePID(params.PIDFilePath)
-		if err != nil {
-			return log.Errorf("Error while writing PID file, exiting: %v", err)
-		}
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), params.PIDFilePath)
-	}
+
 	return fxutil.OneShot(
 		run,
 		fx.Provide(func() context.Context { return ctx }),
@@ -80,9 +73,10 @@ func runFxWrapper(params *cliParams) error {
 		rcserviceimpl.Module(),
 		updaterimpl.Module(),
 		localapiimpl.Module(),
+		fx.Supply(pidimpl.NewParams(params.PIDFilePath)),
 	)
 }
 
-func run(_ localapi.Component) error {
+func run(_ pid.Component, _ localapi.Component) error {
 	select {}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -40,5 +41,6 @@ func Bundle() fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
 		sysprobeconfigimpl.Module(),
 		telemetry.Module(),
-		hostnameimpl.Module())
+		hostnameimpl.Module(),
+		pidimpl.Module()) // You must supply pidimpl.NewParams in order to use it
 }
