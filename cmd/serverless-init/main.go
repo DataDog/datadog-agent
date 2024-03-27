@@ -48,7 +48,7 @@ import (
 )
 
 const (
-	datadogConfigPath = "/datadog.yaml"
+	datadogConfigPath = "/var/task/datadog.yaml"
 )
 
 func main() {
