@@ -3,6 +3,9 @@ import functools
 import platform
 import sys
 from time import sleep, time
+from typing import List
+
+from gitlab.v4.objects import ProjectPipeline, Project, ProjectJob
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.user_interactions import yes_no_question
@@ -15,11 +18,12 @@ class FilteredOutException(Exception):
     pass
 
 
-def get_running_pipelines_on_same_ref(gitlab, ref, sha=None):
-    pipelines = gitlab.all_pipelines_for_ref(ref, sha=sha)
+# TODO Cc : Tested
+def get_running_pipelines_on_same_ref(repo: Project, ref, sha=None) -> List[ProjectPipeline]:
+    pipelines = repo.pipelines.list(ref=ref, sha=sha, all=True)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
-    running_pipelines = [pipeline for pipeline in pipelines if pipeline["status"] in RUNNING_STATUSES]
+    running_pipelines = [pipeline for pipeline in pipelines if pipeline.status in RUNNING_STATUSES]
 
     return running_pipelines
 
@@ -32,17 +36,18 @@ def parse_datetime(dt):
     return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
 
 
-def cancel_pipelines_with_confirmation(gitlab, pipelines):
+# TODO Cc : Tested
+def cancel_pipelines_with_confirmation(repo: Project, pipelines: List[ProjectPipeline]):
     for pipeline in pipelines:
-        commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline['id'])
+        commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(repo, pipeline)
 
         print(
             color_message("Pipeline", "blue"),
-            color_message(pipeline['id'], "bold"),
-            color_message(f"(https://gitlab.ddbuild.io/{gitlab.project_name}/pipelines/{pipeline['id']})", "green"),
+            color_message(pipeline.id, "bold"),
+            color_message(f"({repo.web_url}/pipelines/{pipeline.id})", "green"),
         )
 
-        pipeline_creation_date = pipeline['created_at']
+        pipeline_creation_date = pipeline.created_at
         print(
             f"{color_message('Started at', 'blue')} {parse_datetime(pipeline_creation_date).astimezone():%c} ({pipeline_creation_date})"
         )
@@ -56,13 +61,14 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
         )
 
         if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
-            gitlab.cancel_pipeline(pipeline['id'])
-            print(f"Pipeline {color_message(pipeline['id'], 'bold')} has been cancelled.\n")
+            pipeline.cancel()
+            print(f"Pipeline {color_message(pipeline.id, 'bold')} has been cancelled.\n")
         else:
-            print(f"Pipeline {color_message(pipeline['id'], 'bold')} will keep running.\n")
+            print(f"Pipeline {color_message(pipeline.id, 'bold')} will keep running.\n")
 
 
-def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
+# TODO Cc : Tested
+def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_cancel_stages):
     """
     Gracefully cancel pipeline
     - Cancel all the jobs that did not start to run yet
@@ -70,13 +76,14 @@ def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
     - Jobs in the stages specified in 'force_cancel_stages' variables will always be canceled even if running
     """
 
-    jobs = gitlab.all_jobs(pipeline["id"])
+    jobs = pipeline.jobs.list(all=True)
+    jobs: List[ProjectJob] = [repo.jobs.get(job.id) for job in jobs]
 
     for job in jobs:
-        if job["stage"] in force_cancel_stages or (
-            job["status"] not in ["running", "canceled"] and "cleanup" not in job["name"]
+        if job.stage in force_cancel_stages or (
+            job.status not in ["running", "canceled"] and "cleanup" not in job.name
         ):
-            gitlab.cancel_job(job["id"])
+            job.cancel()
 
 
 def trigger_agent_pipeline(
@@ -148,12 +155,13 @@ def trigger_agent_pipeline(
     raise RuntimeError(f"Invalid response from Gitlab: {result}")
 
 
-def wait_for_pipeline(gitlab, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC):
+def wait_for_pipeline(repo: Project, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_FINISH_TIMEOUT_SEC):
     """
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
     """
-    commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(gitlab, pipeline_id)
+    pipeline = repo.pipelines.get(pipeline_id)
+    commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(repo, pipeline)
 
     print(
         color_message(
@@ -169,7 +177,7 @@ def wait_for_pipeline(gitlab, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_
     print(
         color_message(
             "Pipeline Link: "
-            + color_message(f"https://gitlab.ddbuild.io/{gitlab.project_name}/pipelines/{pipeline_id}", "green"),
+            + color_message(f"{repo.web_url}/pipelines/{pipeline_id}", "green"),
             "blue",
         ),
         flush=True,
@@ -177,18 +185,19 @@ def wait_for_pipeline(gitlab, pipeline_id, pipeline_finish_timeout_sec=PIPELINE_
 
     print(color_message("Waiting for pipeline to finish. Exiting won't cancel it.", "blue"), flush=True)
 
-    f = functools.partial(pipeline_status, gitlab, pipeline_id)
+    f = functools.partial(pipeline_status, repo, pipeline_id)
 
     loop_status(f, pipeline_finish_timeout_sec)
 
+    # TODO Cc : return Pipeline ?
     return pipeline_id
 
 
-def get_commit_for_pipeline(gitlab, pipeline_id):
-    pipeline = gitlab.pipeline(pipeline_id)
-    sha = pipeline['sha']
-    commit = gitlab.commit(sha)
-    return commit['author_name'], commit['short_id'], commit['title']
+def get_commit_for_pipeline(repo: Project, pipeline: ProjectPipeline):
+    sha = pipeline.sha
+    commit = repo.commits.get(sha)
+
+    return commit.author_name, commit.short_id, commit.title
 
 
 def loop_status(callable, timeout_sec):
@@ -206,10 +215,11 @@ def loop_status(callable, timeout_sec):
         sleep(10)
 
 
-def pipeline_status(gitlab, pipeline_id, job_status):
+def pipeline_status(repo, pipeline_id, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
+    # TODO Cc
     jobs = gitlab.all_jobs(pipeline_id)
 
     job_status = update_job_status(jobs, job_status)

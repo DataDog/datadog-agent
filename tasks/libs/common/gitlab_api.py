@@ -5,6 +5,7 @@ import subprocess
 from urllib.parse import quote
 
 import gitlab
+from gitlab.v4.objects import Project
 from invoke.exceptions import Exit
 
 from tasks.libs.common.remote_api import APIError, RemoteAPI
@@ -369,7 +370,7 @@ def get_gitlab_bot_token():
     return os.environ["GITLAB_BOT_TOKEN"]
 
 
-def get_gitlab_api(token=None):
+def get_gitlab_api(token=None) -> gitlab.Gitlab:
     """
     Returns the gitlab api object with the api token.
     The token is the one of get_gitlab_token() by default.
@@ -379,7 +380,7 @@ def get_gitlab_api(token=None):
     return gitlab.Gitlab(BASE_URL, private_token=token)
 
 
-def get_gitlab_repo(repo='DataDog/datadog-agent', token=None):
+def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
     api = get_gitlab_api(token)
     repo = api.projects.get(repo)
 
@@ -392,6 +393,13 @@ from invoke.tasks import task
 
 @task
 def test_gitlab(_):
+    from tasks.libs.common.gitlab_api import get_gitlab_api, get_gitlab_repo
+    from tasks.libs.pipeline_tools import cancel_pipelines_with_confirmation, gracefully_cancel_pipeline, get_running_pipelines_on_same_ref
+
+    api = get_gitlab_api()
+    repo = get_gitlab_repo()
+    ref = 'celian/gitlab-use-module-acix-65'
+
     # branch = 'celian/gitlab-use-module-acix-65'
     # api = Gitlab(api_token=get_gitlab_token())
     # api.test_project_found()
@@ -399,9 +407,31 @@ def test_gitlab(_):
 
     # print(api.all_pipelines_for_ref(branch))
     # print(api.last_pipeline_for_ref(branch))
-    from tasks.libs.pipeline_data import get_failed_jobs
+    # from tasks.libs.pipeline_data import get_failed_jobs
+    # print('failed', get_failed_jobs('DataDog/datadog-agent', '30533054'))
+    # from tasks.libs.pipeline_notifications import get_failed_tests
 
-    # ok 30750076
-    # fail 30533054
+    # # ok 30750076
+    # # fail 30533054
+    # job = get_gitlab_repo().jobs.get(469284993).asdict()
+    # print(get_failed_tests('DataDog/datadog-agent', job))
 
-    print('failed', get_failed_jobs('DataDog/datadog-agent', '30533054'))
+    # --- Create / cancel pipeline ---
+    # Get
+    pipeline = repo.pipelines.get(30899745)
+    # # Create
+    # pipeline = repo.pipelines.create({'ref': 'celian/gitlab-use-module-acix-65'})
+    print(f'Pipeline {repo.web_url}/pipelines/{pipeline.id}')
+    # # Cancel
+    # pipelines = [30899006, 30899063]
+    # pipelines = [repo.pipelines.get(n) for n in pipelines]
+    # cancel_pipelines_with_confirmation(repo, pipelines)
+    # Cancel jobs
+    # gracefully_cancel_pipeline(repo, pipeline, ['source_test'])
+    # pipeline.cancel()
+    # Query
+    print('pipelines:', get_running_pipelines_on_same_ref(repo, ref))
+
+
+
+

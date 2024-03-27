@@ -8,10 +8,12 @@ from datetime import datetime, timedelta
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
+from gitlab.v4.objects import Project
+from gitlab import GitlabGetError
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab_api import Gitlab, get_gitlab_bot_token, get_gitlab_token
+from tasks.libs.common.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -53,7 +55,7 @@ def GitlabYamlLoader():
 # Tasks to trigger pipelines
 
 
-def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7, repo_branch):
+def check_deploy_pipeline(repo: Project, git_ref, release_version_6, release_version_7, repo_branch):
     """
     Run checks to verify a deploy pipeline is valid:
     - it targets a valid repo branch
@@ -80,9 +82,9 @@ def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7,
     if release_version_6 and match:
         # release_version_6 is not empty and git_ref matches v7 pattern, construct v6 tag and check.
         tag_name = "6." + "".join(match.groups())
-        gitlab_tag = gitlab.find_tag(tag_name)
-
-        if ("name" not in gitlab_tag) or gitlab_tag["name"] != tag_name:
+        try:
+            repo.tags.get(tag_name)
+        except GitlabGetError:
             print(f"Cannot find GitLab v6 tag {tag_name} while trying to build git ref {git_ref}")
             raise Exit(code=1)
 
@@ -93,15 +95,16 @@ def check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7,
         if release_version_7 and match:
             # release_version_7 is not empty and git_ref matches v6 pattern, construct v7 tag and check.
             tag_name = "7." + "".join(match.groups())
-            gitlab_tag = gitlab.find_tag(tag_name)
-
-            if ("name" not in gitlab_tag) or gitlab_tag["name"] != tag_name:
+            try:
+                repo.tags.get(tag_name)
+            except GitlabGetError:
                 print(f"Cannot find GitLab v7 tag {tag_name} while trying to build git ref {git_ref}")
                 raise Exit(code=1)
 
             print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
 
 
+# TODO Cc : Tested
 @task
 def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_sha=False, sha=None):
     """
@@ -109,8 +112,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     should be cancelled.
     """
 
-    gitlab = Gitlab(api_token=get_gitlab_token())
-    gitlab.test_project_found()
+    repo = get_gitlab_repo()
 
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
@@ -123,14 +125,14 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     elif not sha:
         print(f"Git sha not provided, fetching all running pipelines on {git_ref}")
 
-    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref, sha)
+    pipelines = get_running_pipelines_on_same_ref(repo, git_ref, sha)
 
     print(
         f"Found {len(pipelines)} running pipeline(s) matching the request.",
         "They are ordered from the newest one to the oldest one.\n",
         sep='\n',
     )
-    cancel_pipelines_with_confirmation(gitlab, pipelines)
+    cancel_pipelines_with_confirmation(repo, pipelines)
 
 
 def workflow_rules(gitlab_file=".gitlab-ci.yml"):
@@ -165,6 +167,7 @@ instead.""",
     )
 
 
+# TODO Cc : Test
 @task
 def auto_cancel_previous_pipelines(ctx):
     """
@@ -174,42 +177,41 @@ def auto_cancel_previous_pipelines(ctx):
     if not os.environ.get('GITLAB_TOKEN'):
         raise Exit("GITLAB_TOKEN variable needed to cancel pipelines on the same ref.", 1)
 
-    gitlab = Gitlab(api_token=get_gitlab_token())
-    gitlab.test_project_found()
-
     git_ref = os.getenv("CI_COMMIT_REF_NAME")
     git_sha = os.getenv("CI_COMMIT_SHA")
 
-    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
-    pipelines_without_current = [p for p in pipelines if p["sha"] != git_sha]
+    repo = get_gitlab_repo()
+    pipelines = get_running_pipelines_on_same_ref(repo, git_ref)
+    pipelines_without_current = [p for p in pipelines if p.sha != git_sha]
 
     for pipeline in pipelines_without_current:
         # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
-        is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline["sha"]} {git_sha}', warn=True, hide="both")
+        is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
         if is_ancestor.exited == 0:
             print(
-                f'Gracefully canceling jobs that are not canceled on pipeline {pipeline["id"]} ({pipeline["web_url"]})'
+                f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})'
             )
-            gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
+            gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
         elif is_ancestor.exited == 1:
-            print(f'{pipeline["sha"]} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline["id"]}')
+            print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
         elif is_ancestor.exited == 128:
             min_time_before_cancel = 5
             print(
-                f'Could not determine if {pipeline["sha"]} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
+                f'Could not determine if {pipeline.sha} is an ancestor of {git_sha}, probably because it has been deleted from the history because of force push'
             )
-            if datetime.strptime(pipeline["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.now() - timedelta(
+            if datetime.strptime(pipeline.created_at, "%Y-%m-%dT%H:%M:%S.%fZ") < datetime.now() - timedelta(
                 minutes=min_time_before_cancel
             ):
                 print(
-                    f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline["id"]}'
+                    f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline.id}'
                 )
-                gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages=["package_build"])
+                gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
         else:
             print(is_ancestor.stderr)
             raise Exit(1)
 
 
+# TODO Cc : Test
 @task
 def run(
     ctx,
@@ -265,8 +267,7 @@ def run(
       inv pipeline.run --deploy --use-release-entries --major-versions "6,7" --git-ref "7.32.0" --repo-branch "stable"
     """
 
-    gitlab = Gitlab(api_token=get_gitlab_token())
-    gitlab.test_project_found()
+    repo = get_gitlab_repo()
 
     if (not git_ref and not here) or (git_ref and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
@@ -289,7 +290,7 @@ def run(
 
     if deploy:
         # Check the validity of the deploy pipeline
-        check_deploy_pipeline(gitlab, git_ref, release_version_6, release_version_7, repo_branch)
+        check_deploy_pipeline(repo, git_ref, release_version_6, release_version_7, repo_branch)
         # Force all builds and kitchen tests to be run
         if not all_builds:
             print(
@@ -308,7 +309,7 @@ def run(
             )
             e2e_tests = True
 
-    pipelines = get_running_pipelines_on_same_ref(gitlab, git_ref)
+    pipelines = get_running_pipelines_on_same_ref(repo, git_ref)
 
     if pipelines:
         print(
@@ -318,11 +319,11 @@ def run(
             "They are ordered from the newest one to the oldest one.\n",
             sep='\n',
         )
-        cancel_pipelines_with_confirmation(gitlab, pipelines)
+        cancel_pipelines_with_confirmation(repo, pipelines)
 
     try:
         pipeline_id = trigger_agent_pipeline(
-            gitlab,
+            repo,
             git_ref,
             release_version_6,
             release_version_7,
@@ -337,7 +338,7 @@ def run(
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
         return
 
-    wait_for_pipeline(gitlab, pipeline_id)
+    wait_for_pipeline(repo, pipeline_id)
 
 
 @task
@@ -355,8 +356,7 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     inv pipeline.follow --id 1234567
     """
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
-    gitlab.test_project_found()
+    repo = get_gitlab_repo(project_name)
 
     args_given = 0
     if id is not None:
@@ -372,18 +372,18 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
         )
 
     if id is not None:
-        wait_for_pipeline(gitlab, id)
+        wait_for_pipeline(repo, id)
     elif git_ref is not None:
-        wait_for_pipeline_from_ref(gitlab, git_ref)
+        wait_for_pipeline_from_ref(repo, git_ref)
     elif here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-        wait_for_pipeline_from_ref(gitlab, git_ref)
+        wait_for_pipeline_from_ref(repo, git_ref)
 
 
-def wait_for_pipeline_from_ref(gitlab, ref):
-    pipeline = gitlab.last_pipeline_for_ref(ref)
+def wait_for_pipeline_from_ref(repo, ref):
+    pipeline = last_pipeline_for_ref(ref)
     if pipeline is not None:
-        wait_for_pipeline(gitlab, pipeline['id'])
+        wait_for_pipeline(repo, pipeline.id)
     else:
         print(f"No pipelines found for {ref}")
         raise Exit(code=1)
@@ -454,11 +454,12 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     if follow:
         print("Waiting for child pipeline to finish...", flush=True)
 
-        wait_for_pipeline(gitlab, pipeline_id)
+        wait_for_pipeline(repo, pipeline_id)
 
+        # TODO Cc
         # Check pipeline status
         pipeline = gitlab.pipeline(pipeline_id)
-        pipestatus = pipeline["status"].lower().strip()
+        pipestatus = pipeline.status.lower().strip()
 
         if pipestatus != "success":
             raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
