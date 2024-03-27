@@ -242,7 +242,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-20240326195822-eef61a706043 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
