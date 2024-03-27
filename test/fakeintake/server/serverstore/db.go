@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -27,9 +26,8 @@ const (
 
 // sqlStore implements a thread-safe storage for raw and json dumped payloads using SQLite
 type sqlStore struct {
-	mutex sync.RWMutex
-	db    *sql.DB
-	path  string
+	db   *sql.DB
+	path string
 
 	stopCh  chan struct{}
 	metrics sqlMetrics
@@ -114,8 +112,6 @@ func newSQLStore() *sqlStore {
 
 // Close closes the store
 func (s *sqlStore) Close() {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	s.db.Close()
 	s.stopCh <- struct{}{}
 	os.Remove(s.path)
@@ -123,8 +119,6 @@ func (s *sqlStore) Close() {
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
 func (s *sqlStore) AppendPayload(route string, data []byte, encoding string, collectTime time.Time) error {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	now := time.Now()
 	_, err := s.db.Exec("INSERT INTO payloads (timestamp, data, encoding, route) VALUES (?, ?, ?, ?)", collectTime.Unix(), data, encoding, route)
 	if err != nil {
@@ -139,8 +133,6 @@ func (s *sqlStore) AppendPayload(route string, data []byte, encoding string, col
 
 // CleanUpPayloadsOlderThan removes payloads older than specified time
 func (s *sqlStore) CleanUpPayloadsOlderThan(time time.Time) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	log.Printf("Cleaning up payloads")
 	_, err := s.db.Exec("DELETE FROM payloads WHERE timestamp < ?", time.Unix())
 	if err != nil {
@@ -165,8 +157,6 @@ func (s *sqlStore) CleanUpPayloadsOlderThan(time time.Time) {
 
 // GetRawPayloads returns all raw payloads for a given route
 func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 	now := time.Now()
 	rows, err := s.db.Query("SELECT timestamp, data, encoding FROM payloads WHERE route = ?", route)
 	if err != nil {
@@ -197,8 +187,6 @@ func (s *sqlStore) GetRawPayloads(route string) []api.Payload {
 
 // GetRouteStats returns the number of payloads for each route
 func (s *sqlStore) GetRouteStats() (statsByRoute map[string]int) {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 	statsByRoute = make(map[string]int)
 	rows, err := s.db.Query("SELECT route, COUNT(*) FROM payloads GROUP BY route")
 	if err != nil {
@@ -222,8 +210,6 @@ func (s *sqlStore) GetRouteStats() (statsByRoute map[string]int) {
 
 // Flush flushes the store
 func (s *sqlStore) Flush() {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
 	_, err := s.db.Exec("DELETE FROM payloads")
 	if err != nil {
 		log.Println("Error flushing payloads: ", err)
@@ -257,8 +243,6 @@ func (s *sqlStore) startMetricsCollector() {
 }
 
 func (s *sqlStore) collectDiskUsage() {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 	// update disk usage
 	var diskUsage int
 	err := s.db.QueryRow("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()").Scan(&diskUsage)
@@ -270,8 +254,6 @@ func (s *sqlStore) collectDiskUsage() {
 }
 
 func (s *sqlStore) collectPayloads() {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
 	routes, err := s.db.Query("SELECT route, COUNT(*) FROM payloads GROUP BY route")
 	if err != nil {
 		log.Println("Error fetching route stats: ", err)
