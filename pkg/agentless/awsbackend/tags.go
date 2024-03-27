@@ -14,6 +14,16 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
+func cloudResourceIsTagged(tags []ec2types.Tag) bool {
+	for _, tag := range tags {
+		if *tag.Key == "DatadogAgentlessScanner" && *tag.Value == "true" {
+			return true
+		}
+	}
+	return false
+
+}
+
 func cloudResourceTagSpec(scan *types.ScanTask, target types.CloudID, resourceType types.ResourceType) []ec2types.TagSpecification {
 	var resType ec2types.ResourceType
 	switch resourceType {
