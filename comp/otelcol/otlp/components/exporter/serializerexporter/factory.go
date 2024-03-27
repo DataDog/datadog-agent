@@ -17,11 +17,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+
+        "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter/internal/metadata"
 )
 
 const (
-	// TypeStr defines the serializer exporter type string.
-	TypeStr   = "serializer"
 	stability = component.StabilityLevelStable
 )
 
@@ -45,7 +45,7 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 	}
 
 	return exp.NewFactory(
-		TypeStr,
+		metadata.Type,
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)

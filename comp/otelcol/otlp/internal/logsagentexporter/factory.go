@@ -16,11 +16,12 @@ import (
 	"go.opentelemetry.io/collector/component"
 	exp "go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+
+        "github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/logsagentexporter/internal/metadata"
 )
 
 const (
 	// TypeStr defines the logsagent exporter type string.
-	TypeStr       = "logsagent"
 	stability     = component.StabilityLevelStable
 	logSourceName = "OTLP log ingestion"
 )
@@ -34,7 +35,7 @@ func NewFactory(logsAgentChannel chan *message.Message) exp.Factory {
 	f := &factory{logsAgentChannel: logsAgentChannel}
 
 	return exp.NewFactory(
-		TypeStr,
+		metadata.Type,
 		func() component.Config { return &struct{}{} },
 		exp.WithLogs(f.createLogsExporter, stability),
 	)
