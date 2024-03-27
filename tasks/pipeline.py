@@ -8,7 +8,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 from gitlab.v4.objects import Project
-from gitlab import GitlabGetError
+from gitlab import GitlabGetError, GitlabError
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
@@ -187,9 +187,7 @@ def auto_cancel_previous_pipelines(ctx):
         # We cancel pipeline only if it correspond to a commit that is an ancestor of the current commit
         is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
         if is_ancestor.exited == 0:
-            print(
-                f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})'
-            )
+            print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
             gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
         elif is_ancestor.exited == 1:
             print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
@@ -210,7 +208,7 @@ def auto_cancel_previous_pipelines(ctx):
             raise Exit(1)
 
 
-# TODO Cc : Test
+# TODO Cc
 @task
 def run(
     ctx,
@@ -321,7 +319,7 @@ def run(
         cancel_pipelines_with_confirmation(repo, pipelines)
 
     try:
-        pipeline_id = trigger_agent_pipeline(
+        pipeline = trigger_agent_pipeline(
             repo,
             git_ref,
             release_version_6,
@@ -337,9 +335,10 @@ def run(
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
         return
 
-    wait_for_pipeline(repo, pipeline_id)
+    wait_for_pipeline(repo, pipeline)
 
 
+# TODO Cc
 @task
 def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
     """
@@ -371,7 +370,8 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
         )
 
     if id is not None:
-        wait_for_pipeline(repo, id)
+        pipeline = repo.pipelines.get(id)
+        wait_for_pipeline(repo, pipeline)
     elif git_ref is not None:
         wait_for_pipeline_from_ref(repo, git_ref)
     elif here:
@@ -379,15 +379,18 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
         wait_for_pipeline_from_ref(repo, git_ref)
 
 
-def wait_for_pipeline_from_ref(repo, ref):
-    pipeline = last_pipeline_for_ref(ref)
-    if pipeline is not None:
-        wait_for_pipeline(repo, pipeline.id)
-    else:
+def wait_for_pipeline_from_ref(repo: Project, ref):
+    # Get last updated pipeline
+    pipelines = repo.pipelines.list(ref=ref, per_page=1, order_by='updated_at')
+    if len(pipelines) == 0:
         print(f"No pipelines found for {ref}")
         raise Exit(code=1)
 
+    pipeline = pipelines[0]
+    wait_for_pipeline(repo, pipeline)
 
+
+# TODO Cc
 @task(iterable=['variable'])
 def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True):
     """
@@ -400,9 +403,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
     Examples:
-    inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
+    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
 
-    inv pipeline.trigger-child-pipeline --git-ref "master" --project-name "DataDog/agent-release-management" --variables "VAR1,VAR2,VAR3"
+    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variables "VAR1,VAR2,VAR3"
     """
 
     if not os.environ.get('CI_JOB_TOKEN'):
@@ -416,7 +419,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
             # set, but trigger_pipeline doesn't use it
             os.environ["GITLAB_TOKEN"] = os.environ['CI_JOB_TOKEN']
 
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+    repo = get_gitlab_repo(project_name)
 
     data = {"token": os.environ['CI_JOB_TOKEN'], "ref": git_ref, "variables": {}}
 
@@ -441,23 +444,19 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
         flush=True,
     )
 
-    res = gitlab.trigger_pipeline(data)
+    try:
+        pipeline = repo.pipelines.create(data)
+    except GitlabError as e:
+        raise Exit(f"Failed to create child pipeline: {e}", code=1)
 
-    if 'id' not in res:
-        raise Exit(f"Failed to create child pipeline: {res}", code=1)
-
-    pipeline_id = res['id']
-    pipeline_url = res['web_url']
-    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}", flush=True)
+    print(f"Created a child pipeline with id={pipeline.id}, url={pipeline.web_url}", flush=True)
 
     if follow:
         print("Waiting for child pipeline to finish...", flush=True)
 
-        wait_for_pipeline(repo, pipeline_id)
+        wait_for_pipeline(repo, pipeline)
 
-        # TODO Cc
         # Check pipeline status
-        pipeline = gitlab.pipeline(pipeline_id)
         pipestatus = pipeline.status.lower().strip()
 
         if pipestatus != "success":
@@ -581,21 +580,17 @@ def changelog(ctx, new_commit_sha):
     )
 
 
-def _init_pipeline_schedule_task():
-    gitlab = Gitlab(api_token=get_gitlab_bot_token())
-    gitlab.test_project_found()
-    return gitlab
-
-
+# TODO Cc : Tested
 @task
 def get_schedules(_):
     """
     Pretty-print all pipeline schedules on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    for ps in gitlab.all_pipeline_schedules():
-        pprint.pprint(ps)
+    repo = get_gitlab_repo()
+
+    for sched in repo.pipelineschedules.list(all=True):
+        sched.pprint()
 
 
 @task
@@ -604,8 +599,10 @@ def get_schedule(_, schedule_id):
     Pretty-print a single pipeline schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.pipeline_schedule(schedule_id)
+    repo = get_gitlab_repo()
+
+    result = repo.pipelineschedules.get(schedule_id).asdict()
+
     pprint.pprint(result)
 
 
@@ -617,9 +614,13 @@ def create_schedule(_, description, ref, cron, cron_timezone=None, active=False)
     Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.create_pipeline_schedule(description, ref, cron, cron_timezone, active)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    sched = repo.pipelineschedules.create(
+        {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone, 'active': active}
+    )
+
+    sched.pprint()
 
 
 @task
@@ -628,9 +629,14 @@ def edit_schedule(_, schedule_id, description=None, ref=None, cron=None, cron_ti
     Edit an existing pipeline schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.edit_pipeline_schedule(schedule_id, description, ref, cron, cron_timezone)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    data = {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone}
+    data = {key: value for (key, value) in data.items() if value is not None}
+
+    sched = repo.pipelineschedules.update(schedule_id, data)
+
+    pprint.pprint(sched)
 
 
 @task
@@ -639,9 +645,11 @@ def activate_schedule(_, schedule_id):
     Activate an existing pipeline schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.edit_pipeline_schedule(schedule_id, active=True)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    sched = repo.pipelineschedules.update(schedule_id, {'active': True})
+
+    sched.pprint()
 
 
 @task
@@ -650,9 +658,11 @@ def deactivate_schedule(_, schedule_id):
     Deactivate an existing pipeline schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.edit_pipeline_schedule(schedule_id, active=False)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    sched = repo.pipelineschedules.update(schedule_id, {'active': False})
+
+    sched.pprint()
 
 
 @task
@@ -661,9 +671,11 @@ def delete_schedule(_, schedule_id):
     Delete an existing pipeline schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.delete_pipeline_schedule(schedule_id)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    repo.pipelineschedules.delete(schedule_id)
+
+    print('Deleted schedule', schedule_id)
 
 
 @task
@@ -672,9 +684,12 @@ def create_schedule_variable(_, schedule_id, key, value):
     Create a variable for an existing schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.create_pipeline_schedule_variable(schedule_id, key, value)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    sched = repo.pipelineschedules.get(schedule_id)
+    sched.variables.create({'key': key, 'value': value})
+
+    sched.pprint()
 
 
 @task
@@ -683,9 +698,12 @@ def edit_schedule_variable(_, schedule_id, key, value):
     Edit an existing variable for a schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.edit_pipeline_schedule_variable(schedule_id, key, value)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    sched = repo.pipelineschedules.get(schedule_id)
+    sched.variables.update(key, {'value': value})
+
+    sched.pprint()
 
 
 @task
@@ -694,9 +712,12 @@ def delete_schedule_variable(_, schedule_id, key):
     Delete an existing variable for a schedule on the repository.
     """
 
-    gitlab = _init_pipeline_schedule_task()
-    result = gitlab.delete_pipeline_schedule_variable(schedule_id, key)
-    pprint.pprint(result)
+    repo = get_gitlab_repo()
+
+    sched = repo.pipelineschedules.get(schedule_id)
+    sched.variables.delete(key)
+
+    sched.pprint()
 
 
 @task(
