@@ -539,10 +539,15 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	resolver.Run()
 	mockedClock.Add(11 * time.Second)
 
-	assert.Len(resolver.addrToCtrID, 4)
-	for _, cid := range resolver.addrToCtrID {
-		assert.True(cid.inUse)
-	}
+	func() {
+		resolver.mux.RLock()
+		defer resolver.mux.RUnlock()
+
+		assert.Len(resolver.addrToCtrID, 4)
+		for _, cid := range resolver.addrToCtrID {
+			assert.True(cid.inUse)
+		}
+	}()
 
 	connections := &model.Connections{
 		Conns: []*model.Connection{
@@ -586,10 +591,17 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
 	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
 
-	assert.Len(resolver.addrToCtrID, 4)
-	for _, cid := range resolver.addrToCtrID {
-		assert.True(cid.inUse)
-	}
+	func() {
+		// have to lock here otherwise
+		// we get data race errors
+		resolver.mux.RLock()
+		defer resolver.mux.RUnlock()
+
+		assert.Len(resolver.addrToCtrID, 4)
+		for _, cid := range resolver.addrToCtrID {
+			assert.True(cid.inUse)
+		}
+	}()
 
 	// now do another container update but with the entries
 	// for container-1 missing
@@ -622,7 +634,13 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	// still should have 4 entries in the addr cache,
 	// missing entries should be just marked as not
 	// in use
-	assert.Len(resolver.addrToCtrID, 4)
+	func() {
+		resolver.mux.RLock()
+		defer resolver.mux.RUnlock()
+
+		assert.Len(resolver.addrToCtrID, 4)
+	}()
+
 	missingAddrs := []model.ContainerAddr{
 		{
 			Ip:       "10.0.2.15",
@@ -638,17 +656,22 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 
 	// verify the missing address entries were marked
 	// as not in use
-addrLoop:
-	for addr, cid := range resolver.addrToCtrID {
-		for _, missing := range missingAddrs {
-			if missing == addr {
-				assert.False(cid.inUse)
-				break addrLoop
-			}
-		}
+	func() {
+		resolver.mux.RLock()
+		defer resolver.mux.RUnlock()
 
-		assert.True(cid.inUse)
-	}
+	addrLoop:
+		for addr, cid := range resolver.addrToCtrID {
+			for _, missing := range missingAddrs {
+				if missing == addr {
+					assert.False(cid.inUse)
+					break addrLoop
+				}
+			}
+
+			assert.True(cid.inUse)
+		}
+	}()
 
 	// all connections should still resolve since we haven't removed
 	// the not in use entries yet
@@ -658,10 +681,15 @@ addrLoop:
 	assert.Equal("container-2", connections.Conns[2].Raddr.ContainerId)
 	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
 
-	// the not in use entries should have been removed
-	for _, missing := range missingAddrs {
-		assert.NotContains(resolver.addrToCtrID, missing)
-	}
+	func() {
+		resolver.mux.RLock()
+		defer resolver.mux.RUnlock()
+
+		// the not in use entries should have been removed
+		for _, missing := range missingAddrs {
+			assert.NotContains(resolver.addrToCtrID, missing)
+		}
+	}()
 }
 
 func TestLocalResolverCacheLimits(t *testing.T) {
@@ -716,13 +744,17 @@ func TestLocalResolverCacheLimits(t *testing.T) {
 	resolver.Run()
 	mockedClock.Add(11 * time.Second)
 
-	assert.Len(resolver.addrToCtrID, 1)
-	assert.Contains(resolver.addrToCtrID, model.ContainerAddr{
-		Ip:       "10.0.2.15",
-		Port:     32769,
-		Protocol: model.ConnectionType_tcp,
-	})
+	func() {
+		resolver.mux.RLock()
+		defer resolver.mux.RUnlock()
 
-	assert.Len(resolver.ctrForPid, 1)
-	assert.Contains(resolver.ctrForPid, 1)
+		assert.Len(resolver.addrToCtrID, 1)
+		assert.Contains(resolver.addrToCtrID, model.ContainerAddr{
+			Ip:       "10.0.2.15",
+			Port:     32769,
+			Protocol: model.ConnectionType_tcp,
+		})
+
+		assert.Len(resolver.ctrForPid, 1)
+	}()
 }
