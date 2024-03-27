@@ -21,6 +21,8 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 #define STR(x) #x
 #define MK_MAP_INDX(key) STR(key##_telemetry_key)
 
+#define last_writable_slot_in_blob (sizeof(instrumentation_blob_t) - 8)
+
 #define map_update_with_telemetry(fn, map, args...)                                 \
     ({                                                                              \
         long errno_ret;                                                             \
@@ -34,7 +36,7 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
                 long offset = (sizeof(map_err_telemetry_t) * map_index) +           \
                     (error * sizeof(unsigned long)) +                               \
                     offsetof(instrumentation_blob_t, map_err_telemetry);            \
-                if (offset < (sizeof(instrumentation_blob_t) - 8)) {                \
+                if (offset < last_writable_slot_in_blob) {                \
                     void *target = (void *)tb + offset;                             \
                     __sync_fetch_and_add((unsigned long *)target, 1);               \
                 }                                                                   \
@@ -66,7 +68,7 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
                 long offset = (sizeof(helper_err_telemetry_t) * telemetry_program_id) +             \
                     (((helper_indx * T_MAX_ERRNO)+errno_slot)*sizeof(unsigned long)) +              \
                     offsetof(instrumentation_blob_t, helper_err_telemetry);                         \
-                if (offset < (sizeof(instrumentation_blob_t) - 8)) {                                \
+                if ((offset > 0) && (offset < last_writable_slot_in_blob)) {                        \
                     void *target = (void *)tb + offset;                                             \
                     __sync_fetch_and_add((unsigned long *)target, 1);                               \
                 }                                                                                   \
