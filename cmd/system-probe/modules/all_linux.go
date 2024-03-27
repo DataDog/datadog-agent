@@ -26,7 +26,6 @@ var All = []module.Factory{
 	Process,
 	DynamicInstrumentation,
 	LanguageDetectionModule,
-	ComplianceModule,
 	Pinger,
 	Traceroute,
 }

@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math/rand"
-	"net/http"
 	"path/filepath"
 	"sync"
 	"time"
@@ -85,10 +84,6 @@ type AgentOptions struct {
 	// EnabledConfigurationExporters lists configuration exporter that shall be
 	// enabled.
 	EnabledConfigurationExporters []ConfigurationExporter
-
-	// SysProbeClient is the HTTP client to allow the execution of benchmarks
-	// from system-probe. see: cmd/system-probe/modules/compliance.go
-	SysProbeClient *http.Client
 }
 
 // ConfigurationExporter is an enum type defining all configuration export

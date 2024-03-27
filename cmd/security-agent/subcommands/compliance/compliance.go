@@ -6,10 +6,7 @@
 package compliance
 
 import (
-	"context"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"time"
 
@@ -56,11 +53,6 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		resolverOptions.StatsdClient = statsdClient
 	}
 
-	var sysProbeClient *http.Client
-	if config := sysprobeconfig.SysProbeObject(); config != nil && config.SocketAddress != "" {
-		sysProbeClient = newSysProbeClient(config.SocketAddress)
-	}
-
 	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
 		compliance.AptExporter,
 		compliance.KubernetesExporter,
@@ -78,7 +70,6 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		Reporter:                      reporter,
 		CheckInterval:                 checkInterval,
 		EnabledConfigurationExporters: enabledConfigurationsExporters,
-		SysProbeClient:                sysProbeClient,
 	})
 	err = agent.Start()
 	if err != nil {
@@ -108,20 +99,4 @@ func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName stri
 	}()
 
 	return heartbeat
-}
-
-func newSysProbeClient(address string) *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    2,
-			IdleConnTimeout: 30 * time.Second,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", address)
-			},
-			TLSHandshakeTimeout:   1 * time.Second,
-			ResponseHeaderTimeout: 5 * time.Second,
-			ExpectContinueTimeout: 50 * time.Millisecond,
-		},
-	}
 }

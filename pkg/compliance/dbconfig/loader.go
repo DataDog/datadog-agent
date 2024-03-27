@@ -102,46 +102,6 @@ func LoadConfiguration(ctx context.Context, rootPath string, proc *process.Proce
 	return resourceType, conf, true
 }
 
-// LoadDBResourceFromPID loads and returns an optional DBResource associated
-// with the given process PID.
-func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
-	proc, err := process.NewProcessWithContext(ctx, pid)
-	if err != nil {
-		return nil, false
-	}
-
-	resourceType, ok := GetProcResourceType(proc)
-	if !ok {
-		return nil, false
-	}
-
-	containerID, _ := utils.GetProcessContainerID(pid)
-	hostroot, ok := utils.GetProcessRootPath(pid)
-	if !ok {
-		return nil, false
-	}
-
-	var conf *DBConfig
-	switch resourceType {
-	case postgresqlResourceType:
-		conf, ok = LoadPostgreSQLConfig(ctx, hostroot, proc)
-	case mongoDBResourceType:
-		conf, ok = LoadMongoDBConfig(ctx, hostroot, proc)
-	case cassandraResourceType:
-		conf, ok = LoadCassandraConfig(ctx, hostroot, proc)
-	default:
-		ok = false
-	}
-	if !ok || conf == nil {
-		return nil, false
-	}
-	return &DBResource{
-		Type:        resourceType,
-		ContainerID: string(containerID),
-		Config:      *conf,
-	}, true
-}
-
 // LoadMongoDBConfig loads and extracts the MongoDB configuration data found
 // on the system.
 func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Process) (*DBConfig, bool) {
