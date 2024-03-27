@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
 
 	// checks implemented as components
 
@@ -218,6 +220,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ agenttelemetry.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -393,6 +396,7 @@ func getSharedFxOption() fx.Option {
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
 		process.Bundle(),
+		agenttelemetryimpl.Module(),
 	)
 }
 
