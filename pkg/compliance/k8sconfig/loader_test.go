@@ -9,7 +9,6 @@
 package k8sconfig
 
 import (
-	"context"
 	"encoding/json"
 	"io/fs"
 	"os"
@@ -930,9 +929,9 @@ func TestBottleRocketConfigLoader(t *testing.T) {
 
 func loadTestConfiguration(t *testing.T, hostroot string, table string) *K8sNodeConfig {
 	l := &loader{hostroot: hostroot}
-	_, data := l.load(context.Background(), func(ctx context.Context) []proc {
-		return procTable(table)
-	})
+
+	_, data, ok := l.load(procTable(table))
+	assert.True(t, ok)
 	jsonData, err := json.Marshal(data)
 	assert.NoError(t, err)
 	var conf K8sNodeConfig

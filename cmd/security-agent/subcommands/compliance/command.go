@@ -99,7 +99,18 @@ func loadRun(_ log.Component, _ config.Component, loadArgs *loadCliParams) error
 	ctx := context.Background()
 	switch loadArgs.confType {
 	case "k8s", "kubernetes":
-		resourceType, resource = k8sconfig.LoadConfiguration(ctx, hostroot)
+		if loadArgs.procPid == 0 {
+			return fmt.Errorf("missing required flag --proc-pid")
+		}
+		proc, _, rootPath, err := getProcMeta(hostroot, int32(loadArgs.procPid))
+		if err != nil {
+			return err
+		}
+		var ok bool
+		resourceType, resource, ok = k8sconfig.LoadConfiguration(ctx, rootPath, []*process.Process{proc})
+		if !ok {
+			return fmt.Errorf("failed to load kubernetes config from process %d in %q", loadArgs.procPid, rootPath)
+		}
 	case "apt":
 		resourceType, resource = aptconfig.LoadConfiguration(ctx, hostroot)
 	case "db", "database":
