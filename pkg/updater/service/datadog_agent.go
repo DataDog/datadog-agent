@@ -74,6 +74,7 @@ func SetupAgentUnits() (err error) {
 			return
 		}
 	}
+	err = createAgentSymlink()
 	return
 }
 
@@ -108,6 +109,9 @@ func RemoveAgentUnits() {
 		if err := removeUnit(unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
+	}
+	if err := rmAgentSymlink(); err != nil {
+		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 }
 

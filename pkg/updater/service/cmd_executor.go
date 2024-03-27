@@ -32,6 +32,14 @@ func RemoveAll(path string) error {
 	return executeCommand(`{"command":"rm","path":"` + path + `"}`)
 }
 
+func createAgentSymlink() error {
+	return executeCommand(`{"command":"agent-symlink"}`)
+}
+
+func rmAgentSymlink() error {
+	return executeCommand(`{"command":"rm-agent-symlink"}`)
+}
+
 func executeCommand(command string) error {
 	cmd := exec.Command(updaterHelper, command)
 	cmd.Stdout = os.Stdout
