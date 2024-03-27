@@ -16,7 +16,8 @@ unit_tests_arm64_windows_junit_upload:
     - source /root/.bashrc
     # Upload generated junit files
     - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-    - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f; done
+    # As we collect junit files from different jobs, we allow failures (normally "no file found") in the junit-upload task at each iteration
+    - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f || echo "No file found"; done
 
 kmt_arm64_junit_upload:
   stage: junit_upload
