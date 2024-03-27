@@ -7,9 +7,11 @@
 package rules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime/pprof"
 	"slices"
 	"sync"
 	"time"
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
 // MacroID represents the ID of a macro
@@ -695,7 +696,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 	result := false
 
 	for _, rule := range bucket.rules {
-		utils.PprofDoWithoutContext(rule.GetPprofLabels(), func() {
+		pprof.Do(context.Background(), rule.GetPprofLabels(), func(_ctx context.Context) {
 			if rule.GetEvaluator().Eval(ctx) {
 
 				if rs.logger.IsTracing() {
