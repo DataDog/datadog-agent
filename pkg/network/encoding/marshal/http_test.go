@@ -445,3 +445,72 @@ func BenchmarkHTTPEncoder100Requests(b *testing.B) {
 func BenchmarkHTTPEncoder10000Requests(b *testing.B) {
 	commonBenchmarkHTTPEncoder(b, 100)
 }
+
+func getSketch(t *testing.T, payload *network.Connections, httpReqStats *http.RequestStats) *ddsketch.DDSketch {
+	httpEncoder := newHTTPEncoder(payload.HTTP)
+	httpAggregations, _, _ := getHTTPAggregations(t, httpEncoder, payload.Conns[0])
+	require.NotNil(t, httpAggregations)
+
+	// Deserialize the encoded latency information & confirm it is correct
+	statsByResponseStatus := httpAggregations.EndpointAggregations[0].StatsByStatusCode
+	assert.Len(t, statsByResponseStatus, 1)
+
+	serializedLatencies := statsByResponseStatus[int32(httpReqStats.NormalizeStatusCode(100))].Latencies
+	return unmarshalSketch(t, serializedLatencies)
+}
+
+func TestSketchMarshaling(t *testing.T) {
+	httpReqStats := http.NewRequestStats(false)
+
+	httpReqStats.AddRequest(100, 11.5, 0, nil)
+	httpReqStats.AddRequest(100, 12.5, tagGnuTLS, nil)
+	httpReqStats.AddRequest(100, 13.5, tagOpenSSL, nil)
+	httpReqStats.AddRequest(100, 14.5, 0, nil)
+
+	key := http.NewKey(
+		util.AddressFromString("10.1.1.1"),
+		util.AddressFromString("10.2.2.2"),
+		60000,
+		80,
+		[]byte("/testpath"),
+		true,
+		http.MethodGet,
+	)
+
+	payload := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: []network.ConnectionStats{
+				{
+					Source: util.AddressFromString("10.1.1.1"),
+					Dest:   util.AddressFromString("10.2.2.2"),
+					SPort:  60000,
+					DPort:  80,
+				},
+			},
+		},
+		HTTP: map[http.Key]*http.RequestStats{
+			key: httpReqStats,
+		},
+	}
+
+	sketch1 := getSketch(t, payload, httpReqStats)
+	sketch2 := getSketch(t, payload, httpReqStats)
+
+	type bin struct {
+		q float64
+		v float64
+	}
+	bins1 := make([]bin, 0)
+	sketch1.ForEach(func(q float64, v float64) bool {
+		bins1 = append(bins1, bin{q, v})
+		return false
+	})
+	bins2 := make([]bin, 0)
+	sketch2.ForEach(func(q float64, v float64) bool {
+		bins2 = append(bins2, bin{q, v})
+		return false
+	})
+	require.Equal(t, bins1, bins2)
+
+	require.Equal(t, sketch1, sketch2)
+}
