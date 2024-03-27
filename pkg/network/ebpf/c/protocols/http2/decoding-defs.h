@@ -98,8 +98,6 @@
 
 #define HTTP2_CONTENT_TYPE_IDX 31
 
-#define MAX_FRAME_SIZE 16384
-
 typedef enum {
     kGET = 2,
     kPOST = 3,
@@ -243,6 +241,7 @@ typedef struct {
     __u64 literal_value_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
+    __u64 large_payload;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
     __u64 fragmented_frame_count_headers;
     __u64 fragmented_frame_count_rst;
