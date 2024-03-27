@@ -92,7 +92,7 @@ func (o *OTLPReceiver) Start() {
 
 			computeTopLevelBySpanKindVal := 0.0
 			if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
-				log.Warn("OTLP ingest now identifies top-level spans by span kind by default, which may impact the number of spans that generate trace metrics. This new logic can be disabled if needed by adding 'disable_otlp_compute_top_level_by_span_kind' in DD_APM_FEATURES.")
+				log.Warn("OTLP ingest identifies top-level spans by span kind which may impact trace metrics. The feature can be disabled by adding 'disable_otlp_compute_top_level_by_span_kind' in DD_APM_FEATURES.")
 				computeTopLevelBySpanKindVal = 1.0
 			}
 			_ = o.statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
