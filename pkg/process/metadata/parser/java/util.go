@@ -179,3 +179,12 @@ func extractJavaPropertyFromArgs(args []string, name string) (string, bool) {
 	}
 	return "", false
 }
+
+// XMLStringToBool parses string element value and return false if explicitly set to `false` or `0`
+func XMLStringToBool(s string) bool {
+	switch strings.ToLower(s) {
+	case "0", "false":
+		return false
+	}
+	return true
+}

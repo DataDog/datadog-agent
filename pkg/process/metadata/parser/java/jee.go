@@ -61,13 +61,14 @@ type (
 	}
 
 	// typedDeployment describes a deployment with a deploymentType if early detected
-	typedDeployment struct {
-		dt   deploymentType
+	jeeDeployment struct {
+		name string
 		path string
+		dt   deploymentType
 	}
 	// deployedAppFindFn is used to find the application deployed on a domainHome
 	// args should be supplied since some vendors may require additional information from them (i.e. server name)
-	deployedAppFindFn func(domainHome string, args []string, fs afero.Fs) ([]typedDeployment, bool)
+	deployedAppFindFn func(domainHome string, args []string, fs afero.Fs) ([]jeeDeployment, bool)
 	// warContextRootFindFn is used to extract the context root from a vendor defined configuration inside the war.
 	// if not found it returns en empty string and false
 	warContextRootFindFn func(fs afero.Fs) (string, bool)
@@ -79,14 +80,17 @@ type (
 // definitions of standard extractors
 var (
 	deploymentFinders = map[serverVendor]deployedAppFindFn{
+		jboss:     jbossFindDeployedApps,
 		weblogic:  weblogicFindDeployedApps,
 		websphere: websphereFindDeployedApps,
 	}
 	contextRootFinders = map[serverVendor]warContextRootFindFn{
 		weblogic: weblogicExtractWarContextRoot,
+		jboss:    jbossExtractWarContextRoot,
 	}
 	defaultContextNameExtractors = map[serverVendor]defaultWarContextRootFn{
 		weblogic: standardExtractContextFromWarName,
+		jboss:    standardExtractContextFromWarName,
 	}
 )
 
@@ -175,10 +179,10 @@ func standardExtractContextFromWarName(fileName string) string {
 }
 
 // vfsAndTypeFromAppPath inspects the appPath and returns a valid fileSystemCloser in case the deployment is an ear or a war.
-func vfsAndTypeFromAppPath(deployment typedDeployment, fs afero.Fs) (*fileSystemCloser, deploymentType, error) {
+func vfsAndTypeFromAppPath(deployment *jeeDeployment, fs afero.Fs) (*fileSystemCloser, deploymentType, error) {
 	dt := deployment.dt
 	if dt == 0 {
-		ext := strings.ToLower(filepath.Clean(filepath.Ext(deployment.path)))
+		ext := strings.ToLower(filepath.Clean(filepath.Ext(deployment.name)))
 		switch ext {
 		case ".ear":
 			dt = ear
@@ -242,13 +246,13 @@ func normalizeContextRoot(contextRoots ...string) []string {
 }
 
 // doExtractContextRoots tries to extract context roots for an app, given the vendor and the fs.
-func doExtractContextRoots(vendor serverVendor, deployment typedDeployment, fs afero.Fs) []string {
-	fsCloser, dt, err := vfsAndTypeFromAppPath(deployment, fs)
+func doExtractContextRoots(vendor serverVendor, app *jeeDeployment, fs afero.Fs) []string {
+	fsCloser, dt, err := vfsAndTypeFromAppPath(app, fs)
 	if err != nil {
 		if dt == ear {
 			return nil
 		}
-		return doDefaultExtraction(vendor, deployment.path)
+		return doDefaultExtraction(vendor, app)
 	}
 	defer fsCloser.Close()
 	if dt == ear {
@@ -265,14 +269,14 @@ func doExtractContextRoots(vendor serverVendor, deployment typedDeployment, fs a
 			return []string{value}
 		}
 	}
-	return doDefaultExtraction(vendor, deployment.path)
+	return doDefaultExtraction(vendor, app)
 }
 
 // doDefaultExtraction return the default naming for an application depending on the vendor
-func doDefaultExtraction(vendor serverVendor, app string) []string {
+func doDefaultExtraction(vendor serverVendor, app *jeeDeployment) []string {
 	defaultFinder, ok := defaultContextNameExtractors[vendor]
 	if ok {
-		return []string{defaultFinder(app)}
+		return []string{defaultFinder(app.name)}
 	}
 	return nil
 }
@@ -300,7 +304,7 @@ func ExtractServiceNamesForJEEServer(args []string, cwd string, fs afero.Fs) []s
 	}
 	var contextRoots []string
 	for _, app := range apps {
-		contextRoots = append(contextRoots, normalizeContextRoot(doExtractContextRoots(vendor, app, fs)...)...)
+		contextRoots = append(contextRoots, normalizeContextRoot(doExtractContextRoots(vendor, &app, fs)...)...)
 	}
 	if len(contextRoots) == 0 {
 		return defaultIfNoContextRoots(vendor)

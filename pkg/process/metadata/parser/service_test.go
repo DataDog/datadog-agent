@@ -393,6 +393,31 @@ func TestExtractServiceMetadata(t *testing.T) {
 			useImprovedAlgorithm: true,
 			expectedServiceTags:  []string{"process_context:tomcat"},
 		},
+		{
+			name: "jboss standalone - legacy algorithm",
+			cmdline: []string{
+				"java",
+				"-Djboss.server.base.dir=java/testdata/jboss/standalone",
+				"-Djboss.home.dir=java/testdata/jboss",
+				"-jar",
+				"jboss-modules.jar",
+				"org.jboss.as.standalone",
+			},
+			expectedServiceTags: []string{"process_context:jboss-modules"},
+		},
+		{
+			name: "jboss standalone - improved algorithm",
+			cmdline: []string{
+				"java",
+				"-Djboss.server.base.dir=java/testdata/jboss/standalone",
+				"-Djboss.home.dir=java/testdata/jboss",
+				"-jar",
+				"jboss-modules.jar",
+				"org.jboss.as.standalone",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTags:  []string{"process_context:some_context_root", "process_context:web3", "process_context:my-jboss-webapp"},
+		},
 	}
 
 	for _, tt := range tests {
