@@ -125,6 +125,7 @@ func TestFillFlare(t *testing.T) {
 func TestCollectRecentLastCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 	i.LastCollect = time.Now()
+	i.createdAt = time.Now().Add(-2 * time.Minute)
 
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
@@ -132,12 +133,53 @@ func TestCollectRecentLastCollect(t *testing.T) {
 	i.serializer.(*serializer.MockSerializer).AssertExpectations(t)
 }
 
+func TestCollectStartupTime(t *testing.T) {
+	i := getTestInventoryPayload(t, nil)
+
+	// testing collect do not send metadata if hasn't elapsed a minute from createdAt time
+	createdAt := time.Now().Add(2 * time.Minute)
+	i.createdAt = createdAt
+
+	serializerMock := i.serializer.(*serializer.MockSerializer)
+	duration := 1 * time.Minute
+
+	interval := i.collect(context.Background())
+	assert.Equal(t, duration-time.Since(createdAt).Round(duration), interval.Round(duration))
+	assert.Empty(t, serializerMock.Calls)
+
+	// testing with custom values from configuration
+	i = getTestInventoryPayload(t, map[string]any{
+		"inventories_first_run_delay": 0,
+	})
+
+	// reset serializer mock
+	serializerMock = &serializer.MockSerializer{}
+
+	serializerMock.On(
+		"SendMetadata",
+		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {
+			if _, ok := m.(*testPayload); !ok {
+				return false
+			}
+			return true
+		})).Return(nil)
+
+	i.serializer = serializerMock
+	interval = i.collect(context.Background())
+	assert.Equal(t, defaultMinInterval, interval)
+	serializerMock.AssertExpectations(t)
+}
+
 func TestCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
-	// testing collect with LastCollect > MaxInterval
+	// Ensure calls to collect do not fail the check for createdAt
+	i.createdAt = time.Now().Add(-2 * time.Minute)
 
 	serializerMock := i.serializer.(*serializer.MockSerializer)
+
+	// testing collect with LastCollect > MaxInterval
+
 	serializerMock.On(
 		"SendMetadata",
 		mock.MatchedBy(func(m marshaler.JSONMarshaler) bool {

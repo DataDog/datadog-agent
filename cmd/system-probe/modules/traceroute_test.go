@@ -8,31 +8,36 @@
 package modules
 
 import (
-	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
-	"github.com/stretchr/testify/assert"
+	"context"
+	"net/http"
 	"testing"
+
+	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseParams(t *testing.T) {
 	tests := []struct {
 		name           string
-		vars           map[string]string
+		host           string
+		params         map[string]string
 		expectedConfig tracerouteutil.Config
 		expectedError  string
 	}{
 		{
-			name: "only host",
-			vars: map[string]string{
-				"host": "1.2.3.4",
-			},
+			name:   "only host",
+			host:   "1.2.3.4",
+			params: map[string]string{},
 			expectedConfig: tracerouteutil.Config{
 				DestHostname: "1.2.3.4",
 			},
 		},
 		{
 			name: "all config",
-			vars: map[string]string{
-				"host":    "1.2.3.4",
+			host: "1.2.3.4",
+			params: map[string]string{
 				"port":    "42",
 				"max_ttl": "35",
 				"timeout": "1000",
@@ -47,7 +52,16 @@ func TestParseParams(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t1 *testing.T) {
-			config, err := parseParams(tt.vars)
+			req, err := http.NewRequestWithContext(context.Background(), "GET", "http://example.com", nil)
+			q := req.URL.Query()
+			for k, v := range tt.params {
+				q.Add(k, v)
+			}
+			req.URL.RawQuery = q.Encode()
+			req = mux.SetURLVars(req, map[string]string{"host": tt.host})
+
+			require.NoError(t, err)
+			config, err := parseParams(req)
 			assert.Equal(t, tt.expectedConfig, config)
 			if tt.expectedError != "" {
 				assert.EqualError(t, err, tt.expectedError)
