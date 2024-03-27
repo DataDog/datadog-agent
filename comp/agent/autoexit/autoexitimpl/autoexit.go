@@ -3,19 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package agent implements the "agent" bundle,
-package agent
+// Package autoexitimpl implements autoexit.Component
+package autoexitimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-shared-components
-
-// Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
-	return fxutil.Bundle(
-		autoexitimpl.Module(),
+// Module defines the fx options for this component.
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide( /* TODO: provide Component constructor */ ),
 	)
 }
