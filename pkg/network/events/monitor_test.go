@@ -54,7 +54,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 			"DD_VERSION=version",
 		}, p.Envs)
 		assert.NotNil(t, p.ContainerID, "container ID should not be nil")
-		assert.Equal(t, "cid_exec", p.ContainerID.Get().(string), "container id mismatch")
+		assert.Equal(t, "cid_exec", p.ContainerID.Get(), "container id mismatch")
 	})
 
 	t.Run("test fork process attributes", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 			"DD_VERSION=version",
 		}, p.Envs)
 		assert.NotNil(t, p.ContainerID, "container ID should not be nil")
-		assert.Equal(t, "cid_fork", p.ContainerID.Get().(string), "container id mismatch")
+		assert.Equal(t, "cid_fork", p.ContainerID.Get(), "container id mismatch")
 	})
 
 	t.Run("no container context", func(t *testing.T) {
@@ -99,7 +99,7 @@ func TestEventHandlerWrapperCopy(t *testing.T) {
 		p := evHandler.Copy(ev)
 		require.IsType(t, &Process{}, p, "Copy should return a *events.Process")
 		assert.NotNil(t, p.(*Process).ContainerID, "container ID should not be nil")
-		assert.Empty(t, p.(*Process).ContainerID.Get().(string), "container ID should be empty")
+		assert.Empty(t, p.(*Process).ContainerID.Get(), "container ID should be empty")
 	})
 
 }

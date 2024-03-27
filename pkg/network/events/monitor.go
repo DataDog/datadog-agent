@@ -15,12 +15,14 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"go4.org/intern"
+	// justify the use of the intern package
+	_ "go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,11 +30,15 @@ var theMonitor atomic.Value
 var once sync.Once
 var initErr error
 
+var si = intern.NewStringInterner()
+
+type containerID = *intern.StringValue
+
 // Process is a process
 type Process struct {
 	Pid         uint32
 	Envs        []string
-	ContainerID *intern.Value
+	ContainerID containerID
 	StartTime   int64
 	Expiry      int64
 }
@@ -125,7 +131,7 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 
 	return &Process{
 		Pid:         ev.GetProcessPid(),
-		ContainerID: intern.GetByString(ev.GetContainerId()),
+		ContainerID: si.GetString(ev.GetContainerId()),
 		StartTime:   processStartTime.UnixNano(),
 		Envs: model.FilterEnvs(envs, map[string]bool{
 			"DD_SERVICE": true,

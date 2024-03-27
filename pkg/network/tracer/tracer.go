@@ -349,7 +349,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Env("DD_VERSION"))
 	addTag("service", p.Env("DD_SERVICE"))
 
-	if containerID := p.ContainerID.Get().(string); containerID != "" {
+	if containerID := p.ContainerID.Get(); containerID != "" {
 		c.ContainerID = &containerID
 	}
 }
