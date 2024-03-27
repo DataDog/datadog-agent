@@ -6,12 +6,92 @@
 package payload
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
+
+var testInterfaces = []CiscoInterface{
+	&VEdgeInterface{
+		InterfaceState: client.InterfaceState{
+			VmanageSystemIP: "10.0.0.1",
+			Ifname:          "test-interface",
+			Ifindex:         10,
+			SpeedMbps:       "1000",
+			IfOperStatus:    "Up",
+			IfAdminStatus:   "Down",
+			Desc:            "Description",
+			Hwaddr:          "00:01:02:03",
+			IPAddress:       "10.1.1.5/24",
+		},
+	},
+	&CEdgeInterface{
+		CEdgeInterfaceState: client.CEdgeInterfaceState{
+			VmanageSystemIP: "10.0.0.2",
+			Ifname:          "test-interface",
+			Ifindex:         "10",
+			SpeedMbps:       "1000",
+			IfOperStatus:    "if-oper-state-ready",
+			IfAdminStatus:   "if-state-down",
+			Description:     "Description",
+			Hwaddr:          "00:01:02:03",
+			IPAddress:       "10.1.1.5",
+			Ipv4SubnetMask:  "255.255.255.0",
+		},
+	},
+}
+
+func TestProcessInterfacesMetadata(t *testing.T) {
+	interfaceMetadata, interfaceMap := GetInterfacesMetadata("test-ns", testInterfaces)
+	require.Len(t, interfaceMetadata, 2)
+	require.Len(t, interfaceMap, 2)
+	require.Equal(t, []devicemetadata.InterfaceMetadata{
+		{
+			DeviceID:    "test-ns:10.0.0.1",
+			IDTags:      []string{"interface:test-interface"},
+			Index:       10,
+			Name:        "test-interface",
+			Description: "Description",
+			MacAddress:  "00:01:02:03",
+			OperStatus:  devicemetadata.OperStatusUp,
+			AdminStatus: devicemetadata.AdminStatusDown,
+		},
+		{
+			DeviceID:    "test-ns:10.0.0.2",
+			IDTags:      []string{"interface:test-interface"},
+			Index:       10,
+			Name:        "test-interface",
+			Description: "Description",
+			MacAddress:  "00:01:02:03",
+			OperStatus:  devicemetadata.OperStatusUp,
+			AdminStatus: devicemetadata.AdminStatusDown,
+		},
+	}, interfaceMetadata)
+	require.Equal(t, map[string]CiscoInterface{
+		"10.0.0.1:test-interface": testInterfaces[0],
+		"10.0.0.2:test-interface": testInterfaces[1],
+	}, interfaceMap)
+}
+
+func TestProcessIPAddressesMetadata(t *testing.T) {
+	ipAddressMetadata := GetIPAddressesMetadata("test-ns", testInterfaces)
+	require.Len(t, ipAddressMetadata, 2)
+	require.Equal(t, []devicemetadata.IPAddressMetadata{
+		{
+			InterfaceID: "test-ns:10.0.0.1:10",
+			IPAddress:   "10.1.1.5",
+			Prefixlen:   24,
+		},
+		{
+			InterfaceID: "test-ns:10.0.0.2:10",
+			IPAddress:   "10.1.1.5",
+			Prefixlen:   24,
+		},
+	}, ipAddressMetadata)
+}
 
 func TestConvertOperStatus(t *testing.T) {
 	tests := []struct {

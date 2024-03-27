@@ -18,22 +18,33 @@ import (
 // TimeNow useful for mocking
 var TimeNow = time.Now
 
-// ProcessDevices process devices API payloads to build metadata, tags and uptimes
-func ProcessDevices(namespace string, devices []client.Device) (devicesMetadata []devicemetadata.DeviceMetadata, deviceTags map[string][]string, uptimes map[string]float64) {
-	deviceTags = make(map[string][]string)
-	uptimes = make(map[string]float64)
+// GetDevicesMetadata process devices API payloads to build metadata
+func GetDevicesMetadata(namespace string, devices []client.Device) []devicemetadata.DeviceMetadata {
+	var devicesMetadata []devicemetadata.DeviceMetadata
+	for _, device := range devices {
+		devicesMetadata = append(devicesMetadata, buildDeviceMetadata(namespace, device))
+	}
+	return devicesMetadata
+}
 
+// GetDevicesTags process devices API payloads to build device tags
+func GetDevicesTags(namespace string, devices []client.Device) map[string][]string {
+	deviceTags := make(map[string][]string)
 	for _, device := range devices {
 		deviceTags[device.SystemIP] = buildDeviceTags(namespace, device)
+	}
+	return deviceTags
+}
 
+// GetDevicesUptime process devices API payloads to compute uptimes
+func GetDevicesUptime(devices []client.Device) map[string]float64 {
+	uptimes := make(map[string]float64)
+	for _, device := range devices {
 		if device.UptimeDate != 0 {
 			uptimes[device.SystemIP] = computeUptime(device)
 		}
-
-		devicesMetadata = append(devicesMetadata, buildDeviceMetadata(namespace, device))
 	}
-
-	return devicesMetadata, deviceTags, uptimes
+	return uptimes
 }
 
 func buildDeviceMetadata(namespace string, device client.Device) devicemetadata.DeviceMetadata {

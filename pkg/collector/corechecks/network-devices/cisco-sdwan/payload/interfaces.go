@@ -29,13 +29,12 @@ type CiscoInterface interface {
 	IPAddressMetadata(namespace string) (devicemetadata.IPAddressMetadata, error)
 }
 
-// ProcessInterfaces process interfaces API payloads to build metadata and tags
-func ProcessInterfaces(namespace string, vEdgeInterfaces []client.InterfaceState, cEdgeInterfaces []client.CEdgeInterfaceState) (interfaces []devicemetadata.InterfaceMetadata, ipAddresses []devicemetadata.IPAddressMetadata, interfacesMap map[string]CiscoInterface) {
-	interfacesMap = make(map[string]CiscoInterface)
+// GetInterfacesMetadata process interfaces API payloads to build interfaces metadata and tags
+func GetInterfacesMetadata(namespace string, interfaces []CiscoInterface) ([]devicemetadata.InterfaceMetadata, map[string]CiscoInterface) {
+	var interfacesMetadata []devicemetadata.InterfaceMetadata
+	interfacesMap := make(map[string]CiscoInterface)
 
-	itfs := convertInterfaces(vEdgeInterfaces, cEdgeInterfaces)
-
-	for _, itf := range itfs {
+	for _, itf := range interfaces {
 		_, present := interfacesMap[itf.ID()]
 
 		// Avoid sending duplicated interface metadata (In case the interface is returned both for IPv4 and IPv6)
@@ -46,22 +45,30 @@ func ProcessInterfaces(namespace string, vEdgeInterfaces []client.InterfaceState
 				continue
 			}
 
-			interfaces = append(interfaces, interfaceMetadata)
+			interfacesMetadata = append(interfacesMetadata, interfaceMetadata)
 			interfacesMap[itf.ID()] = itf
 		}
+	}
 
+	return interfacesMetadata, interfacesMap
+}
+
+// GetIPAddressesMetadata process interfaces API payloads to build IP addresses metadata
+func GetIPAddressesMetadata(namespace string, interfaces []CiscoInterface) []devicemetadata.IPAddressMetadata {
+	var ipAddresses []devicemetadata.IPAddressMetadata
+	for _, itf := range interfaces {
 		ipAddress, err := itf.IPAddressMetadata(namespace)
 		if err != nil {
-			log.Warnf("Unable to process IP address metdata for %s : %s", itf.ID(), err)
+			log.Warnf("Unable to process IP address metadata for %s : %s", itf.ID(), err)
 			continue
 		}
 		ipAddresses = append(ipAddresses, ipAddress)
 	}
-
-	return interfaces, ipAddresses, interfacesMap
+	return ipAddresses
 }
 
-func convertInterfaces(vEdgeInterfaces []client.InterfaceState, cEdgeInterfaces []client.CEdgeInterfaceState) []CiscoInterface {
+// ConvertInterfaces converts API responses to an abstracted interface
+func ConvertInterfaces(vEdgeInterfaces []client.InterfaceState, cEdgeInterfaces []client.CEdgeInterfaceState) []CiscoInterface {
 	var interfaces []CiscoInterface
 	for _, itf := range vEdgeInterfaces {
 		interfaces = append(interfaces, &VEdgeInterface{itf})

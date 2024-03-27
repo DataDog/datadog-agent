@@ -23,6 +23,108 @@ var mockTimeNow = func() time.Time {
 	return t
 }
 
+var testDevices = []client.Device{
+	{
+		SystemIP:     "10.0.0.1",
+		HostName:     "test-1",
+		SiteID:       "100",
+		Reachability: "reachable",
+		DeviceModel:  "vmanage",
+		DeviceOs:     "vmanage-os",
+		Version:      "20.12",
+		BoardSerial:  "test-serial",
+		DeviceType:   "vmanage",
+		SiteName:     "test-site",
+		UptimeDate:   float64(TimeNow().Add(-time.Hour).UnixMilli()),
+	},
+	{
+		SystemIP:     "10.0.0.2",
+		HostName:     "test-2",
+		SiteID:       "102",
+		Reachability: "reachable",
+		DeviceModel:  "vbond",
+		DeviceOs:     "vbond-os",
+		Version:      "20.12",
+		BoardSerial:  "test-serial-2",
+		DeviceType:   "vbond",
+		SiteName:     "test-site-2",
+		UptimeDate:   float64(TimeNow().Add(-2 * time.Hour).UnixMilli()),
+	},
+}
+
+func TestProcessDevicesMetadata(t *testing.T) {
+	metadata := GetDevicesMetadata("test-ns", testDevices)
+	require.Len(t, metadata, 2)
+	require.Equal(t, []devicemetadata.DeviceMetadata{
+		{
+			ID:           "test-ns:10.0.0.1",
+			IPAddress:    "10.0.0.1",
+			Vendor:       "cisco",
+			Name:         "test-1",
+			Tags:         []string{"source:cisco-sdwan", "device_namespace:test-ns", "site_id:100"},
+			IDTags:       []string{"system_ip:10.0.0.1"},
+			Status:       devicemetadata.DeviceStatusReachable,
+			Model:        "vmanage",
+			OsName:       "vmanage-os",
+			Version:      "20.12",
+			SerialNumber: "test-serial",
+			DeviceType:   "sd-wan",
+			ProductName:  "vmanage",
+			Location:     "test-site",
+			Integration:  "cisco-sdwan",
+		},
+		{
+			ID:           "test-ns:10.0.0.2",
+			IPAddress:    "10.0.0.2",
+			Vendor:       "cisco",
+			Name:         "test-2",
+			Tags:         []string{"source:cisco-sdwan", "device_namespace:test-ns", "site_id:102"},
+			IDTags:       []string{"system_ip:10.0.0.2"},
+			Status:       devicemetadata.DeviceStatusReachable,
+			Model:        "vbond",
+			OsName:       "vbond-os",
+			Version:      "20.12",
+			SerialNumber: "test-serial-2",
+			DeviceType:   "sd-wan",
+			ProductName:  "vbond",
+			Location:     "test-site-2",
+			Integration:  "cisco-sdwan",
+		},
+	}, metadata)
+}
+
+func TestProcessDevicesTags(t *testing.T) {
+	tags := GetDevicesTags("test-ns", testDevices)
+	require.Len(t, tags, 2)
+	require.Equal(t, map[string][]string{
+		"10.0.0.1": {
+			"device_vendor:cisco",
+			"device_namespace:test-ns",
+			"hostname:test-1",
+			"system_ip:10.0.0.1",
+			"site_id:100",
+			"type:vmanage",
+		},
+		"10.0.0.2": {
+			"device_vendor:cisco",
+			"device_namespace:test-ns",
+			"hostname:test-2",
+			"system_ip:10.0.0.2",
+			"site_id:102",
+			"type:vbond",
+		},
+	}, tags)
+}
+
+func TestProcessDevicesUptime(t *testing.T) {
+	uptimes := GetDevicesUptime(testDevices)
+	require.Len(t, uptimes, 2)
+	require.Equal(t, map[string]float64{
+		"10.0.0.1": 360000,
+		"10.0.0.2": 720000,
+	}, uptimes)
+}
+
 func TestBuildDeviceMetadata(t *testing.T) {
 	TimeNow = mockTimeNow
 
