@@ -8,7 +8,6 @@ package run
 
 import (
 	"context"
-	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
@@ -36,6 +35,7 @@ import (
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
@@ -219,6 +219,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	expvarserver expvarserver.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -282,6 +283,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		expvarserver,
 	); err != nil {
 		return err
 	}
@@ -421,6 +423,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ expvarserver.Component,
 ) error {
 
 	var err error
@@ -476,17 +479,7 @@ func startAgent(
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
-	expvarPort := pkgconfig.Datadog.GetString("expvar_port")
 	http.Handle("/telemetry", telemetryHandler)
-	go func() {
-		common.ExpvarServer = &http.Server{
-			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
-			Handler: http.DefaultServeMux,
-		}
-		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
-		}
-	}()
 
 	// Setup healthcheck port
 	ctx, _ := pkgcommon.GetMainCtxCancel()
@@ -645,12 +638,6 @@ func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 		pkglog.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
-	}
-
-	if common.ExpvarServer != nil {
-		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
-			pkglog.Errorf("Error shutting down expvar server: %v", err)
-		}
 	}
 
 	if common.MetadataScheduler != nil {

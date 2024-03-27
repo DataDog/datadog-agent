@@ -3,15 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package agent
+// Package expvarserver contains the component type for the expVar server.
+package expvarserver
 
-import (
-	"testing"
+// team: agent-shared-components
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
-func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(), core.MockBundle())
-}
+// Component is the component type.
+type Component interface{}
