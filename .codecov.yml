@@ -7,7 +7,11 @@ coverage:
 
   status:
     project: off
-    patch: off
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+        base: auto
 
 ignore:
   - "pkg/trace/testutil"  # code only used in tests
