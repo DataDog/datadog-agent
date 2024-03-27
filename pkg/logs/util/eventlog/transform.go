@@ -3,87 +3,135 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build windows
-
-package windowsevent
+// Package eventlog contains utilities to transform Windows Event Log XML messages into structured messages for Datadog Logs.
+package eventlog
 
 import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/clbanning/mxj"
 	"golang.org/x/text/encoding/unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	stringUtil "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
-// eventToJSON converts an XML message into either an unstructured message.Message
-// or a structured one.
-func eventToMessage(re *richEvent, source *sources.LogSource, processRawMessage bool) (*message.Message, error) {
-	event := re.xmlEvent
-	log.Trace("Rendered XML:", event)
+const (
+	binaryPath  = "Event.EventData.Binary"
+	dataPath    = "Event.EventData.Data"
+	taskPath    = "Event.System.Task"
+	opcodePath  = "Event.System.Opcode"
+	eventIDPath = "Event.System.EventID"
+	// Custom path, not a Microsoft path
+	eventIDQualifierPath = "Event.System.EventIDQualifier"
+	maxMessageBytes      = 128 * 1024 // 128 kB
+	truncatedFlag        = "...TRUNCATED..."
+)
+
+// Map is a wrapper around mxj.Map that provides additional methods to manipulate the map
+// as it is used in the context of Windows Event Log messages.
+type Map struct {
+	mxj.Map
+}
+
+// SetTask sets the task field in the map.
+func (m *Map) SetTask(task string) error {
+	if task == "" {
+		return nil
+	}
+	_, err := m.Map.UpdateValuesForPath("Task:"+task, taskPath)
+	return err
+}
+
+// SetOpcode sets the opcode field in the map.
+func (m *Map) SetOpcode(opcode string) error {
+	if opcode == "" {
+		return nil
+	}
+	_, err := m.Map.UpdateValuesForPath("Opcode:"+opcode, opcodePath)
+	return err
+}
+
+// SetMessage sets the message field in the map. This field is a DD field not a Windows Event Log field.
+// The message is truncated if it is bigger than 128kB to prevent it from being dropped.
+func (m *Map) SetMessage(message string) error {
+	if message == "" {
+		return nil
+	}
+	// Truncates the message. Messages with more than 128kB are likely to be bigger
+	// than 256kB when serialized and then dropped
+	if len(message) > maxMessageBytes {
+		message = stringUtil.TruncateUTF8(message, maxMessageBytes)
+		message = message + truncatedFlag
+	}
+	return m.Map.SetValueForPath(message, "message")
+}
+
+// SetLevel sets the level field in the map. This field is a DD field not a Windows Event Log field.
+func (m *Map) SetLevel(level string) error {
+	if level == "" {
+		return nil
+	}
+	return m.Map.SetValueForPath(level, "level")
+}
+
+// JSON returns the map as a JSON byte array.
+//
+// The function replaces any "#text" key with a "value" key.
+func (m *Map) JSON() ([]byte, error) {
+	j, err := m.Map.Json(false)
+	if err != nil {
+		return nil, err
+	}
+	return replaceTextKeyToValue(j), nil
+}
+
+// GetMessage returns the message field from the map.
+func (m *Map) GetMessage() string {
+	if message, exists := m.Map["message"]; exists {
+		return message.(string)
+	}
+	return ""
+}
+
+// NewMapXML converts Windows Event Log XML to a map and runs some transforms to normalize the data.
+//
+// Transforms:
+//   - Event.EventData.Data: Convert to a map if values are named, else to a list
+//   - Event.EventData.Binary: Convert to a string if it is a utf-16 string
+//   - Event.System.EventID: Separate the EventID and Qualifier fields
+func NewMapXML(eventXML []byte) (*Map, error) {
+	var err error
+	m := &Map{}
+
 	mxj.PrependAttrWithHyphen(false)
-	mv, err := mxj.NewMapXml([]byte(event))
+	m.Map, err = mxj.NewMapXml(eventXML)
 	if err != nil {
 		return nil, err
 	}
 
 	// extract then modify the Event.EventData.Data field to have a key value mapping
-	err = formatEventDataField(mv)
+	err = formatEventDataField(m.Map)
 	if err != nil {
 		log.Debugf("Error formatting %s: %s", dataPath, err)
 	}
 
 	// extract, parse then modify the Event.EventData.Binary data field
-	err = formatEventBinaryData(mv)
+	err = formatEventBinaryData(m.Map)
 	if err != nil {
 		log.Debugf("Error formatting %s: %s", binaryPath, err)
 	}
 
 	// Normalize the Event.System.EventID field
-	err = normalizeEventID(mv)
+	err = normalizeEventID(m.Map)
 	if err != nil {
 		log.Debugf("Error normalizing EventID: %s", err)
 	}
 
-	// Replace Task and Opcode codes by the rendered value
-	if re.task != "" {
-		_, _ = mv.UpdateValuesForPath("Task:"+re.task, taskPath)
-	}
-	if re.opcode != "" {
-		_, _ = mv.UpdateValuesForPath("Opcode:"+re.opcode, opcode)
-	}
-	// Set message and severity
-	if re.message != "" {
-		_ = mv.SetValueForPath(re.message, "message")
-	}
-	if re.level != "" {
-		_ = mv.SetValueForPath(re.level, "level")
-	}
-
-	// old behaviour using an unstructured message with raw data
-	if processRawMessage {
-		jsonEvent, err := mv.Json(false)
-		if err != nil {
-			return nil, err
-		}
-		jsonEvent = replaceTextKeyToValue(jsonEvent)
-		log.Trace("Transformed JSON:", string(jsonEvent))
-		return message.NewMessageWithSource(jsonEvent, message.StatusInfo, source, time.Now().UnixNano()), nil
-	}
-
-	// new behaviour returning a structured message
-	return message.NewStructuredMessage(
-		&WindowsEventMessage{data: mv},
-		message.NewOrigin(source),
-		message.StatusInfo,
-		time.Now().UnixNano(),
-	), nil
+	return m, nil
 }
 
 // EventID sometimes comes in like <EventID>7036</EventID>

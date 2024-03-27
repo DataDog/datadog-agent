@@ -3,19 +3,44 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
-package windowsevent
+package eventlog
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
+
+// richEvent carries rendered information to create a richer log
+type richEvent struct {
+	xmlEvent string
+	message  string
+	task     string
+	opcode   string
+	level    string
+}
+
+func eventToMessage(richEvt *richEvent, source *sources.LogSource, processRawMessage bool) (*message.Message, error) {
+	m, err := NewMapXML([]byte(richEvt.xmlEvent))
+	if err != nil {
+		return nil, err
+	}
+	m.SetLevel(richEvt.level)
+	m.SetMessage(richEvt.message)
+	m.SetTask(richEvt.task)
+	m.SetOpcode(richEvt.opcode)
+
+	msg, err := MapToMessage(m, source, processRawMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
 
 func BenchmarkTransform(b *testing.B) {
 	// event will trigger the transforms: (utf-16) binary data, Name/Value string data, eventIDQualifiers, and #text
@@ -29,9 +54,13 @@ func BenchmarkTransform(b *testing.B) {
 		level:    "Warning",
 	}
 
+	source := sources.NewLogSource("", &logconfig.LogsConfig{})
 	var actual *message.Message
 	for i := 0; i < b.N; i++ {
-		actual, _ = eventToMessage(richEvt, sources.NewLogSource("", &config.LogsConfig{}), false)
+		// XML to Map, then to Message
+		actual, _ = eventToMessage(richEvt, source, true)
+		// to JSON
+		actual.GetContent()
 	}
 	assert.JSONEq(b, expected1, string(actual.GetContent()))
 	elapsed := b.Elapsed()
@@ -70,14 +99,49 @@ var testData = [][2]string{
 	},
 }
 
-func TestTransformToMessageStructuredContent(t *testing.T) {
-	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(nil, source, &Config{ChannelPath: "System"}, nil)
-
-	tailer.config.ProcessRawMessage = false
+func TestCompareUnstructuredAndStructured(t *testing.T) {
+	assert := assert.New(t)
+	sourceV1 := sources.NewLogSource("", &logconfig.LogsConfig{})
+	sourceV2 := sources.NewLogSource("", &logconfig.LogsConfig{})
 
 	for _, testCase := range testData {
-		actual, _ := tailer.toMessage(richEventFromXML(testCase[0]))
+		ev1 := &richEvent{
+			xmlEvent: testCase[0],
+			message:  "some content in the message",
+			task:     "rdTaskName",
+			opcode:   "OpCode",
+			level:    "Warning",
+		}
+		ev2 := &richEvent{
+			xmlEvent: testCase[0],
+			message:  "some content in the message",
+			task:     "rdTaskName",
+			opcode:   "OpCode",
+			level:    "Warning",
+		}
+
+		messagev1, err1 := eventToMessage(ev1, sourceV1, true)
+		messagev2, err2 := eventToMessage(ev2, sourceV2, false)
+
+		assert.NoError(err1)
+		assert.NoError(err2)
+
+		rendered1, err1 := messagev1.Render()
+		rendered2, err2 := messagev2.Render()
+
+		assert.NoError(err1)
+		assert.NoError(err2)
+
+		assert.Equal(rendered1, rendered2)
+	}
+}
+
+func TestTransformToMessageStructuredContent(t *testing.T) {
+	source := sources.NewLogSource("", &logconfig.LogsConfig{})
+	processRawMessage := false
+
+	for _, testCase := range testData {
+		actual, _ := eventToMessage(richEventFromXML(testCase[0]), source, processRawMessage)
 		data, err := actual.Render()
 		assert.NoError(t, err)
 		assert.JSONEq(t, testCase[1], string(data))
@@ -86,13 +150,10 @@ func TestTransformToMessageStructuredContent(t *testing.T) {
 }
 
 func TestTransformToMessage(t *testing.T) {
-	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(nil, source, &Config{ChannelPath: "System"}, nil)
-
-	tailer.config.ProcessRawMessage = true
-
+	source := sources.NewLogSource("", &logconfig.LogsConfig{})
+	processRawMessage := true
 	for _, testCase := range testData {
-		actual, _ := tailer.toMessage(richEventFromXML(testCase[0]))
+		actual, _ := eventToMessage(richEventFromXML(testCase[0]), source, processRawMessage)
 		assert.JSONEq(t, testCase[1], string(actual.GetContent()))
 	}
 
@@ -106,7 +167,7 @@ func TestTransformToMessage(t *testing.T) {
 		opcode:   "OpCode",
 		level:    "Warning",
 	}
-	actual, _ := tailer.toMessage(richEvt)
+	actual, _ := eventToMessage(richEvt, source, processRawMessage)
 	assert.JSONEq(t, expected, string(actual.GetContent()))
 }
 
