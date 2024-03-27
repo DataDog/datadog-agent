@@ -59,7 +59,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		enableProbe(enabled, probes.TCPClose)
 		enableProbe(enabled, probes.TCPCloseFlushReturn)
 		enableProbe(enabled, probes.TCPConnect)
-		if c.FailedConnectionsSupported() {
+		if FailedConnectionsSupported(c) {
 			enableProbe(enabled, probes.TCPConnectReturn)
 			enableProbe(enabled, probes.TCPv4ConnectReturn)
 		}

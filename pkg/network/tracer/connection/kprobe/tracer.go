@@ -109,6 +109,26 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
+// FailedConnectionsSupported returns true if the current kernel version supports ringbuffers, the config & TCP is enabled
+func FailedConnectionsSupported(c *config.Config) bool {
+	log.Info("adamk checking if FailedConnectionsSupported?")
+	if !c.FailedConnectionsEnabled {
+		log.Info("adamk FailedConnectionsSupported? config disabled; failed connections monitoring disabled.")
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		log.Info("adamk FailedConnectionsSupported? tcp disabled; failed connections monitoring disabled.")
+		return false
+	}
+	currentKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. failed connections monitoring disabled.")
+		return false
+	}
+
+	return currentKernelVersion >= kernel.VersionCode(5, 8, 0)
+}
+
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
 func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
@@ -226,7 +246,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	if config.FailedConnectionsSupported() {
+	if FailedConnectionsSupported(config) {
 		util.AddBoolConst(&mgrOpts, "tcp_failed_connections_enabled", true)
 		util.EnableFailedConnRingbufferViaMapEditor(&mgrOpts)
 	}
