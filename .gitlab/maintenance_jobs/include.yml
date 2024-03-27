@@ -4,5 +4,5 @@
 # as well as jobs which periodically clean up kitchen resources.
 
 include:
-  - /.gitlab/maintenance_jobs/docker.yml
-  - /.gitlab/maintenance_jobs/kitchen.yml
+  - .gitlab/maintenance_jobs/docker.yml
+  - .gitlab/maintenance_jobs/kitchen.yml

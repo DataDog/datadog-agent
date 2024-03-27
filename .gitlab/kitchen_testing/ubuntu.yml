@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_common/testing.yml
+#   - .gitlab/kitchen_common/testing.yml
 
 # Kitchen: OSes
 # -------------

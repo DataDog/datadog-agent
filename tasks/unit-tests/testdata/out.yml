@@ -1,0 +1,11 @@
+.if_main_branch:
+  if: $CI_COMMIT_BRANCH == "main"
+default:
+  retry:
+    max: 2
+stages:
+- a
+- b
+variables:
+  bar: baz
+  toto: foo

@@ -3,8 +3,8 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_testing/testing.yml
-#   - /.gitlab/functional_test/common.yml
+#   - .gitlab/kitchen_testing/testing.yml
+#   - .gitlab/functional_test/common.yml
 
 kitchen_test_system_probe_windows_x64:
   extends:
