@@ -422,7 +422,8 @@ def test_gitlab(_):
 
     # --- Create / cancel pipeline ---
     # Get
-    pipeline = repo.pipelines.get(30899745)
+    # pipeline = repo.pipelines.get(30899745)
+    pipeline = repo.pipelines.get(30634678)
     print(pipeline)
     print(pipeline.web_url)
     # # Create
@@ -438,9 +439,10 @@ def test_gitlab(_):
     # Query
     # print('pipelines:', get_running_pipelines_on_same_ref(repo, ref))
     # Failed jobs
-    # from tasks.notify import get_failed_jobs, get_failed_jobs_stats
-    from tasks.release import build_rc
-    from invoke.context import Context
-    build_rc(Context())
-    # print(get_failed_jobs('DataDog/datadog-agent', pipeline.id))
-    # print(get_failed_jobs_stats('DataDog/datadog-agent', pipeline.id))
+    from tasks.notify import get_failed_jobs, get_failed_jobs_stats
+    print(get_failed_jobs('DataDog/datadog-agent', pipeline.id))
+    print(get_failed_jobs_stats('DataDog/datadog-agent', pipeline.id))
+    # RC
+    # from tasks.release import build_rc
+    # from invoke.context import Context
+    # build_rc(Context())
