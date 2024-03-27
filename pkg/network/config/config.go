@@ -16,6 +16,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -414,4 +415,24 @@ func New() *Config {
 
 func (c *Config) RingBufferSupportedNPM() bool {
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+}
+
+// FailedConnectionsSupported returns true if the current kernel version supports ringbuffers, the config & TCP is enabled
+func (c *Config) FailedConnectionsSupported() bool {
+	log.Info("adamk checking if FailedConnectionsSupported?")
+	if !c.FailedConnectionsEnabled {
+		log.Info("adamk FailedConnectionsSupported? config disabled; failed connections monitoring disabled.")
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		log.Info("adamk FailedConnectionsSupported? tcp disabled; failed connections monitoring disabled.")
+		return false
+	}
+	currentKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. failed connections monitoring disabled.")
+		return false
+	}
+
+	return currentKernelVersion >= kernel.VersionCode(5, 8, 0)
 }

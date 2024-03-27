@@ -34,7 +34,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-__maybe_unused static __always_inline void submit_event(void *ctx, int cpu, void *event_data, size_t data_size) {
+__maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, int cpu, void *event_data, size_t data_size) {
     __u64 ringbuffers_enabled = 0;
     LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
     if (ringbuffers_enabled > 0) {
@@ -123,7 +123,7 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     // We send the connection outside of a batch anyway. This is likely not as
     // frequent of a case to cause performance issues and avoid cases where
     // we drop whole connections, which impacts things USM connection matching.
-    submit_event(ctx, cpu, &conn, sizeof(conn_t));
+    submit_closed_conn_event(ctx, cpu, &conn, sizeof(conn_t));
     if (is_tcp) {
         increment_telemetry_count(unbatched_tcp_close);
     }
@@ -141,7 +141,14 @@ static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int 
     failure.tup = *tup;
     failure.failure_reason = (__u16)failure_reason;
 
-    bpf_ringbuf_output(&failed_conn_event, &failure, sizeof(conn_failed_t), 0);
+    __u64 ringbuffers_enabled = 0;
+    LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
+    if (ringbuffers_enabled > 0) {
+        bpf_ringbuf_output(&failed_conn_event, &failure, sizeof(conn_failed_t), 0);
+    } else {
+        u32 cpu = bpf_get_smp_processor_id();
+        bpf_perf_event_output(ctx, &conn_close_event, cpu, &failure, sizeof(conn_failed_t));
+    }
 }
 
 static __always_inline void flush_conn_close_if_full(void *ctx) {
@@ -159,7 +166,7 @@ static __always_inline void flush_conn_close_if_full(void *ctx) {
     batch_ptr->len = 0;
     batch_ptr->id++;
 
-    submit_event(ctx, cpu, &batch_copy, sizeof(batch_t));
+    submit_closed_conn_event(ctx, cpu, &batch_copy, sizeof(batch_t));
 }
 
 #endif // __TRACER_EVENTS_H

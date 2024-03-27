@@ -18,6 +18,12 @@
 #include "tracer/tcp_recv.h"
 #include "protocols/classification/protocol-classification.h"
 
+__maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("tcp_failed_connections_enabled", val);
+    return val > 0;
+}
+
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);
@@ -209,12 +215,14 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     int err_soft = 0;
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     bpf_probe_read_kernel_with_telemetry(&err_soft, sizeof(err_soft), (&sk->sk_err_soft));
-    if (err != 0) {
+    if (err != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kprobe/tcp_close err  %d", err); 
         flush_tcp_failure(ctx, &t, err);
+        return 0;
     }
-    if (err_soft !=0) {
+    if (err_soft !=0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kprobe/tcp_close soft %d", err_soft);
+        return 0;
     }
 
     cleanup_conn(ctx, &t, sk);
@@ -922,7 +930,7 @@ int kretprobe__tcp_connect(struct pt_regs *ctx) {
     
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
-    if (ret != 0) {
+    if (ret != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe__tcp_connect: ret: %d", ret);
         flush_tcp_failure(ctx, &tuple, ret);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
@@ -940,7 +948,7 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
     
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
-    if (ret != 0) {
+    if (ret != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe__tcp_v4_connect: ret: %d", ret);
         flush_tcp_failure(ctx, &tuple, ret);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);

@@ -10,8 +10,6 @@ package kprobe
 import (
 	"errors"
 	"fmt"
-	"math"
-	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -46,8 +44,7 @@ const (
 var (
 	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
 	// socket filter, and a tracepoint (4.7.0+).
-	classificationMinimumKernel    = kernel.VersionCode(4, 7, 0)
-	failedConnectionsMinimumKernel = kernel.VersionCode(5, 8, 0)
+	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 
 	protocolClassificationTailCalls = []manager.TailCallRoute{
 		{
@@ -112,26 +109,6 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
-// FailedConnectionsSupported returns true if the current kernel version supports ringbuffers, the config & TCP is enabled
-func FailedConnectionsSupported(config *config.Config) bool {
-	log.Info("adamk FailedConnectionsSupported?")
-	if !config.FailedConnectionsEnabled {
-		log.Info("adamk FailedConnectionsSupported? config disabled; failed connections monitoring disabled.")
-		return false
-	}
-	if !config.CollectTCPv4Conns && !config.CollectTCPv6Conns {
-		log.Info("adamk FailedConnectionsSupported? tcp disabled; failed connections monitoring disabled.")
-		return false
-	}
-	currentKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		log.Warn("could not determine the current kernel version. failed connections monitoring disabled.")
-		return false
-	}
-
-	return currentKernelVersion >= failedConnectionsMinimumKernel
-}
-
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
 func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
@@ -194,22 +171,6 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
-// toPowerOf2 converts a number to its nearest power of 2
-func toPowerOf2(x int) int {
-	log2 := math.Log2(float64(x))
-	return int(math.Pow(2, math.Round(log2)))
-}
-
-// computeDefaultFailedConnectionsRingBufferSize is the default buffer size of the ring buffer for closed connection events.
-// Must be a power of 2 and a multiple of the page size
-func computeDefaultFailedConnectionsRingBufferSize() int {
-	numCPUs, err := ebpf.PossibleCPU()
-	if err != nil {
-		numCPUs = 1
-	}
-	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
-}
-
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	log.Errorf("adamk loadTracerFromAsset")
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, &ebpftelemetry.ErrorsTelemetryModifier{})
@@ -265,17 +226,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	failedConnectionsEnabled := FailedConnectionsSupported(config)
-	if failedConnectionsEnabled {
-		util.AddBoolConst(&mgrOpts, "failed_connections_enabled", true)
-		log.Errorf("adamk failed connections monitoring supported")
-		mgrOpts.MapSpecEditors[probes.FailedConnEventMap] = manager.MapSpecEditor{
-			Type:       ebpf.RingBuf,
-			MaxEntries: uint32(computeDefaultFailedConnectionsRingBufferSize()),
-			KeySize:    0,
-			ValueSize:  0,
-			EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
-		}
+	if config.FailedConnectionsSupported() {
+		util.AddBoolConst(&mgrOpts, "tcp_failed_connections_enabled", true)
+		util.EnableFailedConnRingbufferViaMapEditor(&mgrOpts)
 	}
 
 	// Use the config to determine what kernel probes should be enabled

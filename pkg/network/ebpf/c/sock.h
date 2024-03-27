@@ -28,7 +28,6 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 #define inet_rcv_saddr sk.__sk_common.skc_rcv_saddr
 #define inet_dport sk.__sk_common.skc_dport
 #define inet_num sk.__sk_common.skc_num
-// #define sk_err sk.sk_err
 // source include/net/sock.h
 #define sk_num __sk_common.skc_num
 #define sk_dport __sk_common.skc_dport

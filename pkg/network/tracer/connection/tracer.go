@@ -227,7 +227,13 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	} else {
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
 	}
-	failedConnsHandler := ddebpf.NewRingBufferHandler(closedChannelSize)
+	var failedConnsHandler ddebpf.EventHandler
+	if config.FailedConnectionsSupported() {
+		failedConnsHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+	} else {
+		failedConnsHandler = ddebpf.NewPerfHandler(closedChannelSize)
+	}
+
 	var m *manager.Manager
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry

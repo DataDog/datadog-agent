@@ -39,6 +39,16 @@ func computeDefaultClosedConnRingBufferSize() int {
 	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
 }
 
+// computeDefaultFailedConnectionsRingBufferSize is the default buffer size of the ring buffer for closed connection events.
+// Must be a power of 2 and a multiple of the page size
+func computeDefaultFailedConnectionsRingBufferSize() int {
+	numCPUs, err := cebpf.PossibleCPU()
+	if err != nil {
+		numCPUs = 1
+	}
+	return 8 * toPowerOf2(numCPUs) * os.Getpagesize()
+}
+
 // computeDefaultClosedConnPerfBufferSize is the default buffer size of the perf buffer for closed connection events.
 // Must be a multiple of the page size
 func computeDefaultClosedConnPerfBufferSize() int {
@@ -56,26 +66,55 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 	}
 }
 
+// EnableFailedConnRingbufferViaMapEditor sets up the ring buffer for failed connection events via a map editor
+func EnableFailedConnRingbufferViaMapEditor(mgrOpts *manager.Options) {
+	log.Info("adamk enabling failed connection ring buffer via map editor")
+	mgrOpts.MapSpecEditors[probes.FailedConnEventMap] = manager.MapSpecEditor{
+		Type:       cebpf.RingBuf,
+		MaxEntries: uint32(computeDefaultFailedConnectionsRingBufferSize()),
+		KeySize:    0,
+		ValueSize:  0,
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
+	}
+}
+
 // SetupFailedConnHandler sets up the closed connection event handler
 func SetupFailedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config) {
 	switch handler := connCloseEventHandler.(type) {
 	case *ebpf.RingBufferHandler:
-		options := manager.RingBufferOptions{
-			RecordGetter:     handler.RecordGetter,
-			RecordHandler:    handler.RecordHandler,
-			TelemetryEnabled: cfg.InternalTelemetryEnabled,
-			// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
-			RingBufferSize: computeDefaultClosedConnRingBufferSize(),
-		}
+		log.Info("Setting up failed connection handler with ring buffer")
 		rb := &manager.RingBuffer{
-			Map:               manager.Map{Name: probes.FailedConnEventMap},
-			RingBufferOptions: options,
+			Map: manager.Map{Name: probes.FailedConnEventMap},
+			RingBufferOptions: manager.RingBufferOptions{
+				RecordGetter:     handler.RecordGetter,
+				RecordHandler:    handler.RecordHandler,
+				TelemetryEnabled: cfg.InternalTelemetryEnabled,
+				// RingBufferSize is not used yet by the manager, we use a map editor to set it in the tracer
+				RingBufferSize: computeDefaultClosedConnRingBufferSize(),
+			},
 		}
-
 		mgr.RingBuffers = []*manager.RingBuffer{rb}
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:
 		log.Info("Setting up failed connection handler with perf handler")
+		pm := &manager.PerfMap{
+			Map: manager.Map{Name: probes.FailedConnEventMap},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: computeDefaultClosedConnPerfBufferSize(),
+				Watermark:          1,
+				RecordHandler:      handler.RecordHandler,
+				LostHandler:        handler.LostHandler,
+				RecordGetter:       handler.RecordGetter,
+				TelemetryEnabled:   cfg.InternalTelemetryEnabled,
+			},
+		}
+		mgr.PerfMaps = []*manager.PerfMap{pm}
+		ebpftelemetry.ReportPerfMapTelemetry(pm)
+		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
+		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		if err != nil {
+			log.Error("Failed to remove helper calls from eBPF programs: ", err)
+		}
 	}
 }
 
