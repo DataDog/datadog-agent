@@ -12,6 +12,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
+	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../comp/serializer/compression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../config/env
@@ -55,6 +56,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.53.0-rc.1
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.53.0-rc.1
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/comp/serializer/compression v0.0.0
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.1
@@ -66,7 +68,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3
-	github.com/DataDog/zstd v1.5.5
 	github.com/benbjohnson/clock v1.3.5
 	github.com/gogo/protobuf v1.3.2
 	github.com/json-iterator/go v1.1.12
@@ -104,6 +105,7 @@ require (
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -157,8 +159,8 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/trace v1.23.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.0 // indirect
-	go.uber.org/fx v1.18.2 // indirect
+	go.uber.org/dig v1.17.1 // indirect
+	go.uber.org/fx v1.21.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect

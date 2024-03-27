@@ -16,6 +16,7 @@ import (
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -124,8 +125,9 @@ func InitAndStartAgentDemultiplexer(
 	orchestratorForwarder orchestratorforwarder.Component,
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
+	compressor compression.Component,
 	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, compressor, hostname)
 	go demux.run()
 	return demux
 }
@@ -136,6 +138,7 @@ func initAgentDemultiplexer(
 	orchestratorForwarder orchestratorforwarder.Component,
 	options AgentDemultiplexerOptions,
 	eventPlatformForwarder eventplatform.Component,
+	compressor compression.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -147,7 +150,7 @@ func initAgentDemultiplexer(
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog, hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -180,7 +183,7 @@ func initAgentDemultiplexer(
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, config.Datadog, hostname)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog, hostname)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,

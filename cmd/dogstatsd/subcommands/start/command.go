@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -138,6 +139,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			}
 		}),
 		workloadmeta.Module(),
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),

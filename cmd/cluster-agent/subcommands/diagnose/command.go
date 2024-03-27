@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -43,6 +44,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
 				core.Bundle(),
+				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},

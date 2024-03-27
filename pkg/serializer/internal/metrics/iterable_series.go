@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -108,7 +109,7 @@ func describeItem(serie *metrics.Serie) string {
 // MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
 // If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
-func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component) (transaction.BytesPayloads, error) {
+func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (transaction.BytesPayloads, error) {
 	var err error
 	var compressor *stream.Compressor
 	buf := bufferContext.PrecompressionBuf
@@ -177,7 +178,7 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 		compressor, err = stream.NewCompressor(
 			bufferContext.CompressorInput, bufferContext.CompressorOutput,
 			maxPayloadSize, maxUncompressedSize,
-			[]byte{}, []byte{}, []byte{}, config)
+			[]byte{}, []byte{}, []byte{}, strategy)
 		if err != nil {
 			return err
 		}

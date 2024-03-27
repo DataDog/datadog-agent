@@ -32,6 +32,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -75,6 +76,7 @@ func main() {
 			},
 		),
 		fx.Provide(newForwarderParams),
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
