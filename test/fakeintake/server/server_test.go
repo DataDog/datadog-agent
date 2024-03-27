@@ -41,6 +41,12 @@ func testServer(t *testing.T, opts ...func(*Server)) {
 		assert.Empty(t, fi.URL())
 	})
 
+	t.Run("should use the hard coded port", func(t *testing.T) {
+		opts = append(opts, WithAddress("localhost:1234"))
+		fi := NewServer(opts...)
+		assert.Equal(t, "localhost:1234", fi.server.Addr)
+	})
+
 	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
 		fi := NewServer(opts...)
 		err := fi.Stop()
