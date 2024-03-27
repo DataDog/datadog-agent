@@ -97,8 +97,8 @@ func (s *inMemoryStore) Flush() {
 	s.NbPayloads.Reset()
 }
 
-// GetMetrics returns the prometheus metrics for the store
-func (s *inMemoryStore) GetMetrics() []prometheus.Collector {
+// GetInternalMetrics returns the prometheus metrics for the store
+func (s *inMemoryStore) GetInternalMetrics() []prometheus.Collector {
 	return []prometheus.Collector{s.NbPayloads}
 }
 

@@ -230,8 +230,8 @@ func (s *sqlStore) Flush() {
 	}
 }
 
-// GetMetrics returns the prometheus metrics for the store
-func (s *sqlStore) GetMetrics() []prometheus.Collector {
+// GetInternalMetrics returns the prometheus metrics for the store
+func (s *sqlStore) GetInternalMetrics() []prometheus.Collector {
 	return []prometheus.Collector{
 		s.metrics.nBPayloads,
 		s.metrics.insertLatency,

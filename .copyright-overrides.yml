@@ -306,9 +306,12 @@ github.com/openvex/go-vex: Copyright 2023 The OpenVEX Authors
 github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Security
 github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
 github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
+github.com/go-errors/errors: Copyright (c) 2015 Conrad Irwin <conrad@bugsnag.com>
 
 # Copyright information is in the source headers
 github.com/csaf-poc/csaf_distribution: Copyright 2021-2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
+github.com/google/btree: Copyright 2014-2022 Google Inc.
+github.com/google/shlex: Copyright 2012 Google Inc. All Rights Reserved.
 
 github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
