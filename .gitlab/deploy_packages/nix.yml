@@ -229,7 +229,7 @@ deploy_remote_updater_deb_amd64:
   extends: .deploy_packages_deb-7
   needs: ["updater_deb-amd64"]
   variables:
-    package_arch: amd64
+    PACKAGE_ARCH: amd64
 
 deploy_remote_updater_rpm_arm64:
   extends: .deploy_packages_rpm-7
@@ -241,4 +241,4 @@ deploy_remote_updater_rpm_amd64:
   extends: .deploy_packages_rpm-7
   needs: ["updater_rpm-amd64"]
   variables:
-    package_arch: x86_64
+    PACKAGE_ARCH: x86_64
