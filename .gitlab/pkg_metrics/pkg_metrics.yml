@@ -6,6 +6,10 @@ send_pkg_size:
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
+      allow_failure: true
   needs:
     - job: agent_deb-arm64-a6
       optional: true
@@ -97,8 +101,6 @@ send_pkg_size:
     - inv package.send-size --flavor "heroku-agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
     - inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
-  when: always
-  allow_failure: true
 
 .check_pkg_size:
   stage: pkg_metrics
