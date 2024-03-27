@@ -123,10 +123,7 @@ func NewServer(options ...func(*Server)) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server = http.Server{
-		Handler: mux,
-		Addr:    ":0",
-	}
+	fi.server.Handler = mux
 
 	return fi
 }
