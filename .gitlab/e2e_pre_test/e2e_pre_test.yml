@@ -8,6 +8,9 @@ e2e_pre_test:
   needs: []
   script:
     - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+  after_script:
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - for f in junit*-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done
   variables:
     TEAM: "agent-developer-tools"
     # override to use latest stable agent

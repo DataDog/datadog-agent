@@ -17,6 +17,10 @@
     - tasks/run-test-kitchen.sh security-agent-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+  after_script:
+    # Upload generated junit files
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - ss=0; for f in $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz; do [[ -e "$f" ]] || continue; inv -e junit-upload --tgz-path $f || ((ss++)); done; exit $ss
   artifacts:
     expire_in: 2 weeks
     when: always

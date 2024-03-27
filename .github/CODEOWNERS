@@ -62,6 +62,7 @@
 
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/platform-integrations @DataDog/agent-build-and-releases
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-developer-tools
 /.gitlab/binary_build/serverless.yml                 @DataDog/serverless @DataDog/agent-build-and-releases
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build-and-releases
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-build-and-releases @DataDog/windows-agent
@@ -95,20 +96,25 @@
 /.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-ci-experience @DataDog/windows-kernel-integrations
 /.gitlab/functional_test/common.yml                  @DataDog/agent-ci-experience @DataDog/windows-kernel-integrations @DataDog/ebpf-platform
 /.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-ci-experience
+/.gitlab/choco_build/choco_build.yml                 @DataDog/agent-build-and-releases @DataDog/windows-agent
+/.gitlab/choco_deploy/choco_deploy.yml               @DataDog/agent-build-and-releases @DataDog/windows-agent
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-ci-experience @DataDog/windows-agent
 
 /.gitlab/kernel_matrix_testing                       @DataDog/ebpf-platform
 /.gitlab/kernel_matrix_testing/security_agent.yml    @DataDog/agent-security
 
+/.gitlab/common/container_publish_job_templates.yml  @DataDog/container-integrations @DataDog/agent-build-and-releases
 /.gitlab/container_build/                            @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/container_build/include.yml                 @DataDog/container-integrations @DataDog/agent-build-and-releases
 /.gitlab/container_build/docker_windows_agent6.yml   @DataDog/agent-build-and-releases @DataDog/windows-agent
 /.gitlab/container_build/docker_windows_agent7.yml   @DataDog/agent-build-and-releases @DataDog/windows-agent
 
 /.gitlab/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/dev_container_deploy/fakeintake.yml         @DataDog/agent-developer-tools
 /.gitlab/dev_container_deploy/docker_windows.yml     @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/container_scan.yml                          @DataDog/container-integrations @DataDog/agent-build-and-releases
+/.gitlab/container_scan/container_scan.yml           @DataDog/container-integrations @DataDog/agent-build-and-releases
 
 /.gitlab/internal_image_deploy.yml                   @DataDog/container-integrations @DataDog/agent-build-and-releases
 
@@ -121,9 +127,6 @@
 /.gitlab/package_build/windows.yml                   @DataDog/agent-build-and-releases @DataDog/windows-agent
 /.gitlab/packaging/                                  @DataDog/agent-build-and-releases
 
-/.gitlab/choco_build.yml                             @DataDog/agent-build-and-releases @DataDog/windows-agent
-/.gitlab/choco_deploy.yml                            @DataDog/agent-build-and-releases @DataDog/windows-agent
-
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
@@ -131,6 +134,8 @@
 
 /.gitlab/software_composition_analysis/              @DataDog/software-integrity-and-trust
 
+/.gitlab/source_test_stats/windows.yml                                   @DataDog/agent-platform @DataDog/windows-agent
+   
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
