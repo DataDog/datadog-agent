@@ -68,6 +68,7 @@ type WindowsProbe struct {
 	fimSession       etw.Session
 	fimwg            sync.WaitGroup
 	filePathResolver *simplelru.LRU[fileObjectPointer, string]
+	regPathResolver  *simplelru.LRU[regObjectPointer, string]
 }
 
 type etwNotification struct {
@@ -262,41 +263,41 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.regguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idRegCreateKey:
-				if cka, err := parseCreateRegistryKey(e); err == nil {
+				if cka, err := p.parseCreateRegistryKey(e); err == nil {
 					log.Tracef("Got idRegCreateKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 			case idRegOpenKey:
-				if cka, err := parseOpenRegistryKey(e); err == nil {
+				if cka, err := p.parseOpenRegistryKey(e); err == nil {
 					log.Tracef("Got idRegOpenKey %s", cka)
 					ecb(cka, e.EventHeader.ProcessID)
 				}
 
 			case idRegDeleteKey:
-				if dka, err := parseDeleteRegistryKey(e); err == nil {
+				if dka, err := p.parseDeleteRegistryKey(e); err == nil {
 					log.Tracef("Got idRegDeleteKey %v", dka)
 					ecb(dka, e.EventHeader.ProcessID)
 
 				}
 			case idRegFlushKey:
-				if dka, err := parseFlushKey(e); err == nil {
+				if dka, err := p.parseFlushKey(e); err == nil {
 					log.Tracef("Got idRegFlushKey %v", dka)
 				}
 			case idRegCloseKey:
-				if dka, err := parseCloseKeyArgs(e); err == nil {
+				if dka, err := p.parseCloseKeyArgs(e); err == nil {
 					log.Tracef("Got idRegCloseKey %s", dka)
-					delete(regPathResolver, dka.keyObject)
+					p.regPathResolver.Remove(dka.keyObject)
 				}
 			case idQuerySecurityKey:
-				if dka, err := parseQuerySecurityKeyArgs(e); err == nil {
+				if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
 				}
 			case idSetSecurityKey:
-				if dka, err := parseSetSecurityKeyArgs(e); err == nil {
+				if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
 					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
 				}
 			case idRegSetValueKey:
-				if svk, err := parseSetValueKey(e); err == nil {
+				if svk, err := p.parseSetValueKey(e); err == nil {
 					log.Tracef("Got idRegSetValueKey %s", svk)
 					ecb(svk, e.EventHeader.ProcessID)
 
@@ -543,6 +544,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
+	regPathResolver, err := simplelru.NewLRU[regObjectPointer, string](1<<11, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -557,6 +563,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification),
 		filePathResolver:  filePathResolver,
+		regPathResolver:   regPathResolver,
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
