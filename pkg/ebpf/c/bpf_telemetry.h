@@ -31,8 +31,9 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
             instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();                    \
             if (tb) {                                                               \
                 long error = errno_ret * -1;                                        \
-                long offset = (sizeof(map_err_telemetry_t) * map_index) +  \
-                    (error * sizeof(unsigned long));                                \
+                long offset = (sizeof(map_err_telemetry_t) * map_index) +           \
+                    (error * sizeof(unsigned long)) +                               \
+                    offsetof(instrumentation_blob_t, map_err_telemetry);            \
                 if (offset < (sizeof(instrumentation_blob_t) - 8)) {                \
                     void *target = (void *)tb + offset;                             \
                     __sync_fetch_and_add((unsigned long *)target, 1);               \
@@ -63,7 +64,8 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
                 int helper_indx = MK_FN_INDX(fn);                                                   \
                 long errno_slot = errno_ret * -1;                                                   \
                 long offset = (sizeof(helper_err_telemetry_t) * telemetry_program_id) +             \
-                    (((helper_indx * T_MAX_ERRNO)+errno_slot)*sizeof(unsigned long));               \
+                    (((helper_indx * T_MAX_ERRNO)+errno_slot)*sizeof(unsigned long)) +              \
+                    offsetof(instrumentation_blob_t, helper_err_telemetry);                         \
                 if (offset < (sizeof(instrumentation_blob_t) - 8)) {                                \
                     void *target = (void *)tb + offset;                                             \
                     __sync_fetch_and_add((unsigned long *)target, 1);                               \
