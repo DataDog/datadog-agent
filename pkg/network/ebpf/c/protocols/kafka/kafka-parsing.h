@@ -277,14 +277,23 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
         }
     }
 
-    // We should have exited at KAFKA_FETCH_RESPONSE_PARTITION_END if we managed to
-    // parse the entire packet.
-    log_debug("kafka: packet too large");
-
-    // Remove the skb_info.data_off so that this function can be called
-    // again on the same packet with the same arguments in a tail call.
+    // We should have exited at KAFKA_FETCH_RESPONSE_PARTITION_END if we
+    // managed to parse the entire packet, so if we get here we still have
+    // more to go. Remove the skb_info.data_off so that this function can
+    // be called again on the same packet with the same arguments in a tail
+    // call.
     response->carry_over_offset = offset - orig_offset;
     return RET_LOOP_END;
+}
+
+static __always_inline void kafka_call_response_parser(kafka_info_t *kafka, struct __sk_buff *skb)
+{
+    bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+
+    // The only reason we would get here if the tail call failed due to too
+    // many tail calls.
+    log_debug("kafka: failed to call response parser");
+    bpf_map_delete_elem(&kafka_response, &kafka->tup);
 }
 
 SEC("socket/kafka_response_parser")
@@ -324,7 +333,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
     case RET_LOOP_END:
         // We ran out of iterations in the loop, but we're not done
         // processing this packet, so continue in a self tail call.
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+        kafka_call_response_parser(kafka, skb);
         break;
     }
 
@@ -335,7 +344,7 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     __u32 orig_offset = offset;
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->tup);
     if (response) {
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+        kafka_call_response_parser(kafka, skb);
         return false;
     }
     
@@ -390,7 +399,7 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     kafka->response.record_batch_length = 0;
 
     bpf_map_update_elem(&kafka_response, &kafka->tup, &kafka->response, BPF_ANY);
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+    kafka_call_response_parser(kafka, skb);
 
     return true;
 }
