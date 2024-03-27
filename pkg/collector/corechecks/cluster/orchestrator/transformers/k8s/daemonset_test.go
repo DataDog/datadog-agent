@@ -10,18 +10,20 @@ package k8s
 import (
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"testing"
 )
 
 func TestExtractDaemonset(t *testing.T) {
-	testIntOrStr := intstr.FromString("1%")
+	testIntOrStrPercent := intstr.FromString("1%")
+	testIntOrStrNumber := intstr.FromInt(1)
 	timestamp := metav1.NewTime(time.Date(2014, time.January, 15, 0, 0, 0, 0, time.UTC)) // 1389744000
 
 	tests := map[string]struct {
@@ -39,6 +41,25 @@ func TestExtractDaemonset(t *testing.T) {
 				Status:   &model.DaemonSetStatus{},
 			},
 		},
+		"ds with numeric rolling update options": {
+			input: v1.DaemonSet{
+				Spec: v1.DaemonSetSpec{
+					UpdateStrategy: v1.DaemonSetUpdateStrategy{
+						Type: v1.DaemonSetUpdateStrategyType("RollingUpdate"),
+						RollingUpdate: &v1.RollingUpdateDaemonSet{
+							MaxUnavailable: &testIntOrStrNumber,
+						},
+					},
+				},
+			}, expected: model.DaemonSet{
+				Metadata: &model.Metadata{},
+				Spec: &model.DaemonSetSpec{
+					DeploymentStrategy: "RollingUpdate",
+					MaxUnavailable:     "1",
+				},
+				Status: &model.DaemonSetStatus{},
+			},
+		},
 		"partial ds": {
 			input: v1.DaemonSet{
 				ObjectMeta: metav1.ObjectMeta{
@@ -49,8 +70,7 @@ func TestExtractDaemonset(t *testing.T) {
 					UpdateStrategy: v1.DaemonSetUpdateStrategy{
 						Type: v1.DaemonSetUpdateStrategyType("RollingUpdate"),
 						RollingUpdate: &v1.RollingUpdateDaemonSet{
-							MaxSurge:       &testIntOrStr,
-							MaxUnavailable: &testIntOrStr,
+							MaxUnavailable: &testIntOrStrPercent,
 						},
 					},
 				},
