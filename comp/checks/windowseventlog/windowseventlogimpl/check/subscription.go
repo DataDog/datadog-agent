@@ -12,7 +12,9 @@ import (
 	"sync"
 
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -155,17 +157,22 @@ func (c *Check) startSubscription() error {
 	eventCh := make(chan *evtapi.EventRecord)
 	go c.fetchEventsLoop(eventCh, &pipelineWaiter)
 
-	// pipeline: event -> message filter -> dd event submitter
+	// pipeline: event -> message filter -> submitter
 	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventCh, &pipelineWaiter)
 	if _, isSet := c.config.instance.ChannelPath.Get(); isSet {
 		// send events
 		c.ddEventSubmitter(sender, eventWithMessageCh, &pipelineWaiter)
-	} else if logsAgent, isSet := c.logsAgent.Get(); isSet {
+	} else if _, isSet := c.config.instance.DDSecurityEvents.Get(); isSet {
+		logsAgent, isSet := c.logsAgent.Get()
+		if !isSet {
+			// validateConfig should prevent this from happening
+			return fmt.Errorf("no logs agent available")
+		}
 		// send logs
-		c.ddLogSubmitter(logsAgent, eventWithMessageCh, &pipelineWaiter)
+		c.ddLogSubmitter(logsAgent, c.fetchEventsLoopStop, eventWithMessageCh, &pipelineWaiter)
 	} else {
 		// validateConfig should prevent this from happening
-		return fmt.Errorf("no sender or logs agent available")
+		return fmt.Errorf("neither channel path nor dd_security_events is set")
 	}
 	return nil
 }
@@ -212,13 +219,16 @@ func (c *Check) ddEventSubmitter(sender sender.Sender, inCh <-chan *eventWithMes
 	go ddEventSubmitter.run(wg)
 }
 
-func (c *Check) ddLogSubmitter(logsAgent logsAgent.Component, inCh <-chan *eventWithMessage, wg *sync.WaitGroup) {
+func (c *Check) ddLogSubmitter(logsAgent logsAgent.Component, doneCh <-chan struct{}, inCh <-chan *eventWithMessage, wg *sync.WaitGroup) {
 	ddEventSubmitter := &ddLogSubmitter{
 		logsAgent:     logsAgent,
+		doneCh:        doneCh,
 		inCh:          inCh,
 		bookmarkSaver: c.bookmarkSaver,
-		// eventlog
-		evtapi: c.evtapi,
+		logSource: sources.NewLogSource("dd_security_events", &logsConfig.LogsConfig{
+			Source:  logsSource,
+			Service: "Windows",
+		}),
 	}
 	wg.Add(1)
 	go ddEventSubmitter.run(wg)

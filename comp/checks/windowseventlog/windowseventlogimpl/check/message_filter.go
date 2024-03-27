@@ -61,7 +61,6 @@ func (f *eventMessageFilter) run(w *sync.WaitGroup) {
 		e, err := f.renderEvent(winevent)
 		if err != nil {
 			log.Errorf("error processing event: %v", err)
-			e.Close()
 			continue
 		}
 
