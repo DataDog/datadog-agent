@@ -59,6 +59,8 @@ inv -e kmt.init --lite
 
 This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `inv -e kmt.config-ssh-key`.
 
+> IMPORTANT: the name of the SSH key you use (the third "word" in the public key file) must be the same as the key name you have configured in AWS EC2. If they do not match you will not be able to SSH into the instances. To fix it, you can either import the key with the correct name in the AWS EC2 web interface, change the name manually in the public key file, or change the name that gets configured in ~/kernel-version-testing/config.json.
+
 ### Create stack
 
 ```bash
