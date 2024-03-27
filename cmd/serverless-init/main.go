@@ -62,7 +62,7 @@ func main() {
 		tagger.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(core.BundleParams{
-			ConfigParams: coreconfig.NewAgentParams(datadogConfigPath),
+			ConfigParams: coreconfig.NewAgentParams(datadogConfigPath, coreconfig.WithConfigMissingOK(true)),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    logimpl.ForOneShot(loggerName, "off", true)}),
 		core.Bundle(),
