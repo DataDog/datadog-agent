@@ -114,7 +114,7 @@ def compute_package_size_metrics(
                     "datadog.agent.binary.size",
                     timestamp,
                     binary_size,
-                    tags=common_tags + [f"binary:{binary_name}"],
+                    tags=common_tags + [f"bin:{binary_name}"],
                 )
             )
 

@@ -67,7 +67,7 @@ class TestProduceSizeStats(unittest.TestCase):
         for s in binary_package_series:
             self.assertEqual(len(s["points"]), 1)
             self.assertEqual(s["points"][0]["value"], 20.0)
-            binary_tags += [tag for tag in s["tags"] if "binary" in tag]
+            binary_tags += [tag for tag in s["tags"] if "bin" in tag]
 
-        expected_binary_tags = [f"binary:{binary}" for binary in SCANNED_BINARIES[test_flavor].keys()]
+        expected_binary_tags = [f"bin:{binary}" for binary in SCANNED_BINARIES[test_flavor].keys()]
         self.assertListEqual(binary_tags, expected_binary_tags)
