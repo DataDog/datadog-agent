@@ -95,27 +95,32 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 	))
 
 	// get auth token
+	v.T().Log("Getting the authentication token")
 	authtokenContent := v.Env().RemoteHost.MustExecute("sudo cat " + authTokenFilePath)
 	authtoken := strings.TrimSpace(authtokenContent)
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
+	//
+	// we have to use an Eventually here because the test can start before the non-core agents are ready
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey1)
+	}, 2*time.Minute, 10*time.Second)
 
 	// update api_key
+	v.T().Log("Updating the api key")
 	v.Env().RemoteHost.WriteFile(apiKeyFile, []byte(apiKey2))
 
 	// trigger a refresh of the core-agent secrets
+	v.T().Log("Refreshing core-agent secrets")
 	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
 	// ensure the api_key was refreshed, fail directly otherwise
 	require.Contains(v.T(), secretRefreshOutput, "api_key")
 
-	// wait for the refresh to be effective
-	v.T().Log("Waiting for the config refresh to be effective")
-	time.Sleep(1.5 * configRefreshIntervalSec * time.Second)
-
 	// and check that the agents are using the new key
-	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey2)
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey2)
+	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }
 
 type fileOptions struct {
@@ -145,18 +150,15 @@ func createFile(t *testing.T, host *components.RemoteHost, filepath string, opti
 }
 
 // assertAgentsUseKey checks that all agents are using the given key.
-func assertAgentsUseKey(t *testing.T, host *components.RemoteHost, authtoken, key string) {
-	t.Helper()
-
+func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string) {
 	for _, endpoint := range []agentConfigEndpointInfo{
 		traceConfigEndpoint(apmCmdPort),
 		processConfigEndpoint(processCmdPort),
 		securityConfigEndpoint(securityCmdPort),
 	} {
 		cmd := endpoint.fetchCommand(authtoken)
-		t.Logf("Fetching config from %s: %s", endpoint.name, cmd)
 		cfg, err := host.Execute(cmd)
-		if assert.NoErrorf(t, err, "failed to fetch config from %s", endpoint.name) {
+		if assert.NoErrorf(t, err, "failed to fetch config from %s using cmd: %s", endpoint.name, cmd) {
 			assertConfigHasKey(t, cfg, key, "checking key used by "+endpoint.name)
 		}
 	}
@@ -164,9 +166,7 @@ func assertAgentsUseKey(t *testing.T, host *components.RemoteHost, authtoken, ke
 
 // assertConfigHasKey checks that configYAML contains the given key.
 // As the config is scrubbed, it only checks the last 5 characters of the keys.
-func assertConfigHasKey(t *testing.T, configYAML, key string, context string) {
-	t.Helper()
-
+func assertConfigHasKey(t assert.TestingT, configYAML, key string, context string) {
 	var cfg map[string]interface{}
 	err := yaml.Unmarshal([]byte(configYAML), &cfg)
 	if !assert.NoError(t, err, context) {
