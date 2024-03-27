@@ -1,6 +1,8 @@
 from collections import defaultdict
 import re
 
+from gitlab.v4.objects import ProjectJob
+
 from tasks.libs.common.gitlab_api import get_gitlab_repo
 from tasks.libs.types import FailedJobReason, FailedJobs, FailedJobType
 
@@ -11,41 +13,41 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
     """
     repo = get_gitlab_repo(project_name)
     pipeline = repo.pipelines.get(pipeline_id)
-    jobs = [job.asdict() for job in pipeline.jobs.list(all=True)]
+    jobs = pipeline.jobs.list(per_page=100, all=True)
 
     # Get instances of failed jobs grouped by name
     failed_jobs = defaultdict(list)
     for job in jobs:
-        if job["status"] == "failed":
-            failed_jobs[job["name"]].append(job)
+        if job.status == "failed":
+            failed_jobs[job.name].append(job)
 
     # There, we now have the following map:
     # job name -> list of jobs with that name, including at least one failed job
     processed_failed_jobs = FailedJobs()
     for job_name, jobs in failed_jobs.items():
         # We sort each list per creation date
-        jobs.sort(key=lambda x: x["created_at"])
+        jobs.sort(key=lambda x: x.created_at)
         # We truncate the job name to increase readability
         job_name = truncate_job_name(job_name)
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
-        trace = str(repo.jobs.get(jobs[-1]["id"]).trace(), 'utf-8')
+        trace = str(repo.jobs.get(jobs[-1].id).trace(), 'utf-8')
         failure_type, failure_reason = get_job_failure_context(trace)
-        final_status = {
+        final_status = ProjectJob(attrs={
             "name": job_name,
-            "id": jobs[-1]["id"],
-            "stage": jobs[-1]["stage"],
-            "status": jobs[-1]["status"],
-            "tag_list": jobs[-1]["tag_list"],
-            "allow_failure": jobs[-1]["allow_failure"],
-            "url": jobs[-1]["web_url"],
-            "retry_summary": [job["status"] for job in jobs],
+            "id": jobs[-1].id,
+            "stage": jobs[-1].stage,
+            "status": jobs[-1].status,
+            "tag_list": jobs[-1].tag_list,
+            "allow_failure": jobs[-1].allow_failure,
+            "url": jobs[-1].web_url,
+            "retry_summary": [job.status for job in jobs],
             "failure_type": failure_type,
             "failure_reason": failure_reason,
-        }
+        })
 
         # Also exclude jobs allowed to fail
-        if final_status["status"] == "failed" and should_report_job(job_name, final_status["allow_failure"]):
+        if final_status.status == "failed" and should_report_job(job_name, final_status.allow_failure):
             processed_failed_jobs.add_failed_job(final_status)
 
     return processed_failed_jobs

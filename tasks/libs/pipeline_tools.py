@@ -21,7 +21,7 @@ class FilteredOutException(Exception):
 
 # TODO Cc : Tested
 def get_running_pipelines_on_same_ref(repo: Project, ref, sha=None) -> List[ProjectPipeline]:
-    pipelines = repo.pipelines.list(ref=ref, sha=sha, all=True)
+    pipelines = repo.pipelines.list(ref=ref, sha=sha, per_page=100, all=True)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
     running_pipelines = [pipeline for pipeline in pipelines if pipeline.status in RUNNING_STATUSES]
@@ -40,7 +40,7 @@ def parse_datetime(dt):
 # TODO Cc : Tested
 def cancel_pipelines_with_confirmation(repo: Project, pipelines: List[ProjectPipeline]):
     for pipeline in pipelines:
-        commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(repo, pipeline)
+        commit = repo.commits.get(pipeline.sha)
 
         print(
             color_message("Pipeline", "blue"),
@@ -55,10 +55,10 @@ def cancel_pipelines_with_confirmation(repo: Project, pipelines: List[ProjectPip
 
         print(
             color_message("Commit:", "blue"),
-            color_message(commit_title, "green"),
-            color_message(f"({commit_short_sha})", "grey"),
+            color_message(commit.title, "green"),
+            color_message(f"({commit.short_id})", "grey"),
             color_message("by", "blue"),
-            color_message(commit_author, "bold"),
+            color_message(commit.author_name, "bold"),
         )
 
         if yes_no_question("Do you want to cancel this pipeline?", color="orange", default=True):
@@ -77,16 +77,16 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
     - Jobs in the stages specified in 'force_cancel_stages' variables will always be canceled even if running
     """
 
-    jobs = pipeline.jobs.list(all=True)
-    jobs: List[ProjectJob] = [repo.jobs.get(job.id) for job in jobs]
+    jobs = pipeline.jobs.list(per_page=100, all=True)
 
     for job in jobs:
         if job.stage in force_cancel_stages or (
             job.status not in ["running", "canceled"] and "cleanup" not in job.name
         ):
-            job.cancel()
+            repo.jobs.get(job.id, lazy=True).cancel()
 
 
+# TODO Cc : Tested
 def trigger_agent_pipeline(
     repo: Project,
     ref=DEFAULT_BRANCH,
@@ -146,7 +146,9 @@ def trigger_agent_pipeline(
         )
     )
     try:
-        return repo.pipelines.create(ref=ref, variables=args)
+        variables = [{'key': key, 'value': value} for (key, value) in args.items()]
+
+        return repo.pipelines.create({'ref':ref, 'variables': variables})
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
             raise FilteredOutException
@@ -161,15 +163,15 @@ def wait_for_pipeline(
     Follow a given pipeline, periodically checking the pipeline status
     and printing changes to the job statuses.
     """
-    commit_author, commit_short_sha, commit_title = get_commit_for_pipeline(repo, pipeline)
+    commit = repo.commits.get(pipeline.sha)
 
     print(
         color_message(
             "Commit: "
-            + color_message(commit_title, "green")
-            + color_message(f" ({commit_short_sha})", "grey")
+            + color_message(commit.title, "green")
+            + color_message(f" ({commit.short_id})", "grey")
             + " by "
-            + color_message(commit_author, "bold"),
+            + color_message(commit.author_name, "bold"),
             "blue",
         ),
         flush=True,
@@ -187,13 +189,6 @@ def wait_for_pipeline(
     f = functools.partial(pipeline_status, pipeline)
 
     loop_status(f, pipeline_finish_timeout_sec)
-
-
-def get_commit_for_pipeline(repo: Project, pipeline: ProjectPipeline):
-    sha = pipeline.sha
-    commit = repo.commits.get(sha)
-
-    return commit.author_name, commit.short_id, commit.title
 
 
 def loop_status(callable, timeout_sec):
@@ -215,7 +210,7 @@ def pipeline_status(pipeline: ProjectPipeline, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
-    jobs = pipeline.jobs.list(all=True)
+    jobs = pipeline.jobs.list(per_page=100, all=True)
 
     job_status = update_job_status(jobs, job_status)
 
