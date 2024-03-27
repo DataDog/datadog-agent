@@ -4,6 +4,7 @@ Agent namespaced tasks
 
 import ast
 import glob
+import hashlib
 import json
 import os
 import platform
@@ -32,6 +33,7 @@ from tasks.libs.common.utils import (
     load_release_versions,
     timed,
 )
+from tasks.libs.omnibus_cache import omnibus_compute_cache_key
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import make as rtloader_make
@@ -324,8 +326,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         # Ensure the config folders are not world writable
         os.chmod(check_dir, mode=0o755)
 
-    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
-    ## on linux will throw an error because the module is not found, but the config is.
+    # add additional windows-only corechecks, only on windows. Otherwise the check loader
+    # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
@@ -885,6 +887,7 @@ def omnibus_build(
     python_mirror=None,
     pip_config_file="pip.conf",
     host_distribution=None,
+    install_directory="/opt/datadog-agent",
 ):
     """
     Build the Agent packages with Omnibus Installer.
@@ -935,6 +938,30 @@ def omnibus_build(
     with timed(quiet=True) as bundle_elapsed:
         bundle_install_omnibus(ctx, gem_path, env)
 
+    omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
+    use_omnibus_git_cache = omnibus_cache_dir is not None
+    if use_omnibus_git_cache:
+        omnibus_cache_dir += install_directory
+        remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
+        # We don't want to update the cache when not running on a CI
+        # Individual developers are still able to leverage the cache by providing
+        # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
+        # generated one.
+        use_remote_cache = remote_cache_name is not None
+        if use_remote_cache:
+            cache_state = None
+            cache_key = omnibus_compute_cache_key(ctx)
+            git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
+            bundle_path = "/tmp/omnibus-git-cache-bundle"
+            with timed(quiet=True) as restore_cache:
+                # Allow failure in case the cache was evicted
+                if ctx.run(f"aws s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                    print(f'Successfully restored cache {cache_key}')
+                    ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
+                    cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                else:
+                    print(f'Failed to restore cache from key {cache_key}')
+
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(
             ctx=ctx,
@@ -947,6 +974,19 @@ def omnibus_build(
             host_distribution=host_distribution,
         )
 
+    if use_omnibus_git_cache:
+        stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+        # Purge the cache manually as omnibus will stick to not restoring a tag when
+        # a mismatch is detected, but will keep the old cached tags.
+        # Do this before checking for tag differences, in order to remove staled tags
+        # in case they were included in the bundle in a previous build
+        for _, tag in enumerate(stale_tags.split(os.linesep)):
+            ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
+        if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+            with timed(quiet=True) as update_cache:
+                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                ctx.run(f"aws s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+
     # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
 
@@ -955,6 +995,10 @@ def omnibus_build(
         print(f"Deps:    {deps_elapsed.duration}")
     print(f"Bundle:  {bundle_elapsed.duration}")
     print(f"Omnibus: {omnibus_elapsed.duration}")
+    if use_omnibus_git_cache and use_remote_cache:
+        print(f"Restoring omnibus cache: {restore_cache.duration}")
+        print(f"Updating omnibus cache: {update_cache.duration}")
+
     _send_build_metrics(ctx, omnibus_elapsed.duration)
 
 
