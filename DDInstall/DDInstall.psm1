@@ -168,10 +168,7 @@ function formatAgentInstallerParameters($params)
 
 function downloadAsset($url, $outFile)
 {
-    # Suppress progress bar to prevent performance issues (affects older windows versions, see https://github.com/PowerShell/PowerShell/issues/13414)
-    $ProgressPreference = 'SilentlyContinue'
-
-    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $outFile
+    (New-Object System.Net.WebClient).DownloadFile($url, $outFile)
     if (-not $?)
     {
         $exception = [Exception]::new("Download failed.")
