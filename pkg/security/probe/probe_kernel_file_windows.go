@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 const (
@@ -42,10 +41,6 @@ const (
 )
 
 type fileObjectPointer uint64
-
-var (
-	filePathResolver, _ = simplelru.NewLRU[fileObjectPointer, string](1<<14, nil)
-)
 
 /*
 		<template tid="CreateArgs">
@@ -130,7 +125,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -159,15 +154,15 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	}
 
 	if ca.fileName != "" {
-		log.Tracef("push fpr: %v %s (len=%d)", ca.fileObject, ca.fileName, filePathResolver.Len())
-		filePathResolver.Add(ca.fileObject, ca.fileName)
+		log.Tracef("push fpr: %v %s (len=%d)", ca.fileObject, ca.fileName, p.filePathResolver.Len())
+		p.filePathResolver.Add(ca.fileObject, ca.fileName)
 	}
 
 	return ca, nil
 }
 
-func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := parseCreateHandleArgs(e)
+func (p *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := p.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +216,7 @@ type setInformationArgs struct {
 	fileName   string
 }
 
-func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
+func (p *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -244,7 +239,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver.Get(sia.fileObject); ok {
+	if s, ok := p.filePathResolver.Get(sia.fileObject); ok {
 		sia.fileName = s
 	}
 	return sia, nil
@@ -292,7 +287,7 @@ type closeArgs cleanupArgs
 // nolint: unused
 type flushArgs cleanupArgs
 
-func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
+func (p *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	ca := &cleanupArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -311,7 +306,7 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver.Get(ca.fileObject); ok {
+	if s, ok := p.filePathResolver.Get(ca.fileObject); ok {
 		ca.fileName = s
 
 	}
@@ -319,8 +314,8 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 }
 
 // nolint: unused
-func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
-	ca, err := parseCleanupArgs(e)
+func (p *WindowsProbe) parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
+	ca, err := p.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -328,8 +323,8 @@ func parseCloseArgs(e *etw.DDEventRecord) (*closeArgs, error) {
 }
 
 // nolint: unused
-func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
-	ca, err := parseCleanupArgs(e)
+func (p *WindowsProbe) parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
+	ca, err := p.parseCleanupArgs(e)
 	if err != nil {
 		return nil, err
 	}

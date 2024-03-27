@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,11 +34,23 @@ func createTestProbe() (*WindowsProbe, error) {
 	}
 	cfg.RuntimeSecurity.FIMEnabled = true
 
+	filePathResolver, err := simplelru.NewLRU[fileObjectPointer, string](1<<14, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	regPathResolver, err := simplelru.NewLRU[regObjectPointer, string](1<<11, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
-		opts:   opts,
-		config: cfg,
+		opts:             opts,
+		config:           cfg,
+		filePathResolver: filePathResolver,
+		regPathResolver:  regPathResolver,
 	}
 	err = wp.Init()
 
