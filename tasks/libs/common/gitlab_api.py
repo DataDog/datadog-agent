@@ -394,7 +394,11 @@ from invoke.tasks import task
 @task
 def test_gitlab(_):
     from tasks.libs.common.gitlab_api import get_gitlab_api, get_gitlab_repo
-    from tasks.libs.pipeline_tools import cancel_pipelines_with_confirmation, gracefully_cancel_pipeline, get_running_pipelines_on_same_ref
+    from tasks.libs.pipeline_tools import (
+        cancel_pipelines_with_confirmation,
+        gracefully_cancel_pipeline,
+        get_running_pipelines_on_same_ref,
+    )
 
     api = get_gitlab_api()
     repo = get_gitlab_repo()
@@ -419,9 +423,11 @@ def test_gitlab(_):
     # --- Create / cancel pipeline ---
     # Get
     pipeline = repo.pipelines.get(30899745)
+    print(pipeline)
+    print(pipeline.web_url)
     # # Create
     # pipeline = repo.pipelines.create({'ref': 'celian/gitlab-use-module-acix-65'})
-    print(f'Pipeline {repo.web_url}/pipelines/{pipeline.id}')
+    # print(f'Pipeline {repo.web_url}/pipelines/{pipeline.id}')
     # # Cancel
     # pipelines = [30899006, 30899063]
     # pipelines = [repo.pipelines.get(n) for n in pipelines]
@@ -430,8 +436,4 @@ def test_gitlab(_):
     # gracefully_cancel_pipeline(repo, pipeline, ['source_test'])
     # pipeline.cancel()
     # Query
-    print('pipelines:', get_running_pipelines_on_same_ref(repo, ref))
-
-
-
-
+    # print('pipelines:', get_running_pipelines_on_same_ref(repo, ref))
