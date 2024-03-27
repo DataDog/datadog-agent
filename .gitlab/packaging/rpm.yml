@@ -3,18 +3,25 @@
 .updater_package_rpm_common:
   rules:
     - !reference [.except_mergequeue]
+    - when: on_success
+  before_script:
+    - source /root/.bashrc
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
     # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - export OMNIBUS_PACKAGE_ARTIFACT="$(ls ${OMNIBUS_PACKAGE_DIR}/*.tar.xz | head -n 1)"
+    - echo "Packaging artifact ${OMNIBUS_PACKAGE_ARTIFACT} to .rpm"
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
     - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.rpm $S3_ARTIFACTS_URI/$DESTINATION_RPM
+    - ls -la $OMNIBUS_PACKAGE_DIR/
+  stage: packaging
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -26,7 +33,7 @@ updater_rpm-amd64:
   tags: ["arch:amd64"]
   needs: ["updater-amd64"]
   variables:
-    PACKAGE_ARCH: amd64
+    PACKAGE_ARCH: x86_64
     DESTINATION_RPM: "datadog-updater_7_amd64.rpm"
 
 updater_rpm-arm64:
@@ -35,9 +42,7 @@ updater_rpm-arm64:
   tags: ["arch:arm64"]
   needs: ["updater-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
+    PACKAGE_ARCH: aarch64
     DESTINATION_RPM: "datadog-updater_7_arm64.rpm"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 
