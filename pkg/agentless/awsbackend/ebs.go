@@ -40,7 +40,17 @@ func SetupEBSSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 	case types.ResourceTypeVolume:
 		return CreateSnapshot(ctx, statsd, scan, waiter, ec2client, scan.TargetID)
 	case types.ResourceTypeSnapshot:
-		return CopySnapshot(ctx, statsd, scan, waiter, ec2client, scan.TargetID)
+		// Check if the snapshot is already tagged as an agentless snapshot.
+		poll := <-waiter.Wait(ctx, scan.TargetID, ec2client)
+		if err := poll.Err; err != nil {
+			return types.CloudID{}, err
+		}
+		snapshot := *poll.Snapshot
+		if cloudResourceIsTagged(snapshot.Tags) {
+			return scan.TargetID, nil
+		}
+		// Otherwise, copy the snapshot and tag it as an agentless snapshot.
+		return copySnapshot(ctx, statsd, scan, waiter, ec2client, scan.TargetID, snapshot)
 	case types.ResourceTypeHostImage:
 		snapshotID, err := getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 		if err != nil {
@@ -148,17 +158,20 @@ func CreateSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan
 
 // CopySnapshot copies an EBS snapshot.
 func CopySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
+	poll := <-waiter.Wait(ctx, snapshotID, ec2client)
+	if err := poll.Err; err != nil {
+		return types.CloudID{}, err
+	}
+	snapshot := *poll.Snapshot
+	return copySnapshot(ctx, statsd, scan, waiter, ec2client, snapshotID, snapshot)
+}
+
+func copySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID, snapshot ec2types.Snapshot) (types.CloudID, error) {
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return types.CloudID{}, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 	}
 
-	poll := <-waiter.Wait(ctx, snapshotID, ec2client)
-	if err := poll.Err; err != nil {
-		return types.CloudID{}, err
-	}
-
-	snapshot := *poll.Snapshot
 	log.Debugf("%s: copying snapshot %s", scan, snapshotID)
 	copyCreatedAt := time.Now()
 	copyOutput, err := ec2client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
@@ -178,7 +191,7 @@ func CopySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *
 	}
 	scan.PushCreatedResource(copiedSnapshotID, copyCreatedAt)
 
-	poll = <-waiter.Wait(ctx, copiedSnapshotID, ec2client)
+	poll := <-waiter.Wait(ctx, copiedSnapshotID, ec2client)
 	if err := poll.Err; err != nil {
 		if err := statsd.Count("datadog.agentless_scanner.snapshots.copies.finished", 1.0, scan.TagsFailure(err), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
