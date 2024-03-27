@@ -35,6 +35,7 @@ type protocol struct {
 const (
 	eventStreamName                          = "kafka"
 	filterTailCall                           = "socket__kafka_filter"
+	responseParserTailCall                   = "socket__kafka_response_parser"
 	dispatcherTailCall                       = "socket__protocol_dispatcher_kafka"
 	protocolDispatcherClassificationPrograms = "dispatcher_classification_progs"
 	kafkaHeapMap                             = "kafka_heap"
@@ -65,6 +66,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramKafka),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaResponseParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: responseParserTailCall,
 			},
 		},
 		{

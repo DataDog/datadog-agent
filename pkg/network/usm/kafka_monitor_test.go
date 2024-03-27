@@ -478,21 +478,30 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 
 				record1 := &kgo.Record{Topic: topicName, Partition: 1, Value: []byte("Hello Kafka!")}
 				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
+
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr(), "record had a produce error while synchronously producing")
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr(), "record had a produce error while synchronously producing")
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr(), "record had a produce error while synchronously producing")
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr())
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr())
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
+
+				var batch []*kgo.Record
+				for i := 0; i < 25; i++ {
+					batch = append(batch, record1)
+				}
+				for i := 0; i < 25; i++ {
+					require.NoError(t, client.Client.ProduceSync(ctxTimeout, batch...).FirstErr())
+				}
 
 				req := kmsg.NewFetchRequest()
 				topic := kmsg.NewFetchRequestTopic()
 				topic.Topic = topicName
 				partition := kmsg.NewFetchRequestTopicPartition()
-				partition.PartitionMaxBytes = 1024 * 128
+				partition.PartitionMaxBytes = 1024 * 1024
 				partition1 := kmsg.NewFetchRequestTopicPartition()
 				partition1.Partition = 1
-				partition1.PartitionMaxBytes = 1024 * 128
+				partition1.PartitionMaxBytes = 1024 * 1024
 				topic.Partitions = append(topic.Partitions, partition, partition1)
 				req.Topics = append(req.Topics, topic)
 
@@ -503,8 +512,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 5 * 2,
-					expectedNumberOfFetchRequests:   5 * 2,
+					expectedNumberOfProduceRequests: (5 + 25*25) * 2,
+					expectedNumberOfFetchRequests:   (5 + 25*25) * 2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})

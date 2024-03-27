@@ -76,10 +76,12 @@ enum parse_result {
     RET_EOP = 0,
     RET_DONE = 1,
     RET_ERR = -1,
+    RET_LOOP_END = -2,
 };
 
 static __always_inline enum parse_result foo(kafka_response_context_t *response, struct __sk_buff *skb, __u32 offset)
 {
+    __u32 orig_offset = offset;
     kafka_transaction_t *request = &response->transaction;
     log_debug("carry_over_offset: %d", response->carry_over_offset);
     if (response->carry_over_offset < 0 || response->carry_over_offset > skb->len) {
@@ -88,8 +90,9 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
     offset += response->carry_over_offset;
     response->carry_over_offset = 0;
 
-#pragma unroll(10)
-    for (int i = 0; i < 10; i++) {
+#pragma unroll(KAFKA_RESPONSE_PARSER_MAX_ITERATIONS)
+    for (int i = 0; i < KAFKA_RESPONSE_PARSER_MAX_ITERATIONS; i++) {
+        log_debug("state %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
@@ -161,6 +164,7 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
             }
 
             read_big_endian_s32(skb, offset, &response->record_batch_length);
+            log_debug("record_batch_length: %d", response->record_batch_length);
             offset += sizeof(response->record_batch_length);
             if (response->record_batch_length <= 0) {
                 log_debug("batchLength too small %d", response->record_batch_length);
@@ -261,25 +265,71 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
     }
 
     // We should have exited at KAFKA_FETCH_RESPONSE_PARTITION_END if we managed to
-    // parse entire packet.
+    // parse the entire packet.
     log_debug("kafka: packet too large");
-    return RET_ERR;
+
+    // Remove the skb_info.data_off so that this function can be called
+    // again on the same packet with the same arguments in a tail call.
+    response->carry_over_offset = offset - orig_offset;
+    return RET_LOOP_END;
+}
+
+SEC("socket/kafka_response_parser")
+int socket__kafka_response_parser(struct __sk_buff *skb) {
+    const u32 zero = 0;
+    skb_info_t skb_info;
+    kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
+    if (kafka == NULL) {
+        log_debug("socket__kafka_filter: kafka_transaction state is NULL");
+        return 0;
+    }
+    bpf_memset(&kafka->transaction, 0, sizeof(kafka_transaction_t));
+
+    if (!fetch_dispatching_arguments(&kafka->transaction.tup, &skb_info)) {
+        log_debug("socket__kafka_filter failed to fetch arguments for tail call");
+        return 0;
+    }
+
+    // Save non-normalized version
+    kafka->tup = kafka->transaction.tup;
+
+    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->tup);
+    if (!response) {
+        return 0;
+    }
+
+    enum parse_result result = foo(response, skb, skb_info.data_off);
+    switch (result) {
+    case RET_EOP:
+        // This packet parsed successfully but more data needed, nothing
+        // more to do for now.
+        break;
+    case RET_ERR:
+        // Error during processing result continuation.  Try
+        // to parse it as a new response.
+        bpf_map_delete_elem(&kafka_response, &kafka->tup);
+        kafka_process_response(kafka, skb, skb_info.data_off);
+        break;
+    case RET_DONE:
+        // Response parsed fully.
+        bpf_map_delete_elem(&kafka_response, &kafka->tup);
+        break;
+    case RET_LOOP_END:
+        // We ran out of iterations in the loop, but we're not done
+        // processing this packet, so continue in a self tail call.
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+        break;
+    }
+
+    return 0;
 }
 
 static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
+    __u32 orig_offset = offset;
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->transaction.tup);
     if (response) {
-        enum parse_result result = foo(response, skb, offset);
-        if (result == RET_EOP) {
-            return true;
-        }
-
-        bpf_map_delete_elem(&kafka_response, &kafka->transaction.tup);
-        if (result == RET_DONE) {
-            return true;
-        }
-    
-        // Error in parsing as response continuation, try to parse as new response.
+        bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+        return false;
     }
     
     offset += sizeof(__s32); // Skip message size
@@ -330,20 +380,13 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     
     kafka->response.state = KAFKA_FETCH_RESPONSE_PARTITION_START;
     kafka->response.record_batches_num_bytes = 0;
-    kafka->response.carry_over_offset = 0;
+    kafka->response.carry_over_offset = offset - orig_offset;
     kafka->response.record_batch_length = 0;
 
-    enum parse_result result = foo(&kafka->response, skb, offset);
-    switch (result) {
-    case RET_EOP:
-        bpf_map_update_elem(&kafka_response, &kafka->transaction.tup, &kafka->response, BPF_ANY);
-        return true;
-    case RET_DONE:
-        return true;
-    case RET_ERR:
-    default:
-        return false;
-    }
+    bpf_map_update_elem(&kafka_response, &kafka->transaction.tup, &kafka->response, BPF_ANY);
+    bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
+
+    return true;
 }
 
 static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
