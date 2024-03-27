@@ -155,12 +155,16 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if _, ok := filePathResolver[ca.fileObject]; ok {
-		wp.stats.filePathOverwrites++
-	} else {
-		wp.stats.filePathNewWrites++
+
+	if ca.fileName != "" {
+		if _, ok := filePathResolver[ca.fileObject]; ok {
+			wp.stats.filePathOverwrites++
+		} else {
+			wp.stats.filePathNewWrites++
+		}
+		filePathResolver[ca.fileObject] = ca.fileName
 	}
-	filePathResolver[ca.fileObject] = ca.fileName
+
 	return ca, nil
 }
 
