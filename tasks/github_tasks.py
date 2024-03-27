@@ -7,7 +7,7 @@ from typing import List
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import DEFAULT_BRANCH, get_git_pretty_ref
+from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
 from tasks.libs.datadog_api import create_count, send_metrics
 from tasks.libs.github_actions_tools import (
     download_artifacts,
@@ -67,6 +67,8 @@ def trigger_macos(
     version_cache=None,
     retry_download=3,
     retry_interval=10,
+    fast_tests=None,
+    integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
@@ -87,6 +89,7 @@ def trigger_macos(
             gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
             bucket_branch=os.environ.get("BUCKET_BRANCH", None),
             version_cache_file_content=version_cache,
+            integrations_core_ref=integrations_core_ref,
         )
     elif workflow_type == "test":
         conclusion = _trigger_macos_workflow(
@@ -98,6 +101,7 @@ def trigger_macos(
             datadog_agent_ref=datadog_agent_ref,
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
+            fast_tests=fast_tests,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":

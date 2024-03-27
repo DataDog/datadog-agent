@@ -180,6 +180,13 @@ func GetWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 	return apmInstrumentationWebhook, errInitAPMInstrumentation
 }
 
+// UnsetWebhook unsets the webhook. For testing only.
+func UnsetWebhook() {
+	initOnce = sync.Once{}
+	apmInstrumentationWebhook = nil
+	errInitAPMInstrumentation = nil
+}
+
 // apmSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
 // The filter excludes two namespaces by default: "kube-system" and the
 // namespace where datadog is installed.
@@ -271,7 +278,7 @@ func (w *Webhook) MutateFunc() admission.WebhookFunc {
 
 // injectAutoInstrumentation injects APM libraries into pods
 func (w *Webhook) injectAutoInstrumentation(request *admission.MutateRequest) ([]byte, error) {
-	return mutatecommon.Mutate(request.Raw, request.Namespace, w.inject, request.DynamicClient)
+	return mutatecommon.Mutate(request.Raw, request.Namespace, w.Name(), w.inject, request.DynamicClient)
 }
 
 func initContainerName(lang language) string {
@@ -283,9 +290,9 @@ func libImageName(registry string, lang language, tag string) string {
 	return fmt.Sprintf(imageFormat, registry, lang, tag)
 }
 
-func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
+func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
-		return errors.New("cannot inject lib into nil pod")
+		return false, errors.New(metrics.InvalidInput)
 	}
 	injectApmTelemetryConfig(pod)
 
@@ -293,25 +300,26 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
 		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
 			log.Debugf("Skipping single step instrumentation of pod %q due to label", mutatecommon.PodString(pod))
-			return nil
+			return false, nil
 		}
 	} else if !mutatecommon.ShouldMutatePod(pod) {
 		log.Debugf("Skipping auto instrumentation of pod %q because pod mutation is not allowed", mutatecommon.PodString(pod))
-		return nil
+		return false, nil
 	}
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			// The admission can be reinvocated for the same pod
 			// Fast return if we injected the library already
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
-			return nil
+			return false, nil
 		}
 	}
 
 	libsToInject, autoDetected := w.extractLibInfo(pod)
 	if len(libsToInject) == 0 {
-		return nil
+		return false, nil
 	}
+	injectSecurityClientLibraryConfig(pod)
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
 	if w.isEnabledInNamespace(pod.Namespace) {
@@ -324,7 +332,33 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 		injectionType = localLibraryInstrumentationInstallType
 	}
 
-	return w.injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType)
+	if err := w.injectAutoInstruConfig(pod, libsToInject, autoDetected, injectionType); err != nil {
+		log.Errorf("failed to inject auto instrumentation configurations: %v", err)
+		return false, errors.New(metrics.ConfigInjectionError)
+	}
+
+	return true, nil
+}
+
+// The config for the security products has three states: <unset> | true | false.
+// This is because the products themselves have treat these cases differently:
+// * <unset> - product disactivated but can be activated remotely
+// * true - product activated, not overridable remotely
+// * false - product disactivated, not overridable remotely
+func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
+	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm.enabled", "DD_APPSEC_ENABLED")
+	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.iast.enabled", "DD_IAST_ENABLED")
+	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm_sca.enabled", "DD_APPSEC_SCA_ENABLED")
+}
+
+func injectEnvVarIfConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
+	if config.Datadog.IsSet(configKey) {
+		enabledValue := config.Datadog.GetBool(configKey)
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+			Name:  envVarKey,
+			Value: strconv.FormatBool(enabledValue),
+		})
+	}
 }
 
 func injectApmTelemetryConfig(pod *corev1.Pod) {
@@ -579,7 +613,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		langStr := string(lib.lang)
 		defer func() {
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationAttempts.Inc(w.Name(), strconv.FormatBool(injected), langStr, strconv.FormatBool(autoDetected))
 		}()
 
 		_ = mutatecommon.InjectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
@@ -637,14 +670,12 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 				}})
 		default:
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(w.Name(), "unsupported language", langStr, strconv.FormatBool(autoDetected))
 			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
 			continue
 		}
 
 		if err != nil {
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(w.Name(), "requirements config error", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Error injecting library config requirements: %s", err)
 		}
@@ -659,7 +690,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		if err != nil {
 			langStr := string(lang)
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(w.Name(), "cannot inject init container", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Cannot inject init container into pod %s: %s", mutatecommon.PodString(pod), err)
 		}
@@ -667,7 +697,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		if err != nil {
 			langStr := string(lang)
 			metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-			metrics.MutationErrors.Inc(w.Name(), "cannot inject lib config", langStr, strconv.FormatBool(autoDetected))
 			lastError = err
 			log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
 		}
@@ -676,7 +705,6 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 	// try to inject all if the annotation is set
 	if err := injectLibConfig(pod, "all"); err != nil {
 		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
-		metrics.MutationErrors.Inc(w.Name(), "cannot inject lib config", "all", strconv.FormatBool(autoDetected))
 		lastError = err
 		log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
 	}

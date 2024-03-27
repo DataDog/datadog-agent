@@ -18,7 +18,6 @@ import (
 	"runtime"
 	"slices"
 	"sync"
-	"syscall"
 	"time"
 
 	lib "github.com/cilium/ebpf"
@@ -31,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
-	psutil "github.com/shirou/gopsutil/v3/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
@@ -128,9 +126,9 @@ type EBPFProbe struct {
 	discarderRateLimiter         *rate.Limiter
 
 	// kill action
-	killListMap              *lib.Map
-	supportsBPFSendSignal    bool
-	pendingKillActionReports []*KillActionReport
+	killListMap           *lib.Map
+	supportsBPFSendSignal bool
+	processKiller         *ProcessKiller
 
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
@@ -423,7 +421,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
@@ -519,7 +518,7 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
-			event.Error = &model.ErrNoProcessContext{Err: errors.New("process context not resolved")}
+			event.Error = model.ErrNoProcessContext
 		} else if _, err := entry.HasValidLineage(); err != nil {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 			p.Resolvers.ProcessResolver.CountBrokenLineage()
@@ -789,6 +788,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 		// update mount pid mapping
 		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
+
+		// update kill action reports
+		p.processKiller.HandleProcessExited(event)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -943,14 +945,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	p.DispatchEvent(event)
 
 	if eventType == model.ExitEventType {
-		// update kill action reports
-		p.handleProcessKilledExited(event)
-
 		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
 	}
 
 	// flush pending kill actions
-	p.flushPendingKillActionReports()
+	p.processKiller.FlushPendingReports()
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -1488,6 +1487,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
+		processKiller:        NewProcessKiller(),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1932,33 +1932,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	}
 }
 
-func (p *EBPFProbe) flushPendingKillActionReports() {
-	p.pendingKillActionReports = slices.DeleteFunc(p.pendingKillActionReports, func(report *KillActionReport) bool {
-		report.Lock()
-		defer report.Unlock()
-
-		if time.Now().After(report.KilledAt.Add(defaultKillActionFlushDelay)) {
-			report.resolved = true
-			return true
-		}
-		return false
-	})
-}
-
-func (p *EBPFProbe) handleProcessKilledExited(event *model.Event) {
-	p.pendingKillActionReports = slices.DeleteFunc(p.pendingKillActionReports, func(report *KillActionReport) bool {
-		report.Lock()
-		defer report.Unlock()
-
-		if report.Pid == event.ProcessContext.Pid {
-			report.ExitedAt = event.ProcessContext.ExitTime
-			report.resolved = true
-			return true
-		}
-		return false
-	})
-}
-
 // HandleActions handles the rule actions
 func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 	ev := ctx.Event.(*model.Event)
@@ -1973,36 +1946,14 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
-			report := handleKillActions(action, ev, func(pid uint32, sig uint32) error {
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {
 						seclog.Warnf("failed to kill process with eBPF %d: %s", pid, err)
 					}
 				}
-
-				proc, err := psutil.NewProcess(int32(pid))
-				if err != nil {
-					return errors.New("process not found in procfs")
-				}
-
-				ppid, err := proc.Ppid()
-				if err != nil {
-					return errors.New("process not found in procfs")
-				}
-
-				name, err := proc.Name()
-				if err != nil {
-					return errors.New("process not found in procfs")
-				}
-
-				if ev.ProcessContext.PPid != uint32(ppid) || ev.ProcessContext.Comm != name {
-					return errors.New("not sharing the same namespace")
-				}
-
-				return syscall.Kill(int(pid), syscall.Signal(sig))
+				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
-
-			p.pendingKillActionReports = append(p.pendingKillActionReports, report)
 		}
 	}
 }

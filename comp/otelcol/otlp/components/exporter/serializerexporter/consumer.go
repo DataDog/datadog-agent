@@ -128,13 +128,11 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
 	)
-
 	apmErr := c.sendAPMStats()
 	return multierr.Combine(serieErr, sketchesErr, apmErr)
 }
 
 func (c *serializerConsumer) sendAPMStats() error {
-
 	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
 	for _, body := range c.apmstats {
 		resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)

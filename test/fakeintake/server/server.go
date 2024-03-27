@@ -27,12 +27,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
-	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 )
 
 // defaultResponse is the default response returned by the fakeintake server
@@ -64,7 +65,8 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	store *serverstore.Store
+	storeDriver string
+	store       serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
@@ -79,18 +81,26 @@ func NewServer(options ...func(*Server)) *Server {
 		urlMutex:                  sync.RWMutex{},
 		clock:                     clock.New(),
 		retention:                 15 * time.Minute,
-		store:                     serverstore.NewStore(),
 		responseOverridesMutex:    sync.RWMutex{},
 		responseOverridesByMethod: newResponseOverrides(),
 	}
 
+	for _, opt := range options {
+		opt(fi)
+	}
+
+	fi.store = serverstore.NewStore(fi.storeDriver)
 	registry := prometheus.NewRegistry()
 
+	storeMetrics := fi.store.GetInternalMetrics()
 	registry.MustRegister(
-		collectors.NewBuildInfoCollector(),
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		fi.store.NbPayloads,
+		append(
+			[]prometheus.Collector{
+				collectors.NewBuildInfoCollector(),
+				collectors.NewGoCollector(),
+				collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+			},
+			storeMetrics...)...,
 	)
 
 	mux := http.NewServeMux()
@@ -118,22 +128,36 @@ func NewServer(options ...func(*Server)) *Server {
 		Addr:    ":0",
 	}
 
-	for _, opt := range options {
-		opt(fi)
-	}
-
 	return fi
 }
 
-// WithPort changes the server port.
-// If the port is 0, a port number is automatically chosen
-func WithPort(port int) func(*Server) {
+// WithAddress changes the server host:port.
+// If host is empty, it will bind to 0.0.0.0
+// If the port is empty or 0, a port number is automatically chosen
+func WithAddress(addr string) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to change the port.")
 			return
 		}
-		fi.server.Addr = fmt.Sprintf(":%d", port)
+		fi.server.Addr = addr
+	}
+}
+
+// WithPort changes the server port.
+// If the port is 0, a port number is automatically chosen
+func WithPort(port int) func(*Server) {
+	return WithAddress(fmt.Sprintf(":%d", port))
+}
+
+// WithStoreDriver changes the store driver used by the server
+func WithStoreDriver(driver string) func(*Server) {
+	return func(fi *Server) {
+		if fi.IsRunning() {
+			log.Println("Fake intake is already running. Stop it and try again to change the store driver.")
+			return
+		}
+		fi.storeDriver = driver
 	}
 }
 
@@ -209,6 +233,7 @@ func (fi *Server) Stop() error {
 		return fmt.Errorf("server not running")
 	}
 	defer close(fi.shutdown)
+	defer fi.store.Close()
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
@@ -311,7 +336,6 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 
 	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
 	if err != nil {
-		log.Printf("Error caching payload: %v", err.Error())
 		response := buildErrorResponse(err)
 		writeHTTPResponse(w, response)
 		return nil
@@ -359,18 +383,18 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {
-		payloads := fi.store.GetJSONPayloads(route)
-		// build response
+		payloads, payloadErr := serverstore.GetJSONPayloads(fi.store, route)
+		if payloadErr != nil {
+			writeHTTPResponse(w, buildErrorResponse(payloadErr))
+			return
+		}
+
 		resp := api.APIFakeIntakePayloadsJsonGETResponse{
 			Payloads: payloads,
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHTTPResponse(w, httpResponse{
-			contentType: "text/plain",
-			statusCode:  http.StatusBadRequest,
-			body:        []byte("invalid route parameter"),
-		})
+		writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid route parameter")))
 		return
 	}
 

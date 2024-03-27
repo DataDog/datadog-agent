@@ -52,7 +52,7 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 }
 
 func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
-	cfg := c.(*exporterConfig)
+	cfg := c.(*ExporterConfig)
 
 	// TODO: Ideally the attributes translator would be created once and reused
 	// across all signals. This would need unifying the logsagent and serializer
@@ -62,7 +62,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSet
 		return nil, err
 	}
 
-	newExp, err := newExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter)
+	newExp, err := NewExporter(params.TelemetrySettings, attributesTranslator, f.s, cfg, f.enricher, f.hostGetter)
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,7 @@
 package http2
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -115,7 +116,13 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 		res = tx.Stream.Path.Raw_buffer[:tx.Stream.Path.Length]
 	}
 
-	n := copy(buffer, res)
+	// Ignore query parameters
+	queryStart := bytes.IndexByte(res, byte('?'))
+	if queryStart == -1 {
+		queryStart = len(res)
+	}
+
+	n := copy(buffer, res[:queryStart])
 	return buffer[:n], true
 }
 

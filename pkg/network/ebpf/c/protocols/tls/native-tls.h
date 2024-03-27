@@ -104,8 +104,7 @@ int uprobe__SSL_read(struct pt_regs *ctx) {
     return 0;
 }
 
-SEC("uretprobe/SSL_read")
-int uretprobe__SSL_read(struct pt_regs *ctx) {
+static __always_inline int SSL_read_ret(struct pt_regs *ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int len = (int)PT_REGS_RC(ctx);
     if (len <= 0) {
@@ -135,11 +134,21 @@ int uretprobe__SSL_read(struct pt_regs *ctx) {
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, len, LIBSSL);
+    tls_process(ctx, &copy, buffer_ptr, len, tags);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_read_args, &pid_tgid);
     return 0;
+}
+
+SEC("uretprobe/SSL_read")
+int uretprobe__SSL_read(struct pt_regs *ctx) {
+    return SSL_read_ret(ctx, LIBSSL);
+}
+
+SEC("uretprobe/SSL_read")
+int istio_uretprobe__SSL_read(struct pt_regs *ctx) {
+    return SSL_read_ret(ctx, ISTIO);
 }
 
 SEC("uprobe/SSL_write")
@@ -153,8 +162,7 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("uretprobe/SSL_write")
-int uretprobe__SSL_write(struct pt_regs* ctx) {
+static __always_inline int SSL_write_ret(struct pt_regs* ctx, __u64 flags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int write_len = (int)PT_REGS_RC(ctx);
     log_debug("uretprobe/SSL_write: pid_tgid=%llx len=%d", pid_tgid, write_len);
@@ -181,11 +189,21 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
     // to the server <-> client direction.
     normalize_tuple(&copy);
     flip_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, write_len, LIBSSL);
+    tls_process(ctx, &copy, buffer_ptr, write_len, flags);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     return 0;
+}
+
+SEC("uretprobe/SSL_write")
+int uretprobe__SSL_write(struct pt_regs* ctx) {
+    return SSL_write_ret(ctx, LIBSSL);
+}
+
+SEC("uretprobe/SSL_write")
+int istio_uretprobe__SSL_write(struct pt_regs* ctx) {
+    return SSL_write_ret(ctx, ISTIO);
 }
 
 SEC("uprobe/SSL_read_ex")
@@ -323,7 +341,7 @@ int uprobe__SSL_shutdown(struct pt_regs *ctx) {
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
-    tls_finish(ctx, t);
+    tls_finish(ctx, t, false);
 
     return 0;
 }
@@ -500,7 +518,7 @@ static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_sessio
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
-    tls_finish(ctx, t);
+    tls_finish(ctx, t, false);
 }
 
 // int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)

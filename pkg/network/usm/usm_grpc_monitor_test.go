@@ -89,6 +89,8 @@ func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, 
 	}
 
 	return res, func() {
+		// Temporary workaround to prevent tests failure due to races in the eBPF probes.
+		time.Sleep(time.Second * 2)
 		for i := 0; i < size; i++ {
 			res[i].Close()
 		}
