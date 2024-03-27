@@ -156,7 +156,10 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	filePathResolver[ca.fileObject] = ca.fileName
+	if ca.fileName != "" {
+		filePathResolver[ca.fileObject] = ca.fileName
+	}
+
 	return ca, nil
 }
 
