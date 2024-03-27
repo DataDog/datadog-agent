@@ -79,7 +79,7 @@ enum parse_result {
     RET_LOOP_END = -2,
 };
 
-static __always_inline enum parse_result foo(kafka_response_context_t *response, struct __sk_buff *skb, __u32 offset)
+static __always_inline enum parse_result kafka_continue_parse_response(kafka_response_context_t *response, struct __sk_buff *skb, __u32 offset)
 {
     __u32 orig_offset = offset;
     kafka_transaction_t *request = &response->transaction;
@@ -277,28 +277,22 @@ static __always_inline enum parse_result foo(kafka_response_context_t *response,
 SEC("socket/kafka_response_parser")
 int socket__kafka_response_parser(struct __sk_buff *skb) {
     const u32 zero = 0;
-    skb_info_t skb_info;
     kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
-    if (kafka == NULL) {
-        log_debug("socket__kafka_filter: kafka_transaction state is NULL");
-        return 0;
-    }
-    bpf_memset(&kafka->transaction, 0, sizeof(kafka_transaction_t));
-
-    if (!fetch_dispatching_arguments(&kafka->transaction.tup, &skb_info)) {
-        log_debug("socket__kafka_filter failed to fetch arguments for tail call");
+    if (!kafka) {
         return 0;
     }
 
-    // Save non-normalized version
-    kafka->tup = kafka->transaction.tup;
+    skb_info_t skb_info;
+    if (!fetch_dispatching_arguments(&kafka->tup, &skb_info)) {
+        return 0;
+    }
 
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->tup);
     if (!response) {
         return 0;
     }
 
-    enum parse_result result = foo(response, skb, skb_info.data_off);
+    enum parse_result result = kafka_continue_parse_response(response, skb, skb_info.data_off);
     switch (result) {
     case RET_EOP:
         // This packet parsed successfully but more data needed, nothing
@@ -326,7 +320,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
 
 static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, __u32 offset) {
     __u32 orig_offset = offset;
-    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->transaction.tup);
+    kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &kafka->tup);
     if (response) {
         bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
         return false;
@@ -377,13 +371,12 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     }
 
     kafka->response.partitions_count = number_of_partitions;
-    
     kafka->response.state = KAFKA_FETCH_RESPONSE_PARTITION_START;
     kafka->response.record_batches_num_bytes = 0;
     kafka->response.carry_over_offset = offset - orig_offset;
     kafka->response.record_batch_length = 0;
 
-    bpf_map_update_elem(&kafka_response, &kafka->transaction.tup, &kafka->response, BPF_ANY);
+    bpf_map_update_elem(&kafka_response, &kafka->tup, &kafka->response, BPF_ANY);
     bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
 
     return true;
