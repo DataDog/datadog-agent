@@ -122,8 +122,20 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
                 read_big_endian_s32(skb, offset, &aborted_transactions);
                 offset += sizeof(aborted_transactions);
 
+                // Note that -1 is a valid value which means that the list is empty.
+                if (aborted_transactions < -1) {
+                    return RET_ERR;
+                }
+                // If we interpret some junk data as a packet with a huge aborted_transactions,
+                // we could end up missing up a lot of future response processing since we
+                // would wait for the end of the aborted_transactions list. So add a limit
+                // as a heuristic.
+                if (aborted_transactions >= KAFKA_MAX_ABORTED_TRANSACTIONS) {
+                    log_debug("kafka: Possibly invalid aborted_transactions %d", aborted_transactions);
+                    return RET_ERR;
+                }
                 if (aborted_transactions >= 0) {
-                    // TODO this code path needs a test case
+                    // TODO this and the aborted_transaction code paths need test cases
                     // producer_id and first_offset in each aborted transaction
                     offset += sizeof(s64) * 2 * aborted_transactions;
                 }

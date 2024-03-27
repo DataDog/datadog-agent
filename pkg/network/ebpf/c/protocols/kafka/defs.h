@@ -14,6 +14,8 @@
 
 #define KAFKA_RESPONSE_PARSER_MAX_ITERATIONS 10
 
+#define KAFKA_MAX_ABORTED_TRANSACTIONS 10000
+
 // This controls the number of Kafka transactions read from userspace at a time
 #define KAFKA_BATCH_SIZE 26
 
