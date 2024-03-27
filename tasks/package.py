@@ -86,6 +86,14 @@ def send_size(
     if not os.path.exists(package_path):
         raise Exit(code=1, message=color_message(f"Package not found at path {package_path}", "orange"))
 
+    if send_series and os.environ.get("DD_API_KEY"):
+        raise Exit(
+            code=1,
+            message=color_message(
+                "DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend", "red"
+            ),
+        )
+
     series = compute_package_size_metrics(
         ctx=ctx,
         flavor=flavor,
