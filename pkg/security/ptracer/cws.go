@@ -52,6 +52,7 @@ type Opts struct {
 	DisableStats    bool
 	DisableProcScan bool
 	ScanProcEvery   time.Duration
+	DisableSeccomp  bool
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -207,9 +208,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
 
 	tracerOpts := TracerOpts{
-		Syscalls: PtracedSyscalls,
-		Creds:    opts.Creds,
-		Logger:   logger,
+		Syscalls:       PtracedSyscalls,
+		Creds:          opts.Creds,
+		Logger:         logger,
+		DisableSeccomp: opts.DisableSeccomp,
 	}
 
 	tracer, err := NewTracer(entry, args, envs, tracerOpts)

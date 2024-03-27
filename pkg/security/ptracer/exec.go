@@ -82,9 +82,11 @@ func forkExec(argv0 string, argv []string, envv []string, creds Creds, prog *sys
 		tsync = 1
 	)
 
-	_, _, errno = syscall.RawSyscall(unix.SYS_SECCOMP, mode, tsync, uintptr(unsafe.Pointer(prog)))
-	if errno != 0 {
-		exit(errno)
+	if prog != nil {
+		_, _, errno = syscall.RawSyscall(unix.SYS_SECCOMP, mode, tsync, uintptr(unsafe.Pointer(prog)))
+		if errno != 0 {
+			exit(errno)
+		}
 	}
 
 	_, _, errno = syscall.RawSyscall(syscall.SYS_KILL, pid, uintptr(syscall.SIGSTOP), 0)

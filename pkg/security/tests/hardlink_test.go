@@ -128,6 +128,8 @@ func TestHardLinkExecsWithMaps(t *testing.T) {
 }
 
 func TestHardLink(t *testing.T) {
+	SkipIfNotAvailable(t)
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_link_creation",
