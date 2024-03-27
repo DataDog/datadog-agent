@@ -36,8 +36,6 @@
 # build Agent package for suse-x64
 agent_suse-x64-a6:
   extends: .agent_build_common_suse_rpm
-  rules:
-    - !reference [.on_a6]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -59,8 +57,6 @@ agent_suse-x64-a6:
 # build Agent package for suse-x64
 agent_suse-x64-a7:
   extends: .agent_build_common_suse_rpm
-  rules:
-    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -107,8 +103,6 @@ agent_suse-arm64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 iot_agent_suse-x64:
-  rules:
-    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -142,8 +136,6 @@ iot_agent_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 dogstatsd_suse-x64:
-  rules:
-    - !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -174,8 +166,6 @@ dogstatsd_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 agentless_scanner_suse-x64:
-  rules:
-    !reference [.on_a7]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
