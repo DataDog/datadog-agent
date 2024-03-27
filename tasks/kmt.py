@@ -252,15 +252,15 @@ def init(ctx: Context, lite=False):
 def config_ssh_key(_: Context):
     """Automatically configure the default SSH key to use"""
     info("[+] SSH key configuration...")
-    ssh_key_files = [Path(f) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
+    ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
     info("[-] Found these valid key files:")
 
     for i, f in enumerate(ssh_key_files):
-        key_comment = get_ssh_key_name(f)
+        key_comment = get_ssh_key_name(f.with_suffix(".pub"))
         if key_comment is None:
-            warn(f" - [x] {f.name} does not have a valid key name, cannot be used")
+            warn(f" - [x] {f} does not have a valid key name, cannot be used")
         else:
-            print(f" - [{i}] {f.name} - {key_comment}")
+            print(f" - [{i}] {f} - {key_comment}")
 
     result = ask(f"Choose one of these files (0-{len(ssh_key_files) - 1}) or write the path to another SSH key: ")
     try:
@@ -272,7 +272,7 @@ def config_ssh_key(_: Context):
     except IndexError:  # out of range
         raise Exit(f"Invalid choice {result}, must be a number between 0 and {len(ssh_key_files) - 1} (inclusive)")
 
-    key_name = get_ssh_key_name(ssh_key_path)
+    key_name = get_ssh_key_name(ssh_key_path.with_suffix(".pub"))
     if key_name is None:
         raise Exit(f"No SSH key name can be parsed from public key corresponding to {ssh_key_path}")
     cm = ConfigManager()
