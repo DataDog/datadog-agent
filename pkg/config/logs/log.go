@@ -20,6 +20,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/cihub/seelog"
@@ -264,17 +265,19 @@ const tlsHandshakeErrorKeyword = "http: TLS handshake error"
 // tlsHandshakeErrorWriter writes TLS handshake errors to log with
 // debug level, to avoid flooding of tls handshake errors.
 type tlsHandshakeErrorWriter struct {
-	writer io.Writer
+	writer          io.Writer
+	tlsErrorCounter *telemetry.Counter
 }
 
 // NewTLSHandshakeErrorWriter is a wrapper function which creates a new logWriter.
-func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (io.Writer, error) {
+func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel, errorCounter *telemetry.Counter) (io.Writer, error) {
 	logWriter, err := NewLogWriter(additionalDepth, logLevel)
 	if err != nil {
 		return nil, err
 	}
 	tlsWriter := &tlsHandshakeErrorWriter{
-		writer: logWriter,
+		writer:          logWriter,
+		tlsErrorCounter: errorCounter,
 	}
 	return tlsWriter, nil
 }
@@ -283,6 +286,7 @@ func NewTLSHandshakeErrorWriter(additionalDepth int, logLevel seelog.LogLevel) (
 func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 	if strings.Contains(string(p), tlsHandshakeErrorKeyword) {
 		log.DebugStackDepth(2, strings.TrimSpace(string(p)))
+		(*t.tlsErrorCounter).Inc()
 		return len(p), nil
 	}
 	return t.writer.Write(p)
