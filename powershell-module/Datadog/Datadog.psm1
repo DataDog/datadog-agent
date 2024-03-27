@@ -58,6 +58,8 @@ function Install-DDAgent
     }
 
     $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath $installerParameters /log $logFile" -PassThru
+    Remove-Item $installerPath
+
     if ($installResult.ExitCode -ne 0)
     {
         $exception = [Exception]::new("Agent installation failed. For more information, check the installation log file at $logFile.")
@@ -76,6 +78,8 @@ function Install-DDAgent
 
         Write-Host "Installing .NET Tracing Library"
         $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $dotnetInstallerPath" -PassThru
+        Remove-Item $dotnetInstallerPath
+
         if ($installResult.ExitCode -ne 0)
         {
             $exception = [Exception]::new(".NET Tracing Library installation failed.")
