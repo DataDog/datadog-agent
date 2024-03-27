@@ -5,6 +5,12 @@
 
 #include "protocols/http2/defs.h"
 
+// Represent the max frames we process for each tail call in the `frames_cleanup` program.
+#define HTTP2_MAX_FRAMES_FOR_CLEANUP_PER_TAIL_CALL 120
+// Represents the maximum number of tail calls for `frames_cleanup` programs.
+#define HTTP2_MAX_TAIL_CALLS_FOR_CLEANUP 2
+#define HTTP2_MAX_FRAMES_FOR_CLEANUP (HTTP2_MAX_FRAMES_FOR_CLEANUP_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_CLEANUP)
+
 // Represents the maximum number of frames we'll process in a single tail call in `handle_eos_frames` program.
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL 200
 // Represents the maximum number of tail calls to process EOS frames.
