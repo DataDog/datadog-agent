@@ -14,7 +14,5 @@ import (
 )
 
 func TestFxRun(t *testing.T) {
-	// TODO: (components) "missing type: *aggregator.AgentDemultiplexer"
-	t.SkipNow()
 	fxutil.TestOneShot(t, main)
 }
