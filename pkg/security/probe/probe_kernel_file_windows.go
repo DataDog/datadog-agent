@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 const (
@@ -43,7 +44,7 @@ const (
 type fileObjectPointer uint64
 
 var (
-	filePathResolver = make(map[fileObjectPointer]string, 0)
+	filePathResolver, _ = simplelru.NewLRU[fileObjectPointer, string](1<<14, nil)
 )
 
 /*
@@ -158,8 +159,8 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	}
 
 	if ca.fileName != "" {
-		log.Infof("push fpr: %v %s (len=%d)", ca.fileObject, ca.fileName, len(filePathResolver))
-		filePathResolver[ca.fileObject] = ca.fileName
+		log.Tracef("push fpr: %v %s (len=%d)", ca.fileObject, ca.fileName, filePathResolver.Len())
+		filePathResolver.Add(ca.fileObject, ca.fileName)
 	}
 
 	return ca, nil
@@ -243,7 +244,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
+	if s, ok := filePathResolver.Get(sia.fileObject); ok {
 		sia.fileName = s
 	}
 	return sia, nil
@@ -310,7 +311,7 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[ca.fileObject]; ok {
+	if s, ok := filePathResolver.Get(ca.fileObject); ok {
 		ca.fileName = s
 
 	}
