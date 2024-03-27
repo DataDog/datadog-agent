@@ -57,6 +57,8 @@ inv -e kmt.init
 inv -e kmt.init --lite
 ```
 
+This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `inv -e kmt.config-ssh-key`.
+
 ### Create stack
 
 ```bash
@@ -90,9 +92,7 @@ The `--use-local-if-possible` flag will attempt to use local VMs if they are ava
 This will bring up all the VMs previously configured.
 
 ```bash
-# SSH key name for the key to use for launching remobe machine in sandbox
-# The tasks will automatically look for the key in ~/.ssh
-inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
+inv -e kmt.launch-stack --stack=demo-stack
 ```
 
 ### Connecting to VMs
@@ -250,11 +250,11 @@ inv -e kmt.launch-stack
 # Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
 inv -e kmt.gen-config  --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
 # Name of the ssh key to use
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack
 # Add amazon linux
 inv -e kmt.gen-config  --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
 # Name of the ssh key to use
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack
 ```
 
 #### Example 3
@@ -263,7 +263,7 @@ inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 # Configure custom kernels
 inv -e kmt.gen-config  --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
 # Launch stack
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack
 ```
 
 ### VMs List
@@ -310,14 +310,17 @@ If you are just launching local VMs you do not need to specify an ssh key
 inv -e kmt.launch-stack
 ```
 
-If you are launching remote instances then the ssh key used to access the machine is required.
-Only the ssh key name is required. The program will automatically look in `~/.ssh/` directory for the key.
+If you are launching remote instances then the ssh key used to access the machine is required. This is usually configured with the `inv -e kmt.config-ssh-key` and does not need to be provided manually. However, you can provide a specific key for use with the `--ssh-key` argument. There are several possible values for this argument:
+
+- A path pointing the private key
+- The filename of a private key located in `~/.ssh`. For example, if you pass `--ssh-key=id_ed25519`, we will look for keys `~/.ssh/id_ed25519` or `~/.ssh/id_ed25519.pem`.
+- A key name (the third part of the public key file). We will look for public key files in `~/.ssh/*.pub` and try to find one matching that name.
 
 ```bash
 inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 ```
 
-If you are launching local VMs, you will be queried for you password. This is required since the program has to run some commands as root. However, we do not run the entire scenario with `sudo` to avoid broken permissions.
+If you are launching local VMs, you will be queried for your password. This is required since the program has to run some commands as root. However, we do not run the entire scenario with `sudo` to avoid broken permissions.
 
 ### List the stack
 
