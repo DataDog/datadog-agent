@@ -9,8 +9,6 @@
 package service
 
 import (
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,10 +27,7 @@ const (
 )
 
 var (
-	configDir       = "/etc/datadog-agent"
-	installInfoFile = filepath.Join(configDir, "install_info")
-	installSigFile  = filepath.Join(configDir, "install.json")
-	stableUnits     = []string{
+	stableUnits = []string{
 		agentUnit,
 		traceAgentUnit,
 		processAgentUnit,
