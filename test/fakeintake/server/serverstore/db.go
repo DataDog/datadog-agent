@@ -54,7 +54,7 @@ func newSQLStore() *sqlStore {
 		}
 		p = f.Name()
 	}
-	db, err := sql.Open("sqlite3", p)
+	db, err := sql.Open("sqlite", p)
 	if err != nil {
 		log.Fatal(err)
 	}
