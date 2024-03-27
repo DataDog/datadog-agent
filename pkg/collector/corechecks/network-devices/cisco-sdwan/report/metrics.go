@@ -83,7 +83,10 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 		tags := append(deviceTags, interfaceTags...)
 
 		if foundInterface {
-			tags = append(tags, fmt.Sprintf("interface_index:%d", itf.Index()))
+			index, err := itf.Index()
+			if err == nil {
+				tags = append(tags, fmt.Sprintf("interface_index:%d", index))
+			}
 			statusTags := append(tags, "oper_status:"+itf.OperStatus().AsString(), "admin_status:"+itf.AdminStatus().AsString())
 
 			ms.sender.Gauge(ciscoSDWANMetricPrefix+"interface.status", 1, "", statusTags)
