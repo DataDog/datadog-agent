@@ -246,4 +246,5 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1 // indirect
+	modernc.org/sqlite v1.29.5 // indirect
 )

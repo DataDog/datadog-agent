@@ -14,9 +14,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 
-	// import sqlite3 driver
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus"
+	// import sqlite3 driver
+	_ "modernc.org/sqlite"
 )
 
 const (
