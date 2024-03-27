@@ -187,7 +187,7 @@ func TestCEdgeInterface(t *testing.T) {
 
 			require.Equal(t, tt.expectedID, itf.ID())
 			require.Equal(t, tt.expectedIndex, index)
-			require.Equal(t, tt.expectedSpeed, itf.Speed())
+			require.Equal(t, tt.expectedSpeed, itf.GetSpeedMbps())
 			require.Equal(t, tt.expectedOperStatus, itf.OperStatus())
 			require.Equal(t, tt.expectedAdminStatus, itf.AdminStatus())
 			require.Equal(t, tt.expectedMetadata, itfMetadata)

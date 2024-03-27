@@ -55,8 +55,8 @@ func (itf *CEdgeInterface) Index() (int, error) {
 	return index, nil
 }
 
-// Speed returns the interface speed
-func (itf *CEdgeInterface) Speed() int {
+// GetSpeedMbps returns the interface speed
+func (itf *CEdgeInterface) GetSpeedMbps() int {
 	speed, err := strconv.Atoi(itf.SpeedMbps)
 	if err != nil {
 		log.Warnf("Unable to parse cEdge interface %s speed %s", itf.Ifname, itf.SpeedMbps)
