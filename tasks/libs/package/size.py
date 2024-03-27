@@ -20,7 +20,7 @@ SCANNED_BINARIES = {
         "agent": "opt/datadog-agent/bin/agent/agent",
     },
     "dogstatsd": {
-        "agent": "opt/datadog-dogstatsd/bin/dogstatsd",
+        "dogstatsd": "opt/datadog-dogstatsd/bin/dogstatsd",
     },
     "heroku-agent": {
         "agent": "opt/datadog-agent/bin/agent/agent",
