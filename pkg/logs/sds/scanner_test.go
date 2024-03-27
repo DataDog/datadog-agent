@@ -8,9 +8,12 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateScanner(t *testing.T) {
+	require := require.New(t)
+
 	standardRules := []byte(`
         {"priority":1,"is_enabled":true,"rules":[
             {
@@ -60,18 +63,14 @@ func TestCreateScanner(t *testing.T) {
 
 	s := CreateScanner()
 
-	if s == nil {
-		t.Error("the scanner should not be nil after a creation")
-	}
+	require.NotNil(s, "the scanner should not be nil after a creation")
 
 	err := s.Reconfigure(ReconfigureOrder{
 		Type:   StandardRules,
 		Config: standardRules,
 	})
 
-	if err != nil {
-		t.Errorf("configuring the standard rules should not fail: %v", err)
-	}
+	require.NoError(err, "configuring the standard rules should not fail")
 
 	// now that we have some definitions, we can configure the scanner
 	err = s.Reconfigure(ReconfigureOrder{
@@ -79,13 +78,9 @@ func TestCreateScanner(t *testing.T) {
 		Config: agentConfig,
 	})
 
-	if err != nil {
-		t.Errorf("this one shouldn't fail, all rules are disabled but it's OK as long as there are no rules in the scanner")
-	}
+	require.NoError(err, "this one shouldn't fail, all rules are disabled but it's OK as long as there are no rules in the scanner")
 
-	if s == nil {
-		t.Errorf("the scanner should not become a nil object")
-	}
+	require.NotNil(s, "the scanner should not become a nil object")
 
 	if s != nil && len(s.configuredRules) > 0 {
 		t.Errorf("No rules should be configured, they're all disabled. Got (%v) rules configured instead.", len(s.configuredRules))
@@ -101,51 +96,26 @@ func TestCreateScanner(t *testing.T) {
 		Config: agentConfig,
 	})
 
-	if err != nil {
-		t.Errorf("this one should not fail since two rules are enabled: %v", err)
-	}
+	require.NoError(err, "this one should not fail since two rules are enabled: %v", err)
 
-	if s.Scanner == nil {
-		t.Errorf("the Scanner should've been created, it should not be nil")
-	}
+	require.NotNil(s.Scanner, "the Scanner should've been created, it should not be nil")
+	require.NotNil(s.Scanner.Rules, "the Scanner should use rules")
 
-	if s.Scanner.Rules == nil {
-		t.Errorf("the Scanner should use rules")
-	}
-
-	if len(s.Scanner.Rules) != 2 {
-		t.Errorf("the Scanner should use two rules, has (%d) instead", len(s.Scanner.Rules))
-	}
-
-	if len(s.configuredRules) != 2 {
-		t.Errorf("only two rules should be part of this scanner. len == %d", len(s.configuredRules))
-	}
+	require.Len(s.Scanner.Rules, 2, "the Scanner should use two rules")
+	require.Len(s.configuredRules, 2, "only two rules should be part of this scanner.")
 
 	// order matters, it's ok to test rules by [] access
-	if s.configuredRules[0].Name != "zero" {
-		t.Error("incorrect rules selected for configuration")
-	}
-	if s.configuredRules[1].Name != "one" {
-		t.Error("incorrect rules selected for configuration")
-	}
+	require.Equal(s.configuredRules[0].Name, "zero", "incorrect rules selected for configuration")
+	require.Equal(s.configuredRules[1].Name, "one", "incorrect rules selected for configuration")
 
 	// compare rules returned by GetRuleByIdx
 
 	zero, err := s.GetRuleByIdx(0)
-	if err != nil {
-		t.Errorf("GetRuleByIdx on 0 should not fail: %v", err)
-	}
-	if s.configuredRules[0].ID != zero.ID {
-		t.Error("incorrect rule returned")
-	}
-
+	require.NoError(err, "GetRuleByIdx on 0 should not fail")
+	require.Equal(s.configuredRules[0].ID, zero.ID, "incorrect rule returned")
 	one, err := s.GetRuleByIdx(1)
-	if err != nil {
-		t.Errorf("GetRuleByIdx on 1 should not fail: %v", err)
-	}
-	if s.configuredRules[1].ID != one.ID {
-		t.Error("incorrect rule returned")
-	}
+	require.NoError(err, "GetRuleByIdx on 1 should not fail")
+	require.Equal(s.configuredRules[1].ID, one.ID, "incorrect rule returned")
 
 	// disable the rule zero
 	// only "one" is left enabled
@@ -180,26 +150,16 @@ func TestCreateScanner(t *testing.T) {
 		Config: agentConfig,
 	})
 
-	if err != nil {
-		t.Errorf("this one should not fail since one rule is enabled: %v", err)
-	}
-
-	if len(s.configuredRules) != 1 {
-		t.Errorf("only one rules should be part of this scanner. len == %d", len(s.configuredRules))
-	}
+	require.NoError(err, "this one should not fail since one rule is enabled")
+	require.Len(s.configuredRules, 1, "only one rules should be part of this scanner")
 
 	// order matters, it's ok to test rules by [] access
-	if s.configuredRules[0].Name != "one" {
-		t.Error("incorrect rule selected for configuration")
-	}
+	require.Equal(s.configuredRules[0].Name, "one", "incorrect rule selected for configuration")
 
 	rule, err := s.GetRuleByIdx(0)
-	if err != nil {
-		t.Error("incorrect rule returned")
-	}
-	if rule.ID != s.configuredRules[0].ID || rule.Name != "one" {
-		t.Error("the scanner hasn't been configured with the good rule")
-	}
+	require.NoError(err, "incorrect rule returned")
+	require.Equal(rule.ID, s.configuredRules[0].ID, "the scanner hasn't been configured with the good rule")
+	require.Equal(rule.Name, "one", "the scanner hasn't been configured with the good rule")
 
 	// disable the whole group
 
@@ -232,16 +192,13 @@ func TestCreateScanner(t *testing.T) {
 		Config: agentConfig,
 	})
 
-	if err != nil {
-		t.Error("no error should happen")
-	}
-
-	if len(s.configuredRules) != 0 {
-		t.Errorf("The group is disabled, no rules should be configured. len == %d", len(s.configuredRules))
-	}
+	require.NoError(err, "no error should happen")
+	require.Len(s.configuredRules, 0, "The group is disabled, no rules should be configured.")
 }
 
 func TestIsReady(t *testing.T) {
+	require := require.New(t)
+
 	standardRules := []byte(`
         {"priority":1,"rules":[
             {
@@ -285,26 +242,16 @@ func TestIsReady(t *testing.T) {
 
 	s := CreateScanner()
 
-	if s == nil {
-		t.Error("the scanner should not be nil after a creation")
-	}
-
-	if s.IsReady() != false {
-		t.Error("at this stage, the scanner should not be considered ready, no definitions received")
-	}
+	require.NotNil(s, "the scanner should not be nil after a creation")
+	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
 
 	err := s.Reconfigure(ReconfigureOrder{
 		Type:   StandardRules,
 		Config: standardRules,
 	})
 
-	if err != nil {
-		t.Errorf("configuring the definitions should not fail: %v", err)
-	}
-
-	if s.IsReady() != false {
-		t.Error("at this stage, the scanner should not be considered ready, no user config received")
-	}
+	require.NoError(err, "configuring the definitions should not fail")
+	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no user config received")
 
 	// now that we have some definitions, we can configure the scanner
 	err = s.Reconfigure(ReconfigureOrder{
@@ -312,14 +259,14 @@ func TestIsReady(t *testing.T) {
 		Config: agentConfig,
 	})
 
-	if s.IsReady() != true {
-		t.Error("at this stage, the scanner should be considered ready")
-	}
+	require.True(s.IsReady(), "at this stage, the scanner should be considered ready")
 }
 
 // TestScan validates that everything fits and works. It's not validating
 // the scanning feature itself, which is done in the library.
 func TestScan(t *testing.T) {
+	require := require.New(t)
+
 	standardRules := []byte(`
         {"priority":1,"rules":[
             {
@@ -362,9 +309,8 @@ func TestScan(t *testing.T) {
 	// -----
 
 	s := CreateScanner()
-	if s == nil {
-		t.Error("the returned scanner should not be nil")
-	}
+	require.NotNil(s, "the returned scanner should not be nil")
+
 	_ = s.Reconfigure(ReconfigureOrder{
 		Type:   StandardRules,
 		Config: standardRules,
@@ -374,10 +320,7 @@ func TestScan(t *testing.T) {
 		Config: agentConfig,
 	})
 
-	if s.IsReady() != true {
-		t.Error("at this stage, the scanner should be considered ready")
-	}
-
+	require.True(s.IsReady(), "at this stage, the scanner should be considered ready")
 	type result struct {
 		matched    bool
 		event      string
@@ -405,17 +348,9 @@ func TestScan(t *testing.T) {
 	for k, v := range tests {
 		msg := message.Message{}
 		matched, processed, err := s.Scan([]byte(k), &msg)
-		if err != nil {
-			t.Errorf("scanning these event should not fail. err received: %v", err)
-		}
-		if matched && processed == nil {
-			t.Errorf("incorrect result: nil processed event returned")
-		}
-		if matched != v.matched {
-			t.Errorf("unexpected match/non-match: expected %v got %v", v.matched, matched)
-		}
-		if string(processed) != v.event {
-			t.Errorf("incorrect result, expected \"%v\" got \"%v\"", v.event, string(processed))
-		}
+		require.NoError(err, "scanning these event should not fail.")
+		require.False(matched && processed == nil, "incorrect result: nil processed event returned")
+		require.Equal(matched, v.matched, "unexpected match/non-match")
+		require.Equal(string(processed), v.event, "incorrect result")
 	}
 }

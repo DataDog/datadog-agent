@@ -6,21 +6,21 @@
 //nolint:revive
 package sds
 
-type reconfigureOrderType string
+type ReconfigureOrderType string
 
 const (
 	// StandardRules triggers the storage of a new set of standard rules
 	// and reconfigure the internal SDS scanner with an existing user
 	// configuration if any.
-	StandardRules reconfigureOrderType = "standard_rules"
+	StandardRules ReconfigureOrderType = "standard_rules"
 	// AgentConfig triggers a reconfiguration of the SDS scanner.
-	AgentConfig reconfigureOrderType = "agent_config"
+	AgentConfig ReconfigureOrderType = "agent_config"
 )
 
 // ReconfigureOrder are used to trigger a reconfiguration
 // of the SDS scanner.
 type ReconfigureOrder struct {
-	Type         reconfigureOrderType
+	Type         ReconfigureOrderType
 	Config       []byte
 	ResponseChan chan error
 }

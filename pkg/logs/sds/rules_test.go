@@ -3,6 +3,8 @@ package sds
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func testdataStandardRules() map[string]StandardRuleConfig {
@@ -33,37 +35,21 @@ func testdataStandardRules() map[string]StandardRuleConfig {
 
 //nolint:staticcheck
 func TestGetByID(t *testing.T) {
+	require := require.New(t)
 	rules := testdataStandardRules()
 
-	two, exists := rules["2"]
-	if !exists {
-		t.Error("rule two exists, should be returned")
-	}
-	if two.ID != "2" {
-		t.Error("not the good rule")
-	}
-	if two.Name != "Two" {
-		t.Error("not the good rule")
-	}
-	if two.Description != "Two desc" {
-		t.Error("not the good rule")
-	}
-	if two.Pattern != "two" {
-		t.Error("not the good rule")
-	}
+	require.Contains(rules, "2", "rule two exists, should be returned")
+	two := rules["2"]
+	require.Equal(two.ID, "2", "not the good rule")
+	require.Equal(two.Name, "Two", "not the good rule")
+	require.Equal(two.Description, "Two desc", "not the good rule")
+	require.Equal(two.Pattern, "two", "not the good rule")
 
-	zero, exists := rules["0"]
-	if !exists {
-		t.Error("rule zero exists, should be returned")
-	}
-	if zero.Name != "Zero" {
-		t.Error("not the good rule")
-	}
+	require.Contains(rules, "0", "rule zero exists, should be returned")
+	zero := rules["0"]
+	require.Equal(zero.Name, "Zero", "not the good rule")
 
-	_, exists = rules["meh"]
-	if exists {
-		t.Error("rule doesn't exist, nothing should be returned")
-	}
+	require.NotContains(rules, "meh", "rule doesn't exist, nothing should be returned")
 }
 
 func testdataRulesConfig() RulesConfig {
@@ -93,21 +79,15 @@ func testdataRulesConfig() RulesConfig {
 }
 
 func TestOnlyEnabled(t *testing.T) {
+	require := require.New(t)
 	rules := testdataRulesConfig()
 
 	onlyEnabled := rules.OnlyEnabled()
-	if len(onlyEnabled.Rules) != 1 {
-		t.Errorf("only one rule should be enabled. Expected (%v), got (%v)", 1, len(onlyEnabled.Rules))
-	}
-
-	if onlyEnabled.Rules[0].Name != "One" {
-		t.Error("only One should enabled")
-	}
+	require.Len(onlyEnabled.Rules, 1, "only one rule should be enabled.")
+	require.Equal(onlyEnabled.Rules[0].Name, "One", "only One should be enabled")
 
 	// disable the whole group
 	rules.IsEnabled = false
 	onlyEnabled = rules.OnlyEnabled()
-	if len(onlyEnabled.Rules) > 0 {
-		t.Error("the group is disabled, no rules should be returned")
-	}
+	require.Len(onlyEnabled.Rules, 0, "the group is disabled, no rules should be returned")
 }

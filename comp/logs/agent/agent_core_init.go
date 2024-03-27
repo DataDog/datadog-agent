@@ -64,6 +64,7 @@ func (a *agent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta op
 	a.launchers = lnchrs
 	a.health = health
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
+
 }
 
 // buildEndpoints builds endpoints for the logs agent

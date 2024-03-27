@@ -110,19 +110,14 @@ func (p *provider) Stop() {
 	p.outputChan = nil
 }
 
-func (p *provider) reconfigureSDS(config []byte, agentConfig bool) error {
+func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) error {
 	var responses []chan error
-
-	typ := sds.StandardRules
-	if agentConfig {
-		typ = sds.AgentConfig
-	}
 
 	// send a reconfiguration order to every running pipeline
 
 	for _, pipeline := range p.pipelines {
 		order := sds.ReconfigureOrder{
-			Type:         typ,
+			Type:         orderType,
 			Config:       config,
 			ResponseChan: make(chan error),
 		}
@@ -148,13 +143,13 @@ func (p *provider) reconfigureSDS(config []byte, agentConfig bool) error {
 
 // ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
 func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) error {
-	return p.reconfigureSDS(standardRules, false)
+	return p.reconfigureSDS(standardRules, sds.StandardRules)
 }
 
 // ReconfigureSDSAgentConfig reconfigures the pipeline with the given
 // configuration received through Remote Configuration.
 func (p *provider) ReconfigureSDSAgentConfig(config []byte) error {
-	return p.reconfigureSDS(config, true)
+	return p.reconfigureSDS(config, sds.AgentConfig)
 }
 
 // NextPipelineChan returns the next pipeline input channel
