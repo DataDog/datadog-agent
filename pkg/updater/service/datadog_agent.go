@@ -9,19 +9,10 @@
 package service
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/google/uuid"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -91,7 +82,7 @@ func SetupAgentUnits() (err error) {
 			return
 		}
 	}
-	setInstallInfo()
+	err = installinfo.WriteInstallInfo("updater_package", "manual_update_via_apt")
 	return
 }
 
@@ -127,7 +118,7 @@ func RemoveAgentUnits() {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
-	cleanInstallInfo()
+	installinfo.RmInstallInfo()
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -138,83 +129,4 @@ func StartAgentExperiment() error {
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment() error {
 	return startUnit(agentUnit)
-}
-
-func setInstallInfo() {
-	// avoid rewriting the files if they already exist
-	if _, err := os.Stat(installInfoFile); err == nil {
-		log.Info("Install info file already exists, skipping")
-		return
-	}
-	tool, version := getToolVersion()
-	if err := writeInstallInfo(tool, version); err != nil {
-		log.Warnf("Failed to write install info: %s", err)
-	}
-	if err := writeInstallSignature(); err != nil {
-		log.Warnf("Failed to write install signature: %s", err)
-	}
-}
-
-func cleanInstallInfo() {
-	if err := os.Remove(installInfoFile); err != nil && !os.IsNotExist(err) {
-		log.Warnf("Failed to remove install info file: %s", err)
-	}
-	if err := os.Remove(installSigFile); err != nil && !os.IsNotExist(err) {
-		log.Warnf("Failed to remove install signature file: %s", err)
-	}
-}
-
-func getToolVersion() (string, string) {
-	tool := "unknown"
-	version := "unknown"
-	if _, err := exec.LookPath("dpkg-query"); err == nil {
-		tool = "dpkg"
-		toolVersion, err := getDpkgVersion()
-		if err == nil {
-			version = toolVersion
-		}
-	}
-	return tool, version
-}
-
-func getDpkgVersion() (string, error) {
-	cmd := exec.Command("dpkg-query", "--showformat=${Version}", "--show", "dpkg")
-	output, err := cmd.Output()
-	if err != nil {
-		log.Warnf("Failed to get dpkg version: %s", err)
-		return "", err
-	}
-	splitVersion := strings.Split(strings.TrimSpace(string(output)), ".")
-	if len(splitVersion) < 3 {
-		return "", fmt.Errorf("failed to parse dpkg version: %s", string(output))
-	}
-	return strings.Join(splitVersion[:3], "."), nil
-}
-
-func writeInstallInfo(tool, version string) error {
-	info := installinfo.InstallMethod{
-		Method: installinfo.InstallInfo{
-			Tool:             tool,
-			ToolVersion:      version,
-			InstallerVersion: "updater_package",
-		},
-	}
-	yamlData, err := yaml.Marshal(info)
-	if err != nil {
-		panic(err)
-	}
-	return os.WriteFile(installInfoFile, yamlData, 0644)
-}
-
-func writeInstallSignature() error {
-	installSignature := map[string]string{
-		"install_id":   strings.ToLower(uuid.New().String()),
-		"install_type": "manual_update_via_apt",
-		"install_time": strconv.FormatInt(time.Now().Unix(), 10),
-	}
-	jsonData, err := json.Marshal(installSignature)
-	if err != nil {
-		panic(err)
-	}
-	return os.WriteFile(installSigFile, jsonData, 0644)
 }

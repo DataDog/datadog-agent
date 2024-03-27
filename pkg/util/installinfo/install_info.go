@@ -12,8 +12,12 @@ package installinfo
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -22,6 +26,13 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/google/uuid"
+)
+
+var (
+	configDir       = "/etc/datadog-agent"
+	installInfoFile = filepath.Join(configDir, "install_info")
+	installSigFile  = filepath.Join(configDir, "install.json")
 )
 
 // InstallInfo contains metadata on how the Agent was installed
@@ -31,8 +42,8 @@ type InstallInfo struct {
 	InstallerVersion string `json:"installer_version" yaml:"installer_version"`
 }
 
-// InstallMethod contains install info
-type InstallMethod struct {
+// installInfoMethod contains install info
+type installInfoMethod struct {
 	Method InstallInfo `json:"install_method" yaml:"install_method"`
 }
 
@@ -65,7 +76,7 @@ func getFromPath(path string) (*InstallInfo, error) {
 		return nil, err
 	}
 
-	var install InstallMethod
+	var install installInfoMethod
 	if err := yaml.UnmarshalStrict(yamlContent, &install); err != nil {
 		// file was manipulated and is not relevant to format
 		return nil, err
@@ -135,4 +146,86 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 		log.Errorf("Cannot write json file: %s %v", versionHistoryFilePath, err)
 		return
 	}
+}
+
+// WriteInstallInfo write install info and signature files
+func WriteInstallInfo(installerVersion, installType string) error {
+	// avoid rewriting the files if they already exist
+	if _, err := os.Stat(installInfoFile); err == nil {
+		log.Info("Install info file already exists, skipping")
+		return nil
+	}
+	tool, version := getToolVersion()
+	if err := writeInstallInfo(tool, version, installerVersion); err != nil {
+		return fmt.Errorf("failed to write install info file: %v", err)
+	}
+	if err := writeInstallSignature(installType); err != nil {
+		return fmt.Errorf("failed to write install signature file: %v", err)
+	}
+	return nil
+}
+
+// RmInstallInfo removes the install info and signature files
+func RmInstallInfo() {
+	if err := os.Remove(installInfoFile); err != nil && !os.IsNotExist(err) {
+		log.Warnf("Failed to remove install info file: %s", err)
+	}
+	if err := os.Remove(installSigFile); err != nil && !os.IsNotExist(err) {
+		log.Warnf("Failed to remove install signature file: %s", err)
+	}
+}
+
+func getToolVersion() (string, string) {
+	tool := "unknown"
+	version := "unknown"
+	if _, err := exec.LookPath("dpkg-query"); err == nil {
+		tool = "dpkg"
+		toolVersion, err := getDpkgVersion()
+		if err == nil {
+			version = toolVersion
+		}
+	}
+	return tool, version
+}
+
+func getDpkgVersion() (string, error) {
+	cmd := exec.Command("dpkg-query", "--showformat=${Version}", "--show", "dpkg")
+	output, err := cmd.Output()
+	if err != nil {
+		log.Warnf("Failed to get dpkg version: %s", err)
+		return "", err
+	}
+	splitVersion := strings.Split(strings.TrimSpace(string(output)), ".")
+	if len(splitVersion) < 3 {
+		return "", fmt.Errorf("failed to parse dpkg version: %s", string(output))
+	}
+	return strings.Join(splitVersion[:3], "."), nil
+}
+
+func writeInstallInfo(tool, version, installerVersion string) error {
+	info := installInfoMethod{
+		Method: InstallInfo{
+			Tool:             tool,
+			ToolVersion:      version,
+			InstallerVersion: installerVersion,
+		},
+	}
+	yamlData, err := yaml.Marshal(info)
+	if err != nil {
+		panic(err)
+	}
+	return os.WriteFile(installInfoFile, yamlData, 0644)
+}
+
+func writeInstallSignature(installType string) error {
+	installSignature := map[string]string{
+		"install_id":   strings.ToLower(uuid.New().String()),
+		"install_type": installType,
+		"install_time": strconv.FormatInt(time.Now().Unix(), 10),
+	}
+	jsonData, err := json.Marshal(installSignature)
+	if err != nil {
+		panic(err)
+	}
+	return os.WriteFile(installSigFile, jsonData, 0644)
 }
