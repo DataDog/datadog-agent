@@ -37,7 +37,7 @@ type KillActionReport struct {
 // JKillActionReport used to serialize date
 // easyjson:json
 type JKillActionReport struct {
-	Name       string              `json:"type"`
+	Type       string              `json:"type"`
 	Signal     string              `json:"signal"`
 	Scope      string              `json:"scope"`
 	CreatedAt  utils.EasyjsonTime  `json:"created_at"`
@@ -56,7 +56,7 @@ func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
 	resolved := k.Signal != "SIGKILL" || k.resolved
 
 	jk := JKillActionReport{
-		Name:       rules.KillAction,
+		Type:       rules.KillAction,
 		Signal:     k.Signal,
 		Scope:      k.Scope,
 		CreatedAt:  utils.NewEasyjsonTime(k.CreatedAt),
