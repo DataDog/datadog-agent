@@ -47,12 +47,6 @@ import (
 	"go.uber.org/fx"
 )
 
-const (
-	datadogConfigPath = ""
-	// coreconfig.WithConfigMissingOK(true) does not prevent crash when datadogConfigPath is set
-	//datadogConfigPath = "/var/task/datadog.yaml"
-)
-
 func main() {
 
 	loggerName, _ := mode.DetectMode()
@@ -64,7 +58,7 @@ func main() {
 		tagger.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(core.BundleParams{
-			ConfigParams: coreconfig.NewAgentParams(datadogConfigPath, coreconfig.WithConfigMissingOK(true)),
+			ConfigParams: coreconfig.NewAgentParams("", coreconfig.WithConfigMissingOK(true)),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    logimpl.ForOneShot(loggerName, "off", true)}),
 		core.Bundle(),
@@ -148,7 +142,7 @@ func setupHealthCheck() {
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
+	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: "must_be_not_empty.yaml"}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
@@ -157,6 +151,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	config.Datadog.Set("dogstatsd_non_local_traffic", true, model.SourceAgentRuntime)
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}
