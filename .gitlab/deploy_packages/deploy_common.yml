@@ -76,7 +76,7 @@
 deploy_packages_oci:
   resource_group: oci_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  needs: [ "packaging_oci" ]
+  needs: [ "agent_oci" ]
   tags: ["arch:amd64"]
   stage: deploy_packages
   before_script:
