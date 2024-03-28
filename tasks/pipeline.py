@@ -598,9 +598,9 @@ def get_schedule(_, schedule_id):
 
     repo = get_gitlab_repo(token=get_gitlab_bot_token())
 
-    result = repo.pipelineschedules.get(schedule_id).asdict()
+    sched = repo.pipelineschedules.get(schedule_id)
 
-    pprint.pprint(result)
+    sched.pprint()
 
 
 @task
