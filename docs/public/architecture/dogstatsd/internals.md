@@ -6,6 +6,8 @@
 <figcaption markdown>(click to enlarge)</figcaption>
 </figure>
 
+Information on DogStatsD, configuration and troubleshooting is available in the [Datadog documentation](https://docs.datadoghq.com/developers/dogstatsd/).
+
 ## Packet
 
 In DogStatsD, a Packet is a bytes array containing one or multiple metrics in the DogStatsD format (separated by a `\n` when there are several). Its maximum size is `dogstatsd_buffer_size`.
