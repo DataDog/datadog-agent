@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
 // CloudProvider represents a cloud provider.
@@ -22,6 +24,8 @@ const (
 	CloudProviderNone CloudProvider = "none"
 	// CloudProviderAWS represents the Amazon Web Services cloud provider.
 	CloudProviderAWS CloudProvider = "aws"
+	// CloudProviderAzure represents the Microsoft Azure cloud provider.
+	CloudProviderAzure CloudProvider = "azure"
 )
 
 // CloudID represents an Cloud Resource Identifier.
@@ -40,6 +44,9 @@ type CloudID struct {
 
 	// CloudProviderAWS
 	arn string
+
+	// CloudProviderAzure
+	resourceID string
 }
 
 // AsText returns the string representation of the CloudID.
@@ -49,8 +56,18 @@ func (id CloudID) AsText() string {
 		return fmt.Sprintf("localhost:%s", id.path)
 	case CloudProviderAWS:
 		return id.arn
+	case CloudProviderAzure:
+		return id.resourceID
 	}
 	panic(fmt.Errorf("unimplemented: %#+v", id))
+}
+
+// AsAzureID converts an Azure CloudID to an arm.ResourceID.
+func (id CloudID) AsAzureID() (*arm.ResourceID, error) {
+	if id.provider != CloudProviderAzure {
+		return nil, fmt.Errorf("AsAzureID() is only supported for Azure resources")
+	}
+	return arm.ParseResourceID(id.resourceID)
 }
 
 // Provider returns the cloud provider of the resource.
@@ -107,6 +124,7 @@ var (
 func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 	var err error
 	var id CloudID
+
 	if strings.HasPrefix(s, "localhost:") {
 		sections := strings.SplitN(s, ":", 2)
 		if len(sections) != 2 {
@@ -126,9 +144,18 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 		if err != nil {
 			return CloudID{}, err
 		}
+	} else if azureResourceID, err := arm.ParseResourceID(s); err == nil {
+		id = AzureCloudID(azureResourceID)
 	} else {
 		return CloudID{}, fmt.Errorf("bad cloud id: invalid prefix: %q", s)
 	}
+	if !id.hasExpectedType(expectedTypes...) {
+		return CloudID{}, fmt.Errorf("bad cloud id: expecting one of these resource types %v but got %s", expectedTypes, id.resourceType)
+	}
+	return id, nil
+}
+
+func (id *CloudID) hasExpectedType(expectedTypes ...ResourceType) bool {
 	isExpected := len(expectedTypes) == 0
 	for _, t := range expectedTypes {
 		if t == id.resourceType {
@@ -136,10 +163,7 @@ func ParseCloudID(s string, expectedTypes ...ResourceType) (CloudID, error) {
 			break
 		}
 	}
-	if !isExpected {
-		return CloudID{}, fmt.Errorf("bad cloud id: expecting one of these resource types %v but got %s", expectedTypes, id.resourceType)
-	}
-	return id, nil
+	return isExpected
 }
 
 // AWSCloudID returns an CloudID for the given AWS resource.
@@ -259,11 +283,49 @@ func parseAWSARN(s string) (CloudID, error) {
 	}, nil
 }
 
+// AzureCloudID returns a CloudID for the given Azure resource.
+func AzureCloudID(resourceID *arm.ResourceID) CloudID {
+	var resourceType ResourceType
+	switch resourceID.ResourceType.String() {
+	case "Microsoft.Compute/snapshots":
+		resourceType = ResourceTypeSnapshot
+	case "Microsoft.Compute/disks":
+		resourceType = ResourceTypeVolume
+	case "Microsoft.ManagedIdentity/userAssignedIdentities":
+		resourceType = ResourceTypeRole
+	}
+
+	return CloudID{
+		provider: CloudProviderAzure,
+		//region: string
+		accountID:    resourceID.SubscriptionID,
+		resource:     resourceID.ResourceType.String() + "/" + resourceID.Name,
+		resourceType: resourceType,
+		resourceName: resourceID.Name,
+		resourceID:   resourceID.String(),
+	}
+}
+
+// ParseAzureResourceID parses an Azure resource identifier.
+func ParseAzureResourceID(s string, expectedTypes ...ResourceType) (CloudID, error) {
+	resourceID, err := arm.ParseResourceID(s)
+	if err != nil {
+		return CloudID{}, err
+	}
+	cloudID := AzureCloudID(resourceID)
+	if !cloudID.hasExpectedType(expectedTypes...) {
+		return CloudID{}, fmt.Errorf("bad cloud id: expecting one of these resource types %v but got %s", expectedTypes, cloudID.resourceType)
+	}
+	return cloudID, err
+}
+
 // HumanParseCloudID parses an Cloud Identifier string or a resource
 // identifier and returns an cloud identifier. Helpful for CLI interface.
 func HumanParseCloudID(s string, provider CloudProvider, region, accountID string, expectedTypes ...ResourceType) (CloudID, error) {
 	// Localhost
-	if strings.HasPrefix(s, "/") && (len(s) == 1 || fs.ValidPath(s[1:])) {
+	if strings.HasPrefix(s, "/") &&
+		!strings.HasPrefix(s, "/subscriptions/") &&
+		(len(s) == 1 || fs.ValidPath(s[1:])) {
 		return ParseCloudID(fmt.Sprintf("localhost:%s", s), expectedTypes...)
 	}
 
@@ -289,6 +351,18 @@ func HumanParseCloudID(s string, provider CloudProvider, region, accountID strin
 			arn := fmt.Sprintf("arn:aws:%s:%s:%s:%s", service, region, accountID, s)
 			return ParseCloudID(arn, expectedTypes...)
 		}
+	}
+
+	// Azure
+	if provider == CloudProviderAzure {
+		id, err := ParseAzureResourceID(s, expectedTypes...)
+		if err != nil {
+			return CloudID{}, err
+		}
+		if !id.hasExpectedType(expectedTypes...) {
+			return CloudID{}, fmt.Errorf("bad cloud id: expecting one of these resource types %v but got %s", expectedTypes, id.resourceType)
+		}
+		return id, nil
 	}
 
 	return CloudID{}, fmt.Errorf("unable to parse resource %q", s)

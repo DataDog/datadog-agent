@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/aws"
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/azure"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/local"
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
@@ -117,6 +118,7 @@ func RootCommand() *cobra.Command {
 	cmd.AddCommand(runCommand(&statsd, &sc, &evp))
 	cmd.AddCommand(runScannerCommand(&statsd, &sc))
 	cmd.AddCommand(aws.GroupCommand(cmd, &statsd, &sc, &evp))
+	cmd.AddCommand(azure.GroupCommand(cmd, &statsd, &sc, &evp))
 	cmd.AddCommand(local.GroupCommand(cmd, &statsd, &sc))
 
 	defaultActions := []string{
@@ -255,8 +257,8 @@ func runScannerCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, s
 func detectCloudProvider(s string) (types.CloudProvider, error) {
 	if s == "auto" {
 		// Amazon EC2 T4g
-		boardVendor, err := os.ReadFile("/sys/devices/virtual/dmi/id/board_vendor")
-		if err == nil && bytes.Equal(boardVendor, []byte("Amazon EC2\n")) {
+		boardVendor, errBoardVendor := os.ReadFile("/sys/devices/virtual/dmi/id/board_vendor")
+		if errBoardVendor == nil && bytes.Equal(boardVendor, []byte("Amazon EC2\n")) {
 			return types.CloudProviderAWS, nil
 		}
 		// Amazon EC2 M4
@@ -264,6 +266,15 @@ func detectCloudProvider(s string) (types.CloudProvider, error) {
 		if err == nil && bytes.Contains(productVersion, []byte("amazon")) {
 			return types.CloudProviderAWS, nil
 		}
+
+		// Azure
+		boardName, errBoardName := os.ReadFile("/sys/devices/virtual/dmi/id/board_name")
+		if errBoardVendor == nil && bytes.Equal(boardVendor, []byte("Microsoft Corporation\n")) &&
+			errBoardName == nil && bytes.Equal(boardName, []byte("Virtual Machine\n")) {
+			// This detects Hyper-V VMs. To be sure we are running on Azure, we would need to check the IMDS.
+			return types.CloudProviderAzure, nil
+		}
+
 		return "", fmt.Errorf("could not detect cloud provider automatically, please specify one using --cloud-provider flag")
 	}
 	return types.ParseCloudProvider(s)

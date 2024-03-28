@@ -31,6 +31,10 @@ core,github.com/AdamKorcz/go-118-fuzz-build/testing,Apache-2.0,AdamKorcz <adam@a
 core,github.com/AlekSi/pointer,MIT,Copyright (c) 2015 Alexey Palazhchenko
 core,github.com/Azure/azure-sdk-for-go/profiles/preview/preview/containerregistry/runtime/containerregistry,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/internal/resource,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/runtime,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/exported,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/log,MIT,Copyright (c) Microsoft Corporation
@@ -45,6 +49,7 @@ core,github.com/Azure/azure-sdk-for-go/sdk/azcore/log,MIT,Copyright (c) Microsof
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/policy,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/to,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/tracing,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/azidentity,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/diag,MIT,Copyright (c) Microsoft Corporation
@@ -54,6 +59,7 @@ core,github.com/Azure/azure-sdk-for-go/sdk/internal/log,MIT,Copyright (c) Micros
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/poller,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/temporal,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/sdk/internal/uuid,MIT,Copyright (c) Microsoft Corporation
+core,github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation. All rights reserved
 core,github.com/Azure/azure-sdk-for-go/services/preview/containerregistry/runtime/2019-08-15-preview/containerregistry,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/azure-sdk-for-go/version,MIT,Copyright (c) Microsoft Corporation
 core,github.com/Azure/go-autorest,Apache-2.0,Copyright 2015 Microsoft Corporation
