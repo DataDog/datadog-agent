@@ -225,9 +225,9 @@ func (p *processor) triggerHostScan() {
 	}
 	log.Debugf("Triggering host SBOM refresh")
 
-	scanRequest := host.ScanRequest{Path: "/"}
+	scanRequest := host.NewScanRequest("/")
 	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
-		scanRequest.Path = hostRoot
+		scanRequest = host.NewScanRequest(hostRoot)
 	}
 
 	if err := p.sbomScanner.Scan(scanRequest); err != nil {
