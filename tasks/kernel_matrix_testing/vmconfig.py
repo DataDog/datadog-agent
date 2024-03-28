@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
-from tasks.kernel_matrix_testing.platforms import get_platforms
+from tasks.kernel_matrix_testing.platforms import get_merged_platforms, get_platforms
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping
@@ -520,7 +520,7 @@ def generate_vmconfig(
     ci: bool,
     template: str,
 ) -> VMConfig:
-    platforms = get_platforms()
+    platforms = get_merged_platforms()
     vmconfig_template = get_vmconfig_template(template)
     vmsets = build_vmsets(normalized_vm_defs, sets)
 
@@ -627,8 +627,11 @@ def gen_config_for_stack(
     info(f"[+] vmconfig @ {vmconfig_file}")
 
 
-def list_all_distro_normalized_vms(archs: List[Arch]):
-    platforms = get_platforms()
+def list_all_distro_normalized_vms(archs: List[Arch], template: Optional[str] = None):
+    if template is None:
+        platforms = get_merged_platforms()
+    else:
+        platforms = get_platforms(template)
 
     vms: List[VMDef] = list()
     for arch in archs:
@@ -678,7 +681,7 @@ def gen_config(
     if arch != "":
         arch_ls = [arch_mapping[arch]]
 
-    vms_to_generate = list_all_distro_normalized_vms(arch_ls)
+    vms_to_generate = list_all_distro_normalized_vms(arch_ls, template)
     vm_config = generate_vmconfig(
         {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, template
     )

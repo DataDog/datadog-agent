@@ -16,3 +16,4 @@ arch_mapping: Dict[str, Arch] = {
 }
 
 VMCONFIG = "vmconfig.json"
+COMPONENTS = ["system-probe", "security-agent"]
