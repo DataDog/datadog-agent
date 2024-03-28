@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -81,6 +82,7 @@ type JMXFetch struct {
 	managed            bool
 	shutdown           chan struct{}
 	stopped            chan struct{}
+	logger             jmxlogger.Component
 }
 
 // JMXReporter supports different way of reporting the data it has fetched.
@@ -109,6 +111,12 @@ type checkInitCfg struct {
 	ToolsJarPath   string   `yaml:"tools_jar_path,omitempty"`
 	JavaBinPath    string   `yaml:"java_bin_path,omitempty"`
 	JavaOptions    string   `yaml:"java_options,omitempty"`
+}
+
+func NewJMXFetch(logger jmxlogger.Component) *JMXFetch {
+	return &JMXFetch{
+		logger: logger,
+	}
 }
 
 // Monitor monitors this JMXFetch instance, waiting for JMX to stop. Gracefully handles restarting the JMXFetch process.
@@ -166,7 +174,7 @@ func (j *JMXFetch) setDefaults() {
 		j.Checks = []string{}
 	}
 	if j.Output == nil {
-		j.Output = log.JMXInfo
+		j.Output = j.logger.JMXInfo
 	}
 	if j.JavaOptions == "" {
 		j.JavaOptions = jmxAllowAttachSelf
@@ -358,7 +366,7 @@ func (j *JMXFetch) Start(manage bool) error {
 	scan:
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
-			log.JMXError(in.Text())
+			_ = j.logger.JMXError(in.Text())
 		}
 		if in.Err() == bufio.ErrTooLong {
 			goto scan

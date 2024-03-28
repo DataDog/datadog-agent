@@ -15,7 +15,7 @@ import (
 )
 
 func TestInitConfigJavaOptions(t *testing.T) {
-	j := JMXFetch{}
+	j := NewJMXFetch(nil)
 
 	var initConfig integration.Data = []byte(`java_options: -Xmx200m`)
 
@@ -25,7 +25,7 @@ func TestInitConfigJavaOptions(t *testing.T) {
 }
 
 func TestConflictingInitConfigJavaOptions(t *testing.T) {
-	j := JMXFetch{}
+	j := NewJMXFetch(nil)
 
 	var configOne integration.Data = []byte(`java_options: -Xmx200m`)
 	var configTwo integration.Data = []byte(`java_options: -Xmx444m`)
@@ -39,7 +39,7 @@ func TestConflictingInitConfigJavaOptions(t *testing.T) {
 }
 
 func TestConflictingInstanceJavaOptions(t *testing.T) {
-	j := JMXFetch{}
+	j := NewJMXFetch(nil)
 
 	var configOne integration.Data = []byte(`java_options: -Xmx200m`)
 	var configTwo integration.Data = []byte(`java_options: -Xmx444m`)
@@ -53,7 +53,7 @@ func TestConflictingInstanceJavaOptions(t *testing.T) {
 }
 
 func TestConflictingInstanceInitJavaOptions(t *testing.T) {
-	j := JMXFetch{}
+	j := NewJMXFetch(nil)
 
 	var configOne integration.Data = []byte(`java_options: -Xmx200m`)
 	var configTwo integration.Data = []byte(`java_options: -Xmx444m`)

@@ -13,6 +13,7 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
@@ -114,6 +115,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,
+			jmxlogger jmxlogger.Component,
 		) error {
 
 			defer StopAgentWithDefaults(agentAPI)
@@ -140,6 +142,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
+				jmxlogger,
 			)
 			if err != nil {
 				return err

@@ -8,9 +8,12 @@ package agent
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle())
+	fxutil.TestBundle(t, Bundle(), fx.Supply(jmxloggerimpl.NewDefaultParams()), core.MockBundle())
 }
