@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 
+	"github.com/DataDog/datadog-agent/comp/agent/containertagger"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -100,7 +101,6 @@ import (
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
-	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
@@ -219,6 +219,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	containerTagger containertagger.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -282,6 +283,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		containerTagger,
 	); err != nil {
 		return err
 	}
@@ -421,6 +423,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ containertagger.Component,
 ) error {
 
 	var err error
@@ -542,16 +545,6 @@ func startAgent(
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
 		logsAgent.AddScheduler(adScheduler.New(ac))
-	}
-
-	// start the cloudfoundry container tagger
-	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
-		containerTagger, err := containertagger.NewContainerTagger(wmeta)
-		if err != nil {
-			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
-		} else {
-			containerTagger.Start(ctx)
-		}
 	}
 
 	// start the cmd HTTP server
