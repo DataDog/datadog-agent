@@ -36,6 +36,7 @@ import (
 const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
+	kubeNamespaceNginxWorkload              = "workload-nginx"
 	kubeNamespaceTracegenWorkload           = "workload-tracegen"
 	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
 	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
@@ -246,6 +247,10 @@ func (suite *k8sSuite) TestVersion() {
 }
 
 func (suite *k8sSuite) TestNginx() {
+	suite.testNginx(kubeNamespaceNginxWorkload)
+}
+
+func (suite *k8sSuite) testNginx(namespace string) {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
@@ -264,7 +269,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^image_tag:main$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
-				`^kube_namespace:workload-nginx$`,
+				`^kube_namespace:` + regexp.QuoteMeta(namespace) + `$`,
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
@@ -289,7 +294,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
-				`^kube_namespace:workload-nginx$`,
+				`^kube_namespace:` + regexp.QuoteMeta(namespace) + `-nginx$`,
 				`^kube_service:nginx$`,
 				`^url:http://`,
 			},
@@ -302,14 +307,14 @@ func (suite *k8sSuite) TestNginx() {
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
 				"^kube_deployment:nginx$",
-				"^kube_namespace:workload-nginx$",
+				"^kube_namespace:" + regexp.QuoteMeta(namespace) + "workload-nginx$",
 			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_cluster_name:`,
 				`^kube_deployment:nginx$`,
-				`^kube_namespace:workload-nginx$`,
+				`^kube_namespace:` + regexp.QuoteMeta(namespace) + `$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 5,
@@ -327,17 +332,17 @@ func (suite *k8sSuite) TestNginx() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
-				`^dirname:/var/log/pods/workload-nginx_nginx-`,
+				`^dirname:/var/log/pods/` + regexp.QuoteMeta(namespace) + `_nginx-`,
 				`^display_container_name:nginx`,
 				`^filename:[[:digit:]]+.log$`,
-				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.commit\.sha:`,                                                       // org.opencontainers.image.revision docker image label
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
-				`^kube_namespace:workload-nginx$`,
+				`^kube_namespace:` + regexp.QuoteMeta(namespace) + `$`,
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
@@ -353,7 +358,7 @@ func (suite *k8sSuite) TestNginx() {
 
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
-	suite.testHPA("workload-nginx", "nginx")
+	suite.testHPA(namespace, "nginx")
 }
 
 func (suite *k8sSuite) TestRedis() {
