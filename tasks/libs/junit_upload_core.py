@@ -198,6 +198,8 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
             f"slack_channel:{slack_channel}",
             "--tags",
             f"jira_project:{jira_project}",
+            "--tags",
+            "failure:internal_error",
         ]
         if additional_tags and "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
