@@ -30,7 +30,7 @@ import (
 )
 
 var (
-	configDir       = "/etc/datadog-agent"
+	configDir       = configUtils.ConfFileDirectory(config.Datadog)
 	installInfoFile = filepath.Join(configDir, "install_info")
 	installSigFile  = filepath.Join(configDir, "install.json")
 )
@@ -89,8 +89,7 @@ func getFromPath(path string) (*InstallInfo, error) {
 // JSON file, trim the file if too many entries then save the file.
 func LogVersionHistory() {
 	versionHistoryFilePath := filepath.Join(config.Datadog.GetString("run_path"), "version-history.json")
-	installInfoFilePath := GetFilePath(config.Datadog)
-	logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, version.AgentVersion, time.Now().UTC())
+	logVersionHistoryToFile(versionHistoryFilePath, installInfoFile, version.AgentVersion, time.Now().UTC())
 }
 
 func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentVersion string, timestamp time.Time) {
