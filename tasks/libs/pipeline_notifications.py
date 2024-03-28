@@ -8,6 +8,7 @@ from typing import Dict
 
 import gitlab
 import yaml
+from gitlab.v4.objects import ProjectJob
 
 from tasks.libs.common.gitlab_api import get_gitlab_repo
 from tasks.libs.types import FailedJobs, Test
@@ -57,11 +58,11 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
     return error
 
 
-def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
+def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWNERS"):
     repo = get_gitlab_repo(project_name)
     owners = read_owners(owners_file)
     try:
-        test_output = str(repo.jobs.get(job['id']).artifact('test_output.json'), 'utf-8')
+        test_output = str(repo.jobs.get(job.id, lazy=True).artifact('test_output.json'), 'utf-8')
     except gitlab.exceptions.GitlabGetError:
         test_output = ''
     failed_tests = {}  # type: dict[tuple[str, str], Test]
