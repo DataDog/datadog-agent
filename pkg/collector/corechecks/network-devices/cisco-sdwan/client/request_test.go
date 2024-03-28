@@ -214,7 +214,7 @@ func TestGetRequestRetries(t *testing.T) {
 	client.maxAttempts = 10
 
 	resp, err := client.get("/test", nil)
-	require.ErrorContains(t, err, "http responsed with 400 code")
+	require.ErrorContains(t, err, "http responded with 400 code")
 	require.Equal(t, []byte(nil), resp)
 	require.Equal(t, 10, handler.numberOfCalls())
 }
