@@ -37,10 +37,7 @@ type Store interface {
 }
 
 // NewStore returns a new store
-func NewStore(driver string) Store {
-	if driver == "sql" {
-		return newSQLStore()
-	}
+func NewStore() Store {
 	return newInMemoryStore()
 }
 

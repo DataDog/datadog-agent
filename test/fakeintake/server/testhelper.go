@@ -17,12 +17,11 @@ import (
 // InitialiseForTests starts a server with a mock clock and waits for it to be ready.
 // It returns the mock clock and the server. Use defer server.Stop() to stop the server
 // after calling this function.
-func InitialiseForTests(t *testing.T, opts ...func(*Server)) (*Server, *clock.Mock) {
+func InitialiseForTests(t *testing.T) (*Server, *clock.Mock) {
 	t.Helper()
 	ready := make(chan bool, 1)
 	mockClock := clock.NewMock()
-	opts = append(opts, WithClock(mockClock), WithReadyChannel(ready), WithClock(mockClock), WithAddress("127.0.0.1:0"))
-	fi := NewServer(opts...)
+	fi := NewServer(WithReadyChannel(ready), WithClock(mockClock), WithAddress("127.0.0.1:0"))
 	fi.Start()
 	isReady := <-ready
 	require.True(t, isReady)
