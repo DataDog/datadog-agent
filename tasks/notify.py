@@ -17,8 +17,10 @@ from tasks.libs.pipeline_notifications import (
     GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
+    email_to_slackid,
     find_job_owners,
     get_failed_tests,
+    get_git_author,
     send_slack_message,
 )
 from tasks.libs.pipeline_stats import get_failed_jobs_stats
@@ -49,12 +51,15 @@ def check_teams(_):
 
 
 @task
-def send_message(_, notification_type="merge", print_to_stdout=False):
+def send_message(ctx, notification_type="merge", print_to_stdout=False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
+    default_branch = os.getenv('CI_DEFAULT_BRANCH')
+    branch = os.getenv('CI_COMMIT_REF_NAME')
+
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
         messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
@@ -102,7 +107,23 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            send_slack_message(channel, str(message))  # TODO: use channel variable
+            if _should_send_message_to_channel(branch, default_branch):
+                recipient = channel
+            else:
+                # DM author
+                author_email = get_git_author(format='ae')
+                recipient = email_to_slackid(ctx, author_email)
+
+            send_slack_message(recipient, str(message))
+
+
+def _should_send_message_to_channel(branch: str, default_branch: str) -> bool:
+    # Must match X.Y.Z, X.Y.x, W.X.Y-rc.Z
+    # Must not match W.X.Y-rc.Z-some-feature
+    release_branch_regex = re.compile(r"^[0-9]+\.[0-9]+\.(x|[0-9]+)$")
+    release_branch_regex_rc = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]-rc.[0-9]+$")
+
+    return branch == default_branch or release_branch_regex.match(branch) or release_branch_regex_rc.match(branch)
 
 
 @task
