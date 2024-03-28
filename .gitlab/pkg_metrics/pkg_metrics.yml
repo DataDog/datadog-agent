@@ -33,7 +33,7 @@
 
 send_pkg_size-a6:
   allow_failure: true
-  rules: !reference [.on_deploy_a6]
+  rules: !reference [.on_deploy]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -90,7 +90,7 @@ send_pkg_size-a6:
 
 send_pkg_size-a7:
   allow_failure: true
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]

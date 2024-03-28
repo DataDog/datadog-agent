@@ -28,7 +28,7 @@ deploy_containers-dca:
 
 deploy_containers-dca-rc:
   extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_a7_rc]
+  rules: !reference [.on_deploy_rc]
   variables:
     VERSION: rc
 
