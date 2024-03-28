@@ -10,7 +10,6 @@ package eventmonitor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"slices"
@@ -97,7 +96,7 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 	for _, eventType := range consumer.EventTypes() {
 		if !slices.Contains(allowedEventTypes, eventType) {
-			return errors.New("event type not allowed")
+			return fmt.Errorf("event type (%s) not allowed", eventType)
 		}
 	}
 

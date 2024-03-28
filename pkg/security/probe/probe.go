@@ -11,6 +11,7 @@ package probe
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -60,6 +61,7 @@ type EventHandler interface {
 
 // EventConsumer represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
 type EventConsumerInterface interface {
+	ChanSize() int
 	HandleEvent(event any)
 	Copy(_ *model.Event) any
 	EventTypes() []model.EventType
@@ -211,14 +213,19 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 
 // AddEventConsumer sets a probe event consumer
 func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
+	chanSize := consumer.ChanSize()
+	if chanSize <= 0 {
+		chanSize = defaultConsumerChanSize
+	}
+
 	pc := &EventConsumer{
 		consumer: consumer,
-		eventCh:  make(chan any, defaultConsumerChanSize),
+		eventCh:  make(chan any, chanSize),
 	}
 
 	for _, eventType := range consumer.EventTypes() {
 		if eventType >= model.MaxAllEventType {
-			return errors.New("unsupported event type")
+			return fmt.Errorf("event type (%s) not allowed", eventType)
 		}
 
 		p.eventConsumers[eventType] = append(p.eventConsumers[eventType], pc)

@@ -150,6 +150,11 @@ func (h *eventConsumerWrapper) EventTypes() []model.EventType {
 	}
 }
 
+// ChanSize returns the chan size used by this consumer
+func (h *eventConsumerWrapper) ChanSize() int {
+	return 100
+}
+
 var _eventConsumerWrapper = &eventConsumerWrapper{}
 
 // Consumer returns an event consumer to handle events from the runtime security module
