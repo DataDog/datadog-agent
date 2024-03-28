@@ -157,11 +157,10 @@ func (c *Check) startSubscription() error {
 	eventCh := make(chan *evtapi.EventRecord)
 	go c.fetchEventsLoop(eventCh, &pipelineWaiter)
 
-	// pipeline: event -> message filter -> submitter
-	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventCh, &pipelineWaiter)
+	// start the events or the logs pipeline to handle the incoming events
 	if _, isSet := c.config.instance.ChannelPath.Get(); isSet {
 		// send events
-		c.ddEventSubmitter(sender, eventWithMessageCh, &pipelineWaiter)
+		c.eventSubmitterPipeline(sender, eventCh, &pipelineWaiter)
 	} else if _, isSet := c.config.instance.DDSecurityEvents.Get(); isSet {
 		logsAgent, isSet := c.logsAgent.Get()
 		if !isSet {
@@ -169,7 +168,7 @@ func (c *Check) startSubscription() error {
 			return fmt.Errorf("no logs agent available")
 		}
 		// send logs
-		c.ddLogSubmitter(logsAgent, c.fetchEventsLoopStop, eventWithMessageCh, &pipelineWaiter)
+		c.logsSubmitterPipeline(logsAgent, eventCh, &pipelineWaiter)
 	} else {
 		// validateConfig should prevent this from happening
 		return fmt.Errorf("neither channel path nor dd_security_events is set")
@@ -177,7 +176,49 @@ func (c *Check) startSubscription() error {
 	return nil
 }
 
-func (c *Check) eventMessageFilter(doneCh <-chan struct{}, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) <-chan *eventWithMessage {
+func (c *Check) eventSubmitterPipeline(sender sender.Sender, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) {
+	eventWithDataCh := c.eventDataGetter(c.fetchEventsLoopStop, inCh, wg)
+	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventWithDataCh, wg)
+	c.ddEventSubmitter(sender, eventWithMessageCh, wg)
+}
+
+func (c *Check) logsSubmitterPipeline(logsAgent logsAgent.Component, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) {
+	eventWithDataCh := c.eventDataGetter(c.fetchEventsLoopStop, inCh, wg)
+	eventDataFilterCh := c.eventDataFilter(c.fetchEventsLoopStop, eventWithDataCh, wg)
+	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventDataFilterCh, wg)
+	c.ddLogSubmitter(logsAgent, c.fetchEventsLoopStop, eventWithMessageCh, wg)
+}
+
+func (c *Check) eventDataGetter(doneCh <-chan struct{}, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) <-chan *eventWithData {
+	outCh := make(chan *eventWithData)
+	eventDataGetter := &eventDataGetter{
+		doneCh: doneCh,
+		inCh:   inCh,
+		outCh:  outCh,
+		// eventlog
+		evtapi:              c.evtapi,
+		systemRenderContext: c.systemRenderContext,
+	}
+	wg.Add(1)
+	go eventDataGetter.run(wg)
+	return outCh
+}
+
+func (c *Check) eventDataFilter(doneCh <-chan struct{}, inCh <-chan *eventWithData, wg *sync.WaitGroup) <-chan *eventWithData {
+	outCh := make(chan *eventWithData)
+	eventDataFilter := &eventDataFilter{
+		doneCh: doneCh,
+		inCh:   inCh,
+		outCh:  outCh,
+		// TODO: config
+		eventIDs: []uint16{4672},
+	}
+	wg.Add(1)
+	go eventDataFilter.run(wg)
+	return outCh
+}
+
+func (c *Check) eventMessageFilter(doneCh <-chan struct{}, inCh <-chan *eventWithData, wg *sync.WaitGroup) <-chan *eventWithMessage {
 	outCh := make(chan *eventWithMessage)
 	eventMessageFilter := &eventMessageFilter{
 		doneCh: doneCh,
@@ -188,9 +229,7 @@ func (c *Check) eventMessageFilter(doneCh <-chan struct{}, inCh <-chan *evtapi.E
 		includedMessages:  c.includedMessages,
 		excludedMessages:  c.excludedMessages,
 		// eventlog
-		evtapi:              c.evtapi,
-		systemRenderContext: c.systemRenderContext,
-		userRenderContext:   c.userRenderContext,
+		userRenderContext: c.userRenderContext,
 	}
 	wg.Add(1)
 	go eventMessageFilter.run(wg)
