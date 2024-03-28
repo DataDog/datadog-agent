@@ -83,6 +83,10 @@ func NewServer(options ...func(*Server)) *Server {
 		retention:                 15 * time.Minute,
 		responseOverridesMutex:    sync.RWMutex{},
 		responseOverridesByMethod: newResponseOverrides(),
+		server: http.Server{
+			Addr: ":0",
+		},
+		storeDriver: "memory",
 	}
 
 	for _, opt := range options {
@@ -123,10 +127,7 @@ func NewServer(options ...func(*Server)) *Server {
 		Registry:          registry,
 	}))
 
-	fi.server = http.Server{
-		Handler: mux,
-		Addr:    ":0",
-	}
+	fi.server.Handler = mux
 
 	return fi
 }
