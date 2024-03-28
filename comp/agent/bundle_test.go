@@ -8,9 +8,15 @@ package agent
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle())
+	fxutil.TestBundle(t, Bundle(), core.MockBundle(), defaultforwarder.MockModule(), orchestratorimpl.MockModule(), eventplatformimpl.MockModule(), demultiplexerimpl.Module(), fx.Supply(demultiplexerimpl.NewDefaultParams()))
 }
