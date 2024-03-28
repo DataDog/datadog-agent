@@ -40,6 +40,9 @@ type Route struct {
 type routeTTL struct {
 	eta   int64
 	entry Route
+	// empty is true if we negative cache a
+	// route lookup
+	empty bool
 }
 
 type routeCache struct {
@@ -142,7 +145,7 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 	k := newRouteKey(source, dest, netns)
 	if entry, ok := c.cache.Get(k); ok {
 		if time.Now().Unix() < entry.(*routeTTL).eta {
-			return entry.(*routeTTL).entry, ok
+			return entry.(*routeTTL).entry, !entry.(*routeTTL).empty
 		}
 
 		routeCacheTelemetry.expires.Inc()
@@ -151,17 +154,15 @@ func (c *routeCache) Get(source, dest util.Address, netns uint32) (Route, bool) 
 		routeCacheTelemetry.misses.Inc()
 	}
 
-	if r, ok := c.router.Route(source, dest, netns); ok {
-		entry := &routeTTL{
-			eta:   time.Now().Add(c.ttl).Unix(),
-			entry: r,
-		}
-
-		c.cache.Add(k, entry)
-		return r, true
+	r, ok := c.router.Route(source, dest, netns)
+	entry := &routeTTL{
+		eta:   time.Now().Add(c.ttl).Unix(),
+		entry: r,
+		empty: !ok,
 	}
 
-	return Route{}, false
+	c.cache.Add(k, entry)
+	return r, ok
 }
 
 func newRouteKey(source, dest util.Address, netns uint32) routeKey {
