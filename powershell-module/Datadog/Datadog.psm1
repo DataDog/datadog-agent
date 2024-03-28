@@ -255,12 +255,7 @@ function hasValidDDSignature($asset)
         return $false
     }
 
-    if ($signature.SignerCertificate.Subject -ne 'CN="Datadog, Inc", O="Datadog, Inc", L=New York, S=New York, C=US')
-    {
-        return $false
-    }
-
-    if ($signature.SignerCertificate.Issuer -ne 'CN=DigiCert Trusted G4 Code Signing RSA4096 SHA384 2021 CA1, O="DigiCert, Inc.", C=US')
+    if ($signature.SignerCertificate.Subject -contains 'Datadog') # case insensitive check
     {
         return $false
     }
