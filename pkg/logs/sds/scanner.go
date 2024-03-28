@@ -133,8 +133,12 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		return fmt.Errorf("Can't unmarshal raw configuration: %v", err)
 	}
 
+
 	// ignore disabled rules
+	totalRulesReceived := len(config.Rules)
 	config = config.OnlyEnabled()
+
+	log.Infof("Starting an SDS reconfiguration: %d rules received (in which %d are disabled)", totalRulesReceived, totalRulesReceived - len(config.Rules))
 
 	// if we received an empty array of rules or all rules disabled, interprets this as "stop SDS".
 	if len(config.Rules) == 0 {
@@ -211,7 +215,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 	s.rawConfig = rawConfig
 	s.configuredRules = config.Rules
 
-	log.Infof("Created an SDS scanner with %d rules", len(scanner.Rules))
+	log.Infof("Created an SDS scanner with %d enabled rules.", len(scanner.Rules))
 	s.Scanner = scanner
 
 	return nil
