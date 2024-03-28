@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -51,7 +53,10 @@ func run(
 	logsAgent optional.Option[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
 ) error {
 	// Setup stats telemetry handler
-	return forwarder.Start()
+	go func() {
+		forwarder.Start()
+	}()
+	return c.Start()
 }
 
 type orchestratorinterfaceimpl struct {
@@ -74,7 +79,7 @@ func (o *orchestratorinterfaceimpl) Reset() {
 
 func main() {
 	flag.Parse()
-	err := fxutil.OneShot(run,
+	err := fxutil.Run(
 		forwarder.Bundle(),
 		otelcol.Bundle(),
 		config.Module(),
@@ -99,9 +104,10 @@ func main() {
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
 			return s
 		}),
-		fx.Provide(func() string {
+		fx.Provide(func(h hostname.Component) string {
 			// TODO: send hostname
-			return ""
+			hn, _ := h.Get(context.Background())
+			return hn
 		}),
 
 		fx.Provide(newForwarderParams),
@@ -109,6 +115,8 @@ func main() {
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		fx.Provide(NewOrchestratorinterfaceimpl),
+		fx.Invoke(func(c collector.Component, f defaultforwarder.Forwarder, l optional.Option[logsAgent.Component]) {
+		}),
 	)
 	if err != nil {
 		log.Fatal(err)
