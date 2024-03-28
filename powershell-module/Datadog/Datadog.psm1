@@ -1,18 +1,22 @@
 function Install-DDAgent
 {
     param (
-        [Parameter()][ValidateSet('DotNet')][String[]]$WithAPMTracers,
-        [String] $AgentInstallURL,
+        # Parameters that are always valid
+        [String] $AgentInstallerURL,
         [String] $AgentInstallerPath,
-        [Parameter(Mandatory)] [String]$ApiKey,
+        [String] $AgentVersion,
+        [String] $AgentInstallLogPath,
+        [Parameter()][ValidateSet('DotNet')][String[]]$WithAPMTracers,
+
+        # Parameters that are only valid on first install
+        [String]$ApiKey,
         [String]$Site,
         [String]$Tags,
         [String]$Hostname,
         [String]$DDAgentUsername,
         [String]$DDAgentPassword,
         [String]$ApplicationDataDirectory,
-        [String]$ProjectLocation,
-        [String]$InstallLogPath
+        [String]$ProjectLocation
     )
 
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -36,10 +40,15 @@ function Install-DDAgent
     else
     {
         Write-Host "Downloading Datadog Windows Agent installer"
-        $url = "https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-7-latest.amd64.msi"
-        if ($PSBoundParameters.ContainsKey('AgentInstallURL'))
+        $version = "7-latest"
+        if ($PSBoundParameters.ContainsKey('AgentVersion'))
         {
-            $url = $AgentInstallURL
+            $version = $AgentVersion
+        }
+        $url = "https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-$version.amd64.msi"
+        if ($PSBoundParameters.ContainsKey('AgentInstallerURL'))
+        {
+            $url = $AgentInstallerURL
         }
         downloadAsset -url $url -outFile $installerPath
     }
@@ -48,9 +57,9 @@ function Install-DDAgent
     $installerParameters = formatAgentInstallerParameters -params $PSBoundParameters
 
     $logFile = ""
-    if ($PSBoundParameters.ContainsKey('InstallLogPath'))
+    if ($PSBoundParameters.ContainsKey('AgentInstallLogPath'))
     {
-        $logFile = $InstallLogPath
+        $logFile = $AgentInstallLogPath
     }
     else
     {
@@ -94,14 +103,20 @@ function Install-DDAgent
     .DESCRIPTION
     Downloads the latest Datadog Windows Agent installer, validates the installer's signature, and executes the installation.
 
-    .PARAMETER WithAPMTracers
-    Specify an APM Tracing library to download and install alongside the Agent.
-
-    .PARAMETER AgentInstallURL
+    .PARAMETER AgentInstallerURL
     Override the URL which the Agent installer is downloaded from.
 
     .PARAMETER AgentInstallerPath
     Path to a local Datadog Windows Agent installer to run. If this option is provided, an Agent installer will not be downloaded.
+
+    .PARAMETER AgentVersion
+    The Agent version to download. Example: 7.52.1
+
+    .PARAMETER AgentInstallLogPath
+    Override the Agent installation log location.
+
+    .PARAMETER WithAPMTracers
+    Specify an APM Tracing library to download and install alongside the Agent.
 
     .PARAMETER ApiKey
     Adds the Datadog API KEY to the configuration file.
@@ -127,12 +142,6 @@ function Install-DDAgent
     .PARAMETER ProjectLocation
     Override the directory to use for the binary file directory tree (v6.11.0+). May only be provided on initial install; not valid for upgrades. Default: %ProgramFiles%\Datadog\Datadog Agent
 
-    .PARAMETER AgentInstallURL
-    Override the URL which the Agent installer is downloaded from.
-
-    .PARAMETER InstallLogPath
-    Override the Agent installation log location.
-
     .INPUTS
     None. You cannot pipe objects to Install-DDAgent.
 
@@ -155,10 +164,20 @@ function Install-DDAgent
 # Unexported helper functions #
 ###############################
 
+function doesDatadogYamlExist()
+{
+    $configRoot = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Datadog\Datadog Agent\').ConfigRoot
+    if ($configRoot -ne "")
+    {
+        return Test-Path -Path (Join-Path -Path $configRoot -ChildPath "datadog.yaml")
+    }
+    return $false
+}
+
 function formatAgentInstallerParameters($params)
 {
-    $formattedparams = "APIKEY=$($params.ApiKey)"
-
+    $formattedparams = ""
+    if ($params.ContainsKey('ApiKey'))                      { $formattedparams += " APIKEY=$($params.ApiKey)"}
     if ($params.ContainsKey('Site'))                        { $formattedparams += " SITE=$($params.Site)"}
     if ($params.ContainsKey('Tags'))                        { $formattedparams += " TAGS=``$($params.Tags)``" }
     if ($params.ContainsKey('Hostname'))                    { $formattedparams += " HOSTNAME=$($params.Hostname)" }
@@ -166,6 +185,12 @@ function formatAgentInstallerParameters($params)
     if ($params.ContainsKey('DDAgentPassword'))             { $formattedparams += " DDAGENTUSER_PASSWORD=$($params.DDAgentPassword)" }
     if ($params.ContainsKey('ApplicationDataDirectory'))    { $formattedparams += " APPLICATIONDATADIRECTORY=$($params.ApplicationDataDirectory)" }
     if ($params.ContainsKey('ProjectLocation'))             { $formattedparams += " PROJECTLOCATION=$($params.ProjectLocation)" }
+
+    if (($formattedparams -ne "") -and (doesDatadogYamlExist -eq $true))
+    {
+        Write-Warning "A datadog.yaml file already exists. The following parameters will be ignored: $formattedparams"
+        return ""
+    }
 
     return $formattedparams
 }
