@@ -26,11 +26,7 @@ func main() {
 
 	log.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
-	fi := fakeintake.NewServer(
-		fakeintake.WithPort(*portPtr),
-		fakeintake.WithReadyChannel(ready),
-		fakeintake.WithStoreDriver(os.Getenv("STORAGE_DRIVER")),
-	)
+	fi := fakeintake.NewServer(fakeintake.WithPort(*portPtr), fakeintake.WithReadyChannel(ready))
 	fi.Start()
 	timeout := time.NewTimer(5 * time.Second)
 
