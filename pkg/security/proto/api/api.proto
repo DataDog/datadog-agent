@@ -100,8 +100,8 @@ message RuleStatus {
 }
 
 message PolicyStatus {
-    string name = 1;
-    string source = 2;
+    string Name = 1;
+    string Source = 2;
     repeated RuleStatus Status = 3;
 }
 

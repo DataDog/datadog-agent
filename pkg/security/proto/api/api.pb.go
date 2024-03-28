@@ -1164,8 +1164,8 @@ type PolicyStatus struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Source string        `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Name   string        `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
+	Source string        `protobuf:"bytes,2,opt,name=Source,proto3" json:"Source,omitempty"`
 	Status []*RuleStatus `protobuf:"bytes,3,rep,name=Status,proto3" json:"Status,omitempty"`
 }
 
