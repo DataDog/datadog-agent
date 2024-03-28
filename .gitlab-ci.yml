@@ -19,19 +19,17 @@ include:
   - /.gitlab/deps_fetch/deps_fetch.yml
   - /.gitlab/dev_container_deploy/include.yml
   - /.gitlab/e2e/e2e.yml
-  - /.gitlab/e2e_test_junit_upload/e2e_test_junit_upload.yml
   - /.gitlab/e2e_pre_test/e2e_pre_test.yml
   - /.gitlab/functional_test/include.yml
   - /.gitlab/functional_test_cleanup/functional_test_cleanup.yml
-  - /.gitlab/functional_test_junit_upload/include.yml
   - /.gitlab/install_script_testing/install_script_testing.yml
   - /.gitlab/integration_test/include.yml
   - /.gitlab/internal_image_deploy/internal_image_deploy.yml
   - /.gitlab/internal_kubernetes_deploy/include.yml
+  - /.gitlab/junit_upload/junit_upload.yml
   - /.gitlab/kitchen_cleanup/include.yml
   - /.gitlab/kitchen_deploy/kitchen_deploy.yml
   - /.gitlab/kitchen_testing/include.yml
-  - /.gitlab/kitchen_tests_upload/kitchen_tests_upload.yml
   - /.gitlab/maintenance_jobs/include.yml
   - /.gitlab/notify/notify.yml
   - /.gitlab/package_build/include.yml
@@ -42,7 +40,6 @@ include:
   - /.gitlab/setup/setup.yml
   - /.gitlab/software_composition_analysis/software_composition_analysis.yml
   - /.gitlab/source_test/include.yml
-  - /.gitlab/source_test_junit_upload/source_test_junit_upload.yml
   - /.gitlab/trigger_release/trigger_release.yml
 
 default:
@@ -65,7 +62,6 @@ stages:
   - deps_fetch
   - source_test
   - source_test_stats
-  - source_test_junit_upload
   - software_composition_analysis
   - binary_build
   - package_deps_build
@@ -79,9 +75,7 @@ stages:
   - packaging
   - kitchen_deploy
   - e2e_pre_test
-  - e2e_pre_test_junit_upload
   - kitchen_testing
-  - kitchen_tests_upload
   - pkg_metrics
   - container_build
   - container_scan
@@ -97,12 +91,11 @@ stages:
   - internal_image_deploy
   - install_script_testing
   - e2e
-  - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
   - functional_test_sysprobe
   - functional_test_cleanup
-  - functional_test_junit_upload
+  - junit_upload
   - internal_kubernetes_deploy
   - post_rc_build
   - check_merge
@@ -158,7 +151,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
-  BTFHUB_ARCHIVE_BRANCH: main
+  BTFHUB_ARCHIVE_BRANCH: no-kmod
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -168,25 +161,25 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_WINBUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_ARMBUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30370116-6cfed421
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 5642ab39608a
-  DATADOG_AGENT_BUILDERS: v22276738-b36b132
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 3eac4b5bb0c4
+  DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -218,8 +211,8 @@ variables:
   ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
   CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.changelog_commit_sha  # agent-ci-experience
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-build-and-release
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-build-and-release
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-release
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-release
   DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-ci-experience
   DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-ci-experience
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-developer-tools
@@ -237,8 +230,8 @@ variables:
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-build-and-release
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-build-and-release
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-release
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-release
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
   SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
   SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
@@ -1013,8 +1006,8 @@ workflow:
   - test/kitchen/test/integration/security-agent-test/**/*
   - test/kitchen/test/integration/security-agent-stress/**/*
   - .gitlab/functional_test/security_agent.yml
-  - .gitlab/kernel_version_testing/security_agent.yml
-  - .gitlab/kernel_version_testing/common.yml
+  - .gitlab/kernel_matrix_testing/security_agent.yml
+  - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/runner/**/*
@@ -1434,6 +1427,9 @@ workflow:
     variables:
       FAST_TESTS: "false"
   - <<: *if_release_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_tagged_commit
     variables:
       FAST_TESTS: "false"
   - <<: *if_triggered_pipeline

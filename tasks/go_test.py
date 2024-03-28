@@ -786,7 +786,9 @@ def create_dependencies(ctx, build_tags=None):
     for modules in DEFAULT_MODULES:
         with ctx.cd(modules):
             res = ctx.run(
-                'go list ' + f'-tags "{" ".join(build_tags)}" ' + '-f "{{.ImportPath}} {{.Imports}}" ./...',
+                'go list '
+                + f'-tags "{" ".join(build_tags)}" '
+                + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...',
                 hide=True,
                 warn=True,
             )
@@ -797,6 +799,7 @@ def create_dependencies(ctx, build_tags=None):
                 for imported_package in imported_packages:
                     if imported_package.startswith("github.com/DataDog/datadog-agent"):
                         modules_deps[imported_package].add(package)
+
     return modules_deps
 
 

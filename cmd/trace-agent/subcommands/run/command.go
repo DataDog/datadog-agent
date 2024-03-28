@@ -2,8 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//
-//nolint:revive // TODO(APM) Fix revive linter
+
+// Package run implements the run subcommand for the 'trace-agent' command.
 package run
 
 import (
@@ -15,7 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -29,12 +32,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
 
-	cliParams := &RunParams{}
+	cliParams := &Params{}
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Start datadog trace-agent.",
@@ -50,7 +54,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 	return runCmd
 }
 
-func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
+func setParamFlags(cmd *cobra.Command, cliParams *Params) {
 	cmd.PersistentFlags().StringVarP(&cliParams.PIDFilePath, "pidfile", "p", "", "path for the PID file to be created")
 	cmd.PersistentFlags().StringVarP(&cliParams.CPUProfile, "cpu-profile", "l", "",
 		"enables CPU profiling and specifies profile path.")
@@ -60,7 +64,7 @@ func setParamFlags(cmd *cobra.Command, cliParams *RunParams) {
 	setOSSpecificParamFlags(cmd, cliParams)
 }
 
-func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConfPath string) error {
+func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPath string) error {
 	if cliParams.ConfPath == "" {
 		cliParams.ConfPath = defaultConfPath
 	}
@@ -100,7 +104,10 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
 		trace.Bundle(),
-		fx.Invoke(func(_ agent.Component) {}),
+		fetchonlyimpl.Module(),
+		configsyncimpl.OptionalModule(),
+		// Force the instantiation of the components
+		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component]) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
 		return nil

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -61,9 +62,9 @@ type ContainerProvider interface {
 }
 
 // GetSharedContainerProvider returns a shared ContainerProvider
-func GetSharedContainerProvider() ContainerProvider {
+func GetSharedContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
 	initContainerProvider.Do(func() {
-		sharedContainerProvider = NewDefaultContainerProvider()
+		sharedContainerProvider = NewDefaultContainerProvider(wmeta)
 	})
 	return sharedContainerProvider
 }
@@ -85,14 +86,14 @@ func NewContainerProvider(provider metrics.Provider, metadataStore workloadmeta.
 }
 
 // NewDefaultContainerProvider returns a ContainerProvider built with default metrics provider and metadata provider
-func NewDefaultContainerProvider() ContainerProvider {
+func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider {
 	containerFilter, err := containers.GetSharedMetricFilter()
 	if err != nil {
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
 	// TODO(components): stop relying on globals and use injected components instead whenever possible.
-	return NewContainerProvider(metrics.GetProvider(), workloadmeta.GetGlobalStore(), containerFilter)
+	return NewContainerProvider(metrics.GetProvider(optional.NewOption(wmeta)), wmeta, containerFilter)
 }
 
 // GetContainers returns containers found on the machine
@@ -127,15 +128,17 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 		outPreviousStats := NullContainerRates
 		// Name and Image fields exist but are never filled
 		processContainer := &model.Container{
-			Type:      convertContainerRuntime(container.Runtime),
-			Id:        container.ID,
-			Started:   container.State.StartedAt.Unix(),
-			Created:   container.State.CreatedAt.Unix(),
-			Tags:      tags,
-			State:     convertContainerStatus(container.State.Status),
-			Health:    convertHealthStatus(container.State.Health),
-			Addresses: computeContainerAddrs(container),
+			Type:       convertContainerRuntime(container.Runtime),
+			Id:         container.ID,
+			Started:    container.State.StartedAt.Unix(),
+			Created:    container.State.CreatedAt.Unix(),
+			Tags:       tags,
+			State:      convertContainerStatus(container.State.Status),
+			Health:     convertHealthStatus(container.State.Health),
+			Addresses:  computeContainerAddrs(container),
+			RepoDigest: container.Image.RepoDigest,
 		}
+
 		// Always adding container if we have metadata as we do want to report containers without stats
 		processContainers = append(processContainers, processContainer)
 

@@ -1,30 +1,48 @@
+from __future__ import annotations
+
 import json
 import os
 import platform
 import re
 import shutil
 import tempfile
+from collections import defaultdict
 from glob import glob
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
-from invoke import task
+from invoke.context import Context
+from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.compiler import build_compiler as build_cc
 from tasks.kernel_matrix_testing.compiler import compiler_running, docker_exec
 from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
-from tasks.kernel_matrix_testing.infra import build_infrastructure
-from tasks.kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
+from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
+from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
+from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
 
 try:
     from tabulate import tabulate
 except ImportError:
     tabulate = None
+
+
+try:
+    from termcolor import colored
+except ImportError:
+
+    def colored(text: str, color: Optional[str]) -> str:  # noqa: U100
+        return text
+
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
@@ -51,18 +69,18 @@ def create_stack(ctx, stack=None):
     }
 )
 def gen_config(
-    ctx,
-    stack=None,
-    vms="",
-    sets="",
+    ctx: Context,
+    stack: Optional[str] = None,
+    vms: str = "",
+    sets: str = "",
     init_stack=False,
-    vcpu=None,
-    memory=None,
+    vcpu: Optional[str] = None,
+    memory: Optional[str] = None,
     new=False,
     ci=False,
-    arch="",
-    output_file="vmconfig.json",
-    from_ci_pipeline=None,
+    arch: str = "",
+    output_file: str = "vmconfig.json",
+    from_ci_pipeline: Optional[str] = None,
     use_local_if_possible=False,
     vmconfig_template="system-probe",
 ):
@@ -82,6 +100,7 @@ def gen_config(
             arch=arch,
             output_file=output_file,
             use_local_if_possible=use_local_if_possible,
+            vmconfig_template=vmconfig_template,
         )
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
@@ -92,22 +111,23 @@ def gen_config(
 
 
 def gen_config_from_ci_pipeline(
-    ctx,
-    stack=None,
-    pipeline=None,
+    ctx: Context,
+    stack: Optional[str] = None,
+    pipeline: Optional[str] = None,
     init_stack=False,
-    vcpu=None,
-    memory=None,
+    vcpu: Optional[str] = None,
+    memory: Optional[str] = None,
     new=False,
     ci=False,
     use_local_if_possible=False,
-    arch="",
+    arch: str = "",
     output_file="vmconfig.json",
+    vmconfig_template="system-probe",
 ):
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
     """
-    gitlab = Gitlab(api_token=get_gitlab_token())
+    gitlab = Gitlab("DataDog/datadog-agent", str(get_gitlab_token()))
     vms = set()
     local_arch = full_arch("local")
 
@@ -129,6 +149,8 @@ def gen_config_from_ci_pipeline(
 
             try:
                 req = gitlab.artifact(job["id"], vmconfig_name)
+                if req is None:
+                    raise Exit(f"[-] failed to retrieve artifact {vmconfig_name}")
                 req.raise_for_status()
             except Exception as e:
                 warn(f"[-] failed to retrieve artifact {vmconfig_name}: {e}")
@@ -165,32 +187,41 @@ def gen_config_from_ci_pipeline(
     info(f"[+] generating vmconfig.json file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
-    return vmconfig.gen_config(ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file)
+    return vmconfig.gen_config(
+        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+    )
 
 
 @task
-def launch_stack(ctx, stack=None, ssh_key="", x86_ami=X86_AMI_ID_SANDBOX, arm_ami=ARM_AMI_ID_SANDBOX):
-    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami)
+def launch_stack(
+    ctx: Context,
+    stack: Optional[str] = None,
+    ssh_key: str = "",
+    x86_ami: str = X86_AMI_ID_SANDBOX,
+    arm_ami: str = ARM_AMI_ID_SANDBOX,
+    provision_microvms: bool = True,
+):
+    stacks.launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami, provision_microvms)
 
 
 @task
-def destroy_stack(ctx, stack=None, pulumi=False, ssh_key=""):
+def destroy_stack(ctx: Context, stack: Optional[str] = None, pulumi=False, ssh_key=""):
     clean(ctx, stack)
     stacks.destroy_stack(ctx, stack, pulumi, ssh_key)
 
 
 @task
-def pause_stack(_, stack=None):
+def pause_stack(_, stack: Optional[str] = None):
     stacks.pause_stack(stack)
 
 
 @task
-def resume_stack(_, stack=None):
+def resume_stack(_, stack: Optional[str] = None):
     stacks.resume_stack(stack)
 
 
 @task
-def stack(_, stack=None):
+def stack(_, stack: Optional[str] = None):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -204,16 +235,19 @@ def stack(_, stack=None):
 
 @task
 def ls(_, distro=False, custom=False):
+    if tabulate is None:
+        raise Exit("tabulate module is not installed, please install it to continue")
+
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
 @task
-def init(ctx, lite=False):
+def init(ctx: Context, lite=False):
     init_kernel_matrix_testing_system(ctx, lite)
 
 
 @task
-def update_resources(ctx, vmconfig_template="system-probe"):
+def update_resources(ctx: Context, vmconfig_template="system-probe"):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -227,18 +261,18 @@ def update_resources(ctx, vmconfig_template="system-probe"):
 
 
 @task
-def build_compiler(ctx):
+def build_compiler(ctx: Context):
     build_cc(ctx)
 
 
 @task
-def start_compiler(ctx):
+def start_compiler(ctx: Context):
     start_cc(ctx)
 
 
-def filter_target_domains(vms, infra, local_arch):
+def filter_target_domains(vms: str, infra: Dict[ArchOrLocal, HostInstance], local_arch: Arch):
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
-    domains = list()
+    domains: List[LibvirtDomain] = list()
     for vmset in vmsets:
         if vmset.arch != "local" and vmset.arch != local_arch:
             raise Exit(f"KMT does not support cross-arch ({local_arch} -> {vmset.arch}) build/test at the moment")
@@ -254,7 +288,7 @@ TOOLS_PATH = '/datadog-agent/internal/tools'
 GOTESTSUM = "gotest.tools/gotestsum"
 
 
-def download_gotestsum(ctx):
+def download_gotestsum(ctx: Context):
     fgotestsum = "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/gotestsum"
     if os.path.isfile(fgotestsum):
         return
@@ -270,13 +304,13 @@ def download_gotestsum(ctx):
     ctx.run(f"cp kmt-deps/tools/gotestsum {fgotestsum}")
 
 
-def full_arch(arch):
+def full_arch(arch: ArchOrLocal) -> Arch:
     if arch == "local":
         return arch_mapping[platform.machine()]
     return arch
 
 
-def build_tests_package(ctx, source_dir, stack, arch, ci, verbose=True):
+def build_tests_package(ctx: Context, source_dir: str, stack: str, arch: Arch, ci: bool, verbose=True):
     root = os.path.join(source_dir, "kmt-deps")
     test_archive = f"tests-{arch}.tar.gz"
     if not ci:
@@ -291,12 +325,20 @@ def build_tests_package(ctx, source_dir, stack, arch, ci, verbose=True):
 
 
 @task
-def build_dependencies(ctx, arch, layout_file, source_dir, ci=False, stack=None, verbose=True):
+def build_dependencies(
+    ctx: Context,
+    arch: Arch,
+    layout_file: PathOrStr,
+    source_dir: PathOrStr,
+    ci=False,
+    stack: Optional[str] = None,
+    verbose=True,
+):
+    if stack is None:
+        raise Exit("no stack name provided")
     root = os.path.join(source_dir, "kmt-deps")
     deps_dir = os.path.join(root, "dependencies")
     if not ci:
-        if stack is None:
-            raise Exit("no stack name provided")
         deps_dir = os.path.join(root, stack, "dependencies")
         # in the CI we can rely on gotestsum being present
         download_gotestsum(ctx)
@@ -307,7 +349,7 @@ def build_dependencies(ctx, arch, layout_file, source_dir, ci=False, stack=None,
     ctx.run(f"mkdir -p {deps_dir}")
 
     with open(layout_file) as f:
-        deps_layout = json.load(f)
+        deps_layout: DependenciesLayout = cast('DependenciesLayout', json.load(f))
     with ctx.cd(deps_dir):
         for new_dirs in deps_layout["layout"]:
             ctx.run(f"mkdir -p {new_dirs}", hide=(not verbose))
@@ -341,10 +383,10 @@ def is_root():
     return os.getuid() == 0
 
 
-def vms_have_correct_deps(ctx, domains, depsfile):
+def vms_have_correct_deps(ctx: Context, domains: List[LibvirtDomain], depsfile: PathOrStr):
     deps_dir = os.path.dirname(depsfile)
     sha256sum = ctx.run(f"cd {deps_dir} && sha256sum {os.path.basename(depsfile)}", warn=True)
-    if not sha256sum.ok:
+    if sha256sum is None or not sha256sum.ok:
         return False
 
     check = sha256sum.stdout.rstrip('\n')
@@ -357,7 +399,15 @@ def vms_have_correct_deps(ctx, domains, depsfile):
 
 
 @task
-def prepare(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, packages="", verbose=True):
+def prepare(
+    ctx: Context,
+    vms: str,
+    stack: Optional[str] = None,
+    ssh_key: Optional[str] = None,
+    full_rebuild=False,
+    packages="",
+    verbose=True,
+):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -388,7 +438,7 @@ def prepare(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, packages="",
         run_dir="/datadog-agent",
     )
 
-    target_instances = list()
+    target_instances: List[HostInstance] = list()
     for d in domains:
         target_instances.append(d.instance)
 
@@ -415,8 +465,8 @@ def prepare(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, packages="",
         info(f"[+] Tests packages setup in target VM {d}")
 
 
-def build_run_config(run, packages):
-    c = dict()
+def build_run_config(run: Optional[str], packages: List[str]):
+    c: Dict[str, Any] = dict()
 
     if len(packages) == 0:
         return {"*": {"exclude": False}}
@@ -449,16 +499,16 @@ def build_run_config(run, packages):
     }
 )
 def test(
-    ctx,
-    vms,
-    stack=None,
+    ctx: Context,
+    vms: str,
+    stack: Optional[str] = None,
     packages="",
-    run=None,
+    run: Optional[str] = None,
     quick=False,
     retry=2,
     run_count=1,
     full_rebuild=False,
-    ssh_key=None,
+    ssh_key: Optional[str] = None,
     verbose=True,
     test_logs=False,
     test_extra_arguments=None,
@@ -506,7 +556,9 @@ def test(
         "verbose": "Enable full output of all commands executed",
     }
 )
-def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
+def build(
+    ctx: Context, vms: str, stack: Optional[str] = None, ssh_key: Optional[str] = None, full_rebuild=False, verbose=True
+):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -529,7 +581,7 @@ def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
             ctx, arch, "test/new-e2e/system-probe/test-runner/files/system-probe-dependencies.json", "./", stack=stack
         )
 
-        target_instances = list()
+        target_instances: List[HostInstance] = list()
         for d in domains:
             target_instances.append(d.instance)
 
@@ -553,7 +605,7 @@ def build(ctx, vms, stack=None, ssh_key=None, full_rebuild=False, verbose=True):
 
 
 @task
-def clean(ctx, stack=None, container=False, image=False):
+def clean(ctx: Context, stack: Optional[str] = None, container=False, image=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -575,7 +627,9 @@ def clean(ctx, stack=None, container=False, image=False):
         "ddvm_rsa": "Path to the ddvm_rsa file to use for connecting to the VMs. Defaults to the path in the ami-builder repo",
     }
 )
-def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version-testing/files/ddvm_rsa"):
+def ssh_config(
+    _, stacks: Optional[str] = None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version-testing/files/ddvm_rsa"
+):
     """
     Print the SSH config for the given stacks.
 
@@ -609,15 +663,18 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
         ):
             continue
 
-        for _, instance in build_infrastructure(stack, remote_ssh_key="").items():
-            print(f"Host kmt-{stack_name}-{instance.arch}")
-            print(f"    HostName {instance.ip}")
-            print("    User ubuntu")
-            print("")
+        for _, instance in build_infrastructure(stack.name, remote_ssh_key="").items():
+            if instance.arch != "local":
+                print(f"Host kmt-{stack_name}-{instance.arch}")
+                print(f"    HostName {instance.ip}")
+                print("    User ubuntu")
+                print("")
+
             for domain in instance.microvms:
                 print(f"Host kmt-{stack_name}-{instance.arch}-{domain.tag}")
                 print(f"    HostName {domain.ip}")
-                print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
+                if instance.arch != "local":
+                    print(f"    ProxyJump kmt-{stack_name}-{instance.arch}")
                 print(f"    IdentityFile {ddvm_rsa}")
                 print("    User root")
                 # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
@@ -627,3 +684,90 @@ def ssh_config(_, stacks=None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version
                 print("    UserKnownHostsFile /dev/null")
                 print("    StrictHostKeyChecking accept-new")
                 print("")
+
+
+@task(
+    help={
+        "stack": "Name of the stack to get the status of. If None, show status of stack associated with current branch",
+        "all": "Show status of all stacks. --stack parameter will be ignored",
+    }
+)
+def status(ctx: Context, stack: Optional[str] = None, all=False):
+    stacks: List[str]
+
+    if all:
+        stacks = [stack.name for stack in Path(get_kmt_os().stacks_dir).iterdir() if stack.is_dir()]
+    else:
+        stacks = [check_and_get_stack(stack)]
+
+    # Dict of status lines for each stack
+    status: Dict[str, List[str]] = defaultdict(list)
+    stack_status: Dict[str, Tuple[int, int, int, int]] = {}
+    info("[+] Getting status...")
+
+    for stack in stacks:
+        try:
+            infrastructure = build_infrastructure(stack, remote_ssh_key="")
+        except Exception:
+            warn(f"Failed to get status for stack {stack}. stacks.output file might be corrupt.")
+            print("")
+            continue
+
+        instances_down = 0
+        instances_up = 0
+        vms_down = 0
+        vms_up = 0
+
+        for arch, instance in infrastructure.items():
+            if arch == 'local':
+                status[stack].append("· Local VMs")
+                instances_up += 1
+            else:
+                instance_id = ec2_instance_ids(ctx, [instance.ip])
+                if len(instance_id) == 0:
+                    status[stack].append(f"· {arch} AWS instance {instance.ip} - {colored('not running', 'red')}")
+                    instances_down += 1
+                else:
+                    status[stack].append(
+                        f"· {arch} AWS instance {instance.ip} - {colored('running', 'green')} - ID {instance_id[0]}"
+                    )
+                    instances_up += 1
+
+            for vm in instance.microvms:
+                vm_id = f"{vm.tag:14} | IP {vm.ip}"
+                if vm.check_reachable(ctx):
+                    status[stack].append(f"  - {vm_id} - {colored('up', 'green')}")
+                    vms_up += 1
+                else:
+                    status[stack].append(f"  - {vm_id} - {colored('down', 'red')}")
+                    vms_down += 1
+
+            stack_status[stack] = (instances_down, instances_up, vms_down, vms_up)
+
+    info("[+] Tasks completed, printing status")
+
+    for stack, lines in status.items():
+        instances_down, instances_up, vms_down, vms_up = stack_status[stack]
+
+        if instances_down == 0 and instances_up == 0:
+            status_str = colored("Empty", "grey")
+        elif instances_up == 0:
+            status_str = colored("Hosts down", "red")
+        elif instances_down == 0:
+            status_str = colored("Hosts active", "green")
+        else:
+            status_str = colored("Hosts partially active", "yellow")
+
+        if vms_down == 0 and vms_up == 0:
+            vm_status_str = colored("No VMs defined", "grey")
+        elif vms_up == 0:
+            vm_status_str = colored("All VMs down", "red")
+        elif vms_down == 0:
+            vm_status_str = colored("All VMs up", "green")
+        else:
+            vm_status_str = colored("Some VMs down", "yellow")
+
+        print(f"Stack {stack} - {status_str} - {vm_status_str}")
+        for line in lines:
+            print(line)
+        print("")

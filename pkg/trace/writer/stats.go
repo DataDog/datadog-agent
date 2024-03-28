@@ -62,7 +62,8 @@ func NewStatsWriter(
 	in <-chan *pb.StatsPayload,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
-	timing timing.Reporter) *StatsWriter {
+	timing timing.Reporter,
+) *StatsWriter {
 	sw := &StatsWriter{
 		in:        in,
 		stats:     &info.StatsWriterInfo{},
@@ -236,6 +237,10 @@ func (w *StatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPayload in
 func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	if p.ContainerID == "" {
 		p.Tags = nil
+		return
+	}
+	if p.ContainerID != "" && p.Tags != nil {
+		// We already have tags, no need to resolve them.
 		return
 	}
 	ctags, err := w.conf.ContainerTags(p.ContainerID)
