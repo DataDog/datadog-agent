@@ -10,8 +10,8 @@ package ecsfargate
 
 import (
 	"context"
+	"fmt"
 	"strings"
-	"time"
 
 	"go.uber.org/fx"
 
@@ -22,7 +22,6 @@ import (
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -31,23 +30,24 @@ const (
 )
 
 type collector struct {
-	id            string
-	store         workloadmeta.Component
-	catalog       workloadmeta.AgentType
-	metaV2        v2.Client
-	metaV4        v3or4.Client
-	seen          map[workloadmeta.EntityID]struct{}
-	v4TaskEnabled bool
+	id                    string
+	store                 workloadmeta.Component
+	catalog               workloadmeta.AgentType
+	metaV2                v2.Client
+	metaV4                v3or4.Client
+	seen                  map[workloadmeta.EntityID]struct{}
+	taskCollectionEnabled bool
+	taskCollectionParser  util.TaskParser
 }
 
 // NewCollector returns a new ecsfargate collector provider and an error
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:            collectorID,
-			catalog:       workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
-			seen:          make(map[workloadmeta.EntityID]struct{}),
-			v4TaskEnabled: util.Isv4TaskEnabled(),
+			id:                    collectorID,
+			catalog:               workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			seen:                  make(map[workloadmeta.EntityID]struct{}),
+			taskCollectionEnabled: util.IsTaskCollectionEnabled(),
 		},
 	}, nil
 }
@@ -62,41 +62,46 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return errors.NewDisabled(componentName, "Agent is not running on ECS Fargate")
 	}
 
-	var err error
-
 	c.store = store
-	c.metaV2, err = ecsmeta.V2()
+
+	apiVersion, err := c.detectEndpoint()
 	if err != nil {
 		return err
 	}
-
-	if c.v4TaskEnabled {
-		c.metaV4, err = ecsmeta.V4FromCurrentTask()
-		if err != nil {
-			return err
-		}
+	switch apiVersion {
+	case "v4":
+		c.taskCollectionParser = c.parseTaskFromV4Endpoint
+	case "v2":
+		c.taskCollectionParser = c.parseTaskFromV2Endpoint
+	default:
+		return fmt.Errorf("failed to detect ECS fargate metadata endpoint")
 	}
 
 	return nil
 }
 
-func (c *collector) Pull(ctx context.Context) error {
-	if c.v4TaskEnabled {
-		task, err := c.metaV4.GetTask(ctx)
-		if err != nil {
-			return err
-		}
-
-		c.store.Notify(c.parseV4Task(task))
-		return nil
+func (c *collector) detectEndpoint() (string, error) {
+	var err error
+	c.metaV4, err = ecsmeta.V4FromCurrentTask()
+	if c.taskCollectionEnabled && err == nil {
+		return "v4", nil
 	}
 
-	task, err := c.metaV2.GetTask(ctx)
+	c.metaV2, err = ecsmeta.V2()
+	if err != nil {
+		return "", err
+	}
+
+	return "v2", nil
+}
+
+func (c *collector) Pull(ctx context.Context) error {
+	task, err := c.taskCollectionParser(ctx)
 	if err != nil {
 		return err
 	}
 
-	c.store.Notify(c.parseTask(task))
+	c.store.Notify(task)
 
 	return nil
 }
@@ -107,191 +112,6 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
-}
-
-func (c *collector) parseTask(task *v2.Task) []workloadmeta.CollectorEvent {
-	events := []workloadmeta.CollectorEvent{}
-	seen := make(map[workloadmeta.EntityID]struct{})
-
-	// We only want to collect tasks without a STOPPED status.
-	if task.KnownStatus == workloadmeta.ECSTaskKnownStatusStopped {
-		return events
-	}
-
-	arnParts := strings.Split(task.TaskARN, "/")
-	taskID := arnParts[len(arnParts)-1]
-	entityID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindECSTask,
-		ID:   task.TaskARN,
-	}
-
-	seen[entityID] = struct{}{}
-
-	taskContainers, containerEvents := c.parseTaskContainers(task, seen)
-	entity := &workloadmeta.ECSTask{
-		EntityID: entityID,
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: taskID,
-		},
-		ClusterName: parseClusterName(task.ClusterName),
-		Region:      parseRegion(task.ClusterName),
-		Family:      task.Family,
-		Version:     task.Version,
-		LaunchType:  workloadmeta.ECSLaunchTypeFargate,
-		Containers:  taskContainers,
-
-		// the AvailabilityZone metadata is only available for
-		// Fargate tasks using platform version 1.4 or later
-		AvailabilityZone: task.AvailabilityZone,
-	}
-
-	events = append(events, containerEvents...)
-	events = append(events, workloadmeta.CollectorEvent{
-		Source: workloadmeta.SourceRuntime,
-		Type:   workloadmeta.EventTypeSet,
-		Entity: entity,
-	})
-
-	for seenID := range c.seen {
-		if _, ok := seen[seenID]; ok {
-			continue
-		}
-
-		var entity workloadmeta.Entity
-		switch seenID.Kind {
-		case workloadmeta.KindECSTask:
-			entity = &workloadmeta.ECSTask{EntityID: seenID}
-		case workloadmeta.KindContainer:
-			entity = &workloadmeta.Container{EntityID: seenID}
-		default:
-			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceRuntime,
-			Entity: entity,
-		})
-	}
-
-	c.seen = seen
-
-	return events
-}
-
-func (c *collector) parseTaskContainers(
-	task *v2.Task,
-	seen map[workloadmeta.EntityID]struct{},
-) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
-	taskContainers := make([]workloadmeta.OrchestratorContainer, 0, len(task.Containers))
-	events := make([]workloadmeta.CollectorEvent, 0, len(task.Containers))
-
-	for _, container := range task.Containers {
-		containerID := container.DockerID
-		taskContainers = append(taskContainers, workloadmeta.OrchestratorContainer{
-			ID:   containerID,
-			Name: container.Name,
-		})
-		entityID := workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		}
-
-		seen[entityID] = struct{}{}
-
-		image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
-
-		if err != nil {
-			log.Debugf("cannot split image name %q: %s", container.Image, err)
-		}
-
-		ips := make(map[string]string)
-
-		for _, net := range container.Networks {
-			if net.NetworkMode == "awsvpc" && len(net.IPv4Addresses) > 0 {
-				ips["awsvpc"] = net.IPv4Addresses[0]
-			}
-		}
-
-		var startedAt time.Time
-		if container.StartedAt != "" {
-			startedAt, err = time.Parse(time.RFC3339, container.StartedAt)
-			if err != nil {
-				log.Debugf("cannot parse StartedAt %q for container %q: %s", container.StartedAt, container.DockerID, err)
-			}
-		}
-
-		var createdAt time.Time
-		if container.CreatedAt != "" {
-			createdAt, err = time.Parse(time.RFC3339, container.CreatedAt)
-			if err != nil {
-				log.Debugf("could not parse creation time '%q' for container %q: %s", container.CreatedAt, container.DockerID, err)
-			}
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: &workloadmeta.Container{
-				EntityID: entityID,
-				EntityMeta: workloadmeta.EntityMeta{
-					Name:   container.DockerName,
-					Labels: container.Labels,
-				},
-				Image:      image,
-				Runtime:    workloadmeta.ContainerRuntimeECSFargate,
-				NetworkIPs: ips,
-				State: workloadmeta.ContainerState{
-					StartedAt: startedAt,
-					CreatedAt: createdAt,
-					Running:   container.KnownStatus == "RUNNING",
-					Status:    parseStatus(container.KnownStatus),
-				},
-			},
-		})
-	}
-
-	return taskContainers, events
-}
-
-func (c *collector) parseV4Task(task *v3or4.Task) []workloadmeta.CollectorEvent {
-	events := []workloadmeta.CollectorEvent{}
-	seen := make(map[workloadmeta.EntityID]struct{})
-
-	// We only want to collect tasks without a STOPPED status.
-	if task.KnownStatus == workloadmeta.ECSTaskKnownStatusStopped {
-		return events
-	}
-
-	events = append(events, util.ParseV4Task(*task, seen)...)
-
-	for seenID := range c.seen {
-		if _, ok := seen[seenID]; ok {
-			continue
-		}
-
-		var entity workloadmeta.Entity
-		switch seenID.Kind {
-		case workloadmeta.KindECSTask:
-			entity = &workloadmeta.ECSTask{EntityID: seenID}
-		case workloadmeta.KindContainer:
-			entity = &workloadmeta.Container{EntityID: seenID}
-		default:
-			log.Errorf("cannot handle expired entity of kind %q, skipping", seenID.Kind)
-			continue
-		}
-
-		events = append(events, workloadmeta.CollectorEvent{
-			Type:   workloadmeta.EventTypeUnset,
-			Source: workloadmeta.SourceRuntime,
-			Entity: entity,
-		})
-	}
-
-	c.seen = seen
-
-	return events
 }
 
 // parseClusterName returns the short name of a cluster. it detects if the name
