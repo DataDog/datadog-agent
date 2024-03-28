@@ -140,7 +140,7 @@ def gen_config_from_ci_pipeline(
 
         if (
             (vcpu is None or memory is None)
-            and name.startswith("kernel_matrix_testing_setup_env")
+            and name.startswith("kmt_setup_env")
             and job["status"] == "success"
         ):
             arch = "x86_64" if "x64" in name else "arm64"
@@ -168,7 +168,7 @@ def gen_config_from_ci_pipeline(
                 if vcpu is None and len(vcpu_list) > 0:
                     vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
-        elif name.startswith("kernel_matrix_testing_run") and job["status"] == "failed":
+        elif name.startswith("kmt_run") and job["status"] == "failed":
             arch = "x86" if "x64" in name else "arm64"
             match = re.search(r"\[(.*)\]", name)
 
