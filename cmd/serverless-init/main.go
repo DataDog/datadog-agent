@@ -145,7 +145,7 @@ func setupHealthCheck() {
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: "must_be_not_empty.yaml"}, nil, random.Random.Uint64())
+	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: "datadog.yaml"}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
@@ -154,7 +154,6 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
-	config.Datadog.Set("dogstatsd_non_local_traffic", true, model.SourceAgentRuntime)
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}
