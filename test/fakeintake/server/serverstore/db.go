@@ -59,8 +59,11 @@ func newSQLStore() *sqlStore {
 		log.Fatal(err)
 	}
 
-	// Enable WAL mode for better performances
-	_, err = db.Exec("PRAGMA journal_mode=WAL")
+	// Enable WAL mode for better performances and limit the heap
+	_, err = db.Exec(`
+	PRAGMA journal_mode=WAL;
+	PRAGMA soft_heap_limit=100000000;
+	`)
 	if err != nil {
 		log.Fatal("Failed to enable WAL mode: ", err)
 	}
