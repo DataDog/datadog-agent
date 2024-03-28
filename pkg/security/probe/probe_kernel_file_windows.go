@@ -42,7 +42,7 @@ const (
 type fileObjectPointer uint64
 
 var (
-	filePathResolver = make(map[fileObjectPointer]string, 0)
+// filePathResolver = make(map[fileObjectPointer]string, 0)
 )
 
 /*
@@ -128,7 +128,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -156,12 +156,12 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	filePathResolver[ca.fileObject] = ca.fileName
+	//filePathResolver[ca.fileObject] = ca.fileName
 	return ca, nil
 }
 
-func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := parseCreateHandleArgs(e)
+func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := wp.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
@@ -238,9 +238,9 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
-		sia.fileName = s
-	}
+	//if s, ok := filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
+	//	sia.fileName = s
+	//}
 	return sia, nil
 }
 
@@ -305,10 +305,9 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[ca.fileObject]; ok {
-		ca.fileName = s
-
-	}
+	//if s, ok := filePathResolver[ca.fileObject]; ok {
+	//	ca.fileName = s
+	//}
 	return ca, nil
 }
 
