@@ -42,6 +42,42 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, "server not running", err.Error())
 	})
 
+	for _, tt := range []struct {
+		name string
+		port string
+		opt  Option
+	}{
+		{
+			name: "Make sure WithPort sets the port correctly",
+			port: "1234",
+			opt:  WithPort(1234),
+		},
+		{
+			name: "Make sure WithAddress sets the port correctly",
+			port: "3456",
+			opt:  WithAddress(":3456"),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fi := NewServer(tt.opt)
+			assert.Equal(t, ":"+tt.port, fi.server.Addr)
+			fi.Start()
+			assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+				assert.True(collect, fi.IsRunning())
+				assert.True(collect, fi.URL() == "http://[::]:"+tt.port || fi.URL() == "http://0.0.0.0:"+tt.port)
+				resp, err := http.Get("http://127.0.0.1:" + tt.port + "/fakeintake/health")
+				assert.NoError(collect, err)
+				if err != nil {
+					return
+				}
+				defer resp.Body.Close()
+				assert.Equal(collect, http.StatusOK, resp.StatusCode)
+			}, 500*time.Millisecond, 10*time.Millisecond)
+			err := fi.Stop()
+			assert.NoError(t, err)
+		})
+	}
+
 	t.Run("should run after start", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
 		fi.Start()
