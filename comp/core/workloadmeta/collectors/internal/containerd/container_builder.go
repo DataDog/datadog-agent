@@ -66,9 +66,9 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	if image.RepoDigest == "" {
 		log.Debugf("cannot get repo digest for image %s from workloadmeta store", imageID)
 		contImage, err := containerdClient.ImageOfContainer(namespace, container)
-		if err == nil {
-			// Get repo digest from containerd client. 
-			// This is a fallback mechanism in case we cannot get the repo digest 
+		if err == nil && contImage != nil {
+			// Get repo digest from containerd client.
+			// This is a fallback mechanism in case we cannot get the repo digest
 			// from workloadmeta store.
 			image.RepoDigest = contImage.Target().Digest.String()
 		}

@@ -241,7 +241,7 @@ func (c *ContainerdUtil) ListImages(namespace string) ([]containerd.Image, error
 }
 
 // ListImagesWithDigest interfaces with the containerd api to list image with digest filter
-// Digest is the sha256 digest (repo digest) of the compressed image manifest which is defined in 
+// Digest is the sha256 digest (repo digest) of the compressed image manifest which is defined in
 // https://github.com/opencontainers/image-spec/blob/main/descriptor.md#digests
 func (c *ContainerdUtil) ListImagesWithDigest(namespace string, digest string) ([]containerd.Image, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
