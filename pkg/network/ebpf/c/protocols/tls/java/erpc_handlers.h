@@ -77,7 +77,7 @@ int kprobe_handle_close_connection(struct pt_regs *ctx) {
     if (exists != NULL){
         // tls_finish can launch a tail call, thus cleanup should be done before.
         bpf_map_delete_elem(&java_tls_connections, &connection);
-        tls_finish(ctx, &connection);
+        tls_finish(ctx, &connection, false);
     }
     return 0;
 }

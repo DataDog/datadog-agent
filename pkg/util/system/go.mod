@@ -12,11 +12,11 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2
 	github.com/shirou/gopsutil/v3 v3.23.12
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
@@ -24,7 +24,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
