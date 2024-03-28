@@ -14,3 +14,4 @@ import "C"
 
 type MapErrTelemetry C.map_err_telemetry_t
 type HelperErrTelemetry C.helper_err_telemetry_t
+type InstrumentationBlob C.instrumentation_blob_t

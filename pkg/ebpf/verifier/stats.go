@@ -21,11 +21,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	netbpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/asm"
 )
 
 // stats holds the value of a verifier statistics and a regular expression
@@ -107,7 +108,7 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
-			return fmt.Errorf("failed to load collection spec: %v", err)
+			return fmt.Errorf("failed to load collection spec: %w", err)
 		}
 
 		// Max entry has to be > 0 for all maps
@@ -117,21 +118,31 @@ func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats ma
 			}
 		}
 
-		// replace telemetry patch points with nops
-		// r1 = r1
-		newIns := asm.Mov.Reg(asm.R1, asm.R1)
-		for _, p := range collectionSpec.Programs {
-			ins := p.Instructions
+		instrumented, err := telemetry.ELFBuiltWithInstrumentation(bc)
+		if err != nil {
+			return fmt.Errorf("unable to determine if instrumentation enabled: %w", err)
+		}
+		if instrumented {
+			log.Printf("File %s is instrumented\n", file)
 
-			// patch telemetry helper calls
-			const ebpfTelemetryPatchCall = -1
-			iter := ins.Iterate()
-			for iter.Next() {
-				ins := iter.Ins
-				if !ins.IsBuiltinCall() || ins.Constant != ebpfTelemetryPatchCall {
-					continue
-				}
-				*ins = newIns.WithMetadata(ins.Metadata)
+			bpfDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+			bpfAsset, err := netbpf.ReadEBPFInstrumentationModule(bpfDir, telemetry.InstrumentationFunctions.Filename)
+			if err != nil {
+				return fmt.Errorf("failed to read %s bytecode file: %w", telemetry.InstrumentationFunctions.Filename, err)
+			}
+			defer bpfAsset.Close()
+
+			instrumentationSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
+			if err != nil {
+				return fmt.Errorf("failed to load collection spec: %w", err)
+			}
+			block, err := telemetry.BuildInstrumentationBlock(bpfAsset, instrumentationSpec)
+			if err != nil {
+				return fmt.Errorf("unabled to build instrumentation block: %w", err)
+			}
+
+			if err := telemetry.PatchEBPFInstrumentation(collectionSpec.Programs, telemetry.NewEBPFTelemetry(bpfDir), bc, func(_ string) bool { return kversion < kernel.VersionCode(4, 14, 0) }, block); err != nil {
+				return err
 			}
 		}
 

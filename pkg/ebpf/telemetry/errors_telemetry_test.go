@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	netbpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 func instrumentationEnabled(t *testing.T, dir, filename string) {
@@ -25,7 +26,7 @@ func instrumentationEnabled(t *testing.T, dir, filename string) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = buf.Close })
 
-	instrumented, err := elfBuildWithInstrumentation(buf)
+	instrumented, err := ELFBuiltWithInstrumentation(buf)
 	require.NoError(t, err)
 	if !instrumented {
 		t.Skip("Skipping because prebuilt and co-re assets are not instrumented")
@@ -81,4 +82,27 @@ func TestBinaryCorrectlyInstrumented(t *testing.T) {
 		instrumentationEnabled(t, filepath.Join(bpfDir, "co-re"), "tracer-fentry.o")
 	})
 	// Fentry based tracer is only built in CO-RE mode
+}
+
+func TestInstrumentationCodeHasLT8BytesStackAccess(t *testing.T) {
+	bpfDir := os.Getenv("DD_SYSTEM_PROBE_BPF_DIR")
+	bpfAsset, err := netbpf.ReadEBPFInstrumentationModule(bpfDir, InstrumentationFunctions.Filename)
+	require.NoError(t, err)
+
+	collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bpfAsset)
+	require.NoError(t, err)
+
+	functions := make(map[string]struct{}, len(collectionSpec.Programs))
+	for fn := range collectionSpec.Programs {
+		functions[fn] = struct{}{}
+	}
+	sizes, err := parseStackSizesSections(bpfAsset, functions)
+	require.NoError(t, err)
+
+	for _, program := range InstrumentationFunctions.functions {
+		_, ok := collectionSpec.Programs[program]
+		require.True(t, ok)
+
+		require.True(t, sizes[program] <= 8, "instrumentation block cannot perform any stack reads or writes on more than one stack slot")
+	}
 }

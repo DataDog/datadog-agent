@@ -18,7 +18,7 @@ import (
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/usm.c pkg/ebpf/bytecode/runtime/usm.go runtime
 
 func getRuntimeCompiledUSM(config *config.Config) (runtime.CompiledOutput, error) {
-	return runtime.Usm.Compile(&config.Config, getCFlags(config), getLlcFlags(), statsd.Client)
+	return runtime.Usm.Compile(&config.Config, getCFlags(config), getLlcFlags(config), statsd.Client)
 }
 
 func getCFlags(config *config.Config) []string {
@@ -34,11 +34,16 @@ func getCFlags(config *config.Config) []string {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
 	if config.EBPFInstrumentationEnabled {
-		cflags = append(cflags, "-pg")
+		cflags = append(cflags, "-pg", "-DEBPF_INSTRUMENTATION")
 	}
 	return cflags
 }
 
-func getLlcFlags() []string {
+func getLlcFlags(config *config.Config) []string {
+	if config.EBPFInstrumentationEnabled {
+		// this flag instructs llc to add a section describing the total stack usage of a function
+		return []string{"-stack-size-section"}
+	}
+
 	return nil
 }

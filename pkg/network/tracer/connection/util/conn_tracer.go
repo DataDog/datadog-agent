@@ -89,7 +89,7 @@ func SetupClosedConnHandler(connCloseEventHandler ebpf.EventHandler, mgr *ebpf.M
 		mgr.PerfMaps = []*manager.PerfMap{pm}
 		ebpftelemetry.ReportPerfMapTelemetry(pm)
 		helperCallRemover := ebpf.NewHelperCallRemover(asm.FnRingbufOutput)
-		err := helperCallRemover.BeforeInit(mgr.Manager, nil)
+		err := helperCallRemover.BeforeInit(mgr.Manager, nil, nil)
 		if err != nil {
 			log.Error("Failed to remove helper calls from eBPF programs: ", err)
 		}

@@ -70,6 +70,7 @@ CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 extra_cflags = []
+extra_llcflags = []
 
 
 def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
@@ -99,7 +100,7 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     strip = "&& llvm-strip -g $out" if strip_object_files else ""
     nw.rule(
         name="llc",
-        command=f"llc -march=bpf -filetype=obj -o $out $in {strip}",
+        command=f"llc {' '.join(extra_llcflags)} -march=bpf -filetype=obj -o $out $in {strip}",
     )
 
 
@@ -227,6 +228,10 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
+def ninja_telemetry_ebpf_program(nw, infile, outfile, flags):
+    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
+
+
 def ninja_network_ebpf_program(nw, infile, outfile, flags):
     ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
@@ -239,6 +244,19 @@ def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
     ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
+def ninja_ebpf_telemetry_programs(nw, build_dir):
+    telemetry_bpf_dir = os.path.join("pkg", "ebpf", "telemetry", "c")
+    telemetry_flags = "-Ipkg/ebpf/telemetry/c -g"
+    telemetry_programs = [
+        "ebpf_instrumentation",
+    ]
+
+    for prog in telemetry_programs:
+        infile = os.path.join(telemetry_bpf_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{prog}.o")
+        ninja_telemetry_ebpf_program(nw, infile, outfile, telemetry_flags)
+
+
 def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
@@ -247,12 +265,11 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_programs = [
         "tracer",
         "prebuilt/usm",
-        "prebuilt/usm_events_test",
         "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
     network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm", "runtime/shared-libraries"]
-    network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess"]
+    network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess", "prebuilt/usm_events_test"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
@@ -504,6 +521,7 @@ def ninja_generate(
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
             ninja_container_integrations_ebpf_programs(nw, co_re_build_dir)
             ninja_runtime_compilation_files(nw, gobin)
+            ninja_ebpf_telemetry_programs(nw, build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -524,7 +542,7 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
-    instrument_trampoline=False,
+    instrument_trampoline=True,
 ):
     """
     Build the system-probe
@@ -656,7 +674,7 @@ def test(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
-            instrument_trampoline=False,
+            instrument_trampoline=True,
         )
 
     build_tags = [NPM_TAG]
@@ -1300,7 +1318,16 @@ def run_ninja(
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(
+        ctx,
+        nf_path,
+        major_version,
+        arch,
+        debug,
+        strip_object_files,
+        kernel_release,
+        with_unit_test,
+    )
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1380,8 +1407,10 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
     global extra_cflags
+    global extra_llcflags
     if instrument_trampoline:
-        extra_cflags = extra_cflags + ["-pg", "-DINSTRUMENTATION_ENABLED"]
+        extra_cflags = extra_cflags + ["-pg", "-DEBPF_INSTRUMENTATION"]
+        extra_llcflags = extra_llcflags + ["-stack-size-section"]
 
     run_ninja(
         ctx,

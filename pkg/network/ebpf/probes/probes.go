@@ -208,21 +208,17 @@ const (
 	ConntrackMap BPFMapName = "conntrack"
 	// ConntrackTelemetryMap is the map storing conntrack telemetry
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
-	// TCPSendMsgArgsMap is the map storing the arguments of the tcp_sendmsg() system call
-	TCPSendMsgArgsMap BPFMapName = "tcp_sendmsg_args"
-	// TCPSendPageArgsMap is the map storing the arguments of the tcp_sendpage() kernel function
-	TCPSendPageArgsMap BPFMapName = "tcp_sendpage_args"
-	// UDPSendPageArgsMap is the map storing the arguments of the udp_sendpage() kernel function
-	UDPSendPageArgsMap BPFMapName = "udp_sendpage_args"
-	// IPMakeSkbArgsMap is the map storing the arguments of the ip_make_skb() kernel function
-	IPMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
-	// MapErrTelemetryMap is the map storing the map error telemetry
-	MapErrTelemetryMap BPFMapName = "map_err_telemetry_map"
-	// HelperErrTelemetryMap is the map storing the helper error telemetry
-	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
-	// TCPRecvMsgArgsMap is the map storing the arguments of the tcp_recvmsg() kernel function
-	TCPRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
-	// ProtocolClassificationBufMap is the map storing the classification buffer
+	//nolint:revive // TODO(NET) Fix revive linter
+	TcpSendMsgArgsMap BPFMapName = "tcp_sendmsg_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TcpSendPageArgsMap BPFMapName = "tcp_sendpage_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	UdpSendPageArgsMap BPFMapName = "udp_sendpage_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	IpMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
+	//nolint:revive // TODO(NET) Fix revive linter
+	TcpRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
+	//nolint:revive // TODO(NET) Fix revive linter
 	ProtocolClassificationBufMap BPFMapName = "classification_buf"
 	// KafkaClientIDBufMap is the map storing the kafka client ID
 	KafkaClientIDBufMap BPFMapName = "kafka_client_id"

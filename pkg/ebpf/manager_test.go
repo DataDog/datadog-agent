@@ -7,6 +7,7 @@
 package ebpf
 
 import (
+	"io"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -24,10 +25,12 @@ func (t *dummyModifier) String() string {
 }
 
 // BeforeInit adds the patchPrintkNewline function to the manager
-func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ *manager.Options) error { return nil }
+func (t *dummyModifier) BeforeInit(_ *manager.Manager, _ *manager.Options, _ io.ReaderAt) error {
+	return nil
+}
 
 // AfterInit is a no-op for this modifier
-func (t *dummyModifier) AfterInit(_ *manager.Manager, _ *manager.Options) error {
+func (t *dummyModifier) AfterInit(_ *manager.Manager, _ *manager.Options, _ io.ReaderAt) error {
 	return nil
 }
 

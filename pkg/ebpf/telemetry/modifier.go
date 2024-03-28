@@ -8,11 +8,16 @@
 package telemetry
 
 import (
+	"io"
+	"os"
+
 	manager "github.com/DataDog/ebpf-manager"
 )
 
 // ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
-type ErrorsTelemetryModifier struct{}
+type ErrorsTelemetryModifier struct {
+	SkipProgram func(string) bool
+}
 
 // String returns the name of the modifier.
 func (t *ErrorsTelemetryModifier) String() string {
@@ -22,16 +27,15 @@ func (t *ErrorsTelemetryModifier) String() string {
 // BeforeInit sets up the manager to handle eBPF telemetry.
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
-func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, opts *manager.Options) error {
-	return setupForTelemetry(m, opts, errorsTelemetry)
+func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, opts *manager.Options, bytecode io.ReaderAt) error {
+	// TODO: remove this once errors collector is separated from the tracer
+	if errorsTelemetry == nil {
+		initEBPFTelemetry(os.Getenv("DD_SYSTEM_PROBE_BPF_DIR"))
+	}
+	return setupForTelemetry(m, opts, errorsTelemetry, bytecode, t.SkipProgram)
 }
 
 // AfterInit pre-populates the telemetry maps with entries corresponding to the ebpf program of the manager.
-func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, _ *manager.Options) error {
-	if errorsTelemetry != nil {
-		if err := errorsTelemetry.populateMapsWithKeys(m); err != nil {
-			return err
-		}
-	}
+func (t *ErrorsTelemetryModifier) AfterInit(_ *manager.Manager, _ *manager.Options, _ io.ReaderAt) error {
 	return nil
 }
