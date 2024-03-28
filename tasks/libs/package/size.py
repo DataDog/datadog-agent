@@ -42,10 +42,10 @@ def extract_rpm_package(ctx, package_path, extract_dir):
 def extract_package(ctx, package_os, package_path, extract_dir):
     if package_os == DEBIAN_OS:
         return extract_deb_package(ctx, package_path, extract_dir)
-    elif package_os == CENTOS_OS or package_os == SUSE_OS:
+    elif package_os in (CENTOS_OS, SUSE_OS):
         return extract_rpm_package(ctx, package_path, extract_dir)
     else:
-        raise Exception(
+        raise ValueError(
             message=color_message(
                 f"Provided OS {package_os} doesn't match any of: {DEBIAN_OS}, {CENTOS_OS}, {SUSE_OS}", "red"
             )
@@ -74,6 +74,9 @@ def compute_package_size_metrics(
 ):
     from tasks.libs.datadog_api import create_gauge
 
+    if flavor not in SCANNED_BINARIES.keys():
+        raise ValueError(f"'{flavor}' is not part of the accepted flavors: {', '.join(SCANNED_BINARIES.keys())}")
+
     series = []
     with tempfile.TemporaryDirectory() as extract_dir:
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
@@ -81,7 +84,7 @@ def compute_package_size_metrics(
         package_compressed_size = file_size(path=package_path)
         package_uncompressed_size = directory_size(ctx, path=extract_dir)
 
-        timestamp = int(datetime.now().timestamp())
+        timestamp = int(datetime.utcnow().timestamp())
         common_tags = [
             f"os:{package_os}",
             f"package:datadog-{flavor}",
