@@ -15,7 +15,6 @@ Package agent implements the "agent" bundle,
 *Datadog Team*: agent-metrics-logs
 
 Package jmxlogger implements the logger for JMX.
-If a JMX component is created, then this component should be merged with the JMX component.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
