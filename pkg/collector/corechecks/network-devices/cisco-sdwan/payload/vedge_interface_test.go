@@ -25,8 +25,10 @@ func TestVEdgeInterface(t *testing.T) {
 		expectedOperStatus  devicemetadata.IfOperStatus
 		expectedAdminStatus devicemetadata.IfAdminStatus
 		expectedMetadata    devicemetadata.InterfaceMetadata
-		expectedIPAddress   devicemetadata.IPAddressMetadata
-		expectedError       string
+		expectedIPV4Address *devicemetadata.IPAddressMetadata
+		expectedIPV4Error   string
+		expectedIPV6Address *devicemetadata.IPAddressMetadata
+		expectedIPV6Error   string
 	}{
 		{
 			name:      "regular interface",
@@ -57,14 +59,49 @@ func TestVEdgeInterface(t *testing.T) {
 				OperStatus:  devicemetadata.OperStatusUp,
 				AdminStatus: devicemetadata.AdminStatusDown,
 			},
-			expectedIPAddress: devicemetadata.IPAddressMetadata{
+			expectedIPV4Address: &devicemetadata.IPAddressMetadata{
 				InterfaceID: "test-ns:10.0.0.1:10",
 				IPAddress:   "10.1.1.5",
 				Prefixlen:   24,
 			},
 		},
 		{
-			name:      "invalid ip address",
+			name:      "ipv6 interface",
+			namespace: "test-ns",
+			itf: client.InterfaceState{
+				VmanageSystemIP: "10.0.0.1",
+				Ifname:          "test-interface",
+				Ifindex:         10,
+				SpeedMbps:       "1000",
+				IfOperStatus:    "Up",
+				IfAdminStatus:   "Down",
+				Desc:            "Description",
+				Hwaddr:          "00:01:02:03",
+				Ipv6Address:     "2001:db8:abcd:0012::0/64",
+			},
+			expectedID:          "10.0.0.1:test-interface",
+			expectedIndex:       10,
+			expectedSpeed:       1000,
+			expectedOperStatus:  devicemetadata.OperStatusUp,
+			expectedAdminStatus: devicemetadata.AdminStatusDown,
+			expectedMetadata: devicemetadata.InterfaceMetadata{
+				DeviceID:    "test-ns:10.0.0.1",
+				IDTags:      []string{"interface:test-interface"},
+				Index:       10,
+				Name:        "test-interface",
+				Description: "Description",
+				MacAddress:  "00:01:02:03",
+				OperStatus:  devicemetadata.OperStatusUp,
+				AdminStatus: devicemetadata.AdminStatusDown,
+			},
+			expectedIPV6Address: &devicemetadata.IPAddressMetadata{
+				InterfaceID: "test-ns:10.0.0.1:10",
+				IPAddress:   "2001:db8:abcd:12::",
+				Prefixlen:   64,
+			},
+		},
+		{
+			name:      "invalid ipv4 address",
 			namespace: "test-ns",
 			itf: client.InterfaceState{
 				VmanageSystemIP: "10.0.0.1",
@@ -92,8 +129,40 @@ func TestVEdgeInterface(t *testing.T) {
 				OperStatus:  devicemetadata.OperStatusUp,
 				AdminStatus: devicemetadata.AdminStatusDown,
 			},
-			expectedIPAddress: devicemetadata.IPAddressMetadata{},
-			expectedError:     "invalid CIDR address",
+			expectedIPV4Address: nil,
+			expectedIPV4Error:   "invalid CIDR address",
+		},
+		{
+			name:      "invalid ipv6 address",
+			namespace: "test-ns",
+			itf: client.InterfaceState{
+				VmanageSystemIP: "10.0.0.1",
+				Ifname:          "test-interface",
+				Ifindex:         10,
+				SpeedMbps:       "1000",
+				IfOperStatus:    "Up",
+				IfAdminStatus:   "Down",
+				Desc:            "Description",
+				Hwaddr:          "00:01:02:03",
+				Ipv6Address:     "hellohello",
+			},
+			expectedID:          "10.0.0.1:test-interface",
+			expectedIndex:       10,
+			expectedSpeed:       1000,
+			expectedOperStatus:  devicemetadata.OperStatusUp,
+			expectedAdminStatus: devicemetadata.AdminStatusDown,
+			expectedMetadata: devicemetadata.InterfaceMetadata{
+				DeviceID:    "test-ns:10.0.0.1",
+				IDTags:      []string{"interface:test-interface"},
+				Index:       10,
+				Name:        "test-interface",
+				Description: "Description",
+				MacAddress:  "00:01:02:03",
+				OperStatus:  devicemetadata.OperStatusUp,
+				AdminStatus: devicemetadata.AdminStatusDown,
+			},
+			expectedIPV6Address: nil,
+			expectedIPV6Error:   "invalid CIDR address",
 		},
 	}
 
@@ -104,9 +173,16 @@ func TestVEdgeInterface(t *testing.T) {
 			index, _ := itf.Index()                      // vEdge cannot return errors here
 			itfMetadata, _ := itf.Metadata(tt.namespace) // vEdge cannot return errors here
 
-			ipAddress, err := itf.IPAddressMetadata(tt.namespace)
-			if tt.expectedError != "" {
-				require.ErrorContains(t, err, tt.expectedError)
+			ipAddress, err := itf.IPV4AddressMetadata(tt.namespace)
+			if tt.expectedIPV4Error != "" {
+				require.ErrorContains(t, err, tt.expectedIPV4Error)
+			} else {
+				require.NoError(t, err)
+			}
+
+			ipv6Address, err := itf.IPV6AddressMetadata(tt.namespace)
+			if tt.expectedIPV6Error != "" {
+				require.ErrorContains(t, err, tt.expectedIPV6Error)
 			} else {
 				require.NoError(t, err)
 			}
@@ -117,7 +193,8 @@ func TestVEdgeInterface(t *testing.T) {
 			require.Equal(t, tt.expectedOperStatus, itf.OperStatus())
 			require.Equal(t, tt.expectedAdminStatus, itf.AdminStatus())
 			require.Equal(t, tt.expectedMetadata, itfMetadata)
-			require.Equal(t, tt.expectedIPAddress, ipAddress)
+			require.Equal(t, tt.expectedIPV4Address, ipAddress)
+			require.Equal(t, tt.expectedIPV6Address, ipv6Address)
 		})
 	}
 }

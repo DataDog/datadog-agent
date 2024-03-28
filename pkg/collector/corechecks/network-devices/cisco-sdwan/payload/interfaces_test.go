@@ -40,6 +40,7 @@ var testInterfaces = []CiscoInterface{
 			Hwaddr:          "00:01:02:03",
 			IPAddress:       "10.1.1.5",
 			Ipv4SubnetMask:  "255.255.255.0",
+			IPV6Address:     "2001:0000:130F:0000:0000:09C0:876A:130B",
 		},
 	},
 }
@@ -78,7 +79,7 @@ func TestProcessInterfacesMetadata(t *testing.T) {
 
 func TestProcessIPAddressesMetadata(t *testing.T) {
 	ipAddressMetadata := GetIPAddressesMetadata("test-ns", testInterfaces)
-	require.Len(t, ipAddressMetadata, 2)
+	require.Len(t, ipAddressMetadata, 3)
 	require.Equal(t, []devicemetadata.IPAddressMetadata{
 		{
 			InterfaceID: "test-ns:10.0.0.1:10",
@@ -89,6 +90,10 @@ func TestProcessIPAddressesMetadata(t *testing.T) {
 			InterfaceID: "test-ns:10.0.0.2:10",
 			IPAddress:   "10.1.1.5",
 			Prefixlen:   24,
+		},
+		{
+			InterfaceID: "test-ns:10.0.0.2:10",
+			IPAddress:   "2001:0:130f::9c0:876a:130b",
 		},
 	}, ipAddressMetadata)
 }

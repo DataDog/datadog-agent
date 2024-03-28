@@ -16,19 +16,21 @@ import (
 
 func TestCEdgeInterface(t *testing.T) {
 	tests := []struct {
-		name                   string
-		namespace              string
-		itf                    client.CEdgeInterfaceState
-		expectedID             string
-		expectedIndex          int
-		expectedIndexError     string
-		expectedSpeed          int
-		expectedOperStatus     devicemetadata.IfOperStatus
-		expectedAdminStatus    devicemetadata.IfAdminStatus
-		expectedMetadata       devicemetadata.InterfaceMetadata
-		expectedInterfaceError string
-		expectedIPAddress      devicemetadata.IPAddressMetadata
-		expectedIPAddressError string
+		name                     string
+		namespace                string
+		itf                      client.CEdgeInterfaceState
+		expectedID               string
+		expectedIndex            int
+		expectedIndexError       string
+		expectedSpeed            int
+		expectedOperStatus       devicemetadata.IfOperStatus
+		expectedAdminStatus      devicemetadata.IfAdminStatus
+		expectedMetadata         devicemetadata.InterfaceMetadata
+		expectedInterfaceError   string
+		expectedIPV4Address      *devicemetadata.IPAddressMetadata
+		expectedIPV4AddressError string
+		expectedIPV6Address      *devicemetadata.IPAddressMetadata
+		expectedIPV6AddressError string
 	}{
 		{
 			name:      "regular interface",
@@ -44,6 +46,7 @@ func TestCEdgeInterface(t *testing.T) {
 				Hwaddr:          "00:01:02:03",
 				IPAddress:       "10.1.1.5",
 				Ipv4SubnetMask:  "255.255.255.0",
+				IPV6Address:     "2001:db8:abcd:0012::0",
 			},
 			expectedID:          "10.0.0.1:test-interface",
 			expectedIndex:       10,
@@ -60,10 +63,14 @@ func TestCEdgeInterface(t *testing.T) {
 				OperStatus:  devicemetadata.OperStatusUp,
 				AdminStatus: devicemetadata.AdminStatusDown,
 			},
-			expectedIPAddress: devicemetadata.IPAddressMetadata{
+			expectedIPV4Address: &devicemetadata.IPAddressMetadata{
 				InterfaceID: "test-ns:10.0.0.1:10",
 				IPAddress:   "10.1.1.5",
 				Prefixlen:   24,
+			},
+			expectedIPV6Address: &devicemetadata.IPAddressMetadata{
+				InterfaceID: "test-ns:10.0.0.1:10",
+				IPAddress:   "2001:db8:abcd:12::",
 			},
 		},
 		{
@@ -80,17 +87,20 @@ func TestCEdgeInterface(t *testing.T) {
 				Hwaddr:          "00:01:02:03",
 				IPAddress:       "10.1.1.5",
 				Ipv4SubnetMask:  "255.255.255.0",
+				IPV6Address:     "2001:db8:abcd:0012::0",
 			},
-			expectedID:             "10.0.0.1:test-interface",
-			expectedIndex:          0,
-			expectedIndexError:     "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
-			expectedSpeed:          1000,
-			expectedOperStatus:     devicemetadata.OperStatusUp,
-			expectedAdminStatus:    devicemetadata.AdminStatusDown,
-			expectedMetadata:       devicemetadata.InterfaceMetadata{},
-			expectedInterfaceError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
-			expectedIPAddress:      devicemetadata.IPAddressMetadata{},
-			expectedIPAddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedID:               "10.0.0.1:test-interface",
+			expectedIndex:            0,
+			expectedIndexError:       "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedSpeed:            1000,
+			expectedOperStatus:       devicemetadata.OperStatusUp,
+			expectedAdminStatus:      devicemetadata.AdminStatusDown,
+			expectedMetadata:         devicemetadata.InterfaceMetadata{},
+			expectedInterfaceError:   "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIPV4Address:      nil,
+			expectedIPV4AddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIPV6Address:      nil,
+			expectedIPV6AddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
 		},
 		{
 			name:      "invalid ip address",
@@ -106,6 +116,7 @@ func TestCEdgeInterface(t *testing.T) {
 				Hwaddr:          "00:01:02:03",
 				IPAddress:       "hello",
 				Ipv4SubnetMask:  "255.255.255.0",
+				IPV6Address:     "hello2",
 			},
 			expectedID:          "10.0.0.1:test-interface",
 			expectedIndex:       10,
@@ -122,8 +133,10 @@ func TestCEdgeInterface(t *testing.T) {
 				OperStatus:  devicemetadata.OperStatusUp,
 				AdminStatus: devicemetadata.AdminStatusDown,
 			},
-			expectedIPAddress:      devicemetadata.IPAddressMetadata{},
-			expectedIPAddressError: "invalid ip address",
+			expectedIPV4Address:      nil,
+			expectedIPV4AddressError: "invalid ip address",
+			expectedIPV6Address:      nil,
+			expectedIPV6AddressError: "invalid ip address",
 		},
 		{
 			name:      "invalid mask",
@@ -155,8 +168,8 @@ func TestCEdgeInterface(t *testing.T) {
 				OperStatus:  devicemetadata.OperStatusUp,
 				AdminStatus: devicemetadata.AdminStatusDown,
 			},
-			expectedIPAddress:      devicemetadata.IPAddressMetadata{},
-			expectedIPAddressError: "invalid mask",
+			expectedIPV4Address:      nil,
+			expectedIPV4AddressError: "invalid mask",
 		},
 	}
 
@@ -178,9 +191,16 @@ func TestCEdgeInterface(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			ipAddress, err := itf.IPAddressMetadata(tt.namespace)
-			if tt.expectedIPAddressError != "" {
-				require.ErrorContains(t, err, tt.expectedIPAddressError)
+			ipv4Address, err := itf.IPV4AddressMetadata(tt.namespace)
+			if tt.expectedIPV4AddressError != "" {
+				require.ErrorContains(t, err, tt.expectedIPV4AddressError)
+			} else {
+				require.NoError(t, err)
+			}
+
+			ipv6Address, err := itf.IPV6AddressMetadata(tt.namespace)
+			if tt.expectedIPV6AddressError != "" {
+				require.ErrorContains(t, err, tt.expectedIPV6AddressError)
 			} else {
 				require.NoError(t, err)
 			}
@@ -191,7 +211,8 @@ func TestCEdgeInterface(t *testing.T) {
 			require.Equal(t, tt.expectedOperStatus, itf.OperStatus())
 			require.Equal(t, tt.expectedAdminStatus, itf.AdminStatus())
 			require.Equal(t, tt.expectedMetadata, itfMetadata)
-			require.Equal(t, tt.expectedIPAddress, ipAddress)
+			require.Equal(t, tt.expectedIPV4Address, ipv4Address)
+			require.Equal(t, tt.expectedIPV6Address, ipv6Address)
 		})
 	}
 }

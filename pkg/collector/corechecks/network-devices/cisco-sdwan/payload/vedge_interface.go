@@ -73,21 +73,34 @@ func (itf *VEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 	}, nil
 }
 
-// IPAddressMetadata returns the metadata for this interface's IP addresses
-func (itf *VEdgeInterface) IPAddressMetadata(namespace string) (devicemetadata.IPAddressMetadata, error) {
-	ip, prefiLen, err := parseIPFromVEdgeInterface(itf.IPAddress)
-	if err != nil {
-		return devicemetadata.IPAddressMetadata{}, fmt.Errorf("unable to process vEdge interface %s IP address : %s", itf.Ifname, err)
+// IPV4AddressMetadata returns the metadata for this interface's IPV4 addresses
+func (itf *VEdgeInterface) IPV4AddressMetadata(namespace string) (*devicemetadata.IPAddressMetadata, error) {
+	return itf.buildIPMetadata(namespace, itf.IPAddress)
+}
+
+// IPV6AddressMetadata returns the metadata for this interface's IPV6 addresses
+func (itf *VEdgeInterface) IPV6AddressMetadata(namespace string) (*devicemetadata.IPAddressMetadata, error) {
+	return itf.buildIPMetadata(namespace, itf.Ipv6Address)
+}
+
+func (itf *VEdgeInterface) buildIPMetadata(namespace, ipAddress string) (*devicemetadata.IPAddressMetadata, error) {
+	if isEmptyVEdgeIP(ipAddress) {
+		return nil, nil
 	}
 
-	return devicemetadata.IPAddressMetadata{
+	ip, prefixLen, err := parseVEdgeIP(ipAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	return &devicemetadata.IPAddressMetadata{
 		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, int(itf.Ifindex)),
 		IPAddress:   ip,
-		Prefixlen:   prefiLen,
+		Prefixlen:   prefixLen,
 	}, nil
 }
 
-func parseIPFromVEdgeInterface(ip string) (string, int32, error) {
+func parseVEdgeIP(ip string) (string, int32, error) {
 	ipaddr, ipv4Net, err := net.ParseCIDR(ip)
 	if err != nil {
 		return "", 0, err
@@ -95,4 +108,8 @@ func parseIPFromVEdgeInterface(ip string) (string, int32, error) {
 	prefixLen, _ := ipv4Net.Mask.Size()
 
 	return ipaddr.String(), int32(prefixLen), nil
+}
+
+func isEmptyVEdgeIP(ip string) bool {
+	return ip == "" || ip == "-"
 }

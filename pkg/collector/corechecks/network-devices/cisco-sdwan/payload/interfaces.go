@@ -25,8 +25,10 @@ type CiscoInterface interface {
 	AdminStatus() devicemetadata.IfAdminStatus
 	// Metadata returns the interface metadata
 	Metadata(namespace string) (devicemetadata.InterfaceMetadata, error)
-	// IPAddressMetadata returns the metadata for this interface's IP addresses
-	IPAddressMetadata(namespace string) (devicemetadata.IPAddressMetadata, error)
+	// IPV4AddressMetadata returns the metadata for this interface's IPV4 addresses
+	IPV4AddressMetadata(namespace string) (*devicemetadata.IPAddressMetadata, error)
+	// IPV6AddressMetadata returns the metadata for this interface's IPV6 addresses
+	IPV6AddressMetadata(namespace string) (*devicemetadata.IPAddressMetadata, error)
 }
 
 // GetInterfacesMetadata process interfaces API payloads to build interfaces metadata and tags
@@ -57,12 +59,17 @@ func GetInterfacesMetadata(namespace string, interfaces []CiscoInterface) ([]dev
 func GetIPAddressesMetadata(namespace string, interfaces []CiscoInterface) []devicemetadata.IPAddressMetadata {
 	var ipAddresses []devicemetadata.IPAddressMetadata
 	for _, itf := range interfaces {
-		ipAddress, err := itf.IPAddressMetadata(namespace)
+		ipv4Address, err := itf.IPV4AddressMetadata(namespace)
 		if err != nil {
-			log.Warnf("Unable to process IP address metadata for %s : %s", itf.ID(), err)
-			continue
+			log.Warnf("Unable to process IPV4 address metadata for %s : %s", itf.ID(), err)
 		}
-		ipAddresses = append(ipAddresses, ipAddress)
+		ipAddresses = appendIfNotNil(ipAddresses, ipv4Address)
+
+		ipv6Address, err := itf.IPV6AddressMetadata(namespace)
+		if err != nil {
+			log.Warnf("Unable to process IPV6 address metadata for %s : %s", itf.ID(), err)
+		}
+		ipAddresses = appendIfNotNil(ipAddresses, ipv6Address)
 	}
 	return ipAddresses
 }
@@ -77,6 +84,13 @@ func ConvertInterfaces(vEdgeInterfaces []client.InterfaceState, cEdgeInterfaces 
 		interfaces = append(interfaces, &CEdgeInterface{itf})
 	}
 	return interfaces
+}
+
+func appendIfNotNil[T any](slice []T, element *T) []T {
+	if element == nil {
+		return slice
+	}
+	return append(slice, *element)
 }
 
 func convertOperStatus(statusMap map[string]devicemetadata.IfOperStatus, status string) devicemetadata.IfOperStatus {

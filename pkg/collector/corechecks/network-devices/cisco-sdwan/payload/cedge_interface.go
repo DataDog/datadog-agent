@@ -93,38 +93,74 @@ func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 	}, nil
 }
 
-// IPAddressMetadata returns the metadata for this interface's IP addresses
-func (itf *CEdgeInterface) IPAddressMetadata(namespace string) (devicemetadata.IPAddressMetadata, error) {
+// IPV4AddressMetadata returns the metadata for this interface's IPV4 addresses
+func (itf *CEdgeInterface) IPV4AddressMetadata(namespace string) (*devicemetadata.IPAddressMetadata, error) {
+	if isEmptyCEdgeIP(itf.IPAddress) {
+		return nil, nil
+	}
+
 	index, err := itf.Index()
 	if err != nil {
-		return devicemetadata.IPAddressMetadata{}, fmt.Errorf("unable to process cEdge interface %s index : %s", itf.Ifname, err)
+		return nil, err
 	}
 
-	ip, prefiLen, err := parseIPFromCEdgeInterface(itf.IPAddress, itf.Ipv4SubnetMask)
+	ip, err := parseCEdgeIP(itf.IPAddress)
 	if err != nil {
-		return devicemetadata.IPAddressMetadata{}, fmt.Errorf("unable to process cEdge interface %s IP address : %s", itf.Ifname, err)
+		return nil, err
 	}
 
-	return devicemetadata.IPAddressMetadata{
+	prefixLen, err := parseMask(itf.Ipv4SubnetMask)
+	if err != nil {
+		return nil, err
+	}
+
+	return &devicemetadata.IPAddressMetadata{
 		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, index),
 		IPAddress:   ip,
-		Prefixlen:   prefiLen,
+		Prefixlen:   prefixLen,
 	}, nil
 }
 
-func parseIPFromCEdgeInterface(ip string, mask string) (string, int32, error) {
-	ipaddr := net.ParseIP(ip)
-	if ipaddr == nil {
-		return "", 0, fmt.Errorf("invalid ip address")
+// IPV6AddressMetadata returns the metadata for this interface's IPV6 addresses
+func (itf *CEdgeInterface) IPV6AddressMetadata(namespace string) (*devicemetadata.IPAddressMetadata, error) {
+	if isEmptyCEdgeIP(itf.IPV6Address) {
+		return nil, nil
 	}
 
+	index, err := itf.Index()
+	if err != nil {
+		return nil, err
+	}
+
+	ip, err := parseCEdgeIP(itf.IPV6Address)
+	if err != nil {
+		return nil, err
+	}
+
+	return &devicemetadata.IPAddressMetadata{
+		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, index),
+		IPAddress:   ip,
+	}, nil
+}
+
+func isEmptyCEdgeIP(ip string) bool {
+	return ip == ""
+}
+
+func parseCEdgeIP(ip string) (string, error) {
+	ipAddr := net.ParseIP(ip)
+	if ipAddr == nil {
+		return "", fmt.Errorf("invalid ip address")
+	}
+	return ipAddr.String(), nil
+}
+
+func parseMask(mask string) (int32, error) {
 	ipMask := net.ParseIP(mask)
 	if ipMask == nil {
-		return "", 0, fmt.Errorf("invalid mask")
+		return 0, fmt.Errorf("invalid mask")
 	}
-
 	parsedMask := net.IPMask(ipMask.To4())
 	prefixLen, _ := parsedMask.Size()
-
-	return ipaddr.String(), int32(prefixLen), nil
+	return int32(prefixLen), nil
 }
