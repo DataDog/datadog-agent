@@ -11,9 +11,9 @@ from collections import OrderedDict
 from datetime import date
 from time import sleep
 
+from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
-from gitlab import GitlabError
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.github_api import GithubAPI
@@ -1381,7 +1381,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
         try:
             gitlab_tag = repo.tags.get(str(new_version))
         except GitlabError:
-            break
+            continue
 
         sleep(5)
 
