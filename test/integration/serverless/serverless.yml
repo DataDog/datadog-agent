@@ -565,7 +565,7 @@ functions:
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-      - arn:aws:lambda:${self:provider.region}:184161586896:layer:opentelemetry-python-0_1_0:1
+      - arn:aws:lambda:${self:provider.region}:184161586896:layer:opentelemetry-python-0_5_0:1
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
       DD_API_KEY: NO_NEED_TO_BE_VALID
