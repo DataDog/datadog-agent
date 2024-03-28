@@ -44,8 +44,8 @@ func ConvertWindowsStringList(winput []uint16) []string {
 // of uint8, the underlying data is expected to be
 // uint16 (unicode)
 func ConvertWindowsString(winput []uint8) string {
-
-	p := (*[1 << 29]uint16)(unsafe.Pointer(&winput[0]))[: len(winput)/2 : len(winput)/2]
+	ptr := (*uint16)((unsafe.Pointer)(&winput[0]))
+	p := unsafe.Slice(ptr, len(winput)/2)
 	return windows.UTF16ToString(p)
 
 }
