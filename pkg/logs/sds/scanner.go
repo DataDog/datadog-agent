@@ -245,8 +245,10 @@ func (s *Scanner) Scan(event []byte, msg *message.Message) (bool, []byte, error)
 				msg.ProcessingTags = append(msg.ProcessingTags, rc.Tags...)
 			}
 		}
-		msg.ProcessingTags = append(msg.ProcessingTags, ScannedTag)
 	}
+	// TODO(remy): in the future, we might want to do it differently than
+	// using a tag.
+	msg.ProcessingTags = append(msg.ProcessingTags, ScannedTag)
 
 	return matched, processed, err
 }
