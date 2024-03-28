@@ -974,6 +974,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "database_monitoring.metrics.")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.enabled", false)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.region", "")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 
