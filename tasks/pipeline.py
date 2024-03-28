@@ -444,8 +444,6 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
         data['variables'] = [{'key': key, 'value': value} for (key, value) in data['variables'].items()]
 
         pipeline = repo.pipelines.create(data)
-        print('Pipeline', pipeline)
-        print(pipeline.web_url)
     except GitlabError as e:
         raise Exit(f"Failed to create child pipeline: {e}", code=1)
 
