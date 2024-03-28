@@ -94,6 +94,25 @@ package :deb do
   end
 end
 
+package :rpm do
+  skip_packager !generate_distro_package
+  vendor 'Datadog <package@datadoghq.com>'
+  epoch 1
+  dist_tag ''
+  license 'Apache License Version 2.0'
+  category 'System Environment/Daemons'
+  priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
+  if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
+    signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
+    end
+  end
+end
+
 package :xz do
   skip_packager generate_distro_package
 end
