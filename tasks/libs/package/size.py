@@ -72,6 +72,11 @@ def compute_package_size_metrics(
     bucket_branch: str,
     arch: str,
 ):
+    """
+    Takes a flavor, os, and package path, retrieves information about the size of the package and
+    of interesting binaries inside, and returns gauge metrics to report them to Datadog.
+    """
+
     from tasks.libs.datadog_api import create_gauge
 
     if flavor not in SCANNED_BINARIES.keys():

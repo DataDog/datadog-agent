@@ -81,6 +81,18 @@ def send_size(
     arch: str,
     send_series: bool = True,
 ):
+    """
+    For a provided package path, os and flavor, retrieves size information on the package and its included
+    Agent binaries, prints them, and sends them to Datadog.
+
+    The --major-version, --git-ref, --bucket-branch, and --arch parameters are used to add tags to the metrics.
+
+    Needs the DD_API_KEY environment variable to be set. Needs native utilities for the given os
+    to be present (du in all cases, dpkg for debian, rpm2cpio and cpio for centos/suse).
+
+    Use --no-send-series to skip the metrics submission part (and the need for a DD_API_KEY).
+    """
+
     from tasks.libs.datadog_api import send_metrics
 
     if not os.path.exists(package_path):
