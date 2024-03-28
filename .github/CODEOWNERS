@@ -258,10 +258,6 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-integrations
 /comp/core/workloadmeta @DataDog/container-integrations
-/comp/forwarder/eventplatform @DataDog/agent-processing-and-routing
-/comp/forwarder/eventplatformreceiver @DataDog/agent-processing-and-routing
-/comp/forwarder/orchestrator @DataDog/agent-processing-and-routing
-/comp/forwarder/orchestrator/orchestratorinterface @DataDog/agent-processing-and-routing
 /comp/metadata/packagesigning @DataDog/agent-build-and-releases
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/etw @DataDog/windows-agent
