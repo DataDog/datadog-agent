@@ -1220,6 +1220,7 @@ core,github.com/mattn/go-colorable,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-isatty,MIT,Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>
 core,github.com/mattn/go-runewidth,MIT,Copyright (c) 2016 Yasuhiro Matsumoto
 core,github.com/mattn/go-shellwords,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
+core,github.com/mattn/go-sqlite3,MIT,Copyright (c) 2014 Yasuhiro Matsumoto
 core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
