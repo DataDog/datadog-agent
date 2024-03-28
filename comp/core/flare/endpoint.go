@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type EndpointProvider struct {
@@ -23,6 +22,8 @@ type EndpointProvider struct {
 // ServeHTTP implements the http.Handler interface for the provided endpoint creating a flare
 func (e EndpointProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var profile ProfileData
+
+	log := e.flareComp.log
 
 	if r.Body != http.NoBody {
 		body, err := io.ReadAll(r.Body)
