@@ -27,6 +27,7 @@ from tasks import (
     msi,
     new_e2e_tests,
     notify,
+    owners,
     package,
     pipeline,
     process_agent,
@@ -155,6 +156,7 @@ ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
 ns.add_collection(updater)
+ns.add_collection(owners)
 ns.configure(
     {
         'run': {
