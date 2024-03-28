@@ -64,3 +64,14 @@ agent_oci:
     ]
   variables:
     OCI_PRODUCT: "datadog-agent"
+
+updater_oci:
+  extends: .package_oci
+  rules: !reference [.on_a7]
+  needs:
+    [
+      "updater-arm64",
+      "updater-amd64",
+    ]
+  variables:
+    OCI_PRODUCT: "datadog-updater"
