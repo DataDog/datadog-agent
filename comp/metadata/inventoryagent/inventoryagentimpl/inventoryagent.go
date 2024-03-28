@@ -255,8 +255,8 @@ func (ia *inventoryagent) fetchProcessAgentMetadata() {
 
 func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// If the system-probe configuration is not loaded we fallback on zero value for all metadata
-	getBoolSysProbe := func(key string) bool { return false }
-	getIntSysProbe := func(key string) int { return 0 }
+	getBoolSysProbe := func(_ string) bool { return false }
+	getIntSysProbe := func(_ string) int { return 0 }
 
 	localSysProbeConf, isSet := ia.sysprobeConf.Get()
 	if isSet {
