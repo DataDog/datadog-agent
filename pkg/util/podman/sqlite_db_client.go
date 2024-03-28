@@ -58,9 +58,9 @@ func NewSQLDBClient(dbPath string) *SQLDBClient {
 	}
 }
 
+// getDBCon opens a connection to the SQLite-backed state database.
 // Note: original function comes from https://github.com/containers/podman/blob/e71ec6f1d94d2d97fb3afe08aae0d8adaf8bddf0/libpod/sqlite_state.go#L57-L96
 // It was adapted as we don't need to write any information to the DB.
-// getDBCon opens a connection to the SQLite-backed state database.
 func (client *SQLDBClient) getDBCon() (*sql.DB, error) {
 	conn, err := sql.Open("sqlite3", filepath.Join(client.DBPath, sqliteOptions))
 	if err != nil {
@@ -69,7 +69,7 @@ func (client *SQLDBClient) getDBCon() (*sql.DB, error) {
 	return conn, nil
 }
 
-// AllContainers retrieves all the containers in the database.
+// GetAllContainers retrieves all the containers in the database.
 // We retrieve the state always.
 func (client *SQLDBClient) GetAllContainers() ([]Container, error) {
 	var res []Container
