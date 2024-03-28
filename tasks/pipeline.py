@@ -103,7 +103,6 @@ def check_deploy_pipeline(repo: Project, git_ref, release_version_6, release_ver
             print(f"Successfully cross checked v7 tag {tag_name} and git ref {git_ref}")
 
 
-# TODO Cc : Tested
 @task
 def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_sha=False, sha=None):
     """
@@ -166,7 +165,6 @@ instead.""",
     )
 
 
-# TODO Cc : Tested
 @task
 def auto_cancel_previous_pipelines(ctx):
     """
@@ -337,7 +335,6 @@ def run(
     wait_for_pipeline(repo, pipeline)
 
 
-# TODO Cc : Tested
 @task
 def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog-agent"):
     """
@@ -389,7 +386,6 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
     wait_for_pipeline(repo, pipeline)
 
 
-# TODO Cc : Tested
 @task(iterable=['variable'])
 def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True):
     """
@@ -583,7 +579,6 @@ def changelog(ctx, new_commit_sha):
     )
 
 
-# TODO Cc : Tested
 @task
 def get_schedules(_):
     """
