@@ -148,7 +148,7 @@ def trigger_agent_pipeline(
     try:
         variables = [{'key': key, 'value': value} for (key, value) in args.items()]
 
-        return repo.pipelines.create({'ref':ref, 'variables': variables})
+        return repo.pipelines.create({'ref': ref, 'variables': variables})
     except GitlabError as e:
         if "filtered out by workflow rules" in e.error_message:
             raise FilteredOutException

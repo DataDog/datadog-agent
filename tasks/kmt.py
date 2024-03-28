@@ -143,20 +143,20 @@ def gen_config_from_ci_pipeline(
     pipeline_obj = repo.pipelines.get(pipeline)
     jobs = pipeline_obj.jobs.list(per_page=100, all=True)
     for job in jobs:
-        jobinfo = job.asdict()
-        name = jobinfo.get("name", "")
+        name = job.name
 
         if (
             (vcpu is None or memory is None)
             and name.startswith("kmt_setup_env")
-            and job["status"] == "success"
+            and job.status == "success"
         ):
             arch = "x86_64" if "x64" in name else "arm64"
             vmconfig_name = f"vmconfig-{pipeline}-{arch}.json"
             info(f"[+] retrieving {vmconfig_name} for {arch} from job {name}")
 
             try:
-                data = pipeline_obj.jobs.get(job.id).artifact(vmconfig_name).asdict()
+                data = repo.jobs.get(job.id, lazy=True).artifact(vmconfig_name)
+                data = json.loads(data)
             except Exception as e:
                 warn(f"[-] failed to retrieve artifact {vmconfig_name}: {e}")
                 continue
@@ -171,7 +171,7 @@ def gen_config_from_ci_pipeline(
                 if vcpu is None and len(vcpu_list) > 0:
                     vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
-        elif name.startswith(f"kmt_run_{test_job_prefix}") and job["status"] == "failed":
+        elif name.startswith(f"kmt_run_{test_job_prefix}") and job.status == "failed":
             arch = "x86" if "x64" in name else "arm64"
             match = re.search(r"\[(.*)\]", name)
 
