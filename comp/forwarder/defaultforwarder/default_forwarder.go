@@ -59,8 +59,6 @@ type Response struct {
 
 // Forwarder interface allows packages to send payload to the backend
 type Forwarder interface {
-	Start() error
-	Stop()
 	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
