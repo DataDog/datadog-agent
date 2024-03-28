@@ -59,12 +59,28 @@ description 'Datadog Updater
  See http://www.datadoghq.com/ for more information
 '
 
+if ENV["OMNIBUS_PACKAGE_ARTIFACT"]
+  dependency "package-artifact"
+  generate_distro_package = true
+else
+  # creates required build directories
+  dependency 'preparation'
+
+  dependency 'updater'
+
+  # version manifest file
+  dependency 'version-manifest'
+  generate_distro_package = false
+end
+
+
 # ------------------------------------
 # Generic package information
 # ------------------------------------
 
 # .deb specific flags
 package :deb do
+  skip_packager !generate_distro_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -79,20 +95,12 @@ package :deb do
 end
 
 package :xz do
-  skip_packager true
+  skip_packager generate_distro_package
 end
 
 # ------------------------------------
 # Dependencies
 # ------------------------------------
-
-# creates required build directories
-dependency 'preparation'
-
-dependency 'updater'
-
-# version manifest file
-dependency 'version-manifest'
 
 if linux_target?
   systemd_directory = "/usr/lib/systemd/system"
