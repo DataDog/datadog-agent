@@ -38,6 +38,16 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
 #endif
 }
 
+__attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *device) {
+    struct net *net = NULL;
+    int ret = bpf_probe_read(&net, sizeof(net), &device->nd_net.net);
+    if (!ret || !net) {
+        return 0;
+    }
+
+    return get_netns_from_net(net);
+}
+
 __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {
     u64 sock_common_skc_net_offset;
     LOAD_CONSTANT("sock_common_skc_net_offset", sock_common_skc_net_offset);
