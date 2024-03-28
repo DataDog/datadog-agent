@@ -32,6 +32,7 @@ type MockedContainerdClient struct {
 	MockContainerWithCtx      func(ctx context.Context, namespace string, id string) (containerd.Container, error)
 	MockMetadata              func() (containerd.Version, error)
 	MockListImages            func(namespace string) ([]containerd.Image, error)
+	MockListImagesWithDigest  func(namespace string, digest string) ([]containerd.Image, error)
 	MockImage                 func(namespace string, name string) (containerd.Image, error)
 	MockImageOfContainer      func(namespace string, ctn containerd.Container) (containerd.Image, error)
 	MockImageSize             func(namespace string, ctn containerd.Container) (int64, error)
@@ -66,6 +67,11 @@ func (client *MockedContainerdClient) CheckConnectivity() *retry.Error {
 // ListImages is a mock method
 func (client *MockedContainerdClient) ListImages(namespace string) ([]containerd.Image, error) {
 	return client.MockListImages(namespace)
+}
+
+// ListImagesWithDigest is a mock method
+func (client *MockedContainerdClient) ListImagesWithDigest(namespace string, digest string) ([]containerd.Image, error) {
+	return client.MockListImagesWithDigest(namespace, digest)
 }
 
 // Image is a mock method
