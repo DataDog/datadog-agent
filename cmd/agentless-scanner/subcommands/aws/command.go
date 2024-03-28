@@ -263,6 +263,7 @@ func awsCleanupCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 }
 
 func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+	ctx, cancel := context.WithCancel(ctx)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -303,7 +304,7 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 			Type:  types.ConfigTypeAWS,
 			Tasks: []*types.ScanTask{task},
 		})
-		scanner.Stop()
+		cancel()
 	}()
 	scanner.Start(ctx, statsd, sc)
 	return nil
@@ -312,6 +313,7 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
 	defer statsd.Flush()
 
+	ctx, cancel := context.WithCancel(ctx)
 	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
@@ -566,7 +568,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	}
 
 	go func() {
-		defer scanner.Stop()
+		defer cancel()
 		var err error
 		switch taskType {
 		case types.TaskTypeEBS:
