@@ -62,6 +62,11 @@ func (fc *SimpleEventConsumer) EventTypes() []model.EventType {
 	}
 }
 
+// ChanSize returns the chan size used by the consumer
+func (fc *SimpleEventConsumer) ChanSize() int {
+	return 50
+}
+
 // HandleEvent handles this event
 // Implement the consumer interface
 func (fc *SimpleEventConsumer) HandleEvent(event any) {
