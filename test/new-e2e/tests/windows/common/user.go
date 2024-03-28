@@ -222,3 +222,11 @@ func GetUserRightsForUser(host *components.RemoteHost, user string) ([]string, e
 	}
 	return result, nil
 }
+
+// RemoveLocalUser Removes a local user account
+// NOTE: this does not remove the user profile, which without a reboot is probably locked by the system.
+func RemoveLocalUser(host *components.RemoteHost, user string) error {
+	cmd := fmt.Sprintf(`Remove-LocalUser -Name "%s"`, user)
+	_, err := host.Execute(cmd)
+	return err
+}

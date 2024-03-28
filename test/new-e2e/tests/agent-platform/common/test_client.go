@@ -237,7 +237,7 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 		return nil, false
 	}
 
-	boundPort, err := GetBoundPort(client, port)
+	boundPort, err := GetBoundPort(client.Host, port)
 	if !assert.NoError(t, err) {
 		return nil, false
 	}
@@ -251,8 +251,8 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 }
 
 // GetBoundPort returns a port that is bound on the host, or nil if the port is not bound
-func GetBoundPort(client *TestClient, port int) (boundport.BoundPort, error) {
-	ports, err := boundport.BoundPorts(client.Host)
+func GetBoundPort(host *components.RemoteHost, port int) (boundport.BoundPort, error) {
+	ports, err := boundport.BoundPorts(host)
 	if err != nil {
 		return nil, err
 	}
