@@ -400,8 +400,13 @@
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
+/pkg/logs/client                        @DataDog/agent-processing-and-routing
+/pkg/logs/diagnostic                    @DataDog/agent-processing-and-routing
+/pkg/logs/message                       @DataDog/agent-processing-and-routing
+/pkg/logs/pipeline                      @DataDog/agent-processing-and-routing
 /pkg/logs/processor                     @DataDog/agent-processing-and-routing
 /pkg/logs/sds                           @DataDog/agent-processing-and-routing
+/pkg/logs/sender                        @DataDog/agent-processing-and-routing
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/util/netns*.go             @DataDog/Networks
