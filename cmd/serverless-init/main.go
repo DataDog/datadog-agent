@@ -50,6 +50,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const datadogConfigPath = "datadog.yaml"
+
 func main() {
 
 	loggerName, _ := mode.DetectMode()
@@ -61,7 +63,7 @@ func main() {
 		tagger.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 		fx.Supply(core.BundleParams{
-			ConfigParams: coreconfig.NewAgentParams("", coreconfig.WithConfigMissingOK(true)),
+			ConfigParams: coreconfig.NewParams(datadogConfigPath, coreconfig.WithConfigMissingOK(true)),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    logimpl.ForOneShot(loggerName, "off", true)}),
 		core.Bundle(),
@@ -145,7 +147,7 @@ func setupHealthCheck() {
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: "datadog.yaml"}, nil, random.Random.Uint64())
+	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil, random.Random.Uint64())
 	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
