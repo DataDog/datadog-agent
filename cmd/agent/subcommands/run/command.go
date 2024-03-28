@@ -219,7 +219,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	expvarserver expvarserver.Component,
+	_ expvarserver.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -283,7 +283,6 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
-		expvarserver,
 	); err != nil {
 		return err
 	}
@@ -423,7 +422,6 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	_ expvarserver.Component,
 ) error {
 
 	var err error
