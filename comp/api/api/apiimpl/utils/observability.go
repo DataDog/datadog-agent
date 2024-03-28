@@ -25,11 +25,8 @@ func getLogFunc(code int) logFunc {
 	if code >= 100 && code < 400 {
 		return log.Debugf
 	}
-	if code >= 400 && code < 500 {
-		return func(format string, args ...interface{}) { log.Warnf(format, args...) }
-	}
-	// >= 500 or < 100
-	return func(format string, args ...interface{}) { log.Errorf(format, args...) }
+	// >= 400 or < 100
+	return func(format string, args ...interface{}) { log.Warnf(format, args...) }
 }
 
 // LogResponseHandler is a middleware that logs the response code and other various information about the request
