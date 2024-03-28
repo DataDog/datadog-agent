@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -70,6 +71,8 @@ const (
 	ConnectionByteKeyMaxLen = 41
 
 	stateModuleName = "network_tracer__state"
+
+	shortLivedConnectionThreshold = 2 * time.Minute
 )
 
 // State takes care of handling the logic for:
@@ -259,31 +262,45 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry   time.Duration
-	maxClosedConns uint32
-	maxClientStats int
-	maxDNSStats    int
-	maxHTTPStats   int
-	maxKafkaStats  int
+	clientExpiry                time.Duration
+	maxClosedConns              uint32
+	maxClientStats              int
+	maxDNSStats                 int
+	maxHTTPStats                int
+	maxKafkaStats               int
+	enableConnectionRollup      bool
+	processEventConsumerEnabled bool
 
 	mergeStatsBuffers [2][]byte
+
+	localResolver LocalResolver
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
-	return &networkState{
-		clients:        map[string]*client{},
-		clientExpiry:   clientExpiry,
-		maxClosedConns: maxClosedConns,
-		maxClientStats: maxClientStats,
-		maxDNSStats:    maxDNSStats,
-		maxHTTPStats:   maxHTTPStats,
-		maxKafkaStats:  maxKafkaStats,
+func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+	ns := &networkState{
+		clients:                map[string]*client{},
+		clientExpiry:           clientExpiry,
+		maxClosedConns:         maxClosedConns,
+		maxClientStats:         maxClientStats,
+		maxDNSStats:            maxDNSStats,
+		maxHTTPStats:           maxHTTPStats,
+		maxKafkaStats:          maxKafkaStats,
+		enableConnectionRollup: enableConnectionRollup,
 		mergeStatsBuffers: [2][]byte{
 			make([]byte, ConnectionByteKeyMaxLen),
 			make([]byte, ConnectionByteKeyMaxLen),
 		},
+		localResolver:               NewLocalResolver(processEventConsumerEnabled),
+		processEventConsumerEnabled: processEventConsumerEnabled,
 	}
+
+	if ns.enableConnectionRollup && !processEventConsumerEnabled {
+		log.Warnf("disabling port rollups since network event consumer is not enabled")
+		ns.enableConnectionRollup = false
+	}
+
+	return ns
 }
 
 //nolint:unused // TODO(NET) Fix unused linter
@@ -351,11 +368,19 @@ func (ns *networkState) GetDelta(
 	// Update all connections with relevant up-to-date stats for client
 	active, closed := ns.mergeConnections(id, active)
 
+	cs := slice.NewChain(active, closed)
+	ns.determineConnectionIntraHost(cs)
+
+	// resolve local connections if rollups are enabled
+	if ns.enableConnectionRollup {
+		ns.localResolver.Resolve(cs)
+	}
+
 	if len(dnsStats) > 0 {
 		ns.storeDNSStats(dnsStats)
 	}
 
-	aggr := newConnectionAggregator((len(closed)+len(active))/2, client.dnsStats)
+	aggr := newConnectionAggregator((len(closed)+len(active))/2, ns.enableConnectionRollup, ns.processEventConsumerEnabled, client.dnsStats)
 	active = filterConnections(active, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
@@ -365,8 +390,6 @@ func (ns *networkState) GetDelta(
 	})
 
 	aggr.finalize()
-
-	ns.determineConnectionIntraHost(slice.NewChain(active, closed))
 
 	for protocolType, protocolStats := range usmStats {
 		switch protocolType {
@@ -1100,22 +1123,113 @@ type aggregateConnection struct {
 	count             uint32
 }
 
-type connectionAggregator struct {
-	conns    map[string][]*aggregateConnection
-	buf      []byte
-	dnsStats dns.StatsByKeyByNameByType
-}
-
-func newConnectionAggregator(size int, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
-	return &connectionAggregator{
-		conns:    make(map[string][]*aggregateConnection, size),
-		buf:      make([]byte, ConnectionByteKeyMaxLen),
-		dnsStats: dnsStats,
+type aggregationKey struct {
+	// connKey is the key returned by ConnectionStats.ByteKey()
+	connKey    string
+	direction  ConnectionDirection
+	containers struct {
+		source, dest *intern.Value
 	}
 }
 
-func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation) bool {
-	return t1 == t2 || t1 == nil || t2 == nil || *t1 == *t2
+type connectionAggregator struct {
+	conns                       map[aggregationKey][]*aggregateConnection
+	buf                         []byte
+	dnsStats                    dns.StatsByKeyByNameByType
+	enablePortRollups           bool
+	processEventConsumerEnabled bool
+}
+
+func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
+	return &connectionAggregator{
+		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
+		buf:                         make([]byte, ConnectionByteKeyMaxLen),
+		dnsStats:                    dnsStats,
+		enablePortRollups:           enablePortRollups,
+		processEventConsumerEnabled: processEventConsumerEnabled,
+	}
+}
+
+func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
+	key.connKey = string(c.ByteKey(a.buf))
+	key.direction = c.Direction
+	if a.processEventConsumerEnabled {
+		key.containers.source = c.ContainerID.Source
+	}
+
+	if !a.enablePortRollups {
+		return key, false, false
+	}
+
+	// local resolution is done in system-probe if rollups
+	// are enabled, so add the destination container id to
+	// the key as well
+	key.containers.dest = c.ContainerID.Dest
+
+	isShortLived := c.IsClosed && (c.Duration > 0 && c.Duration < shortLivedConnectionThreshold)
+	sportRolledUp = c.Direction == OUTGOING
+	dportRolledUp = c.Direction == INCOMING
+
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("type=%s isShortLived=%+v sportRolledUp=%+v", c.Type, isShortLived, sportRolledUp)
+	})
+	if !isShortLived ||
+		(!sportRolledUp && !dportRolledUp) {
+		log.TraceFunc(func() string { return fmt.Sprintf("not rolling up connection %+v ", c) })
+		return key, false, false
+	}
+
+	log.TraceFunc(func() string { return fmt.Sprintf("rolling up connection %+v ", c) })
+
+	if sportRolledUp {
+		sport := c.SPort
+		// set source port to 0 temporarily for key generation
+		c.SPort = 0
+		defer func() {
+			c.SPort = sport
+		}()
+	}
+
+	if dportRolledUp {
+		dport := c.DPort
+		// set dest port to 0 temporarily for key generation
+		c.DPort = 0
+		defer func() {
+			c.DPort = dport
+		}()
+	}
+
+	key.connKey = string(c.ByteKey(a.buf))
+	return key, sportRolledUp, dportRolledUp
+}
+
+func (a *connectionAggregator) canAggregateIPTranslation(t1, t2 *IPTranslation, sportRolledUp, dportRolledUp bool) bool {
+	if t1 == t2 || t1 == nil || t2 == nil || *t1 == *t2 {
+		return true
+	}
+
+	// *t1 != *t2
+	if !sportRolledUp && !dportRolledUp {
+		return false
+	}
+
+	if sportRolledUp {
+		d1, d2 := t1.ReplDstPort, t2.ReplDstPort
+		t1.ReplDstPort, t2.ReplDstPort = 0, 0
+		defer func() {
+			t1.ReplDstPort, t2.ReplDstPort = d1, d2
+		}()
+	}
+
+	if dportRolledUp {
+		s1, s2 := t1.ReplSrcPort, t2.ReplSrcPort
+		t1.ReplSrcPort, t2.ReplSrcPort = 0, 0
+		defer func() {
+			t1.ReplSrcPort, t2.ReplSrcPort = s1, s2
+		}()
+	}
+
+	return *t1 == *t2
 }
 
 func (a *connectionAggregator) canAggregateProtocolStack(p1, p2 protocols.Stack) bool {
@@ -1147,7 +1261,7 @@ func (a *connectionAggregator) dns(c *ConnectionStats) map[dns.Hostname]map[dns.
 //   - the other connection's protocol stack is unknown
 //   - the other connection's protocol stack is not unknown AND equal
 func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
-	key := string(c.ByteKey(a.buf))
+	key, sportRolledUp, dportRolledUp := a.key(c)
 
 	// get dns stats for connection
 	c.DNSStats = a.dns(c)
@@ -1166,12 +1280,32 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	}
 
 	for _, aggrConn := range aggrConns {
-		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation) ||
+		if !a.canAggregateIPTranslation(aggrConn.IPTranslation, c.IPTranslation, sportRolledUp, dportRolledUp) ||
 			!a.canAggregateProtocolStack(aggrConn.ProtocolStack, c.ProtocolStack) {
 			continue
 		}
 
 		aggrConn.merge(c)
+
+		if sportRolledUp {
+			// more than one connection with
+			// source port dropped in key,
+			// so set source port to 0
+			aggrConn.SPort = 0
+			if aggrConn.IPTranslation != nil {
+				aggrConn.IPTranslation.ReplDstPort = 0
+			}
+		}
+		if dportRolledUp {
+			// more than one connection with
+			// dest port dropped in key,
+			// so set dest port to 0
+			aggrConn.DPort = 0
+			if aggrConn.IPTranslation != nil {
+				aggrConn.IPTranslation.ReplSrcPort = 0
+			}
+		}
+
 		return true
 	}
 

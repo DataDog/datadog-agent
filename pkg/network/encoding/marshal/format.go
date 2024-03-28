@@ -57,18 +57,23 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetPid(int32(conn.Pid))
 
 	var containerID string
-	if conn.ContainerID != nil {
-		containerID = *conn.ContainerID
+	if conn.ContainerID.Source != nil {
+		containerID = conn.ContainerID.Source.Get().(string)
 	}
-
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Source))
 		w.SetPort(int32(conn.SPort))
 		w.SetContainerId(containerID)
 	})
+
+	containerID = ""
+	if conn.ContainerID.Dest != nil {
+		containerID = conn.ContainerID.Dest.Get().(string)
+	}
 	builder.SetRaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Dest))
 		w.SetPort(int32(conn.DPort))
+		w.SetContainerId(containerID)
 	})
 	builder.SetFamily(uint64(formatFamily(conn.Family)))
 	builder.SetType(uint64(formatType(conn.Type)))
