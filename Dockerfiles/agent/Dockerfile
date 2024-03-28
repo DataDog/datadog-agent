@@ -109,6 +109,7 @@ FROM baseimage AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
+ARG BASE_IMAGE_UBUNTU_VERSION
 ENV DOCKER_DD_AGENT=true \
     DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
@@ -131,7 +132,14 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser curl ca-certificates gnupg
+
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+
+RUN curl https://packages.microsoft.com/config/ubuntu/${BASE_IMAGE_UBUNTU_VERSION}/prod.list | tee /etc/apt/sources.list.d/mssql-release.list
+
+RUN apt update \
+  && ACCEPT_EULA=Y apt install -y msodbcsql18
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
