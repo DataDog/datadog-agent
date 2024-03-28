@@ -41,7 +41,6 @@
 # build agent6 py2 image
 docker_build_agent6:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -66,7 +65,6 @@ docker_build_agent6_arm64:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -95,7 +93,6 @@ docker_build_agent6_jmx_arm64:
 # build agent6 jmx unified image (including python3)
 docker_build_agent6_py2py3_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a6]
   needs:
     - job: agent_deb-x64-a6
       artifacts: false
@@ -108,7 +105,6 @@ docker_build_agent6_py2py3_jmx:
 # build agent7 image
 docker_build_agent7:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
   needs:
     - job: agent_deb-x64-a7
       artifacts: false
@@ -121,7 +117,6 @@ docker_build_agent7:
 single_machine_performance-amd64-a7:
   extends: .docker_publish_job_definition
   stage: container_build
-  rules: !reference [.on_a7]
   needs:
     - docker_build_agent7
   variables:
@@ -131,7 +126,6 @@ single_machine_performance-amd64-a7:
 
 docker_build_agent7_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false
@@ -144,7 +138,6 @@ docker_build_agent7_arm64:
 # build agent7 jmx image
 docker_build_agent7_jmx:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
   needs:
     - job: agent_deb-x64-a7
       artifacts: false
@@ -156,7 +149,6 @@ docker_build_agent7_jmx:
 
 docker_build_agent7_jmx_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
   needs:
     - job: agent_deb-arm64-a7
       artifacts: false
@@ -215,7 +207,6 @@ docker_build_cws_instrumentation_arm64:
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
   extends: .docker_build_job_definition_amd64
-  rules: !reference [.on_a7]
   needs:
     - job: build_dogstatsd_static-binary_x64
       artifacts: false
@@ -226,7 +217,6 @@ docker_build_dogstatsd_amd64:
 # build the dogstatsd image
 docker_build_dogstatsd_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_a7]
   needs:
     - job: build_dogstatsd_static-binary_arm64
       artifacts: false
