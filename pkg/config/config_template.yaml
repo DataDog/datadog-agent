@@ -2867,6 +2867,17 @@ api_key:
 #
 # podman_db_path: /var/lib/containers/storage/libpod/bolt_state.db
 
+## @param podman_use_sqlite - boolean - optional - default: false
+## Set to true if Podman DB is SQLite (default in podman 4.8: https://github.com/containers/podman/blob/main/RELEASE_NOTES.md#480)
+#
+# podman_use_sqlite: false
+
+## @param podman_sqlite_db_path - string - optional - default: /var/lib/containers/storage
+## Directory with `db.sql` of Podman DB. The default value is for rootfull containers.
+## Rootless containers are stored in `$HOME/.local/share/containers/storage/` by default.
+#
+# podman_sqlite_db_path: /var/lib/containers/storage
+
 {{ end -}}
 {{- if .ClusterAgent }}
 

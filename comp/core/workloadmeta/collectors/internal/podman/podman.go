@@ -63,7 +63,11 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
+	if !config.Datadog.GetBool("podman_use_sqlite") {
+		c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
+	} else {
+		c.client = podman.NewSQLDBClient(config.Datadog.GetString("podman_sqlite_db_path"))
+	}
 	c.store = store
 
 	return nil

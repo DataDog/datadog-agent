@@ -632,6 +632,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Podman
 	config.BindEnvAndSetDefault("podman_db_path", "/var/lib/containers/storage/libpod/bolt_state.db")
+	config.BindEnvAndSetDefault("podman_use_sqlite", false)
+	config.BindEnvAndSetDefault("podman_sqlite_db_path", "/var/lib/containers/storage")
 
 	// Kubernetes
 	config.BindEnvAndSetDefault("kubernetes_kubelet_host", "")
