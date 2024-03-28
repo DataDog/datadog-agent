@@ -34,6 +34,8 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPCloseCleanProtocolsReturn,
 	probes.TCPCloseFlushReturn,
 	probes.TCPConnect,
+	probes.TCPConnectReturn,
+	probes.TCPv4ConnectReturn,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
 	probes.IPMakeSkbReturn,
@@ -59,7 +61,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
+func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler, runtimeTracer bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -83,6 +85,8 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.TCPCloseProgsMap},
 	}
 	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
+	util.SetupFailedConnHandler(failedConnsHandler, mgr, cfg)
+
 	for _, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
