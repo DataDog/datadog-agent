@@ -270,16 +270,12 @@ def codecov_flavor(
 
     def command(_empty_result, module, _module_result):
         # Codecov flags are limited to 45 characters
-        tag = f"{platform.system()}-{flavor.name}-{module.codecov_path()}"
-        if len(tag) > 45:
-            # Best-effort attempt to get a unique and legible tag name
-            tag = f"{platform.system()[:1]}-{flavor.name}-{module.codecov_path()}"[:45]
-
+        tag = "flag_to_remove"
         # The codecov command has to be run from the root of the repository, otherwise
         # codecov gets confused and merges the roots of all modules, resulting in a
         # nonsensical directory tree in the codecov app
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
-        ctx.run(f"codecov -f {path} -F {tag}", warn=True)
+        ctx.run(f"codecovcli -f {path} -F {tag}", warn=True)
 
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
