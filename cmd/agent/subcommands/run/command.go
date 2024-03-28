@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 
+	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -110,7 +111,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
-	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
@@ -219,6 +219,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	metadatascheduler metadatascheduler.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -282,6 +283,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		metadatascheduler,
 	); err != nil {
 		return err
 	}
@@ -421,6 +423,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ metadatascheduler.Component,
 ) error {
 
 	var err error
@@ -616,15 +619,6 @@ func startAgent(
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
 
-	// setup the metadata collection
-	//
-	// The last metadata provider relying on `pkg/metadata` is "agent_checks" from the collector.
-	// TODO: (components) - Remove this once the collector and its metadata provider are a component.
-	common.MetadataScheduler = pkgMetadata.NewScheduler(demultiplexer)
-	if err := pkgMetadata.SetupMetadataCollection(common.MetadataScheduler, pkgMetadata.AllDefaultCollectors); err != nil {
-		return err
-	}
-
 	// start dependent services
 	go startDependentServices()
 
@@ -653,9 +647,6 @@ func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 		}
 	}
 
-	if common.MetadataScheduler != nil {
-		common.MetadataScheduler.Stop()
-	}
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
