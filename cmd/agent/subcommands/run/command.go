@@ -63,7 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -194,7 +193,6 @@ func run(log log.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	_ replay.Component,
-	_ pidmap.Component,
 	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
