@@ -3,6 +3,7 @@ mkdocs-material~=9.5.1
 # Plugins
 mkdocs-minify-plugin~=0.7.1
 mkdocs-git-revision-date-localized-plugin~=1.2.1
+mkdocs-glightbox~=0.3.5
 # Extensions
 pymdown-extensions~=10.5.0
 # Necessary for syntax highlighting in code blocks
