@@ -1,0 +1,6 @@
+lading:
+  version: 0.20.9
+
+target:
+  cpu_allotment: 7
+  memory_allotment: 30g
