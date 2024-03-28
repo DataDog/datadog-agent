@@ -23,7 +23,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Supply(params{defaultExitTicker: 30 * time.Second}),
+		fx.Supply(params{exitTicker: 30 * time.Second}),
 		fx.Provide(newAutoExit),
 	)
 }
@@ -38,12 +38,8 @@ type dependencies struct {
 }
 
 type params struct {
-	defaultExitTicker time.Duration
+	exitTicker time.Duration
 }
-
-// const (
-// 	defaultExitTicker = 30 * time.Second
-// )
 
 // ExitDetector is common interface for shutdown mechanisms
 type ExitDetector interface {
@@ -73,7 +69,7 @@ func newAutoExit(deps dependencies) (autoexit.Component, error) {
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			return start(ctx, sd, deps.Params.defaultExitTicker, validationPeriod, deps.Logger)
+			return start(ctx, sd, deps.Params.exitTicker, validationPeriod, deps.Logger)
 		},
 		OnStop: func(_ context.Context) error {
 			cancel()
