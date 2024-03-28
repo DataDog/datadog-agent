@@ -58,7 +58,7 @@ import (
 type testdeps struct {
 	fx.In
 
-	// Flare                 flare.Component
+	// additional StartServer arguments
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component

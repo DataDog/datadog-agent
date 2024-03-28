@@ -17,7 +17,7 @@ import (
 )
 
 type EndpointProvider struct {
-	flareComp *Flare
+	flareComp *flare
 }
 
 func (EndpointProvider) Method() string {

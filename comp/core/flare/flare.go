@@ -55,7 +55,7 @@ type provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-type Flare struct {
+type flare struct {
 	log          log.Component
 	config       config.Component
 	params       Params
@@ -65,7 +65,7 @@ type Flare struct {
 
 func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) {
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
-	f := &Flare{
+	f := &flare{
 		log:          deps.Log,
 		config:       deps.Config,
 		params:       deps.Params,
@@ -84,7 +84,7 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
 }
 
-func (f *Flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
+func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclienttypes.AgentTaskConfig) (bool, error) {
 	if taskType != rcclienttypes.TaskFlare {
 		return false, nil
 	}
@@ -109,14 +109,14 @@ func (f *Flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 }
 
 // Send sends a flare archive to Datadog
-func (f *Flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
+func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
 	return helpers.SendTo(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
 }
 
 // Create creates a new flare and returns the path to the final archive file.
-func (f *Flare) Create(pdata ProfileData, ipcError error) (string, error) {
+func (f *flare) Create(pdata ProfileData, ipcError error) (string, error) {
 	fb, err := helpers.NewFlareBuilder(f.params.local)
 	if err != nil {
 		return "", err

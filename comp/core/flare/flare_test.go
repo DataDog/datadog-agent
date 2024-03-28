@@ -54,6 +54,6 @@ func TestFlareCreation(t *testing.T) {
 		),
 	)
 
-	assert.Len(t, f.Comp.(*Flare).providers, 1)
-	assert.NotNil(t, f.Comp.(*Flare).providers[0])
+	assert.Len(t, f.Comp.(*flare).providers, 1)
+	assert.NotNil(t, f.Comp.(*flare).providers[0])
 }
