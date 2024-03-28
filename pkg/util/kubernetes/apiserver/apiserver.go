@@ -122,6 +122,9 @@ type APIClient struct {
 	defaultClientTimeout        time.Duration
 	defaultInformerTimeout      time.Duration
 	defaultInformerResyncPeriod time.Duration
+
+	// Config
+	config *rest.Config
 }
 
 func initAPIClient() {
@@ -273,8 +276,18 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 	return informers.NewSharedInformerFactoryWithOptions(c.InformerCl, *resyncPeriod, options...)
 }
 
+func (c *APIClient) GetRestConfig() *rest.Config {
+	return c.config
+}
+
 func (c *APIClient) connect() error {
 	var err error
+
+	c.config, err = getClientConfig(c.defaultClientTimeout)
+	if err != nil {
+		log.Infof("Could not get client config: %v", err)
+		return err
+	}
 
 	// Clients
 	c.Cl, err = GetKubeClient(c.defaultClientTimeout)
