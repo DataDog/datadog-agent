@@ -89,12 +89,12 @@ func SetupHandlers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	providers []api.AgentEndpointProvider,
+	providers []api.EndpointProvider,
 ) *mux.Router {
 
 	// TODO: move these to a component that is registerable
 	for _, p := range providers {
-		r.Handle(p.Provider.Route(), p.Provider).Methods(p.Provider.Method())
+		r.Handle(p.Route(), p).Methods(p.Method())
 	}
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")

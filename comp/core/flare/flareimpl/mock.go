@@ -48,6 +48,7 @@ func (MockEndpoint) Route() string {
 }
 
 func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("OK"))
 }
 
 // Create mocks the flare create function
@@ -64,6 +65,7 @@ func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (
 func NewMock() provides {
 	m := &MockFlare{}
 	e := api.NewAgentEndpointProvider(MockEndpoint{Comp: m})
+
 	return provides{
 		Comp:     m,
 		Endpoint: e,

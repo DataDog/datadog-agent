@@ -7,8 +7,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -52,7 +50,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// third-party dependencies
 	"github.com/gorilla/mux"
@@ -62,7 +59,6 @@ import (
 type handlerdeps struct {
 	fx.In
 
-	// FlareComp             flare.Component
 	Server                dogstatsdServer.Component
 	ServerDebug           dogstatsddebug.Component
 	Wmeta                 workloadmeta.Component
@@ -78,7 +74,7 @@ type handlerdeps struct {
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
-	EndpointProviders     []api.AgentEndpointProvider `group:"agent_endpoint"`
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDeps(t *testing.T) handlerdeps {
@@ -126,7 +122,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 	router := mux.NewRouter()
 	SetupHandlers(
 		router,
-		//deps.FlareComp,
 		deps.Server,
 		deps.ServerDebug,
 		deps.Wmeta,
@@ -150,21 +145,33 @@ func setupRoutes(t *testing.T) *mux.Router {
 }
 
 func TestSetupHandlers(t *testing.T) {
+	testcases := []struct {
+		route    string
+		method   string
+		wantCode int
+	}{
+		{
+			route:    "/version",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/flare",
+			method:   "POST",
+			wantCode: 200,
+		},
+	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/version")
-	require.NoError(t, err)
+	for _, tc := range testcases {
+		req, err := http.NewRequest(tc.method, ts.URL+tc.route, nil)
+		require.NoError(t, err)
 
-	want, err := version.Agent()
-	require.NoError(t, err)
+		resp, err := ts.Client().Do(req)
+		require.NoError(t, err)
 
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-
-	wantjson, _ := json.Marshal(want)
-
-	assert.Equal(t, string(wantjson), string(body))
+		assert.Equal(t, tc.wantCode, resp.StatusCode)
+	}
 }

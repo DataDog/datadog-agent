@@ -79,7 +79,7 @@ type testdeps struct {
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
-	EndpointProviders     []api.AgentEndpointProvider `group:"agent_endpoint"`
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 func getComponentDependencies(t *testing.T) testdeps {

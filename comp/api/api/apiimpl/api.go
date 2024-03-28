@@ -46,7 +46,6 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
-	// flare                 flare.Component
 	dogstatsdServer       dogstatsdServer.Component
 	capture               replay.Component
 	serverDebug           dogstatsddebug.Component
@@ -62,13 +61,12 @@ type apiServer struct {
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
 	authToken             authtoken.Component
-	endpointProviders     []api.AgentEndpointProvider
+	endpointProviders     []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	// Flare                 flare.Component
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
@@ -84,14 +82,13 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
-	EndpointProviders     []api.AgentEndpointProvider `group:"agent_endpoint"`
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
 	return &apiServer{
-		// flare:                 deps.Flare,
 		dogstatsdServer:       deps.DogstatsdServer,
 		capture:               deps.Capture,
 		serverDebug:           deps.ServerDebug,
@@ -122,7 +119,6 @@ func (server *apiServer) StartServer(
 ) error {
 	return StartServers(server.rcService,
 		server.rcServiceHA,
-		// server.flare,
 		server.dogstatsdServer,
 		server.capture,
 		server.serverDebug,
