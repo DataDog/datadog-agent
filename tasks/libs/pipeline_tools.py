@@ -6,7 +6,7 @@ from time import sleep, time
 from typing import List
 
 from gitlab import GitlabError
-from gitlab.v4.objects import ProjectPipeline, Project, ProjectJob
+from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.user_interactions import yes_no_question
@@ -19,7 +19,6 @@ class FilteredOutException(Exception):
     pass
 
 
-# TODO Cc : Tested
 def get_running_pipelines_on_same_ref(repo: Project, ref, sha=None) -> List[ProjectPipeline]:
     pipelines = repo.pipelines.list(ref=ref, sha=sha, per_page=100, all=True)
 
@@ -37,7 +36,6 @@ def parse_datetime(dt):
     return datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S.%f%z")
 
 
-# TODO Cc : Tested
 def cancel_pipelines_with_confirmation(repo: Project, pipelines: List[ProjectPipeline]):
     for pipeline in pipelines:
         commit = repo.commits.get(pipeline.sha)
@@ -68,7 +66,6 @@ def cancel_pipelines_with_confirmation(repo: Project, pipelines: List[ProjectPip
             print(f"Pipeline {color_message(pipeline.id, 'bold')} will keep running.\n")
 
 
-# TODO Cc : Tested
 def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_cancel_stages):
     """
     Gracefully cancel pipeline
@@ -86,7 +83,6 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
             repo.jobs.get(job.id, lazy=True).cancel()
 
 
-# TODO Cc : Tested
 def trigger_agent_pipeline(
     repo: Project,
     ref=DEFAULT_BRANCH,
