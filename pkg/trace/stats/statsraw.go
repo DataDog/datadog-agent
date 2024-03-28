@@ -10,7 +10,10 @@ import (
 	"math/rand"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/golang/protobuf/proto"
@@ -156,10 +159,24 @@ func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin s
 		panic("env should never be empty")
 	}
 	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, enablePeerTagsAgg, peerTagKeys)
-	sb.add(s, weight, isTop, aggr, peerTags)
+	sb.add(s.Error, s.Duration, weight, isTop, aggr, peerTags)
 }
 
-func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
+// HandleOTLPSpan adds the OTLP span to this bucket stats, aggregated with the finest grain matching given aggregators
+func (sb *RawBucket) HandleOTLPSpan(s ptrace.Span, res pcommon.Resource, lib pcommon.InstrumentationScope, conf *config.AgentConfig, isTop bool, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
+	if aggKey.Env == "" {
+		panic("env should never be empty")
+	}
+	aggr, peerTags := NewAggregationFromOTLPSpan(s, res, lib, conf, aggKey, enablePeerTagsAgg, peerTagKeys)
+	var spanErr int32
+	if s.Status().Code() == ptrace.StatusCodeError {
+		spanErr = 1
+	}
+	weight := 1.0 // OTLP spans are not affected by DD global sampling rate, their weight is always 1.0
+	sb.add(spanErr, int64(s.EndTimestamp())-int64(s.StartTimestamp()), weight, isTop, aggr, peerTags)
+}
+
+func (sb *RawBucket) add(spanErr int32, spanDur int64, weight float64, isTop bool, aggr Aggregation, peerTags []string) {
 	var gs *groupedStats
 	var ok bool
 
@@ -172,13 +189,13 @@ func (sb *RawBucket) add(s *pb.Span, weight float64, isTop bool, aggr Aggregatio
 		gs.topLevelHits += weight
 	}
 	gs.hits += weight
-	if s.Error != 0 {
+	if spanErr != 0 {
 		gs.errors += weight
 	}
-	gs.duration += float64(s.Duration) * weight
+	gs.duration += float64(spanDur) * weight
 	// alter resolution of duration distro
-	trundur := nsTimestampToFloat(s.Duration)
-	if s.Error != 0 {
+	trundur := nsTimestampToFloat(spanDur)
+	if spanErr != 0 {
 		if err := gs.errDistribution.Add(trundur); err != nil {
 			log.Debugf("Error adding error distribution stats: %v", err)
 		}

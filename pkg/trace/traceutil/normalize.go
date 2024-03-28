@@ -25,6 +25,8 @@ const (
 	MaxNameLen = 100
 	// MaxServiceLen the maximum length a service can have
 	MaxServiceLen = 100
+	// MaxResourceLen the maximum length a resource can have
+	MaxResourceLen = 5000
 )
 
 var (

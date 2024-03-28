@@ -15,7 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	lru "github.com/hashicorp/golang-lru/v2"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -53,6 +58,9 @@ type Concentrator struct {
 	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
 	statsd                 statsd.ClientInterface
+
+	conf              *config.AgentConfig
+	containerTagsByID *lru.Cache[string, []string] // map from container id to container tags, used to fill out container tags for OTel stats
 }
 
 var defaultPeerTags = []string{
@@ -106,6 +114,7 @@ func preparePeerTags(tags ...string) []string {
 // NewConcentrator initializes a new concentrator ready to be started
 func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
+	cache, _ := lru.New[string, []string](128)
 	c := Concentrator{
 		bsize:   bsize,
 		buckets: make(map[int64]*RawBucket),
@@ -123,6 +132,8 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		statsd:                 statsd,
+		conf:                   conf,
+		containerTagsByID:      cache,
 	}
 	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
 	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
@@ -174,8 +185,8 @@ func (c *Concentrator) Stop() {
 }
 
 // computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
-func computeStatsForSpanKind(s *pb.Span) bool {
-	k := strings.ToLower(s.Meta["span.kind"])
+func computeStatsForSpanKind(kind string) bool {
+	k := strings.ToLower(kind)
 	switch k {
 	case "server", "consumer", "client", "producer":
 		return true
@@ -196,15 +207,20 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 		return Input{}
 	}
 	in := Input{Traces: make([]traceutil.ProcessedTrace, 0, numChunks)}
-	_, enabledCIDStats := conf.Features["enable_cid_stats"]
-	_, disabledCIDStats := conf.Features["disable_cid_stats"]
-	enableContainers := enabledCIDStats || (conf.FargateOrchestrator != config.OrchestratorUnknown)
-	if enableContainers && !disabledCIDStats {
-		// only allow the ContainerID stats dimension if we're in a Fargate instance or it's
-		// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
+	if shouldIncludeCIDDim(conf) {
 		in.ContainerID = containerID
 	}
 	return in
+}
+
+// shouldIncludeCIDDim checks if container ID should be added as a stats dimension
+// Only allow the ContainerID stats dimension if we're in a Fargate instance or it's
+// been explicitly enabled and it's not prohibited by the disable_cid_stats feature flag.
+func shouldIncludeCIDDim(conf *config.AgentConfig) bool {
+	_, enabledCIDStats := conf.Features["enable_cid_stats"]
+	_, disabledCIDStats := conf.Features["disable_cid_stats"]
+	enableContainers := enabledCIDStats || (conf.FargateOrchestrator != config.OrchestratorUnknown)
+	return enableContainers && !disabledCIDStats
 }
 
 // Add applies the given input to the concentrator.
@@ -214,6 +230,55 @@ func (c *Concentrator) Add(t Input) {
 		c.addNow(&trace, t.ContainerID)
 	}
 	c.mu.Unlock()
+}
+
+// ProcessOTLPTraces applies APM stats calculation on the otlp traces in the concentrator.
+// This function is NOT called in Concentrator.Run(), so you need to manually call it to get APM stats on the given OTLP traces.
+func (c *Concentrator) ProcessOTLPTraces(traces ptrace.Traces) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	includeCID := shouldIncludeCIDDim(c.conf)
+	spanByID, resByID, scopeByID := IndexOTelSpans(traces)
+	topLevelByKind := !c.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind")
+	topLevelSpans := GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
+	ignoreResNames := make(map[string]struct{})
+	for _, resName := range c.conf.Ignore["resource"] {
+		ignoreResNames[resName] = struct{}{}
+	}
+	for spanID, span := range spanByID {
+		res := resByID[spanID]
+		resName := GetOTelResource(span, res)
+		if _, exists := ignoreResNames[resName]; exists {
+			continue
+		}
+		env := GetOTelAttrValInResAndSpanAttrs(span, res, doNormalize, semconv.AttributeDeploymentEnvironment)
+		if env == "" {
+			env = c.agentEnv
+		}
+		aggKey := PayloadAggregationKey{
+			Env:      env,
+			Hostname: GetOTelHostname(span, res, c.conf),
+			Version:  GetOTelAttrValInResAndSpanAttrs(span, res, doNormalize, semconv.AttributeServiceVersion),
+		}
+		if includeCID {
+			if cid := GetOTelAttrValInResAndSpanAttrs(span, res, doNormalize, semconv.AttributeContainerID, semconv.AttributeK8SPodUID); cid != "" {
+				aggKey.ContainerID = cid
+				if gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(cid, c.conf); err == nil {
+					aggKey.GitCommitSha = gitCommitSha
+					aggKey.ImageTag = imageTag
+				}
+				c.containerTagsByID.Add(cid, GetOTelContainerTags(res.Attributes()))
+			}
+		}
+		_, isTop := topLevelSpans[spanID]
+		eligibleSpanKind := (topLevelByKind || c.computeStatsBySpanKind) && computeStatsForSpanKind(span.Kind().String())
+		if !(isTop || eligibleSpanKind) {
+			continue
+		}
+		end := int64(span.EndTimestamp().AsTime().Nanosecond())
+		b := c.getBucket(end)
+		b.HandleOTLPSpan(span, res, scopeByID[span.SpanID()], c.conf, isTop, aggKey, c.peerTagsAggregation, c.peerTagKeys)
+	}
 }
 
 // addNow adds the given input into the concentrator.
@@ -238,7 +303,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
-		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s)
+		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s.Meta["span.kind"])
 		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
 			continue
 		}
@@ -246,20 +311,25 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			continue
 		}
 		end := s.Start + s.Duration
-		btime := end - end%c.bsize
-
-		// If too far in the past, count in the oldest-allowed time bucket instead.
-		if btime < c.oldestTs {
-			btime = c.oldestTs
-		}
-
-		b, ok := c.buckets[btime]
-		if !ok {
-			b = NewRawBucket(uint64(btime), uint64(c.bsize))
-			c.buckets[btime] = b
-		}
+		b := c.getBucket(end)
 		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
 	}
+}
+
+func (c *Concentrator) getBucket(end int64) *RawBucket {
+	btime := end - end%c.bsize
+
+	// If too far in the past, count in the oldest-allowed time bucket instead.
+	if btime < c.oldestTs {
+		btime = c.oldestTs
+	}
+
+	b, ok := c.buckets[btime]
+	if !ok {
+		b = NewRawBucket(uint64(btime), uint64(c.bsize))
+		c.buckets[btime] = b
+	}
+	return b
 }
 
 // Flush deletes and returns complete statistic buckets.
@@ -309,8 +379,12 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 			ImageTag:     k.ImageTag,
 			Stats:        s,
 		}
+		if containerTags, ok := c.containerTagsByID.Get(k.ContainerID); ok {
+			p.Tags = append(p.Tags, containerTags...)
+		}
 		sb = append(sb, p)
 	}
+
 	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 
