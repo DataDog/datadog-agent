@@ -4,7 +4,7 @@
 
 docker_trigger_internal:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_a7_internal_or_manual]
+  rules: !reference [.on_deploy_internal_or_manual]
   needs:
     - job: docker_build_agent7_jmx
       artifacts: false
