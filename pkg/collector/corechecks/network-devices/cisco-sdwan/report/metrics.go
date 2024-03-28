@@ -29,16 +29,12 @@ type SDWanSender struct {
 }
 
 // NewSDWanSender returns a new SDWanSender
-func NewSDWanSender(namespace string) *SDWanSender {
+func NewSDWanSender(sender sender.Sender, namespace string) *SDWanSender {
 	return &SDWanSender{
+		sender:       sender,
 		namespace:    namespace,
 		lastTimeSent: make(map[string]float64),
 	}
-}
-
-// SetSender sets the current sender
-func (ms *SDWanSender) SetSender(sender sender.Sender) {
-	ms.sender = sender
 }
 
 // SendDeviceMetrics sends device hardware metrics

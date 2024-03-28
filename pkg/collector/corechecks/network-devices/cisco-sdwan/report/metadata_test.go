@@ -31,8 +31,7 @@ func TestSendMetadata(t *testing.T) {
 
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
-	ms := NewSDWanSender("my-ns")
-	ms.SetSender(sender)
+	ms := NewSDWanSender(sender, "my-ns")
 
 	devices := []devicemetadata.DeviceMetadata{
 		{

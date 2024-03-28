@@ -38,8 +38,7 @@ func TestSendDeviceMetrics(t *testing.T) {
 	mockSender := mocksender.NewMockSender("foo")
 	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	sender := NewSDWanSender("my-ns")
-	sender.SetSender(mockSender)
+	sender := NewSDWanSender(mockSender, "my-ns")
 
 	// Ensure device tags are correctly sent
 	sender.SetDeviceTags(map[string][]string{
@@ -121,8 +120,7 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("CountWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	sender := NewSDWanSender("my-ns")
-	sender.SetSender(mockSender)
+	sender := NewSDWanSender(mockSender, "my-ns")
 
 	// Ensure device tags are correctly sent
 	sender.SetDeviceTags(map[string][]string{
@@ -276,8 +274,7 @@ func TestSendDeviceUptimeMetrics(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			sender := NewSDWanSender("my-ns")
-			sender.SetSender(mockSender)
+			sender := NewSDWanSender(mockSender, "my-ns")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendUptimeMetrics(tt.uptimes)
 
@@ -312,8 +309,7 @@ func TestSendApplicationAwareRoutingMetrics(t *testing.T) {
 	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("CountWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	sender := NewSDWanSender("my-ns")
-	sender.SetSender(mockSender)
+	sender := NewSDWanSender(mockSender, "my-ns")
 
 	// Ensure device tags are correctly sent
 	sender.SetDeviceTags(map[string][]string{
@@ -511,8 +507,7 @@ func TestSendControlConnectionMetrics(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			sender := NewSDWanSender("my-ns")
-			sender.SetSender(mockSender)
+			sender := NewSDWanSender(mockSender, "my-ns")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendControlConnectionMetrics(tt.controlConnections)
 
@@ -670,8 +665,7 @@ func TestSendOMPPeerMetrics(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			sender := NewSDWanSender("my-ns")
-			sender.SetSender(mockSender)
+			sender := NewSDWanSender(mockSender, "my-ns")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendOMPPeerMetrics(tt.ompPeers)
 
@@ -829,8 +823,7 @@ func TestSendBFDSessionMetrics(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			sender := NewSDWanSender("my-ns")
-			sender.SetSender(mockSender)
+			sender := NewSDWanSender(mockSender, "my-ns")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendBFDSessionMetrics(tt.bfdSessions)
 
@@ -971,8 +964,7 @@ func TestSendDeviceCountersMetrics(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			sender := NewSDWanSender("my-ns")
-			sender.SetSender(mockSender)
+			sender := NewSDWanSender(mockSender, "my-ns")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendDeviceCountersMetrics(tt.deviceCounters)
 
