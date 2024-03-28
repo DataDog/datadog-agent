@@ -513,6 +513,13 @@ var (
 	MetricWindowsFileCreateNew = newRuntimeMetric(".windows.file.create_new")
 	//MetricWindowsFileCleanup is the metric for counting file cleanup notifications
 	//Tags: -
+	//MetricWindowsFileResolverOverwrite is the metric for counting file overwrite notifications
+	//Tags: -
+	MetricWindowsFileResolverOverwrite = newRuntimeMetric(".windows.file_resolver.overwrite")
+	//MetricWindowsFileResolverNew is the metric for counting file create notifications for new files
+	//Tags: -
+	MetricWindowsFileResolverNew = newRuntimeMetric(".windows.file_resolver.new")
+
 	MetricWindowsFileCleanup = newRuntimeMetric(".windows.file.cleanup")
 	//MetricWindowsFileClose is the metric for counting file close notifications
 	//Tags: -

@@ -96,6 +96,10 @@ type stats struct {
 	regFlushKey    uint64
 	regCloseKey    uint64
 	regSetValueKey uint64
+
+	//filePathResolver status
+	filePathNewWrites  uint64
+	filePathOverwrites uint64
 }
 
 /*
@@ -251,13 +255,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-				if ca, err := parseCreateHandleArgs(e); err == nil {
+				if ca, err := p.parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreate++
 			case idCreateNewFile:
-				if ca, err := parseCreateNewFileArgs(e); err == nil {
+				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreateNew++
@@ -620,6 +624,12 @@ func (p *WindowsProbe) SendStats() error {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(regPathResolver)), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverNew, float64(p.stats.filePathNewWrites), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverOverwrite, float64(p.stats.filePathOverwrites), nil, 1); err != nil {
 		return err
 	}
 	return nil
