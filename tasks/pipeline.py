@@ -390,7 +390,7 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
     wait_for_pipeline(repo, pipeline)
 
 
-# TODO Cc
+# TODO Cc : Tested
 @task(iterable=['variable'])
 def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True):
     """
@@ -403,9 +403,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     Use --follow to make this task wait for the pipeline to finish, and return 1 if it fails. (requires GITLAB_TOKEN).
 
     Examples:
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variables "RELEASE_VERSION"
+    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "RELEASE_VERSION"
 
-    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variables "VAR1,VAR2,VAR3"
+    inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
 
     if not os.environ.get('CI_JOB_TOKEN'):
@@ -445,9 +445,11 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
     )
 
     try:
-        data['variables'] = {{'key': key, 'value': value} for (key, value) in data['variables'].items()}
+        data['variables'] = [{'key': key, 'value': value} for (key, value) in data['variables'].items()]
 
         pipeline = repo.pipelines.create(data)
+        print('Pipeline', pipeline)
+        print(pipeline.web_url)
     except GitlabError as e:
         raise Exit(f"Failed to create child pipeline: {e}", code=1)
 
