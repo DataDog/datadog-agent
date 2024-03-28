@@ -1,7 +1,6 @@
 import base64
 import os
 import platform
-import re
 import subprocess
 from typing import List
 
@@ -14,8 +13,6 @@ except ImportError:
 from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
-
-errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 
 class GithubAPI:
