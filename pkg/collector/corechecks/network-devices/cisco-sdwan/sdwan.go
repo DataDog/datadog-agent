@@ -105,8 +105,13 @@ func (c *CiscoSdwanCheck) Run() error {
 		log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
 	}
 
-	devicesMetadata, deviceTags, uptimes := payload.ProcessDevices(c.config.Namespace, devices)
-	interfacesMetadata, ipAddressesMetadata, interfacesMap := payload.ProcessInterfaces(c.config.Namespace, vEdgeInterfaces, cEdgeInterfaces)
+	devicesMetadata := payload.GetDevicesMetadata(c.config.Namespace, devices)
+	deviceTags := payload.GetDevicesTags(c.config.Namespace, devices)
+	uptimes := payload.GetDevicesUptime(devices)
+
+	interfaces := payload.ConvertInterfaces(vEdgeInterfaces, cEdgeInterfaces)
+	interfacesMetadata, interfacesMap := payload.GetInterfacesMetadata(c.config.Namespace, interfaces)
+	ipAddressesMetadata := payload.GetIPAddressesMetadata(c.config.Namespace, interfaces)
 
 	c.metricsSender.SetDeviceTags(deviceTags)
 
