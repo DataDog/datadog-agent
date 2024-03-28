@@ -15,7 +15,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.106
+	github.com/DataDog/agent-payload/v5 v5.0.111
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2
