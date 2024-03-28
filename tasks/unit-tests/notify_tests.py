@@ -37,12 +37,15 @@ class TestSendMessage(unittest.TestCase):
         self.assertFalse(notify._should_send_message_to_channel('7.52.0-beta-test-feature', default_branch='main'))
 
     def test_post_to_author2(self):
-        self.assertFalse(notify._should_send_message_to_channel('celian/7.52.0', default_branch='main'))
+        self.assertFalse(notify._should_send_message_to_channel('7.52.0-rc.1-beta-test-feature', default_branch='main'))
 
     def test_post_to_author3(self):
-        self.assertFalse(notify._should_send_message_to_channel('a.b.c', default_branch='main'))
+        self.assertFalse(notify._should_send_message_to_channel('celian/7.52.0', default_branch='main'))
 
     def test_post_to_author4(self):
+        self.assertFalse(notify._should_send_message_to_channel('a.b.c', default_branch='main'))
+
+    def test_post_to_author5(self):
         self.assertFalse(notify._should_send_message_to_channel('my-feature', default_branch='main'))
 
 
