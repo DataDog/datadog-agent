@@ -230,7 +230,7 @@ func TestIdentiferFromCgroupReferences(t *testing.T) {
 		},
 		{
 			name:        "ecs fargate shorter",
-			fileContent: ecsFargateCgroup,
+			fileContent: ecsFargateCgroupShort,
 			expectedID:  "0520ecd8e4194fd48309d1ae6eec92ec-946514567",
 		},
 	}
