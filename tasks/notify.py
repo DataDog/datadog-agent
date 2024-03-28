@@ -117,10 +117,13 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             send_slack_message(recipient, str(message))
 
 
-def _should_send_message_to_channel(branch, default_branch):
-    release_branch_regex = re.compile(r"^[0-9]+\.[0-9]+\.[0-9a-zA-Z]+.*$")
+def _should_send_message_to_channel(branch: str, default_branch: str) -> bool:
+    # Must match X.Y.Z, X.Y.x, W.X.Y-rc.Z
+    # Must not match W.X.Y-rc.Z-some-feature
+    release_branch_regex = re.compile(r"^[0-9]+\.[0-9]+\.(x|[0-9]+)$")
+    release_branch_regex_rc = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]-rc.[0-9]+$")
 
-    return branch == default_branch or release_branch_regex.match(branch)
+    return branch == default_branch or release_branch_regex.match(branch) or release_branch_regex_rc.match(branch)
 
 
 @task
