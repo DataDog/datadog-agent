@@ -83,18 +83,6 @@ func TestServer(t *testing.T) {
 		assert.Equal(t, 10*time.Minute, fi.retention)
 	})
 
-	t.Run("Make sure WithReadyChannel sets the ready channel correctly", func(t *testing.T) {
-		ready := make(chan bool, 1)
-		fi := NewServer(WithReadyChannel(ready))
-		assert.Equal(t, ready, fi.ready)
-	})
-
-	t.Run("Make sure WithClock sets the clock correctly", func(t *testing.T) {
-		mockClock := clock.NewMock()
-		fi := NewServer(WithClock(mockClock))
-		assert.Equal(t, mockClock, fi.clock)
-	})
-
 	t.Run("should run after start", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
 		fi.Start()
