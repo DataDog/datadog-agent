@@ -32,6 +32,7 @@ type VEdgeInterface struct {
 
 // ID returns an unique interface ID
 func (itf *VEdgeInterface) ID() string {
+	// VmanageSystemIP is the device's System IP from vManage
 	return fmt.Sprintf("%s:%s", itf.VmanageSystemIP, itf.Ifname)
 }
 
@@ -62,7 +63,7 @@ func (itf *VEdgeInterface) AdminStatus() devicemetadata.IfAdminStatus {
 // Metadata returns the interface metadata
 func (itf *VEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceMetadata, error) {
 	return devicemetadata.InterfaceMetadata{
-		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP),
+		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP), // VmanageSystemIP is the device's System IP from vManage
 		IDTags:      []string{fmt.Sprintf("interface:%s", itf.Ifname)},
 		Index:       int32(itf.Ifindex),
 		Name:        itf.Ifname,
@@ -94,7 +95,7 @@ func (itf *VEdgeInterface) buildIPMetadata(namespace, ipAddress string) (*device
 	}
 
 	return &devicemetadata.IPAddressMetadata{
-		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, int(itf.Ifindex)),
+		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, int(itf.Ifindex)), // VmanageSystemIP is the device's System IP from vManage
 		IPAddress:   ip,
 		Prefixlen:   prefixLen,
 	}, nil

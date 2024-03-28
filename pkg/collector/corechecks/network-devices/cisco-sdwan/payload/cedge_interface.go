@@ -43,6 +43,7 @@ type CEdgeInterface struct {
 
 // ID returns an unique interface ID
 func (itf *CEdgeInterface) ID() string {
+	// VmanageSystemIP is the device's System IP from vManage
 	return fmt.Sprintf("%s:%s", itf.VmanageSystemIP, itf.Ifname)
 }
 
@@ -82,7 +83,7 @@ func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 	}
 
 	return devicemetadata.InterfaceMetadata{
-		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP),
+		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP), // VmanageSystemIP is the device's System IP from vManage
 		IDTags:      []string{fmt.Sprintf("interface:%s", itf.Ifname)},
 		Index:       int32(index),
 		Name:        itf.Ifname,
@@ -138,7 +139,7 @@ func (itf *CEdgeInterface) IPV6AddressMetadata(namespace string) (*devicemetadat
 	}
 
 	return &devicemetadata.IPAddressMetadata{
-		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, index),
+		InterfaceID: fmt.Sprintf("%s:%s:%d", namespace, itf.VmanageSystemIP, index), // VmanageSystemIP is the device's System IP from vManage
 		IPAddress:   ip,
 	}, nil
 }
