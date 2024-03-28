@@ -1,6 +1,6 @@
 from invoke import task
 
-from .libs.owners.parsing import search_owners
+from tasks.libs.owners.parsing import search_owners
 
 
 @task
