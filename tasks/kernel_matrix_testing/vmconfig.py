@@ -116,6 +116,9 @@ distributions = {
     # Rocky Linux mappings
     "rocky_8.5": "rocky_8.5",
     "rocky_9.3": "rocky_9.3",
+    # OpenSUSE mappings
+    "opensuse_15.3": "opensuse_15.3",
+    "opensuse_15.5": "opensuse_15.5",
 }
 
 TICK = "\u2713"
