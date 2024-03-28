@@ -1,6 +1,6 @@
 # Security agent overrides
 upload_dependencies_secagent_x64:
-  needs: []
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -11,7 +11,7 @@ upload_dependencies_secagent_x64:
     TEST_COMPONENT: security-agent
 
 upload_dependencies_secagent_arm64:
-  needs: []
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
