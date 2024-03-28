@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 
@@ -48,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
@@ -360,7 +360,7 @@ func getSharedFxOption() fx.Option {
 		// error prone.
 		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, _ tagger.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
-				OnStart: func(ctx context.Context) error {
+				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
 					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
@@ -393,6 +393,7 @@ func getSharedFxOption() fx.Option {
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
 		process.Bundle(),
+		guiimpl.Module(),
 	)
 }
 
@@ -400,7 +401,7 @@ func getSharedFxOption() fx.Option {
 func startAgent(
 	cliParams *cliParams,
 	log log.Component,
-	flare flare.Component,
+	_ flare.Component,
 	telemetry telemetry.Component,
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
@@ -417,7 +418,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	statusComponent status.Component,
+	_ status.Component,
 	collector collector.Component,
 ) error {
 
@@ -579,14 +580,6 @@ func startAgent(
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 
-	// start the GUI server
-	guiPort := pkgconfig.Datadog.GetString("GUI_port")
-	if guiPort == "-1" {
-		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent, collector, ac); err != nil {
-		log.Errorf("Error while starting GUI: %v", err)
-	}
-
 	// Setup stats telemetry handler
 	if sender, err := demultiplexer.GetDefaultSender(); err == nil {
 		// TODO: to be removed when default telemetry is enabled.
@@ -658,7 +651,6 @@ func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 
-	gui.StopGUIServer()
 	profiler.Stop()
 
 	os.Remove(cliParams.pidfilePath)

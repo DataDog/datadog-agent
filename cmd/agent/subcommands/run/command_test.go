@@ -23,7 +23,7 @@ func TestCommand(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(_ *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, true, secretParams.Enabled)
 		})
 }
@@ -33,7 +33,7 @@ func TestCommandPidfile(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run", "--pidfile", "/pid/file"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, "/pid/file", cliParams.pidfilePath)
 			require.Equal(t, true, secretParams.Enabled)
 		})

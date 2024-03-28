@@ -339,7 +339,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree("./comp/core/gui/guiimpl/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 

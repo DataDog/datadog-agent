@@ -21,16 +21,16 @@ import (
 )
 
 // ExecJMXCommandConsole is not supported when the 'jmx' build tag isn't included
-func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error { //nolint:revive // TODO fix revive unused-parameter
+func ExecJMXCommandConsole(_ string, _ []string, _ string, _ []integration.Config, _ workloadmeta.Component, _ tagger.Component, _ autodiscovery.Component, _ sender.DiagnoseSenderManager, _ internalAPI.Component, _ optional.Option[collector.Component]) error {
 	return fmt.Errorf("not supported: the Agent is compiled without the 'jmx' build tag")
 }
 
 // ExecJmxListWithMetricsJSON is not supported when the 'jmx' build tag isn't included
-func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error { //nolint:revive // TODO fix revive unused-parameter
+func ExecJmxListWithMetricsJSON(_ []string, _ string, _ []integration.Config, _ workloadmeta.Component, _ tagger.Component, _ autodiscovery.Component, _ sender.DiagnoseSenderManager, _ internalAPI.Component, _ optional.Option[collector.Component]) error {
 	return fmt.Errorf("not supported: the Agent is compiled without the 'jmx' build tag")
 }
 
 // ExecJmxListWithRateMetricsJSON is not supported when the 'jmx' build tag isn't included
-func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error { //nolint:revive // TODO fix revive unused-parameter
+func ExecJmxListWithRateMetricsJSON(_ []string, _ string, _ []integration.Config, _ workloadmeta.Component, _ tagger.Component, _ autodiscovery.Component, _ sender.DiagnoseSenderManager, _ internalAPI.Component, _ optional.Option[collector.Component]) error {
 	return fmt.Errorf("not supported: the Agent is compiled without the 'jmx' build tag")
 }

@@ -37,7 +37,7 @@ func TestCommand(t *testing.T) {
 		// this command has a lot of options, so just test a few
 		[]string{"check", "cleopatra", "--delay", "1", "--flare"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"cleopatra"}, cliParams.args)
 			require.Equal(t, 1, cliParams.checkDelay)
 			require.True(t, cliParams.saveFlare)
