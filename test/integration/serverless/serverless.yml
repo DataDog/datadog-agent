@@ -151,7 +151,7 @@ functions:
     runtime: nodejs18.x
     handler: src/metric.enhancedMetricTest
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
@@ -231,7 +231,7 @@ functions:
     runtime: nodejs18.x
     handler: src/metric.errorTest
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
@@ -298,7 +298,7 @@ functions:
     timeout: 1
     handler: src/metric.timeoutMetricTest
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
@@ -386,7 +386,7 @@ functions:
         - datadog.yaml
     handler: src/log.logTest
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
@@ -479,7 +479,7 @@ functions:
     runtime: nodejs18.x
     handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
     layers:
-      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node14-x:${env:NODE_LAYER_VERSION}
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
