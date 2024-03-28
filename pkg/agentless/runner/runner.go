@@ -326,9 +326,6 @@ func (s *Runner) CleanSlate(statsd ddogstatsd.ClientInterface, sc *types.Scanner
 }
 
 func (s *Runner) init(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) (<-chan *types.ScanTask, chan<- *types.ScanTask, <-chan struct{}) {
-	log.Infof("starting agentless-scanner main loop with %d scan workers", s.Workers)
-	defer log.Infof("stopped agentless-scanner main loop")
-
 	eventPlatform, found := s.EventForwarder.Get()
 	if found {
 		eventPlatform.Start()
@@ -418,17 +415,30 @@ func (s *Runner) Start(ctx context.Context, statsd ddogstatsd.ClientInterface, s
 	}
 
 	defer func() {
+		log.Infof("stopping agentless-scanner main loop")
+		if s.rcClient != nil {
+			s.rcClient.Close()
+		}
 		close(s.scansCh)
 		wg.Wait()
 		close(s.resultsCh)
 		<-resultsDoneCh
+		log.Infof("stopped agentless-scanner main loop")
 	}()
-	for config := range s.configsCh {
-		for _, scan := range config.Tasks {
-			select {
-			case <-ctx.Done():
-				return
-			case s.scansCh <- scan:
+
+	log.Infof("starting agentless-scanner main loop with %d scan workers", s.Workers)
+	for {
+		select {
+		case <-ctx.Done():
+			close(s.configsCh)
+			return
+		case config := <-s.configsCh:
+			for _, scan := range config.Tasks {
+				select {
+				case <-ctx.Done():
+					return
+				case s.scansCh <- scan:
+				}
 			}
 		}
 	}
@@ -689,15 +699,6 @@ func (s *Runner) sendFindings(findings []*types.ScanFinding) {
 		finding.AgentVersion = version.AgentVersion
 		s.findingsReporter.ReportEvent(finding, tags...)
 	}
-}
-
-// Stop stops the runner main loop.
-func (s *Runner) Stop() {
-	log.Infof("stopping agentless-scanner main loop")
-	if s.rcClient != nil {
-		s.rcClient.Close()
-	}
-	close(s.configsCh)
 }
 
 // PushConfig pushes a new scan configuration to the runner.

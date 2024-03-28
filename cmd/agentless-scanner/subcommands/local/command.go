@@ -7,6 +7,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
@@ -55,6 +56,7 @@ func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *c
 
 func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := common.CtxTerminated()
+	ctx, cancel := context.WithCancel(ctx)
 
 	hostname := common.TryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -95,7 +97,7 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 			Type:  types.ConfigTypeAWS,
 			Tasks: []*types.ScanTask{task},
 		})
-		scanner.Stop()
+		cancel()
 	}()
 	scanner.Start(ctx, statsd, sc)
 	return nil
