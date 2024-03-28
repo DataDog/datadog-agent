@@ -36,7 +36,6 @@ func (suite *StoreTestSuite) TestAppendPayload() {
 
 	data := []byte(`{"key":"value"}`)
 	parserMap["testRoute"] = jsonParser
-	defer delete(parserMap, "testRoute")
 	err := store.AppendPayload("testRoute", data, "json", time.Now())
 	assert.NoError(suite.T(), err)
 
@@ -56,8 +55,6 @@ func (suite *StoreTestSuite) TestCleanUpPayloadsOlderThan() {
 
 	now := time.Now()
 
-	parserMap["testRoute"] = jsonParser
-	defer delete(parserMap, "testRoute")
 	// Add an old payload expected to be cleaned up first
 	err := store.AppendPayload("testRoute", []byte("{}"), "json", now.Add(-48*time.Hour))
 	require.NoError(suite.T(), err)
@@ -98,8 +95,6 @@ func (suite *StoreTestSuite) TestFlush() {
 	store := suite.StoreConstructor()
 	defer store.Close()
 
-	parserMap["testRoute"] = jsonParser
-	defer delete(parserMap, "testRoute")
 	err := store.AppendPayload("testRoute", []byte("{}"), "json", time.Now())
 	require.NoError(suite.T(), err)
 
