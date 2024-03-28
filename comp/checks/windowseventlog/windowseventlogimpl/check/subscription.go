@@ -9,8 +9,13 @@ package evtlog
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -22,6 +27,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
+
+func (c *Check) getChannelPath() (string, error) {
+	if c.ddSecurityEventsFilter != nil {
+		return "Security", nil
+	}
+	if val, isSet := c.config.instance.ChannelPath.Get(); isSet {
+		return val, nil
+	}
+	return "", fmt.Errorf("channel path is not set")
+}
 
 func (c *Check) initSubscription() error {
 	var err error
@@ -46,14 +61,9 @@ func (c *Check) initSubscription() error {
 	if !isSet {
 		return fmt.Errorf("payload size is not set")
 	}
-	channelPath, isSet := c.config.instance.ChannelPath.Get()
-	if !isSet {
-		// TODO: handle this better when the profile file is created
-		if _, isSet := c.config.instance.DDSecurityEvents.Get(); isSet {
-			channelPath = "Security"
-		} else {
-			return fmt.Errorf("channel path is not set")
-		}
+	channelPath, err := c.getChannelPath()
+	if err != nil {
+		return err
 	}
 	query, isSet := c.config.instance.Query.Get()
 	if !isSet {
@@ -162,13 +172,11 @@ func (c *Check) startSubscription() error {
 		// send events
 		c.eventSubmitterPipeline(sender, eventCh, &pipelineWaiter)
 	} else if _, isSet := c.config.instance.DDSecurityEvents.Get(); isSet {
-		logsAgent, isSet := c.logsAgent.Get()
-		if !isSet {
-			// validateConfig should prevent this from happening
-			return fmt.Errorf("no logs agent available")
-		}
 		// send logs
-		c.logsSubmitterPipeline(logsAgent, eventCh, &pipelineWaiter)
+		err = c.logsSubmitterPipeline(eventCh, &pipelineWaiter)
+		if err != nil {
+			return err
+		}
 	} else {
 		// validateConfig should prevent this from happening
 		return fmt.Errorf("neither channel path nor dd_security_events is set")
@@ -178,15 +186,31 @@ func (c *Check) startSubscription() error {
 
 func (c *Check) eventSubmitterPipeline(sender sender.Sender, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) {
 	eventWithDataCh := c.eventDataGetter(c.fetchEventsLoopStop, inCh, wg)
+	// rendering the message is expensive so ensure any filtering that does not require
+	// the message is done earlier.
 	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventWithDataCh, wg)
 	c.ddEventSubmitter(sender, eventWithMessageCh, wg)
 }
 
-func (c *Check) logsSubmitterPipeline(logsAgent logsAgent.Component, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) {
+func (c *Check) logsSubmitterPipeline(inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) error {
+	logsAgent, isSet := c.logsAgent.Get()
+	if !isSet {
+		// sanity: validateConfig should prevent this from happening
+		return fmt.Errorf("no logs agent available")
+	}
+
+	if c.ddSecurityEventsFilter == nil {
+		// sanity: validateConfig should prevent this from happening
+		return fmt.Errorf("no security profile loaded")
+	}
+
 	eventWithDataCh := c.eventDataGetter(c.fetchEventsLoopStop, inCh, wg)
-	eventDataFilterCh := c.eventDataFilter(c.fetchEventsLoopStop, eventWithDataCh, wg)
+	eventDataFilterCh := c.eventDataFilter(c.ddSecurityEventsFilter, c.fetchEventsLoopStop, eventWithDataCh, wg)
+	// rendering the message is expensive so ensure any filtering that does not require
+	// the message is done earlier.
 	eventWithMessageCh := c.eventMessageFilter(c.fetchEventsLoopStop, eventDataFilterCh, wg)
 	c.ddLogSubmitter(logsAgent, c.fetchEventsLoopStop, eventWithMessageCh, wg)
+	return nil
 }
 
 func (c *Check) eventDataGetter(doneCh <-chan struct{}, inCh <-chan *evtapi.EventRecord, wg *sync.WaitGroup) <-chan *eventWithData {
@@ -204,14 +228,13 @@ func (c *Check) eventDataGetter(doneCh <-chan struct{}, inCh <-chan *evtapi.Even
 	return outCh
 }
 
-func (c *Check) eventDataFilter(doneCh <-chan struct{}, inCh <-chan *eventWithData, wg *sync.WaitGroup) <-chan *eventWithData {
+func (c *Check) eventDataFilter(filter eventdatafilter.Filter, doneCh <-chan struct{}, inCh <-chan *eventWithData, wg *sync.WaitGroup) <-chan *eventWithData {
 	outCh := make(chan *eventWithData)
 	eventDataFilter := &eventDataFilter{
 		doneCh: doneCh,
 		inCh:   inCh,
 		outCh:  outCh,
-		// TODO: config
-		eventIDs: []uint16{4672},
+		filter: filter,
 	}
 	wg.Add(1)
 	go eventDataFilter.run(wg)
@@ -265,8 +288,7 @@ func (c *Check) ddLogSubmitter(logsAgent logsAgent.Component, doneCh <-chan stru
 		inCh:          inCh,
 		bookmarkSaver: c.bookmarkSaver,
 		logSource: sources.NewLogSource("dd_security_events", &logsConfig.LogsConfig{
-			Source:  logsSource,
-			Service: "Windows",
+			Source: logsSource,
 		}),
 	}
 	wg.Add(1)
@@ -320,4 +342,45 @@ func (c *Check) initSession() error {
 	}
 	c.session = session
 	return nil
+}
+
+func (c *Check) loadDDSecurityProfile(level string) (eventdatafilter.Filter, error) {
+	// get the path to the security profile
+	root := c.ConfigSource()
+	if strings.HasPrefix(root, "file:") {
+		root = strings.TrimPrefix(root, "file:")
+		root = filepath.Dir(root)
+	} else {
+		// TODO: read confd_path option
+		root = `C:\ProgramData\Datadog\conf.d\`
+		root = filepath.Join(root, `win32_event_log.d"`)
+	}
+	var profileName string
+	switch level {
+	case "low":
+		profileName = "dd_security_events_low.yaml"
+	case "high":
+		profileName = "dd_security_events_high.yaml"
+	default:
+		return nil, fmt.Errorf("invalid security level: %s", level)
+	}
+	profilePath := filepath.Join(root, "profiles", profileName)
+	log.Debugf("Loading security profile from %s", profilePath)
+
+	// read the profile
+	reader, err := os.Open(profilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open profile: %w", err)
+	}
+	defer reader.Close()
+	yamlData, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read profile: %w", err)
+	}
+
+	f, err := eventdatafilter.NewFilterFromConfig(yamlData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load security profile: %w", err)
+	}
+	return f, nil
 }

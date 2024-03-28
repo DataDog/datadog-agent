@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// Package evtlog defines a check that reads the Windows Event Log and submits Events
 package evtlog
 
 import (
@@ -21,6 +20,10 @@ type eventWithData struct {
 	winevent   *evtapi.EventRecord
 	systemVals evtapi.EvtVariantValues
 	evtapi     evtapi.API
+}
+
+func (e *eventWithData) SystemValues() evtapi.EvtVariantValues {
+	return e.systemVals
 }
 
 // Close frees resources associated with the event

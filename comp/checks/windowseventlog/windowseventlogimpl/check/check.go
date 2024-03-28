@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -34,7 +35,7 @@ const (
 	// CheckName is the name of the check
 	CheckName = "win32_event_log"
 	// Feature flag to control dd_security_events feature while it is in development
-	ddSecurityEventsFeatureEnabled = false
+	ddSecurityEventsFeatureEnabled = true
 )
 
 // Check defines a check that reads the Windows Event Log and submits Events
@@ -53,6 +54,9 @@ type Check struct {
 
 	// event metrics
 	eventPriority agentEvent.EventPriority
+
+	// security profile
+	ddSecurityEventsFilter eventdatafilter.Filter
 
 	// event log
 	session             evtsession.Session
@@ -231,6 +235,11 @@ func (c *Check) validateConfig() error {
 		if _, isSet := c.logsAgent.Get(); !isSet {
 			return fmt.Errorf("instance config `dd_security_events` is set, but logs-agent is not available. Set `logs_enabled: true` in datadog.yaml to enable sending Logs to Datadog")
 		}
+		f, err := c.loadDDSecurityProfile(val)
+		if err != nil {
+			return fmt.Errorf("failed to load security profile '%s': %w", val, err)
+		}
+		c.ddSecurityEventsFilter = f
 		ddSecurityEventsIsSetAndValid = true
 	}
 	if !channelPathIsSetAndNotEmpty && !ddSecurityEventsIsSetAndValid {

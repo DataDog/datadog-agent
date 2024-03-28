@@ -5,15 +5,13 @@
 
 //go:build windows
 
-// Package evtlog defines a check that reads the Windows Event Log and submits Events
 package evtlog
 
 import (
-	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
 type eventDataFilter struct {
@@ -21,21 +19,20 @@ type eventDataFilter struct {
 	inCh   <-chan *eventWithData
 	outCh  chan<- *eventWithData
 
-	// config
-	eventIDs []uint16
+	filter eventdatafilter.Filter
 }
 
 func (f *eventDataFilter) run(w *sync.WaitGroup) {
 	defer w.Done()
 	defer close(f.outCh)
 	for e := range f.inCh {
-		exclude, err := f.filterEvent(e)
+		include, err := f.includeEvent(e)
 		if err != nil {
 			log.Errorf("error filtering event: %v", err)
 			e.Close()
 			continue
 		}
-		if exclude {
+		if !include {
 			e.Close()
 			continue
 		}
@@ -48,27 +45,6 @@ func (f *eventDataFilter) run(w *sync.WaitGroup) {
 	}
 }
 
-func (f *eventDataFilter) filterEvent(e *eventWithData) (bool, error) {
-	// Get the event ID
-	eventID, err := e.systemVals.UInt(evtapi.EvtSystemEventID)
-	if err != nil {
-		return false, fmt.Errorf("error getting event ID: %v", err)
-	}
-
-	// Check if the event ID is in the list of allowed event IDs
-	if f.isAllowedEventID(uint16(eventID)) {
-		return false, nil
-	}
-
-	// event will be excluded
-	return true, nil
-}
-
-func (f *eventDataFilter) isAllowedEventID(eventID uint16) bool {
-	for _, id := range f.eventIDs {
-		if eventID == id {
-			return true
-		}
-	}
-	return false
+func (f *eventDataFilter) includeEvent(e *eventWithData) (bool, error) {
+	return f.filter.Match(e)
 }
