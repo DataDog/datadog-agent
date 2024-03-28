@@ -32,6 +32,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
+const (
+	maxResolverPidCacheSize  = 32768
+	maxResolverAddrCacheSize = 4096
+)
+
 var (
 	// ErrTracerStillNotInitialized signals that the tracer is _still_ not ready, so we shouldn't log additional errors
 	ErrTracerStillNotInitialized = errors.New("remote tracer is still not initialized")
@@ -113,7 +118,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	// LocalResolver is a singleton LocalResolver
-	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New())
+	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
 	return nil
