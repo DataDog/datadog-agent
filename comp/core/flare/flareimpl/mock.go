@@ -39,14 +39,6 @@ type MockEndpoint struct {
 	Comp *MockFlare
 }
 
-func (MockEndpoint) Method() string {
-	return "POST"
-}
-
-func (MockEndpoint) Route() string {
-	return "/flare"
-}
-
 func (e MockEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
@@ -64,7 +56,7 @@ func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (
 // NewMock returns a new flare provider
 func NewMock() provides {
 	m := &MockFlare{}
-	e := api.NewAgentEndpointProvider(MockEndpoint{Comp: m})
+	e := api.NewAgentEndpointProvider(MockEndpoint{Comp: m}, "/flare", "POST")
 
 	return provides{
 		Comp:     m,

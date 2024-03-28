@@ -20,14 +20,6 @@ type EndpointProvider struct {
 	flareComp *flare
 }
 
-func (EndpointProvider) Method() string {
-	return "POST"
-}
-
-func (EndpointProvider) Route() string {
-	return "/flare"
-}
-
 // ServeHTTP implements the http.Handler interface for the provided endpoint creating a flare
 func (e EndpointProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var profile ProfileData

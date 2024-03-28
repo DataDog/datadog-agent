@@ -73,12 +73,11 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 		diagnoseDeps: diagnoseDeps,
 	}
 
-	var endpoint api.EndpointProvider
-	endpoint = EndpointProvider{flareComp: f}
+	endpoint := EndpointProvider{flareComp: f}
 
 	p := provides{
 		Comp:     f,
-		Endpoint: api.NewAgentEndpointProvider(endpoint),
+		Endpoint: api.NewAgentEndpointProvider(endpoint, "/flare", "POST"),
 	}
 
 	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)

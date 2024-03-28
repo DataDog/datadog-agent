@@ -94,7 +94,7 @@ func SetupHandlers(
 
 	// TODO: move these to a component that is registerable
 	for _, p := range providers {
-		r.Handle(p.Route(), p).Methods(p.Method())
+		r.Handle(p.Route, p.Handler).Methods(p.Methods...)
 	}
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
