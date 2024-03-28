@@ -256,9 +256,6 @@ variables:
 .if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "main"
 
-.if_not_main_branch: &if_not_main_branch
-  if: $CI_COMMIT_BRANCH != "main"
-
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
@@ -347,9 +344,6 @@ variables:
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
-
-.if_deploy_on_stable_repo_branch: &if_deploy_on_stable_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "stable"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
@@ -488,23 +482,6 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
-.on_deploy_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
 .on_deploy_a7:
   - <<: *if_not_version_7
     when: never
@@ -523,25 +500,6 @@ workflow:
     when: never
   - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-.on_deploy_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
@@ -671,13 +629,6 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_stable_or_beta_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-
 .on_deploy_stable_or_beta_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
@@ -693,17 +644,6 @@ workflow:
   - <<: *if_deploy
     when: manual
     allow_failure: true
-
-.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
-    when: on_success
-  - <<: *if_deploy_on_stable_repo_branch
-    when: on_success
-  - when: never
 
 # This rule will add the job as manual when running on beta deploy branch
 # and will add it as a regular automatically running job when running
