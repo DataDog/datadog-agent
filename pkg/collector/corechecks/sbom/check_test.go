@@ -8,6 +8,11 @@
 package sbom
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -90,4 +95,19 @@ host_heartbeat_validity_seconds: 1000000
 			assert.Equal(t, tt.expected, got)
 		})
 	}
+}
+
+func TestFactory(t *testing.T) {
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2(),
+	))
+	checkFactory := Factory(mockStore, cfg)
+	assert.NotNil(t, checkFactory)
+
+	check, ok := checkFactory.Get()
+	assert.True(t, ok)
+	assert.NotNil(t, check)
 }
