@@ -13,4 +13,4 @@ import (
 )
 
 // InitRunner is a stub for builds that do not include jmx
-func InitRunner(_ dogstatsdServer.Component, logger jmxlogger.Component) {}
+func InitRunner(_ dogstatsdServer.Component, _ jmxlogger.Component) {}
