@@ -119,7 +119,7 @@ func TestUnscheduleConfigRemovesSource(t *testing.T) {
 	}
 
 	// We need to have a source to remove
-	sources, _ := scheduler.toSources(configSource)
+	sources, _ := scheduler.createSources(configSource)
 	spy.Sources = sources
 
 	scheduler.Unschedule([]integration.Config{configSource})

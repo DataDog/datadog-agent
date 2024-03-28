@@ -72,7 +72,7 @@ func (j *jsonServerlessEncoder) Encode(msg *message.Message, hostname string) er
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      msg.Origin.TagsToString(),
+		Tags:      msg.TagsToString(),
 	})
 
 	if err != nil {

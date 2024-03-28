@@ -21,6 +21,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../metrics
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../processor
+	github.com/DataDog/datadog-agent/pkg/logs/sds => ../sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../status/statusinterface
@@ -48,6 +49,19 @@ replace (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/client v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/processor v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/sender v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.53.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
@@ -56,6 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/logs/sds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.2
@@ -91,6 +106,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
+	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240318112024-de26033b606a // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect

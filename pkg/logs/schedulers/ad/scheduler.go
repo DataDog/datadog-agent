@@ -71,7 +71,7 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 		switch {
 		case s.newSources(config):
 			log.Infof("Received a new logs config: %v", s.configName(config))
-			sources, err := s.toSources(config)
+			sources, err := s.createSources(config)
 			if err != nil {
 				log.Warnf("Invalid configuration: %v", err)
 				continue
@@ -139,9 +139,9 @@ func (s *Scheduler) configName(config integration.Config) string {
 	return config.Provider
 }
 
-// toSources creates new sources from an integration config,
+// createsSources creates new sources from an integration config,
 // returns an error if the parsing failed.
-func (s *Scheduler) toSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
+func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 	var configs []*logsConfig.LogsConfig
 	var err error
 

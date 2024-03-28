@@ -17,7 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -25,6 +27,8 @@ import (
 type Provider interface {
 	Start()
 	Stop()
+	ReconfigureSDSStandardRules(standardRules []byte) error
+	ReconfigureSDSAgentConfig(config []byte) error
 	NextPipelineChan() chan *message.Message
 	// Flush flushes all pipeline contained in this Provider
 	Flush(ctx context.Context)
@@ -104,6 +108,48 @@ func (p *provider) Stop() {
 	stopper.Stop()
 	p.pipelines = p.pipelines[:0]
 	p.outputChan = nil
+}
+
+func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderType) error {
+	var responses []chan error
+
+	// send a reconfiguration order to every running pipeline
+
+	for _, pipeline := range p.pipelines {
+		order := sds.ReconfigureOrder{
+			Type:         orderType,
+			Config:       config,
+			ResponseChan: make(chan error),
+		}
+		responses = append(responses, order.ResponseChan)
+
+		log.Debug("Sending SDS reconfiguration order:", string(order.Type))
+		pipeline.processor.ReconfigChan <- order
+	}
+
+	// reports if at least one error occurred
+
+	var rerr error
+	for _, response := range responses {
+		err := <-response
+		if err != nil {
+			rerr = err
+		}
+		close(response)
+	}
+
+	return rerr
+}
+
+// ReconfigureSDSStandardRules stores the SDS standard rules for the given provider.
+func (p *provider) ReconfigureSDSStandardRules(standardRules []byte) error {
+	return p.reconfigureSDS(standardRules, sds.StandardRules)
+}
+
+// ReconfigureSDSAgentConfig reconfigures the pipeline with the given
+// configuration received through Remote Configuration.
+func (p *provider) ReconfigureSDSAgentConfig(config []byte) error {
+	return p.reconfigureSDS(config, sds.AgentConfig)
 }
 
 // NextPipelineChan returns the next pipeline input channel
