@@ -493,17 +493,6 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
-.on_deploy_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a6_failure:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
 .on_deploy_a6_rc:
   - <<: *if_not_version_6
     when: never
@@ -582,18 +571,7 @@ workflow:
       AGENT_REPOSITORY: agent
       IMG_REGISTRIES: public
 
-.on_deploy_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a7_failure:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
-.on_deploy_a7_rc:
+.on_deploy_rc:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_deploy

@@ -9,7 +9,7 @@
 deploy_containers-a6:
   stage: deploy_containers
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
@@ -19,7 +19,7 @@ deploy_containers-a6:
 deploy_containers-a6-on-failure:
   stage: deploy_containers
   rules:
-    !reference [.on_deploy_a6_failure]
+    !reference [.on_deploy_failure]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
@@ -31,7 +31,7 @@ deploy_containers-a6-on-failure:
 deploy_containers-a7:
   stage: deploy_containers
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
@@ -42,7 +42,7 @@ deploy_containers-a7:
 deploy_containers-a7-on-failure:
   stage: deploy_containers
   rules:
-    !reference [.on_deploy_a7_failure]
+    !reference [.on_deploy_failure]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
