@@ -99,7 +99,7 @@ func ExecuteCommand(client *ssh.Client, command string) (string, error) {
 
 // CopyFile create a sftp session and copy a single file to the remote host through SSH
 func CopyFile(client *ssh.Client, src string, dst string) error {
-	sftpClient, err := sftp.NewClient(client)
+	sftpClient, err := sftp.NewClient(client, sftp.UseConcurrentWrites(true))
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func CopyFile(client *ssh.Client, src string, dst string) error {
 
 // CopyFolder create a sftp session and copy a folder to remote host through SSH
 func CopyFolder(client *ssh.Client, srcFolder string, dstFolder string) error {
-	sftpClient, err := sftp.NewClient(client)
+	sftpClient, err := sftp.NewClient(client, sftp.UseConcurrentWrites(true))
 	if err != nil {
 		return err
 	}
