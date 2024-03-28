@@ -33,8 +33,10 @@ type WindowsFakeintakeSuite struct {
 //go:embed log-config/config.yaml
 var logConfig string
 
-const logFileName = "hello-world.log"
-const logFilePath = utils.WindowsLogsFolderPath + "\\" + logFileName
+const (
+	logFileName = "hello-world.log"
+	logFilePath = utils.WindowsLogsFolderPath + "\\" + logFileName
+)
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
@@ -122,8 +124,13 @@ func (s *WindowsFakeintakeSuite) testLogCollection() {
 	// Generate log
 	utils.AppendLog(s, logFileName, "hello-world", 1)
 
+	// Given expected tags
+	expectedTags := []string{
+		fmt.Sprintf("filename:%s", logFileName),
+		fmt.Sprintf("dirname:%s", utils.WindowsLogsFolderPath),
+	}
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-world")
+	utils.CheckLogsExpected(s, "hello", "hello-world", expectedTags)
 
 }
 
@@ -162,7 +169,7 @@ func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-after-permission-world")
+	utils.CheckLogsExpected(s, "hello", "hello-after-permission-world", []string{})
 }
 
 func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
@@ -185,7 +192,7 @@ func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
 	utils.AppendLog(s, logFileName, "access-granted", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "access-granted")
+	utils.CheckLogsExpected(s, "hello", "access-granted", []string{})
 }
 
 func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
@@ -210,6 +217,6 @@ func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
 	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-world-new-content")
+	utils.CheckLogsExpected(s, "hello", "hello-world-new-content", []string{})
 
 }

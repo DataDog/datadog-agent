@@ -29,6 +29,8 @@ const LinuxLogsFolderPath = "/var/log/e2e_test_logs"
 // WindowsLogsFolderPath is the folder where log files will be stored for Windows tests
 const WindowsLogsFolderPath = "C:\\logs\\e2e_test_logs"
 
+type ddtags []string
+
 // LogsTestSuite is an interface for the log agent test suite.
 type LogsTestSuite interface {
 	T() *testing.T
@@ -135,7 +137,7 @@ func FetchAndFilterLogs(ls LogsTestSuite, service, content string) ([]*aggregato
 }
 
 // CheckLogsExpected verifies the presence of expected logs.
-func CheckLogsExpected(ls LogsTestSuite, service, content string) {
+func CheckLogsExpected(ls LogsTestSuite, service, content string, expectedTags ddtags) {
 	t := ls.T()
 	t.Helper()
 
@@ -145,6 +147,10 @@ func CheckLogsExpected(ls LogsTestSuite, service, content string) {
 			intakeLog := logsToString(logs)
 			if assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, intakeLog) {
 				t.Logf("Logs from service: '%s' with content: '%s' collected", service, content)
+				log := logs[0]
+				for _, expectedTag := range expectedTags {
+					assert.Contains(t, log.Tags, expectedTag)
+				}
 			}
 		}
 	}, 2*time.Minute, 10*time.Second)
