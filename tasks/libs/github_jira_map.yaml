@@ -36,3 +36,4 @@
 '@datadog/agent-build-and-releases': BARX
 '@datadog/agent-developer-tools': ADXT
 '@datadog/agent-ci-experience': ACIX
+'@datadog/apm-onboarding': ONBOARD
