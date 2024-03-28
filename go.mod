@@ -609,6 +609,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/api v0.53.0-rc.2
