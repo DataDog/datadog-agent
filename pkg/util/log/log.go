@@ -309,9 +309,11 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 
 	l.l.Lock()
 
+	shouldLog := l.shouldLog(logLevel)
+
 	if l.inner == nil && !fallbackStderr {
 		addLogToBuffer(bufferFunc)
-	} else if l.shouldLog(logLevel) {
+	} else if shouldLog {
 		defer l.l.Unlock()
 		s := BuildLogEntry(v...)
 		return scrubAndLogFunc(s)
@@ -324,7 +326,7 @@ func logWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLogFunc f
 	// where error messages had been lost before Logger had been initialized. Adjusting
 	// just for that case because if the error log should not be logged - because it has
 	// been suppressed then it should be taken into account.
-	if fallbackStderr {
+	if fallbackStderr && shouldLog {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
@@ -365,9 +367,11 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 
 	l.l.Lock()
 
+	shouldLog := l.shouldLog(logLevel)
+
 	if l.inner == nil && !fallbackStderr {
 		addLogToBuffer(bufferFunc)
-	} else if l.shouldLog(logLevel) {
+	} else if shouldLog {
 		defer l.l.Unlock()
 		return scrubAndLogFunc(format, params...)
 	}
@@ -379,7 +383,7 @@ func logFormatWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLog
 	// where error messages had been lost before Logger had been initialized. Adjusting
 	// just for that case because if the error log should not be logged - because it has
 	// been suppressed then it should be taken into account.
-	if fallbackStderr {
+	if fallbackStderr && shouldLog {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
@@ -424,9 +428,11 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLo
 
 	l.l.Lock()
 
+	shouldLog := l.shouldLog(logLevel)
+
 	if l.inner == nil && !fallbackStderr {
 		addLogToBuffer(bufferFunc)
-	} else if l.shouldLog(logLevel) {
+	} else if shouldLog {
 		l.inner.SetContext(context)
 		l.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
 		err := scrubAndLogFunc(message)
@@ -439,7 +445,7 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), scrubAndLo
 	l.l.Unlock()
 
 	err := formatErrorc(message, context...)
-	if fallbackStderr {
+	if fallbackStderr && shouldLog {
 		fmt.Fprintf(os.Stderr, "%s: %s\n", logLevel.String(), err.Error())
 	}
 	return err
