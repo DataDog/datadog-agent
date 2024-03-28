@@ -90,7 +90,7 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 			statusTags := append(tags, "oper_status:"+itf.OperStatus().AsString(), "admin_status:"+itf.AdminStatus().AsString())
 
 			ms.sender.Gauge(ciscoSDWANMetricPrefix+"interface.status", 1, "", statusTags)
-			ms.sender.Gauge(ciscoSDWANMetricPrefix+"interface.speed", float64(itf.Speed()*1000), "", tags)
+			ms.sender.Gauge(ciscoSDWANMetricPrefix+"interface.speed", float64(itf.GetSpeedMbps()*1000), "", tags)
 		}
 
 		key := ms.getMetricKey("interface_metrics", tags)
