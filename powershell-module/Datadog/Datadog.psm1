@@ -19,80 +19,18 @@ function Install-DDAgent
         [String]$ProjectLocation
     )
 
-    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-    if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
-    {
-        $exception = [Exception]::new("Administrator priviledges required.")
-        $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
-    }
+    validateAdminPriviledges
+    enableTSL12
 
-    # Enable TLS 1.2
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+    [string] $uniqueID = [System.Guid]::NewGuid()
 
-    $tempDir = [System.IO.Path]::GetTempPath()
-    [string] $downloadID = [System.Guid]::NewGuid()
-    $installerPath = Join-Path -Path $tempDir -ChildPath "datadog-agent-$downloadID.msi"
+    installAgent -params $PSBoundParameters -uniqueID $uniqueID
 
-    if ($PSBoundParameters.ContainsKey('AgentInstallerPath'))
+    if ($PSBoundParameters.ContainsKey('WithAPMTracers'))
     {
-        $installerPath = $AgentInstallerPath
-    }
-    else
-    {
-        Write-Host "Downloading Datadog Windows Agent installer"
-        $version = "7-latest"
-        if ($PSBoundParameters.ContainsKey('AgentVersion'))
+        if ($WithAPMTracers -contains "DotNet") # note that -contains is a case insensitive operator
         {
-            $version = $AgentVersion
-        }
-        $url = "https://s3.amazonaws.com/ddagent-windows-stable/datadog-agent-$version.amd64.msi"
-        if ($PSBoundParameters.ContainsKey('AgentInstallerURL'))
-        {
-            $url = $AgentInstallerURL
-        }
-        downloadAsset -url $url -outFile $installerPath
-    }
-
-    Write-Host "Installing Datadog Windows Agent"
-    $installerParameters = formatAgentInstallerParameters -params $PSBoundParameters
-
-    $logFile = ""
-    if ($PSBoundParameters.ContainsKey('AgentInstallLogPath'))
-    {
-        $logFile = $AgentInstallLogPath
-    }
-    else
-    {
-        $logFile = createTemporaryLogFile -prefix "ddagent-msi"
-    }
-
-    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath $installerParameters /log $logFile" -PassThru
-    Remove-Item $installerPath
-
-    if ($installResult.ExitCode -ne 0)
-    {
-        $exception = [Exception]::new("Agent installation failed. For more information, check the installation log file at $logFile.")
-        $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
-    }
-
-    if ($PSBoundParameters.ContainsKey('WithAPMTracers') -and ($WithAPMTracers -contains "DotNet")) # note that -contains is a case insensitive operator
-    {
-        $latestVersionTag = ((Invoke-WebRequest https://api.github.com/repos/DataDog/dd-trace-dotnet/releases/latest).Content | ConvertFrom-Json).tag_name
-        $latestVersion = $latestVersionTag.TrimStart("v")
-
-        $dotnetInstallerPath = Join-Path -Path $tempDir -ChildPath "datadog-dotnet-apm-$downloadID.msi"
-
-        Write-Host "Downloading Datadog .NET Tracing Library $latestVersionTag"
-        downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$latestVersionTag/datadog-dotnet-apm-$latestVersion-x64.msi" -outFile "$dotnetInstallerPath"
-
-        Write-Host "Installing .NET Tracing Library"
-        $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $dotnetInstallerPath" -PassThru
-        Remove-Item $dotnetInstallerPath
-
-        if ($installResult.ExitCode -ne 0)
-        {
-            $exception = [Exception]::new(".NET Tracing Library installation failed.")
-            $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
+            installDotnetTracer -uniqueID $uniqueID
         }
     }
 
@@ -163,6 +101,98 @@ function Install-DDAgent
 ###############################
 # Unexported helper functions #
 ###############################
+
+function validateAdminPriviledges()
+{
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
+    {
+        $exception = [Exception]::new("Administrator priviledges required.")
+        $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
+    }
+}
+
+function enableTSL12()
+{
+    # Powershell does not enabled TLS 1.2 by default, & we want it enabled for faster downloads
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+}
+
+function installAgent($params, $uniqueID)
+{
+    $installerPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath "datadog-agent-$uniqueID.msi"
+    $downloadInstaller = $true
+    if ($params.ContainsKey('AgentInstallerPath'))
+    {
+        $installerPath = $params.AgentInstallerPath
+        $downloadInstaller = $false
+    }
+
+    if ($downloadInstaller -eq $true)
+    {
+        $version = "datadog-agent-7-latest.amd64"
+        if ($params.ContainsKey('AgentVersion'))
+        {
+            $version = "ddagent-cli-$($params.AgentVersion)"
+        }
+        $url = "https://s3.amazonaws.com/ddagent-windows-stable/$version.msi"
+        if ($params.ContainsKey('AgentInstallerURL'))
+        {
+            $url = $params.AgentInstallerURL
+        }
+
+        Write-Host "Downloading Datadog Windows Agent installer"
+        downloadAsset -url $url -outFile $installerPath
+    }
+
+    $installerParameters = formatAgentInstallerParameters -params $params
+
+    $logFile = ""
+    if ($params.ContainsKey('AgentInstallLogPath'))
+    {
+        $logFile = $params.AgentInstallLogPath
+    }
+    else
+    {
+        $logFile = createTemporaryLogFile -prefix "ddagent-msi"
+    }
+
+    Write-Host "Installing Datadog Windows Agent"
+    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath $installerParameters /log $logFile" -PassThru
+
+    if ($downloadInstaller)
+    {
+        Remove-Item $installerPath
+    }
+
+    if ($installResult.ExitCode -ne 0)
+    {
+        $exception = [Exception]::new("Agent installation failed. For more information, check the installation log file at $logFile.")
+        $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
+    }
+}
+
+function installDotnetTracer($uniqueID)
+{
+    $latestVersionTag = ((Invoke-WebRequest https://api.github.com/repos/DataDog/dd-trace-dotnet/releases/latest).Content | ConvertFrom-Json).tag_name
+    $latestVersion = $latestVersionTag.TrimStart("v")
+
+    $installerPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath "datadog-dotnet-apm-$uniqueID.msi"
+
+    Write-Host "Downloading Datadog .NET Tracing Library installer ($latestVersionTag)"
+    downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$latestVersionTag/datadog-dotnet-apm-$latestVersion-x64.msi" -outFile "$installerPath"
+
+    Write-Host "Installing Datadog .NET Tracing Library"
+    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath" -PassThru
+
+    Remove-Item $installerPath
+
+    if ($installResult.ExitCode -ne 0)
+    {
+        $exception = [Exception]::new(".NET Tracing Library installation failed.")
+        $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
+    }
+}
 
 function doesDatadogYamlExist()
 {
