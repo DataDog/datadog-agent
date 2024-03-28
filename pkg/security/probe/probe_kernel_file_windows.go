@@ -42,7 +42,7 @@ const (
 type fileObjectPointer uint64
 
 var (
-	filePathResolver = make(map[fileObjectPointer]string, 0)
+// filePathResolver = make(map[fileObjectPointer]string, 0)
 )
 
 /*
@@ -155,12 +155,8 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if _, ok := filePathResolver[ca.fileObject]; ok {
-		wp.stats.filePathOverwrites++
-	} else {
-		wp.stats.filePathNewWrites++
-	}
-	filePathResolver[ca.fileObject] = ca.fileName
+
+	//filePathResolver[ca.fileObject] = ca.fileName
 	return ca, nil
 }
 
@@ -242,9 +238,9 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
-		sia.fileName = s
-	}
+	//if s, ok := filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
+	//	sia.fileName = s
+	//}
 	return sia, nil
 }
 
@@ -309,10 +305,9 @@ func parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	if s, ok := filePathResolver[ca.fileObject]; ok {
-		ca.fileName = s
-
-	}
+	//if s, ok := filePathResolver[ca.fileObject]; ok {
+	//	ca.fileName = s
+	//}
 	return ca, nil
 }
 

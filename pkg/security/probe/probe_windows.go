@@ -96,10 +96,6 @@ type stats struct {
 	regFlushKey    uint64
 	regCloseKey    uint64
 	regSetValueKey uint64
-
-	//filePathResolver status
-	filePathNewWrites  uint64
-	filePathOverwrites uint64
 }
 
 /*
@@ -255,10 +251,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-				if ca, err := p.parseCreateHandleArgs(e); err == nil {
-					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-					ecb(ca, e.EventHeader.ProcessID)
-				}
+				// we're not processing these events right now... just count that we saw one
+				/*
+					if ca, err := p.parseCreateHandleArgs(e); err == nil {
+						log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+						ecb(ca, e.EventHeader.ProcessID)
+					}
+				*/
 				p.stats.fileCreate++
 			case idCreateNewFile:
 				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
@@ -266,23 +265,29 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 				p.stats.fileCreateNew++
 			case idCleanup:
-				if ca, err := parseCleanupArgs(e); err == nil {
-					ecb(ca, e.EventHeader.ProcessID)
-				}
+				/*
+					if ca, err := parseCleanupArgs(e); err == nil {
+						ecb(ca, e.EventHeader.ProcessID)
+					}
+					**/
 				p.stats.fileCleanup++
 			case idClose:
-				if ca, err := parseCloseArgs(e); err == nil {
-					//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-					ecb(ca, e.EventHeader.ProcessID)
-					if e.EventHeader.EventDescriptor.ID == idClose {
-						delete(filePathResolver, ca.fileObject)
-					}
-				}
+				// since we don't have a path resolver, we don't need to process the close at all, just count it
+				/*
+					if ca, err := parseCloseArgs(e); err == nil {
+						//fmt.Printf("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+						ecb(ca, e.EventHeader.ProcessID)
+						if e.EventHeader.EventDescriptor.ID == idClose {
+							delete(filePathResolver, ca.fileObject)
+						}
+					}*/
 				p.stats.fileClose++
 			case idFlush:
-				if fa, err := parseFlushArgs(e); err == nil {
-					ecb(fa, e.EventHeader.ProcessID)
-				}
+				/*
+					if fa, err := parseFlushArgs(e); err == nil {
+						ecb(fa, e.EventHeader.ProcessID)
+					}
+				*/
 				p.stats.fileFlush++
 			case idSetInformation:
 				fallthrough
@@ -295,9 +300,11 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			case idFSCTL:
 				fallthrough
 			case idRename29:
-				if sia, err := parseInformationArgs(e); err == nil {
-					log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia)
-				}
+				/*
+					if sia, err := parseInformationArgs(e); err == nil {
+						log.Tracef("got id %v args %s", e.EventHeader.EventDescriptor.ID, sia)
+					}
+				*/
 			}
 
 		case etw.DDGUID(p.regguid):
@@ -620,18 +627,18 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegSetValue, float64(p.stats.regSetValueKey), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(filePathResolver)), nil, 1); err != nil {
-		return err
-	}
+	//if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfFilePathResolver, float64(len(filePathResolver)), nil, 1); err != nil {
+	//	return err
+	//}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(regPathResolver)), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverNew, float64(p.stats.filePathNewWrites), nil, 1); err != nil {
-		return err
-	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverOverwrite, float64(p.stats.filePathOverwrites), nil, 1); err != nil {
-		return err
-	}
+	//if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverNew, float64(p.stats.filePathNewWrites), nil, 1); err != nil {
+	//		return err
+	//	}
+	//	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverOverwrite, float64(p.stats.filePathOverwrites), nil, 1); err != nil {
+	//		return err
+	//	}
 	return nil
 }
 
