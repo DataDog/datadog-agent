@@ -6,8 +6,8 @@ stages:
   - deploy_containers
 
 include:
-  - /.gitlab/common/container_publish_job_templates.yml
-  - /.gitlab/deploy_containers/conditions.yml
+  - .gitlab/common/container_publish_job_templates.yml
+  - .gitlab/deploy_containers/conditions.yml
 
 #
 # Image tagging & manifest publication
