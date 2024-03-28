@@ -109,6 +109,8 @@ FROM baseimage AS release
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
+ARG TARGETARCH
+ARG MSODBCSQL_VERSION=18.3.2.1-1
 ENV DOCKER_DD_AGENT=true \
     DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
@@ -131,7 +133,14 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser wget
+
+# Download msodbcsql18 driver for SQL Server integration
+RUN wget -q -O msodbcsql18.deb https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/msodbcsql18_${MSODBCSQL_VERSION}_${TARGETARCH}.deb
+# Install msodbcsql18
+RUN ACCEPT_EULA=Y apt install -y ./msodbcsql18.deb
+# Remove msodbcsql18
+RUN rm -f ./msodbcsql18.deb
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
