@@ -9,7 +9,10 @@
 package probe
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -23,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+)
+
+const (
+	defaultConsumerChanSize = 50
 )
 
 // PlatformProbe defines a platform dependant probe
@@ -47,15 +54,40 @@ type PlatformProbe interface {
 	GetEventTags(_ string) []string
 }
 
-// FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
-type FullAccessEventHandler interface {
+// EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
+type EventHandler interface {
 	HandleEvent(event *model.Event)
 }
 
-// EventHandler represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventHandler interface {
+// EventConsumer represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
+type EventConsumerInterface interface {
+	ChanSize() int
 	HandleEvent(event any)
 	Copy(_ *model.Event) any
+	EventTypes() []model.EventType
+}
+
+// ProbeEventConsumer defines a probe event consumer
+type EventConsumer struct {
+	consumer EventConsumerInterface
+	eventCh  chan any
+}
+
+// Start the consumer
+func (p *EventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event := <-p.eventCh:
+				p.consumer.HandleEvent(event)
+			}
+		}
+	}()
 }
 
 // CustomEventHandler represents an handler for the custom events sent by the probe
@@ -75,15 +107,19 @@ type Probe struct {
 	Opts         Opts
 	Config       *config.Config
 	StatsdClient statsd.ClientInterface
-	startTime    time.Time
 
 	// internals
-	scrubber *procutil.DataScrubber
+	ctx       context.Context
+	cancelFnc func()
+	wg        sync.WaitGroup
+	startTime time.Time
+	scrubber  *procutil.DataScrubber
 
 	// Events section
-	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
-	eventHandlers           [model.MaxAllEventType][]EventHandler
-	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
+	consumers           []*EventConsumer
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	eventConsumers      [model.MaxAllEventType][]*EventConsumer
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
 }
 
 // Init initializes the probe
@@ -99,6 +135,12 @@ func (p *Probe) Setup() error {
 
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
+	p.ctx, p.cancelFnc = context.WithCancel(context.Background())
+
+	for _, pc := range p.consumers {
+		pc.Start(p.ctx, &p.wg)
+	}
+
 	return p.PlatformProbe.Start()
 }
 
@@ -114,6 +156,9 @@ func (p *Probe) Close() error {
 
 // Stop the probe
 func (p *Probe) Stop() {
+	p.cancelFnc()
+	p.wg.Wait()
+
 	p.PlatformProbe.Stop()
 }
 
@@ -166,20 +211,34 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 	p.PlatformProbe.HandleActions(ctx, rule)
 }
 
-// AddEventHandler sets a probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
+// AddEventConsumer sets a probe event consumer
+func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
+	chanSize := consumer.ChanSize()
+	if chanSize <= 0 {
+		chanSize = defaultConsumerChanSize
 	}
 
-	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+	pc := &EventConsumer{
+		consumer: consumer,
+		eventCh:  make(chan any, chanSize),
+	}
+
+	for _, eventType := range consumer.EventTypes() {
+		if eventType >= model.MaxAllEventType {
+			return fmt.Errorf("event type (%s) not allowed", eventType)
+		}
+
+		p.eventConsumers[eventType] = append(p.eventConsumers[eventType], pc)
+	}
+
+	p.consumers = append(p.consumers, pc)
 
 	return nil
 }
 
-// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
-func (p *Probe) AddFullAccessEventHandler(handler FullAccessEventHandler) error {
-	p.fullAccessEventHandlers[model.UnknownEventType] = append(p.fullAccessEventHandlers[model.UnknownEventType], handler)
+// AddEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
+func (p *Probe) AddEventHandler(handler EventHandler) error {
+	p.eventHandlers[model.UnknownEventType] = append(p.eventHandlers[model.UnknownEventType], handler)
 
 	return nil
 }
@@ -195,15 +254,20 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 	return nil
 }
 
-func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
-	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+func (p *Probe) sendEventToHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 }
 
-func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(handler.Copy(event))
+func (p *Probe) sendEventToConsumers(event *model.Event) {
+	for _, pc := range p.eventConsumers[event.GetEventType()] {
+		if copied := pc.consumer.Copy(event); copied != nil {
+			select {
+			case pc.eventCh <- copied:
+			default:
+			}
+		}
 	}
 }
 
