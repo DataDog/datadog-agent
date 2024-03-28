@@ -46,7 +46,7 @@ func BenchmarkVerify(b *testing.B) {
 			repository := newTestRepository(2, 1, configTargets, directorTargets, targetFiles)
 			cfg := newTestConfig(repository)
 			db := getBenchmarkDB(b)
-			client, err := newTestClient(db, "cachekey", cfg)
+			client, err := newTestClient(db, cfg)
 			if err != nil {
 				b.Fatal(err)
 			}
