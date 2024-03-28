@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -78,9 +79,9 @@ type disk interface {
 }
 
 // Bootstrap bootstraps the default version for the given package.
-func Bootstrap(ctx context.Context, pkg string) error {
+func Bootstrap(ctx context.Context, pkg string, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, "")
+	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config)
 	return u.Bootstrap(ctx, pkg)
 }
 
@@ -110,25 +111,94 @@ func cleanDir(dir string, cleanFunc func(string) error) {
 	}
 }
 
+func getDefaultCatalog(filepath string) (catalog, error) {
+	var c catalog
+
+	catalogPath := path.Clean(filepath)
+	file, err := os.ReadFile(catalogPath)
+	if err != nil {
+		return catalog{}, fmt.Errorf("could not read provided catalog file: %w", err)
+	}
+
+	err = json.Unmarshal(file, &c)
+	if err != nil {
+		return catalog{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
+	}
+
+	return c, err
+}
+
+func getDefaultBootstrapVersions(filepath string) (bootstrapVersions, error) {
+	var b bootstrapVersions
+
+	catalogPath := path.Clean(filepath)
+	file, err := os.ReadFile(catalogPath)
+	if err != nil {
+		return bootstrapVersions{}, fmt.Errorf("could not read provided catalog file: %w", err)
+	}
+
+	err = json.Unmarshal(file, &b)
+	if err != nil {
+		return bootstrapVersions{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
+	}
+
+	return b, err
+}
+
+func getDefaults(config config.Reader) (catalog catalog, versions bootstrapVersions, overriden bool) {
+	catalog = defaultCatalog
+	if config.GetString("updater.defaults.catalog_path") != "" {
+		tmpCatalog, err := getDefaultCatalog(config.GetString("updater.defaults.catalog_path"))
+		if err != nil {
+			log.Error(fmt.Sprintf("could not read provided catalog file: %s, falling back to default", err))
+		} else {
+			catalog = tmpCatalog
+			overriden = true
+		}
+	}
+
+	versions = defaultBootstrapVersions
+	if config.GetString("updater.defaults.versions_path") != "" {
+		tmpVersions, err := getDefaultBootstrapVersions(config.GetString("updater.defaults.versions_path"))
+		if err != nil {
+			log.Error(fmt.Sprintf("could not read provided catalog file: %s, falling back to default", err))
+		} else {
+			versions = tmpVersions
+			overriden = true
+		}
+	}
+
+	return
+}
+
 // NewUpdater returns a new Updater.
 func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, error) {
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config.GetString("updater.registry")), nil
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, config), nil
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, remoteRegistryOverride string) *updaterImpl {
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, config config.Reader) *updaterImpl {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
+	remoteRegistryOverride := config.GetString("updater.registry")
+
+	rcClient := rc
+	catalog, defaultVersions, overriden := getDefaults(config)
+	if overriden {
+		log.Info("updater: catalog and/or default versions overriden, disabling remote config")
+		rcClient = newNoopRemoteConfig()
+	}
+
 	u := &updaterImpl{
-		rc:                rc,
+		rc:                rcClient,
 		repositories:      repositories,
 		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
-		catalog:           defaultCatalog,
+		catalog:           catalog,
 		requests:          make(chan remoteAPIRequest, 32),
-		bootstrapVersions: defaultBootstrapVersions,
+		bootstrapVersions: defaultVersions,
 		stopChan:          make(chan struct{}),
 	}
 	u.refreshState(context.Background())

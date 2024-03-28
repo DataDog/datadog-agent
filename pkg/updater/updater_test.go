@@ -13,11 +13,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -80,11 +82,55 @@ func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigCl
 	return u
 }
 
-func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*updaterImpl, string, string) {
+func newTestUpdaterWithCatalogOverride(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	// Override the catalog with a custom one
+	pkg := s.Package(defaultFixture)
+	pkg.Version = "7.8.9"
+	customCatalog := catalog{Packages: []Package{pkg}}
+	jsonCatalog, err := json.Marshal(customCatalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	customCatalogPath := filepath.Join(s.t.TempDir(), "custom_catalog.json")
+	err = os.WriteFile(customCatalogPath, jsonCatalog, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Set("updater.defaults.catalog_path", customCatalogPath, model.SourceDefault)
+
+	// Override the bootstrap versions with a custom one
+	bootstrapVersions := bootstrapVersions{
+		defaultFixture.pkg: "7.8.9",
+	}
+	jsonBootstrapVersions, err := json.Marshal(bootstrapVersions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	customBootstrapVersionsPath := filepath.Join(s.t.TempDir(), "custom_bootstrap.json")
+	err = os.WriteFile(customBootstrapVersionsPath, jsonBootstrapVersions, 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Set("updater.defaults.versions_path", customBootstrapVersionsPath, model.SourceDefault)
+
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
-	u := newUpdater(rc, rootPath, t.TempDir(), "")
+	u := newUpdater(rc, rootPath, locksPath, cfg)
+	u.installer.configsDir = t.TempDir()
+	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
+	u.Start(context.Background())
+	return u
+}
+
+func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) (*updaterImpl, string, string) {
+	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	rc := &remoteConfig{client: rcc}
+	rootPath := t.TempDir()
+	locksPath := t.TempDir()
+	u := newUpdater(rc, rootPath, locksPath, cfg)
 	u.installer.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
@@ -188,6 +234,26 @@ func TestUpdaterBootstrapCatalogUpdate(t *testing.T) {
 	rc.SubmitCatalog(s.Catalog())
 	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
 	assert.NoError(t, err)
+}
+
+func TestUpdaterBootstrapCustomCatalog(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	rc := newTestRemoteConfigClient()
+	updater := newTestUpdaterWithCatalogOverride(t, s, rc, fixtureSimpleV1)
+
+	err := updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	r := updater.repositories.Get(fixtureSimpleV1.pkg)
+	state, err := r.GetState()
+	assert.Equal(t, "7.8.9", state.Stable)
+
+	rc.SubmitCatalog(s.Catalog()) // RC should be ignored
+	err = updater.Bootstrap(context.Background(), fixtureSimpleV1.pkg)
+	assert.NoError(t, err)
+	r = updater.repositories.Get(fixtureSimpleV1.pkg)
+	state, err = r.GetState()
+	assert.Equal(t, "7.8.9", state.Stable)
 }
 
 func TestUpdaterStartExperiment(t *testing.T) {
