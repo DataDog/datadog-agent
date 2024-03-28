@@ -46,7 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.53.0-rc.2
- 	github.com/DataDog/datadog-agent/pkg/logs/sds v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/logs/sds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0

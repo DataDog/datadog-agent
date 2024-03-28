@@ -49,19 +49,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/client v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/processor v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/sender v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/startstop v0.53.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
@@ -74,6 +61,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
@@ -97,7 +85,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/http v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
