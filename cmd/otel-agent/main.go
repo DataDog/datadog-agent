@@ -17,24 +17,22 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -49,44 +47,68 @@ var cfgPath = flag.String("config", "/opt/datadog-agent/etc/datadog.yaml", "agen
 
 func run(
 	c collector.Component,
-	demux *aggregator.AgentDemultiplexer,
+	forwarder defaultforwarder.Component,
 	logsAgent optional.Option[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
 ) error {
 	// Setup stats telemetry handler
-	if sender, err := demux.GetDefaultSender(); err == nil {
-		// TODO: to be removed when default telemetry is enabled.
-		telemetry.RegisterStatsSender(sender)
+	return forwarder.Start()
+}
+
+type orchestratorinterfaceimpl struct {
+	f defaultforwarder.Forwarder
+}
+
+func NewOrchestratorinterfaceimpl(f defaultforwarder.Forwarder) orchestratorinterface.Component {
+	return &orchestratorinterfaceimpl{
+		f: f,
 	}
-	return c.Start()
+}
+
+func (o *orchestratorinterfaceimpl) Get() (defaultforwarder.Forwarder, bool) {
+	return o.f, true
+}
+
+func (o *orchestratorinterfaceimpl) Reset() {
+	o.f = nil
 }
 
 func main() {
 	flag.Parse()
 	err := fxutil.OneShot(run,
-		core.Bundle(),
 		forwarder.Bundle(),
 		otelcol.Bundle(),
-		logs.Bundle(),
-		fx.Supply(
-			core.BundleParams{
-				ConfigParams: config.NewAgentParams(*cfgPath),
-				SecretParams: secrets.NewEnabledParams(),
-				LogParams:    corelogimpl.ForOneShot(loggerName, "debug", true),
-			},
-		),
-		fx.Provide(newForwarderParams),
-		demultiplexerimpl.Module(),
-		orchestratorForwarderImpl.Module(),
-		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-		eventplatformimpl.Module(),
-		fx.Supply(eventplatformimpl.NewDefaultParams()),
-		eventplatformreceiverimpl.Module(),
-		fx.Provide(newSerializer),
-		fx.Provide(func(cfg config.Component) demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
-			return params
+		config.Module(),
+		corelogimpl.Module(),
+		inventoryagentimpl.Module(),
+		workloadmeta.Module(),
+		hostnameimpl.Module(),
+		sysprobeconfig.NoneModule(),
+		fetchonlyimpl.Module(),
+		fx.Provide(func() workloadmeta.Params {
+			return workloadmeta.NewParams()
 		}),
+
+		fx.Provide(func() config.Params {
+			return config.NewAgentParams(*cfgPath)
+		}),
+		fx.Provide(func() corelogimpl.Params {
+			return corelogimpl.ForOneShot(loggerName, "debug", true)
+		}),
+		logs.Bundle(),
+		fx.Provide(serializer.NewSerializer),
+		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
+			return s
+		}),
+		fx.Provide(func() string {
+			// TODO: send hostname
+			return ""
+		}),
+
+		fx.Provide(newForwarderParams),
+		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
+			return defaultforwarder.Forwarder(c), nil
+		}),
+		fx.Provide(NewOrchestratorinterfaceimpl),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -100,8 +122,4 @@ func main() {
 
 func newForwarderParams(config config.Component, log corelog.Component) defaultforwarder.Params {
 	return defaultforwarder.NewParams(config, log)
-}
-
-func newSerializer(demux *aggregator.AgentDemultiplexer) serializer.MetricSerializer {
-	return demux.Serializer()
 }
