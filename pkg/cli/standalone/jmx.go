@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -31,7 +30,7 @@ import (
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
 func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component, collector optional.Option[collector.Component], jmxLogger jmxlogger.Component) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector, jmxLogger)
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, jmxLogger.JMXInfo, logLevel, configs, wmeta, taggerComp, ac, senderManager, agentAPI, collector, jmxLogger)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting
