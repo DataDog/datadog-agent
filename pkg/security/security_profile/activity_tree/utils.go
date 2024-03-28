@@ -35,7 +35,7 @@ func ExtractFirstParent(path string) (string, int) {
 
 // AppendIfNotPresent append a token to a slice only if the token is not already present
 func AppendIfNotPresent(slice []string, toAdd string) ([]string, bool) {
-	if toAdd != "" && !slices.Contains(slice, toAdd) {
+	if toAdd != "" && (slice == nil || !slices.Contains(slice, toAdd)) {
 		return append(slice, toAdd), true
 	}
 	return slice, false
