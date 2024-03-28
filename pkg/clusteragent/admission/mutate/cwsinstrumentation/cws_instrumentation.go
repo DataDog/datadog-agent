@@ -14,9 +14,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"k8s.io/utils/strings/slices"
 	"path/filepath"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
+	apiserver2 "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/wI2L/jsondiff"
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -38,6 +42,7 @@ import (
 const (
 	cwsVolumeName                        = "datadog-cws-instrumentation"
 	cwsMountPath                         = "/datadog-cws-instrumentation"
+	cwsInstrumentationEmbeddedPath       = "/opt/datadog-agent/bin/datadog-cws-instrumentation/"
 	cwsInstrumentationPodAnotationStatus = "admission.datadoghq.com/cws-instrumentation.status"
 	cwsInstrumentationPodAnotationReady  = "ready"
 	cwsInjectorInitContainerName         = "cws-instrumentation"
@@ -203,6 +208,23 @@ func isPodCWSInstrumentationReady(annotations map[string]string) bool {
 	return annotations[cwsInstrumentationPodAnotationStatus] == cwsInstrumentationPodAnotationReady
 }
 
+type InstrumentationMode string
+
+const (
+	InitContainer InstrumentationMode = "init_container"
+	RemoteCopy    InstrumentationMode = "remote_copy"
+)
+
+// ParseInstrumentationMode returns the instrumentation mode from an input string
+func ParseInstrumentationMode(input string) (InstrumentationMode, error) {
+	switch InstrumentationMode(input) {
+	case InitContainer, RemoteCopy:
+		return InstrumentationMode(input), nil
+	default:
+		return "", fmt.Errorf("unknown instrumentation mode: %v", input)
+	}
+}
+
 // CWSInstrumentation is the main handler for the CWS instrumentation mutating webhook endpoints
 type CWSInstrumentation struct {
 	// filter is used to filter the pods to instrument
@@ -211,14 +233,21 @@ type CWSInstrumentation struct {
 	image string
 	// resources is the resources applied to the CWS instrumentation init container
 	resources *corev1.ResourceRequirements
+	// mode defines how pods are instrumented
+	mode InstrumentationMode
+	// mountVolumeForRemoteCopy
+	mountVolumeForRemoteCopy bool
 
 	webhookForPods     *WebhookForPods
 	webhookForCommands *WebhookForCommands
+	wmeta              workloadmeta.Component
 }
 
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
-func NewCWSInstrumentation() (*CWSInstrumentation, error) {
-	var ci CWSInstrumentation
+func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, error) {
+	ci := CWSInstrumentation{
+		wmeta: wmeta,
+	}
 	var err error
 
 	// Parse filters
@@ -249,6 +278,13 @@ func NewCWSInstrumentation() (*CWSInstrumentation, error) {
 		ci.image = fmt.Sprintf("%s/%s", cwsInjectorContainerRegistry, ci.image)
 	}
 
+	// parse mode
+	ci.mode, err = ParseInstrumentationMode(config.Datadog.GetString("admission_controller.cws_instrumentation.mode"))
+	if err != nil {
+		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %v", err)
+	}
+	ci.mountVolumeForRemoteCopy = config.Datadog.GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
+
 	// Parse init container resources
 	ci.resources, err = parseCWSInitContainerResources()
 	if err != nil {
@@ -276,15 +312,44 @@ func (ci *CWSInstrumentation) injectForCommand(request *admission.MutateRequest)
 	return mutatePodExecOptions(request.Raw, request.Name, request.Namespace, ci.webhookForCommands.Name(), request.UserInfo, ci.injectCWSCommandInstrumentation, request.DynamicClient, request.APIClient)
 }
 
+func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
+	var arch string
+	// try with the wmeta
+	out, err := ci.wmeta.GetKubernetesNode(nodeName)
+	if err == nil && out != nil {
+		arch = out.Labels["kubernetes.io/arch"]
+	}
+
+	if len(arch) == 0 {
+		// try by querying the api directly
+		node, err := apiClient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+		if err != nil {
+			return "", fmt.Errorf("couldn't describe node %s from the API server: %v", nodeName, err)
+		}
+		if node.GetLabels() != nil {
+			arch = node.GetLabels()["kubernetes.io/arch"]
+		}
+	}
+
+	if len(arch) == 0 || !slices.Contains([]string{"arm64", "amd64"}, arch) {
+		return "", fmt.Errorf("couldn't resolve the architecture of node %s from the API server", nodeName)
+	}
+	return arch, nil
+}
+
 func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) (bool, error) {
 	var injected bool
 
 	if exec == nil || userInfo == nil {
 		log.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
 		return false, errors.New(metrics.InvalidInput)
-
 	}
 	if len(exec.Command) == 0 {
+		return false, nil
+	}
+
+	// ignore the copy command from this admission controller
+	if ci.mode == RemoteCopy && slices.Equal(exec.Command, []string{"tar", "-x", "-m", "-f", "-", "-C", "/"}) {
 		return false, nil
 	}
 
@@ -294,9 +359,9 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// check if the pod has been instrumented
-	pod, err := apiClient.CoreV1().Pods(ns).Get(context.TODO(), name, metav1.GetOptions{})
+	pod, err := apiClient.CoreV1().Pods(ns).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil || pod == nil {
-		log.Errorf("couldn't describe pod %s in namespace %s from the API server: %v", name, ns, err)
+		fmt.Errorf("couldn't describe pod %s in namespace %s from the API server: %v", name, ns, err)
 		return false, errors.New(metrics.InternalError)
 	}
 
@@ -305,10 +370,44 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 		return false, nil
 	}
 
-	// is the pod instrumentation ready ? (i.e. has the CWS Instrumentation pod admission controller run ?)
-	if !isPodCWSInstrumentationReady(pod.Annotations) {
-		// pod isn't instrumented, do not attempt to override the pod exec command
-		log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
+	var cwsInstrumentationRemotePath string
+
+	switch ci.mode {
+	case InitContainer:
+		cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
+		// is the pod instrumentation ready ? (i.e. has the CWS Instrumentation init container been added ?)
+		if !isPodCWSInstrumentationReady(pod.Annotations) {
+			// pod isn't instrumented, do not attempt to override the pod exec command
+			log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
+			return false, nil
+		}
+	case RemoteCopy:
+		// if we're using a shared volume, we need to make sure the pod is instrumented first
+		if ci.mountVolumeForRemoteCopy {
+			if !isPodCWSInstrumentationReady(pod.Annotations) {
+				// pod isn't instrumented, do not attempt to override the pod exec command
+				log.Debugf("Ignoring exec request into %s, pod not instrumented yet", common.PodString(pod))
+				return false, nil
+			}
+			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
+		} else {
+			cwsInstrumentationRemotePath = "/cws-instrumentation"
+		}
+
+		arch, err := ci.resolveNodeArch(pod.Spec.NodeName, apiClient)
+		if err != nil {
+			log.Debugf("Ignoring exec request into %s: %v", common.PodString(pod), err)
+			return false, nil
+		}
+		cwsInstrumentationLocalPath := filepath.Join(cwsInstrumentationEmbeddedPath, "cws-instrumentation."+arch)
+
+		// copy CWS instrumentation directly to the target container
+		if err := ci.injectCWSCommandInstrumentationRemoteCopy(pod, exec, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath); err != nil {
+			log.Debugf("Ignoring exec request into %s, remote copy failed: %v", common.PodString(pod), err)
+			return false, nil
+		}
+	default:
+		log.Debugf("Ignoring exec request into %s, unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
 		return false, nil
 	}
 
@@ -321,7 +420,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 	if len(exec.Command) > 7 {
 		// make sure the command hasn't already been instrumented (note: it shouldn't happen)
-		if exec.Command[0] == filepath.Join(cwsMountPath, "cws-instrumentation") &&
+		if exec.Command[0] == cwsInstrumentationRemotePath &&
 			exec.Command[1] == "inject" &&
 			exec.Command[2] == "--session-type" &&
 			exec.Command[3] == "k8s" &&
@@ -337,7 +436,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 
 	// override the command with the call to cws-instrumentation
 	exec.Command = append([]string{
-		filepath.Join(cwsMountPath, "cws-instrumentation"),
+		cwsInstrumentationRemotePath,
 		"inject",
 		"--session-type",
 		"k8s",
@@ -352,29 +451,57 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	return injected, nil
 }
 
+func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *corev1.Pod, exec *corev1.PodExecOptions, cwsInstrumentationLocalPath, cwsInstrumentationRemotePath string) error {
+	apiserver, err := apiserver2.WaitForAPIClient(context.Background())
+	if err != nil {
+		return fmt.Errorf("couldn't initialize API client")
+	}
+
+	cp := k8scp.NewCopy(apiserver.GetRestConfig(), apiserver.Cl)
+	return cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, exec.Container)
+}
+
 func (ci *CWSInstrumentation) injectForPod(request *admission.MutateRequest) ([]byte, error) {
 	return common.Mutate(request.Raw, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient)
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
-	var injected bool
-
 	if pod == nil {
-		return injected, errors.New(metrics.InvalidInput)
+		return false, errors.New(metrics.InvalidInput)
 	}
 
 	// is the pod targeted by the instrumentation ?
 	if ci.filter.IsExcluded(pod.Annotations, "", "", ns) {
-		return injected, nil
+		return false, nil
 	}
 
 	// check if the pod has already been instrumented
 	if isPodCWSInstrumentationReady(pod.Annotations) {
-		injected = true
 		// nothing to do, return
-		return injected, nil
+		return true, nil
 	}
 
+	switch ci.mode {
+	case InitContainer:
+		ci.injectCWSPodInstrumentationInitContainer(pod)
+
+		// add label to indicate that the pod has been instrumented
+		if pod.Annotations == nil {
+			pod.Annotations = make(map[string]string)
+		}
+		pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
+		log.Debugf("Pod %s is now instrumented for CWS", common.PodString(pod))
+	case RemoteCopy:
+		ci.injectCWSPodInstrumentationRemoteCopy(pod)
+	default:
+		log.Debugf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		return false, nil
+	}
+
+	return false, nil
+}
+
+func (ci *CWSInstrumentation) injectCWSPodInstrumentationInitContainer(pod *corev1.Pod) {
 	// create a new volume that will be used to share cws-instrumentation across the containers of this pod
 	injectCWSVolume(pod)
 
@@ -383,17 +510,31 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 		injectCWSVolumeMount(&pod.Spec.Containers[i])
 	}
 
+	// same for other init containers
+	for i := range pod.Spec.InitContainers {
+		injectCWSVolumeMount(&pod.Spec.InitContainers[i])
+	}
+
 	// add init container to copy cws-instrumentation in the cws volume
 	injectCWSInitContainer(pod, ci.resources, ci.image)
+}
 
-	// add label to indicate that the pod has been instrumented
-	if pod.Annotations == nil {
-		pod.Annotations = make(map[string]string)
+func (ci *CWSInstrumentation) injectCWSPodInstrumentationRemoteCopy(pod *corev1.Pod) {
+	// are we using a mounted volume for the remote copy ?
+	if ci.mountVolumeForRemoteCopy {
+		// create a new volume that will be used to share cws-instrumentation across the containers of this pod
+		injectCWSVolume(pod)
+
+		// bind mount the volume to all the containers of the pod
+		for i := range pod.Spec.Containers {
+			injectCWSVolumeMount(&pod.Spec.Containers[i])
+		}
+
+		// same for other init containers
+		for i := range pod.Spec.InitContainers {
+			injectCWSVolumeMount(&pod.Spec.InitContainers[i])
+		}
 	}
-	pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
-	injected = true
-	log.Debugf("Pod %s is now instrumented for CWS", common.PodString(pod))
-	return injected, nil
 }
 
 func injectCWSVolume(pod *corev1.Pod) {

@@ -28,7 +28,7 @@ CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "a
 @task(iterable=["build_tags"])
 def build(
     ctx,
-    build_tags,
+    build_tags=None,
     race=False,
     incremental_build=True,
     major_version='7',
@@ -42,6 +42,8 @@ def build(
     """
     Build cws-instrumentation
     """
+    if build_tags is None:
+        build_tags = []
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
     # TODO use pkg/version for this
@@ -99,8 +101,18 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     ctx.run(f"chmod +x {latest_file}")
 
     build_context = "Dockerfiles/cws-instrumentation"
-    exec_path = f"{build_context}/cws-instrumentation.{arch}"
+    cws_instrumentation_base = f"{build_context}/datadog-cws-instrumentation"
+    exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
     dockerfile_path = f"{build_context}/Dockerfile"
+
+    try:
+        os.mkdir(cws_instrumentation_base)
+    except FileExistsError:
+        # Directory already exists
+        pass
+    except OSError as e:
+        # Handle other OS-related errors
+        print(f"Error creating directory: {e}")
 
     shutil.copy2(latest_file, exec_path)
     ctx.run(f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path}")
