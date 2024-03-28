@@ -161,8 +161,8 @@ typedef void (*cb_get_connection_info_t)(char **);
 
 // containers
 //
-// (container_name, image_name, namespace, bool_result)
-typedef int (*cb_is_excluded_t)(char *, char *, char *);
+// (annotation, container_name, image_name, namespace, bool_result)
+typedef int (*cb_is_excluded_t)(char *, char *, char *, char *);
 
 #ifdef __cplusplus
 }

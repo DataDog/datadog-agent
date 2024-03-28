@@ -18,16 +18,18 @@ from specific integrations.
 
 ```python
 
-def is_excluded(name, image):
-    """Returns whether a container is excluded per name and image.
+def is_excluded(annotation, name, image, namespace):
+    """Returns whether a container is excluded per annotation, name, image and namespace.
 
     NOTE: If unicode is passed to any of the params accepting it, the
     string is encoded using the default encoding for the system where the
     Agent is running. If encoding fails, the function raises `UnicodeError`.
 
     Args:
+        annotation (string or unicode): string-ified JSON of pod annotations.
         name (string or unicode): the name of the container.
         image (string or unicode): Docker image name.
+        namespace (string or unicode): namespace of container.
 
     Returns:
         True if the container is excluded, False otherwise.

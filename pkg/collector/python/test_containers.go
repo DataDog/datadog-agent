@@ -36,8 +36,10 @@ func testIsContainerExcluded(t *testing.T) {
 	assert.Nil(t, err)
 	filter.NamespaceExcludeList = append(filter.NamespaceExcludeList, r)
 
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("ns")), C.int(1))
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("bar"), C.CString("white")), C.int(0))
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("baz"), C.CString("black")), C.int(1))
-	assert.Equal(t, IsContainerExcluded(C.CString("foo"), C.CString("baz"), nil), C.int(0))
+	assert.Equal(t, IsContainerExcluded(C.CString("annotation"), C.CString("foo"), C.CString("bar"), C.CString("ns")), C.int(1))
+	assert.Equal(t, IsContainerExcluded(C.CString("annotation"), C.CString("foo"), C.CString("bar"), C.CString("white")), C.int(0))
+	assert.Equal(t, IsContainerExcluded(C.CString("annotation"), C.CString("foo"), C.CString("baz"), C.CString("black")), C.int(1))
+	assert.Equal(t, IsContainerExcluded(C.CString("annotation"), C.CString("foo"), C.CString("baz"), nil), C.int(0))
+	assert.Equal(t, IsContainerExcluded(C.CString("{'ad.datadoghq.com/not-foo.exclude_metrics': 'true'}"), C.CString("foo"), C.CString("bar"), C.CString("white")), C.int(0))
+	assert.Equal(t, IsContainerExcluded(C.CString("{'ad.datadoghq.com/foo.exclude_metrics': 'true'}"), C.CString("foo"), C.CString("bar"), C.CString("white")), C.int(0))
 }

@@ -20,7 +20,7 @@ import (
 #include "rtloader_mem.h"
 #include "datadog_agent_rtloader.h"
 
-extern int is_excluded(char *, char *, char *);
+extern int is_excluded(char *, char *, char *, char *);
 
 static void initContainersTests(rtloader_t *rtloader) {
    set_is_excluded_cb(rtloader, is_excluded);
@@ -100,7 +100,7 @@ except Exception as e:
 }
 
 //export is_excluded
-func is_excluded(name *C.char, image *C.char, namespace *C.char) C.int {
+func is_excluded(annotation *C.char, name *C.char, image *C.char, namespace *C.char) C.int {
 	if C.GoString(name) == "foo" {
 		return 1
 	}
