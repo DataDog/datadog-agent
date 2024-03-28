@@ -33,11 +33,11 @@ deploy_containers-cws-instrumentation-rc-mutable:
 # will push the `7.xx.y` tags
 deploy_containers-cws-instrumentation-final-versioned:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_a7_manual_final]
+  rules: !reference [.on_deploy_manual_final]
 
 # will update the `latest` tag
 deploy_containers-cws-instrumentation-latest:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_a7_manual_final]
+  rules: !reference [.on_deploy_manual_final]
   variables:
     VERSION: latest
