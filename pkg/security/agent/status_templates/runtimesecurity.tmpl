@@ -34,8 +34,8 @@
   Policies
   ========
     {{ range $policy := .policiesStatus }}
-      {{ $policy.name }}:
-        source: {{ $policy.source }}
+      {{ $policy.Name }}:
+        source: {{ $policy.Source }}
         rules:
           {{- range $status := $policy.Status }}
             - {{ $status.ID }}: {{ $status.Status }}{{- if $status.Error }} ({{- $status.Error }}){{- end }}
