@@ -280,7 +280,7 @@ type (
 	}
 
 	// InputSpecKubeapiserver describes the spec to resolve a Kubernetes
-	// resource information from from kube-apiserver.
+	// resource information from kube-apiserver.
 	InputSpecKubeapiserver struct {
 		Kind          string `yaml:"kind" json:"kind"`
 		Version       string `yaml:"version,omitempty" json:"version,omitempty"`
