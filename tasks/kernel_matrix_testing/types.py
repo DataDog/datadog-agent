@@ -11,6 +11,7 @@ from typing_extensions import Literal, Protocol, TypedDict
 Arch = Literal['x86_64', 'arm64']
 ArchOrLocal = Union[Arch, Literal['local']]
 PathOrStr = Union[os.PathLike, str]
+Component = Literal['system-probe', 'security-agent']
 
 
 class DependencyBuild(TypedDict):  # We cannot do 'TypedDict' as a string import as it's a base class here
