@@ -8,7 +8,10 @@
 // Package service provides a way to interact with os services
 package service
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 const (
 	agentUnit         = "datadog-agent.service"
@@ -74,6 +77,7 @@ func SetupAgentUnits() (err error) {
 			return
 		}
 	}
+	err = installinfo.WriteInstallInfo("updater_package", "manual_update_via_apt")
 	return
 }
 
@@ -109,6 +113,7 @@ func RemoveAgentUnits() {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
+	installinfo.RmInstallInfo()
 }
 
 // StartAgentExperiment starts the agent experiment

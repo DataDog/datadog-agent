@@ -27,10 +27,6 @@ case "$1" in
         rm -rf $PACKAGES_DIR
         rm -rf $PACKAGES_LOCK_DIR
     ;;
-    remove)
-        rm "$CONFIG_DIR/install_info" || true
-        rm "$CONFIG_DIR/install.json" || true
-    ;;
     *)
     ;;
 esac

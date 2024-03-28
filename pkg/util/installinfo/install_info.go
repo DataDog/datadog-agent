@@ -31,6 +31,7 @@ type InstallInfo struct {
 	InstallerVersion string `json:"installer_version" yaml:"installer_version"`
 }
 
+// installInfoMethod contains install info
 type installInfoMethod struct {
 	Method InstallInfo `json:"install_method" yaml:"install_method"`
 }
