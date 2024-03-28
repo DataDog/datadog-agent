@@ -22,6 +22,9 @@ const (
 	tagElasticBody      = "elasticsearch.body"
 	tagSQLQuery         = "sql.query"
 	tagHTTPURL          = "http.url"
+	tagShellCommand     = "cmd.shell"
+	tagExecCommand      = "cmd.exec"
+	tagShellIndices     = "cmd.indices"
 )
 
 const (
@@ -90,6 +93,31 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 			return
 		}
 		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+	case "system":
+		if span.Name == "command_execution" {
+			if !a.conf.Obfuscation.CommandExecution.Enabled {
+				return
+			}
+
+			v, ok := span.Meta[tagShellCommand]
+			if span.Meta == nil || !ok {
+				v, ok = span.Meta[tagExecCommand]
+				if span.Meta == nil || !ok {
+					return
+				}
+
+				cmdExec, cmdIndices, err := o.ObfuscateExecCommand(v)
+				if err != nil {
+					log.Debugf("Error obfuscating exec command %q: %v", v, err)
+					return
+				}
+
+				span.Meta[tagExecCommand] = cmdExec
+				span.Meta[tagShellIndices] = cmdIndices
+			} else {
+				span.Meta[tagShellCommand], span.Meta[tagShellIndices] = o.ObfuscateShellCommand(v)
+			}
+		}
 	}
 }
 
