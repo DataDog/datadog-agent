@@ -16,7 +16,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+<<<<<<< HEAD
 	lru "github.com/hashicorp/golang-lru/v2"
+=======
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+>>>>>>> f6127b5772 (basic windows discarder on `create.file.path`)
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

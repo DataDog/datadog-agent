@@ -44,6 +44,10 @@ const (
 type fileObjectPointer uint64
 
 var (
+<<<<<<< HEAD
+=======
+	filePathResolver = make(map[fileObjectPointer]string, 0)
+>>>>>>> f6127b5772 (basic windows discarder on `create.file.path`)
 	errDiscardedPath = errors.New("discarded path")
 )
 
@@ -177,8 +181,8 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	return ca, nil
 }
 
-func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := wp.parseCreateHandleArgs(e)
+func (p *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := p.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
