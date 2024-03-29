@@ -149,7 +149,7 @@ func getDefaultBootstrapVersions(bootstrapVersionsOverridePath string) (bootstra
 	return b, err
 }
 
-func getDefaults(catalogOverridePath string, bootstrapVersionsOverridePath string) (catalog catalog, versions bootstrapVersions, overriden bool) {
+func getDefaults(catalogOverridePath string, bootstrapVersionsOverridePath string) (catalog catalog, versions bootstrapVersions, overridden bool) {
 	catalog = defaultCatalog
 
 	tmpCatalog, err := getDefaultCatalog(catalogOverridePath)
@@ -157,7 +157,7 @@ func getDefaults(catalogOverridePath string, bootstrapVersionsOverridePath strin
 		log.Debug(fmt.Sprintf("could not read override catalog file: %s, falling back to default", err))
 	} else {
 		catalog = tmpCatalog
-		overriden = true
+		overridden = true
 	}
 
 	versions = defaultBootstrapVersions
@@ -166,7 +166,7 @@ func getDefaults(catalogOverridePath string, bootstrapVersionsOverridePath strin
 		log.Debug(fmt.Sprintf("could not read provided catalog file: %s, falling back to default", err))
 	} else {
 		versions = tmpVersions
-		overriden = true
+		overridden = true
 	}
 
 	return
@@ -186,9 +186,9 @@ func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, cat
 	remoteRegistryOverride := config.GetString("updater.registry")
 
 	rcClient := rc
-	catalog, defaultVersions, overriden := getDefaults(catalogOverridePath, bootstrapVersionsOverridePath)
-	if overriden {
-		log.Info("updater: catalog and/or default versions overriden, disabling remote config")
+	catalog, defaultVersions, overridden := getDefaults(catalogOverridePath, bootstrapVersionsOverridePath)
+	if overridden {
+		log.Info("updater: catalog and/or default versions overridden, disabling remote config")
 		rcClient = newNoopRemoteConfig()
 	}
 
