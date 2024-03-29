@@ -194,7 +194,13 @@ func isARepoDigest(imageName string) bool {
 // In general, 3 reference names are returned for a given DIGEST: repo tag, repo digest, and imageID.
 func (c *collector) pullImageReferences(namespace string, img containerd.Image) []string {
 	var refs []string
-	referenceImages, err := c.containerdClient.ListImagesWithDigest(namespace, img.Target().Digest.String())
+	digest := img.Target().Digest.String()
+	if !strings.HasPrefix(digest, "sha256") {
+		return refs // not a valid digest
+	}
+
+	// Get all references for the imageID
+	referenceImages, err := c.containerdClient.ListImagesWithDigest(namespace, digest)
 	if err == nil {
 		for _, image := range referenceImages {
 			imageName := image.Name()
