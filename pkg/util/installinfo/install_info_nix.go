@@ -13,6 +13,7 @@
 package installinfo
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -26,6 +27,8 @@ import (
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v2"
 )
+
+const execTimeout = 30 * time.Second
 
 var (
 	configDir       = "/etc/datadog-agent"
@@ -81,12 +84,16 @@ func getToolVersion() (string, string) {
 }
 
 func getRPMVersion() (string, error) {
-	output, err := exec.Command("rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+	output, err := exec.CommandContext(cancelctx, "rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
 	return string(output), err
 }
 
 func getDpkgVersion() (string, error) {
-	cmd := exec.Command("dpkg-query", "--showformat=${Version}", "--show", "dpkg")
+	cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
+	defer cancelfunc()
+	cmd := exec.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Warnf("Failed to get dpkg version: %s", err)
