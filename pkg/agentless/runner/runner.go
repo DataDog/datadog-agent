@@ -416,9 +416,6 @@ func (s *Runner) Start(ctx context.Context, statsd ddogstatsd.ClientInterface, s
 
 	defer func() {
 		log.Infof("stopping agentless-scanner main loop")
-		if s.rcClient != nil {
-			s.rcClient.Close()
-		}
 		close(s.scansCh)
 		wg.Wait()
 		close(s.resultsCh)
@@ -430,7 +427,6 @@ func (s *Runner) Start(ctx context.Context, statsd ddogstatsd.ClientInterface, s
 	for {
 		select {
 		case <-ctx.Done():
-			close(s.configsCh)
 			return
 		case config := <-s.configsCh:
 			for _, scan := range config.Tasks {
@@ -699,6 +695,14 @@ func (s *Runner) sendFindings(findings []*types.ScanFinding) {
 		finding.AgentVersion = version.AgentVersion
 		s.findingsReporter.ReportEvent(finding, tags...)
 	}
+}
+
+// Stop stops the runner main loop.
+func (s *Runner) Stop() {
+	if s.rcClient != nil {
+		s.rcClient.Close()
+	}
+	close(s.configsCh)
 }
 
 // PushConfig pushes a new scan configuration to the runner.
