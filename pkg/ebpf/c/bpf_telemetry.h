@@ -18,6 +18,8 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 
 #ifdef EBPF_INSTRUMENTATION
 
+static void (*bpf_patch_telemetry)(unsigned long target, ...) = (void *) -2;
+
 #define STR(x) #x
 #define MK_MAP_INDX(key) STR(key##_telemetry_key)
 
@@ -37,8 +39,9 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
                     (error * sizeof(unsigned long)) +                               \
                     offsetof(instrumentation_blob_t, map_err_telemetry);            \
                 if (offset < last_writable_slot_in_blob) {                \
-                    void *target = (void *)tb + offset;                             \
-                    __sync_fetch_and_add((unsigned long *)target, 1);               \
+                    unsigned long target = (unsigned long)tb + offset;                                             \
+                    unsigned long add = 1;                                          \
+                    bpf_patch_telemetry(target, add);                                    \
                 }                                                                   \
             }                                                                       \
         }                                                                           \
@@ -69,8 +72,9 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
                     (((helper_indx * T_MAX_ERRNO)+errno_slot)*sizeof(unsigned long)) +              \
                     offsetof(instrumentation_blob_t, helper_err_telemetry);                         \
                 if ((offset > 0) && (offset < last_writable_slot_in_blob)) {                        \
-                    void *target = (void *)tb + offset;                                             \
-                    __sync_fetch_and_add((unsigned long *)target, 1);                               \
+                    unsigned long target = (unsigned long)tb + offset;                                             \
+                    unsigned long add = 1;                                                          \
+                    bpf_patch_telemetry(target, add);                                               \
                 }                                                                                   \
             }                                                                                       \
         }                                                                                           \

@@ -32,6 +32,19 @@ const (
 	perfEventOutput
 )
 
+const (
+	// when building ebpf programs with instrumentation, we specify the `-pg` compiler flag. This instruments
+	// a call -1 in the beginning of the bytecode sequence. This 'call -1' is referred to as the
+	// trampoline call or patch point.
+	ebpfEntryTrampolinePatchCall = -1
+	// This patch point is used to add the instruction to fetch the cached instrumentation pointer. We need this
+	// patched at load time because older verifiers cannot track the register type to be a map pointer when reading
+	// from a stack. As such these kernels do not support telemetry. In these cases the patch site is replaced with
+	// `r0 = 0` instruction. When telemetry is supported the patch site is replaced by `r0 = *(u64 *)(r10 - 512)`, i.e.
+	// it reads the cached map value.
+	ebpfPathTelemetryInc = -2
+)
+
 var helperNames = map[int]string{
 	readIndx:        "bpf_probe_read",
 	readUserIndx:    "bpf_probe_read_user",
@@ -142,6 +155,12 @@ func patchEBPFInstrumentation(m *manager.Manager, bpfTelemetry *EBPFTelemetry, b
 	return PatchEBPFInstrumentation(programs, bpfTelemetry, bytecode, shouldSkip, block)
 }
 
+type patchSite struct {
+	ins      *asm.Instruction
+	callsite int
+	index    int
+}
+
 // PatchEBPFInstrumentation accepts eBPF bytecode and patches in the eBPF instrumentation
 func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetry *EBPFTelemetry, bytecode io.ReaderAt, shouldSkip func(string) bool, block *InstrumentationBlock) error {
 	initializeProbeKeys(programs, bpfTelemetry)
@@ -163,11 +182,6 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 			return fmt.Errorf("Function %s does not have enough free stack space for instrumentation", fn)
 		}
 
-		// when building ebpf programs with instrumentation, we specify the `-pg` compiler flag. This instruments
-		// a call -1 in the beginning of the bytecode sequence. This 'call -1' is referred to as the
-		// trampoline call or patch point.
-		const ebpfEntryTrampolinePatchCall = -1
-
 		// max trampoline offset is maximum number of instruction from program entry before the
 		// trampoline call.
 		// The trampoline call can either be the first instruction or the second instruction,
@@ -175,9 +189,8 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 		// has to set rX=r1 before the trampoline call.
 		const maxTrampolineOffset = 2
 		iter := p.Instructions.Iterate()
-		var trampolinePatchSite *asm.Instruction
-		var insCount, trampolinePatchIndex int
-
+		var insCount int
+		patchSites := make(map[int64][]patchSite)
 		for iter.Next() {
 			ins := iter.Ins
 			// raw count is needed here because we need the byte offset to calculate jumps
@@ -192,54 +205,86 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 			// For reference IsBuiltinCall() => ins.OpCode.JumpOp() == Call && ins.Src == R0 && ins.Dst == R0
 			// We keep the first condition and augment it by checking the constant of the call.
 			if ins.OpCode.JumpOp() == asm.Call && ins.Constant == ebpfEntryTrampolinePatchCall && iter.Offset <= maxTrampolineOffset {
-				trampolinePatchSite = iter.Ins
-				trampolinePatchIndex = int(iter.Offset)
+				patchSites[ins.Constant] = append(patchSites[ins.Constant], patchSite{ins, int(iter.Offset), iter.Index})
 
 				// do not break. We continue looping to get correct 'insCount'
+			}
+
+			if ins.IsBuiltinCall() && ins.Constant == ebpfPathTelemetryInc {
+				patchSites[ins.Constant] = append(patchSites[ins.Constant], patchSite{ins, int(iter.Offset), iter.Index})
 			}
 		}
 
 		// The patcher expects a trampoline call in all programs associated with this manager.
 		// No trampoline call is therefore an error condition. If this program is built without
 		// instrumentation we should never have come this far.
-		if trampolinePatchSite == nil {
+		if patchSites[ebpfEntryTrampolinePatchCall] == nil {
 			return fmt.Errorf("no compiler instrumented patch site found for program %s", p.Name)
 		}
 
-		// if a specific program in a manager should not be instrumented,
-		// instrument patch point with a NOP (ja 0)
-		// we're using here the same NOP instruction used internally by the verifier:
+		kernelVersionSupported, err := ebpfTelemetrySupported()
+		if err != nil {
+			return fmt.Errorf("could not determine if kernel version is supported for instrumentation: %w", err)
+		}
+
+		// if ebpf telemetry is not supported we patch a NOP instruction instead of the
+		// atomic increment. This is because older verifiers will fail when trying to
+		// verify this instruction. The NOP instruction is an absolute jump with a 0 offset
+		// This is the stand-in for NOP used internally by the verifier
 		// https://elixir.bootlin.com/linux/v6.7/source/kernel/bpf/verifier.c#L18582
-		if shouldSkip(p.Name) {
-			*trampolinePatchSite = asm.Instruction{OpCode: asm.Ja.Op(asm.ImmSource), Constant: 0}.WithMetadata(trampolinePatchSite.Metadata)
-			continue
+		atomicIncIns := asm.Instruction{OpCode: asm.Ja.Op(asm.ImmSource), Constant: 0}
+		if kernelVersionSupported {
+			atomicIncIns = asm.StoreXAdd(asm.R1, asm.R2, asm.Word)
 		}
+		for patchType, sites := range patchSites {
+			if patchType == ebpfPathTelemetryInc {
+				for _, site := range sites {
+					p.Instructions[site.index] = atomicIncIns.WithMetadata(site.ins.Metadata)
+				}
+			}
 
-		trampolineInstruction := asm.Instruction{
-			OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
-			Offset: int16(insCount - trampolinePatchIndex - 1),
-		}.WithMetadata(trampolinePatchSite.Metadata)
-		*trampolinePatchSite = trampolineInstruction
+			if patchType == ebpfEntryTrampolinePatchCall {
+				// there can only be a single trampoline patch site
+				if len(sites) > 1 {
+					return fmt.Errorf("discovered more than 1 (%d) trampoline patch sites in program %s", len(sites), fn)
+				}
 
-		// patch constant 'telemetry_program_id_key'
-		// This will be patched with the intended index into the helper errors array for this probe.
-		// This is done after patching the trampoline call, so that programs which should be skipped do
-		// not get this constant set. This would allow deadcode elimination to remove the telemetry block.
-		if err := patchConstant(p.Instructions, "telemetry_program_id_key", int64(bpfTelemetry.probeKeys[p.Name])); err != nil {
-			return fmt.Errorf("failed to patch constant 'telemetry_program_id_key' for program %s: %w", p.Name, err)
+				trampolinePatchSite := sites[0]
+
+				// if a specific program in a manager should not be instrumented,
+				// instrument patch point with a immediate store of 0 to the stack slot used for
+				// caching the instrumentation blob
+				if shouldSkip(p.Name) {
+					*trampolinePatchSite.ins = asm.StoreImm(asm.RFP, int16(512)*-1, 0, asm.DWord)
+					continue
+				}
+				trampolineInstruction := asm.Instruction{
+					OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
+					Offset: int16(insCount - trampolinePatchSite.callsite - 1),
+				}.WithMetadata(trampolinePatchSite.ins.Metadata)
+				p.Instructions[trampolinePatchSite.index] = trampolineInstruction
+
+				// patch constant 'telemetry_program_id_key'
+				// This will be patched with the intended index into the helper errors array for this probe.
+				// This is done after patching the trampoline call, so that programs which should be skipped do
+				// not get this constant set. This would allow deadcode elimination to remove the telemetry block.
+				if err := patchConstant(p.Instructions, "telemetry_program_id_key", int64(bpfTelemetry.probeKeys[p.Name])); err != nil {
+					return fmt.Errorf("failed to patch constant 'telemetry_program_id_key' for program %s: %w", p.Name, err)
+				}
+
+				// absolute jump back to the telemetry patch point to continue normal execution
+				retJumpOffset := trampolinePatchSite.callsite - (insCount + block.instructionCount)
+				newIns := asm.Instruction{
+					OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
+					Offset: int16(retJumpOffset),
+				}
+
+				for _, ins := range block.code {
+					p.Instructions = append(p.Instructions, *ins)
+				}
+				p.Instructions = append(p.Instructions, newIns)
+			}
 		}
-
-		// absolute jump back to the telemetry patch point to continue normal execution
-		retJumpOffset := trampolinePatchIndex - (insCount + block.instructionCount)
-		newIns := asm.Instruction{
-			OpCode: asm.OpCode(asm.JumpClass).SetJumpOp(asm.Ja),
-			Offset: int16(retJumpOffset),
-		}
-
-		for _, ins := range block.code {
-			p.Instructions = append(p.Instructions, *ins)
-		}
-		p.Instructions = append(p.Instructions, newIns)
 	}
 
 	return nil
@@ -387,19 +432,21 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	}
 	options.MapEditors[instrumentationMap] = bpfTelemetry.EBPFInstrumentationMap
 
-	var keys []manager.ConstantEditor
-	for _, m := range m.Maps {
-		// This is done before because we do not want a map index to be equal to 0
-		// 0 value for map_index is used as a guard against unpatched telemetry.
-		bpfTelemetry.mapIndex++
-		bpfTelemetry.mapKeys[m.Name] = bpfTelemetry.mapIndex
+	if supported {
+		var keys []manager.ConstantEditor
+		for _, m := range m.Maps {
+			// This is done before because we do not want a map index to be equal to 0
+			// 0 value for map_index is used as a guard against unpatched telemetry.
+			bpfTelemetry.mapIndex++
+			bpfTelemetry.mapKeys[m.Name] = bpfTelemetry.mapIndex
 
-		keys = append(keys, manager.ConstantEditor{
-			Name:  m.Name + "_telemetry_key",
-			Value: uint64(bpfTelemetry.mapKeys[m.Name]),
-		})
+			keys = append(keys, manager.ConstantEditor{
+				Name:  m.Name + "_telemetry_key",
+				Value: uint64(bpfTelemetry.mapKeys[m.Name]),
+			})
 
-		options.ConstantEditors = append(options.ConstantEditors, keys...)
+			options.ConstantEditors = append(options.ConstantEditors, keys...)
+		}
 	}
 	// we cannot exclude the telemetry maps because on some kernels, deadcode elimination hasn't removed references
 	// if telemetry not enabled: leave key constants as zero, and deadcode elimination should reduce number of instructions
@@ -413,7 +460,7 @@ func ebpfTelemetrySupported() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return kversion >= kernel.VersionCode(4, 14, 0), nil
+	return kversion >= kernel.VersionCode(4, 18, 0), nil
 }
 
 // ELFBuiltWithInstrumentation inspects an eBPF ELF file and determines if
