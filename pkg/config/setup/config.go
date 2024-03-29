@@ -1335,8 +1335,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Updater configuration
 	config.BindEnv("updater.registry")
-	config.BindEnv("updater.defaults.catalog_path")
-	config.BindEnv("updater.defaults.versions_path")
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables

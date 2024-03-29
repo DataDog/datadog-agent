@@ -85,6 +85,10 @@ func newTestUpdater(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigCl
 func newTestUpdaterWithCatalogOverride(t *testing.T, s *testFixturesServer, rcc *testRemoteConfigClient, defaultFixture fixture) *updaterImpl {
 	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
+	tempDir := t.TempDir()
+	catalogOverridePath := filepath.Join(tempDir, "catalog.json")
+	bootstrapVersionsOverridePath := filepath.Join(tempDir, "bootstrap_versions.json")
+
 	// Override the catalog with a custom one
 	pkg := s.Package(defaultFixture)
 	pkg.Version = "7.8.9"
@@ -93,12 +97,10 @@ func newTestUpdaterWithCatalogOverride(t *testing.T, s *testFixturesServer, rcc 
 	if err != nil {
 		t.Fatal(err)
 	}
-	customCatalogPath := filepath.Join(s.t.TempDir(), "custom_catalog.json")
-	err = os.WriteFile(customCatalogPath, jsonCatalog, 0644)
+	err = os.WriteFile(catalogOverridePath, jsonCatalog, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Set("updater.defaults.catalog_path", customCatalogPath, model.SourceDefault)
 
 	// Override the bootstrap versions with a custom one
 	bootstrapVersions := bootstrapVersions{
@@ -108,17 +110,15 @@ func newTestUpdaterWithCatalogOverride(t *testing.T, s *testFixturesServer, rcc 
 	if err != nil {
 		t.Fatal(err)
 	}
-	customBootstrapVersionsPath := filepath.Join(s.t.TempDir(), "custom_bootstrap.json")
-	err = os.WriteFile(customBootstrapVersionsPath, jsonBootstrapVersions, 0644)
+	err = os.WriteFile(bootstrapVersionsOverridePath, jsonBootstrapVersions, 0644)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Set("updater.defaults.versions_path", customBootstrapVersionsPath, model.SourceDefault)
 
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
-	u := newUpdater(rc, rootPath, locksPath, cfg)
+	u := newUpdater(rc, rootPath, locksPath, catalogOverridePath, bootstrapVersionsOverridePath, cfg)
 	u.installer.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.Start(context.Background())
@@ -130,7 +130,9 @@ func newTestUpdaterWithPaths(t *testing.T, s *testFixturesServer, rcc *testRemot
 	rc := &remoteConfig{client: rcc}
 	rootPath := t.TempDir()
 	locksPath := t.TempDir()
-	u := newUpdater(rc, rootPath, locksPath, cfg)
+	catalogOverridePath := t.TempDir() + "/catalog.json"
+	bootstrapVersionsOverridePath := t.TempDir() + "/bootstrap_versions.json"
+	u := newUpdater(rc, rootPath, locksPath, catalogOverridePath, bootstrapVersionsOverridePath, cfg)
 	u.installer.configsDir = t.TempDir()
 	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	u.catalog = s.Catalog()
