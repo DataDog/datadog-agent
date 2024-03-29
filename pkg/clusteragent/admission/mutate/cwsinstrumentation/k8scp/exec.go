@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build kubeapiserver
+
 package k8scp
 
 import (
@@ -28,6 +35,7 @@ type RemoteExecutor interface {
 // DefaultRemoteExecutor is the standard implementation of remote command execution
 type DefaultRemoteExecutor struct{}
 
+// Execute runs with the provided config
 func (*DefaultRemoteExecutor) Execute(url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error {
 	// Legacy SPDY executor is default. If feature gate enabled, fallback
 	// executor attempts websockets first--then SPDY.
@@ -44,6 +52,7 @@ func (*DefaultRemoteExecutor) Execute(url *url.URL, config *restclient.Config, s
 	})
 }
 
+// StreamOptions contains option for the remote stream
 type StreamOptions struct {
 	Namespace     string
 	PodName       string
@@ -77,6 +86,7 @@ type ExecOptions struct {
 	Config        *restclient.Config
 }
 
+// SetupTTY sets up the TTY
 func (o *StreamOptions) SetupTTY() term.TTY {
 	t := term.TTY{
 		Parent: o.InterruptParent,

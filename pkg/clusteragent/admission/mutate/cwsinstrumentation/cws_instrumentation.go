@@ -320,7 +320,7 @@ func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kuberne
 		arch = out.Labels["kubernetes.io/arch"]
 	}
 
-	if len(arch) == 0 {
+	if out == nil {
 		// try by querying the api directly
 		node, err := apiClient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 		if err != nil {
@@ -337,6 +337,31 @@ func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kuberne
 	return arch, nil
 }
 
+func containerHasReadonlyRootfs(container corev1.Container) bool {
+	if container.SecurityContext != nil && container.SecurityContext.ReadOnlyRootFilesystem != nil {
+		return *container.SecurityContext.ReadOnlyRootFilesystem
+	}
+	return false
+}
+
+func (ci *CWSInstrumentation) hasReadonlyRootfs(pod *corev1.Pod, container string) bool {
+	// check in the init containers
+	for _, c := range pod.Spec.InitContainers {
+		if c.Name == container {
+			return containerHasReadonlyRootfs(c)
+		}
+	}
+
+	// check the other containers
+	for _, c := range pod.Spec.Containers {
+		if c.Name == container {
+			return containerHasReadonlyRootfs(c)
+		}
+	}
+
+	return false
+}
+
 func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) (bool, error) {
 	var injected bool
 
@@ -349,7 +374,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// ignore the copy command from this admission controller
-	if ci.mode == RemoteCopy && slices.Equal(exec.Command, []string{"tar", "-x", "-m", "-f", "-", "-C", "/"}) {
+	if ci.mode == RemoteCopy && len(exec.Command) > 6 && slices.Equal(exec.Command[0:6], []string{"tar", "-x", "-m", "-f", "-", "-C"}) {
 		return false, nil
 	}
 
@@ -391,6 +416,12 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 			}
 			cwsInstrumentationRemotePath = filepath.Join(cwsMountPath, "cws-instrumentation")
 		} else {
+			// check if the target pod has a read only filesystem
+			if readOnly := ci.hasReadonlyRootfs(pod, exec.Container); readOnly {
+				// readonly rootfs containers can't be instrumented
+				log.Debugf("Ignoring exec request into %s, container %s has read only rootfs. Try enabling admission_controller.cws_instrumentation.remote_copy.mount_volume", common.PodString(pod), exec.Container)
+				return false, nil
+			}
 			cwsInstrumentationRemotePath = "/cws-instrumentation"
 		}
 
@@ -481,24 +512,29 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 		return true, nil
 	}
 
+	var instrumented bool
+
 	switch ci.mode {
 	case InitContainer:
 		ci.injectCWSPodInstrumentationInitContainer(pod)
+		instrumented = true
+	case RemoteCopy:
+		instrumented = ci.injectCWSPodInstrumentationRemoteCopy(pod)
+	default:
+		log.Debugf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
+		return false, nil
+	}
 
+	if instrumented {
 		// add label to indicate that the pod has been instrumented
 		if pod.Annotations == nil {
 			pod.Annotations = make(map[string]string)
 		}
 		pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
 		log.Debugf("Pod %s is now instrumented for CWS", common.PodString(pod))
-	case RemoteCopy:
-		ci.injectCWSPodInstrumentationRemoteCopy(pod)
-	default:
-		log.Debugf("Ignoring Pod %s admission request: unknown CWS Instrumentation mode %v", common.PodString(pod), ci.mode)
-		return false, nil
 	}
 
-	return false, nil
+	return true, nil
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentationInitContainer(pod *corev1.Pod) {
@@ -519,7 +555,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentationInitContainer(pod *core
 	injectCWSInitContainer(pod, ci.resources, ci.image)
 }
 
-func (ci *CWSInstrumentation) injectCWSPodInstrumentationRemoteCopy(pod *corev1.Pod) {
+func (ci *CWSInstrumentation) injectCWSPodInstrumentationRemoteCopy(pod *corev1.Pod) bool {
 	// are we using a mounted volume for the remote copy ?
 	if ci.mountVolumeForRemoteCopy {
 		// create a new volume that will be used to share cws-instrumentation across the containers of this pod
@@ -534,7 +570,10 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentationRemoteCopy(pod *corev1.
 		for i := range pod.Spec.InitContainers {
 			injectCWSVolumeMount(&pod.Spec.InitContainers[i])
 		}
+
+		return true
 	}
+	return false
 }
 
 func injectCWSVolume(pod *corev1.Pod) {

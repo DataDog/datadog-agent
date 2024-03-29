@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build kubeapiserver
+
 package k8scp
 
 import (
@@ -6,6 +13,7 @@ import (
 	"strings"
 )
 
+// FileSpec is used to identify a local or remote file
 type FileSpec struct {
 	PodName      string
 	PodNamespace string
@@ -32,26 +40,32 @@ func (p localPath) String() string {
 	return p.file
 }
 
+// Dir returns the directory of the localPath
 func (p localPath) Dir() localPath {
 	return newLocalPath(filepath.Dir(p.file))
 }
 
+// Base returns the base of the localPath
 func (p localPath) Base() localPath {
 	return newLocalPath(filepath.Base(p.file))
 }
 
+// Clean returns a new cleaned localPath
 func (p localPath) Clean() localPath {
 	return newLocalPath(filepath.Clean(p.file))
 }
 
+// Join joins the input path with the current localPath
 func (p localPath) Join(elem pathSpec) localPath {
 	return newLocalPath(filepath.Join(p.file, elem.String()))
 }
 
+// Glob returns the list of files matching the input file name
 func (p localPath) Glob() (matches []string, err error) {
 	return filepath.Glob(p.file)
 }
 
+// StripSlashes strips leading slashes
 func (p localPath) StripSlashes() localPath {
 	return newLocalPath(stripLeadingSlash(p.file))
 }
@@ -73,27 +87,33 @@ func (p remotePath) String() string {
 	return p.file
 }
 
+// Dir returns the directory of the remotePath
 func (p remotePath) Dir() remotePath {
 	return newRemotePath(path.Dir(p.file))
 }
 
+// Base returns the base of the remotePath
 func (p remotePath) Base() remotePath {
 	return newRemotePath(path.Base(p.file))
 }
 
+// Clean returns a new cleaned remotePath
 func (p remotePath) Clean() remotePath {
 	return newRemotePath(path.Clean(p.file))
 }
 
+// Join joins the input path with the current remotePath
 func (p remotePath) Join(elem pathSpec) remotePath {
 	return newRemotePath(path.Join(p.file, elem.String()))
 }
 
+// StripShortcuts removes any leading or trailing `../` in the path
 func (p remotePath) StripShortcuts() remotePath {
 	p = p.Clean()
 	return newRemotePath(stripPathShortcuts(p.file))
 }
 
+// StripSlashes strips leading slashes
 func (p remotePath) StripSlashes() remotePath {
 	return newRemotePath(stripLeadingSlash(p.file))
 }

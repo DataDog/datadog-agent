@@ -1,11 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build kubeapiserver
+
+// Package k8scp implements the necessary methods to copy a local file to a remote
+// container
 package k8scp
 
 import (
 	"archive/tar"
 	"bytes"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
+	"os"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -13,7 +23,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/scheme"
-	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Copy perform remote copy operations
@@ -46,6 +57,7 @@ func NewCopy(config *restclient.Config, clientSet kubernetes.Interface) *Copy {
 	}
 }
 
+// CopyToPod copies the provided local file to the provided container
 func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string) error {
 	// sanity check
 	if _, err := os.Stat(localFile); err != nil {
@@ -108,13 +120,14 @@ func recursiveTar(srcDir, srcFile localPath, destDir, destFile remotePath, tw *t
 		if err != nil {
 			return err
 		}
+
 		if stat.IsDir() {
 			files, err := os.ReadDir(fpath)
 			if err != nil {
 				return err
 			}
 			if len(files) == 0 {
-				//case empty directory
+				// case empty directory
 				hdr, _ := tar.FileInfoHeader(stat, fpath)
 				hdr.Name = destFile.String()
 				if err := tw.WriteHeader(hdr); err != nil {
@@ -128,21 +141,10 @@ func recursiveTar(srcDir, srcFile localPath, destDir, destFile remotePath, tw *t
 				}
 			}
 			return nil
-		} else if stat.Mode()&os.ModeSymlink != 0 {
-			//case soft link
-			hdr, _ := tar.FileInfoHeader(stat, fpath)
-			target, err := os.Readlink(fpath)
-			if err != nil {
-				return err
-			}
+		}
 
-			hdr.Linkname = target
-			hdr.Name = destFile.String()
-			if err := tw.WriteHeader(hdr); err != nil {
-				return err
-			}
-		} else {
-			//case regular file or other file type like pipe
+		if stat.Mode()&os.ModeSymlink == 0 {
+			// case regular file or other file type like pipe
 			hdr, err := tar.FileInfoHeader(stat, fpath)
 			if err != nil {
 				return err
@@ -163,6 +165,19 @@ func recursiveTar(srcDir, srcFile localPath, destDir, destFile remotePath, tw *t
 				return err
 			}
 			return f.Close()
+		}
+
+		// case soft link
+		hdr, _ := tar.FileInfoHeader(stat, fpath)
+		target, err := os.Readlink(fpath)
+		if err != nil {
+			return err
+		}
+
+		hdr.Linkname = target
+		hdr.Name = destFile.String()
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
 		}
 	}
 	return nil
