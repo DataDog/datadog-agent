@@ -158,7 +158,7 @@ func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandl
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	if _, ok := p.discardedPaths[ca.fileName]; ok {
+	if _, ok := p.discardedPaths.Get(ca.fileName); ok {
 		return nil, errDiscardedPath
 	}
 

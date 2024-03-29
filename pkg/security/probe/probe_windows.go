@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"golang.org/x/sys/windows"
 )
@@ -69,7 +70,7 @@ type WindowsProbe struct {
 	fimwg      sync.WaitGroup
 
 	// discarders
-	discardedPaths map[string]struct{}
+	discardedPaths *simplelru.LRU[string, struct{}]
 }
 
 type etwNotification struct {
@@ -539,6 +540,12 @@ func (p *WindowsProbe) SendStats() error {
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+	var err error
+	discardedPaths, err := simplelru.NewLRU[string, struct{}](1<<10, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -552,10 +559,9 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification),
-		discardedPaths:    make(map[string]struct{}),
+		discardedPaths:    discardedPaths,
 	}
 
-	var err error
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
 	if err != nil {
 		return nil, err
@@ -592,7 +598,7 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 
 		seclog.Errorf("new discarder for `%s` -> `%v`", field, value)
 		if sval, ok := value.(string); ok {
-			p.discardedPaths[sval] = struct{}{}
+			p.discardedPaths.Add(sval, struct{}{})
 		}
 	}
 }
