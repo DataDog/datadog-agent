@@ -223,8 +223,8 @@ function formatAgentInstallerParameters($params)
 
     if (($formattedparams -ne "") -and (doesDatadogYamlExist -eq $true))
     {
-        Write-Warning "A datadog.yaml file already exists. The following parameters will be ignored: $formattedparams"
-        return ""
+        Write-Warning "A datadog.yaml file already exists. The contents of that file will take precedence over the following parameters: $formattedparams"
+        # We will still pass the parameters along to the installer, and let it decide what to do with them
     }
 
     return $formattedparams
