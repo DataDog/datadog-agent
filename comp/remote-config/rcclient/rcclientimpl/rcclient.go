@@ -139,7 +139,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
-func (rc rcClient) start() error {
+func (rc rcClient) start() {
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -155,8 +155,6 @@ func (rc rcClient) start() error {
 		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.haUpdateCallback)
 		rc.clientHA.Start()
 	}
-
-	return nil
 }
 
 func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
