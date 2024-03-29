@@ -196,12 +196,17 @@ function installDotnetTracer($uniqueID)
 
 function doesDatadogYamlExist()
 {
-    $configRoot = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Datadog\Datadog Agent\').ConfigRoot
-    if ($configRoot -ne "")
-    {
-        return Test-Path -Path (Join-Path -Path $configRoot -ChildPath "datadog.yaml")
+    try {
+        $configRoot = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Datadog\Datadog Agent\').ConfigRoot
+        if ($configRoot -ne "")
+        {
+            return Test-Path -Path (Join-Path -Path $configRoot -ChildPath "datadog.yaml")
+        }
+        return $false
     }
-    return $false
+    catch {
+        return $false
+    }
 }
 
 function formatAgentInstallerParameters($params)
