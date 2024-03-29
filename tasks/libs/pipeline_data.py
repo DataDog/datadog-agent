@@ -29,21 +29,22 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
         jobs.sort(key=lambda x: x.created_at)
         # We truncate the job name to increase readability
         job_name = truncate_job_name(job_name)
+        job = jobs[-1]
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
-        trace = str(repo.jobs.get(jobs[-1].id).trace(), 'utf-8')
+        trace = str(repo.jobs.get(job, lazy=True).trace(), 'utf-8')
         failure_type, failure_reason = get_job_failure_context(trace)
         final_status = ProjectJob(
             repo.manager,
             attrs={
                 "name": job_name,
-                "id": jobs[-1].id,
-                "stage": jobs[-1].stage,
-                "status": jobs[-1].status,
-                "tag_list": jobs[-1].tag_list,
-                "allow_failure": jobs[-1].allow_failure,
-                "web_url": jobs[-1].web_url,
-                "retry_summary": [job.status for job in jobs],
+                "id": job.id,
+                "stage": job.stage,
+                "status": job.status,
+                "tag_list": job.tag_list,
+                "allow_failure": job.allow_failure,
+                "web_url": job.web_url,
+                "retry_summary": [ijob.status for ijob in jobs],
                 "failure_type": failure_type,
                 "failure_reason": failure_reason,
             },
