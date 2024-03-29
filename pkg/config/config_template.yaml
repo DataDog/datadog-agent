@@ -736,7 +736,7 @@ api_key:
 # enable_gohai: true
 
 ## @param enable_signing_metadata_collection - boolean - optional - default: true
-## @env DD_ENABLE_SIGNING_METADATA - boolean - optional - default: true
+## @env DD_ENABLE_SIGNING_METADATA_COLLECTION - boolean - optional - default: true
 ## Enable the Linux package signing medatada collection.
 #
 # enable_signing_metadata_collection: true

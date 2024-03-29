@@ -192,7 +192,7 @@ updates:
     labels:
       - dependencies
       - dependencies-github-actions
-      - team/agent-platform
+      - team/agent-ci-experience
       - changelog/no-changelog
       - qa/no-code-change
       - dev/tooling
