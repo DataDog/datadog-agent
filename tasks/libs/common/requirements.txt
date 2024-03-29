@@ -1,1 +1,0 @@
-python-gitlab==4.4.0
