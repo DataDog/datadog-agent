@@ -607,16 +607,16 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileSetDelete, float64(p.stats.fileSetDelete), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIdRename, float64(p.stats.fileidRename), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename, float64(p.stats.fileidRename), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIdQueryInformation, float64(p.stats.fileidQueryInformation), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDQueryInformation, float64(p.stats.fileidQueryInformation), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIdFSCTL, float64(p.stats.fileidFSCTL), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDFSCTL, float64(p.stats.fileidFSCTL), nil, 1); err != nil {
 		return err
 	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIdRename29, float64(p.stats.fileidRename29), nil, 1); err != nil {
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename29, float64(p.stats.fileidRename29), nil, 1); err != nil {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegCreateKey, float64(p.stats.regCreateKey), nil, 1); err != nil {

@@ -207,7 +207,7 @@ func (ca *createNewFileArgs) String() string {
       <data name="InfoClass" inType="win:UInt32"/>
      </template>
 */
-
+// nolint: unused
 type setInformationArgs struct {
 	etw.DDEventHeader
 	irp        uint64
@@ -219,6 +219,7 @@ type setInformationArgs struct {
 	fileName   string
 }
 
+// nolint: unused
 func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 	sia := &setInformationArgs{
 		DDEventHeader: e.EventHeader,
