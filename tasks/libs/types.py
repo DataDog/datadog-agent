@@ -112,13 +112,13 @@ class SlackMessage:
 
         jobs_per_stage = defaultdict(list)
         for job in jobs:
-            jobs_per_stage[job["stage"]].append(job)
+            jobs_per_stage[job.stage].append(job)
 
         for stage, jobs in jobs_per_stage.items():
             jobs_info = []
             for job in jobs:
-                num_retries = len(job["retry_summary"]) - 1
-                job_info = f"<{job['url']}|{job['name']}>"
+                num_retries = len(job.retry_summary) - 1
+                job_info = f"<{job.web_url}|{job.name}>"
                 if num_retries > 0:
                     job_info += f" ({num_retries} retries)"
 
@@ -132,7 +132,7 @@ class SlackMessage:
     def __render_tests_section(self, buffer):
         print(self.TEST_SECTION_HEADER, file=buffer)
         for (test_name, test_package), jobs in self.failed_tests.items():
-            job_list = ", ".join(f"<{job['url']}|{job['name']}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
+            job_list = ", ".join(f"<{job.web_url}|{job.name}>" for job in jobs[: self.MAX_JOBS_PER_TEST])
             if len(jobs) > self.MAX_JOBS_PER_TEST:
                 job_list += f" and {len(jobs) - self.MAX_JOBS_PER_TEST} more"
             print(f"- `{test_name}` from package `{test_package}` (in {job_list})", file=buffer)

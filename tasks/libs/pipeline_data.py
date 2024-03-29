@@ -42,7 +42,7 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
                 "status": jobs[-1].status,
                 "tag_list": jobs[-1].tag_list,
                 "allow_failure": jobs[-1].allow_failure,
-                "url": jobs[-1].web_url,
+                "web_url": jobs[-1].web_url,
                 "retry_summary": [job.status for job in jobs],
                 "failure_type": failure_type,
                 "failure_reason": failure_reason,
