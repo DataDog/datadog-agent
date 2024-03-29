@@ -20,8 +20,8 @@ case "$(uname)" in
 esac
 
 curl -O     "https://fedoraproject.org/fedora.gpg"
-curl -LOC - "https://github.com/coreos/butane/releases/download/v0.16.0/${butane}"
-curl -LO    "https://github.com/coreos/butane/releases/download/v0.16.0/${butane}.asc"
+curl -LOC - "https://github.com/coreos/butane/releases/download/v0.20.0/${butane}"
+curl -LO    "https://github.com/coreos/butane/releases/download/v0.20.0/${butane}.asc"
 
 gpgv --keyring ./fedora.gpg "${butane}.asc" "$butane"
 chmod +x "$butane"

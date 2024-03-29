@@ -65,7 +65,7 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	store *serverstore.Store
+	store serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
@@ -87,11 +87,15 @@ func NewServer(options ...func(*Server)) *Server {
 
 	registry := prometheus.NewRegistry()
 
+	storeMetrics := fi.store.GetInternalMetrics()
 	registry.MustRegister(
-		collectors.NewBuildInfoCollector(),
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		fi.store.NbPayloads,
+		append(
+			[]prometheus.Collector{
+				collectors.NewBuildInfoCollector(),
+				collectors.NewGoCollector(),
+				collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+			},
+			storeMetrics...)...,
 	)
 
 	mux := http.NewServeMux()
@@ -217,6 +221,7 @@ func (fi *Server) Stop() error {
 		return fmt.Errorf("server not running")
 	}
 	defer close(fi.shutdown)
+	defer fi.store.Close()
 	err := fi.server.Shutdown(context.Background())
 	if err != nil {
 		return err
@@ -317,7 +322,12 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		encoding = req.Header.Get("Content-Type")
 	}
 
-	fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, payload, encoding, fi.clock.Now().UTC())
+	if err != nil {
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return nil
+	}
 
 	if response, ok := fi.getResponseFromURLPath(http.MethodPost, req.URL.Path); ok {
 		writeHTTPResponse(w, response)
@@ -361,7 +371,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else if serverstore.IsRouteHandled(route) {
-		payloads, payloadErr := fi.store.GetJSONPayloads(route)
+		payloads, payloadErr := serverstore.GetJSONPayloads(fi.store, route)
 		if payloadErr != nil {
 			writeHTTPResponse(w, buildErrorResponse(payloadErr))
 			return
