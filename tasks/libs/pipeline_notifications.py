@@ -95,7 +95,7 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     owners_to_notify = defaultdict(FailedJobs)
 
     for job in failed_jobs.all_non_infra_failures():
-        job_owners = owners.of(job["name"])
+        job_owners = owners.of(job.name)
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-ci-experience')]
 
