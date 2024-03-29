@@ -753,18 +753,27 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 
 			chmodBucket := rs.eventRuleBuckets["chmod"]
 			chmodField := "chmod.file.path"
+			dctx := buildDiscarderCtx(chmodField, path)
 
-			if isDiscarder, _ := IsDiscarder(ctx, chmodField, chmodBucket.rules); isDiscarder {
+			if isDiscarder, _ := IsDiscarder(dctx, chmodField, chmodBucket.rules); isDiscarder {
 				rs.logger.Errorf("chmod meta discarder from open %s %s", field, path)
 			}
 		}
 	}
 }
 
-// GetEventTypes returns all the event types handled by the ruleset
+func buildDiscarderCtx(field string, value interface{}) *eval.Context {
+	ev := model.NewFakeEvent()
+	ev.SetFieldValue(field, value)
+	return eval.NewContext(ev)
+}
+
+func buildDiscarderCtx(field string, value interface{}) (*eval.Context, error) {
 func (rs *RuleSet) GetEventTypes() []eval.EventType {
-	eventTypes := make([]string, 0, len(rs.eventRuleBuckets))
-	for eventType := range rs.eventRuleBuckets {
+	if err := ev.SetFieldValue(field, value); err != nil {
+		return nil, err
+	}
+	return eval.NewContext(ev), nil
 		eventTypes = append(eventTypes, eventType)
 	}
 	return eventTypes
