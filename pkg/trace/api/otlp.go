@@ -94,10 +94,6 @@ func (o *OTLPReceiver) Start() {
 				}
 			}()
 			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.GRPCPort)
-
-			if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
-				log.Warn("OTLP ingest identifies top-level spans by span kind which may impact trace metrics. This feature can be disabled by adding 'disable_otlp_compute_top_level_by_span_kind' in DD_APM_FEATURES.")
-			}
 		}
 	}
 }
