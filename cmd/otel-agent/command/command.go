@@ -1,0 +1,59 @@
+// Package command implements the top-level `otel-agent` binary, including its subcommands.
+package command
+
+import (
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
+const (
+	// LoggerName is the application logger identifier
+	loggerName = "OTELCOL"
+)
+
+// defaultConfigPath specifies the default configuration file path for non-Windows systems.
+var defaultConfigPath = filepath.Join(setup.InstallPath, "etc/otel-config.yaml")
+
+// MakeRootCommand is the root command for the trace-agent
+// Please note that the trace-agent can be launched directly
+// by the root command, unlike other agents that are managed
+// with subcommands.
+func MakeRootCommand() *cobra.Command {
+	globalParams := subcommands.GlobalParams{
+		ConfigName: "datadog-otel",
+	}
+
+	return makeCommands(&globalParams)
+}
+
+func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
+	globalConfGetter := func() *subcommands.GlobalParams {
+		return &subcommands.GlobalParams{
+			ConfPath:   globalParams.ConfPath,
+			ConfigName: globalParams.ConfigName,
+			LoggerName: loggerName,
+		}
+	}
+	commands := []*cobra.Command{
+		run.MakeCommand(globalConfGetter),
+		version.MakeCommand("otel-agent"),
+	}
+
+	otelAgentCmd := *commands[0] // root cmd is `run()`; indexed at 0
+	otelAgentCmd.Use = "otel-agent [command]"
+	otelAgentCmd.Short = "Datadog otel-agent at your service."
+
+	for _, cmd := range commands {
+		otelAgentCmd.AddCommand(cmd)
+	}
+
+	otelAgentCmd.PersistentFlags().StringVarP(&globalParams.ConfPath, "config", "c", defaultConfigPath, "path to directory containing datadog.yaml")
+
+	return &otelAgentCmd
+}
