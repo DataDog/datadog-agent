@@ -54,8 +54,6 @@ type CiscoSdwanCheck struct {
 
 // Run executes the check
 func (c *CiscoSdwanCheck) Run() error {
-	log.Info("Running Cisco SD-WAN check")
-
 	devices, err := c.client.GetDevices()
 	if err != nil {
 		log.Warnf("Error getting devices from Cisco SD-WAN API: %s", err)
@@ -121,7 +119,6 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	// Commit
 	c.metricsSender.Commit()
-	log.Info("Done running Cisco SD-WAN check")
 
 	return nil
 }
