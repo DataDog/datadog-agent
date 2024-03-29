@@ -25,28 +25,31 @@ import (
 
 const (
 	// CheckName is the name of the check
-	CheckName = "ciscosdwan"
+	CheckName            = "ciscosdwan"
+	defaultCheckInterval = 2 * time.Minute
 )
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	VManageEndpoint string `yaml:"vmanage_endpoint"`
-	Username        string `yaml:"username"`
-	Password        string `yaml:"password"`
-	Namespace       string `yaml:"namespace"`
-	MaxAttempts     int    `yaml:"max_attempts"`
-	MaxPages        int    `yaml:"max_pages"`
-	MaxCount        int    `yaml:"max_count"`
-	Lookback        int    `yaml:"lookback"`
-	UseHTTP         bool   `yaml:"use_http"`
-	Insecure        bool   `yaml:"insecure"`
-	CAFile          string `yaml:"ca_file"`
-	SendNDMMetadata *bool  `yaml:"send_ndm_metadata"`
+	VManageEndpoint       string `yaml:"vmanage_endpoint"`
+	Username              string `yaml:"username"`
+	Password              string `yaml:"password"`
+	Namespace             string `yaml:"namespace"`
+	MaxAttempts           int    `yaml:"max_attempts"`
+	MaxPages              int    `yaml:"max_pages"`
+	MaxCount              int    `yaml:"max_count"`
+	Lookback              int    `yaml:"lookback"`
+	UseHTTP               bool   `yaml:"use_http"`
+	Insecure              bool   `yaml:"insecure"`
+	CAFile                string `yaml:"ca_file"`
+	SendNDMMetadata       *bool  `yaml:"send_ndm_metadata"`
+	MinCollectionInterval int    `yaml:"min_collection_interval"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
 type CiscoSdwanCheck struct {
 	core.CheckBase
+	interval      time.Duration
 	config        checkCfg
 	client        *client.Client
 	metricsSender *report.SDWanSender
@@ -160,6 +163,11 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		c.config.SendNDMMetadata = &sendMetadata
 	}
 
+	c.interval = defaultCheckInterval
+	if c.config.MinCollectionInterval != 0 {
+		c.interval = time.Second * time.Duration(c.config.MinCollectionInterval)
+	}
+
 	var clientOptions []client.ClientOptions
 
 	if instanceConfig.Insecure || instanceConfig.CAFile != "" {
@@ -196,6 +204,11 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
 
 	return nil
+}
+
+// Interval returns the scheduling time for the check
+func (c *CiscoSdwanCheck) Interval() time.Duration {
+	return c.interval
 }
 
 // Factory creates a new check factory

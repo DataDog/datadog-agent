@@ -67,6 +67,7 @@ username: admin
 password: 'test-password'
 use_http: true
 namespace: test
+min_collection_interval: 180
 `)
 
 	// Use ID to ensure the mock sender gets registered
@@ -82,6 +83,8 @@ namespace: test
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	require.NoError(t, err)
+
+	assert.Equal(t, 3*time.Minute, chk.Interval())
 
 	err = chk.Run()
 	require.NoError(t, err)
