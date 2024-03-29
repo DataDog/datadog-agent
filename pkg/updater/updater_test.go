@@ -248,6 +248,7 @@ func TestUpdaterBootstrapCustomCatalog(t *testing.T) {
 	assert.NoError(t, err)
 	r := updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err := r.GetState()
+	assert.NoError(t, err)
 	assert.Equal(t, "7.8.9", state.Stable)
 
 	rc.SubmitCatalog(s.Catalog()) // RC should be ignored
@@ -255,6 +256,7 @@ func TestUpdaterBootstrapCustomCatalog(t *testing.T) {
 	assert.NoError(t, err)
 	r = updater.repositories.Get(fixtureSimpleV1.pkg)
 	state, err = r.GetState()
+	assert.NoError(t, err)
 	assert.Equal(t, "7.8.9", state.Stable)
 }
 
