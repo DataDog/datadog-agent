@@ -7,14 +7,14 @@ package runner
 
 import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
+	trivycore "github.com/aquasecurity/trivy/pkg/sbom/core"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
-	trivydxcore "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx/core"
 	"github.com/distribution/reference"
 )
 
 const (
-	repoTagPropertyKey    = trivydxcore.Namespace + trivydx.PropertyRepoTag
-	repoDigestPropertyKey = trivydxcore.Namespace + trivydx.PropertyRepoDigest
+	repoTagPropertyKey    = trivydx.Namespace + trivycore.PropertyRepoTag
+	repoDigestPropertyKey = trivydx.Namespace + trivycore.PropertyRepoDigest
 )
 
 func appendSBOMRepoMetadata(sbom *cdx.BOM, imageRefTagged reference.NamedTagged, imageRefCanonical reference.Canonical) {
