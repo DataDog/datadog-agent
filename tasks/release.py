@@ -1329,7 +1329,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     if sys.version_info[0] < 3:
         return Exit(message="Must use Python 3 for this task", code=1)
 
-    repo = get_gitlab_repo()
+    datadog_agent = get_gitlab_repo()
     list_major_versions = parse_major_versions(major_versions)
 
     # Get the version of the highest major: needed for tag_version and to know
@@ -1379,7 +1379,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     gitlab_tag = None
     while not gitlab_tag:
         try:
-            gitlab_tag = repo.tags.get(str(new_version))
+            gitlab_tag = datadog_agent.tags.get(str(new_version))
         except GitlabError:
             continue
 
