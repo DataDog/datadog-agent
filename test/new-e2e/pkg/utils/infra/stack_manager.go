@@ -53,6 +53,8 @@ var (
 // StackManager handles
 type StackManager struct {
 	stacks *safeStackMap
+
+	retriableErrors []retriableError
 }
 
 type safeStackMap struct {
@@ -104,7 +106,8 @@ func GetStackManager() *StackManager {
 
 func newStackManager() (*StackManager, error) {
 	return &StackManager{
-		stacks: newSafeStackMap(),
+		stacks:          newSafeStackMap(),
+		retriableErrors: getKnownRetriableErrors(),
 	}, nil
 }
 
@@ -283,7 +286,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		if err == nil {
 			break
 		}
-		if retryStrategy := shouldRetryError(err); retryStrategy != noRetry {
+		if retryStrategy := sm.getRetryStrategyFrom(err); retryStrategy != noRetry {
 			fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying with %s strategy", retryStrategy)
 			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy)}, logger)
 			if err != nil {
@@ -299,7 +302,6 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 					return stack, auto.UpResult{}, err
 				}
 			}
-
 		} else {
 			break
 		}
@@ -355,32 +357,12 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 	}
 }
 
-type retryType string
-
-const (
-	reUp     retryType = "ReUp"     // Retry the up operation
-	reCreate retryType = "ReCreate" // Retry the up operation after destroying the stack
-	noRetry  retryType = "NoRetry"
-)
-
-func shouldRetryError(err error) retryType {
-	// Add here errors that are known to be flakes and that should be retried
-	if strings.Contains(err.Error(), "i/o timeout") {
-		return reCreate
+func (sm *StackManager) getRetryStrategyFrom(err error) retryType {
+	for _, retriableError := range sm.retriableErrors {
+		if strings.Contains(err.Error(), retriableError.errorMessage) {
+			return retriableError.retryType
+		}
 	}
-
-	if strings.Contains(err.Error(), "creating EC2 Instance: IdempotentParameterMismatch:") {
-		return reUp
-	}
-
-	if strings.Contains(err.Error(), "InvalidInstanceID.NotFound") {
-		return reUp
-	}
-
-	if strings.Contains(err.Error(), "create: timeout while waiting for state to become 'tfSTABLE'") {
-		return reUp
-	}
-
 	return noRetry
 }
 
