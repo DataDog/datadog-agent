@@ -32,7 +32,7 @@ def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:
         job = jobs[-1]
         # Check the final job in the list: it contains the current status of the job
         # This excludes jobs that were retried and succeeded
-        trace = str(repo.jobs.get(job, lazy=True).trace(), 'utf-8')
+        trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8')
         failure_type, failure_reason = get_job_failure_context(trace)
         final_status = ProjectJob(
             repo.manager,
