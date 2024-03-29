@@ -199,6 +199,9 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
             "--tags",
             f"jira_project:{jira_project}",
         ]
+        if is_e2e_internal_failure(junit_file_path):
+            args.append("--tags")
+            args.append("e2e_internal_error:true")
         if additional_tags and "upload_option.os_version_from_name" in additional_tags:
             additional_tags.remove("upload_option.os_version_from_name")
             additional_tags.append("--tags")
@@ -215,6 +218,14 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
         exit_code = process.wait()
         if exit_code != 0:
             raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
+
+
+def is_e2e_internal_failure(xml_path):
+    """
+    Check if the given JUnit XML file contains E2E INTERAL ERROR string.
+    """
+    filecontent = open(xml_path).read()
+    return "E2E INTERNAL ERROR" in filecontent
 
 
 def _update_environ(unpack_dir):
