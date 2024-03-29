@@ -78,11 +78,6 @@ func TestServer(t *testing.T) {
 		})
 	}
 
-	t.Run("Make sure WithRetention sets the retention correctly", func(t *testing.T) {
-		fi := NewServer(WithRetention(10 * time.Minute))
-		assert.Equal(t, 10*time.Minute, fi.retention)
-	})
-
 	t.Run("should run after start", func(t *testing.T) {
 		fi := NewServer(WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
 		fi.Start()
@@ -344,56 +339,72 @@ func TestServer(t *testing.T) {
 		assert.Empty(t, getResponse20Min.Payloads, "should be empty after cleanup")
 	})
 
-	t.Run("should clean payloads older than 15 minutes and keep recent payloads", func(t *testing.T) {
-		fi, clock := InitialiseForTests(t)
-		defer fi.Stop()
+	for _, tt := range []struct {
+		name              string
+		opts              []Option
+		expectedRetention time.Duration
+	}{
+		{
+			name:              "should clean payloads older than 5 minutes and keep recent payloads",
+			opts:              []Option{WithRetention(5 * time.Minute)},
+			expectedRetention: 5 * time.Minute,
+		},
+		{
+			name:              "default: should clean payloads older than 15 minutes and keep recent payloads",
+			expectedRetention: 15 * time.Minute,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			fi, clock := InitialiseForTests(t, tt.opts...)
+			defer fi.Stop()
 
-		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
-			{
-				Endpoint: "/totoro",
-				Data:     "totoro|7|tag:valid,owner:pducolin",
-			},
-			{
-				Endpoint: "/totoro",
-				Data:     "totoro|5|tag:valid,owner:kiki",
-			},
-			{
-				Endpoint: "/kiki",
-				Data:     "I am just a poor raw log",
-			},
+			PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|7|tag:valid,owner:pducolin",
+				},
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|5|tag:valid,owner:kiki",
+				},
+				{
+					Endpoint: "/kiki",
+					Data:     "I am just a poor raw log",
+				},
+			})
+
+			clock.Add(tt.expectedRetention - 1*time.Minute)
+
+			PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|7|tag:valid,owner:ponyo",
+				},
+				{
+					Endpoint: "/totoro",
+					Data:     "totoro|5|tag:valid,owner:mei",
+				},
+			})
+
+			completeResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+			require.NoError(t, err, "Error on GET request")
+			defer completeResponse.Body.Close()
+			var getCompleteResponse api.APIFakeIntakePayloadsRawGETResponse
+			json.NewDecoder(completeResponse.Body).Decode(&getCompleteResponse)
+			assert.Len(t, getCompleteResponse.Payloads, 4, "should contain 4 elements before cleanup")
+
+			clock.Add(tt.expectedRetention)
+
+			cleanedResponse, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
+			require.NoError(t, err, "Error on GET request")
+			defer cleanedResponse.Body.Close()
+			var getCleanedResponse api.APIFakeIntakePayloadsRawGETResponse
+			json.NewDecoder(cleanedResponse.Body).Decode(&getCleanedResponse)
+			assert.Len(t, getCleanedResponse.Payloads, 2, "should contain 2 elements after cleanup of only older elements")
+
+			fi.Stop()
 		})
-
-		clock.Add(10 * time.Minute)
-
-		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
-			{
-				Endpoint: "/totoro",
-				Data:     "totoro|7|tag:valid,owner:ponyo",
-			},
-			{
-				Endpoint: "/totoro",
-				Data:     "totoro|5|tag:valid,owner:mei",
-			},
-		})
-
-		response10Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
-		require.NoError(t, err, "Error on GET request")
-		defer response10Min.Body.Close()
-		var getResponse10Min api.APIFakeIntakePayloadsRawGETResponse
-		json.NewDecoder(response10Min.Body).Decode(&getResponse10Min)
-		assert.Len(t, getResponse10Min.Payloads, 4, "should contain 4 elements before cleanup")
-
-		clock.Add(10 * time.Minute)
-
-		response20Min, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/totoro")
-		require.NoError(t, err, "Error on GET request")
-		defer response20Min.Body.Close()
-		var getResponse20Min api.APIFakeIntakePayloadsRawGETResponse
-		json.NewDecoder(response20Min.Body).Decode(&getResponse20Min)
-		assert.Len(t, getResponse20Min.Payloads, 2, "should contain 2 elements after cleanup of only older elements")
-
-		fi.Stop()
-	})
+	}
 
 	t.Run("should clean json parsed payloads", func(t *testing.T) {
 		fi, clock := InitialiseForTests(t)
