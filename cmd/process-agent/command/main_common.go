@@ -41,9 +41,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgrcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -125,6 +125,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				PythonVersionGetFunc: python.GetPythonVersion,
 			},
 		),
+		fx.Supply(
+			// Provide remote config client configuration
+			pkgrcclient.WithAgent("process-agent", version.AgentVersion),
+		),
+
 		// Populate dependencies required for initialization in this function
 		fx.Populate(&appInitDeps),
 
@@ -202,15 +207,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 				return errAgentDisabled
 			}
 			return nil
-		}),
-
-		// Initialize the remote-config client to update the runtime settings
-		fx.Invoke(func(rc rcclient.Component) {
-			if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
-				if err := rc.Start("process-agent"); err != nil {
-					log.Errorf("Couldn't start the remote-config client of the process agent: %s", err)
-				}
-			}
 		}),
 	)
 

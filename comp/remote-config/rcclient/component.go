@@ -18,10 +18,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// TODO: (components) Subscribe to AGENT_CONFIG configurations and start the remote config client
-	// Once the remote config client is refactored and can push updates directly to the listeners,
-	// we can remove this.
-	Start(agentName string) error
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
 	// SubscribeApmTracing subscribes the remote-config client to APM_TRACING

@@ -8,6 +8,7 @@
 package rcclientimpl
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -59,7 +60,9 @@ type dependencies struct {
 	fx.In
 
 	Log log.Component
+	Lc  fx.Lifecycle
 
+	Params        func(*client.Options)
 	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
 	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
@@ -74,13 +77,23 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		return nil, err
 	}
 
+	if deps.Params == nil {
+		return nil, errors.New("remote config client parameters are nil")
+	}
+
+	// Append default options to the client
+	optsWithDefault := []func(*client.Options){
+		client.WithAgent("unknown", version.AgentVersion),
+		client.WithPollInterval(5 * time.Second),
+		deps.Params,
+	}
+
 	// We have to create the client in the constructor and set its name later
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		config.GetIPCPort(),
 		func() (string, error) { return security.FetchAuthToken(config.Datadog) },
-		client.WithAgent("unknown", version.AgentVersion),
-		client.WithPollInterval(5*time.Second),
+		optsWithDefault...,
 	)
 	if err != nil {
 		return nil, err
@@ -92,8 +105,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 			ipcAddress,
 			config.GetIPCPort(),
 			func() (string, error) { return security.FetchAuthToken(config.Datadog) },
-			client.WithAgent("unknown", version.AgentVersion), // We have to create the client in the constructor and set its name later
-			client.WithPollInterval(5*time.Second),
+			optsWithDefault...,
 		)
 		if err != nil {
 			return nil, err
@@ -108,13 +120,27 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		clientHA:      clientHA,
 	}
 
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			if config.IsRemoteConfigEnabled(config.Datadog) {
+				return rc.start()
+			}
+			return nil
+		},
+	})
+
+	deps.Lc.Append(fx.Hook{
+		OnStop: func(context.Context) error {
+			rc.client.Close()
+			return nil
+		},
+	})
+
 	return rc, nil
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
-func (rc rcClient) Start(agentName string) error {
-	rc.client.SetAgentName(agentName)
-
+func (rc rcClient) start() error {
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -127,7 +153,6 @@ func (rc rcClient) Start(agentName string) error {
 	rc.client.Start()
 
 	if rc.clientHA != nil {
-		rc.clientHA.SetAgentName(agentName)
 		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.haUpdateCallback)
 		rc.clientHA.Start()
 	}

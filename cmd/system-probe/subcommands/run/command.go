@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgrcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -79,6 +80,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(pkgrcclient.WithAgent("system-probe", version.AgentVersion)),
 				compstatsd.Module(),
 				config.Module(),
 				telemetry.Module(),
@@ -267,15 +269,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 	}
 
 	setupInternalProfiling(sysprobeconfig, configPrefix, log)
-
-	if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
-		// Even if the system-probe happen to not have access to ddconfig.Datadog, the
-		// thin client will deactivate itself if the core-agent RC server is disabled
-		err = rcclient.Start("system-probe")
-		if err != nil {
-			return log.Criticalf("unable to start remote configuration client: %s", err)
-		}
-	}
 
 	if cliParams.pidfilePath != "" {
 		if err := pidfile.WritePID(cliParams.pidfilePath); err != nil {
