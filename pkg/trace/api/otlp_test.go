@@ -557,7 +557,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		}}
 
 		t.Run("default", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
-			require.True(p.ClientComputedTopLevel)
+			require.False(p.ClientComputedTopLevel)
 		}))
 
 		t.Run("header", testAndExpect(testSpans, http.Header{
@@ -566,10 +566,10 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 
-		cfg.Features["disable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+		cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 
 		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
-			require.False(p.ClientComputedTopLevel)
+			require.True(p.ClientComputedTopLevel)
 		}))
 
 		t.Run("headerWithFeatureFlag", testAndExpect(testSpans, http.Header{
