@@ -4,9 +4,9 @@
 # NOTE: Use aws-vault clear before running tests to ensure credentials do not expire during a test run
 
 # Run tests:
-#   aws-vault clear && aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
+#   aws-vault clear && aws-vault exec sso-serverless-sandbox-account-admin -- ./run.sh [suite]
 # Regenerate snapshots:
-#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
+#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec sso-serverless-sandbox-account-admin -- ./run.sh [suite]
 
 # Optionally specify a [suite] to limit tests executed to a specific group (all tests are run if none is provided).
 # Valid values are:
@@ -14,6 +14,7 @@
 #   - log
 #   - trace
 #   - appsec
+#   - proxy
 
 # Optional environment variables:
 
