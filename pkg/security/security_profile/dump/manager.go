@@ -198,7 +198,8 @@ func (adm *ActivityDumpManager) resolveTags() {
 	for _, ad := range dumps {
 		ad.Lock()
 		defer ad.Unlock()
-		err = ad.ResolveTags()
+
+		err = ad.resolveTags()
 		if err != nil {
 			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
 		}
