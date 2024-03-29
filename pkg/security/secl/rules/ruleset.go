@@ -744,6 +744,20 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		if isDiscarder, _ := IsDiscarder(ctx, field, bucket.rules); isDiscarder {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
+
+		if field == "open.file.path" {
+			path, err := event.GetFieldValue(field)
+			if err != nil {
+				panic(err)
+			}
+
+			chmodBucket := rs.eventRuleBuckets["chmod"]
+			chmodField := "chmod.file.path"
+
+			if isDiscarder, _ := IsDiscarder(ctx, chmodField, chmodBucket.rules); isDiscarder {
+				rs.logger.Errorf("chmod meta discarder from open %s %s", field, path)
+			}
+		}
 	}
 }
 
