@@ -57,6 +57,7 @@ func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *c
 func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx := common.CtxTerminated()
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	hostname := common.TryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)

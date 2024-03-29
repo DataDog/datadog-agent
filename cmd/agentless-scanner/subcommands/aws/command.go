@@ -264,6 +264,7 @@ func awsCleanupCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 
 func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -314,6 +315,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	defer statsd.Flush()
 
 	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
