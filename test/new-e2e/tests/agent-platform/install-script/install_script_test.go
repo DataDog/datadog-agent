@@ -71,6 +71,7 @@ func TestInstallScript(t *testing.T) {
 		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
+		vmOpts = append(vmOpts, ec2.WithInstanceType("banane"))
 
 		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
