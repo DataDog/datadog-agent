@@ -145,7 +145,7 @@ func doTrivyScan(ctx context.Context, scan *types.ScanTask, trivyArtifact artifa
 	}
 	log.Debugf("%s: trivy: scan of artifact finished successfully", scan)
 	marshaler := cyclonedx.NewMarshaler("")
-	cyclonedxBOM, err := marshaler.Marshal(ctx, trivyReport)
+	cyclonedxBOM, err := marshaler.MarshalReport(ctx, trivyReport)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
 	}
