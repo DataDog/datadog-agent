@@ -233,7 +233,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
+func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	var err error
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
