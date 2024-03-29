@@ -41,7 +41,7 @@ type checkCfg struct {
 	UseHTTP         bool   `yaml:"use_http"`
 	Insecure        bool   `yaml:"insecure"`
 	CAFile          string `yaml:"ca_file"`
-	NoMetadata      bool   `yaml:"no_metadata"`
+	SendNDMMetadata *bool  `yaml:"send_ndm_metadata"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -107,7 +107,7 @@ func (c *CiscoSdwanCheck) Run() error {
 
 	c.metricsSender.SetDeviceTags(deviceTags)
 
-	if !c.config.NoMetadata {
+	if *c.config.SendNDMMetadata {
 		c.metricsSender.SendMetadata(devicesMetadata, interfacesMetadata, ipAddressesMetadata)
 	}
 	c.metricsSender.SendDeviceMetrics(deviceStats)
@@ -156,6 +156,11 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 			return err
 		}
 		c.config.Namespace = namespace
+	}
+
+	if c.config.SendNDMMetadata == nil {
+		sendMetadata := true
+		c.config.SendNDMMetadata = &sendMetadata
 	}
 
 	var clientOptions []client.ClientOptions
