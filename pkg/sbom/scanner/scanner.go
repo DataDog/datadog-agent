@@ -15,8 +15,8 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
@@ -33,12 +33,17 @@ var (
 	globalScanner *Scanner
 )
 
+type scannerConfig struct {
+	cacheCleanInterval time.Duration
+}
+
 // Scanner defines the scanner
 type Scanner struct {
+	cfg scannerConfig
+
 	startOnce sync.Once
 	running   bool
 	disk      filesystem.Disk
-
 	// scanQueue is the workqueue used to process scan requests
 	scanQueue workqueue.RateLimitingInterface
 	// cacheMutex is used to protect the cache from concurrent access
@@ -50,7 +55,7 @@ type Scanner struct {
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) *Scanner {
+func NewScanner(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
 		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
@@ -64,13 +69,16 @@ func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]
 		),
 		disk:  filesystem.NewDisk(),
 		wmeta: wmeta,
+		cfg: scannerConfig{
+			cfg.GetDuration("sbom.cache.clean_interval"),
+		},
 	}
 }
 
 // CreateGlobalScanner creates a SBOM scanner, sets it as the default
 // global one, and returns it. Start() needs to be called before any data
 // collection happens.
-func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
+func CreateGlobalScanner(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (*Scanner, error) {
 	if !cfg.GetBool("sbom.host.enabled") && !cfg.GetBool("sbom.container_image.enabled") && !cfg.GetBool("runtime_security_config.sbom.enabled") {
 		return nil, nil
 	}
@@ -87,6 +95,12 @@ func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.C
 
 	globalScanner = NewScanner(cfg, wmeta)
 	return globalScanner, nil
+}
+
+// SetGlobalScanner sets a global instance of the SBOM scanner. It should be
+// used only for testing purposes.
+func SetGlobalScanner(s *Scanner) {
+	globalScanner = s
 }
 
 // GetGlobalScanner returns a global instance of the SBOM scanner. It does
@@ -145,7 +159,7 @@ func sendResult(requestID string, result *sbom.ScanResult, collector collectors.
 
 // startCacheCleaner periodically cleans the SBOM cache of all collectors
 func (s *Scanner) startCacheCleaner(ctx context.Context) {
-	cleanTicker := time.NewTicker(config.Datadog.GetDuration("sbom.cache.clean_interval"))
+	cleanTicker := time.NewTicker(s.cfg.cacheCleanInterval)
 	defer func() {
 		cleanTicker.Stop()
 		s.running = false

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
@@ -38,7 +38,7 @@ type ScanOptions struct {
 }
 
 // ScanOptionsFromConfig loads the scanning options from the configuration
-func ScanOptionsFromConfig(cfg config.Config, containers bool) (scanOpts ScanOptions) {
+func ScanOptionsFromConfig(cfg config.Component, containers bool) (scanOpts ScanOptions) {
 	if containers {
 		scanOpts.CheckDiskUsage = cfg.GetBool("sbom.container_image.check_disk_usage")
 		scanOpts.MinAvailableDisk = uint64(cfg.GetSizeInBytes("sbom.container_image.min_available_disk"))

@@ -126,7 +126,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
-	m.On("SetNoIndex").Return()
+	m.On("SetNoIndex", mock.AnythingOfType("bool")).Return()
 	m.On("Commit").Return()
 	m.On("OrchestratorMetadata",
 		mock.AnythingOfType("[]process.MessageBody"),

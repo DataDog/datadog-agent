@@ -8,10 +8,17 @@
 package sbom
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	scanner2 "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 	"testing"
 
@@ -110,4 +117,78 @@ func TestFactory(t *testing.T) {
 	check, ok := checkFactory.Get()
 	assert.True(t, ok)
 	assert.NotNil(t, check)
+}
+
+type mockSenderManager struct {
+	mock.Mock
+}
+
+func (m *mockSenderManager) GetSender(id checkid.ID) (sender.Sender, error) {
+	args := m.Called(id)
+	return args.Get(0).(sender.Sender), args.Error(1)
+}
+
+func (m *mockSenderManager) SetSender(sender.Sender, checkid.ID) error {
+	args := m.Called()
+	return args.Error(0)
+}
+func (m *mockSenderManager) DestroySender(id checkid.ID) {
+	m.Called(id)
+}
+func (m *mockSenderManager) GetDefaultSender() (sender.Sender, error) {
+	args := m.Called()
+	return args.Get(0).(sender.Sender), args.Error(1)
+}
+
+type workloadmetaAndConfig struct {
+	fx.In
+
+	Store workloadmeta.Component
+	Cfg   config.Component
+}
+
+func TestConfigure(t *testing.T) {
+	// Workloadmeta initializes the scanner. The check does not start if the scanner is not initialized
+	// TODO(Components): Provide a way to inject a scanner to the workloadmeta component
+	scanner := scanner2.GetGlobalScanner()
+	defer scanner2.SetGlobalScanner(scanner)
+
+	app := fxutil.Test[workloadmetaAndConfig](t, fx.Options(
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{
+				"sbom.enabled":      true,
+				"sbom.host.enabled": true,
+			},
+		}),
+		core.MockBundle(),
+		fx.Supply(workloadmeta.Params{
+			AgentType:  workloadmeta.NodeAgent,
+			InitHelper: common.GetWorkloadmetaInit(),
+		}),
+		workloadmeta.MockModuleV2(),
+	))
+	cfg := app.Cfg
+	mockStore := app.Store
+
+	checkFactory := Factory(mockStore, cfg)
+	assert.NotNil(t, checkFactory)
+
+	check, ok := checkFactory.Get()
+	assert.True(t, ok)
+	assert.NotNil(t, check)
+
+	senderManager := &mockSenderManager{}
+	s := &mocksender.MockSender{}
+	s.SetupAcceptAll()
+	senderManager.On("GetSender", mock.Anything).Return(s, nil)
+	c := check()
+	assert.NotNil(t, c)
+
+	err := c.Configure(senderManager,
+		123,
+		integration.Data{},
+		integration.Data{},
+		"source",
+	)
+	assert.NoError(t, err)
 }

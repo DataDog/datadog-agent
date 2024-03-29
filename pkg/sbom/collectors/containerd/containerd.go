@@ -13,8 +13,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
@@ -40,7 +41,7 @@ func (r ScanRequest) Collector() string {
 
 // Type returns the scan request type
 func (r ScanRequest) Type() string {
-	if config.Datadog.GetBool("sbom.container_image.use_mount") {
+	if pkgconfig.Datadog.GetBool("sbom.container_image.use_mount") {
 		return sbom.ScanFilesystemType
 	}
 	return sbom.ScanDaemonType
@@ -69,7 +70,7 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
@@ -77,7 +78,7 @@ func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.C
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
 	c.fromFileSystem = cfg.GetBool("sbom.container_image.use_mount")
-	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
+	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
 	return nil
 }
 

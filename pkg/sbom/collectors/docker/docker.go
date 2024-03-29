@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -65,14 +65,14 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
+	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
 	return nil
 }
 
