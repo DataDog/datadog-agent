@@ -62,7 +62,7 @@ type dependencies struct {
 	Log log.Component
 	Lc  fx.Lifecycle
 
-	Params        func(*client.Options)
+	Params        func(*client.Options)       `optional:"true"`
 	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
 	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
@@ -77,15 +77,14 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		return nil, err
 	}
 
-	if deps.Params == nil {
-		return nil, errors.New("remote config client parameters are nil")
-	}
-
 	// Append default options to the client
 	optsWithDefault := []func(*client.Options){
 		client.WithAgent("unknown", version.AgentVersion),
 		client.WithPollInterval(5 * time.Second),
-		deps.Params,
+	}
+
+	if deps.Params != nil {
+		optsWithDefault = append(optsWithDefault, deps.Params)
 	}
 
 	// We have to create the client in the constructor and set its name later
