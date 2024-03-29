@@ -428,7 +428,10 @@ func (s *Runner) Start(ctx context.Context, statsd ddogstatsd.ClientInterface, s
 		select {
 		case <-ctx.Done():
 			return
-		case config := <-s.configsCh:
+		case config, ok := <-s.configsCh:
+			if !ok {
+				return
+			}
 			for _, scan := range config.Tasks {
 				select {
 				case <-ctx.Done():
