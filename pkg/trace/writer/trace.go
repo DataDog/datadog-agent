@@ -6,13 +6,12 @@
 package writer
 
 import (
+	"compress/gzip"
 	"errors"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/DataDog/zstd"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -86,6 +86,7 @@ type TraceWriter struct {
 	easylog *log.ThrottledLogger
 	statsd  statsd.ClientInterface
 	timing  timing.Reporter
+	useZstd bool
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -116,6 +117,7 @@ func NewTraceWriter(
 		telemetryCollector: telemetryCollector,
 		statsd:             statsd,
 		timing:             timing,
+		useZstd:            cfg.HasFeature("zstd-encoding"),
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -283,19 +285,46 @@ func (w *TraceWriter) serializer() {
 			}
 
 			w.stats.BytesUncompressed.Add(int64(len(b)))
-			p := newPayload(map[string]string{
-				"Content-Type":     "application/x-protobuf",
-				"Content-Encoding": "zstd",
-				headerLanguages:    strings.Join(info.Languages(), "|"),
-			})
-			p.body.Grow(len(b) / 2)
-			zstdw := zstd.NewWriterLevel(p.body, zstd.BestSpeed)
-			if _, err := zstdw.Write(b); err != nil {
-				log.Errorf("Error zstd compressing trace payload: %v", err)
+			var p *payload
+
+			if w.useZstd {
+				p = newPayload(map[string]string{
+					"Content-Type":     "application/x-protobuf",
+					"Content-Encoding": "zstd",
+					headerLanguages:    strings.Join(info.Languages(), "|"),
+				})
+				p.body.Grow(len(b) / 2)
+
+				zstdw := zstd.NewWriterLevel(p.body, zstd.BestSpeed)
+				if _, err := zstdw.Write(b); err != nil {
+					log.Errorf("Error zstd compressing trace payload: %v", err)
+				}
+				if err := zstdw.Close(); err != nil {
+					log.Errorf("Error closing zstd stream when writing trace payload: %v", err)
+				}
+			} else {
+				p = newPayload(map[string]string{
+					"Content-Type":     "application/x-protobuf",
+					"Content-Encoding": "gzip",
+					headerLanguages:    strings.Join(info.Languages(), "|"),
+				})
+				p.body.Grow(len(b) / 2)
+
+				gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+				if err != nil {
+					// it will never happen, unless an invalid compression is chosen;
+					// we know gzip.BestSpeed is valid.
+					log.Errorf("gzip.NewWriterLevel: %d", err)
+					return
+				}
+				if _, err := gzipw.Write(b); err != nil {
+					log.Errorf("Error gzipping trace payload: %v", err)
+				}
+				if err := gzipw.Close(); err != nil {
+					log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+				}
 			}
-			if err := zstdw.Close(); err != nil {
-				log.Errorf("Error closing zstd stream when writing trace payload: %v", err)
-			}
+
 			sendPayloads(w.senders, p, w.syncMode)
 		}()
 	}
