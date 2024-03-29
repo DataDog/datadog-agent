@@ -285,7 +285,7 @@ var (
 	// Tags: image_name, image_tag
 	MetricSecurityProfileEvictedVersions = newAgentMetric(".security_profile.evicted_versions")
 	// MetricSecurityProfileVersions is the name of the metric used to track the number of versions a profile can have
-	// Tags: image_name
+	// Tags: security_profile_image_name
 	MetricSecurityProfileVersions = newAgentMetric(".security_profile.versions")
 
 	// Hash resolver metrics
