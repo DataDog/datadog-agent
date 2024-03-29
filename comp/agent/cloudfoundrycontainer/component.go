@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package containertagger provides the container tagger component.
-package containertagger
+// Package cloudfoundrycontainer provides the cloud foundry container component.
+package cloudfoundrycontainer
 
 // team: platform-integrations
 

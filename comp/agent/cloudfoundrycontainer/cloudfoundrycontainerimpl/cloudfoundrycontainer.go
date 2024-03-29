@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package containertaggerimpl provides the implementation of the container tagger component.
-package containertaggerimpl
+// Package cloudfoundrycontainerimpl provides the implementation of the cloud foundry container component.
+package cloudfoundrycontainerimpl
 
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/agent/containertagger"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	cloudfoundrycontainertagger "github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -22,7 +22,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newContainerTagger),
+		fx.Provide(newCloudfoundryContainer),
 	)
 }
 
@@ -32,7 +32,7 @@ type dependencies struct {
 	WMeta  workloadmeta.Component
 }
 
-func newContainerTagger(deps dependencies) containertagger.Component {
+func newCloudfoundryContainer(deps dependencies) cloudfoundrycontainer.Component {
 	// start the cloudfoundry container tagger
 	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !deps.Config.GetBool("cloud_foundry_buildpack") {
 		containerTagger, err := cloudfoundrycontainertagger.NewContainerTagger(deps.WMeta)

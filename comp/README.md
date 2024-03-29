@@ -10,11 +10,11 @@ Click the links for more documentation.
 
 Package agent implements the "agent" bundle,
 
-### [comp/agent/containertagger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/containertagger)
+### [comp/agent/cloudfoundrycontainer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer)
 
 *Datadog Team*: platform-integrations
 
-Package containertagger provides the container tagger component.
+Package cloudfoundrycontainer provides the cloud foundry container component .
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 

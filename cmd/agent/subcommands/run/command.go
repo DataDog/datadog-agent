@@ -53,7 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 
-	"github.com/DataDog/datadog-agent/comp/agent/containertagger"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -219,7 +219,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	containerTagger containertagger.Component,
+	cloudfoundrycontainer cloudfoundrycontainer.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -283,7 +283,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
-		containerTagger,
+		cloudfoundrycontainer,
 	); err != nil {
 		return err
 	}
@@ -423,7 +423,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	_ containertagger.Component,
+	_ cloudfoundrycontainer.Component,
 ) error {
 
 	var err error
