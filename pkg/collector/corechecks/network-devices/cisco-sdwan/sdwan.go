@@ -57,13 +57,6 @@ type CiscoSdwanCheck struct {
 func (c *CiscoSdwanCheck) Run() error {
 	log.Info("Running Cisco SD-WAN check")
 
-	sender, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-
-	c.metricsSender.SetSender(sender)
-
 	devices, err := c.client.GetDevices()
 	if err != nil {
 		log.Warnf("Error getting devices from Cisco SD-WAN API: %s", err)
@@ -144,6 +137,11 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		return err
 	}
 
+	sender, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+
 	var instanceConfig checkCfg
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -194,7 +192,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		return err
 	}
 
-	c.metricsSender = report.NewSDWanSender(c.config.Namespace)
+	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
 
 	return nil
 }

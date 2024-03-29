@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/payload"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/report"
@@ -54,7 +55,7 @@ func TestCiscoSDWANCheck(t *testing.T) {
 	defer apiMockServer.Close()
 
 	deps := createDeps(t)
-	chk := CiscoSdwanCheck{}
+	chk := newCheck()
 	senderManager := deps.Demultiplexer
 
 	url := strings.TrimPrefix(apiMockServer.URL, "http://")
@@ -68,10 +69,9 @@ use_http: true
 namespace: test
 `)
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
-	require.NoError(t, err)
-
-	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
+	// Use ID to ensure the mock sender gets registered
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -79,6 +79,9 @@ namespace: test
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 
 	sender.On("Commit").Return()
+
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	require.NoError(t, err)
 
 	err = chk.Run()
 	require.NoError(t, err)
