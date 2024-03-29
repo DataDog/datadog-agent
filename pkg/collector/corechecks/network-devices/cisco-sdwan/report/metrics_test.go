@@ -6,6 +6,7 @@
 package report
 
 import (
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -58,6 +59,9 @@ func TestSendDeviceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"cpu.usage", 30+10, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"memory.usage", float64(0.56)*100, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"disk.usage", 30, "", expectedTags, 10)
+	require.Equal(t, map[string]float64{
+		"device_metrics:test:tag,test2:tag2": 10000,
+	}, sender.lastTimeSent)
 
 	devices = append(devices, client.DeviceStatistics{
 		SystemIP:   "10.0.0.1",
@@ -80,6 +84,9 @@ func TestSendDeviceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"cpu.usage", 20+0, "", expectedTags, 15)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"memory.usage", float64(0.75)*100, "", expectedTags, 15)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"disk.usage", 35, "", expectedTags, 15)
+	require.Equal(t, map[string]float64{
+		"device_metrics:test:tag,test2:tag2": 15000,
+	}, sender.lastTimeSent)
 }
 
 func TestSendInterfaceMetrics(t *testing.T) {
@@ -149,14 +156,20 @@ func TestSendInterfaceMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_errors", 17, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_drops", 65, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_drops", 2, "", expectedTags, 10)
+	require.Equal(t, map[string]float64{
+		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10": 10000,
+	}, sender.lastTimeSent)
 
 	mockSender.ResetCalls()
 
 	sender.SendInterfaceMetrics(interfaceStats, interfaceMap)
 
-	// Assert metrics have not been re-sent
+	// Assert metrics have not been re-sent and last time sent has been updated
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
 	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
+	require.Equal(t, map[string]float64{
+		"interface_metrics:test:tag,test2:tag2,interface:interface-1,vpn_id:10,interface_index:10": 10000,
+	}, sender.lastTimeSent)
 }
 
 func TestSendDeviceUptimeMetrics(t *testing.T) {
@@ -344,6 +357,9 @@ func TestSendApplicationAwareRoutingMetrics(t *testing.T) {
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"tunnel.tx_bits", 10*8, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"tunnel.rx_packets", 512, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"tunnel.tx_packets", 203, "", expectedTags, 10)
+	require.Equal(t, map[string]float64{
+		"tunnel_metrics:test:tag,test2:tag2,remote_test3:tag3,remote_test4:tag4,local_color:mpls,remote_color:public-internet,state:Up": 10000,
+	}, sender.lastTimeSent)
 
 	mockSender.ResetCalls()
 
@@ -352,6 +368,9 @@ func TestSendApplicationAwareRoutingMetrics(t *testing.T) {
 	// Assert metrics have not been re-sent
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 0)
 	mockSender.AssertNumberOfCalls(t, "CountWithTimestamp", 0)
+	require.Equal(t, map[string]float64{
+		"tunnel_metrics:test:tag,test2:tag2,remote_test3:tag3,remote_test4:tag4,local_color:mpls,remote_color:public-internet,state:Up": 10000,
+	}, sender.lastTimeSent)
 }
 
 func TestSendControlConnectionMetrics(t *testing.T) {
@@ -973,4 +992,22 @@ func TestSendDeviceCountersMetrics(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTimestampExpiration(t *testing.T) {
+	TimeNow = mockTimeNow
+	ms := NewSDWanSender(nil, "test-ns")
+
+	testTimestamps := map[string]float64{
+		"test-id":   1000,
+		"test-id-2": 946684700,
+	}
+
+	ms.updateTimestamps(testTimestamps)
+	ms.expireTimeSent()
+
+	// Assert "test-id" is expired
+	require.Equal(t, map[string]float64{
+		"test-id-2": 946684700,
+	}, ms.lastTimeSent)
 }
