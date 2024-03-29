@@ -29,6 +29,7 @@ provider:
     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
     DD_CAPTURE_LAMBDA_PAYLOAD: true
     DD_COLD_START_TRACING: false
+    DD_LOG_LEVEL: DEBUG
   timeout: 15
   deploymentBucket:
     name: integration-tests-serververless-deployment-bucket
