@@ -30,19 +30,18 @@ const (
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	Hostname    string `yaml:"hostname"`
-	Port        int    `yaml:"port"`
-	Username    string `yaml:"username"`
-	Password    string `yaml:"password"`
-	Namespace   string `yaml:"namespace"`
-	MaxAttempts int    `yaml:"max_attempts"`
-	MaxPages    int    `yaml:"max_pages"`
-	MaxCount    int    `yaml:"max_count"`
-	Lookback    int    `yaml:"lookback"`
-	UseHTTP     bool   `yaml:"use_http"`
-	Insecure    bool   `yaml:"insecure"`
-	CAFile      string `yaml:"ca_file"`
-	NoMetadata  bool   `yaml:"no_metadata"`
+	VManageEndpoint string `yaml:"vmanage_endpoint"`
+	Username        string `yaml:"username"`
+	Password        string `yaml:"password"`
+	Namespace       string `yaml:"namespace"`
+	MaxAttempts     int    `yaml:"max_attempts"`
+	MaxPages        int    `yaml:"max_pages"`
+	MaxCount        int    `yaml:"max_count"`
+	Lookback        int    `yaml:"lookback"`
+	UseHTTP         bool   `yaml:"use_http"`
+	Insecure        bool   `yaml:"insecure"`
+	CAFile          string `yaml:"ca_file"`
+	NoMetadata      bool   `yaml:"no_metadata"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -187,7 +186,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	}
 
 	// Create Cisco SD-WAN API client
-	c.client, err = client.NewClient(instanceConfig.Hostname, instanceConfig.Username, instanceConfig.Password, instanceConfig.UseHTTP, clientOptions...)
+	c.client, err = client.NewClient(instanceConfig.VManageEndpoint, instanceConfig.Username, instanceConfig.Password, instanceConfig.UseHTTP, clientOptions...)
 	if err != nil {
 		return err
 	}

@@ -62,7 +62,7 @@ func TestCiscoSDWANCheck(t *testing.T) {
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
-hostname: ` + url + `
+vmanage_endpoint: ` + url + `
 username: admin
 password: 'test-password'
 use_http: true
