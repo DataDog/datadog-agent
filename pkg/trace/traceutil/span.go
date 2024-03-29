@@ -64,20 +64,6 @@ func SetTopLevel(s *pb.Span, topLevel bool) {
 	SetMetric(s, topLevelKey, 1)
 }
 
-// SetMeasured sets the measured attribute of the span.
-func SetMeasured(s *pb.Span, measured bool) {
-	if !measured {
-		if s.Metrics == nil {
-			return
-		}
-		delete(s.Metrics, measuredKey)
-		return
-	}
-	// Setting the metrics value, so that code downstream in the pipeline
-	// can identify this as top-level without recomputing everything.
-	SetMetric(s, measuredKey, 1)
-}
-
 // SetMetric sets the metric at key to the val on the span s.
 func SetMetric(s *pb.Span, key string, val float64) {
 	if s.Metrics == nil {
