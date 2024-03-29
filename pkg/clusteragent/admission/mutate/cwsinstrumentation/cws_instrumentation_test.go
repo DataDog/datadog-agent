@@ -17,14 +17,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockK8sClientInterface is a mocked client that implements kubernetes.interface
@@ -54,8 +58,12 @@ type MockCoreV1Interface struct {
 
 // Pods returns an interface which has a method to return a PodInterface
 func (mcvi MockCoreV1Interface) Pods(_ string) v1.PodInterface {
-
 	return &MockV1PodsGetter{annotations: mcvi.annotations, shouldFail: mcvi.shouldFail}
+}
+
+// Nodes returns an interface which has a method to return a NodeInterface
+func (mcvi MockCoreV1Interface) Nodes() v1.NodeInterface {
+	return &MockV1NodesGetter{}
 }
 
 // MockV1PodsGetter is a mocked client that implements v1.PodsGetter
@@ -76,6 +84,22 @@ func (mvpg *MockV1PodsGetter) Get(_ context.Context, _ string, _ metav1.GetOptio
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: mvpg.annotations,
+		},
+	}, nil
+}
+
+// MockV1NodesGetter is a mocked client that implements v1.NodesGetter
+type MockV1NodesGetter struct {
+	v1.NodeInterface
+}
+
+// Get looks up a node based on user input
+func (mvng *MockV1NodesGetter) Get(_ context.Context, _ string, _ metav1.GetOptions) (*corev1.Node, error) {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"kubernetes.io/arch": "amd64",
+			},
 		},
 	}, nil
 }
@@ -393,17 +417,22 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			wantInstrumentation: true,
 		},
 	}
+
+	// prepare the workload meta
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)
+			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mode", string(InitContainer))
 
 			var initialCommand string
 			if tt.args.exec != nil {
 				initialCommand = strings.Join(tt.args.exec.Command, " ")
 			}
 
-			ci, err := NewCWSInstrumentation()
+			ci, err := NewCWSInstrumentation(wmeta)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
@@ -462,9 +491,11 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		include []string
 		exclude []string
 
-		cwsInjectorImageName         string
-		cwsInjectorImageTag          string
-		cwsInjectorContainerRegistry string
+		cwsInjectorImageName                string
+		cwsInjectorImageTag                 string
+		cwsInjectorContainerRegistry        string
+		cwsInjectorMode                     InstrumentationMode
+		cwsInjectorMountVolumeForRemoteCopy bool
 	}
 	tests := []struct {
 		name                  string
@@ -483,6 +514,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			wantErr: true,
 		},
@@ -495,6 +527,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
@@ -518,6 +551,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "my-tag",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
@@ -541,6 +575,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "my-tag",
 				cwsInjectorContainerRegistry: "my-registry",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
@@ -564,6 +599,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 		},
 		{
@@ -575,6 +611,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
@@ -599,6 +636,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 		},
 		{
@@ -610,6 +648,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -622,6 +661,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			wantInstrumentation: false,
 		},
@@ -635,6 +675,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
@@ -660,6 +701,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			// when the annotation cwsInstrumentationPodAnotationStatus is set, the CWS mutating webhook should return without change the pod
 			wantInstrumentation: false,
@@ -675,6 +717,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageName:         "my-image",
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
+				cwsInjectorMode:              InitContainer,
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
@@ -689,7 +732,39 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			wantInstrumentation: true,
 		},
+		{
+			name: "all namespaces, image name, remote copy, no volume",
+			args: args{
+				pod:                                 common.FakePod("my-pod"),
+				ns:                                  "my-namespace",
+				include:                             []string{"kube_namespace:.*"},
+				cwsInjectorImageName:                "my-image",
+				cwsInjectorImageTag:                 "",
+				cwsInjectorContainerRegistry:        "",
+				cwsInjectorMode:                     RemoteCopy,
+				cwsInjectorMountVolumeForRemoteCopy: false,
+			},
+			wantInstrumentation: true,
+		},
+		{
+			name: "all namespaces, image name, remote copy, no volume",
+			args: args{
+				pod:                                 common.FakePod("my-pod"),
+				ns:                                  "my-namespace",
+				include:                             []string{"kube_namespace:.*"},
+				cwsInjectorImageName:                "my-image",
+				cwsInjectorImageTag:                 "",
+				cwsInjectorContainerRegistry:        "",
+				cwsInjectorMode:                     RemoteCopy,
+				cwsInjectorMountVolumeForRemoteCopy: true,
+			},
+			wantInstrumentation: true,
+		},
 	}
+
+	// prepare the workload meta
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := config.Mock(t)
@@ -703,8 +778,10 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			}
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.cpu", "")
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.init_resources.memory", "")
+			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mode", string(tt.args.cwsInjectorMode))
+			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.remote_copy.mount_volume", tt.args.cwsInjectorMountVolumeForRemoteCopy)
 
-			ci, err := NewCWSInstrumentation()
+			ci, err := NewCWSInstrumentation(wmeta)
 			if err != nil {
 				require.Fail(t, "couldn't instantiate CWS Instrumentation", "%v", err)
 			} else {
@@ -720,15 +797,29 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 
 				if tt.wantInstrumentation {
 					assert.True(t, injected)
-					testInjectCWSVolume(t, tt.args.pod)
-					testInjectCWSVolumeMount(t, tt.args.pod)
-					testInjectCWSInitContainer(t, tt.args.pod, tt.expectedInitContainer)
+					if tt.args.cwsInjectorMode == InitContainer || (tt.args.cwsInjectorMode == RemoteCopy && tt.args.cwsInjectorMountVolumeForRemoteCopy) {
+						testInjectCWSVolume(t, tt.args.pod)
+						testInjectCWSVolumeMount(t, tt.args.pod)
 
-					// check annotation
-					annotations := tt.args.pod.GetAnnotations()
-					require.NotNil(t, annotations, "failed to annotate pod")
-					if annotations != nil {
-						require.Equal(t, cwsInstrumentationPodAnotationReady, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation is missing")
+						if tt.args.cwsInjectorMode == InitContainer {
+							testInjectCWSInitContainer(t, tt.args.pod, tt.expectedInitContainer)
+						}
+
+						// check annotation
+						annotations := tt.args.pod.GetAnnotations()
+						require.NotNil(t, annotations, "failed to annotate pod")
+						if annotations != nil {
+							require.Equal(t, cwsInstrumentationPodAnotationReady, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation is missing")
+						}
+					} else {
+						testNoInjectedCWSVolume(t, tt.args.pod)
+						testNoInjectedCWSVolumeMount(t, tt.args.pod)
+
+						// check annotation
+						annotations := tt.args.pod.GetAnnotations()
+						if annotations != nil && tt.name != "all namespaces, image name, CWS instrumentation ready" {
+							require.Emptyf(t, annotations[cwsInstrumentationPodAnotationStatus], "CWS instrumentation annotation should be missing")
+						}
 					}
 				} else if tt.args.pod != nil {
 					testNoInjectedCWSVolume(t, tt.args.pod)
