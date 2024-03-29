@@ -145,11 +145,7 @@ def gen_config_from_ci_pipeline(
     for job in jobs:
         name = job.name
 
-        if (
-            (vcpu is None or memory is None)
-            and name.startswith("kmt_setup_env")
-            and job.status == "success"
-        ):
+        if (vcpu is None or memory is None) and name.startswith("kmt_setup_env") and job.status == "success":
             arch = "x86_64" if "x64" in name else "arm64"
             vmconfig_name = f"vmconfig-{pipeline}-{arch}.json"
             info(f"[+] retrieving {vmconfig_name} for {arch} from job {name}")

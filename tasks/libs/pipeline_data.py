@@ -1,5 +1,5 @@
-from collections import defaultdict
 import re
+from collections import defaultdict
 
 from gitlab.v4.objects import ProjectJob
 
