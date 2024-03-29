@@ -163,7 +163,6 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		c.config.SendNDMMetadata = &sendMetadata
 	}
 
-	c.interval = defaultCheckInterval
 	if c.config.MinCollectionInterval != 0 {
 		c.interval = time.Second * time.Duration(c.config.MinCollectionInterval)
 	}
@@ -219,5 +218,6 @@ func Factory() optional.Option[func() check.Check] {
 func newCheck() check.Check {
 	return &CiscoSdwanCheck{
 		CheckBase: core.NewCheckBase(CheckName),
+		interval:  defaultCheckInterval,
 	}
 }
