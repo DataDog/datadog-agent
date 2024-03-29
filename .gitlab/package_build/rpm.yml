@@ -82,7 +82,7 @@ agent_rpm-x64-a7:
 agent_rpm-arm64-a6:
   extends: .agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a6]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -107,7 +107,7 @@ agent_rpm-arm64-a6:
 agent_rpm-arm64-a7:
   extends: .agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -171,7 +171,7 @@ iot_agent_rpm-x64:
 iot_agent_rpm-arm64:
   extends: .iot_agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -182,7 +182,7 @@ iot_agent_rpm-arm64:
 iot_agent_rpm-armhf:
   extends: .iot_agent_build_common_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
