@@ -38,5 +38,10 @@ func getKnownRetriableErrors() []retriableError {
 			errorMessage: "create: timeout while waiting for state to become 'tfSTABLE'",
 			retryType:    reUp,
 		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-1
+			errorMessage: "failed attempts: dial tcp :22: connect: connection refused",
+			retryType:    reCreate,
+		},
 	}
 }
