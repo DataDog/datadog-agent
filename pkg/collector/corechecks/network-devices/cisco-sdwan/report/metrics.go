@@ -49,7 +49,7 @@ func (ms *SDWanSender) SendDeviceMetrics(deviceStats []client.DeviceStatistics) 
 			// If the timestamp is before the max timestamp already sent, do not re-send
 			continue
 		}
-		ms.setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
+		setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
 
 		ts := entry.EntryTime / 1000
 		diskUsage := entry.DiskUsed / (entry.DiskUsed + entry.DiskAvail) * 100
@@ -95,7 +95,7 @@ func (ms *SDWanSender) SendInterfaceMetrics(interfaceStats []client.InterfaceSta
 			// If the timestamp is before the max timestamp already sent, do not re-send
 			continue
 		}
-		ms.setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
+		setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
 
 		ts := entry.EntryTime / 1000
 
@@ -138,7 +138,7 @@ func (ms *SDWanSender) SendAppRouteMetrics(appRouteStats []client.AppRouteStatis
 			// If the timestamp is before the max timestamp already sent, do not re-send
 			continue
 		}
-		ms.setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
+		setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
 
 		ts := entry.EntryTime / 1000
 		status := 0
@@ -255,7 +255,8 @@ func (ms *SDWanSender) shouldSendEntry(key string, ts float64) bool {
 	return true
 }
 
-func (ms *SDWanSender) setNewSentTimestamp(newTimestamps map[string]float64, key string, ts float64) {
+// setNewSentTimestamp is a util to set new timestamps
+func setNewSentTimestamp(newTimestamps map[string]float64, key string, ts float64) {
 	lastTs := newTimestamps[key]
 	if lastTs > ts {
 		return
@@ -270,7 +271,7 @@ func (ms *SDWanSender) updateTimestamps(newTimestamps map[string]float64) {
 }
 
 func (ms *SDWanSender) expireTimeSent() {
-	expireTs := time.Now().Add(-timestampExpiration).UTC().Unix()
+	expireTs := TimeNow().Add(-timestampExpiration).UTC().Unix()
 	for key, ts := range ms.lastTimeSent {
 		if ts < float64(expireTs) {
 			delete(ms.lastTimeSent, key)
