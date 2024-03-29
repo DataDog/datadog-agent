@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -66,6 +67,9 @@ type WindowsProbe struct {
 	//etwcomp    etw.Component
 	fimSession etw.Session
 	fimwg      sync.WaitGroup
+
+	// discarders
+	discardedPaths map[string]struct{}
 }
 
 type etwNotification struct {
@@ -214,13 +218,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idCreate:
-				if ca, err := parseCreateHandleArgs(e); err == nil {
+				if ca, err := p.parseCreateHandleArgs(e); err == nil {
 					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 
 			case idCreateNewFile:
-				if ca, err := parseCreateNewFileArgs(e); err == nil {
+				if ca, err := p.parseCreateNewFileArgs(e); err == nil {
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 			case idCleanup:
@@ -548,6 +552,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification),
+		discardedPaths:    make(map[string]struct{}),
 	}
 
 	var err error
@@ -577,7 +582,19 @@ func (p *WindowsProbe) FlushDiscarders() error {
 }
 
 // OnNewDiscarder handles discarders
-func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
+func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
+	if evalType == "create" && field == "create.file.path" {
+		value, err := ev.GetFieldValue(field)
+		if err != nil {
+			seclog.Errorf("error getting field value for `%s` -> `%v`", field, err)
+			return
+		}
+
+		seclog.Errorf("new discarder for `%s` -> `%v`", field, value)
+		if sval, ok := value.(string); ok {
+			p.discardedPaths[sval] = struct{}{}
+		}
+	}
 }
 
 // NewModel returns a new Model

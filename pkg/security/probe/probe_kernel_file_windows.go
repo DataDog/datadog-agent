@@ -7,6 +7,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -43,6 +44,7 @@ type fileObjectPointer uint64
 
 var (
 	filePathResolver = make(map[fileObjectPointer]string, 0)
+	errDiscardedPath = errors.New("discarded path")
 )
 
 /*
@@ -128,7 +130,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -156,12 +158,16 @@ func parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
+	if _, ok := p.discardedPaths[ca.fileName]; ok {
+		return nil, errDiscardedPath
+	}
+
 	filePathResolver[ca.fileObject] = ca.fileName
 	return ca, nil
 }
 
-func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := parseCreateHandleArgs(e)
+func (p *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := p.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}
