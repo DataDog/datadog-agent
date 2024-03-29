@@ -194,6 +194,7 @@ int kretprobe__udp_sendpage(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
+    log_debug("adamk kprobe/tcp_close");
     struct sock *sk;
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -207,6 +208,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %u, pid: %u", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("adamk kprobe/tcp_close: conn_tuple not found");
         return 0;
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -215,6 +217,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     int err_soft = 0;
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     bpf_probe_read_kernel_with_telemetry(&err_soft, sizeof(err_soft), (&sk->sk_err_soft));
+    log_debug("adamk kprobe/tcp_close err %d, err_soft %d", err, err_soft);
     if (err != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kprobe/tcp_close err  %d", err); 
         flush_tcp_failure(ctx, &t, err);
@@ -926,10 +929,15 @@ int kprobe__tcp_connect(struct pt_regs *ctx) {
 SEC("kretprobe/tcp_connect")
 int kretprobe__tcp_connect(struct pt_regs *ctx) {
     conn_tuple_t tuple = {};
-    int ret = PT_REGS_RC(ctx);
+    
     
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
-
+    int err = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&skp->sk_err));
+    if (err != 0 && tcp_failed_connections_enabled()) {
+        log_debug("adamk kretprobe/tcp_connect socket err:  %d", err); 
+    }
+    int ret = PT_REGS_RC(ctx);
     if (ret != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe__tcp_connect: ret: %d", ret);
         flush_tcp_failure(ctx, &tuple, ret);
@@ -948,6 +956,11 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
     
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
+    int err = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&skp->sk_err));
+    if (err != 0 && tcp_failed_connections_enabled()) {
+        log_debug("adamk kretprobe/tcp_v4_connect socket err:  %d", err); 
+    }
     if (ret != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe__tcp_v4_connect: ret: %d", ret);
         flush_tcp_failure(ctx, &tuple, ret);
