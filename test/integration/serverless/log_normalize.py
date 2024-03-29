@@ -99,6 +99,7 @@ def normalize_traces(stage, aws_account_id):
         exclude(r'"_dd.install.id":"[a-zA-Z0-9\-]+",'),
         exclude(r'"_dd.install.time":"[0-9]+",'),
         exclude(r'"_dd.install.type":"[a-zA-Z0-9_\-]+",'),
+        exclude(r'"_dd.p.tid":"[0-9a-fA-F]+",'),
         replace(r'(ts":)[0-9]{10}', r'\1XXX'),
         replace(r'((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)":)[0-9]+', r'\1null'),
         replace(r'((tracer_version|language_version)":)["a-zA-Z0-9~\-\.\_]+', r'\1null'),
