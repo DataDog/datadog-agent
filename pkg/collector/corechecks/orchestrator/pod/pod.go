@@ -132,10 +132,11 @@ func (c *Check) Run() error {
 	groupID := nextGroupID()
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
-			Cfg:        c.config,
-			MsgGroupID: groupID,
-			NodeType:   orchestrator.K8sPod,
-			ClusterID:  c.clusterID,
+			Cfg:              c.config,
+			MsgGroupID:       groupID,
+			NodeType:         orchestrator.K8sPod,
+			ClusterID:        c.clusterID,
+			ManifestProducer: true,
 		},
 		HostName:           c.hostName,
 		ApiGroupVersionTag: "kube_api_version:v1",

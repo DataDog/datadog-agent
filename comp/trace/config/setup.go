@@ -32,11 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-
-	//nolint:revive // TODO(APM) Fix revive linter
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -61,8 +58,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
-//nolint:revive // TODO(APM) Fix revive linter
-func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
+func setupConfigCommon(deps dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
 	return LoadConfigFile(confFilePath, deps.Config)
@@ -100,8 +96,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
-		//nolint:revive // TODO(APM) Fix revive linter
-		return nil, fmt.Errorf("no core config found! Bailing out.")
+		return nil, errors.New("no core config found! Bailing out")
 	}
 
 	if !coreConfigObject.GetBool("disable_file_logging") {
@@ -156,7 +151,7 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 			continue
 		}
 		for _, key := range keys {
-			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: configUtils.SanitizeAPIKey(key)})
+			endpoints = append(endpoints, &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)})
 		}
 	}
 	return endpoints
@@ -167,7 +162,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.Endpoints = []*config.Endpoint{{}}
 	}
 	if core.IsSet("api_key") {
-		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
+		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(coreconfig.Datadog.GetString("api_key"))
 	}
 	if core.IsSet("hostname") {
 		c.Hostname = core.GetString("hostname")
@@ -220,7 +215,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
 
-	if env := configUtils.GetTraceAgentDefaultEnv(coreconfig.Datadog); env != "" {
+	if env := utils.GetTraceAgentDefaultEnv(coreconfig.Datadog); env != "" {
 		c.DefaultEnv = env
 	}
 
@@ -655,7 +650,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
-		c.Endpoints[0].APIKey = configUtils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
+		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.log_throttling") {
 		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
@@ -812,7 +807,7 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
 		// no user-set hostname, try to acquire
 		if err := acquireHostname(c); err != nil {
-			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
+			log.Infof("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
 			if err := acquireHostnameFallback(c); err != nil {
 				return err
 			}
@@ -845,11 +840,11 @@ func acquireHostname(c *config.AgentConfig) error {
 		return err
 	}
 	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
-		log.Debugf("Acquired empty hostname from gRPC but it's disallowed.")
+		log.Infof("Acquired empty hostname from gRPC but it's disallowed.")
 		return errors.New("empty hostname disallowed")
 	}
 	c.Hostname = reply.Hostname
-	log.Debugf("Acquired hostname from gRPC: %s", c.Hostname)
+	log.Infof("Acquired hostname from gRPC: %s", c.Hostname)
 	return nil
 }
 
@@ -865,7 +860,7 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 	c.Hostname = strings.TrimSpace(out.String())
 	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
 		if emptyDisallowed {
-			log.Debugf("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
+			log.Infof("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
 		}
 		// There was either an error retrieving the hostname from the core agent, or
 		// it was empty and its disallowed by the disable_empty_hostname feature flag.
@@ -877,10 +872,10 @@ func acquireHostnameFallback(c *config.AgentConfig) error {
 			return errors.New("empty hostname disallowed")
 		}
 		c.Hostname = host
-		log.Debugf("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
+		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
 		return nil
 	}
-	log.Debugf("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
+	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
 }
 
