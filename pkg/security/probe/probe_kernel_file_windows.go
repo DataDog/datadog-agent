@@ -7,6 +7,7 @@
 package probe
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -40,6 +41,10 @@ const (
 )
 
 type fileObjectPointer uint64
+
+var (
+	errDiscardedPath = errors.New("discarded path")
+)
 
 /*
 		<template tid="CreateArgs">
@@ -124,7 +129,7 @@ The Parameters.Create.FileAttributes and Parameters.Create.EaLength members are 
 	by file systems and file system filter drivers. For more information, see the IRP_MJ_CREATE topic in
 	the Installable File System (IFS) documentation.
 */
-func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
+func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandleArgs, error) {
 	ca := &createHandleArgs{
 		DDEventHeader: e.EventHeader,
 	}
@@ -152,23 +157,19 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	if ca.fileName != "" {
-		wp.filePathResolverLock.Lock()
-		defer wp.filePathResolverLock.Unlock()
+	p.filePathResolverLock.Lock()
+	defer p.filePathResolverLock.Unlock()
 
-		if _, ok := wp.filePathResolver[ca.fileObject]; ok {
-			wp.stats.filePathOverwrites++
-		} else {
-			wp.stats.filePathNewWrites++
-		}
-		wp.filePathResolver[ca.fileObject] = ca.fileName
+	if _, ok := p.discardedPaths.Get(ca.fileName); ok {
+		return nil, errDiscardedPath
 	}
+	p.filePathResolver[ca.fileObject] = ca.fileName
 
 	return ca, nil
 }
 
-func (wp *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
-	ca, err := wp.parseCreateHandleArgs(e)
+func (p *WindowsProbe) parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
+	ca, err := p.parseCreateHandleArgs(e)
 	if err != nil {
 		return nil, err
 	}

@@ -25,12 +25,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"golang.org/x/sys/windows"
 )
@@ -75,6 +77,8 @@ type WindowsProbe struct {
 
 	// stats
 	stats stats
+	// discarders
+	discardedPaths *simplelru.LRU[string, struct{}]
 }
 
 type etwNotification struct {
@@ -665,6 +669,11 @@ func (p *WindowsProbe) SendStats() error {
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+	discardedPaths, err := simplelru.NewLRU[string, struct{}](1<<10, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -678,11 +687,13 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
 		onETWNotification: make(chan etwNotification),
-		filePathResolver:  make(map[fileObjectPointer]string, 0),
-		regPathResolver:   make(map[regObjectPointer]string, 0),
+
+		filePathResolver: make(map[fileObjectPointer]string, 0),
+		regPathResolver:  make(map[regObjectPointer]string, 0),
+
+		discardedPaths: discardedPaths,
 	}
 
-	var err error
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
 	if err != nil {
 		return nil, err
@@ -709,7 +720,19 @@ func (p *WindowsProbe) FlushDiscarders() error {
 }
 
 // OnNewDiscarder handles discarders
-func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
+func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
+	if evalType == "create" && field == "create.file.path" {
+		value, err := ev.GetFieldValue(field)
+		if err != nil {
+			seclog.Errorf("error getting field value for `%s` -> `%v`", field, err)
+			return
+		}
+
+		seclog.Errorf("new discarder for `%s` -> `%v`", field, value)
+		if sval, ok := value.(string); ok {
+			p.discardedPaths.Add(sval, struct{}{})
+		}
+	}
 }
 
 // NewModel returns a new Model
