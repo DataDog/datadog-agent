@@ -578,16 +578,7 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_nightly_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_nightly_or_dev_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_nightly_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_nightly_repo_branch:
   - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
@@ -597,16 +588,7 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_stable_or_beta_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch_a7_manual:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_stable_or_beta_repo_branch_manual:
   - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
