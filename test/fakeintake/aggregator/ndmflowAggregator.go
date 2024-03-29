@@ -37,7 +37,6 @@ func (p *NDMFlow) GetCollectedTime() time.Time {
 // ParseNDMFlowPayload parses an api.Payload into a list of NDMFlow
 func ParseNDMFlowPayload(payload api.Payload) (ndmflows []*NDMFlow, err error) {
 	if len(payload.Data) == 0 || bytes.Equal(payload.Data, []byte("{}")) {
-		// logs can submit with empty data or empty JSON object
 		return []*NDMFlow{}, nil
 	}
 	enflated, err := enflate(payload.Data, payload.Encoding)
