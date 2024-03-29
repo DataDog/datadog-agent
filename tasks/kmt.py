@@ -132,7 +132,7 @@ def gen_config_from_ci_pipeline(
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
     """
-    repo = get_gitlab_repo()
+    datadog_agent = get_gitlab_repo()
     vms = set()
     local_arch = full_arch("local")
 
@@ -140,7 +140,7 @@ def gen_config_from_ci_pipeline(
         raise Exit("Pipeline ID must be provided")
 
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
-    pipeline_obj = repo.pipelines.get(pipeline)
+    pipeline_obj = datadog_agent.pipelines.get(pipeline)
     jobs = pipeline_obj.jobs.list(per_page=100, all=True)
     for job in jobs:
         name = job.name
@@ -155,7 +155,7 @@ def gen_config_from_ci_pipeline(
             info(f"[+] retrieving {vmconfig_name} for {arch} from job {name}")
 
             try:
-                data = repo.jobs.get(job.id, lazy=True).artifact(vmconfig_name)
+                data = datadog_agent.jobs.get(job.id, lazy=True).artifact(vmconfig_name)
                 data = json.loads(data)
             except Exception as e:
                 warn(f"[-] failed to retrieve artifact {vmconfig_name}: {e}")
