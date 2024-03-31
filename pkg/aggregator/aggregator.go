@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -309,8 +308,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		health:                      health.RegisterLiveness("aggregator"),
 		agentName:                   agentName,
 		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
-		agentTags:                   tagger.AgentTags,
-		globalTags:                  tagger.GlobalTags,
+		agentTags:                   agentTags,
+		globalTags:                  globalTags,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
 	}
 
@@ -450,7 +449,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	tagger.EnrichTags(tb, sc.OriginFromUDS, sc.OriginFromClient, sc.Cardinality)
+	enrichTags(tb, sc.OriginFromUDS, sc.OriginFromClient, sc.Cardinality)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -464,7 +463,7 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	tagger.EnrichTags(tb, e.OriginFromUDS, e.OriginFromClient, e.Cardinality)
+	enrichTags(tb, e.OriginFromUDS, e.OriginFromClient, e.Cardinality)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -812,13 +811,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(tagger.ChecksCardinality)
+	tags, err = agg.globalTags(checkCardinality())
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
+		agentTags, err := agg.agentTags(checkCardinality())
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
