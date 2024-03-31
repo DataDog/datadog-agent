@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/dataobs"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -21,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/openlineage"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
@@ -57,7 +57,7 @@ type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          *stats.Concentrator
-	OpenLineageState      *dataobs.State
+	OpenLineage           *dataobs.OpenLineage
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
@@ -112,7 +112,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	timing := timing.New(statsd)
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
-		OpenLineage:           openlineage.NewState(),
+		OpenLineage:           dataobs.NewOpenLineage(),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
@@ -518,9 +518,10 @@ func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion stri
 }
 
 func (a *Agent) ProcessOpenLineageEvent(event []byte) {
-	p, err := a.OpenLineage.EventToSpan(event)
+	p, err := a.OpenLineage.EventToLog(event)
 	if err == nil {
-		a.Process(&api.Payload{Source: &info.TagStats{}, TracerPayload: p})
+		// a.Process(&api.Payload{Source: &info.TagStats{}, TracerPayload: p})
+		log.Info("OpenLineage event processed successfully: ", p)
 	} else {
 		log.Errorf("Error processing OpenLineage event: %s", err)
 	}
