@@ -1313,6 +1313,31 @@ service_monitoring_config:
 	})
 }
 
+func TestMaxHTTP2ConcurrentRequests(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.Equal(t, cfg.MaxUSMConcurrentRequests, cfg.MaxHTTP2ConcurrentRequests)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  max_http2_concurrent_requests: 1000
+`)
+		assert.Equal(t, uint32(1000), cfg.MaxHTTP2ConcurrentRequests)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_MAX_HTTP2_CONCURRENT_REQUESTS", "3000")
+
+		cfg := New()
+		assert.Equal(t, uint32(3000), cfg.MaxHTTP2ConcurrentRequests)
+	})
+}
+
 func TestUSMTLSNativeEnabled(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

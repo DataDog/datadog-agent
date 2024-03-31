@@ -42,6 +42,7 @@ func adjustUSM(cfg config.Config) {
 	// shorten the allowed path, but not lengthen it.
 	applyDefault(cfg, smNS("http_max_request_fragment"), maxHTTPFrag)
 	applyDefault(cfg, smNS("max_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
+	applyDefault(cfg, smNS("max_http2_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
 	deprecateBool(cfg, smNS("process_service_inference", "enabled"), spNS("process_service_inference", "enabled"))
 	deprecateBool(cfg, smNS("process_service_inference", "use_windows_service_name"), spNS("process_service_inference", "use_windows_service_name"))
 	applyDefault(cfg, spNS("process_service_inference", "enabled"), false)
