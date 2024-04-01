@@ -905,14 +905,14 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			profiles:        mockProfilesWithPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   "failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax",
+			expectedError:   "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids [1.3.6.1.4.1.3375.2.1.3.***.*]: error parsing part `***` for pattern `1.3.6.1.4.1.3375.2.1.3.***.*`: strconv.Atoi: parsing \"***\": invalid syntax",
 		},
 		{
 			name:            "invalid pattern", // profiles with invalid patterns are skipped, leading to: cannot get most specific oid from empty list of oids
 			profiles:        mockProfilesWithInvalidPatternError,
 			sysObjectID:     "1.3.6.1.4.1.3375.2.1.3.4.5.11",
 			expectedProfile: "",
-			expectedError:   "failed to get most specific profile for sysObjectID `1.3.6.1.4.1.3375.2.1.3.4.5.11`, for matched oids []: cannot get most specific oid from empty list of oids",
+			expectedError:   "failed to get most specific profile for sysObjectID \"1.3.6.1.4.1.3375.2.1.3.4.5.11\", for matched oids []: cannot get most specific oid from empty list of oids",
 		},
 		{
 			name:            "duplicate sysobjectid",
