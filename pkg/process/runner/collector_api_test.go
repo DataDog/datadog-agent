@@ -58,19 +58,6 @@ func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endp
 	config.SetWithoutSource("process_config.events_additional_endpoints", additionalEps)
 }
 
-func setOrchestratorEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
-	additionalEps := make(map[string][]string)
-	for i, ep := range eps {
-		if i == 0 {
-			config.SetWithoutSource("api_key", ep.APIKey)
-			config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", ep.Endpoint)
-		} else {
-			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
-		}
-	}
-	config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints", additionalEps)
-}
-
 func TestSendConnectionsMessage(t *testing.T) {
 	m := &process.CollectorConnections{
 		HostName: testHostName,
@@ -356,102 +343,6 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 	})
 }
 
-func TestSendPodMessageSendManifestPayload(t *testing.T) {
-	clusterID, check := getPodCheckMessage(t)
-
-	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
-
-	ddcfg := ddconfig.Mock(t)
-	ddcfg.SetWithoutSource("orchestrator_explorer.enabled", true)
-	ddcfg.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
-
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
-		testPodMessageMetadata(t, clusterID, c, ep)
-		testPodMessageManifest(t, clusterID, c, ep)
-	})
-}
-
-func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
-	clusterID, check := getPodCheckMessage(t)
-
-	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
-
-	ddcfg := ddconfig.Mock(t)
-	ddcfg.SetWithoutSource("orchestrator_explorer.enabled", true)
-	ddcfg.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", false)
-
-	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
-		testPodMessageMetadata(t, clusterID, c, ep)
-		select {
-		case q := <-ep.Requests:
-			t.Fatalf("should not have received manifest payload %+v", q)
-		case <-time.After(1 * time.Second):
-		}
-	})
-}
-
-func getPodCheckMessage(t *testing.T) (string, checks.Check) {
-	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
-
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
-
-	pd := make([]process.MessageBody, 0, 2)
-	m := &process.CollectorPod{
-		HostName: testHostName,
-		GroupId:  1,
-	}
-	mm := &process.CollectorManifest{
-		ClusterId: clusterID,
-	}
-	pd = append(pd, m, mm)
-
-	check := &testCheck{
-		name: checks.PodCheckName,
-		data: [][]process.MessageBody{pd},
-	}
-	return clusterID, check
-}
-
-func testPodMessageMetadata(t *testing.T, clusterID string, c *CheckRunner, ep *mockEndpoint) {
-	req := <-ep.Requests
-
-	assert.Equal(t, "/api/v2/orch", req.uri)
-
-	assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-	assert.Equal(t, c.orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
-	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
-	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
-
-	reqBody, err := process.DecodeMessage(req.body)
-	require.NoError(t, err)
-
-	cp, ok := reqBody.Body.(*process.CollectorPod)
-	require.True(t, ok)
-
-	assert.Equal(t, clusterID, req.headers.Get(headers.ClusterIDHeader))
-	assert.Equal(t, testHostName, cp.HostName)
-}
-
-func testPodMessageManifest(t *testing.T, clusterID string, c *CheckRunner, ep *mockEndpoint) {
-	req := <-ep.Requests
-
-	assert.Equal(t, "/api/v2/orchmanif", req.uri)
-	assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
-	assert.Equal(t, c.orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
-	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
-	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
-	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
-
-	reqBody, err := process.DecodeMessage(req.body)
-	require.NoError(t, err)
-
-	cm, ok := reqBody.Body.(*process.CollectorManifest)
-	require.True(t, ok)
-
-	assert.Equal(t, clusterID, cm.ClusterId)
-}
-
 func TestQueueSpaceNotAvailable(t *testing.T) {
 	m := &process.CollectorRealTime{
 		HostName: testHostName,
@@ -532,7 +423,7 @@ func TestMultipleAPIKeys(t *testing.T) {
 
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
 
-	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, nil, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
+	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
 			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
@@ -541,12 +432,12 @@ func TestMultipleAPIKeys(t *testing.T) {
 }
 
 func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
-	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, mockConfig, tc)
+	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, mockConfig, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys []string, mockConfig ddconfig.Config, tc func(c *CheckRunner, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
-	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
+	collectorAddr, eventsAddr := ep.start()
 	defer ep.stop()
 
 	eps := make([]apicfg.Endpoint, 0, len(apiKeys))
@@ -561,17 +452,12 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	}
 	setProcessEventsEndpointsForTest(mockConfig, eventsEps...)
 
-	orchestratorEndpoints := make([]apicfg.Endpoint, 0, len(orchAPIKeys))
-	for _, key := range orchAPIKeys {
-		orchestratorEndpoints = append(orchestratorEndpoints, apicfg.Endpoint{APIKey: key, Endpoint: orchestratorAddr})
-	}
-	setOrchestratorEndpointsForTest(mockConfig, orchestratorEndpoints...)
-
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
-	c, err := NewRunnerWithChecks(mockConfig, []checks.Check{check}, true, nil)
-	check.Init(nil, hostInfo, true)
+	c, err := NewRunnerWithChecks(mockConfig, nil, hostInfo, []checks.Check{check}, true, nil)
+	assert.NoError(t, err)
+	err = check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
 	deps := newSubmitterDepsWithConfig(t, mockConfig)
 	c.Submitter, err = NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
@@ -641,15 +527,14 @@ type endpointConfig struct {
 }
 
 type mockEndpoint struct {
-	t                  *testing.T
-	collectorServer    *http.Server
-	eventsServer       *http.Server
-	orchestratorServer *http.Server
-	stopper            sync.WaitGroup
-	Requests           chan request
-	errorCount         int
-	errorsSent         int
-	closeOnce          sync.Once
+	t               *testing.T
+	collectorServer *http.Server
+	eventsServer    *http.Server
+	stopper         sync.WaitGroup
+	Requests        chan request
+	errorCount      int
+	errorsSent      int
+	closeOnce       sync.Once
 }
 
 func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
@@ -669,27 +554,21 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	eventsMux := http.NewServeMux()
 	eventsMux.HandleFunc("/api/v2/proclcycle", m.handleEvents)
 
-	orchestratorMux := http.NewServeMux()
-	orchestratorMux.HandleFunc("/api/v1/validate", m.handleValidate)
-	orchestratorMux.HandleFunc("/api/v2/orch", m.handle)
-	orchestratorMux.HandleFunc("/api/v2/orchmanif", m.handle)
-
-	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
-	m.eventsServer = &http.Server{Addr: ":", Handler: eventsMux}
-	m.orchestratorServer = &http.Server{Addr: ":", Handler: orchestratorMux}
+	m.collectorServer = &http.Server{Addr: "127.0.0.1:", Handler: collectorMux}
+	m.eventsServer = &http.Server{Addr: "127.0.0.1:", Handler: eventsMux}
 
 	return m
 }
 
-// start starts the http endpoints and returns (collector server url, orchestrator server url)
-func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
+// start starts the http endpoints and returns (collector server url)
+func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 	addrC := make(chan net.Addr, 1)
 
 	m.stopper.Add(1)
 	go func() {
 		defer m.stopper.Done()
 
-		listener, err := net.Listen("tcp", ":")
+		listener, err := net.Listen("tcp", "127.0.0.1:")
 		require.NoError(m.t, err)
 
 		addrC <- listener.Addr()
@@ -703,7 +582,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
 	go func() {
 		defer m.stopper.Done()
 
-		listener, err := net.Listen("tcp", ":")
+		listener, err := net.Listen("tcp", "127.0.0.1:")
 		require.NoError(m.t, err)
 
 		addrC <- listener.Addr()
@@ -713,20 +592,6 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
 
 	eventsAddr := <-addrC
 
-	m.stopper.Add(1)
-	go func() {
-		defer m.stopper.Done()
-
-		listener, err := net.Listen("tcp", ":")
-		require.NoError(m.t, err)
-
-		addrC <- listener.Addr()
-
-		_ = m.orchestratorServer.Serve(listener)
-	}()
-
-	orchestratorAddr := <-addrC
-
 	close(addrC)
 
 	collectorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", collectorAddr.String()))
@@ -735,10 +600,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL, *url.URL) {
 	eventsEndpoint, err := url.Parse(fmt.Sprintf("http://%s", eventsAddr.String()))
 	require.NoError(m.t, err)
 
-	orchestratorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", orchestratorAddr.String()))
-	require.NoError(m.t, err)
-
-	return collectorEndpoint, eventsEndpoint, orchestratorEndpoint
+	return collectorEndpoint, eventsEndpoint
 }
 
 func (m *mockEndpoint) stop() {
@@ -746,9 +608,6 @@ func (m *mockEndpoint) stop() {
 	require.NoError(m.t, err)
 
 	err = m.eventsServer.Close()
-	require.NoError(m.t, err)
-
-	err = m.orchestratorServer.Close()
 	require.NoError(m.t, err)
 
 	m.stopper.Wait()

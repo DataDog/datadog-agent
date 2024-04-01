@@ -1,0 +1,9 @@
+---
+# dev_container_deploy stage
+# Contains jobs to container Docker images of the Agent
+# (in the datadog/agent-dev | datadog/dogstatsd-dev Dockerhub repos).
+
+include:
+  - /.gitlab/dev_container_deploy/docker_linux.yml
+  - /.gitlab/dev_container_deploy/docker_windows.yml
+  - /.gitlab/dev_container_deploy/fakeintake.yml

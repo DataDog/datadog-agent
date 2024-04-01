@@ -7,19 +7,16 @@
 package agentimpl
 
 import (
-	"context"
-
-	"github.com/opentracing/opentracing-go/log"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
+	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -41,26 +38,29 @@ func Module() fxutil.Module {
 type processAgentParams struct {
 	fx.In
 
-	Lc     fx.Lifecycle
-	Log    logComponent.Component
-	Config config.Component
-	Checks []types.CheckComponent `group:"check"`
-	Runner runner.Component
+	Lc        fx.Lifecycle
+	Log       logComponent.Component
+	Config    config.Component
+	Checks    []types.CheckComponent `group:"check"`
+	Runner    runner.Component
+	Submitter submitterComp.Component
 }
 
 type processAgent struct {
-	Checks []checks.Check
-	Log    logComponent.Component
-	Runner runner.Component
+	enabled bool
+	Checks  []checks.Check
+	Log     logComponent.Component
 }
 
-func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
-	if !agentEnabled(p) {
-		return optional.NewNoneOption[agent.Component]()
+func newProcessAgent(p processAgentParams) agent.Component {
+	if !agent.Enabled(p.Config, p.Checks, p.Log) {
+		return processAgent{
+			enabled: false,
+		}
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(p.Checks))
-	for _, c := range p.Checks {
+	for _, c := range fxutil.GetAndFilterGroup(p.Checks) {
 		check := c.Object()
 		if check.IsEnabled() {
 			enabledChecks = append(enabledChecks, check)
@@ -70,37 +70,21 @@ func newProcessAgent(p processAgentParams) optional.Option[agent.Component] {
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
 		p.Log.Info(agentDisabledMessage)
-		return optional.NewNoneOption[agent.Component]()
+		return processAgent{
+			enabled: false,
+		}
 	}
 
 	processAgentComponent := processAgent{
-		Checks: enabledChecks,
-		Log:    p.Log,
-		Runner: p.Runner,
+		enabled: true,
+		Checks:  enabledChecks,
+		Log:     p.Log,
 	}
 
-	p.Lc.Append(fx.Hook{
-		OnStart: processAgentComponent.start,
-		OnStop:  processAgentComponent.stop,
-	})
-
-	return optional.NewOption[agent.Component](processAgentComponent)
+	return processAgentComponent
 }
 
-func (p processAgent) start(ctx context.Context) error {
-	p.Log.Info("process-agent starting")
-
-	chks := make([]string, 0, len(p.Checks))
-	for _, check := range p.Checks {
-		chks = append(chks, check.Name())
-	}
-	p.Log.Info("process-agent checks", log.Object("checks", chks))
-
-	return p.Runner.Run(ctx)
-}
-
-func (p processAgent) stop(_ context.Context) error {
-	p.Log.Info("process-agent stopping")
-
-	return nil
+// Enabled determines whether the process agent is enabled based on the configuration.
+func (p processAgent) Enabled() bool {
+	return p.enabled
 }

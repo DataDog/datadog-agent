@@ -78,7 +78,7 @@ package :deb do
   end
 end
 
-package :ociru do
+package :xz do
   skip_packager true
 end
 
@@ -100,20 +100,10 @@ if linux_target?
     systemd_directory = "/lib/systemd/system"
   end
   extra_package_file "#{systemd_directory}/datadog-updater.service"
-  extra_package_file "#{systemd_directory}/datadog-agent.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-exp.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-trace-exp.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-process.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-process-exp.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-security.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-security-exp.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-sysprobe-exp.service"
-  extra_package_file "#{systemd_directory}/start-experiment.path"
-  extra_package_file "#{systemd_directory}/stop-experiment.path"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
+  extra_package_file '/var/run/datadog-packages/'
+  extra_package_file '/opt/datadog-packages/'
 end
 
 if linux_target?

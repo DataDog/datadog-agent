@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/reporter"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/monitor"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -43,13 +44,49 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	maxRetry   = 3
+	retryDelay = time.Second
+)
+
 type pendingMsg struct {
-	ruleID    string
-	data      []byte
-	tags      []string
-	service   string
-	extTagsCb func() []string
-	sendAfter time.Time
+	ruleID        string
+	backendEvent  events.BackendEvent
+	eventJSON     []byte
+	tags          []string
+	actionReports []model.ActionReport
+	service       string
+	extTagsCb     func() []string
+	sendAfter     time.Time
+	retry         int
+}
+
+func (p *pendingMsg) ToJSON() ([]byte, bool, error) {
+	fullyResolved := true
+
+	p.backendEvent.RuleActions = []json.RawMessage{}
+
+	for _, report := range p.actionReports {
+		data, resolved, err := report.ToJSON()
+		if err != nil {
+			return nil, false, err
+		}
+		p.backendEvent.RuleActions = append(p.backendEvent.RuleActions, data)
+
+		if !resolved {
+			fullyResolved = false
+		}
+	}
+
+	backendEventJSON, err := easyjson.Marshal(p.backendEvent)
+	if err != nil {
+		return nil, false, err
+	}
+
+	data := append(p.eventJSON[:len(p.eventJSON)-1], ',')
+	data = append(data, backendEventJSON[1:]...)
+
+	return data, fullyResolved, nil
 }
 
 // APIServer represents a gRPC server in charge of receiving events sent by
@@ -132,40 +169,36 @@ func (a *APIServer) GetEvents(_ *api.GetEventParams, stream api.SecurityModule_G
 	}
 }
 
-// RuleEvent is a wrapper used to send an event to the backend
-type RuleEvent struct {
-	RuleID string       `json:"rule_id"`
-	Event  events.Event `json:"event"`
-}
-
 func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Lock()
 	a.queue = append(a.queue, msg)
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg)) {
+func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
-	var i int
-	var msg *pendingMsg
-
-	for i != len(a.queue) {
-		msg = a.queue[i]
+	a.queue = slices.DeleteFunc(a.queue, func(msg *pendingMsg) bool {
 		if msg.sendAfter.After(now) {
-			break
+			return false
 		}
-		cb(msg)
 
-		i++
-	}
+		if cb(msg) {
+			return true
+		}
 
-	if i >= len(a.queue) {
-		a.queue = a.queue[0:0]
-	} else if i > 0 {
-		a.queue = a.queue[i:]
-	}
+		if msg.retry >= maxRetry {
+			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
+			return true
+		}
+		seclog.Debugf("failed to sent event, retry %d/%d", msg.retry, maxRetry)
+
+		msg.sendAfter = now.Add(retryDelay)
+		msg.retry++
+
+		return false
+	})
 }
 
 func (a *APIServer) start(ctx context.Context) {
@@ -175,7 +208,7 @@ func (a *APIServer) start(ctx context.Context) {
 	for {
 		select {
 		case now := <-ticker.C:
-			a.dequeue(now, func(msg *pendingMsg) {
+			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
 					// dedup
 					for _, tag := range msg.extTagsCb() {
@@ -197,9 +230,22 @@ func (a *APIServer) start(ctx context.Context) {
 					}
 				}
 
+				data, resolved, err := msg.ToJSON()
+				if err != nil {
+					seclog.Errorf("failed to marshal event context: %v", err)
+					return true
+				}
+
+				// not fully resolved, retry
+				if !resolved && msg.retry < maxRetry {
+					return false
+				}
+
+				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
+
 				m := &api.SecurityEventMessage{
 					RuleID:  msg.ruleID,
-					Data:    msg.data,
+					Data:    data,
 					Service: msg.service,
 					Tags:    msg.tags,
 				}
@@ -209,6 +255,8 @@ func (a *APIServer) start(ctx context.Context) {
 				} else {
 					a.sendToSecurityAgent(m)
 				}
+
+				return true
 			})
 		case <-ctx.Done():
 			a.stopChan <- struct{}{}
@@ -266,49 +314,30 @@ func (a *APIServer) GetConfig(_ context.Context, _ *api.GetConfigParams) (*api.S
 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func() []string, service string) {
-	var ruleActions []events.RuleActionContext
-
-	// report only kill action for now
-	for _, action := range e.GetActions() {
-		if action.Name == rules.KillAction {
-			ruleActions = append(ruleActions, events.RuleActionContext{Name: action.Name, Signal: action.Value})
-		}
-	}
-
-	agentContext := events.AgentContext{
-		RuleID:      rule.Definition.ID,
-		RuleVersion: rule.Definition.Version,
-		RuleActions: ruleActions,
-		Version:     version.AgentVersion,
-		OS:          runtime.GOOS,
-		Arch:        utils.RuntimeArch(),
-	}
-
-	ruleEvent := &events.Signal{
-		Title:        rule.Definition.Description,
-		AgentContext: agentContext,
+	backendEvent := events.BackendEvent{
+		Title: rule.Definition.Description,
+		AgentContext: events.AgentContext{
+			RuleID:      rule.Definition.ID,
+			RuleVersion: rule.Definition.Version,
+			Version:     version.AgentVersion,
+			OS:          runtime.GOOS,
+			Arch:        utils.RuntimeArch(),
+			Origin:      a.probe.Origin(),
+		},
 	}
 
 	if policy := rule.Definition.Policy; policy != nil {
-		ruleEvent.AgentContext.PolicyName = policy.Name
-		ruleEvent.AgentContext.PolicyVersion = policy.Version
+		backendEvent.AgentContext.PolicyName = policy.Name
+		backendEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := marshalEvent(e)
+	eventJSON, err := marshalEvent(e, rule.Opts)
 	if err != nil {
 		seclog.Errorf("failed to marshal event: %v", err)
 		return
 	}
 
-	ruleEventJSON, err := easyjson.Marshal(ruleEvent)
-	if err != nil {
-		seclog.Errorf("failed to marshal event context: %v", err)
-		return
-	}
-
-	data := append(probeJSON[:len(probeJSON)-1], ',')
-	data = append(data, ruleEventJSON[1:]...)
-	seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", rule.ID, string(data))
+	seclog.Tracef("Prepare event message for rule `%s` : `%s`", rule.ID, string(eventJSON))
 
 	// no retention if there is no ext tags to resolve
 	retention := a.retention
@@ -319,16 +348,23 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	// get type tags + container tags if already resolved, see ResolveContainerTags
 	eventTags := e.GetTags()
 
-	msg := &pendingMsg{
-		ruleID:    rule.Definition.ID,
-		data:      data,
-		extTagsCb: extTagsCb,
-		service:   service,
-		sendAfter: time.Now().Add(retention),
-		tags:      make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
+	ruleID := rule.Definition.ID
+	if rule.Definition.GroupID != "" {
+		ruleID = rule.Definition.GroupID
 	}
 
-	msg.tags = append(msg.tags, "rule_id:"+rule.Definition.ID)
+	msg := &pendingMsg{
+		ruleID:        ruleID,
+		backendEvent:  backendEvent,
+		eventJSON:     eventJSON,
+		extTagsCb:     extTagsCb,
+		service:       service,
+		sendAfter:     time.Now().Add(retention),
+		tags:          make([]string, 0, 1+len(rule.Tags)+len(eventTags)+1),
+		actionReports: e.GetActionReports(),
+	}
+
+	msg.tags = append(msg.tags, "rule_id:"+ruleID)
 	msg.tags = append(msg.tags, rule.Tags...)
 	msg.tags = append(msg.tags, eventTags...)
 	msg.tags = append(msg.tags, common.QueryAccountIDTag())
@@ -336,9 +372,9 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 	a.enqueue(msg)
 }
 
-func marshalEvent(event events.Event) ([]byte, error) {
+func marshalEvent(event events.Event, opts *eval.Opts) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
-		return serializers.MarshalEvent(ev)
+		return serializers.MarshalEvent(ev, opts)
 	}
 
 	if ev, ok := event.(events.EventMarshaler); ok {

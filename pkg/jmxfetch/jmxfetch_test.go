@@ -10,7 +10,7 @@ package jmxfetch
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/stretchr/testify/require"
 )
 

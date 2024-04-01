@@ -1,0 +1,27 @@
+api_key: ENC[api_key]
+log_level: debug
+auth_token_file_path: {{.AuthTokenFilePath}}
+
+secret_backend_command: {{.SecretResolver}}
+secret_backend_arguments:
+  - {{.SecretDirectory}}
+secret_backend_remove_trailing_line_break: true
+# weakens permissions on the secret backend command to allow group execution
+secret_backend_command_allow_group_exec_perm: true
+
+agent_ipc:
+  port: {{.AgentIpcPort}}
+  config_refresh_interval: {{.ConfigRefreshIntervalSec}}
+
+apm_config:
+  enabled: true
+  debug:
+    port: {{.ApmCmdPort}}
+
+security_agent:
+  cmd_port: {{.SecurityCmdPort}}
+
+process_config:
+  process_collection:
+    enabled: true
+  cmd_port: {{.ProcessCmdPort}}

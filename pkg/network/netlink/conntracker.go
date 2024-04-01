@@ -44,6 +44,8 @@ type Conntracker interface {
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
+	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+	GetType() string
 	DeleteTranslation(network.ConnectionStats)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
@@ -155,6 +157,11 @@ func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
 
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", cfg.ConntrackRateLimit)
 	return ctr, nil
+}
+
+// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+func (ctr *realConntracker) GetType() string {
+	return "netlink"
 }
 
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {

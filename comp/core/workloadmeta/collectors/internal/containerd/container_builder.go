@@ -20,6 +20,7 @@ import (
 	"github.com/containerd/containerd/namespaces"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,7 +30,7 @@ import (
 const kataRuntimePrefix = "io.containerd.kata"
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
-func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
+func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, store workloadmeta.Component) (workloadmeta.Container, error) {
 	if container == nil {
 		return workloadmeta.Container{}, fmt.Errorf("cannot build workloadmeta container from nil containerd container")
 	}
@@ -61,6 +62,17 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
+	image.RepoDigest = util.ExtractRepoDigestFromImage(imageID, image.Registry, store) // "sha256:digest"
+	if image.RepoDigest == "" {
+		log.Debugf("cannot get repo digest for image %s from workloadmeta store", imageID)
+		contImage, err := containerdClient.ImageOfContainer(namespace, container)
+		if err == nil && contImage != nil {
+			// Get repo digest from containerd client.
+			// This is a fallback mechanism in case we cannot get the repo digest
+			// from workloadmeta store.
+			image.RepoDigest = contImage.Target().Digest.String()
+		}
+	}
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
 		if !errdefs.IsNotFound(err) {

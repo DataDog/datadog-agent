@@ -114,7 +114,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 	utils.EnableOption(opts, "http_monitoring_enabled")
 	// Configure event stream
-	events.Configure(eventStream, mgr, opts)
+	events.Configure(p.cfg, eventStream, mgr, opts)
 }
 
 func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
@@ -155,10 +155,10 @@ func (p *protocol) Stop(_ *manager.Manager) {
 
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
-		io.WriteString(w, "Map: '"+mapName+"', key: 'ConnTuple', value: 'httpTX'\n")
-		iter := currentMap.Iterate()
 		var key netebpf.ConnTuple
 		var value EbpfTx
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}

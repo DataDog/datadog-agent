@@ -23,7 +23,6 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
@@ -220,8 +219,21 @@ func (k *Probe) GetAndFlush() (results model.EBPFStats) {
 	return
 }
 
+type programKey struct {
+	name, typ, module string
+}
+
+func progKey(ps model.EBPFProgramStats) programKey {
+	return programKey{
+		name:   ps.Name,
+		typ:    ps.Type.String(),
+		module: ps.Module,
+	}
+}
+
 func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 	var err error
+	uniquePrograms := make(map[programKey]struct{})
 	progid := ebpf.ProgramID(0)
 	for progid, err = ebpf.ProgramGetNextID(progid); err == nil; progid, err = ebpf.ProgramGetNextID(progid) {
 		fd, err := ProgGetFdByID(&ProgGetFdByIDAttr{ID: uint32(progid)})
@@ -271,11 +283,15 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			RunCount:        info.RunCnt,
 			RecursionMisses: info.RecursionMisses,
 		}
+		key := progKey(ps)
+		if _, ok := uniquePrograms[key]; ok {
+			continue
+		}
+		uniquePrograms[key] = struct{}{}
 		stats.Programs = append(stats.Programs, ps)
 	}
 
 	log.Tracef("found %d programs", len(stats.Programs))
-	deduplicateProgramNames(stats)
 	for _, ps := range stats.Programs {
 		log.Tracef("name=%s prog_id=%d type=%s", ps.Name, ps.ID, ps.Type.String())
 	}
@@ -287,7 +303,7 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	var err error
 	mapCount := 0
 	ebpfmaps := make(map[string]*model.EBPFMapStats)
-	defer maps.Clear(ebpfmaps)
+	defer clear(ebpfmaps)
 
 	mapid := ebpf.MapID(0)
 	for mapid, err = ebpf.MapGetNextID(mapid); err == nil; mapid, err = ebpf.MapGetNextID(mapid) {
@@ -609,7 +625,7 @@ func (e *entryCountBuffers) prepareFirstBatchKeys(referenceMap *ebpf.Map) {
 	// Maps grow automatically and do not shrink, so it does not make sense
 	// to reallocate them if we already have a map. However, we do want to clear it
 	// so that we don't keep old keys from previous iterations
-	maps.Clear(e.firstBatchKeys.set)
+	clear(e.firstBatchKeys.set)
 }
 
 func (e *entryCountBuffers) ensureSizeCursor(referenceMap *ebpf.Map) {
@@ -655,7 +671,7 @@ func (s *inplaceSet) reset() {
 }
 
 func (s *inplaceSet) clear() {
-	maps.Clear(s.set)
+	clear(s.set)
 }
 
 // prepare prepares the set to store the given number of entries. Maps in Go grow automatically and never shrink, so we don't need to reallocate

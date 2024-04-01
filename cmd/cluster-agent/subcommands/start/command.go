@@ -11,13 +11,15 @@ package start
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -31,10 +33,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -50,15 +56,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
+	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
+	collectorStatus "github.com/DataDog/datadog-agent/pkg/status/collector"
+	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -70,7 +79,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -78,6 +86,8 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 
 	// Core checks
 
@@ -93,6 +103,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -136,7 +147,24 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				tagger.Module(),
+				fx.Supply(
+					status.Params{
+						PythonVersionGetFunc: python.GetPythonVersion,
+					},
+					status.NewInformationProvider(collectorStatus.Provider{}),
+					status.NewInformationProvider(leaderelection.Provider{}),
+					status.NewInformationProvider(clusteragentMetricsStatus.Provider{}),
+					status.NewInformationProvider(admissionpkg.Provider{}),
+					status.NewInformationProvider(endpointsStatus.Provider{}),
+					status.NewInformationProvider(clusterchecks.Provider{}),
+					status.NewInformationProvider(orchestratorStatus.Provider{}),
+				),
+				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
+					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config))
+				}),
+				statusimpl.Module(),
 				collectorimpl.Module(),
+				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
 			)
@@ -146,7 +174,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, taggerComp tagger.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, collector collector.Component, rcService optional.Option[rccomp.Component]) error {
+func start(log log.Component,
+	config config.Component,
+	taggerComp tagger.Component,
+	telemetry telemetry.Component,
+	demultiplexer demultiplexer.Component,
+	wmeta workloadmeta.Component,
+	ac autodiscovery.Component,
+	secretResolver secrets.Component,
+	statusComponent status.Component,
+	collector collector.Component,
+	rcService optional.Option[rccomp.Component]) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -168,15 +206,15 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(pkgconfig.Datadog, "")
+	common.SetupInternalProfiling(config, "")
 
-	if !pkgconfig.Datadog.IsSet("api_key") {
+	if !config.IsSet("api_key") {
 		return fmt.Errorf("no API key configured, exiting")
 	}
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", telemetry.Handler())
-	metricsPort := pkgconfig.Datadog.GetInt("metrics_port")
+	metricsPort := config.GetInt("metrics_port")
 	metricsServer := &http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%d", metricsPort),
 		Handler: http.DefaultServeMux,
@@ -190,7 +228,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}()
 
 	// Setup healthcheck port
-	healthPort := pkgconfig.Datadog.GetInt("health_port")
+	healthPort := config.GetInt("health_port")
 	if healthPort > 0 {
 		err := healthprobe.Serve(mainCtx, config, healthPort)
 		if err != nil {
@@ -205,7 +243,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	rcserv, isSet := rcService.Get()
 	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
 		var err error
-		rcClient, err = initializeRemoteConfigClient(mainCtx, rcserv)
+		rcClient, err = initializeRemoteConfigClient(mainCtx, rcserv, config)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -217,15 +255,15 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Setup the leader forwarder for language detection and cluster checks
-	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") || pkgconfig.Datadog.GetBool("language_detection.enabled") {
+	if config.GetBool("cluster_checks.enabled") || (config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) {
 		apidca.NewGlobalLeaderForwarder(
-			pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"),
-			pkgconfig.Datadog.GetInt("cluster_agent.max_connections"),
+			config.GetInt("cluster_agent.cmd_port"),
+			config.GetInt("cluster_agent.max_connections"),
 		)
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(wmeta, taggerComp, demultiplexer); err != nil {
+	if err := api.StartServer(wmeta, taggerComp, ac, demultiplexer, optional.NewOption(collector), statusComponent, secretResolver); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -299,22 +337,21 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
 	// don't import cmd/agent
 
-	// create and setup the Autoconfig instance
-	// The Autoconfig instance setup happens in the workloadmeta start hook
+	// create and setup the autoconfig instance
+	// The autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
 
 	// Set up check collector
 	registerChecks()
-	common.AC.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption[pkgcollector.Collector](collector), demultiplexer), true)
-	collector.Start()
+	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	// start the autoconfig, this will immediately run any configured check
-	common.AC.LoadAndRun(mainCtx)
+	ac.LoadAndRun(mainCtx)
 
-	if pkgconfig.Datadog.GetBool("cluster_checks.enabled") {
+	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
-		clusterCheckHandler, err := setupClusterCheck(mainCtx)
+		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac)
 		if err == nil {
 			api.ModifyAPIRouter(func(r *mux.Router) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
@@ -328,7 +365,7 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 
 	wg := sync.WaitGroup{}
 	// Autoscaler Controller Goroutine
-	if pkgconfig.Datadog.GetBool("external_metrics_provider.enabled") {
+	if config.GetBool("external_metrics_provider.enabled") {
 		// Start the k8s custom metrics server. This is a blocking call
 		wg.Add(1)
 		go func() {
@@ -342,25 +379,25 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 	}
 
 	// Compliance
-	if pkgconfig.Datadog.GetBool("compliance_config.enabled") {
+	if config.GetBool("compliance_config.enabled") {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, apiCl, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()
 	}
 
-	if pkgconfig.Datadog.GetBool("language_detection.enabled") {
+	if config.GetBool("language_detection.enabled") && config.GetBool("cluster_agent.language_detection.patcher.enabled") {
 		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}
 
-	if pkgconfig.Datadog.GetBool("admission_controller.enabled") {
-		if pkgconfig.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+	if config.GetBool("admission_controller.enabled") {
+		if config.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
 				IsLeaderFunc:        le.IsLeader,
 				LeaderSubscribeFunc: le.Subscribe,
@@ -386,24 +423,16 @@ func start(log log.Component, config config.Component, taggerComp tagger.Compone
 			StopCh:              stopCh,
 		}
 
-		err = admissionpkg.StartControllers(admissionCtx)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
 			// Webhook and secret controllers are started successfully
 			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
 
-			// CWS Instrumentation webhooks
-			cwsInstrumentation, err := mutate.NewCWSInstrumentation()
-			if err != nil {
-				pkglog.Errorf("failed to register CWS Instrumentation webhook: %v", err)
-			} else {
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"), cwsInstrumentation.InjectCWSPodInstrumentation, apiCl.DynamicCl, apiCl.Cl)
-				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"), cwsInstrumentation.InjectCWSCommandInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+			for _, webhookConf := range webhooks {
+				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
 			}
 
 			// Start the k8s admission webhook server
@@ -475,8 +504,8 @@ func initRuntimeSettings() error {
 	return commonsettings.RegisterRuntimeSetting(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-cluster-agent"))
 }
 
-func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
-	handler, err := clusterchecks.NewHandler(common.AC)
+func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*clusterchecks.Handler, error) {
+	handler, err := clusterchecks.NewHandler(ac)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +515,7 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Component) (*rcclient.Client, error) {
+func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Component, config config.Component) (*rcclient.Client, error) {
 	clusterName := ""
 	hname, err := hostname.Get(ctx)
 	if err != nil {
@@ -503,9 +532,9 @@ func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Componen
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
-		rcclient.WithProducts([]data.Product{data.ProductAPMTracing}),
+		rcclient.WithProducts(state.ProductAPMTracing),
 		rcclient.WithPollInterval(5*time.Second),
-		rcclient.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
+		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)

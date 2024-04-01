@@ -10,8 +10,13 @@ package clientimpl
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -22,9 +27,6 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 )
@@ -45,17 +47,15 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"language_detection.enabled":       "true",
-			"cluster_agent.enabled":            "true",
-			"language_detection.client_period": "50ms",
+			"language_detection.reporting.enabled":       "true",
+			"language_detection.enabled":                 "true",
+			"cluster_agent.enabled":                      "true",
+			"language_detection.reporting.buffer_period": "50ms",
 		}}),
 		telemetry.MockModule(),
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
-		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-			return m.(workloadmeta.Component)
-		}),
 	))
 
 	optComponent := newClient(deps).(optional.Option[clientComp.Component])
@@ -68,36 +68,45 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 
 func TestClientEnabled(t *testing.T) {
 	testCases := []struct {
-		languageEnabled     string
-		clusterAgentEnabled string
-		isSet               bool
+		languageDetectionEnabled          string
+		languageDetectionReportingEnabled string
+		clusterAgentEnabled               string
+		isSet                             bool
 	}{
-		{"true", "true", true},
-		{"true", "false", false},
-		{"false", "true", false},
-		{"false", "false", false},
+		{"true", "true", "true", true},
+		{"true", "true", "false", false},
+		{"false", "true", "true", false},
+		{"false", "true", "false", false},
+		{"true", "false", "true", false},
+		{"true", "false", "false", false},
+		{"false", "false", "true", false},
+		{"false", "false", "false", false},
 	}
 
 	for _, testCase := range testCases {
-		t.Run(fmt.Sprintf("language_enabled=%s, cluster_agent_enabled=%s", testCase.languageEnabled, testCase.clusterAgentEnabled), func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-					"language_detection.enabled": testCase.languageEnabled,
-					"cluster_agent.enabled":      testCase.clusterAgentEnabled,
-				}}),
-				telemetry.MockModule(),
-				logimpl.MockModule(),
-				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
-				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
-					return m.(workloadmeta.Component)
-				}),
-			))
+		t.Run(fmt.Sprintf(
+			"language_enabled=%s, language_detection_reporting_enabled=%s, cluster_agent_enabled=%s",
+			testCase.languageDetectionEnabled,
+			testCase.languageDetectionReportingEnabled,
+			testCase.clusterAgentEnabled),
+			func(t *testing.T) {
+				deps := fxutil.Test[dependencies](t, fx.Options(
+					config.MockModule(),
+					fx.Replace(config.MockParams{Overrides: map[string]interface{}{
+						"language_detection.enabled":           testCase.languageDetectionEnabled,
+						"language_detection.reporting.enabled": testCase.languageDetectionReportingEnabled,
+						"cluster_agent.enabled":                testCase.clusterAgentEnabled,
+					}}),
+					telemetry.MockModule(),
+					logimpl.MockModule(),
+					fx.Supply(workloadmeta.NewParams()),
+					workloadmeta.MockModuleV2(),
+				))
 
-			optionalCl := newClient(deps).(optional.Option[clientComp.Component])
-			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
-		})
+				optionalCl := newClient(deps).(optional.Option[clientComp.Component])
+				_, ok := optionalCl.Get()
+				assert.Equal(t, testCase.isSet, ok)
+			})
 	}
 }
 
@@ -1168,7 +1177,7 @@ func (p *podInfo) equals(other *podInfo) bool {
 	if p == nil || other == nil {
 		return false
 	}
-	if p.namespace != other.namespace || !(*p.ownerRef == *other.ownerRef) || !p.containerInfo.EqualTo(other.containerInfo) {
+	if p.namespace != other.namespace || !(*p.ownerRef == *other.ownerRef) || !reflect.DeepEqual(p.containerInfo, other.containerInfo) {
 		return false
 	}
 	return true

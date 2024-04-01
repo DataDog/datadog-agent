@@ -2,7 +2,6 @@
     "centos": {
         "azure": {
             "x86_64": {
-                "centos-610": "urn,OpenLogic:CentOS:6.10:6.10.2020042900",
                 "centos-76": "urn,OpenLogic:CentOS:7.6:7.6.201909120",
                 "centos-77": "urn,OpenLogic:CentOS:7.7:7.7.201912090",
                 "rhel-81": "urn,RedHat:RHEL:8.1:8.1.2021040910",
@@ -42,12 +41,12 @@
         "ec2": {
             "x86_64": {
                 "debian-10": "ami-041540a5c191757a0",
-                "debian-11": "ami-0fd320e6b2de9e34a",
+                "debian-11": "ami-0607e701db389efe7",
                 "debian-12": "ami-07edaec601cf2b6d3"
             },
             "arm64": {
                 "debian-10": "ami-0108ade0d057c8eba",
-                "debian-11": "ami-0d3b78362fc3d8e61",
+                "debian-11": "ami-00988b9ead6afb0b1",
                 "debian-12": "ami-02aab8d5301cb8d68"
             }
         }
@@ -146,10 +145,10 @@
     "windows": {
         "azure": {
             "x86_64": {
-                "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:14393.5429.221014",
-                "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:17763.3534.221015",
-                "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:17763.3534.221015",
-                "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:20348.1131.221014"
+                "win2016": "urn,MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core:latest",
+                "win2019": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-Core:latest",
+                "win2019cn": "urn,MicrosoftWindowsServer:WindowsServer:2019-Datacenter-zhcn:latest",
+                "win2022": "urn,MicrosoftWindowsServer:WindowsServer:2022-datacenter-core:latest"
             }
         },
         "ec2": {

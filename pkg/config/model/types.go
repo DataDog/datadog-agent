@@ -25,7 +25,7 @@ type Proxy struct {
 // NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
 // configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
 // 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(key string)
+type NotificationReceiver func(setting string, oldValue, newValue any)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -54,7 +54,9 @@ type Reader interface {
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
 	AllSourceSettingsWithoutDefault(source Source) map[string]interface{}
-	AllKeys() []string
+	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
+	// Note that it returns the keys lowercased.
+	AllKeysLowercased() []string
 
 	IsSet(key string) bool
 	IsSetForSource(key string, source Source) bool
@@ -65,9 +67,10 @@ type Reader interface {
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
 
-	// GetKnownKeys returns all the keys that meet at least one of these criteria:
+	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
 	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
-	GetKnownKeys() map[string]interface{}
+	// Note that it returns the keys lowercased.
+	GetKnownKeysLowercased() map[string]interface{}
 
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.

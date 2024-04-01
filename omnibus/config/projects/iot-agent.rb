@@ -156,7 +156,7 @@ package :zip do
   skip_packager true
 end
 
-package :ociru do
+package :xz do
   skip_packager true
 end
 

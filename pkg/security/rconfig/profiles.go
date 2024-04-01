@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -67,27 +66,13 @@ func (r *RCProfileProvider) rcProfilesUpdateCallback(configs map[string]state.Ra
 			continue
 		}
 
-		imageName := utils.GetTagValue("image_name", profile.Tags)
-		imageTag := utils.GetTagValue("image_tag", profile.Tags)
-
-		if imageName == "" {
-			log.Errorf("no image name: %v", profile.Tags)
-			continue
-		}
-
-		if imageTag == "" {
-			imageTag = "latest"
-			profile.Tags = append(profile.Tags, "image_tag:"+imageTag)
-		}
-
-		selector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
+		selector, err := cgroupModel.NewWorkloadSelector(profile.Selector.ImageName, profile.Selector.ImageTag)
 		if err != nil {
-			log.Errorf("selector error %s/%s: %v", imageName, imageTag, err)
+			log.Errorf("selector error %s/%s: %v", profile.Selector.ImageName, profile.Selector.ImageTag, err)
 			continue
 		}
 
 		log.Tracef("got a new profile for %v : %v", selector, profile)
-
 		r.onNewProfileCallback(selector, profile)
 	}
 }
@@ -151,7 +136,7 @@ func NewRCProfileProvider() (*RCProfileProvider, error) {
 
 	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog) },
 		client.WithAgent(agentName, agentVersion.String()),
-		client.WithProducts([]data.Product{data.ProductCWSProfile}),
+		client.WithProducts(state.ProductCWSProfiles),
 		client.WithPollInterval(securityAgentRCPollInterval))
 	if err != nil {
 		return nil, err

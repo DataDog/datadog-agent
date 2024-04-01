@@ -24,6 +24,13 @@ const (
 	CloseConnection
 )
 
+// ReqOptions are options when making a request
+type ReqOptions struct {
+	Conn      ShouldCloseConnection
+	Ctx       context.Context
+	Authtoken string
+}
+
 // GetClient is a convenience function returning an http client
 // `GetClient(false)` must be used only for HTTP requests whose destination is
 // localhost (ie, for Agent commands).
@@ -41,18 +48,26 @@ func GetClient(verify bool) *http.Client {
 
 // DoGet is a wrapper around performing HTTP GET requests
 func DoGet(c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
-	return DoGetWithContext(context.Background(), c, url, conn)
+	return DoGetWithOptions(c, url, &ReqOptions{Conn: conn})
 }
 
-// DoGetWithContext is a wrapper around performing HTTP GET requests
-func DoGetWithContext(ctx context.Context, c *http.Client, url string, conn ShouldCloseConnection) (body []byte, e error) {
-	req, e := http.NewRequestWithContext(ctx, "GET", url, nil)
+// DoGetWithOptions is a wrapper around performing HTTP GET requests
+func DoGetWithOptions(c *http.Client, url string, options *ReqOptions) (body []byte, e error) {
+	if options.Authtoken == "" {
+		options.Authtoken = GetAuthToken()
+	}
+
+	if options.Ctx == nil {
+		options.Ctx = context.Background()
+	}
+
+	req, e := http.NewRequestWithContext(options.Ctx, "GET", url, nil)
 	if e != nil {
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+GetAuthToken())
-	if conn == CloseConnection {
+	req.Header.Set("Authorization", "Bearer "+options.Authtoken)
+	if options.Conn == CloseConnection {
 		req.Close = true
 	}
 

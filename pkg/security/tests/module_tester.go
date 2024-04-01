@@ -519,7 +519,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev)
+	b, err := serializers.MarshalEvent(ev, nil)
 	return string(b), err
 }
 
@@ -563,7 +563,12 @@ func assertFieldEqualCaseInsensitve(tb testing.TB, e *model.Event, field string,
 	if reflect.TypeOf(fieldValue).Kind() == reflect.String {
 		fieldValue = strings.ToLower(fieldValue.(string))
 	}
-	return assert.Equal(tb, value, fieldValue, msgAndArgs...)
+	eq := assert.Equal(tb, value, fieldValue, msgAndArgs...)
+	if !eq {
+		tb.Logf("expected value %s\n", value.(string))
+		tb.Logf("actual value %s\n", fieldValue.(string))
+	}
+	return eq
 }
 
 //nolint:deadcode,unused
@@ -693,6 +698,10 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		opts.securityProfileDir = "/tmp/activity_dumps/profiles"
 	}
 
+	if opts.securityProfileMaxImageTags <= 0 {
+		opts.securityProfileMaxImageTags = 3
+	}
+
 	erpcDentryResolutionEnabled := true
 	if opts.disableERPCDentryResolution {
 		erpcDentryResolutionEnabled = false
@@ -721,13 +730,20 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
 		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
+		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
+		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
 		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
+		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
+		"EnableAutoSuppression":                      opts.enableAutoSuppression,
+		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
+		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
+		"AnomalyDetectionEventTypes":                 opts.anomalyDetectionEventTypes,
 		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
 		"AnomalyDetectionMinimumStablePeriodExec":    opts.anomalyDetectionMinimumStablePeriodExec,
 		"AnomalyDetectionMinimumStablePeriodDNS":     opts.anomalyDetectionMinimumStablePeriodDNS,
@@ -740,7 +756,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
 		"SBOMEnabled":                                opts.enableSBOM,
 		"EBPFLessEnabled":                            ebpfLessEnabled,
-		"FIMEnabled":                                 opts.enableFIM,  // should only be enabled/disabled on windows
+		"FIMEnabled":                                 opts.enableFIM, // should only be enabled/disabled on windows
 	}); err != nil {
 		return nil, nil, err
 	}

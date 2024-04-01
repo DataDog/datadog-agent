@@ -22,9 +22,8 @@ build do
   license :project_license
 
   bundled_agents = []
-  if linux_target?
+  if heroku_target?
     bundled_agents = ["process-agent"]
-    bundled_agents << "security-agent" << "system-probe" unless heroku_target?
   end
 
   # set GOPATH on the omnibus source dir for this software
@@ -82,6 +81,9 @@ build do
     command "inv -e rtloader.install"
     bundle_arg = bundled_agents ? bundled_agents.map { |k| "--bundle #{k}" }.join(" ") : "--bundle agent"
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    if heroku_target?
+      command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} --agent-bin=bin/agent/core-agent --bundle agent", env: env
+    end
   end
 
   if osx_target?
@@ -272,6 +274,10 @@ build do
         dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
         mode: 0644,
         vars: { install_dir: install_dir }
+
+    erb source: "gui.launchd.plist.erb",
+        dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
+        mode: 0644
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"

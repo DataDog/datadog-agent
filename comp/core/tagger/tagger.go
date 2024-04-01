@@ -50,18 +50,34 @@ func Module() fxutil.Module {
 		))
 }
 
+// tagger defines a tagger interface for internal usage of TaggerClient,
+// so that Start and Stop methods are not exposed in component
+// The structure of tagger component:
+// Tagger Component
+//
+//	-> TaggerClient {captureTagger, defaultTagger}
+//	                  -> tagger, is an interface with Start, Stop, Component methods (internal usage)
+//	                        -> local, remote, replay, mock tagger etc.
+type tagger interface {
+	Start(ctx context.Context) error
+	Stop() error
+	Component
+}
+
 // TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger
 //
 // nolint:revive // TODO(containers) Fix revive linter
 type TaggerClient struct {
 	// captureTagger is a tagger instance that contains a tagger that will contain the tagger
 	// state when replaying a capture scenario
-	captureTagger Component
+	captureTagger tagger
 
 	mux sync.RWMutex
 
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
-	defaultTagger Component
+	defaultTagger tagger
+
+	wmeta workloadmeta.Component
 }
 
 var (
@@ -129,6 +145,9 @@ func newTaggerClient(deps dependencies) Component {
 			captureTagger: nil,
 		}
 	}
+	if taggerClient != nil {
+		taggerClient.wmeta = deps.Wmeta
+	}
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
@@ -148,28 +167,28 @@ func newTaggerClient(deps dependencies) Component {
 		}
 		// Main context passed to components, consistent with the one used in the workloadmeta component
 		mainCtx, _ := common.GetMainCtxCancel()
-		err = taggerClient.Start(mainCtx)
+		err = taggerClient.start(mainCtx)
 		if err != nil && deps.Params.fallBackToLocalIfRemoteTaggerFails {
 			deps.Log.Warnf("Starting remote tagger failed. Falling back to local tagger: %s", err)
 			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta)
 			// Retry to start the local tagger
-			return taggerClient.Start(mainCtx)
+			return taggerClient.start(mainCtx)
 		}
 		return err
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
-		return taggerClient.Stop()
+		return taggerClient.stop()
 	}})
 	return taggerClient
 }
 
-// Start calls defaultTagger.Start
-func (t *TaggerClient) Start(ctx context.Context) error {
+// start calls defaultTagger.Start
+func (t *TaggerClient) start(ctx context.Context) error {
 	return t.defaultTagger.Start(ctx)
 }
 
-// Stop calls defaultTagger.Stop
-func (t *TaggerClient) Stop() error {
+// stop calls defaultTagger.Stop
+func (t *TaggerClient) stop() error {
 	return t.defaultTagger.Stop()
 }
 
@@ -257,7 +276,7 @@ func (t *TaggerClient) Standard(entity string) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerClient) AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ import (
 //
 //	fxutil.Test[dependencies](
 //	   t,
-//	   inventoryagent.MockModule(),
+//	   inventoryagentimpl.MockModule(),
 //	)
 func MockModule() fxutil.Module {
 	return fxutil.Component(

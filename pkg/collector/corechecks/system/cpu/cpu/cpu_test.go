@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/shirou/gopsutil/v3/cpu"

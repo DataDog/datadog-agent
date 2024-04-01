@@ -38,11 +38,6 @@ func NewNoneOptionPtr[T any]() *Option[T] {
 	return &option
 }
 
-// IsSet returns true if a value is set.
-func (o *Option[T]) IsSet() bool {
-	return o.set
-}
-
 // Get returns the value and true if a value is set, otherwise it returns (undefined, false).
 func (o *Option[T]) Get() (T, bool) {
 	return o.value, o.set
@@ -78,4 +73,20 @@ func (o *Option[T]) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	*o = NewOption[T](v)
 	return nil
+}
+
+// SetIfNone sets the value if it is not already set.
+// Does nothing if the current instance is already set.
+func (o *Option[T]) SetIfNone(value T) {
+	if !o.set {
+		o.Set(value)
+	}
+}
+
+// SetOptionIfNone sets the option if it is not already set.
+// Does nothing if the current instance is already set.
+func (o *Option[T]) SetOptionIfNone(option Option[T]) {
+	if !o.set {
+		*o = option
+	}
 }

@@ -13,7 +13,7 @@
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
 // This controls the number of Kafka transactions read from userspace at a time
-#define KAFKA_BATCH_SIZE 15
+#define KAFKA_BATCH_SIZE 28
 
 // The amount of buckets we have for the kafka topic name length telemetry.
 #define KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS 7

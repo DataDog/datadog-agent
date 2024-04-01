@@ -7,15 +7,15 @@
 package apiimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"net"
-
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -24,12 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -56,6 +59,8 @@ type apiServer struct {
 	statusComponent       status.Component
 	eventPlatformReceiver eventplatformreceiver.Component
 	rcService             optional.Option[rcservice.Component]
+	rcServiceHA           optional.Option[rcserviceha.Component]
+	authToken             authtoken.Component
 }
 
 type dependencies struct {
@@ -75,6 +80,8 @@ type dependencies struct {
 	StatusComponent       status.Component
 	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
+	RcServiceHA           optional.Option[rcserviceha.Component]
+	AuthToken             authtoken.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -95,6 +102,8 @@ func newAPIServer(deps dependencies) api.Component {
 		statusComponent:       deps.StatusComponent,
 		eventPlatformReceiver: deps.EventPlatformReceiver,
 		rcService:             deps.RcService,
+		rcServiceHA:           deps.RcServiceHA,
+		authToken:             deps.AuthToken,
 	}
 }
 
@@ -102,10 +111,13 @@ func newAPIServer(deps dependencies) api.Component {
 func (server *apiServer) StartServer(
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
+	ac autodiscovery.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
+	collector optional.Option[collector.Component],
 ) error {
 	return StartServers(server.rcService,
+		server.rcServiceHA,
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,
@@ -122,7 +134,9 @@ func (server *apiServer) StartServer(
 		server.invChecks,
 		server.pkgSigning,
 		server.statusComponent,
+		collector,
 		server.eventPlatformReceiver,
+		ac,
 	)
 }
 

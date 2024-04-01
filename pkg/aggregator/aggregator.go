@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -382,7 +381,7 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatformimpl.EventPlatformForwarder, error) {
+func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	forwarder, found := agg.eventPlatformForwarder.Get()
 	if !found {
 		return nil, errors.New("event platform forwarder not initialized")
@@ -832,6 +831,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	}
 	if withVersion {
 		tags = append(tags, "version:"+version.AgentVersion)
+		if version.AgentPackageVersion != "" {
+			tags = append(tags, "package_version:"+version.AgentPackageVersion)
+		}
 	}
 	// nil to empty string
 	// This is expected by other components/tests

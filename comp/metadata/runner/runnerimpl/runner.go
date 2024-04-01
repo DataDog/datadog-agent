@@ -31,9 +31,7 @@ type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
-	// providers are the metada providers to run. They're Optional because some of them can be disabled through the
-	// configuration
-	providers []optional.Option[MetadataProvider]
+	providers []MetadataProvider
 
 	wg       sync.WaitGroup
 	stopChan chan struct{}
@@ -55,6 +53,13 @@ type Provider struct {
 	Callback optional.Option[MetadataProvider] `group:"metadata_provider"`
 }
 
+// NewProvider registers a new metadata provider by adding a callback to the runner.
+func NewProvider(callback MetadataProvider) Provider {
+	return Provider{
+		Callback: optional.NewOption[MetadataProvider](callback),
+	}
+}
+
 // NewEmptyProvider returns a empty provider which is not going to register anything. This is useful for providers that
 // can be enabled/disabled through configuration.
 func NewEmptyProvider() Provider {
@@ -63,19 +68,21 @@ func NewEmptyProvider() Provider {
 	}
 }
 
-// NewProvider registers a new metadata provider by adding a callback to the runner.
-func NewProvider(callback MetadataProvider) Provider {
-	return Provider{
-		Callback: optional.NewOption[MetadataProvider](callback),
-	}
-}
-
 // createRunner instantiates a runner object
 func createRunner(deps dependencies) *runnerImpl {
+	providers := []MetadataProvider{}
+	nonNilProviders := fxutil.GetAndFilterGroup(deps.Providers)
+
+	for _, optionaP := range nonNilProviders {
+		if p, isSet := optionaP.Get(); isSet {
+			providers = append(providers, p)
+		}
+	}
+
 	return &runnerImpl{
 		log:       deps.Log,
 		config:    deps.Config,
-		providers: deps.Providers,
+		providers: providers,
 		stopChan:  make(chan struct{}),
 	}
 }
@@ -100,7 +107,7 @@ func newRunner(lc fx.Lifecycle, deps dependencies) runner.Component {
 }
 
 // handleProvider runs a provider at regular interval until the runner is stopped
-func (r *runnerImpl) handleProvider(p MetadataProvider) {
+func (r *runnerImpl) handleProvider(p func(context.Context) time.Duration) {
 	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
 	r.wg.Add(1)
 
@@ -138,11 +145,11 @@ func (r *runnerImpl) handleProvider(p MetadataProvider) {
 // not block here.
 func (r *runnerImpl) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
-	for _, optionaP := range r.providers {
-		if p, isSet := optionaP.Get(); isSet {
-			go r.handleProvider(p)
-		}
+
+	for _, provider := range r.providers {
+		go r.handleProvider(provider)
 	}
+
 	return nil
 }
 

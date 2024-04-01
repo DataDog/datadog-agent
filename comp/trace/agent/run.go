@@ -58,7 +58,7 @@ func runAgentSidekicks(ag *agent) error {
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
-		rcClient, err := newConfigFetcher()
+		cf, err := newConfigFetcher()
 		if err != nil {
 			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
@@ -67,7 +67,7 @@ func runAgentSidekicks(ag *agent) error {
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
 			Handler: func(r *api.HTTPReceiver) http.Handler {
-				return remotecfg.ConfigHandler(r, rcClient, tracecfg, ag.Statsd, ag.Timing)
+				return remotecfg.ConfigHandler(r, cf, tracecfg, ag.Statsd, ag.Timing)
 			},
 		})
 	}
@@ -167,6 +167,8 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 	if endpoint == "" {
 		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
 	}
+	tags := coreconfig.Datadog.GetStringSlice("internal_profiling.extra_tags")
+	tags = append(tags, fmt.Sprintf("version:%s", version.AgentVersion))
 	return &profiling.Settings{
 		ProfilingURL: endpoint,
 
@@ -177,11 +179,11 @@ func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
 		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		Tags:                 []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		Tags:                 tags,
 	}
 }
 
-func newConfigFetcher() (rc.ConfigUpdater, error) {
+func newConfigFetcher() (rc.ConfigFetcher, error) {
 	ipcAddress, err := coreconfig.GetIPCAddress()
 	if err != nil {
 		return nil, err

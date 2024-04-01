@@ -41,7 +41,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     }
     bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
 
-    if (!fetch_dispatching_arguments(&kafka->base.tup, &skb_info)) {
+    if (!fetch_dispatching_arguments(&kafka->tup, &skb_info)) {
         log_debug("socket__kafka_filter failed to fetch arguments for tail call");
         return 0;
     }
@@ -54,7 +54,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     if (!kafka_allow_packet(kafka, skb, &skb_info)) {
         return 0;
     }
-    normalize_tuple(&kafka->base.tup);
+    normalize_tuple(&kafka->tup);
 
     (void)kafka_process(kafka, skb, skb_info.data_off, kafka_tel);
     return 0;
@@ -83,8 +83,8 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         return false;
     }
 
-    kafka_transaction->base.request_api_key = kafka_header.api_key;
-    kafka_transaction->base.request_api_version = kafka_header.api_version;
+    kafka_transaction->request_api_key = kafka_header.api_key;
+    kafka_transaction->request_api_version = kafka_header.api_version;
 
     offset += sizeof(kafka_header_t);
 
@@ -120,17 +120,68 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
         return false;
     }
     update_topic_name_size_telemetry(kafka_tel, topic_name_size);
-
-    bpf_memset(kafka_transaction->base.topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    read_into_buffer_topic_name_parser((char *)kafka_transaction->base.topic_name, skb, offset);
+    bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+    read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, skb, offset);
     offset += topic_name_size;
-    kafka_transaction->base.topic_name_size = topic_name_size;
+    kafka_transaction->topic_name_size = topic_name_size;
 
-    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->base.topic_name);
+    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
 
-    log_debug("kafka: topic name is %s", kafka_transaction->base.topic_name);
+    log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
 
-    kafka_batch_enqueue(&kafka_transaction->base);
+    switch (kafka_header.api_key) {
+    case KAFKA_PRODUCE:
+    {
+        READ_BIG_ENDIAN_WRAPPER(s32, number_of_partitions, skb, offset);
+        if (number_of_partitions <= 0) {
+            return false;
+        }
+        if (number_of_partitions > 1) {
+            log_debug("Multiple partitions detected in produce request, current support limited to requests with a single partition");
+            return false;
+        }
+        offset += sizeof(s32); // Skipping Partition ID
+
+        // Parsing the message set of the partition.
+        // It's assumed that the message set is not in the old message format, as the format differs:
+        // https://kafka.apache.org/documentation/#messageset
+        // The old message format predates Kafka 0.11, released on September 27, 2017.
+        // It's unlikely for us to encounter these older versions in practice.
+
+        offset += sizeof(s32); // Skipping record batch (message set in wireshark) size in bytes
+        offset += sizeof(s64); // Skipping record batch baseOffset
+        offset += sizeof(s32); // Skipping record batch batchLength
+        offset += sizeof(s32); // Skipping record batch partitionLeaderEpoch
+        READ_BIG_ENDIAN_WRAPPER(s8, magic_byte, skb, offset);
+        if (magic_byte != 2) {
+            log_debug("Got magic byte != 2, the protocol state it should be 2");
+            return false;
+        }
+        offset += sizeof(u32); // Skipping crc
+        offset += sizeof(s16); // Skipping attributes
+        offset += sizeof(s32); // Skipping last offset delta
+        offset += sizeof(s64); // Skipping base timestamp
+        offset += sizeof(s64); // Skipping max timestamp
+        offset += sizeof(s64); // Skipping producer id
+        offset += sizeof(s16); // Skipping producer epoch
+        offset += sizeof(s32); // Skipping base sequence
+        READ_BIG_ENDIAN_WRAPPER(s32, records_count, skb, offset);
+        if (records_count <= 0) {
+            log_debug("Got number of Kafka produce records <= 0");
+            return false;
+        }
+        kafka_transaction->records_count = records_count;
+        break;
+    }
+    case KAFKA_FETCH:
+        // We currently lack support for fetch record counts as they are only accessible within the Kafka response
+        kafka_transaction->records_count = 1;
+        break;
+    default:
+        return false;
+     }
+
+    kafka_batch_enqueue(kafka_transaction);
     return true;
 }
 
@@ -139,7 +190,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
 // of interest such as empty ACKs, UDP data or encrypted traffic.
 static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
     // we're only interested in TCP traffic
-    if (!(kafka->base.tup.metadata&CONN_TYPE_TCP)) {
+    if (!(kafka->tup.metadata&CONN_TYPE_TCP)) {
         return false;
     }
 
@@ -150,17 +201,6 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
 
-    // Check that we didn't see this tcp segment before so we won't process
-    // the same traffic twice
-    log_debug("kafka: Current tcp sequence: %lu", skb_info->tcp_seq);
-    // Hack to make verifier happy on 4.14.
-    conn_tuple_t tup = kafka->base.tup;
-    __u32 *last_tcp_seq = bpf_map_lookup_elem(&kafka_last_tcp_seq_per_connection, &tup);
-    if (last_tcp_seq != NULL && *last_tcp_seq == skb_info->tcp_seq) {
-        log_debug("kafka: already seen this tcp sequence: %lu", *last_tcp_seq);
-        return false;
-    }
-    bpf_map_update_with_telemetry(kafka_last_tcp_seq_per_connection, &tup, &skb_info->tcp_seq, BPF_ANY);
     return true;
 }
 

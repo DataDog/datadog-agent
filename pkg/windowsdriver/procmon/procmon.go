@@ -52,7 +52,9 @@ const (
 	driverName = "ddprocmon"
 
 	// ProcmonDefaultReceiveSize is the default size of the receive buffer
-	ProcmonDefaultReceiveSize = 4096
+	// 140k is the maximum size a notification can be, resulting in more memory usage traded off for
+	// not missing notifications.
+	ProcmonDefaultReceiveSize = (140 * 1024)
 
 	// ProcmonDefaultNumBufs is the default number of overlapped receive buffers
 	ProcmonDefaultNumBufs = 50

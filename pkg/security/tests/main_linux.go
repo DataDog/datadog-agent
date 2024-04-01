@@ -12,10 +12,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
@@ -54,6 +53,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestChown",
 			"~TestLoadModule",
 			"~TestUnloadModule",
+			"~TestOsOrigin",
 		}
 
 		exclude := []string{
@@ -112,7 +112,11 @@ func preTestsHook() {
 
 		envs := os.Environ()
 
-		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, ptracer.Creds{}, false /* verbose */, true /* async */, false /* disableStats */)
+		opts := ptracer.Opts{
+			Async: true,
+		}
+
+		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)

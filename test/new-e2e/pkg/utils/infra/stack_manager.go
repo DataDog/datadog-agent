@@ -273,21 +273,35 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		logger = logWriter
 	}
 
-	var ok bool
 	var upResult auto.UpResult
 
-	for retry := 0; retry < stackUpRetry && !ok; retry++ {
+	for retry := 0; retry < stackUpRetry; retry++ {
 		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
 		upResult, err = stack.Up(upCtx, optup.ProgressStreams(logger), optup.DebugLogging(loggingOptions))
 		cancel()
-		if err != nil && shouldRetryError(err) {
-			fmt.Fprint(logger, "Got error that should be retried during stack up, retrying")
-			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up"}, logger)
+
+		if err == nil {
+			break
+		}
+		if retryStrategy := shouldRetryError(err); retryStrategy != noRetry {
+			fmt.Fprintf(logger, "Got error that should be retried during stack up, retrying with %s strategy", retryStrategy)
+			err := sendEventToDatadog(fmt.Sprintf("[E2E] Stack %s : retrying Pulumi stack up", name), err.Error(), []string{"operation:up", fmt.Sprintf("retry:%s", retryStrategy)}, logger)
 			if err != nil {
 				fmt.Fprintf(logger, "Got error when sending event to Datadog: %v", err)
 			}
+
+			if retryStrategy == reCreate {
+				// If we are recreating the stack, we should destroy the stack first
+				destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+				_, err := stack.Destroy(destroyCtx, optdestroy.ProgressStreams(logger), optdestroy.DebugLogging(loggingOptions))
+				cancel()
+				if err != nil {
+					return stack, auto.UpResult{}, err
+				}
+			}
+
 		} else {
-			ok = true
+			break
 		}
 	}
 	return stack, upResult, err
@@ -341,21 +355,33 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 	}
 }
 
-func shouldRetryError(err error) bool {
+type retryType string
+
+const (
+	reUp     retryType = "ReUp"     // Retry the up operation
+	reCreate retryType = "ReCreate" // Retry the up operation after destroying the stack
+	noRetry  retryType = "NoRetry"
+)
+
+func shouldRetryError(err error) retryType {
 	// Add here errors that are known to be flakes and that should be retried
 	if strings.Contains(err.Error(), "i/o timeout") {
-		return true
+		return reCreate
 	}
 
 	if strings.Contains(err.Error(), "creating EC2 Instance: IdempotentParameterMismatch:") {
-		return true
+		return reUp
 	}
 
 	if strings.Contains(err.Error(), "InvalidInstanceID.NotFound") {
-		return true
+		return reUp
 	}
 
-	return false
+	if strings.Contains(err.Error(), "create: timeout while waiting for state to become 'tfSTABLE'") {
+		return reUp
+	}
+
+	return noRetry
 }
 
 // sendEventToDatadog sends an event to Datadog, it will use the API Key from environment variable DD_API_KEY if present, otherwise it will use the one from SSM Parameter Store

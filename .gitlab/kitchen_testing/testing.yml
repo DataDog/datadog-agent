@@ -1,0 +1,187 @@
+---
+.kitchen_common:
+  stage: kitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/dd-agent-testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+  retry: 1
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "6Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
+
+.kitchen_common_with_junit:
+  extends:
+    - .kitchen_common
+  after_script:
+    - echo -n "--tags ci.job.name:${CI_JOB_NAME} --tags arch:${KITCHEN_ARCH} --tags os:${KITCHEN_PLATFORM} upload_option.os_version_from_name" > $CI_PROJECT_DIR/test/kitchen/tags.txt
+    - echo -n "${CI_JOB_URL}" > $CI_PROJECT_DIR/test/kitchen/job_url.txt
+    - kitchen_files=$(find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec basename {} \;)
+    - find $CI_PROJECT_DIR -name "kitchen-rspec-*.xml" -exec $CI_PROJECT_DIR/test/kitchen/tasks/kitchen_rspec_xml_update.sh {} "${CI_JOB_NAME}" \;
+    - tar -czvf kitchen-rspec-common-${CI_JOB_NAME}.tar.gz -C $CI_PROJECT_DIR/test/kitchen/ ./job_url.txt ./tags.txt $kitchen_files
+    # Upload generated junit files
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - find . -maxdepth 1 -type f -name "kitchen-rspec-common-*.tar.gz" -exec inv -e junit-upload --tgz-path {} \;
+
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+      - "**/kitchen-rspec-common-${CI_JOB_NAME}.tar.gz"
+
+# Kitchen: providers
+# ---------------
+
+# Azure
+# ---------------
+.kitchen_azure:
+  variables:
+    KITCHEN_PROVIDER: azure
+
+.kitchen_azure_x64:
+  variables:
+    KITCHEN_ARCH: x86_64
+  extends:
+    - .kitchen_azure
+
+# EC2
+# ---------------
+.kitchen_ec2:
+  variables:
+    KITCHEN_PROVIDER: ec2
+    KITCHEN_EC2_IAM_PROFILE_NAME: ci-datadog-agent-e2e-runner
+
+.kitchen_ec2_x64:
+  variables:
+    KITCHEN_ARCH: x86_64
+  extends:
+    - .kitchen_ec2
+
+.kitchen_ec2_spot_instances:
+  extends: .kitchen_ec2
+  variables:
+    KITCHEN_EC2_SPOT_PRICE: on-demand
+
+.kitchen_ec2_arm64:
+  variables:
+    KITCHEN_ARCH: arm64
+    KITCHEN_EC2_INSTANCE_TYPE: "t4g.xlarge"
+    CHEF_VERSION: 14.15.6
+  extends:
+    - .kitchen_ec2
+
+# Kitchen: agents
+# ---------------
+
+.kitchen_agent_a6:
+  extends: .kitchen_common_with_junit
+  rules:
+    !reference [.on_kitchen_tests_a6]
+  variables:
+    AGENT_MAJOR_VERSION: 6
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
+
+.kitchen_agent_a7:
+  extends: .kitchen_common_with_junit
+  rules:
+    !reference [.on_kitchen_tests_a7]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+
+
+# Kitchen: tests
+# --------------
+
+.kitchen_test_chef:
+  script:
+    - tasks/run-test-kitchen.sh chef-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_upgrade5:
+  script:
+    - tasks/run-test-kitchen.sh upgrade5-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_upgrade6:
+  script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::6")
+    - tasks/run-test-kitchen.sh upgrade6-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_upgrade7:
+  script:
+    - export LAST_STABLE_VERSION=$(cd ../.. && invoke release.get-release-json-value "last_stable::7")
+    - tasks/run-test-kitchen.sh upgrade7-test $AGENT_MAJOR_VERSION
+
+.kitchen_test_process_agent:
+  script:
+    - tasks/run-test-kitchen.sh process-agent-test $AGENT_MAJOR_VERSION
+
+# Kitchen: Agent flavor
+# -------------------------------
+
+.kitchen_datadog_agent_flavor:
+  variables:
+    AGENT_FLAVOR: "datadog-agent"
+
+# Kitchen: Azure locations
+# -------------------------------
+
+.kitchen_azure_location_north_central_us:
+  variables:
+    AZURE_LOCATION: "North Central US"
+
+.kitchen_azure_location_west_central_us:
+  variables:
+    AZURE_LOCATION: "West Central US"
+
+.kitchen_azure_location_central_us:
+  variables:
+    AZURE_LOCATION: "Central US"
+
+.kitchen_azure_location_south_central_us:
+  variables:
+    AZURE_LOCATION: "South Central US"
+
+
+# Kitchen: EC2 locations
+# -------------------------------
+
+.kitchen_ec2_location_us_east_1:
+  variables:
+    KITCHEN_EC2_REGION: us-east-1
+    KITCHEN_EC2_SUBNET: subnet-05d7c6b1b5cfea811
+    KITCHEN_EC2_SG_IDS: sg-019917348cb0eb7e7
+
+# Kitchen: Test types (test suite * agent flavor + location in each cloud provider)
+# -------------------------------
+
+.kitchen_test_chef_agent:
+  extends:
+    - .kitchen_test_chef
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_north_central_us
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_test_upgrade5_agent:
+  extends:
+    - .kitchen_test_upgrade5
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_central_us
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_test_upgrade6_agent:
+  extends:
+    - .kitchen_test_upgrade6
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_south_central_us
+    - .kitchen_ec2_location_us_east_1
+
+.kitchen_test_upgrade7_agent:
+  extends:
+    - .kitchen_test_upgrade7
+    - .kitchen_datadog_agent_flavor
+    - .kitchen_azure_location_south_central_us
+    - .kitchen_ec2_location_us_east_1

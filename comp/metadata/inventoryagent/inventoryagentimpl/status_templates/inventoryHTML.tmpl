@@ -1,7 +1,7 @@
 <div class="stat">
   <span class="stat_title">Metadata</span>
   <span class="stat_data">
-  {{- range $key, $value := . }}
+  {{- range $key, $value := .agent_metadata }}
     {{ $key }}: {{ $value }}<br>
   {{- end }}
   </span>

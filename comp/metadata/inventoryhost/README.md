@@ -17,7 +17,8 @@ The `Set` method from the component allows the rest of the codebase to add any i
 The payload is a JSON dict with the following fields
 
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
-- `timestamp` - **int**: the timestamp when the payload was created.
+- `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
+- `timestamp` - **int**: the timestamp when the payload was created (Unix nanoseconds timestamp).
 - `host_metadata` - **dict of string to JSON type**:
   - `cpu_cores` - **int**: the number of core for the host.
   - `cpu_logical_processors` - **int**:  the number of logical cores for the host.
@@ -40,6 +41,7 @@ The payload is a JSON dict with the following fields
   - `ipv6_address` - **string**: the IPV6 address for the host.
   - `mac_address` - **string**: the MAC address for the host.
   - `agent_version` - **string**: the version of the Agent that sent this payload.
+  - `agent_startup_time` - **int**: the Agent startup timestamp (Unix nanoseconds timestamp).
   - `cloud_provider` - **string**: the name of the cloud provider detected by the Agent.
   - `cloud_provider_source` - **string**: the data source used to know that the Agent is running on `cloud_provider`.
     This is different for each cloud provider. For now ony AWS is supported.

@@ -34,6 +34,7 @@ type workloadMetaMock struct {
 	mu             sync.RWMutex
 	store          map[Kind]map[string]Entity
 	notifiedEvents []CollectorEvent
+	eventsChan     chan CollectorEvent
 }
 
 func newWorkloadMetaMock(deps dependencies) Mock {
@@ -207,6 +208,19 @@ func (w *workloadMetaMock) GetECSTask(id string) (*ECSTask, error) {
 	return entity.(*ECSTask), nil
 }
 
+// ListECSTasks implements workloadMetaMock#ListECSTasks
+func (w *workloadMetaMock) ListECSTasks() []*ECSTask {
+	entities := w.listEntitiesByKind(KindECSTask)
+
+	tasks := make([]*ECSTask, 0, len(entities))
+	for _, entity := range entities {
+		task := entity.(*ECSTask)
+		tasks = append(tasks, task)
+	}
+
+	return tasks
+}
+
 // ListImages implements workloadMetaMock#ListImages
 func (w *workloadMetaMock) ListImages() []*ContainerImageMetadata {
 	entities := w.listEntitiesByKind(KindContainerImageMetadata)
@@ -276,6 +290,11 @@ func (w *workloadMetaMock) Unsubscribe(_ chan EventBundle) {
 func (w *workloadMetaMock) Notify(events []CollectorEvent) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.eventsChan != nil {
+		for _, event := range events {
+			w.eventsChan <- event
+		}
+	}
 
 	w.notifiedEvents = append(w.notifiedEvents, events...)
 }
@@ -305,6 +324,15 @@ func (w *workloadMetaMock) GetNotifiedEvents() []CollectorEvent {
 	events = append(events, w.notifiedEvents...)
 
 	return events
+}
+
+// SubscribeToEvents returns a channel that receives events
+func (w *workloadMetaMock) SubscribeToEvents() chan CollectorEvent {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	w.eventsChan = make(chan CollectorEvent, 100)
+	return w.eventsChan
 }
 
 // Dump is not implemented in the testing store.
@@ -380,6 +408,11 @@ func (w *workloadMetaMockV2) Notify(events []CollectorEvent) {
 
 // GetNotifiedEvents is not implemented for V2 mocks.
 func (w *workloadMetaMockV2) GetNotifiedEvents() []CollectorEvent {
+	panic("not implemented")
+}
+
+// SubscribeToEvents is not implemented for V2 mocks.
+func (w *workloadMetaMockV2) SubscribeToEvents() chan CollectorEvent {
 	panic("not implemented")
 }
 

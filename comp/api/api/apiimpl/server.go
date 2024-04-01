@@ -8,16 +8,15 @@ package apiimpl
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	stdLog "log"
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -26,14 +25,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -65,6 +66,7 @@ func stopServer(listener net.Listener, name string) {
 // StartServers creates certificates and starts API servers
 func StartServers(
 	configService optional.Option[rcservice.Component],
+	configServiceHA optional.Option[rcserviceha.Component],
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
@@ -81,7 +83,9 @@ func StartServers(
 	invChecks inventorychecks.Component,
 	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
+	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
+	ac autodiscovery.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -106,16 +110,13 @@ func StartServers(
 		MinVersion:   tls.VersionTLS12,
 	}
 
-	if err := util.CreateAndSetAuthToken(config.Datadog); err != nil {
-		return err
-	}
-
 	// start the CMD server
 	if err := startCMDServer(
 		apiAddr,
 		tlsConfig,
 		tlsCertPool,
 		configService,
+		configServiceHA,
 		flare,
 		dogstatsdServer,
 		capture,
@@ -132,7 +133,9 @@ func StartServers(
 		invChecks,
 		pkgSigning,
 		statusComponent,
+		collector,
 		eventPlatformReceiver,
+		ac,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

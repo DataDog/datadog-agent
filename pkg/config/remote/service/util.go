@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 const metaBucket = "meta"
@@ -188,6 +189,7 @@ func buildLatestConfigsRequest(hostname string, agentVersion string, tags []stri
 	}
 	return &pbgo.LatestConfigsRequest{
 		Hostname:                     hostname,
+		AgentUuid:                    uuid.GetUUID(),
 		AgentVersion:                 agentVersion,
 		Products:                     data.ProductListToString(productsList),
 		NewProducts:                  data.ProductListToString(newProductsList),

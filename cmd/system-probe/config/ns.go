@@ -50,3 +50,8 @@ func wcdNS(k ...string) string {
 func pngNS(k ...string) string {
 	return nskey("ping", k...)
 }
+
+// tracerouteNS adds `traceroute` namespace to config key
+func tracerouteNS(k ...string) string {
+	return nskey("traceroute", k...)
+}

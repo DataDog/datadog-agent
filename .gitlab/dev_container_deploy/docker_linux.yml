@@ -1,6 +1,6 @@
 ---
 include:
-  - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/common/container_publish_job_templates.yml
 
 dev_branch-a6:
   extends: .docker_publish_job_definition
@@ -248,7 +248,8 @@ qa_agent:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_container_or_e2e_changes_or_manual]
+    - !reference [.on_container_or_e2e_changes_or_manual]
+    - !reference [.on_apm_or_e2e_changes_or_manual]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -296,13 +297,8 @@ qa_dogstatsd:
     IMG_SOURCES: ${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: cws-instrumentation:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
 
-qa_main_cws_instrumentation:
+qa_cws_instrumentation:
   extends: .qa_cws_instrumentation
   rules:
-    !reference [.on_main_or_rc_and_no_skip_e2e]
+    !reference [.on_cws_or_e2e_changes_or_manual]
 
-qa_branch_cws_instrumentation:
-  extends: .qa_cws_instrumentation
-  rules:
-    - !reference [.if_run_e2e_tests]
-    - !reference [.on_dev_branch_manual]

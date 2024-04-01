@@ -3,162 +3,278 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// for now the updater is not supported on windows
+//go:build !windows
+
 package updater
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/hex"
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path"
-	"path/filepath"
-	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/registry"
+	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/layout"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	testAgentFileName        = "agent"
-	testNestedAgentFileName  = "nested/agent2"
-	testLargeFileName        = "large"
-	testLargeFileSize        = 1024 * 1024 * 20 // 20MB
-	testAgentArchiveFileName = "agent.tar.gz"
-	testDownloadDir          = "download"
-)
-
-func createTestArchive(t *testing.T, dir string) {
-	filePath := path.Join(dir, testAgentFileName)
-	err := os.WriteFile(filePath, []byte("test"), 0644)
-	assert.NoError(t, err)
-	nestedFilePath := path.Join(dir, testNestedAgentFileName)
-	err = os.MkdirAll(path.Dir(nestedFilePath), 0755)
-	assert.NoError(t, err)
-	err = os.WriteFile(nestedFilePath, []byte("test"), 0644)
-	assert.NoError(t, err)
-	largeFilePath := path.Join(dir, testLargeFileName)
-	largeFile, err := os.Create(largeFilePath)
-	assert.NoError(t, err)
-	defer largeFile.Close()
-	_, err = io.CopyN(largeFile, rand.Reader, testLargeFileSize)
-	assert.NoError(t, err)
-	archivePath := path.Join(dir, testAgentArchiveFileName)
-	files := []string{testAgentFileName, testNestedAgentFileName, testLargeFileName}
-	out, err := os.Create(archivePath)
-	assert.NoError(t, err)
-	defer out.Close()
-	err = createArchive(dir, files, out)
-	assert.NoError(t, err)
+type fixture struct {
+	pkg         string
+	version     string
+	layoutPath  string
+	contentPath string
+	configPath  string
+	indexDigest string
 }
 
-func createTestServer(t *testing.T, dir string) *httptest.Server {
-	createTestArchive(t, dir)
-	return httptest.NewServer(http.FileServer(http.Dir(dir)))
-}
-
-func agentArchiveHash(t *testing.T, dir string) string {
-	f, err := os.Open(path.Join(dir, testAgentArchiveFileName))
-	assert.NoError(t, err)
-	defer f.Close()
-	hash := sha256.New()
-	_, err = io.Copy(hash, f)
-	assert.NoError(t, err)
-	return hex.EncodeToString(hash.Sum(nil))
-}
-
-func createArchive(dir string, files []string, buf io.Writer) error {
-	// Create new Writers for gzip and tar
-	// These writers are chained. Writing to the tar writer will
-	// write to the gzip writer which in turn will write to
-	// the "buf" writer
-	gw := gzip.NewWriter(buf)
-	defer gw.Close()
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
-	// Iterate over files and add them to the tar archive
-	for _, file := range files {
-		err := addToArchive(dir, tw, file)
-		if err != nil {
-			return err
-		}
+var (
+	fixtureSimpleV1 = fixture{
+		pkg:         "simple",
+		version:     "v1",
+		layoutPath:  "fixtures/oci-layout-simple-v1.tar",
+		contentPath: "fixtures/simple-v1",
+		configPath:  "fixtures/simple-v1-config",
 	}
+	fixtureSimpleV2 = fixture{
+		pkg:         "simple",
+		version:     "v2",
+		layoutPath:  "fixtures/oci-layout-simple-v2.tar",
+		contentPath: "fixtures/simple-v2",
+		configPath:  "fixtures/simple-v2-config",
+	}
+	fixtureSimpleV1Linux2Amd128 = fixture{
+		pkg:         "simple",
+		version:     "v1",
+		layoutPath:  "fixtures/oci-layout-simple-v1-linux2-amd128.tar",
+		contentPath: "fixtures/simple-v1",
+	}
+	ociFixtures = []*fixture{&fixtureSimpleV1, &fixtureSimpleV2, &fixtureSimpleV1Linux2Amd128}
+)
 
-	return nil
+//go:embed fixtures/*
+var fixturesFS embed.FS
+
+func buildOCIRegistry(t *testing.T) *httptest.Server {
+	s := httptest.NewServer(registry.New())
+	for _, f := range ociFixtures {
+		tmpDir := t.TempDir()
+		file, err := fixturesFS.Open(f.layoutPath)
+		require.NoError(t, err)
+		err = extractTarArchive(file, tmpDir, 1<<30)
+		require.NoError(t, err)
+
+		layout, err := layout.FromPath(tmpDir)
+		require.NoError(t, err)
+		index, err := layout.ImageIndex()
+		require.NoError(t, err)
+
+		url, err := url.Parse(s.URL)
+		require.NoError(t, err)
+		src := path.Join(url.Host, f.pkg)
+		ref, err := name.ParseReference(src)
+		require.NoError(t, err)
+		err = remote.WriteIndex(ref, index)
+		require.NoError(t, err)
+
+		digest, err := index.Digest()
+		require.NoError(t, err)
+		f.indexDigest = digest.String()
+	}
+	return s
 }
 
-func addToArchive(dir string, tw *tar.Writer, filename string) error {
-	file, err := os.Open(filepath.Join(dir, filename))
+type testFixturesServer struct {
+	t    *testing.T
+	s    *httptest.Server
+	soci *httptest.Server
+}
+
+func newTestFixturesServer(t *testing.T) *testFixturesServer {
+	return &testFixturesServer{
+		t:    t,
+		s:    httptest.NewServer(http.FileServer(http.FS(fixturesFS))),
+		soci: buildOCIRegistry(t),
+	}
+}
+
+func (s *testFixturesServer) Downloader() *downloader {
+	return newDownloader(s.s.Client(), "")
+}
+
+func (s *testFixturesServer) DownloaderOCI() *downloader {
+	return newDownloader(s.soci.Client(), "")
+}
+
+func (s *testFixturesServer) DownloaderOCIRegistryOverride() *downloader {
+	return newDownloader(s.soci.Client(), "my.super/registry")
+}
+
+func (s *testFixturesServer) Package(f fixture) Package {
+	file, err := fixturesFS.Open(f.layoutPath)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	defer file.Close()
-
-	info, err := file.Stat()
+	hash := sha256.New()
+	n, err := io.Copy(hash, file)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return Package{
+		Name:    f.pkg,
+		Version: f.version,
+		URL:     s.s.URL + "/" + f.layoutPath,
+		Size:    n,
+		SHA256:  fmt.Sprintf("%x", hash.Sum(nil)),
+	}
+}
 
-	header, err := tar.FileInfoHeader(info, info.Name())
+func (s *testFixturesServer) PackageOCI(f fixture) Package {
+	return Package{
+		Name:    f.pkg,
+		Version: f.version,
+		URL:     fmt.Sprintf("oci://%s/%s@%s", strings.TrimPrefix(s.soci.URL, "http://"), f.pkg, f.indexDigest),
+	}
+}
+
+func (s *testFixturesServer) PackageFS(f fixture) fs.FS {
+	fs, err := fs.Sub(fixturesFS, f.contentPath)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return fs
+}
 
-	header.Name = filename
-
-	err = tw.WriteHeader(header)
+func (s *testFixturesServer) ConfigFS(f fixture) fs.FS {
+	if f.configPath == "" {
+		return os.DirFS(s.t.TempDir())
+	}
+	fs, err := fs.Sub(fixturesFS, f.configPath)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return fs
+}
 
-	_, err = io.Copy(tw, file)
+func (s *testFixturesServer) Image(f fixture) oci.Image {
+	tmpDir := s.t.TempDir()
+	image, err := s.Downloader().Download(context.Background(), tmpDir, s.Package(f))
 	if err != nil {
-		return err
+		panic(err)
 	}
+	return image
+}
 
-	return nil
+func (s *testFixturesServer) Catalog() catalog {
+	return catalog{
+		Packages: []Package{
+			s.Package(fixtureSimpleV1),
+			s.Package(fixtureSimpleV2),
+		},
+	}
+}
+
+func (s *testFixturesServer) Close() {
+	s.s.Close()
+	s.soci.Close()
 }
 
 func TestDownload(t *testing.T) {
-	dir := t.TempDir()
-	server := createTestServer(t, dir)
-	defer server.Close()
-	downloader := newDownloader(server.Client())
-	downloadPath := path.Join(dir, testDownloadDir)
-	err := os.MkdirAll(downloadPath, 0755)
-	assert.NoError(t, err)
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
 
-	pkg := Package{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: agentArchiveHash(t, dir)}
-	err = downloader.Download(context.Background(), pkg, downloadPath)
+	image, err := d.Download(context.Background(), t.TempDir(), s.Package(fixtureSimpleV1))
 	assert.NoError(t, err)
-	assert.FileExists(t, path.Join(downloadPath, testAgentFileName))
-	assert.FileExists(t, path.Join(downloadPath, testNestedAgentFileName))
-	assert.FileExists(t, path.Join(downloadPath, testLargeFileName))
-
-	// ensures the full archive or full individual files are not loaded in memory
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	assert.Less(t, m.TotalAlloc, uint64(testLargeFileSize))
+	tmpDir := t.TempDir()
+	err = extractPackageLayers(image, t.TempDir(), tmpDir)
+	assert.NoError(t, err)
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
 }
 
-func TestDownloadCheckHash(t *testing.T) {
-	dir := t.TempDir()
-	server := createTestServer(t, dir)
-	defer server.Close()
-	downloader := newDownloader(server.Client())
-	downloadPath := path.Join(dir, testDownloadDir)
-	err := os.MkdirAll(downloadPath, 0755)
-	assert.NoError(t, err)
+func TestDownloadInvalidHash(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
 
-	fakeHash := sha256.Sum256([]byte(`test`))
-	pkg := Package{URL: fmt.Sprintf("%s/%s", server.URL, testAgentArchiveFileName), SHA256: hex.EncodeToString(fakeHash[:])}
-	err = downloader.Download(context.Background(), pkg, downloadPath)
+	pkg := s.Package(fixtureSimpleV1)
+	pkg.SHA256 = "2857b8e9faf502169c9cfaf6d4ccf3a035eccddc0f5b87c613b673a807ff6d23"
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
+	assert.Error(t, err)
+}
+
+func TestDownloadPlatformNotAvailable(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.Downloader()
+
+	pkg := s.Package(fixtureSimpleV1Linux2Amd128)
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
+	assert.Error(t, err)
+}
+
+func TestDownloadRegistry(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.DownloaderOCI()
+
+	image, err := d.Download(context.Background(), t.TempDir(), s.PackageOCI(fixtureSimpleV1))
+	assert.NoError(t, err)
+	tmpDir := t.TempDir()
+	err = extractPackageLayers(image, t.TempDir(), tmpDir)
+	assert.NoError(t, err)
+	assertEqualFS(t, s.PackageFS(fixtureSimpleV1), os.DirFS(tmpDir))
+}
+
+func TestDownloadRegistryWithOverride(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.DownloaderOCIRegistryOverride()
+
+	_, err := d.Download(context.Background(), t.TempDir(), s.PackageOCI(fixtureSimpleV1))
+	assert.Error(t, err) // Host not found
+}
+
+func TestGetRegistryURL(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+
+	pkg := Package{
+		Name:    "simple",
+		Version: "v1",
+		URL:     s.soci.URL + "/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d",
+		SHA256:  "2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d",
+	}
+
+	d := s.DownloaderOCI()
+	url := d.getRegistryURL(pkg)
+	assert.Equal(t, s.soci.URL+"/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
+
+	d = s.DownloaderOCIRegistryOverride()
+	url = d.getRegistryURL(pkg)
+	assert.Equal(t, "my.super/registry/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
+}
+
+func TestDownloadOCIPlatformNotAvailable(t *testing.T) {
+	s := newTestFixturesServer(t)
+	defer s.Close()
+	d := s.DownloaderOCI()
+
+	pkg := s.PackageOCI(fixtureSimpleV1Linux2Amd128)
+	_, err := d.Download(context.Background(), t.TempDir(), pkg)
 	assert.Error(t, err)
 }

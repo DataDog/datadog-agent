@@ -10,19 +10,19 @@ set -euxo pipefail
 # These should not be printed out
 set +x
 if [ -z ${AZURE_CLIENT_ID+x} ]; then
-  AZURE_CLIENT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text)
+  AZURE_CLIENT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_ID_SSM_NAME)
   export AZURE_CLIENT_ID
 fi
 if [ -z ${AZURE_CLIENT_SECRET+x} ]; then
-  AZURE_CLIENT_SECRET=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text)
+  AZURE_CLIENT_SECRET=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME)
   export AZURE_CLIENT_SECRET
 fi
 if [ -z ${AZURE_TENANT_ID+x} ]; then
-  AZURE_TENANT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text)
+  AZURE_TENANT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_TENANT_ID_SSM_NAME)
   export AZURE_TENANT_ID
 fi
 if [ -z ${AZURE_SUBSCRIPTION_ID+x} ]; then
-  AZURE_SUBSCRIPTION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text)
+  AZURE_SUBSCRIPTION_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME)
   export AZURE_SUBSCRIPTION_ID
 fi
 if [ -z ${DD_PIPELINE_ID+x} ]; then

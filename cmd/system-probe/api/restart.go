@@ -14,9 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
+func restartModuleHandler(w http.ResponseWriter, r *http.Request, wmeta optional.Option[workloadmeta.Component]) {
 	vars := mux.Vars(r)
 	moduleName := sysconfigtypes.ModuleName(vars["module-name"])
 
@@ -37,7 +39,7 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := module.RestartModule(target)
+	err := module.RestartModule(target, wmeta)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -16,12 +16,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
 	stdLog "log"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	languagedetection "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection"
 
 	"github.com/cihub/seelog"
 	"github.com/gorilla/mux"
@@ -30,6 +31,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -39,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -48,13 +54,13 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(w workloadmeta.Component, taggerComp tagger.Component, senderManager sender.DiagnoseSenderManager) error {
+func StartServer(w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, senderManager)
+	agent.SetupHandlers(router, w, ac, senderManager, collector, statusComponent, secretResolver)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)

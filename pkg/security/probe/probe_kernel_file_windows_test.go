@@ -105,9 +105,11 @@ func processUntilClose(t *testing.T, et *etwTester) {
 			return
 
 		case n := <-et.notify:
-			et.notifications = append(et.notifications, n)
 			switch n.(type) {
+			case *createHandleArgs, *createNewFileArgs, *cleanupArgs:
+				et.notifications = append(et.notifications, n)
 			case *closeArgs:
+				et.notifications = append(et.notifications, n)
 				return
 			}
 		}

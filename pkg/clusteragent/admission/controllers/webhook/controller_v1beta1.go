@@ -12,10 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	admiv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -27,6 +23,10 @@ import (
 	admissionlisters "k8s.io/client-go/listers/admissionregistration/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ControllerV1beta1 is responsible for watching the TLS certificate stored
@@ -39,7 +39,7 @@ type ControllerV1beta1 struct {
 }
 
 // NewControllerV1beta1 returns a new Webhook Controller using admissionregistration/v1beta1.
-func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) *ControllerV1beta1 {
+func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config, wmeta workloadmeta.Component) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
 	controller.config = config
@@ -50,6 +50,7 @@ func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinform
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
 	controller.isLeaderNotif = isLeaderNotif
+	controller.mutatingWebhooks = mutatingWebhooks(wmeta)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -186,93 +187,24 @@ func (c *ControllerV1beta1) newWebhooks(secret *corev1.Secret) []admiv1beta1.Mut
 func (c *ControllerV1beta1) generateTemplates() {
 	webhooks := []admiv1beta1.MutatingWebhook{}
 
-	// DD_AGENT_HOST injection
-	if config.Datadog.GetBool("admission_controller.inject_config.enabled") {
-		// generate selectors
-		nsSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
+	for _, webhook := range c.mutatingWebhooks {
+		if !webhook.IsEnabled() {
+			continue
+		}
 
-		webhook := c.getWebhookSkeleton(
-			"config",
-			config.Datadog.GetString("admission_controller.inject_config.endpoint"),
-			[]admiv1beta1.OperationType{
-				admiv1beta1.Create,
-			},
-			[]string{"pods"},
-			nsSelector,
-			objSelector,
-		)
-		webhooks = append(webhooks, webhook)
-	}
+		nsSelector, objSelector := webhook.LabelSelectors(c.config.useNamespaceSelector())
 
-	// DD_ENV, DD_VERSION, DD_SERVICE injection
-	if config.Datadog.GetBool("admission_controller.inject_tags.enabled") {
-		// generate selectors
-		nsSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
-
-		webhook := c.getWebhookSkeleton(
-			"tags",
-			config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
-			[]admiv1beta1.OperationType{
-				admiv1beta1.Create,
-			},
-			[]string{"pods"},
-			nsSelector,
-			objSelector,
-		)
-		webhooks = append(webhooks, webhook)
-	}
-
-	// Auto instrumentation - lib injection
-	if config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled") {
-		// generate selectors
-		nsSelector, objSelector := buildLabelSelectors(c.config.useNamespaceSelector())
-
-		webhook := c.getWebhookSkeleton(
-			"auto-instrumentation",
-			config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"),
-			[]admiv1beta1.OperationType{
-				admiv1beta1.Create,
-			},
-			[]string{"pods"},
-			nsSelector,
-			objSelector,
-		)
-		webhooks = append(webhooks, webhook)
-	}
-
-	// CWS Instrumentation - user context injection
-	if config.Datadog.GetBool("admission_controller.cws_instrumentation.enabled") {
-		// sanity check: make sure the provided CWS Injector image name isn't empty
-		if len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) != 0 {
-			// generate selectors
-			nsSelector, objSelector := buildCWSInstrumentationLabelSelectors(c.config.useNamespaceSelector())
-
-			// bind mount cws-instrumentation
-			webhook := c.getWebhookSkeleton(
-				"cws-pod-instrumentation",
-				config.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"),
-				[]admiv1beta1.OperationType{
-					admiv1beta1.Create,
-				},
-				[]string{"pods"},
+		webhooks = append(
+			webhooks,
+			c.getWebhookSkeleton(
+				webhook.Name(),
+				webhook.Endpoint(),
+				webhook.Operations(),
+				webhook.Resources(),
 				nsSelector,
 				objSelector,
-			)
-			webhooks = append(webhooks, webhook)
-
-			// override pod exec command
-			webhook = c.getWebhookSkeleton(
-				"cws-command-instrumentation",
-				config.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"),
-				[]admiv1beta1.OperationType{
-					admiv1beta1.Connect,
-				},
-				[]string{"pods/exec"},
-				nil,
-				nil,
-			)
-			webhooks = append(webhooks, webhook)
-		}
+			),
+		)
 	}
 
 	c.webhookTemplates = webhooks

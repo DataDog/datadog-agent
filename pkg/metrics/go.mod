@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/metrics
 
-go 1.21
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
@@ -18,24 +18,24 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/tagset v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/tagset v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/buf v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.13.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.51.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.51.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.53.0-rc.2 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
-	github.com/DataDog/viper v1.12.0 // indirect
+	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -72,6 +72,7 @@ require (
 	go.uber.org/fx v1.18.2 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/sys v0.14.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect

@@ -24,10 +24,10 @@ func TestIncompleteBuffer(t *testing.T) {
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfTx{
-			Tuple: connTuple{
+			Tuple: ConnTuple{
 				Sport: 6000,
 			},
-			Stream: http2Stream{
+			Stream: HTTP2Stream{
 				Response_last_seen: 0, // Required to make the request incomplete.
 				Request_started:    uint64(now.UnixNano()),
 				Status_code: http2StatusCode{
@@ -61,10 +61,10 @@ func TestIncompleteBuffer(t *testing.T) {
 		now := time.Now()
 		buffer.minAgeNano = (30 * time.Second).Nanoseconds()
 		request := &EbpfTx{
-			Tuple: connTuple{
+			Tuple: ConnTuple{
 				Sport: 6000,
 			},
-			Stream: http2Stream{
+			Stream: HTTP2Stream{
 				Path: http2Path{
 					Static_table_entry: EmptyPathValue,
 				},

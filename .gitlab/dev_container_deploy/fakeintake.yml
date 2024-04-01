@@ -1,0 +1,30 @@
+---
+publish_fakeintake:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes_on_main_or_manual]
+  needs:
+    - job: docker_build_fakeintake
+      optional: false
+  variables:
+    IMG_SOURCES: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_DESTINATIONS: fakeintake:v${CI_COMMIT_SHORT_SHA}
+    IMG_REGISTRIES: public
+    IMG_SIGNING: "false"
+
+publish_fakeintake_latest:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.on_fakeintake_changes_on_main]
+  needs:
+    - job: docker_build_fakeintake
+      optional: false
+  variables:
+    IMG_SOURCES: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
+    IMG_DESTINATIONS: fakeintake:latest
+    IMG_REGISTRIES: public
+    IMG_SIGNING: "false"

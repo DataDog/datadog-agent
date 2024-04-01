@@ -46,10 +46,13 @@ func wrapPayloads(p []*proto.ClientStatsPayload) *proto.StatsPayload {
 	}
 }
 
-func payloadWithCounts(ts time.Time, k BucketsAggregationKey, hits, errors, duration uint64) *proto.ClientStatsPayload {
+func payloadWithCounts(ts time.Time, k BucketsAggregationKey, containerID, version, imageTag, gitCommitSha string, hits, errors, duration uint64) *proto.ClientStatsPayload {
 	return &proto.ClientStatsPayload{
-		Env:     "test-env",
-		Version: "test-version",
+		Env:          "test-env",
+		Version:      version,
+		ImageTag:     imageTag,
+		GitCommitSha: gitCommitSha,
+		ContainerID:  containerID,
 		Stats: []*proto.ClientStatsBucket{
 			{
 				Start: uint64(ts.UnixNano()),
@@ -277,7 +280,7 @@ func TestFuzzCountFields(t *testing.T) {
 			actual = append(actual, s)
 		}
 
-		assert.ElementsMatch(pb.PbToStringSlice(expected), pb.PbToStringSlice(actual))
+		assert.ElementsMatch(pb.ToStringSlice(expected), pb.ToStringSlice(actual))
 		aggCounts.Stats[0].Stats[0].Stats = nil
 		expectedAggCounts.Stats[0].Stats[0].Stats = nil
 		assert.Equal(expectedAggCounts, aggCounts)
@@ -329,11 +332,11 @@ func TestCountAggregation(t *testing.T) {
 			a := newTestAggregator()
 			testTime := time.Unix(time.Now().Unix(), 0)
 
-			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
-			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
-			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 11, 7, 100)
+			c2 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 27, 2, 300)
+			c3 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 5, 10, 3)
 			keyDefault := BucketsAggregationKey{}
-			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
+			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", 0, 2, 4)
 
 			assert.Len(a.out, 0)
 			a.add(testTime, deepCopy(c1))
@@ -399,14 +402,14 @@ func TestCountAggregationPeerTags(t *testing.T) {
 			a.peerTagsAggregation = tc.enablePeerTagsAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
-			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
-			c2 := payloadWithCounts(testTime, tc.k, 27, 2, 300)
-			c3 := payloadWithCounts(testTime, tc.k, 5, 10, 3)
+			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 11, 7, 100)
+			c2 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 27, 2, 300)
+			c3 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 5, 10, 3)
 			c1.Stats[0].Stats[0].PeerTags = peerTags
 			c2.Stats[0].Stats[0].PeerTags = peerTags
 			c3.Stats[0].Stats[0].PeerTags = peerTags
 			keyDefault := BucketsAggregationKey{}
-			cDefault := payloadWithCounts(testTime, keyDefault, 0, 2, 4)
+			cDefault := payloadWithCounts(testTime, keyDefault, "", "test-version", "", "", 0, 2, 4)
 
 			assert.Len(a.out, 0)
 			a.add(testTime, deepCopy(c1))
@@ -441,6 +444,178 @@ func TestCountAggregationPeerTags(t *testing.T) {
 	}
 }
 
+func TestAggregationVersionData(t *testing.T) {
+	// Version data refers to all of: Version, GitCommitSha, and ImageTag.
+	t.Run("all version data provided in payload", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 5, 10, 3)
+		keyDefault := BucketsAggregationKey{}
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
+
+		assert.Len(a.out, 0)
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.add(testTime, deepCopy(c3))
+		a.add(testTime, deepCopy(cDefault))
+		assert.Len(a.out, 3)
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		assert.Len(a.out, 4)
+
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
+		assertDistribPayload(t, wrapPayload(c3), <-a.out)
+		assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
+		aggCounts := <-a.out
+		assertAggCountsPayload(t, aggCounts)
+
+		expectedRes := &proto.ClientGroupedStats{
+			Service:  bak.Service,
+			Name:     bak.Name,
+			Hits:     43,
+			Errors:   19,
+			Duration: 403,
+		}
+		assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*proto.ClientGroupedStats{
+			expectedRes,
+			// Additional grouped stat object that corresponds to the keyDefault/cDefault.
+			// We do not expect this to be aggregated with the non-default key in the test.
+			{
+				Hits:     0,
+				Errors:   2,
+				Duration: 4,
+			},
+		})
+		assert.Equal("test-version", aggCounts.Stats[0].Version)
+		assert.Equal("abc", aggCounts.Stats[0].ImageTag)
+		assert.Equal("abc123", aggCounts.Stats[0].GitCommitSha)
+		assert.Len(a.buckets, 0)
+	})
+
+	t.Run("git commit sha and image tag come from container tags", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		cfg := config.New()
+		cfg.ContainerTags = func(cid string) ([]string, error) {
+			return []string{"git.commit.sha:sha-from-container-tags", "image_tag:image-tag-from-container-tags"}, nil
+		}
+		a.conf = cfg
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "", "", "", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "", "", "", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "", "", "", 5, 10, 3)
+		keyDefault := BucketsAggregationKey{}
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "", "", "", 0, 2, 4)
+
+		assert.Len(a.out, 0)
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.add(testTime, deepCopy(c3))
+		a.add(testTime, deepCopy(cDefault))
+		assert.Len(a.out, 3)
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		assert.Len(a.out, 4)
+
+		// Add the expected gitCommitSha and imageTag on c1, c2, c3, and cDefault for these assertions.
+		c1.GitCommitSha = "sha-from-container-tags"
+		c1.ImageTag = "image-tag-from-container-tags"
+		c2.GitCommitSha = "sha-from-container-tags"
+		c2.ImageTag = "image-tag-from-container-tags"
+		c3.GitCommitSha = "sha-from-container-tags"
+		c3.ImageTag = "image-tag-from-container-tags"
+		cDefault.GitCommitSha = "sha-from-container-tags"
+		cDefault.ImageTag = "image-tag-from-container-tags"
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
+		assertDistribPayload(t, wrapPayload(c3), <-a.out)
+		assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
+		aggCounts := <-a.out
+		assertAggCountsPayload(t, aggCounts)
+
+		expectedRes := &proto.ClientGroupedStats{
+			Service:  bak.Service,
+			Name:     bak.Name,
+			Hits:     43,
+			Errors:   19,
+			Duration: 403,
+		}
+		assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*proto.ClientGroupedStats{
+			expectedRes,
+			// Additional grouped stat object that corresponds to the keyDefault/cDefault.
+			// We do not expect this to be aggregated with the non-default key in the test.
+			{
+				Hits:     0,
+				Errors:   2,
+				Duration: 4,
+			},
+		})
+		assert.Equal("", aggCounts.Stats[0].Version)
+		assert.Equal("image-tag-from-container-tags", aggCounts.Stats[0].ImageTag)
+		assert.Equal("sha-from-container-tags", aggCounts.Stats[0].GitCommitSha)
+		assert.Len(a.buckets, 0)
+	})
+
+	t.Run("payload git commit sha and image tag override container tags", func(t *testing.T) {
+		assert := assert.New(t)
+		a := newTestAggregator()
+		cfg := config.New()
+		cfg.ContainerTags = func(cid string) ([]string, error) {
+			return []string{"git.commit.sha:overrideThisSha", "image_tag:overrideThisImageTag"}, nil
+		}
+		a.conf = cfg
+		testTime := time.Unix(time.Now().Unix(), 0)
+
+		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
+		c1 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 11, 7, 100)
+		c2 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 27, 2, 300)
+		c3 := payloadWithCounts(testTime, bak, "1", "test-version", "abc", "abc123", 5, 10, 3)
+		keyDefault := BucketsAggregationKey{}
+		cDefault := payloadWithCounts(testTime, keyDefault, "1", "test-version", "abc", "abc123", 0, 2, 4)
+
+		assert.Len(a.out, 0)
+		a.add(testTime, deepCopy(c1))
+		a.add(testTime, deepCopy(c2))
+		a.add(testTime, deepCopy(c3))
+		a.add(testTime, deepCopy(cDefault))
+		assert.Len(a.out, 3)
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		assert.Len(a.out, 4)
+
+		assertDistribPayload(t, wrapPayloads([]*proto.ClientStatsPayload{c1, c2}), <-a.out)
+		assertDistribPayload(t, wrapPayload(c3), <-a.out)
+		assertDistribPayload(t, wrapPayload(cDefault), <-a.out)
+		aggCounts := <-a.out
+		assertAggCountsPayload(t, aggCounts)
+
+		expectedRes := &proto.ClientGroupedStats{
+			Service:  bak.Service,
+			Name:     bak.Name,
+			Hits:     43,
+			Errors:   19,
+			Duration: 403,
+		}
+		assert.ElementsMatch(aggCounts.Stats[0].Stats[0].Stats, []*proto.ClientGroupedStats{
+			expectedRes,
+			// Additional grouped stat object that corresponds to the keyDefault/cDefault.
+			// We do not expect this to be aggregated with the non-default key in the test.
+			{
+				Hits:     0,
+				Errors:   2,
+				Duration: 4,
+			},
+		})
+		assert.Equal("test-version", aggCounts.Stats[0].Version)
+		assert.Equal("abc", aggCounts.Stats[0].ImageTag)
+		assert.Equal("abc123", aggCounts.Stats[0].GitCommitSha)
+		assert.Len(a.buckets, 0)
+	})
+}
+
 func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 	// The hash of "peer.service:remote-service".
 	peerTagsHash := uint64(3430395298086625290)
@@ -454,81 +629,6 @@ func TestNewBucketAggregationKeyPeerTags(t *testing.T) {
 		r := newBucketAggregationKey(&proto.ClientGroupedStats{Service: "a", PeerTags: []string{"peer.service:remote-service"}}, true)
 		assert.Equal(BucketsAggregationKey{Service: "a", PeerTagsHash: peerTagsHash}, r)
 	})
-}
-
-func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := &proto.ClientStatsPayload{
-		Hostname:         p.GetHostname(),
-		Env:              p.GetEnv(),
-		Version:          p.GetVersion(),
-		Lang:             p.GetLang(),
-		TracerVersion:    p.GetTracerVersion(),
-		RuntimeID:        p.GetRuntimeID(),
-		Sequence:         p.GetSequence(),
-		AgentAggregation: p.GetAgentAggregation(),
-		Service:          p.GetService(),
-		ContainerID:      p.GetContainerID(),
-		Tags:             p.GetTags(),
-	}
-	new.Stats = deepCopyStatsBucket(p.Stats)
-	return new
-}
-
-func deepCopyStatsBucket(s []*proto.ClientStatsBucket) []*proto.ClientStatsBucket {
-	if s == nil {
-		return nil
-	}
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*proto.ClientStatsBucket, len(s))
-	for i, b := range s {
-		new[i] = &proto.ClientStatsBucket{
-			Start:          b.GetStart(),
-			Duration:       b.GetDuration(),
-			AgentTimeShift: b.GetAgentTimeShift(),
-		}
-		new[i].Stats = deepCopyGroupedStats(b.Stats)
-	}
-	return new
-}
-
-func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedStats {
-	if s == nil {
-		return nil
-	}
-	//nolint:revive // TODO(APM) Fix revive linter
-	new := make([]*proto.ClientGroupedStats, len(s))
-	for i, b := range s {
-		if b == nil {
-			new[i] = nil
-			continue
-		}
-
-		new[i] = &proto.ClientGroupedStats{
-			Service:        b.GetService(),
-			Name:           b.GetName(),
-			Resource:       b.GetResource(),
-			HTTPStatusCode: b.GetHTTPStatusCode(),
-			Type:           b.GetType(),
-			DBType:         b.GetDBType(),
-			Hits:           b.GetHits(),
-			Errors:         b.GetErrors(),
-			Duration:       b.GetDuration(),
-			Synthetics:     b.GetSynthetics(),
-			TopLevelHits:   b.GetTopLevelHits(),
-			SpanKind:       b.GetSpanKind(),
-			PeerTags:       b.GetPeerTags(),
-		}
-		if b.OkSummary != nil {
-			new[i].OkSummary = make([]byte, len(b.OkSummary))
-			copy(new[i].OkSummary, b.OkSummary)
-		}
-		if b.ErrorSummary != nil {
-			new[i].ErrorSummary = make([]byte, len(b.ErrorSummary))
-			copy(new[i].ErrorSummary, b.ErrorSummary)
-		}
-	}
-	return new
 }
 
 func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
@@ -581,4 +681,79 @@ func TestNewClientStatsAggregatorPeerAggregation(t *testing.T) {
 		a := NewClientStatsAggregator(&cfg, nil, statsd)
 		assert.True(a.peerTagsAggregation)
 	})
+}
+
+func deepCopy(p *proto.ClientStatsPayload) *proto.ClientStatsPayload {
+	payload := &proto.ClientStatsPayload{
+		Hostname:         p.GetHostname(),
+		Env:              p.GetEnv(),
+		Version:          p.GetVersion(),
+		Lang:             p.GetLang(),
+		TracerVersion:    p.GetTracerVersion(),
+		RuntimeID:        p.GetRuntimeID(),
+		Sequence:         p.GetSequence(),
+		AgentAggregation: p.GetAgentAggregation(),
+		Service:          p.GetService(),
+		ContainerID:      p.GetContainerID(),
+		Tags:             p.GetTags(),
+		GitCommitSha:     p.GetGitCommitSha(),
+		ImageTag:         p.GetImageTag(),
+	}
+	payload.Stats = deepCopyStatsBucket(p.Stats)
+	return payload
+}
+
+func deepCopyStatsBucket(s []*proto.ClientStatsBucket) []*proto.ClientStatsBucket {
+	if s == nil {
+		return nil
+	}
+	bucket := make([]*proto.ClientStatsBucket, len(s))
+	for i, b := range s {
+		bucket[i] = &proto.ClientStatsBucket{
+			Start:          b.GetStart(),
+			Duration:       b.GetDuration(),
+			AgentTimeShift: b.GetAgentTimeShift(),
+		}
+		bucket[i].Stats = deepCopyGroupedStats(b.Stats)
+	}
+	return bucket
+}
+
+func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedStats {
+	if s == nil {
+		return nil
+	}
+	stats := make([]*proto.ClientGroupedStats, len(s))
+	for i, b := range s {
+		if b == nil {
+			stats[i] = nil
+			continue
+		}
+
+		stats[i] = &proto.ClientGroupedStats{
+			Service:        b.GetService(),
+			Name:           b.GetName(),
+			Resource:       b.GetResource(),
+			HTTPStatusCode: b.GetHTTPStatusCode(),
+			Type:           b.GetType(),
+			DBType:         b.GetDBType(),
+			Hits:           b.GetHits(),
+			Errors:         b.GetErrors(),
+			Duration:       b.GetDuration(),
+			Synthetics:     b.GetSynthetics(),
+			TopLevelHits:   b.GetTopLevelHits(),
+			SpanKind:       b.GetSpanKind(),
+			PeerTags:       b.GetPeerTags(),
+			IsTraceRoot:    b.GetIsTraceRoot(),
+		}
+		if b.OkSummary != nil {
+			stats[i].OkSummary = make([]byte, len(b.OkSummary))
+			copy(stats[i].OkSummary, b.OkSummary)
+		}
+		if b.ErrorSummary != nil {
+			stats[i].ErrorSummary = make([]byte, len(b.ErrorSummary))
+			copy(stats[i].ErrorSummary, b.ErrorSummary)
+		}
+	}
+	return stats
 }

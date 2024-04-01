@@ -1,0 +1,32 @@
+---
+# check_deploy stage
+# Contains jobs which which check if the version of the Agent built in the pipeline
+# alteady exists (in the apt staging repo), or if the release branch is "none".
+# In both cases, these jobs fail in order to prevent the pipeline from deploying artifacts.
+
+# Check that the current version hasn't already been deployed (we don't want to
+# overwrite a public package). To update an erroneous package, first remove it
+# from our S3 bucket.
+check_already_deployed_version_6:
+  rules: !reference [.on_deploy_a6]
+  stage: check_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  dependencies: ["agent_deb-x64-a6", "agent_deb-arm64-a6"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_amd64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_6*_arm64.deb
+
+check_already_deployed_version_7:
+  rules: !reference [.on_deploy_a7]
+  stage: check_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  dependencies: ["agent_deb-x64-a7", "agent_deb-arm64-a7"]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_amd64.deb
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/fail_deb_is_pkg_already_exists.sh datadog-agent_7*_arm64.deb

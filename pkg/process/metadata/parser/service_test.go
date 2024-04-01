@@ -8,17 +8,19 @@ package parser
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 func TestExtractServiceMetadata(t *testing.T) {
 	tests := []struct {
-		name               string
-		cmdline            []string
-		expectedServiceTag string
+		name                 string
+		cmdline              []string
+		useImprovedAlgorithm bool
+		expectedServiceTag   string
 	}{
 		{
 			name:               "empty",
@@ -34,6 +36,13 @@ func TestExtractServiceMetadata(t *testing.T) {
 			name: "single arg executable",
 			cmdline: []string{
 				"./my-server.sh",
+			},
+			expectedServiceTag: "process_context:my-server",
+		},
+		{
+			name: "single arg executable with envs",
+			cmdline: []string{
+				"SOME=THING", "./my-server.sh",
 			},
 			expectedServiceTag: "process_context:my-server",
 		},
@@ -66,6 +75,20 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:flask",
 		},
 		{
+			name: "python flask in single argument with envs",
+			cmdline: []string{
+				"ENV=VALUE /opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
+			},
+			expectedServiceTag: "process_context:flask",
+		},
+		{
+			name: "python flask in single argument with DD_SERVICE",
+			cmdline: []string{
+				"DD_SERVICE=svc /opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
+			},
+			expectedServiceTag: "process_context:svc",
+		},
+		{
 			name: "python - module hello",
 			cmdline: []string{
 				"python3", "-m", "hello",
@@ -73,11 +96,54 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "process_context:hello",
 		},
 		{
+			name: "python - module hello with unrelated env",
+			cmdline: []string{
+				"SOME=THING", "python3", "-m", "hello",
+			},
+			expectedServiceTag: "process_context:hello",
+		},
+		{
+			name: "python - module hello with DD_SERVICE",
+			cmdline: []string{
+				"SOME=THING", "DD_SERVICE=myservice", "python3", "-m", "hello",
+			},
+			expectedServiceTag: "process_context:myservice",
+		},
+		{
+			name: "python - zip file",
+			cmdline: []string{
+				"python3", "./hello.zip",
+			},
+			expectedServiceTag: "process_context:hello.zip",
+		},
+		{
+			name: "python - zip file - improved algorithm",
+			cmdline: []string{
+				"python3", "./hello.zip",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:hello",
+		},
+		{
+			name: "python .py",
+			cmdline: []string{
+				"python3", "hello.py",
+			},
+			expectedServiceTag: "process_context:hello.py",
+		},
+		{
 			name: "ruby - td-agent",
 			cmdline: []string{
 				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
 			expectedServiceTag: "process_context:td-agent",
+		},
+		{
+			name: "java with envs",
+			cmdline: []string{
+				"DD_TAGS=a:b,c:d,service:mytag,e:f", "java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
+			},
+			expectedServiceTag: "process_context:mytag",
 		},
 		{
 			name: "java using the -jar flag to define the service",
@@ -214,21 +280,91 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:myservice-core",
 		},
+		{
+			name: "node js with advanced guess disabled",
+			cmdline: []string{
+				"/usr/bin/node",
+				"--require",
+				"/private/node-patches_legacy/register.js",
+				"--preserve-symlinks-main",
+				"--",
+				"/somewhere/index.js",
+			},
+			expectedServiceTag: "process_context:node",
+		},
+		{
+			name:                 "node js with advanced guess enabled with a broken package.json",
+			useImprovedAlgorithm: true,
+			cmdline: []string{
+				"/usr/bin/node",
+				"./nodejs/testData/inner/index.js",
+			},
+			expectedServiceTag: "process_context:node",
+		},
+		{
+			name:                 "node js with advanced guess enabled and found a valid package.json",
+			useImprovedAlgorithm: true,
+			cmdline: []string{
+				"/usr/bin/node",
+				"--require",
+				"/private/node-patches_legacy/register.js",
+				"--preserve-symlinks-main",
+				"--",
+				"./nodejs/testData/index.js",
+			},
+			expectedServiceTag: "process_context:my-awesome-package",
+		},
+		{
+			name: "dotnet cmd with dll",
+			cmdline: []string{
+				"/usr/bin/dotnet", "./myservice.dll",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:myservice",
+		},
+		{
+			name: "dotnet cmd with dll and options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:myservice",
+		},
+		{
+			name: "dotnet cmd with unrecognized options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
+			},
+			useImprovedAlgorithm: true,
+			expectedServiceTag:   "process_context:dotnet",
+		},
+		{
+			name: "dotnet cmd with improved algorithm disabled",
+			cmdline: []string{
+				"/usr/bin/dotnet", "./myservice.dll",
+			},
+			expectedServiceTag: "process_context:dotnet",
+		},
+		{
+			name: "envs but no command",
+			cmdline: []string{
+				"ENV=VALUE",
+			},
+			expectedServiceTag: "",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := ddconfig.MockSystemProbe(t)
-			mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-			mockConfig.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
-
 			proc := procutil.Process{
 				Pid:     1,
 				Cmdline: tt.cmdline,
 			}
 			procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
-
-			se := NewServiceExtractor(mockConfig)
+			serviceExtractorEnabled := true
+			useWindowsServiceName := true
+			useImprovedAlgorithm := tt.useImprovedAlgorithm
+			se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 			se.Extract(procsByPid)
 			assert.Equal(t, []string{tt.expectedServiceTag}, se.GetServiceContext(proc.Pid))
 		})
@@ -236,15 +372,59 @@ func TestExtractServiceMetadata(t *testing.T) {
 }
 
 func TestExtractServiceMetadataDisabled(t *testing.T) {
-	mockConfig := ddconfig.Mock(t)
-	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", false)
-
 	proc := procutil.Process{
 		Pid:     1,
 		Cmdline: []string{"/bin/bash"},
 	}
 	procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
-	se := NewServiceExtractor(mockConfig)
+	serviceExtractorEnabled := false
+	useWindowsServiceName := false
+	useImprovedAlgorithm := false
+	se := NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	se.Extract(procsByPid)
 	assert.Empty(t, se.GetServiceContext(proc.Pid))
+}
+
+func TestChooseServiceNameFromEnvs(t *testing.T) {
+	tests := []struct {
+		name     string
+		envs     []string
+		expected string
+		found    bool
+	}{
+		{
+			name: "extract from DD_SERVICE",
+			envs: []string{
+				"DD_TRACE_DEBUG=true",
+				"DD_TAGS=env:test",
+				"DD_SERVICE=myservice",
+			},
+			expected: "myservice",
+			found:    true,
+		},
+		{
+			name: "extract from DD_TAGS",
+			envs: []string{
+				"DD_TAGS=env:test,dc:dc1,service:myservice",
+			},
+			expected: "myservice",
+			found:    true,
+		},
+		{
+			name: "could not extract from env",
+			envs: []string{
+				"DD_TRACE_DEBUG=true",
+				"DD_TAGS=peer_service:test",
+			},
+			expected: "",
+			found:    false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, ok := chooseServiceNameFromEnvs(tt.envs)
+			require.Equal(t, tt.expected, value)
+			require.Equal(t, tt.found, ok)
+		})
+	}
 }

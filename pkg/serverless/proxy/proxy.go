@@ -7,6 +7,7 @@
 package proxy
 
 import (
+	"context"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -21,13 +22,18 @@ type runtimeProxy struct {
 	processor invocationlifecycle.InvocationProcessor
 }
 
-// Start starts the proxy
+// Start starts the proxy, and returns a function that can be used to shut it down cleanly.
 // This proxy allows us to inspect traffic from/to the AWS Lambda Runtime API
-func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
-	go setup(proxyHostPort, originalRuntimeHostPort, processor)
+func Start(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) func(context.Context) error {
+	stop := make(chan func(context.Context) error, 1)
+	go setup(proxyHostPort, originalRuntimeHostPort, processor, stop)
+	return <-stop
 }
 
-func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor) {
+// setup creates a new http.Server and starts listening on the given proxyHostPort using the provided processor. The
+// shutdownChan will be sent the shutdown function to call in order to attempt to cleanly stop the http.Server. If nil,
+// the server will be impossible to cleanly shut down.
+func setup(proxyHostPort string, originalRuntimeHostPort string, processor invocationlifecycle.InvocationProcessor, shutdownChan chan<- func(context.Context) error) {
 	log.Debugf("runtime api proxy: starting reverse proxy on %s and forwarding to %s", proxyHostPort, originalRuntimeHostPort)
 	proxy := newProxy(originalRuntimeHostPort, processor)
 
@@ -37,6 +43,10 @@ func setup(proxyHostPort string, originalRuntimeHostPort string, processor invoc
 	s := &http.Server{
 		Addr:    proxyHostPort,
 		Handler: mux,
+	}
+	if shutdownChan != nil {
+		shutdownChan <- s.Shutdown
+		close(shutdownChan)
 	}
 
 	err := s.ListenAndServe()
