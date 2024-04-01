@@ -15,9 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/channel"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
+	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
+	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"time"
 )
 
 // Note: Building the logs-agent for serverless separately removes the
@@ -44,6 +50,16 @@ func (a *agent) SetupPipeline(
 	// setup the sole launcher for this agent
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
+	lnchrs.AddLauncher(filelauncher.NewLauncher(
+		a.config.GetInt("logs_config.open_files_limit"),
+		filelauncher.DefaultSleepDuration,
+		a.config.GetBool("logs_config.validate_pod_container_id"),
+		time.Duration(a.config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
+		a.config.GetString("logs_config.file_wildcard_selection_mode"), a.flarecontroller))
+	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
+	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
+	lnchrs.AddLauncher(windowsevent.NewLauncher())
+	lnchrs.AddLauncher(container.NewLauncher(a.sources))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
