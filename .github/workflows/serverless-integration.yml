@@ -1,7 +1,7 @@
 name: "Serverless Integration Tests"
 
 on:
-  push:
+  pull_request:
     branches-ignore:
       - 'mq-working-branch-*'
     paths:
