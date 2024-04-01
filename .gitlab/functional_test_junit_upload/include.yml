@@ -1,9 +1,0 @@
----
-# functional_test_junit_upload stage
-# Contains jobs which upload the junit output of the kitchen functional tests
-
-# The system probe and security agent junit upload jobs were split
-# to bypass the logical complexity of having many optionally needed jobs.
-include:
-  - /.gitlab/functional_test_junit_upload/functional_test_junit_upload_system_probe.yml
-  - /.gitlab/functional_test_junit_upload/functional_test_junit_upload_security-agent.yml
