@@ -353,7 +353,7 @@ for function_name in "${all_functions[@]}"; do
     elif [[ " ${proxy_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=proxy
     fi
-    logs=$(python3 log_normalize.py --accountid ${aws_account} --type $norm_type --logs "$raw_logs" --stage $stage)
+    logs=$(python3 log_normalize.py --accountid ${aws_account} --type $norm_type --logs "file:$RAWLOGS_DIR/$function_name" --stage $stage)
 
     function_snapshot_path="./snapshots/${function_name}"
 
