@@ -106,7 +106,7 @@ func createIterableMetrics(
 				log.Debugf("Flushing Sketches: %v", sketch)
 			}
 			if isServerless {
-				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+				log.Debugf("Sending sketches payload : %s", sketch.String())
 			}
 			tagsetTlm.updateHugeSketchesTelemetry(sketch)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
