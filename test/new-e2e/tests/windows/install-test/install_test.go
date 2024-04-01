@@ -83,6 +83,7 @@ func (is *agentMSISuite) prepareHost() {
 	}
 }
 
+// TODO: this isn't called before tabular tests (e.g. TestAgentUser/...)
 func (is *agentMSISuite) BeforeTest(suiteName, testName string) {
 	if beforeTest, ok := any(&is.BaseAgentInstallerSuite).(suite.BeforeTest); ok {
 		beforeTest.BeforeTest(suiteName, testName)
@@ -93,6 +94,37 @@ func (is *agentMSISuite) BeforeTest(suiteName, testName string) {
 	// If necessary (for example for parallelization), store the snapshot per suite/test in a map
 	is.beforeInstall, err = windowsCommon.NewFileSystemSnapshot(vm, SystemPaths())
 	is.Require().NoError(err)
+
+	// Clear the event logs before each test
+	for _, logName := range []string{"System", "Application"} {
+		is.T().Logf("Clearing %s event log", logName)
+		err = windowsCommon.ClearEventLog(vm, logName)
+		is.Require().NoError(err, "should clear %s event log", logName)
+	}
+}
+
+// TODO: this isn't called after tabular tests (e.g. TestAgentUser/...)
+func (is *agentMSISuite) AfterTest(suiteName, testName string) {
+	if afterTest, ok := any(&is.BaseAgentInstallerSuite).(suite.AfterTest); ok {
+		afterTest.AfterTest(suiteName, testName)
+	}
+
+	if is.T().Failed() {
+		// If the test failed, export the event logs for debugging
+		vm := is.Env().RemoteHost
+		for _, logName := range []string{"System", "Application"} {
+			// collect the full event log as an evtx file
+			is.T().Logf("Exporting %s event log", logName)
+			outputPath := filepath.Join(is.OutputDir, fmt.Sprintf("%s.evtx", logName))
+			err := windowsCommon.ExportEventLog(vm, logName, outputPath)
+			is.Assert().NoError(err, "should export %s event log", logName)
+			// Log errors and warnings to the screen for easy access
+			out, err := windowsCommon.GetEventLogErrorsAndWarnings(vm, logName)
+			if is.Assert().NoError(err, "should get errors and warnings from %s event log", logName) && out != "" {
+				is.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
+			}
+		}
+	}
 }
 
 func (is *agentMSISuite) TestInstall() {
