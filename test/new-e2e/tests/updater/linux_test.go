@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// package updater contains tests for the updater package
 package updater
 
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -106,6 +108,11 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	_, err := host.Execute(`test -d /opt/datadog-packages/datadog-agent`)
 	require.NotNil(v.T(), err)
 
+	// agent symlink does not exist
+	_, err = host.Execute(`test -L /usr/bin/datadog-agent`)
+	require.NotNil(v.T(), err)
+
+	// install info files do not exist
 	for _, file := range []string{"install_info", "install.json"} {
 		exists, _ := host.FileExists(filepath.Join(confDir, file))
 		assert.False(v.T(), exists)
@@ -114,20 +121,31 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	// bootstrap
 	host.MustExecute("sudo /opt/datadog/updater/bin/updater/updater bootstrap -P datadog-agent")
 
+	// assert agent symlink
+	_ = host.MustExecute(`test -L /usr/bin/datadog-agent`)
+	require.Equal(v.T(), "/usr/bin/datadog-agent\n", host.MustExecute("which datadog-agent"))
+	binPath := host.MustExecute("readlink -f $(which datadog-agent)")
+	assert.True(v.T(), strings.HasPrefix(binPath, "/opt/datadog-packages/datadog-agent/7."))
+	assert.True(v.T(), strings.HasSuffix(binPath, "/bin/agent/agent\n"))
+
+	// assert install info files
 	for _, file := range []string{"install_info", "install.json"} {
 		exists, _ := host.FileExists(filepath.Join(confDir, file))
 		assert.True(v.T(), exists)
 	}
 	assertInstallMethod(v.T(), host)
 
+	// assert file ownerships
 	agentDir := "/opt/datadog-packages/datadog-agent"
 	require.Equal(v.T(), "dd-updater\n", host.MustExecute(`stat -c "%U" `+agentDir))
 	require.Equal(v.T(), "dd-updater\n", host.MustExecute(`stat -c "%G" `+agentDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+agentDir))
+	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-agent | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
+
+	// assert units
 	for _, unit := range stableUnits {
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
-	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-agent | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
 }
 
 func assertInstallMethod(t *testing.T, host *components.RemoteHost) {

@@ -52,14 +52,23 @@ func isValidUnitString(s string) bool {
 }
 
 func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
-	if inputCommand.Command == "systemd-reload" {
-		return exec.Command("systemctl", "daemon-reload"), nil
-	}
-
 	if inputCommand.Unit != "" {
 		return buildUnitCommand(inputCommand)
 	}
-	return buildPathCommand(inputCommand)
+
+	if inputCommand.Path != "" {
+		return buildPathCommand(inputCommand)
+	}
+	switch inputCommand.Command {
+	case "systemd-reload":
+		return exec.Command("systemctl", "daemon-reload"), nil
+	case "agent-symlink":
+		return exec.Command("ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "/usr/bin/datadog-agent"), nil
+	case "rm-agent-symlink":
+		return exec.Command("rm", "-f", "/usr/bin/datadog-agent"), nil
+	default:
+		return nil, fmt.Errorf("invalid command")
+	}
 }
 
 func buildUnitCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {

@@ -77,6 +77,9 @@ func SetupAgentUnits() (err error) {
 			return
 		}
 	}
+	if err = createAgentSymlink(); err != nil {
+		return
+	}
 	err = installinfo.WriteInstallInfo("updater_package", "manual_update_via_apt")
 	return
 }
@@ -112,6 +115,9 @@ func RemoveAgentUnits() {
 		if err := removeUnit(unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
+	}
+	if err := rmAgentSymlink(); err != nil {
+		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()
 }
