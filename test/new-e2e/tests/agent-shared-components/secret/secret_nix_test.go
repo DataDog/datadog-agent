@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
 type linuxRuntimeSecretSuite struct {
@@ -48,8 +50,9 @@ hostname: ENC[hostname]`
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		checks, err := v.Env().FakeIntake.Client().GetCheckRun("datadog.agent.up")
-		assert.NoError(t, err)
-		assert.NotEmpty(t, checks)
-		assert.Equal(t, "e2e.test", checks[len(checks)-1].HostName)
+		require.NoError(t, err)
+		if assert.NotEmpty(t, checks) {
+			assert.Equal(t, "e2e.test", checks[len(checks)-1].HostName)
+		}
 	}, 30*time.Second, 2*time.Second)
 }
