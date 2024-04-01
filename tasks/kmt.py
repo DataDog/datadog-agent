@@ -129,6 +129,7 @@ def gen_config_from_ci_pipeline(
     arch: str = "",
     output_file="vmconfig.json",
     vmconfig_template="system-probe",
+    test_job_prefix="sysprobe",
 ):
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
@@ -144,11 +145,7 @@ def gen_config_from_ci_pipeline(
     for job in gitlab.all_jobs(pipeline):
         name = job.get("name", "")
 
-        if (
-            (vcpu is None or memory is None)
-            and name.startswith("kernel_matrix_testing_setup_env")
-            and job["status"] == "success"
-        ):
+        if (vcpu is None or memory is None) and name.startswith("kmt_setup_env") and job["status"] == "success":
             arch = "x86_64" if "x64" in name else "arm64"
             vmconfig_name = f"vmconfig-{pipeline}-{arch}.json"
             info(f"[+] retrieving {vmconfig_name} for {arch} from job {name}")
@@ -174,7 +171,7 @@ def gen_config_from_ci_pipeline(
                 if vcpu is None and len(vcpu_list) > 0:
                     vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
-        elif name.startswith("kernel_matrix_testing_run") and job["status"] == "failed":
+        elif name.startswith(f"kmt_run_{test_job_prefix}") and job["status"] == "failed":
             arch = "x86" if "x64" in name else "arm64"
             match = re.search(r"\[(.*)\]", name)
 
