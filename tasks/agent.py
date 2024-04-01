@@ -79,6 +79,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "win32_event_log",
 ]
 
 IOT_AGENT_CORECHECKS = [
