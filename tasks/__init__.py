@@ -44,6 +44,7 @@ from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.fuzz import fuzz
 from tasks.go import (
+    check_go_mod_replaces,
     check_go_version,
     check_mod_tidy,
     deps,
@@ -108,6 +109,7 @@ ns.add_task(download_tools)
 ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
+ns.add_task(check_go_mod_replaces)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
