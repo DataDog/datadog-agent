@@ -78,7 +78,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
-		config.EnableConnectionRollup,
+		config.EnableNPMConnectionRollup,
 		config.EnableProcessEventMonitoring,
 	)
 
