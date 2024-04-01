@@ -32,7 +32,6 @@ import (
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
 //
-// Typically there is only one instance, accessed via GetGlobalStore.
 
 // Kind is the kind of an entity.
 type Kind string

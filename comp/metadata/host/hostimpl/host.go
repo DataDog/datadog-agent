@@ -66,7 +66,7 @@ type provides struct {
 	fx.Out
 
 	Comp                 hostComp.Component
-	MetadataProvider     runnerimpl.PriorityProvider
+	MetadataProvider     runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 }
@@ -102,7 +102,7 @@ func newHostProvider(deps dependencies) provides {
 	}
 	return provides{
 		Comp:             &h,
-		MetadataProvider: runnerimpl.NewPriorityProvider(h.collect),
+		MetadataProvider: runnerimpl.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
 			Config: h.config,

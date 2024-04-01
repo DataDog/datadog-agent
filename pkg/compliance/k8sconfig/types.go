@@ -41,24 +41,24 @@ type K8sManagedEnvConfig struct {
 
 type K8sDirMeta struct {
 	Path  string `json:"path"`
-	User  string `json:"user"`
-	Group string `json:"group"`
-	Mode  uint32 `json:"mode"`
+	User  string `json:"user,omitempty"`
+	Group string `json:"group,omitempty"`
+	Mode  uint32 `json:"mode,omitempty"`
 }
 
 type K8sConfigFileMeta struct {
 	Path    string      `json:"path"`
-	User    string      `json:"user"`
-	Group   string      `json:"group"`
-	Mode    uint32      `json:"mode"`
-	Content interface{} `json:"content" jsonschema:"type=object"`
+	User    string      `json:"user,omitempty"`
+	Group   string      `json:"group,omitempty"`
+	Mode    uint32      `json:"mode,omitempty"`
+	Content interface{} `json:"content,omitempty" jsonschema:"type=object"`
 }
 
 type K8sTokenFileMeta struct {
 	Path  string `json:"path"`
-	User  string `json:"user"`
-	Group string `json:"group"`
-	Mode  uint32 `json:"mode"`
+	User  string `json:"user,omitempty"`
+	Group string `json:"group,omitempty"`
+	Mode  uint32 `json:"mode,omitempty"`
 }
 
 // https://github.com/kubernetes/kubernetes/blob/6356023cb42d681b7ad0e6d14d1652247d75b797/staging/src/k8s.io/apiserver/pkg/apis/apiserver/types.go#L30
@@ -77,31 +77,31 @@ type (
 	}
 
 	K8sAdmissionConfigFileMeta struct {
+		Path    string                          `json:"path"`
 		User    string                          `json:"user,omitempty"`
 		Group   string                          `json:"group,omitempty"`
-		Path    string                          `json:"path,omitempty"`
 		Mode    uint32                          `json:"mode,omitempty"`
 		Plugins []*K8sAdmissionPluginConfigMeta `json:"plugins"`
 	}
 )
 
 type K8sKubeconfigMeta struct {
-	Path       string         `json:"path,omitempty"`
+	Path       string         `json:"path"`
 	User       string         `json:"user,omitempty"`
 	Group      string         `json:"group,omitempty"`
 	Mode       uint32         `json:"mode,omitempty"`
-	Kubeconfig *K8SKubeconfig `json:"kubeconfig"`
+	Kubeconfig *K8SKubeconfig `json:"kubeconfig,omitempty"`
 }
 
 type K8sKeyFileMeta struct {
-	Path  string `json:"path,omitempty"`
+	Path  string `json:"path"`
 	User  string `json:"user,omitempty"`
 	Group string `json:"group,omitempty"`
 	Mode  uint32 `json:"mode,omitempty"`
 }
 
 type K8sCertFileMeta struct {
-	Path        string `json:"path,omitempty"`
+	Path        string `json:"path"`
 	User        string `json:"user,omitempty"`
 	Group       string `json:"group,omitempty"`
 	Mode        uint32 `json:"mode,omitempty"`
@@ -109,16 +109,16 @@ type K8sCertFileMeta struct {
 	DirGroup    string `json:"dirGroup,omitempty"`
 	DirMode     uint32 `json:"dirMode,omitempty"`
 	Certificate struct {
-		Fingerprint    string    `json:"fingerprint"`
-		SerialNumber   string    `json:"serialNumber,omitempty"`
-		SubjectKeyId   string    `json:"subjectKeyId,omitempty"`
-		AuthorityKeyId string    `json:"authorityKeyId,omitempty"`
-		CommonName     string    `json:"commonName"`
-		Organization   []string  `json:"organization,omitempty"`
-		DNSNames       []string  `json:"dnsNames,omitempty"`
-		IPAddresses    []net.IP  `json:"ipAddresses,omitempty"`
-		NotAfter       time.Time `json:"notAfter"`
-		NotBefore      time.Time `json:"notBefore"`
+		Fingerprint    string     `json:"fingerprint,omitempty"`
+		SerialNumber   string     `json:"serialNumber,omitempty"`
+		SubjectKeyId   string     `json:"subjectKeyId,omitempty"`
+		AuthorityKeyId string     `json:"authorityKeyId,omitempty"`
+		CommonName     string     `json:"commonName,omitempty"`
+		Organization   []string   `json:"organization,omitempty"`
+		DNSNames       []string   `json:"dnsNames,omitempty"`
+		IPAddresses    []net.IP   `json:"ipAddresses,omitempty"`
+		NotAfter       *time.Time `json:"notAfter,omitempty"`
+		NotBefore      *time.Time `json:"notBefore,omitempty"`
 	} `json:"certificate"`
 }
 

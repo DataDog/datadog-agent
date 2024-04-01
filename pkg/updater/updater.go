@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -85,12 +86,27 @@ func Bootstrap(ctx context.Context, pkg string) error {
 
 // Purge removes files installed by the updater
 func Purge() {
+	purge(defaultLocksPath, defaultRepositoriesPath)
+}
+
+func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
-	if err := os.RemoveAll(defaultLocksPath); err != nil {
-		log.Warnf("updater: could not purge directory %s: %v", defaultLocksPath, err)
+	cleanDir(locksPath, os.RemoveAll)
+	cleanDir(repositoryPath, service.RemoveAll)
+}
+
+func cleanDir(dir string, cleanFunc func(string) error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Warnf("updater: could not read directory %s: %v", dir, err)
 	}
-	if err := os.RemoveAll(defaultRepositoriesPath); err != nil {
-		log.Warnf("updater: could not purge directory %s: %v", defaultRepositoriesPath, err)
+
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		err := cleanFunc(path)
+		if err != nil {
+			log.Warnf("updater: could not remove %s: %v", path, err)
+		}
 	}
 }
 
