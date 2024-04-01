@@ -42,61 +42,6 @@ case "$1" in
     *)
     ;;
 esac
-#DEBHELPER#
-
-# Set the installation information if not already present;
-# This is done in posttrans for .rpm packages
-if [ ! -f "$CONFIG_DIR/install_info" ]; then
-
-    if command -v dpkg >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then
-        tool=dpkg
-        tool_version=dpkg-$(dpkg-query --showformat='${Version}' --show dpkg  | cut -d "." -f 1-3 || echo "unknown")
-    else
-        tool=unknown
-        tool_version=unknown
-    fi
-
-    install_info_content="---
-install_method:
-  tool: $tool
-  tool_version: $tool_version
-  installer_version: deb_package
-  installer: updater
-"
-    echo "$install_info_content" > $CONFIG_DIR/install_info
-fi
-
-set +e
-generate_install_id()
-{
-    # Try generating a UUID based on /proc/sys/kernel/random/uuid
-    uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null)
-    # If that does not work, then try uuidgen
-    if [ ${#uuid} -ne 36 ]; then
-        uuid=$(uuidgen 2>/dev/null)
-    fi
-    # Convert to lowercase
-    uuid=$(echo "$uuid" | tr '[:upper:]' '[:lower:]')
-    printf "$uuid"
-}
-
-generate_install_signature()
-{
-    install_id="$1"
-    install_type="$2"
-    install_time="$3"
-    printf "{\"install_id\":\"$install_id\",\"install_type\":\"$install_type\",\"install_time\":$install_time}"
-}
-
-if [ ! -f "$CONFIG_DIR/install.json" ]; then
-    install_id=$(generate_install_id)
-    install_type="manual_update_via_apt"
-    install_time=$(date +%s)
-    install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
-    echo "$install_signature" > $CONFIG_DIR/install.json
-    chown -R dd-agent:dd-agent ${CONFIG_DIR}
-fi
-set -e
 
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
