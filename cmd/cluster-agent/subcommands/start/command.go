@@ -36,6 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -53,7 +55,6 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -167,6 +168,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
+				fx.Provide(func(config config.Component) healthprobe.Options {
+					return healthprobe.Options{
+						Port:           config.GetInt("health_port"),
+						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+					}
+				}),
+				healthprobeimpl.Module(),
 			)
 		},
 	}
@@ -184,7 +192,9 @@ func start(log log.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	rcService optional.Option[rccomp.Component]) error {
+	rcService optional.Option[rccomp.Component],
+	_ healthprobe.Component,
+) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -226,17 +236,6 @@ func start(log log.Component,
 			pkglog.Errorf("Error creating expvar server on port %v: %v", metricsPort, err)
 		}
 	}()
-
-	// Setup healthcheck port
-	healthPort := config.GetInt("health_port")
-	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, config, healthPort)
-		if err != nil {
-			return fmt.Errorf("Error starting health port, exiting: %v", err)
-		}
-
-		pkglog.Debugf("Health check listening on port %d", healthPort)
-	}
 
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
