@@ -28,7 +28,13 @@ from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
+    from tasks.kernel_matrix_testing.types import (  # noqa: F401
+        Arch,
+        ArchOrLocal,
+        Component,
+        DependenciesLayout,
+        PathOrStr,
+    )
 
 try:
     from tabulate import tabulate
@@ -82,7 +88,7 @@ def gen_config(
     output_file: str = "vmconfig.json",
     from_ci_pipeline: Optional[str] = None,
     use_local_if_possible=False,
-    vmconfig_template="system-probe",
+    vmconfig_template: Component = "system-probe",
 ):
     """
     Generate a vmconfig.json file with the given VMs.
