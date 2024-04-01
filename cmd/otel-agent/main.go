@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build otlp
-
 // otel-agent is a binary meant for testing the comp/otelcol package to ensure that it is reusable
 // both as a binary and as a part of the core agent.
 //
