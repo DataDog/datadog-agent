@@ -1011,12 +1011,13 @@ func TestOTLPConvertSpan(t *testing.T) {
 	cfg := NewTestConfig(t)
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
-		rattr   map[string]string
-		libname string
-		libver  string
-		in      ptrace.Span
-		out     *pb.Span
-		outTags map[string]string
+		rattr              map[string]string
+		libname            string
+		libver             string
+		in                 ptrace.Span
+		out                *pb.Span
+		outTags            map[string]string
+		topLevelOutMetrics map[string]float64
 	}{
 		{
 			rattr: map[string]string{
@@ -1060,6 +1061,11 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"count":  2,
 				},
 				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
 			},
 		}, {
 			rattr: map[string]string{
@@ -1185,6 +1191,11 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "web",
 			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
+			},
 		}, {
 			rattr: map[string]string{
 				"service.name":    "myservice",
@@ -1307,6 +1318,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "web",
 			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 0,
+			},
 		}, {
 			rattr: map[string]string{
 				"env": "staging",
@@ -1361,6 +1378,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 				},
 				Type: "db",
 			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 1,
+			},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -1412,6 +1435,18 @@ func TestOTLPConvertSpan(t *testing.T) {
 			got.Meta = nil
 			got.Metrics = nil
 			assert.Equal(want, got, i)
+
+			// test new top-level identification feature flag
+			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+			got = o.convertSpan(tt.rattr, lib, tt.in)
+			wantMetrics := tt.topLevelOutMetrics
+			if len(wantMetrics) != len(got.Metrics) {
+				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
+			}
+			for k, v := range wantMetrics {
+				assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
+			}
+			delete(o.conf.Features, "enable_otlp_compute_top_level_by_span_kind")
 		})
 	}
 }
