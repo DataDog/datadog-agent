@@ -1499,12 +1499,29 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 		},
 	}
 
+	// http2 server init
+	http2ServerAddress := net.JoinHostPort(serverHost, http2Port)
+	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
+	http2Server := &nethttp.Server{
+		Addr: ":" + http2Port,
+		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			w.WriteHeader(200)
+			w.Write([]byte("test"))
+		}), &http2.Server{}),
+	}
+
+	go func() {
+		if err := http2Server.ListenAndServe(); err != nethttp.ErrServerClosed {
+			require.NoError(t, err, "could not serve")
+		}
+	}()
+	t.Cleanup(func() {
+		http2Server.Close()
+	})
+
 	// gRPC server init
 	grpcServerAddress := net.JoinHostPort(serverHost, grpcPort)
 	grpcTargetAddress := net.JoinHostPort(targetHost, grpcPort)
-
-	http2ServerAddress := net.JoinHostPort(serverHost, http2Port)
-	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
 
 	grpcServer, err := grpc.NewServer(grpcServerAddress, false)
 	require.NoError(t, err)
@@ -1516,20 +1533,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 		serverAddress: grpcServerAddress,
 		targetAddress: grpcTargetAddress,
 	}
-
-	// http2 server init
-	http2Server := &nethttp.Server{
-		Addr: ":" + http2Port,
-		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
-			w.WriteHeader(200)
-			w.Write([]byte("test"))
-		}), &http2.Server{}),
-	}
-
-	go http2Server.ListenAndServe()
-	t.Cleanup(func() {
-		http2Server.Close()
-	})
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1543,7 +1546,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				client := &nethttp.Client{
 					Transport: &http2.Transport{
 						AllowHTTP: true,
-						DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
 							return net.Dial(network, addr)
 						},
 					},
@@ -1599,7 +1602,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				client := &nethttp.Client{
 					Transport: &http2.Transport{
 						AllowHTTP: true,
-						DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
 							return net.Dial(network, addr)
 						},
 					},
