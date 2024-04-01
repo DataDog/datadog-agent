@@ -27,7 +27,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/DataDog/zstd v1.5.5
-	go.uber.org/fx v1.21.0
+	go.uber.org/fx v1.18.2
 )
 
 require (
