@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
-	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -43,10 +42,6 @@ import (
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
-
-var (
-	signalTypeSet = attribute.NewSet(attribute.String("signal", "traces"))
-)
 
 var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 
@@ -194,7 +189,7 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), signalTypeSet)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
