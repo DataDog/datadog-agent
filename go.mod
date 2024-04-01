@@ -611,8 +611,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/api v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2
