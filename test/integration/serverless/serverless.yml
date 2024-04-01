@@ -29,6 +29,7 @@ provider:
     DD_EXTRA_TAGS: tagC:valueC tagD:valueD
     DD_CAPTURE_LAMBDA_PAYLOAD: true
     DD_COLD_START_TRACING: false
+    DD_LOG_LEVEL: DEBUG
   timeout: 15
   deploymentBucket:
     name: integration-tests-serververless-deployment-bucket
@@ -76,6 +77,7 @@ functions:
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_APPSEC_WAF_TIMEOUT: 1m
       DD_LAMBDA_HANDLER: src/trace.simpleTest
       DD_SERVERLESS_APPSEC_ENABLED: true
       # Explicitly disable instrumentation telemetry as this causes the traces to somehow no longer be seen by the recorder.
@@ -93,6 +95,7 @@ functions:
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_APPSEC_WAF_TIMEOUT: 1m
       DD_LAMBDA_HANDLER: src/appSecPython.handler
       DD_SERVERLESS_APPSEC_ENABLED: true
 
@@ -110,6 +113,7 @@ functions:
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_APPSEC_WAF_TIMEOUT: 1m
       JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
       DD_JMXFETCH_ENABLED: false
       DD_SERVERLESS_APPSEC_ENABLED: true
@@ -128,6 +132,7 @@ functions:
     environment:
       # AWS_LAMBDA_EXEC_WRAPPER is not applied by provided.al2 and go1.x runtimes
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_APPSEC_WAF_TIMEOUT: 1m
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   appsec-csharp:
@@ -144,6 +149,7 @@ functions:
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
       DD_API_KEY: NO_NEED_TO_BE_VALID
+      DD_APPSEC_WAF_TIMEOUT: 1m
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   metric-node:

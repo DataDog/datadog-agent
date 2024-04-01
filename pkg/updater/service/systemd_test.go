@@ -53,4 +53,6 @@ func TestAssertWorkingCommands(t *testing.T) {
 	assert.Equal(t, successErr, disableUnit("datadog-agent").Error())
 	assert.Equal(t, successErr, loadUnit("datadog-agent").Error())
 	assert.Equal(t, successErr, removeUnit("datadog-agent").Error())
+	assert.Equal(t, successErr, createAgentSymlink().Error())
+	assert.Equal(t, successErr, rmAgentSymlink().Error())
 }
