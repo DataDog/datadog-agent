@@ -248,6 +248,7 @@
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
+/comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/autodiscovery @DataDog/container-integrations
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
