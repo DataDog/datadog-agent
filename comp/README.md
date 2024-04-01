@@ -151,6 +151,10 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 
 
 
+### [comp/dogstatsd/pidmap](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap)
+
+Package pidmap implements a component for tracking pid and containerID relations
+
 ### [comp/dogstatsd/replay](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/replay)
 
 Package server implements a component to run the dogstatsd capture/replay
