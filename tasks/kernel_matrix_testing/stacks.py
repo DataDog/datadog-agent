@@ -8,7 +8,13 @@ from typing import TYPE_CHECKING, List, Optional, cast
 from invoke.context import Context
 from invoke.runners import Result
 
-from tasks.kernel_matrix_testing.infra import ask_for_ssh, build_infrastructure, ensure_key_in_agent, try_get_ssh_key
+from tasks.kernel_matrix_testing.infra import (
+    ask_for_ssh,
+    build_infrastructure,
+    ensure_key_in_agent,
+    ensure_key_in_ec2,
+    try_get_ssh_key,
+)
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.libvirt import (
     delete_domains,
@@ -176,14 +182,15 @@ def launch_stack(
     stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
     vm_config = f"{stack_dir}/{VMCONFIG}"
 
-    ssh_key_obj = try_get_ssh_key(ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
 
-    if remote_vms_in_config(vm_config) and ssh_key_obj is None:
-        if ask_for_ssh():
+    if remote_vms_in_config(vm_config):
+        if ssh_key_obj is None and ask_for_ssh():
             raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>' or configure it with kmt.config-ssh-key")
 
-    if ssh_key_obj is not None:
-        ensure_key_in_agent(ctx, ssh_key_obj)
+        if ssh_key_obj is not None:
+            ensure_key_in_agent(ctx, ssh_key_obj)
+            ensure_key_in_ec2(ctx, ssh_key_obj)
 
     env = [
         "TEAM=ebpf-platform",
@@ -212,7 +219,7 @@ def launch_stack(
         f"--instance-type-arm={ARM_INSTANCE_TYPE}",
         f"--x86-ami-id={x86_ami}",
         f"--arm-ami-id={arm_ami}",
-        f"--ssh-key-name={ssh_key_obj['name'] if ssh_key_obj is not None else ''}",
+        f"--ssh-key-name={ssh_key_obj['aws_key_name'] if ssh_key_obj is not None else ''}",
         "--infra-env=aws/sandbox",
         f"--vmconfig={vm_config}",
         f"--stack-name={stack}",
@@ -225,7 +232,7 @@ def launch_stack(
 
 
 def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: Optional[str]):
-    ssh_key_obj = try_get_ssh_key(ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     if ssh_key_obj is not None:
         ensure_key_in_agent(ctx, ssh_key_obj)
 

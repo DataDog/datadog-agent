@@ -4,7 +4,7 @@ extra packages that might not be available in runtime.
 """
 
 import os
-from typing import Dict, List, Tuple, TypeVar, Union
+from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
 from typing_extensions import Literal, Protocol, TypedDict
 
@@ -83,8 +83,11 @@ TNamed = TypeVar('TNamed', bound=HasName)
 
 
 class SSHKey(TypedDict):
-    path: str
-    name: str
+    path: Optional[
+        str
+    ]  # Path to the key in the local filesystem. Note that some keys (like 1Password ones) might not be found locally
+    aws_key_name: str  # Name of the key in AWS
+    name: str  # Name of the public key (identification for the agent, based on the public key comment)
 
 
 class KMTConfig(TypedDict, total=False):

@@ -20,7 +20,14 @@ from tasks.kernel_matrix_testing.compiler import compiler_running, docker_exec
 from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
-from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure, get_ssh_key_name
+from tasks.kernel_matrix_testing.infra import (
+    HostInstance,
+    LibvirtDomain,
+    build_infrastructure,
+    get_ssh_agent_key_names,
+    get_ssh_key_name,
+    try_get_ssh_key,
+)
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
@@ -249,37 +256,82 @@ def init(ctx: Context, lite=False):
 
 
 @task
-def config_ssh_key(_: Context):
+def config_ssh_key(ctx: Context):
     """Automatically configure the default SSH key to use"""
-    info("[+] SSH key configuration...")
-    ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
-    info("[-] Found these valid key files:")
+    agent_choices = [
+        ("ssh", "Keys located in ~/.ssh"),
+        ("1password", "1Password SSH agent (valid for any other SSH agent too)"),
+        ("manual", "Manual input"),
+    ]
+    choices = "\n".join([f" - [{i + 1}] {short}: {name}" for i, (short, name) in enumerate(agent_choices)])
+    opts_numbers = [str(i + 1) for i in range(len(agent_choices))]
+    opts_words = [name for name, _ in agent_choices]
+    result = ask(
+        f"[?] Choose your SSH key storage method\n{choices}\nChoose a number ({','.join(opts_numbers)}) or option name ({','.join(opts_words)}): "
+    ).strip()
+    method = None
+    if result in opts_numbers:
+        method = agent_choices[int(result) - 1][0]
+    elif result in opts_words:
+        method = result
+    else:
+        raise Exit(
+            f"Invalid choice {result}, must be a number between 1 and {len(agent_choices)} or option name ({opts_words})"
+        )
 
-    for i, f in enumerate(ssh_key_files):
-        key_comment = get_ssh_key_name(f.with_suffix(".pub"))
-        if key_comment is None:
-            warn(f" - [x] {f} does not have a valid key name, cannot be used")
+    ssh_key: SSHKey
+    if method == "manual":
+        warn("[!] The manual method does not do any validation. Ensure the key is valid and loaded in AWS.")
+        ssh_key_path = ask("Enter the path to the SSH key (can be left blank): ")
+        name = ask("Enter the key name: ")
+        aws_config_name = ask("Enter the AWS key name (leave blank to set the same as the key name): ")
+        if ssh_key_path.strip() == "":
+            ssh_key_path = None
+        if aws_config_name.strip() == "":
+            aws_config_name = name
+
+        ssh_key = {'path': ssh_key_path, 'name': name, 'aws_key_name': aws_config_name}
+    else:
+        info("[+] Finding SSH keys to use...")
+        ssh_keys: List[SSHKey]
+        if method == "1password":
+            agent_keys = get_ssh_agent_key_names(ctx)
+            ssh_keys = [{'path': None, 'name': key, 'aws_key_name': key} for key in agent_keys]
         else:
-            print(f" - [{i}] {f} - {key_comment}")
+            ssh_key_files = [Path(f[: -len(".pub")]) for f in glob(os.path.expanduser("~/.ssh/*.pub"))]
+            ssh_keys = []
 
-    result = ask(f"Choose one of these files (0-{len(ssh_key_files) - 1}) or write the path to another SSH key: ")
-    try:
-        ssh_key_path = ssh_key_files[int(result.strip())]
-    except ValueError:
-        ssh_key_path = Path(result)
-        if not ssh_key_path.is_file():
-            raise Exit(f"Choice {result} is neither a number nor a valid path")
-    except IndexError:  # out of range
-        raise Exit(f"Invalid choice {result}, must be a number between 0 and {len(ssh_key_files) - 1} (inclusive)")
+            for f in ssh_key_files:
+                key_comment = get_ssh_key_name(f.with_suffix(".pub"))
+                if key_comment is None:
+                    warn(f"[x] {f} does not have a valid key name, cannot be used")
+                else:
+                    ssh_keys.append({'path': os.fspath(f), 'name': key_comment, 'aws_key_name': ''})
 
-    key_name = get_ssh_key_name(ssh_key_path.with_suffix(".pub"))
-    if key_name is None:
-        raise Exit(f"No SSH key name can be parsed from public key corresponding to {ssh_key_path}")
+        keys_str = "\n".join([f" - [{i + 1}] {key['name']} (path: {key['path']})" for i, key in enumerate(ssh_keys)])
+        result = ask(f"[?] Found these valid key files:\n{keys_str}\nChoose one of these files (1-{len(ssh_keys)}): ")
+        try:
+            ssh_key = ssh_keys[int(result.strip()) - 1]
+        except ValueError:
+            raise Exit(f"Choice {result} is not a valid number")
+        except IndexError:  # out of range
+            raise Exit(f"Invalid choice {result}, must be a number between 1 and {len(ssh_keys)} (inclusive)")
+
+        aws_key_name = ask(
+            f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
+        )
+        if aws_key_name.strip() != "":
+            ssh_key['aws_key_name'] = aws_key_name
+        else:
+            ssh_key['aws_key_name'] = ssh_key['name']
+
     cm = ConfigManager()
-    cm.config["ssh"] = cast('SSHKey', dict(path=os.fspath(ssh_key_path), name=key_name))
+    cm.config["ssh"] = ssh_key
     cm.save()
 
-    info(f"[+] Saved for use: SSH key '{key_name}' located at {ssh_key_path}")
+    info(
+        f"[+] Saved for use: SSH key '{ssh_key}'. You can run this command later or edit the file manually in ~/kernel-version-testing/config.json"
+    )
 
 
 @task
@@ -453,7 +505,8 @@ def prepare(
 
     arch = arch_mapping[platform.machine()]
 
-    infra = build_infrastructure(stack, ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch)
     build_from_scratch = (
         full_rebuild
@@ -556,7 +609,8 @@ def test(
     if not quick:
         prepare(ctx, stack=stack, vms=vms, ssh_key=ssh_key, full_rebuild=full_rebuild, packages=packages)
 
-    infra = build_infrastructure(stack, ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
     arch = arch_mapping[platform.machine()]
     domains = filter_target_domains(vms, infra, arch)
     if run is not None and packages is None:
@@ -603,7 +657,8 @@ def build(
         ctx.run(f"mkdir -p kmt-deps/{stack}")
 
     arch = arch_mapping[platform.machine()]
-    infra = build_infrastructure(stack, ssh_key)
+    ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+    infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch)
 
     build_from_scratch = (
@@ -664,7 +719,9 @@ def clean(ctx: Context, stack: Optional[str] = None, container=False, image=Fals
     }
 )
 def ssh_config(
-    _, stacks: Optional[str] = None, ddvm_rsa="~/dd/ami-builder/scripts/kernel-version-testing/files/ddvm_rsa"
+    ctx: Context,
+    stacks: Optional[str] = None,
+    ddvm_rsa="~/dd/ami-builder/scripts/kernel-version-testing/files/ddvm_rsa",
 ):
     """
     Print the SSH config for the given stacks.
@@ -699,12 +756,13 @@ def ssh_config(
         ):
             continue
 
-        for _, instance in build_infrastructure(stack.name).items():
+        for _, instance in build_infrastructure(stack.name, try_get_ssh_key(ctx, None)).items():
             if instance.arch != "local":
                 print(f"Host kmt-{stack_name}-{instance.arch}")
                 print(f"    HostName {instance.ip}")
                 print("    User ubuntu")
-                print(f"    IdentityFile {instance.ssh_key_path}")
+                if instance.ssh_key_path is not None:
+                    print(f"    IdentityFile {instance.ssh_key_path}")
                 print("")
 
             for domain in instance.microvms:
