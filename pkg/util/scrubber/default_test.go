@@ -510,7 +510,11 @@ some_other_key: 'bbbb'
 app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
 yet_another_key: 'dddd'`
 
-		AddStrippedKeys([]string{"api_key", "some_other_key", "app_key"})
+		keys := []string{"api_key", "some_other_key", "app_key"}
+		AddStrippedKeys(keys)
+
+		// check that AddStrippedKeys didn't modify the parameter slice
+		assert.Equal(t, []string{"api_key", "some_other_key", "app_key"}, keys)
 
 		scrubbed, err := ScrubYamlString(contents)
 		require.Nil(t, err)

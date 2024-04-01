@@ -29,7 +29,7 @@ const (
 	betaChannel                   = "beta"
 	betaURL                       = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
 	stableChannel                 = "stable"
-	stableURL                     = "https://s3.amazonaws.com/dd-agent-mstesting/builds/stable/installers_v2.json"
+	stableURL                     = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
 // Package contains identifying information about an Agent MSI package.
@@ -136,11 +136,14 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string) (str
 	// the issue is resolved.
 	// TODO: CIREL-1970
 	for _, obj := range result.Contents {
+		// Example: datadog-agent-7.52.0-1-x86_64.msi
 		// Example: datadog-agent-7.53.0-devel.git.512.41b1225.pipeline.30353507-1-x86_64.msi
 		if !strings.Contains(*obj.Key, fmt.Sprintf("datadog-agent-%s", majorVersion)) {
 			continue
 		}
-		if !strings.Contains(*obj.Key, fmt.Sprintf("pipeline.%s", pipelineID)) {
+		// Not all pipelines include the pipeline ID in the artifact name, but if it is there then match against it
+		if strings.Contains(*obj.Key, "pipeline.") &&
+			!strings.Contains(*obj.Key, fmt.Sprintf("pipeline.%s", pipelineID)) {
 			continue
 		}
 		if !strings.Contains(*obj.Key, fmt.Sprintf("-%s.msi", arch)) {
