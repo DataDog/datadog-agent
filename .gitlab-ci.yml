@@ -1342,9 +1342,12 @@ workflow:
     when: on_success
   - changes:
       paths:
+        - .gitlab/**/*
+        - omnibus/config/**/*
         - pkg/updater/**/*
         - cmd/updater/**/*
         - test/new-e2e/tests/updater/**/*
+        - tasks/updater.py
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
