@@ -322,7 +322,7 @@ def config_ssh_key(ctx: Context):
             f"Enter the key name configured in AWS for this key (leave blank to set the same as the local key name '{ssh_key['name']}'): "
         )
         if aws_key_name.strip() != "":
-            ssh_key['aws_key_name'] = aws_key_name
+            ssh_key['aws_key_name'] = aws_key_name.strip()
         else:
             ssh_key['aws_key_name'] = ssh_key['name']
 
