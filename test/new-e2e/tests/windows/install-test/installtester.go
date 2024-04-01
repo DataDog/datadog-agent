@@ -231,6 +231,10 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 		_, err := windows.GetServiceConfig(t.host, serviceName)
 		assert.Errorf(tt, err, "uninstall should remove service %s", serviceName)
 	}
+
+	registryKeyExists, err := windows.RegistryKeyExists(t.host, windowsAgent.RegistryKeyPath)
+	assert.NoError(tt, err, "should check registry key exists")
+	assert.False(tt, registryKeyExists, "uninstall should remove registry key")
 }
 
 // Only do some basic checks on the agent since it's a previous version
