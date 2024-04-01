@@ -7,14 +7,18 @@ package updater
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"gopkg.in/yaml.v2"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -102,8 +106,19 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 	_, err := host.Execute(`test -d /opt/datadog-packages/datadog-agent`)
 	require.NotNil(v.T(), err)
 
+	for _, file := range []string{"install_info", "install.json"} {
+		exists, _ := host.FileExists(filepath.Join(confDir, file))
+		assert.False(v.T(), exists)
+	}
+
 	// bootstrap
 	host.MustExecute("sudo /opt/datadog/updater/bin/updater/updater bootstrap -P datadog-agent")
+
+	for _, file := range []string{"install_info", "install.json"} {
+		exists, _ := host.FileExists(filepath.Join(confDir, file))
+		assert.True(v.T(), exists)
+	}
+	assertInstallMethod(v.T(), host)
 
 	agentDir := "/opt/datadog-packages/datadog-agent"
 	require.Equal(v.T(), "dd-updater\n", host.MustExecute(`stat -c "%U" `+agentDir))
@@ -113,4 +128,20 @@ func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
 	require.Equal(v.T(), "1\n", host.MustExecute(`sudo ls -l /opt/datadog-packages/datadog-agent | awk '$9 != "stable" && $3 == "dd-agent" && $4 == "dd-agent"' | wc -l`))
+}
+
+func assertInstallMethod(t *testing.T, host *components.RemoteHost) {
+	rawYaml, err := host.ReadFile(filepath.Join(confDir, "install_info"))
+	assert.Nil(t, err)
+	var config Config
+	require.Nil(t, yaml.Unmarshal(rawYaml, &config))
+
+	assert.Equal(t, "updater_package", config.InstallMethod["installer_version"])
+	assert.Equal(t, "dpkg", config.InstallMethod["tool"])
+	assert.True(t, "" != config.InstallMethod["tool_version"])
+}
+
+// Config yaml struct
+type Config struct {
+	InstallMethod map[string]string `yaml:"install_method"`
 }
