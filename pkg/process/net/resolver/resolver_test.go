@@ -9,11 +9,10 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	proccontainersmocks "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
@@ -540,8 +539,8 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	mockedClock.Add(11 * time.Second)
 
 	func() {
-		resolver.mux.RLock()
-		defer resolver.mux.RUnlock()
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
 
 		assert.Len(resolver.addrToCtrID, 4)
 		for _, cid := range resolver.addrToCtrID {
@@ -594,8 +593,8 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	func() {
 		// have to lock here otherwise
 		// we get data race errors
-		resolver.mux.RLock()
-		defer resolver.mux.RUnlock()
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
 
 		assert.Len(resolver.addrToCtrID, 4)
 		for _, cid := range resolver.addrToCtrID {
@@ -635,8 +634,8 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	// missing entries should be just marked as not
 	// in use
 	func() {
-		resolver.mux.RLock()
-		defer resolver.mux.RUnlock()
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
 
 		assert.Len(resolver.addrToCtrID, 4)
 	}()
@@ -657,8 +656,8 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	// verify the missing address entries were marked
 	// as not in use
 	func() {
-		resolver.mux.RLock()
-		defer resolver.mux.RUnlock()
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
 
 	addrLoop:
 		for addr, cid := range resolver.addrToCtrID {
@@ -682,8 +681,8 @@ func TestLocalResolverCachePersistence(t *testing.T) {
 	assert.Equal("container-3", connections.Conns[3].Raddr.ContainerId)
 
 	func() {
-		resolver.mux.RLock()
-		defer resolver.mux.RUnlock()
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
 
 		// the not in use entries should have been removed
 		for _, missing := range missingAddrs {
@@ -745,8 +744,8 @@ func TestLocalResolverCacheLimits(t *testing.T) {
 	mockedClock.Add(11 * time.Second)
 
 	func() {
-		resolver.mux.RLock()
-		defer resolver.mux.RUnlock()
+		resolver.mux.Lock()
+		defer resolver.mux.Unlock()
 
 		assert.Len(resolver.addrToCtrID, 1)
 		assert.Contains(resolver.addrToCtrID, model.ContainerAddr{

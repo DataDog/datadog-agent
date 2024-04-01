@@ -12,19 +12,27 @@ import (
 	"sync"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
 	"go4.org/intern"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	cacheValidityNoRT = 2 * time.Second
 )
+
+var resolverTelemetry = struct {
+	cacheSize  telemetry.Gauge
+	cacheDrops telemetry.Counter
+}{
+	telemetry.NewGauge("net_local_resolver", "cache_size", []string{"cache"}, "Gauge for cache sizes"),
+	telemetry.NewCounter("net_local_resolver", "cache_drops", []string{"cache"}, "Gauge for cache drops"),
+}
 
 type containerIDEntry struct {
 	cid   *intern.Value
@@ -33,7 +41,7 @@ type containerIDEntry struct {
 
 // LocalResolver is responsible resolving the raddr of connections when they are local containers
 type LocalResolver struct {
-	mux                sync.RWMutex
+	mux                sync.Mutex
 	addrToCtrID        map[model.ContainerAddr]*containerIDEntry
 	maxAddrToCtrIDSize int
 	ctrForPid          map[int]*containerIDEntry
@@ -105,6 +113,7 @@ containersLoop:
 		for _, networkAddr := range ctr.Addresses {
 			if len(l.addrToCtrID) >= l.maxAddrToCtrIDSize {
 				log.Warnf("address to container ID cache has reached max size of %d entries", l.maxAddrToCtrIDSize)
+				resolverTelemetry.cacheDrops.Inc("addr_cache")
 				break containersLoop
 			}
 
@@ -119,9 +128,12 @@ containersLoop:
 		}
 	}
 
+	resolverTelemetry.cacheSize.Set(float64(len(l.addrToCtrID)), "addr_cache")
+
 	for pid, cid := range pidToCid {
 		if len(l.ctrForPid) >= l.maxCtrForPidSize {
 			log.Warnf("pid to container ID cache has reached max size of %d entries", l.maxCtrForPidSize)
+			resolverTelemetry.cacheDrops.Inc("pid_cache")
 			break
 		}
 
@@ -130,6 +142,8 @@ containersLoop:
 			inUse: true,
 		}
 	}
+
+	resolverTelemetry.cacheSize.Set(float64(len(l.ctrForPid)), "pid_cache")
 }
 
 // Resolve binds container IDs to the Raddr of connections
@@ -152,8 +166,8 @@ containersLoop:
 // If lookup by table fails above, we fall back to using
 // the l.addrToCtrID map
 func (l *LocalResolver) Resolve(c *model.Connections) {
-	l.mux.RLock()
-	defer l.mux.RUnlock()
+	l.mux.Lock()
+	defer l.mux.Unlock()
 
 	defer func() {
 		// remove all not in use entries
@@ -167,6 +181,9 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 				delete(l.addrToCtrID, addr)
 			}
 		}
+
+		resolverTelemetry.cacheSize.Set(float64(len(l.ctrForPid)), "pid_cache")
+		resolverTelemetry.cacheSize.Set(float64(len(l.addrToCtrID)), "addr_cache")
 	}()
 
 	type connKey struct {
