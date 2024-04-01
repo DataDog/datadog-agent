@@ -24,6 +24,7 @@ from tasks.kernel_matrix_testing.infra import (
     HostInstance,
     LibvirtDomain,
     build_infrastructure,
+    ensure_key_in_ec2,
     get_ssh_agent_key_names,
     get_ssh_key_name,
     try_get_ssh_key,
@@ -324,6 +325,8 @@ def config_ssh_key(ctx: Context):
             ssh_key['aws_key_name'] = aws_key_name
         else:
             ssh_key['aws_key_name'] = ssh_key['name']
+
+        ensure_key_in_ec2(ctx, ssh_key)
 
     cm = ConfigManager()
     cm.config["ssh"] = ssh_key
