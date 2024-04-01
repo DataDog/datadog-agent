@@ -195,7 +195,6 @@ func (s *Launcher) scan() {
 
 		filesTailed[scanKey] = true
 	}
-
 	s.flarecontroller.SetAllFiles(allFiles)
 
 	for _, tailer := range s.tailers.All() {
