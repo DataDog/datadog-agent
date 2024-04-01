@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// LoggerName is the application logger identifier
+	// loggerName is the application logger identifier
 	loggerName = "OTELCOL"
 )
 
