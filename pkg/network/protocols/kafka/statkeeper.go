@@ -56,7 +56,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		requestStats = new(RequestStat)
 		statKeeper.stats[key] = requestStats
 	}
-	requestStats.Count++
+	requestStats.Count += int(tx.RecordsCount())
 }
 
 // GetAndResetAllStats returns all the stats and resets the stats
