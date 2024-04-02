@@ -172,7 +172,8 @@ func Test_injectTags(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := injectTags(tt.pod, "ns", nil, wmeta)
+			webhook := NewWebhook(wmeta)
+			_, err := webhook.injectTags(tt.pod, "ns", nil)
 			assert.NoError(t, err)
 			assert.Len(t, tt.pod.Spec.Containers, 1)
 			assert.Len(t, tt.wantPodFunc().Spec.Containers, 1)
@@ -270,11 +271,13 @@ func TestGetAndCacheOwner(t *testing.T) {
 	ownerInfo := dummyInfo()
 	kubeObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
 	owner := newOwner(kubeObj)
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	webhook := NewWebhook(wmeta)
 
 	// Cache hit
-	cache.Cache.Set(ownerInfo.buildID(testNamespace), owner, ownerCacheTTL)
+	cache.Cache.Set(ownerInfo.buildID(testNamespace), owner, webhook.ownerCacheTTL)
 	dc := fake.NewSimpleDynamicClient(scheme)
-	obj, err := getAndCacheOwner(ownerInfo, testNamespace, dc)
+	obj, err := webhook.getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)
 	assert.Equal(t, owner, obj)
@@ -283,7 +286,7 @@ func TestGetAndCacheOwner(t *testing.T) {
 
 	// Cache miss
 	dc = fake.NewSimpleDynamicClient(scheme, kubeObj)
-	obj, err = getAndCacheOwner(ownerInfo, testNamespace, dc)
+	obj, err = webhook.getAndCacheOwner(ownerInfo, testNamespace, dc)
 	assert.NoError(t, err)
 	assert.NotNil(t, obj)
 	assert.Equal(t, owner, obj)
