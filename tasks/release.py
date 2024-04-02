@@ -40,6 +40,9 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 # Regex matching rc version tag format like 7.50.0-rc.1
 RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 
+# Regex matching minor release rc version tag (no patch version) like 7.50-rc.1, but not 7.50.1-rc.1
+MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
+
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
 RELEASE_JSON_FIELDS_TO_UPDATE = [
@@ -1605,11 +1608,12 @@ def check_omnibus_branches(ctx):
 
 
 @task
-def update_build_links(_ctx, new_version):
+def update_build_links(_ctx, new_version, patch_version=False):
     """
     Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
 
-    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format.
+    new_version - should be given as an Agent 7 RC minor version, ie. '7.50.0-rc.1' format.
+    patch-version - if set to True, then task can be used for patch releases, ie. '7.50.1-rc.1' format. Otherwise patch release number will be considered as invalid.
 
     Notes:
     Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
@@ -1621,11 +1625,11 @@ def update_build_links(_ctx, new_version):
 
     BUILD_LINKS_PAGE_ID = 2889876360
 
-    match = RC_VERSION_RE.match(new_version)
+    match = RC_VERSION_RE.match(new_version) if patch_version else MINOR_RC_VERSION_RE.match(new_version)
     if not match:
         raise Exit(
             color_message(
-                f"{new_version} is not a valid Agent RC version number/tag. \nCorrect example: 7.50.0-rc.1",
+                f"{new_version} is not a valid Agent RC minor version number/tag or this is a path release. \nCorrect example: 7.50.0-rc.1",
                 "red",
             ),
             code=1,
