@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/aws"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/azure"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/local"
@@ -75,8 +74,10 @@ func RootCommand() *cobra.Command {
 	var sc types.ScannerConfig
 	var evp eventplatform.Component
 	var localFlags struct {
+		configFilePath    string
 		diskModeStr       string
 		defaultActionsStr []string
+		noForkScanners    bool
 	}
 	cmd := &cobra.Command{
 		Use:          "agentless-scanner [command]",
@@ -87,26 +88,16 @@ func RootCommand() *cobra.Command {
 			return fxutil.OneShot(
 				func(_ complog.Component, config compconfig.Component, eventForwarder eventplatform.Component) error {
 					var err error
-					sc, err = getScannerConfig(config)
+					sc, err = getScannerConfig(config, localFlags.diskModeStr, localFlags.defaultActionsStr, localFlags.noForkScanners)
 					if err != nil {
 						return err
 					}
 					evp = eventForwarder
 					statsd = initStatsdClient(sc)
-					diskMode, err := types.ParseDiskMode(localFlags.diskModeStr)
-					if err != nil {
-						return err
-					}
-					defaultActions, err := types.ParseScanActions(localFlags.defaultActionsStr)
-					if err != nil {
-						return err
-					}
-					flags.GlobalFlags.DiskMode = diskMode
-					flags.GlobalFlags.DefaultActions = defaultActions
 					return nil
 				},
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewAgentParams(flags.GlobalFlags.ConfigFilePath),
+					ConfigParams: compconfig.NewAgentParams(localFlags.configFilePath),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
 				}),
@@ -130,9 +121,9 @@ func RootCommand() *cobra.Command {
 	}
 
 	pflags := cmd.PersistentFlags()
-	pflags.StringVarP(&flags.GlobalFlags.ConfigFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
+	pflags.StringVarP(&localFlags.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
 	pflags.StringVar(&localFlags.diskModeStr, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
-	pflags.BoolVar(&flags.GlobalFlags.NoForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
+	pflags.BoolVar(&localFlags.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
 	pflags.StringSliceVar(&localFlags.defaultActionsStr, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
 	return cmd
 }
@@ -158,7 +149,7 @@ func runCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp 
 			if err != nil {
 				return fmt.Errorf("could not detect cloud provider: %w", err)
 			}
-			return runCmd(statsd, sc, evp, provider, localFlags.pidfilePath, localFlags.workers, localFlags.scannersMax, flags.GlobalFlags.DefaultActions, flags.GlobalFlags.NoForkScanners)
+			return runCmd(statsd, sc, evp, provider, localFlags.pidfilePath, localFlags.workers, localFlags.scannersMax)
 		},
 	}
 	cmd.Flags().StringVarP(&localFlags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -168,7 +159,7 @@ func runCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp 
 	return cmd
 }
 
-func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int, defaultActions []types.ScanAction, noForkScanners bool) error {
+func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -188,27 +179,25 @@ func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eve
 
 	scannerID := types.NewScannerID(provider, hostname)
 	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  sc,
+		ScannerConfig:  *sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,
 		ScannersMax:    scannersMax,
 		PrintResults:   false,
-		NoFork:         noForkScanners,
-		DefaultActions: defaultActions,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
-	if err := scanner.CleanSlate(statsd, sc); err != nil {
+	if err := scanner.CleanSlate(); err != nil {
 		log.Error(err)
 	}
 	if err := scanner.SubscribeRemoteConfig(ctx); err != nil {
 		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
 	}
-	scanner.Start(ctx, statsd, sc)
+	scanner.Start(ctx)
 	return nil
 }
 
@@ -282,15 +271,26 @@ func detectCloudProvider(s string) (types.CloudProvider, error) {
 	return types.ParseCloudProvider(s)
 }
 
-func getScannerConfig(c compconfig.Component) (types.ScannerConfig, error) {
+func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActionsStr []string, noForkScanner bool) (types.ScannerConfig, error) {
 	defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
 	if err != nil {
 		return types.ScannerConfig{}, fmt.Errorf("could not parse default roles mapping: %w", err)
+	}
+	diskMode, err := types.ParseDiskMode(diskModeStr)
+	if err != nil {
+		return types.ScannerConfig{}, fmt.Errorf("could not parse disk mode: %w", err)
+	}
+	defaultActions, err := types.ParseScanActions(defaultActionsStr)
+	if err != nil {
+		return types.ScannerConfig{}, fmt.Errorf("could not parse default actions: %w", err)
 	}
 	return types.ScannerConfig{
 		Env:                 c.GetString("env"),
 		DogstatsdPort:       c.GetInt("dogstatsd_port"),
 		DefaultRolesMapping: defaultRolesMapping,
+		DefaultActions:      defaultActions,
+		NoForkScanners:      noForkScanner,
+		DiskMode:            diskMode,
 		AWSRegion:           c.GetString("agentless_scanner.aws_region"),
 		AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
 		AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),

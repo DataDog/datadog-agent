@@ -40,9 +40,9 @@ import (
 
 // WorkerOptions holds the configuration for a worker.
 type WorkerOptions struct {
+	types.ScannerConfig
 	ScannerID   types.ScannerID
 	ScannersMax int
-	NoFork      bool
 	Statsd      ddogstatsd.ClientInterface
 }
 
@@ -70,9 +70,9 @@ func (w *Worker) String() string {
 // Run runs the worker. It goes through the triggered scans from
 // triggeredScansCh chan and runs them. It sends the results in the resultsCh
 // chan and signals the finished scans in the finishedScansCh chan.
-func (w *Worker) Run(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, triggeredScansCh <-chan *types.ScanTask, finishedScansCh chan<- *types.ScanTask, resultsCh chan<- types.ScanResult) {
+func (w *Worker) Run(ctx context.Context, triggeredScansCh <-chan *types.ScanTask, finishedScansCh chan<- *types.ScanTask, resultsCh chan<- types.ScanResult) {
 	for scan := range triggeredScansCh {
-		if err := w.triggerScan(ctx, statsd, sc, scan, resultsCh); err != nil {
+		if err := w.triggerScan(ctx, scan, resultsCh); err != nil {
 			if !errors.Is(err, context.Canceled) {
 				log.Errorf("%s: could not be setup properly: %v", scan, err)
 			}
@@ -87,7 +87,7 @@ func (w *Worker) Run(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 
 // RunWithHTTP runs the worker with an HTTP server. It polls for new tasks on
 // the server and sends the results "/task" endpoint back to the server.
-func (w *Worker) RunWithHTTP(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, srv url.URL) {
+func (w *Worker) RunWithHTTP(ctx context.Context, srv url.URL) {
 	resultsCh := make(chan types.ScanResult)
 	cli := &http.Client{Timeout: 2 * time.Minute}
 	go func() {
@@ -98,7 +98,7 @@ func (w *Worker) RunWithHTTP(ctx context.Context, statsd ddogstatsd.ClientInterf
 				continue // XXX: retry
 			}
 
-			if err := w.triggerScan(ctx, statsd, sc, scan, resultsCh); err != nil {
+			if err := w.triggerScan(ctx, scan, resultsCh); err != nil {
 				if !errors.Is(err, context.Canceled) {
 					log.Errorf("%s: could not be setup properly: %v", w, err)
 				}
@@ -184,7 +184,7 @@ func (w *Worker) httpSendResult(ctx context.Context, cli *http.Client, srv url.U
 	return nil
 }
 
-func (w *Worker) triggerScan(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, resultsCh chan<- types.ScanResult) (err error) {
+func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsCh chan<- types.ScanResult) (err error) {
 	if err := w.Statsd.Count("datadog.agentless_scanner.scans.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -200,23 +200,23 @@ func (w *Worker) triggerScan(ctx context.Context, statsd ddogstatsd.ClientInterf
 		return err
 	}
 
-	pool := newScannersPool(w.NoFork, w.ScannersMax)
+	pool := newScannersPool(w.Statsd, &w.ScannerConfig, w.NoForkScanners, w.ScannersMax)
 	scan.StartedAt = time.Now()
-	defer w.cleanupScan(statsd, sc, scan)
+	defer w.cleanupScan(scan)
 	switch scan.Type {
 	case types.TaskTypeHost:
-		w.scanRootFilesystems(ctx, statsd, sc, scan, []string{scan.TargetID.ResourceName()}, pool, resultsCh)
+		w.scanRootFilesystems(ctx, scan, []string{scan.TargetID.ResourceName()}, pool, resultsCh)
 
 	case types.TaskTypeAMI:
-		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, statsd, sc, scan, &w.waiter)
+		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter)
 		if err != nil {
 			return err
 		}
 		switch scan.DiskMode {
 		case types.DiskModeNoAttach:
-			w.scanSnaphotNoAttach(ctx, statsd, sc, scan, snapshotID, pool, resultsCh)
+			w.scanSnaphotNoAttach(ctx, scan, snapshotID, pool, resultsCh)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err = awsbackend.SetupEBSVolume(ctx, statsd, sc, scan, &w.waiter, snapshotID)
+			err = awsbackend.SetupEBSVolume(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter, snapshotID)
 			if err != nil {
 				return err
 			}
@@ -229,19 +229,19 @@ func (w *Worker) triggerScan(ctx context.Context, statsd ddogstatsd.ClientInterf
 			if err != nil {
 				return err
 			}
-			w.scanImage(ctx, statsd, sc, scan, mountpoints, pool, resultsCh)
+			w.scanImage(ctx, scan, mountpoints, pool, resultsCh)
 		}
 
 	case types.TaskTypeEBS:
-		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, statsd, sc, scan, &w.waiter)
+		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter)
 		if err != nil {
 			return err
 		}
 		switch scan.DiskMode {
 		case types.DiskModeNoAttach:
-			w.scanSnaphotNoAttach(ctx, statsd, sc, scan, snapshotID, pool, resultsCh)
+			w.scanSnaphotNoAttach(ctx, scan, snapshotID, pool, resultsCh)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err := awsbackend.SetupEBSVolume(ctx, statsd, sc, scan, &w.waiter, snapshotID)
+			err := awsbackend.SetupEBSVolume(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter, snapshotID)
 			if err != nil {
 				return err
 			}
@@ -254,7 +254,7 @@ func (w *Worker) triggerScan(ctx context.Context, statsd ddogstatsd.ClientInterf
 			if err != nil {
 				return err
 			}
-			w.scanRootFilesystems(ctx, statsd, sc, scan, mountpoints, pool, resultsCh)
+			w.scanRootFilesystems(ctx, scan, mountpoints, pool, resultsCh)
 		}
 
 	case types.TaskTypeAzureDisk:
@@ -280,14 +280,14 @@ func (w *Worker) triggerScan(ctx context.Context, statsd ddogstatsd.ClientInterf
 		if err != nil {
 			return err
 		}
-		w.scanRootFilesystems(ctx, statsd, sc, scan, mountpoints, pool, resultsCh)
+		w.scanRootFilesystems(ctx, scan, mountpoints, pool, resultsCh)
 
 	case types.TaskTypeLambda:
-		mountpoint, err := awsbackend.SetupLambda(ctx, statsd, sc, scan)
+		mountpoint, err := awsbackend.SetupLambda(ctx, w.Statsd, &w.ScannerConfig, scan)
 		if err != nil {
 			return err
 		}
-		w.scanLambda(ctx, statsd, sc, scan, mountpoint, pool, resultsCh)
+		w.scanLambda(ctx, scan, mountpoint, pool, resultsCh)
 
 	default:
 		return fmt.Errorf("unknown scan type: %s", scan.Type)
@@ -378,7 +378,7 @@ func CleanupScanDir(ctx context.Context, scan *types.ScanTask) {
 	}
 }
 
-func (w *Worker) cleanupScan(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask) {
+func (w *Worker) cleanupScan(scan *types.ScanTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 	defer cancel()
 
@@ -387,7 +387,7 @@ func (w *Worker) cleanupScan(statsd ddogstatsd.ClientInterface, sc *types.Scanne
 	switch scan.Type {
 	case types.TaskTypeEBS, types.TaskTypeAMI:
 		for resourceID, createdAt := range scan.CreatedResources {
-			if err := awsbackend.CleanupScanEBS(ctx, statsd, sc, scan, resourceID); err != nil {
+			if err := awsbackend.CleanupScanEBS(ctx, w.Statsd, &w.ScannerConfig, scan, resourceID); err != nil {
 				log.Warnf("%s: failed to cleanup EBS resource %q: %v", scan, resourceID, err)
 			} else {
 				w.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)
@@ -417,7 +417,7 @@ func (w *Worker) cleanupScan(statsd ddogstatsd.ClientInterface, sc *types.Scanne
 	}
 }
 
-func (w *Worker) scanImage(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, roots []string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
+func (w *Worker) scanImage(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
 	assert(scan.Type == types.TaskTypeAMI)
 
 	var wg sync.WaitGroup
@@ -426,8 +426,6 @@ func (w *Worker) scanImage(ctx context.Context, statsd ddogstatsd.ClientInterfac
 		go func(root string) {
 			defer wg.Done()
 			resultsCh <- pool.launchScannerVulns(ctx,
-				statsd,
-				sc,
 				sbommodel.SBOMSourceType_HOST_IMAGE,
 				scan.TargetName,
 				scan.TargetTags,
@@ -442,11 +440,9 @@ func (w *Worker) scanImage(ctx context.Context, statsd ddogstatsd.ClientInterfac
 	wg.Wait()
 }
 
-func (w *Worker) scanSnaphotNoAttach(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, snapshotID types.CloudID, pool *scannersPool, resultsCh chan<- types.ScanResult) {
+func (w *Worker) scanSnaphotNoAttach(ctx context.Context, scan *types.ScanTask, snapshotID types.CloudID, pool *scannersPool, resultsCh chan<- types.ScanResult) {
 	assert(scan.Type == types.TaskTypeEBS)
 	resultsCh <- pool.launchScannerVulns(ctx,
-		statsd,
-		sc,
 		sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
 		scan.TargetName,
 		scan.TargetTags,
@@ -458,7 +454,7 @@ func (w *Worker) scanSnaphotNoAttach(ctx context.Context, statsd ddogstatsd.Clie
 		})
 }
 
-func (w *Worker) scanRootFilesystems(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, roots []string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
+func (w *Worker) scanRootFilesystems(ctx context.Context, scan *types.ScanTask, roots []string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
 	assert(scan.Type == types.TaskTypeHost || scan.Type == types.TaskTypeEBS || scan.Type == types.TaskTypeAzureDisk)
 
 	var wg sync.WaitGroup
@@ -471,8 +467,6 @@ func (w *Worker) scanRootFilesystems(ctx context.Context, statsd ddogstatsd.Clie
 			switch action {
 			case types.ScanActionVulnsHostOS:
 				resultsCh <- pool.launchScannerVulns(ctx,
-					statsd,
-					sc,
 					sbommodel.SBOMSourceType_HOST_FILE_SYSTEM,
 					scan.TargetName,
 					scan.TargetTags,
@@ -483,7 +477,7 @@ func (w *Worker) scanRootFilesystems(ctx context.Context, statsd ddogstatsd.Clie
 						CreatedAt: time.Now(),
 					})
 			case types.ScanActionMalware:
-				resultsCh <- pool.launchScanner(ctx, statsd, sc, types.ScannerOptions{
+				resultsCh <- pool.launchScanner(ctx, types.ScannerOptions{
 					Action:    types.ScanActionMalware,
 					Scan:      scan,
 					Root:      root,
@@ -496,7 +490,7 @@ func (w *Worker) scanRootFilesystems(ctx context.Context, statsd ddogstatsd.Clie
 	scanContainers := func(root string, actions []types.ScanAction) {
 		defer wg.Done()
 
-		ctrPrepareResult := pool.launchScanner(ctx, statsd, sc, types.ScannerOptions{
+		ctrPrepareResult := pool.launchScanner(ctx, types.ScannerOptions{
 			Action:    types.ScanActionContainersInspect,
 			Scan:      scan,
 			Root:      root,
@@ -524,7 +518,7 @@ func (w *Worker) scanRootFilesystems(ctx context.Context, statsd ddogstatsd.Clie
 		ctrDoneCh := make(chan *types.Container)
 		for _, ctr := range containers {
 			go func(ctr *types.Container, actions []types.ScanAction) {
-				w.scanContainer(ctx, statsd, sc, scan, ctr, actions, pool, resultsCh)
+				w.scanContainer(ctx, scan, ctr, actions, pool, resultsCh)
 				ctrDoneCh <- ctr
 			}(ctr, actions)
 		}
@@ -572,14 +566,12 @@ func (w *Worker) scanRootFilesystems(ctx context.Context, statsd ddogstatsd.Clie
 	}
 }
 
-func (w *Worker) scanContainer(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, ctr *types.Container, actions []types.ScanAction, pool *scannersPool, resultsCh chan<- types.ScanResult) {
+func (w *Worker) scanContainer(ctx context.Context, scan *types.ScanTask, ctr *types.Container, actions []types.ScanAction, pool *scannersPool, resultsCh chan<- types.ScanResult) {
 	imageRefTagged, imageRefCanonical, imageTags := scanners.ContainerRefs(*ctr)
 	for _, action := range actions {
 		assert(action == types.ScanActionVulnsContainersApp || action == types.ScanActionVulnsContainersOS)
 		sbomID := imageRefCanonical.String()
 		result := pool.launchScannerVulns(ctx,
-			statsd,
-			sc,
 			sbommodel.SBOMSourceType_CONTAINER_IMAGE_LAYERS,
 			sbomID,
 			imageTags,
@@ -599,7 +591,7 @@ func (w *Worker) scanContainer(ctx context.Context, statsd ddogstatsd.ClientInte
 	}
 }
 
-func (w *Worker) scanLambda(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, root string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
+func (w *Worker) scanLambda(ctx context.Context, scan *types.ScanTask, root string, pool *scannersPool, resultsCh chan<- types.ScanResult) {
 	assert(scan.Type == types.TaskTypeLambda)
 
 	serviceName := scan.TargetID.ResourceName()
@@ -616,8 +608,6 @@ func (w *Worker) scanLambda(ctx context.Context, statsd ddogstatsd.ClientInterfa
 	}, scan.TargetTags...)
 
 	resultsCh <- pool.launchScannerVulns(ctx,
-		statsd,
-		sc,
 		sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: sbommodel.SBOMSourceType_LAMBDA
 		serviceName,
 		tags,
@@ -641,19 +631,23 @@ func (w *Worker) statsResourceTTL(resourceType types.ResourceType, scan *types.S
 }
 
 type scannersPool struct {
-	sem    chan struct{}
-	noFork bool
+	sem           chan struct{}
+	noFork        bool
+	statsd        ddogstatsd.ClientInterface
+	scannerConfig types.ScannerConfig
 }
 
-func newScannersPool(noFork bool, size int) *scannersPool {
+func newScannersPool(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, noFork bool, size int) *scannersPool {
 	return &scannersPool{
-		sem:    make(chan struct{}, size),
-		noFork: noFork,
+		sem:           make(chan struct{}, size),
+		noFork:        noFork,
+		statsd:        statsd,
+		scannerConfig: *sc,
 	}
 }
 
-func (p *scannersPool) launchScannerVulns(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, sourceType sbommodel.SBOMSourceType, sbomID string, tags []string, opts types.ScannerOptions) types.ScanResult {
-	result := p.launchScanner(ctx, statsd, sc, opts)
+func (p *scannersPool) launchScannerVulns(ctx context.Context, sourceType sbommodel.SBOMSourceType, sbomID string, tags []string, opts types.ScannerOptions) types.ScanResult {
+	result := p.launchScanner(ctx, opts)
 	if result.Vulns != nil {
 		result.Vulns.SourceType = sourceType
 		result.Vulns.ID = sbomID
@@ -662,7 +656,7 @@ func (p *scannersPool) launchScannerVulns(ctx context.Context, statsd ddogstatsd
 	return result
 }
 
-func (p *scannersPool) launchScanner(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, opts types.ScannerOptions) types.ScanResult {
+func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
 	select {
 	case p.sem <- struct{}{}:
 	case <-ctx.Done():
@@ -674,7 +668,7 @@ func (p *scannersPool) launchScanner(ctx context.Context, statsd ddogstatsd.Clie
 	go func() {
 		var result types.ScanResult
 		if p.noFork {
-			result = LaunchScannerInSameProcess(ctx, statsd, sc, opts)
+			result = LaunchScannerInSameProcess(ctx, p.statsd, &p.scannerConfig, opts)
 		} else {
 			result = launchScannerInChildProcess(ctx, opts)
 		}

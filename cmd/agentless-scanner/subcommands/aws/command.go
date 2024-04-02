@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/agentless/awsbackend"
@@ -83,7 +82,7 @@ func awsScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, 
 			if err != nil {
 				return err
 			}
-			return awsScanCmd(ctx, statsd, sc, evp, resourceID, localFlags.Hostname, flags.GlobalFlags.DefaultActions, flags.GlobalFlags.DiskMode, flags.GlobalFlags.NoForkScanners)
+			return awsScanCmd(ctx, statsd, sc, evp, resourceID, localFlags.Hostname)
 		},
 	}
 
@@ -114,9 +113,9 @@ func awsSnapshotCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConf
 				scannerID,
 				"unknown",
 				nil,
-				flags.GlobalFlags.DefaultActions,
+				sc.DefaultActions,
 				sc.DefaultRolesMapping,
-				flags.GlobalFlags.DiskMode)
+				sc.DiskMode)
 			if err != nil {
 				return err
 			}
@@ -199,10 +198,7 @@ func awsOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 				self.Region,
 				localFlags.maxScans,
 				localFlags.printResults,
-				filters,
-				flags.GlobalFlags.DiskMode,
-				flags.GlobalFlags.DefaultActions,
-				flags.GlobalFlags.NoForkScanners)
+				filters)
 		},
 	}
 
@@ -232,7 +228,7 @@ func awsAttachCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig
 			if err != nil {
 				return err
 			}
-			return awsAttachCmd(ctx, statsd, sc, resourceID, !localFlags.noMount, flags.GlobalFlags.DiskMode, flags.GlobalFlags.DefaultActions)
+			return awsAttachCmd(ctx, statsd, sc, resourceID, !localFlags.noMount)
 		},
 	}
 	cmd.Flags().BoolVar(&localFlags.noMount, "no-mount", false, "mount the device")
@@ -261,7 +257,7 @@ func awsCleanupCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 	return cmd
 }
 
-func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string) error {
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -274,22 +270,20 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 		scannerID,
 		targetName,
 		nil,
-		actions,
+		sc.DefaultActions,
 		sc.DefaultRolesMapping,
-		diskMode)
+		sc.DiskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  sc,
+		ScannerConfig:  *sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        1,
 		ScannersMax:    8,
 		PrintResults:   true,
-		NoFork:         noForkScanners,
-		DefaultActions: actions,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
@@ -303,11 +297,11 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 		})
 		scanner.Stop()
 	}()
-	scanner.Start(ctx, statsd, sc)
+	scanner.Start(ctx)
 	return nil
 }
 
-func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter) error {
 	defer statsd.Flush()
 
 	hostname, err := utils.GetHostnameWithContext(ctx)
@@ -317,21 +311,19 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  sc,
+		ScannerConfig:  *sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,
 		ScannersMax:    8,
 		PrintResults:   printResults,
-		NoFork:         noForkScanners,
-		DefaultActions: actions,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
-	if err := scanner.CleanSlate(statsd, sc); err != nil {
+	if err := scanner.CleanSlate(); err != nil {
 		log.Error(err)
 	}
 
@@ -397,9 +389,9 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 							scannerID,
 							*instance.InstanceId,
 							ec2TagsToStringTags(instance.Tags),
-							actions,
-							roles,
-							diskMode)
+							sc.DefaultActions,
+							sc.DefaultRolesMapping,
+							sc.DiskMode)
 						if err != nil {
 							return err
 						}
@@ -481,9 +473,9 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 							scannerID,
 							*image.ImageId,
 							ec2TagsToStringTags(image.Tags),
-							actions,
-							roles,
-							diskMode)
+							sc.DefaultActions,
+							sc.DefaultRolesMapping,
+							sc.DiskMode)
 						if err != nil {
 							return err
 						}
@@ -537,9 +529,9 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 					scannerID,
 					*fn.Configuration.Version,
 					functionTags,
-					actions,
-					roles,
-					diskMode)
+					sc.DefaultActions,
+					sc.DefaultRolesMapping,
+					sc.DiskMode)
 				if err != nil {
 					return fmt.Errorf("could not create scan for lambda %s: %w", *function.FunctionArn, err)
 				}
@@ -581,7 +573,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 		}
 	}()
 
-	scanner.Start(ctx, statsd, sc)
+	scanner.Start(ctx)
 	return nil
 }
 
@@ -605,7 +597,7 @@ func awsCleanupCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	return nil
 }
 
-func awsAttachCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
+func awsAttachCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, mount bool) error {
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
 	scan, err := types.NewScanTask(
@@ -614,9 +606,9 @@ func awsAttachCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		scannerID,
 		"unknown",
 		nil,
-		defaultActions,
+		sc.DefaultActions,
 		sc.DefaultRolesMapping,
-		diskMode)
+		sc.DiskMode)
 	if err != nil {
 		return err
 	}

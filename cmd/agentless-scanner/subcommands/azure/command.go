@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/agentless/azurebackend"
@@ -65,7 +64,7 @@ func azureAttachCommand(sc *types.ScannerConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return azureAttachCmd(ctx, sc, resourceID, !localFlags.noMount, flags.GlobalFlags.DiskMode, flags.GlobalFlags.DefaultActions)
+			return azureAttachCmd(ctx, sc, resourceID, !localFlags.noMount)
 		},
 	}
 	cmd.Flags().BoolVar(&localFlags.noMount, "no-mount", false, "mount the device")
@@ -91,7 +90,7 @@ func azureScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig
 			if err != nil {
 				return err
 			}
-			return azureScanCmd(ctx, statsd, sc, evp, resourceID, localFlags.Hostname, flags.GlobalFlags.DefaultActions, flags.GlobalFlags.DiskMode, flags.GlobalFlags.NoForkScanners)
+			return azureScanCmd(ctx, statsd, sc, evp, resourceID, localFlags.Hostname)
 		},
 	}
 	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
@@ -130,10 +129,7 @@ func azureOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerCon
 				localFlags.maxScans,
 				localFlags.printResults,
 				localFlags.subscription,
-				localFlags.resourceGroup,
-				flags.GlobalFlags.DiskMode,
-				flags.GlobalFlags.DefaultActions,
-				flags.GlobalFlags.NoForkScanners)
+				localFlags.resourceGroup)
 		},
 	}
 
@@ -149,7 +145,7 @@ func azureOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerCon
 	return cmd
 }
 
-func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
+func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.CloudID, mount bool) error {
 	scannerHostname := common.TryGetHostname(ctx)
 	scannerID := types.ScannerID{Hostname: scannerHostname, Provider: types.CloudProviderAzure}
 
@@ -163,9 +159,9 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 		scannerID,
 		resourceID.ResourceName(),
 		nil,
-		defaultActions,
+		sc.DefaultActions,
 		sc.DefaultRolesMapping,
-		diskMode)
+		sc.DiskMode)
 	if err != nil {
 		return err
 	}
@@ -217,7 +213,7 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 	return nil
 }
 
-func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string) error {
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -230,22 +226,20 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		scannerID,
 		targetName,
 		nil,
-		actions,
+		sc.DefaultActions,
 		sc.DefaultRolesMapping,
-		diskMode)
+		sc.DiskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  sc,
+		ScannerConfig:  *sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        1,
 		ScannersMax:    8,
 		PrintResults:   true,
-		NoFork:         noForkScanners,
-		DefaultActions: actions,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
@@ -259,11 +253,11 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		})
 		scanner.Stop()
 	}()
-	scanner.Start(ctx, statsd, sc)
+	scanner.Start(ctx)
 	return nil
 }
 
-func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string, diskMode types.DiskMode, actions []types.ScanAction, noForkScanners bool) error {
+func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string) error {
 	defer statsd.Flush()
 
 	hostname, err := utils.GetHostnameWithContext(ctx)
@@ -281,21 +275,19 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
 	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  sc,
+		ScannerConfig:  *sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,
 		ScannersMax:    8,
 		PrintResults:   printResults,
-		NoFork:         noForkScanners,
-		DefaultActions: actions,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
 	}
-	if err := scanner.CleanSlate(statsd, sc); err != nil {
+	if err := scanner.CleanSlate(); err != nil {
 		log.Error(err)
 	}
 
@@ -337,9 +329,9 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 					scannerID,
 					*vm.ID,
 					nil, //ec2TagsToStringTags(instance.Tags),
-					actions,
+					sc.DefaultActions,
 					sc.DefaultRolesMapping,
-					diskMode)
+					sc.DiskMode)
 				if err != nil {
 					return err
 				}
@@ -374,6 +366,6 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 		}
 	}()
 
-	scanner.Start(ctx, statsd, sc)
+	scanner.Start(ctx)
 	return nil
 }

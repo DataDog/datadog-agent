@@ -12,6 +12,10 @@ type ScannerConfig struct {
 	Env                 string
 	DogstatsdPort       int
 	DefaultRolesMapping RolesMapping
+	DefaultActions      []ScanAction
+	DiskMode            DiskMode
+	NoForkScanners      bool
+
 	AWSRegion           string
 	AWSEC2Rate          float64
 	AWSEBSListBlockRate float64
