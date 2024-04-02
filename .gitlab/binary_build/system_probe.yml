@@ -41,3 +41,15 @@ build_system-probe-arm64:
   extends: .system-probe_build_common
   variables:
     ARCH: arm64
+
+test-build_system-probe-arm64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  needs: ["github_rate_limit_info"]
+  variables:
+    ARCH: arm64
+  script:
+    - which python3
+    - which aws
+    - conda list || true
+    - aws help
