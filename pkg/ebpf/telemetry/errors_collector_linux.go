@@ -41,7 +41,7 @@ func NewEBPFErrorsCollector(bpfDir string) prometheus.Collector {
 	// EBPFTelemetry needs to be initialized so we can patch the bytecode correctly
 	initEBPFTelemetry(bpfDir)
 
-	if supported, err = ebpfTelemetrySupported(); !supported || err != nil {
+	if supported, err = EBPFTelemetrySupported(); !supported || err != nil {
 		return nil
 	}
 	return &EBPFErrorsCollector{

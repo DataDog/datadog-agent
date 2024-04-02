@@ -219,7 +219,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 			return fmt.Errorf("no compiler instrumented patch site found for program %s", p.Name)
 		}
 
-		kernelVersionSupported, err := ebpfTelemetrySupported()
+		kernelVersionSupported, err := EBPFTelemetrySupported()
 		if err != nil {
 			return fmt.Errorf("could not determine if kernel version is supported for instrumentation: %w", err)
 		}
@@ -408,7 +408,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		return fmt.Errorf("unabled to build instrumentation block: %w", err)
 	}
 
-	supported, err := ebpfTelemetrySupported()
+	supported, err := EBPFTelemetrySupported()
 	if err != nil {
 		return err
 	}
@@ -461,8 +461,8 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	return nil
 }
 
-// ebpfTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
-func ebpfTelemetrySupported() (bool, error) {
+// EBPFTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
+func EBPFTelemetrySupported() (bool, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		return false, err
