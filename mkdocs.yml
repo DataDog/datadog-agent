@@ -64,6 +64,8 @@ nav:
   - Components:
     - Overview: architecture/components/overview.md
     - Fx: architecture/components/fx.md
+  - DogStatsD:
+    - Internals: architecture/dogstatsd/internals.md
 
 hooks:
 - docs/public/.hooks/title_from_content.py
@@ -73,6 +75,8 @@ plugins:
   # info: {}
   # Built-in
   search: {}
+  # Extra
+  glightbox: {}
   minify:
     minify_html: true
   git-revision-date-localized:
