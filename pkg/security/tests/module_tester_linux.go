@@ -240,6 +240,7 @@ type testModule struct {
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
 	tracePipe     *tracePipeLogger
+	msgSender     *fakeMsgSender
 }
 
 var testMod *testModule
@@ -724,12 +725,15 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod})
+		msgSender := newFakeMsgSender(testMod)
+
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
+		testMod.msgSender = msgSender
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
@@ -962,6 +966,10 @@ func (tm *testModule) Close() {
 	}
 
 	tm.statsdClient.Flush()
+
+	if tm.msgSender != nil {
+		tm.msgSender.flush()
+	}
 
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))

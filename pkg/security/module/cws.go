@@ -76,7 +76,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		// internals
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
-		apiServer:     NewAPIServer(cfg, evm.Probe, evm.StatsdClient, selfTester),
+		apiServer:     NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester),
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
 		grpcServer:    NewGRPCServer(family, address),
@@ -250,6 +250,11 @@ func (c *CWSConsumer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
+}
+
+// APIServer returns the api server
+func (c *CWSConsumer) APIServer() *APIServer {
+	return c.apiServer
 }
 
 // HandleActivityDump sends an activity dump to the backend
