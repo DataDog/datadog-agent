@@ -1629,7 +1629,7 @@ def update_build_links(_ctx, new_version, patch_version=False):
     if not match:
         raise Exit(
             color_message(
-                f"{new_version} is not a valid {'patch' if patch else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.0' if patch else ''}-rc.1",
+                f"{new_version} is not a valid {'patch' if patch_version else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.0' if patch_version else ''}-rc.1",
                 "red",
             ),
             code=1,
