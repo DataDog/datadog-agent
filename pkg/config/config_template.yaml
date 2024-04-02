@@ -1557,11 +1557,6 @@ api_key:
   ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and enable the "disable_otlp_compute_top_level_by_span_kind" APM feature.
   # compute_stats_by_span_kind: false
 
-  ## @param peer_service_aggregation - bool - default: false
-  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
-  ## DEPRECATED - please use `peer_tags_aggregation` instead.
-  # peer_service_aggregation: false
-
   ## @param peer_tags_aggregation - bool - default: false
   ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
   ## [BETA] Enables aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) in the Agent.
