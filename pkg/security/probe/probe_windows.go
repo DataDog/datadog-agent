@@ -493,6 +493,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.Type = uint32(model.CreateNewFileEventType)
 		ev.CreateNewFile = model.CreateNewFileEvent{
 			File: model.FileEvent{
+				FileObject:  uint64(arg.fileObject),
 				PathnameStr: arg.fileName,
 				BasenameStr: filepath.Base(arg.fileName),
 			},
