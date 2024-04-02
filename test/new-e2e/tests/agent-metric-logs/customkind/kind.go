@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -36,7 +36,7 @@ const (
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name              string
-	vmOptions         []ec2
+	vmOptions         []ec2.VMOption
 	agentOptions      []kubernetesagentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
@@ -189,6 +189,11 @@ datadog:
   kubelet:
     tlsVerify: false
   clusterName: "%s"
+  env:
+    - name: DD_LOGS_ENABLED
+      value: "true"
+    - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
+      value: "true"
 agents:
   useHostNetwork: true
 `, kindClusterName)
