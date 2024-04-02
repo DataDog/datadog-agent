@@ -10,7 +10,8 @@ package settingsimpl
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/registry"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,16 +24,21 @@ func MockModule() fxutil.Module {
 
 type mock struct{}
 
-func newMock() settings.Component {
+func newMock() registry.Component {
 	return mock{}
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
-	return map[string]settings.RuntimeSetting{}
+func (m mock) RuntimeSettings() map[string]registry.RuntimeSetting {
+	return map[string]registry.RuntimeSetting{}
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
 func (m mock) GetRuntimeSetting(setting string) (interface{}, error) {
 	return nil, nil
+}
+
+// SetRuntimeSetting changes the value of a runtime configurable setting
+func (m mock) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
+	return nil
 }
