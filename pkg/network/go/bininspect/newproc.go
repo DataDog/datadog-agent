@@ -77,7 +77,7 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 
 	structOffsets := make(map[FieldIdentifier]uint64, len(structs))
 	for structID, lookupFunc := range structs {
-		structOffset, err := lookupFunc(goVersion, string(arch))
+		structOffset, err := lookupFunc(goVersion.GoVersion, string(arch))
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 			returnLocations = locations
 		}
 
-		parameters, err := funcConfig.ParamLookupFunction(i.goVersion, string(i.elf.arch))
+		parameters, err := funcConfig.ParamLookupFunction(i.goVersion.GoVersion, string(i.elf.arch))
 		if err != nil {
 			return nil, fmt.Errorf("failed finding parameters of function %q: %w", funcName, err)
 		}

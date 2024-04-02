@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package goversion provides a wrapper around the `GoVersion` type from the
+// delve debugger
 package goversion
 
 import (
@@ -20,7 +22,7 @@ type GoVersion struct {
 	rawVersion string
 }
 
-// NewGoVersions returns a new GoVersion struct
+// NewGoVersion returns a new GoVersion struct
 func NewGoVersion(rawVersion string) (GoVersion, error) {
 	version, ok := goversion.Parse(fmt.Sprintf("go%s", rawVersion))
 	if !ok {

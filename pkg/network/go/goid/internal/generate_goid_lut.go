@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package main is responsible for extracting Go type information
+// from DWARF data across multiple Go versions.
 package main
 
 import (
