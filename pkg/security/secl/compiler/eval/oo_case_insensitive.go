@@ -48,8 +48,8 @@ var (
 		},
 	}
 
-	// CaseInsensitiveGlobCmp lower case values before comparing, and converts patterns to globs. Important : this operator override doesn't support approvers
-	CaseInsensitiveGlobCmp = &OpOverrides{
+	// WindowsPathCmp lower case values before comparing, converts patterns to globs, and normalizes path separators. Important : this operator override doesn't support approvers
+	WindowsPathCmp = &OpOverrides{
 		StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
