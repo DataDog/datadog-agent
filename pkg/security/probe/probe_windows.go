@@ -723,16 +723,12 @@ func (p *WindowsProbe) FlushDiscarders() error {
 // OnNewDiscarder handles discarders
 func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
 	if evalType == "create" && field == "create.file.path" {
-		value, err := ev.GetFieldValue(field)
-		if err != nil {
-			seclog.Errorf("error getting field value for `%s` -> `%v`", field, err)
-			return
-		}
+		path := ev.CreateNewFile.File.PathnameStr
+		fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
 
-		seclog.Errorf("new discarder for `%s` -> `%v`", field, value)
-		if sval, ok := value.(string); ok {
-			p.discardedPaths.Add(sval, struct{}{})
-		}
+		seclog.Errorf("new discarder for `%s` -> `%v`", field, path)
+		p.discardedPaths.Add(path, struct{}{})
+		delete(filePathResolver, fileObject)
 	}
 }
 
