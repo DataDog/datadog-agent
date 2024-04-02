@@ -851,3 +851,5 @@ replace (
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common => github.com/prometheus/common v0.46.0
 )
+
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.112-0.20240402171334-1d5ec155b266

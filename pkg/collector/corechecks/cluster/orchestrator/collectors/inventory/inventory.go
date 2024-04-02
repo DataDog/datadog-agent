@@ -34,6 +34,7 @@ func NewCollectorInventory() *CollectorInventory {
 			k8sCollectors.NewDeploymentCollectorVersions(),
 			k8sCollectors.NewIngressCollectorVersions(),
 			k8sCollectors.NewJobCollectorVersions(),
+			k8sCollectors.NewLimitRangeCollectorVersions(),
 			k8sCollectors.NewNamespaceCollectorVersions(),
 			k8sCollectors.NewNodeCollectorVersions(),
 			k8sCollectors.NewPersistentVolumeCollectorVersions(),
