@@ -1965,7 +1965,10 @@ func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 
 func (s *TracerSuite) TestGetMapsTelemetry() {
 	t := s.T()
-	if !ebpftelemetry.EBPFTelemetrySupported() {
+
+	supported, err := ebpftelemetry.EBPFTelemetrySupported()
+	require.NoError(t, err)
+	if !supported {
 		t.Skip("EBPF telemetry not supported")
 	}
 
@@ -1975,7 +1978,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	tr := setupTracer(t, cfg)
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com/[1-10]"}
-	err := exec.Command(cmd[0], cmd[1:]...).Run()
+	err = exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
 	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
@@ -2008,7 +2011,9 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 
 	// We need the tracepoints on open syscall in order
 	// to test.
-	if !ebpftelemetry.EBPFTelemetrySupported() {
+	supported, err := ebpftelemetry.EBPFTelemetrySupported()
+	require.NoError(t, err)
+	if !supported {
 		t.Skip("EBPF telemetry not supported")
 	}
 
