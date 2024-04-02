@@ -236,6 +236,9 @@ kmt_run_sysprobe_tests_x64:
           - "centos_79"
           - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
 
 kmt_run_sysprobe_tests_arm64:
   extends:
@@ -268,6 +271,8 @@ kmt_run_sysprobe_tests_arm64:
           - "centos_79"
           - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
 
 .kmt_sysprobe_cleanup:
   extends:

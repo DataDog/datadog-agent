@@ -192,7 +192,7 @@ func (c *Client) unsafeTargetFile(path string) ([]byte, error) {
 		return nil, err
 	}
 	buffer := &bufferDestination{}
-	err = c.configTUFClient.Download(path, buffer)
+	err = c.directorTUFClient.Download(path, buffer)
 	if err != nil {
 		return nil, err
 	}

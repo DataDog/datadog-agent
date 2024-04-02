@@ -94,6 +94,10 @@ Package configsync implements synchronizing the configuration using the core age
 
 Package flare implements a component to generate flares from the agent.
 
+### [comp/core/healthprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/healthprobe)
+
+Package healthprobe implements the health check server
+
 ### [comp/core/hostname](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname)
 
 Package hostname exposes hostname.Get() as a component.
@@ -142,6 +146,10 @@ Package workloadmeta provides the workloadmeta component for the Datadog Agent
 *Datadog Team*: agent-metrics-logs
 
 
+
+### [comp/dogstatsd/pidmap](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap)
+
+Package pidmap implements a component for tracking pid and containerID relations
 
 ### [comp/dogstatsd/replay](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/replay)
 

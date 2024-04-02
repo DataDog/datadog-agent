@@ -238,7 +238,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
-			log.Warnf("Could not send payload: %v", err)
+
+			// shouldRetry is false for serverless. This log line is too verbose for serverless so make it debug only.
+			if d.shouldRetry {
+				log.Warnf("Could not send payload: %v", err)
+			} else {
+				log.Debugf("Could not send payload: %v", err)
+			}
 		}
 
 		if err == context.Canceled {
