@@ -44,7 +44,7 @@ type Runner struct {
 	// the HOME environment variable is replaced with a synthetic value.
 	//
 	// To skip a version-architecture pair, return `nil` for this function.
-	GetCommand func(ctx context.Context, version goversion.GoVersion, arch string) *exec.Cmd
+	GetCommand func(ctx context.Context, version goversion.GoVersion, arch string, goExe string) *exec.Cmd
 }
 
 type architectureVersion struct {
@@ -202,16 +202,11 @@ func (r *Runner) installSingleVersion(ctx context.Context, version goversion.GoV
 }
 
 func (r *Runner) runSingleCommand(ctx context.Context, goExe string, version goversion.GoVersion, arch string) error {
-	command := r.GetCommand(ctx, version, arch)
+	command := r.GetCommand(ctx, version, arch, goExe)
 	if command == nil {
 		// Allow the GetCommand implementation to skip a version/arch combination
 		return nil
 	}
-
-	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOARCH", arch))
-	// The $HOME directory needs to be set to the Go installation directory
-	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "HOME", r.getInstallLocation()))
-	command.Path = goExe
 
 	// Dump the command
 	log.Printf("[%s-%s] %s %s %s", version, arch, strings.Join(command.Env, " "), command.Path, strings.Join(command.Args[1:], " "))
