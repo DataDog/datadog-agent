@@ -53,6 +53,7 @@ func TestExtractResourceLimit(t *testing.T) {
 	}
 
 	expected := &model.LimitRange{
+		LimitTypes: []string{"Container"},
 		Metadata: &model.Metadata{
 			Name: "limit-range",
 		},

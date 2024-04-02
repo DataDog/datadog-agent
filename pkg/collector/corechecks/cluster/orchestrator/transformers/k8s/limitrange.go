@@ -30,6 +30,7 @@ func ExtractLimitRange(lr *corev1.LimitRange) *model.LimitRange {
 			Min:                  convertResourceListToMap(item.Min, convertResourceFn),
 			Type:                 string(item.Type),
 		}
+		msg.LimitTypes = append(msg.LimitTypes, limit.Type)
 		msg.Spec.Limits = append(msg.Spec.Limits, limit)
 	}
 

@@ -81,6 +81,8 @@ const (
 	K8sNetworkPolicy = 24
 	// K8sLimitRange represents a Kubernetes LimitRange
 	K8sLimitRange = 25
+	// K8sStorageClass represents a Kubernetes StorageClass
+	K8sStorageClass = 26
 	// ECSTask represents an ECS Task
 	ECSTask = 150
 )
@@ -113,6 +115,7 @@ func NodeTypes() []NodeType {
 		K8sHorizontalPodAutoscaler,
 		K8sNetworkPolicy,
 		K8sLimitRange,
+		K8sStorageClass,
 		ECSTask,
 	}
 }
@@ -169,6 +172,8 @@ func (n NodeType) String() string {
 		return "NetworkPolicy"
 	case K8sLimitRange:
 		return "LimitRange"
+	case K8sStorageClass:
+		return "StorageClass"
 	case K8sUnsetType:
 		return "UnsetType"
 	case ECSTask:
@@ -207,6 +212,7 @@ func (n NodeType) Orchestrator() string {
 		K8sHorizontalPodAutoscaler,
 		K8sNetworkPolicy,
 		K8sLimitRange,
+		K8sStorageClass,
 		K8sUnsetType:
 		return "k8s"
 	case ECSTask:
