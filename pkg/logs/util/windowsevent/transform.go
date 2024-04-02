@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package eventlog contains utilities to transform Windows Event Log XML messages into structured messages for Datadog Logs.
+// Package windowsevent contains utilities to transform Windows Event Log XML messages into structured messages for Datadog Logs.
 package windowsevent
 
 import (
