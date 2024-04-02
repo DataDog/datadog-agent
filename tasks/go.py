@@ -84,9 +84,9 @@ def golangci_lint(
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     DEPRECATED
-    Please use inv lint-go instead
+    Please use inv linter.go instead
     """
-    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
+    print("WARNING: golangci-lint task is deprecated, please migrate to linter.go task")
     raise Exit(code=1)
 
 
@@ -352,6 +352,24 @@ def reset(ctx):
     # remove vendor folder
     print("Remove vendor folder")
     ctx.run("rm -rf ./vendor")
+
+
+@task
+def check_go_mod_replaces(_ctx):
+    errors_found = set()
+    for mod in DEFAULT_MODULES.values():
+        go_sum = os.path.join(mod.full_path(), "go.sum")
+        if not os.path.exists(go_sum):
+            continue
+        with open(go_sum) as f:
+            for line in f:
+                if "github.com/datadog/datadog-agent" in line.lower():
+                    err_mod = line.split()[0]
+                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in sorted(errors_found))
+        raise Exit(message=message)
 
 
 @task

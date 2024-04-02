@@ -71,7 +71,7 @@
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
     - inv -e rtloader.install
     - inv -e install-tools
-    - inv -e lint-go --cpus $KUBERNETES_CPU_REQUEST $FLAVORS $EXTRA_OPTS
+    - inv -e linter.go --cpus $KUBERNETES_CPU_REQUEST $FLAVORS $EXTRA_OPTS
 
 .linux_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
