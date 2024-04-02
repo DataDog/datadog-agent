@@ -61,10 +61,12 @@ var (
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PathSeparatorNormalize = true
 			} else if b.Field != "" {
 				b.StringCmpOpts.ScalarCaseInsensitive = true
 				b.StringCmpOpts.PatternCaseInsensitive = true
 				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.PathSeparatorNormalize = true
 			}
 
 			return GlobCmp.StringEquals(a, b, state)
@@ -74,6 +76,7 @@ var (
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PathSeparatorNormalize = true
 			}
 
 			return GlobCmp.StringValuesContains(a, b, state)
@@ -83,10 +86,12 @@ var (
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PathSeparatorNormalize = true
 			} else if b.Field != "" {
 				b.StringCmpOpts.ScalarCaseInsensitive = true
 				b.StringCmpOpts.PatternCaseInsensitive = true
 				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.PathSeparatorNormalize = true
 			}
 
 			return GlobCmp.StringArrayContains(a, b, state)
@@ -96,6 +101,7 @@ var (
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
 				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.PathSeparatorNormalize = true
 			}
 
 			return GlobCmp.StringArrayMatches(a, b, state)
