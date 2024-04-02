@@ -26,3 +26,13 @@ github_rate_limit_info:
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID
   allow_failure: true
+
+test-build_system-probe-arm64:
+  stage: .pre
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  needs: ["github_rate_limit_info"]
+  script:
+    - which python3
+    - which aws
+    - conda list || true
+    - aws help
