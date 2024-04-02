@@ -626,9 +626,11 @@ def test(
     with tempfile.NamedTemporaryFile(mode='w') as tmp:
         json.dump(run_config, tmp)
         tmp.flush()
+        remote_tmp = "/tmp"
+        remote_run_config = os.path.join(remote_tmp, os.path.basename(tmp.name))
 
         args = [
-            f"-packages-run-config {tmp.name}",
+            f"-packages-run-config {remote_run_config}",
             f"-retry {retry}",
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
@@ -636,7 +638,7 @@ def test(
             f"-extra-params {test_extra_arguments}" if test_extra_arguments is not None else "",
         ]
         for d in domains:
-            d.copy(ctx, f"{tmp.name}", "/tmp")
+            d.copy(ctx, f"{tmp.name}", remote_tmp)
             d.run_cmd(ctx, f"bash /micro-vm-init.sh {' '.join(args)}", verbose=verbose)
 
 
@@ -724,7 +726,7 @@ def clean(ctx: Context, stack: Optional[str] = None, container=False, image=Fals
 def ssh_config(
     ctx: Context,
     stacks: Optional[str] = None,
-    ddvm_rsa="~/dd/ami-builder/scripts/kernel-version-testing/files/ddvm_rsa",
+    ddvm_rsa="tasks/kernel_matrix_testing/ddvm_rsa",
 ):
     """
     Print the SSH config for the given stacks.
@@ -766,6 +768,7 @@ def ssh_config(
                 print("    User ubuntu")
                 if instance.ssh_key_path is not None:
                     print(f"    IdentityFile {instance.ssh_key_path}")
+                    print("    IdentitiesOnly yes")
                 print("")
 
             for domain in instance.microvms:

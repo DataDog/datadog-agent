@@ -46,9 +46,10 @@ class LocalCommandRunner:
 class RemoteCommandRunner:
     @staticmethod
     def run_cmd(ctx: Context, instance: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
+        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
         res = ctx.run(
             cmd.format(
-                proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no -i {instance.ssh_key_path} -W %h:%p ubuntu@{instance.ip}'"
+                proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no {ssh_key_arg} -W %h:%p ubuntu@{instance.ip}'"
             ),
             hide=(not verbose),
             warn=allow_fail,
@@ -72,8 +73,9 @@ class RemoteCommandRunner:
             full_target = os.path.join(get_kmt_os().shared_dir, subdir)
             RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
 
+        ssh_key_arg = f"-i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
         ctx.run(
-            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {instance.ssh_key_path}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
+            f"rsync -e \"ssh -o StrictHostKeyChecking=no {ssh_key_arg}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
         )
 
 
