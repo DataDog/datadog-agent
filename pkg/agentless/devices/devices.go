@@ -227,6 +227,11 @@ func ListPartitions(ctx context.Context, scan *types.ScanTask, deviceName string
 
 // Mount mounts the given partitions.
 func Mount(ctx context.Context, scan *types.ScanTask, partitions []Partition) ([]string, error) {
+	// using context.Background() here as we do not want to sigkill the
+	// "mount" command during work.
+	mntctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
 	var mountPoints []string
 	for _, mp := range partitions {
 		mountPoint := scan.Path(types.EBSMountPrefix + path.Base(mp.DevicePath))
@@ -254,14 +259,14 @@ func Mount(ctx context.Context, scan *types.ScanTask, partitions []Partition) ([
 		if mp.FSType == "btrfs" {
 			// Replace fsid of btrfs partition with randomly generated UUID.
 			log.Debugf("%s: execing btrfstune -f -u %s", scan, mp.DevicePath)
-			_, err := exec.CommandContext(ctx, "btrfstune", "-f", "-u", mp.DevicePath).CombinedOutput()
+			_, err := exec.CommandContext(mntctx, "btrfstune", "-f", "-u", mp.DevicePath).CombinedOutput()
 			if err != nil {
 				return nil, err
 			}
 
 			// Clear the tree log, to prevent "failed to read log tree" warning, which leads to "open_ctree failed" error.
 			log.Debugf("%s: execing btrfs rescue zero-log %s", scan, mp.DevicePath)
-			_, err = exec.CommandContext(ctx, "btrfs", "rescue", "zero-log", mp.DevicePath).CombinedOutput()
+			_, err = exec.CommandContext(mntctx, "btrfs", "rescue", "zero-log", mp.DevicePath).CombinedOutput()
 			if err != nil {
 				return nil, err
 			}
@@ -273,8 +278,6 @@ func Mount(ctx context.Context, scan *types.ScanTask, partitions []Partition) ([
 		var mountOutput []byte
 		var errm error
 		for i := 0; i < 50; i++ {
-			// using context.Background() here as we do not want to sigkill
-			// the "mount" command during work.
 			mountOutput, errm = exec.CommandContext(context.Background(), "mount", mountCmd...).CombinedOutput()
 			if errm == nil {
 				break
