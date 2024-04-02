@@ -86,7 +86,7 @@ type Runner struct {
 }
 
 // New creates a new runner.
-func New(_ types.ScannerConfig, opts Options) (*Runner, error) {
+func New(config types.ScannerConfig, opts Options) (*Runner, error) {
 	if opts.ScannerID == (types.ScannerID{}) {
 		panic("programmer error: empty ScannerID option")
 	}
@@ -108,7 +108,8 @@ func New(_ types.ScannerConfig, opts Options) (*Runner, error) {
 	}
 
 	return &Runner{
-		Options: opts,
+		ScannerConfig: config,
+		Options:       opts,
 
 		findingsReporter: findingsReporter,
 
