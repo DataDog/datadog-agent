@@ -27,6 +27,12 @@ type Component interface {
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
+// Params is the input parameter struct for the RC client Component.
+type Params struct {
+	AgentName    string
+	AgentVersion string
+}
+
 // NoneModule return a None optional type for rcclient.Component.
 //
 // This helper allows code that needs a disabled Optional type for rcclient to get it. The helper is split from

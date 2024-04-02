@@ -62,7 +62,7 @@ type dependencies struct {
 	Log log.Component
 	Lc  fx.Lifecycle
 
-	Params        func(*client.Options)       `optional:"true"`
+	Params        rcclient.Params             `optional:"true"`
 	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
 	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
@@ -83,8 +83,11 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		client.WithPollInterval(5 * time.Second),
 	}
 
-	if deps.Params != nil {
-		optsWithDefault = append(optsWithDefault, deps.Params)
+	if deps.Params.AgentName != "" && deps.Params.AgentVersion != "" {
+		optsWithDefault = append(
+			optsWithDefault,
+			client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
+		)
 	}
 
 	// We have to create the client in the constructor and set its name later
@@ -119,14 +122,14 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		clientHA:      clientHA,
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: func(context.Context) error {
-			if config.IsRemoteConfigEnabled(config.Datadog) {
-				return rc.start()
-			}
-			return nil
-		},
-	})
+	if config.IsRemoteConfigEnabled(config.Datadog) {
+		deps.Lc.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				rc.start()
+				return nil
+			},
+		})
+	}
 
 	deps.Lc.Append(fx.Hook{
 		OnStop: func(context.Context) error {

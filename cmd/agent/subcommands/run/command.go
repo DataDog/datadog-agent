@@ -107,7 +107,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgrcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
@@ -333,7 +332,10 @@ func getSharedFxOption() fx.Option {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
 		}),
 		fx.Supply(
-			pkgrcclient.WithAgent("core-agent", version.AgentVersion),
+			rcclient.Params{
+				AgentName:    "core-agent",
+				AgentVersion: version.AgentVersion,
+			},
 		),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),

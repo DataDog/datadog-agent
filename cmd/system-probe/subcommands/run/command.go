@@ -41,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgrcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -80,7 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-				fx.Supply(pkgrcclient.WithAgent("system-probe", version.AgentVersion)),
+				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
 				compstatsd.Module(),
 				config.Module(),
 				telemetry.Module(),

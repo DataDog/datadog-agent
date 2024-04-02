@@ -41,9 +41,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgrcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -127,7 +127,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		),
 		fx.Supply(
 			// Provide remote config client configuration
-			pkgrcclient.WithAgent("process-agent", version.AgentVersion),
+			rcclient.Params{
+				AgentName:    "process-agent",
+				AgentVersion: version.AgentVersion,
+			},
 		),
 
 		// Populate dependencies required for initialization in this function
