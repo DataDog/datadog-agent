@@ -178,8 +178,7 @@ func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eve
 	}
 
 	scannerID := types.NewScannerID(provider, hostname)
-	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  *sc,
+	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,

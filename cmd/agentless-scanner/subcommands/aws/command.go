@@ -277,8 +277,7 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 		return err
 	}
 
-	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  *sc,
+	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        1,
@@ -310,8 +309,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	}
 
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  *sc,
+	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,

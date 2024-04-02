@@ -74,14 +74,13 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 		return err
 	}
 
-	scanner, err := runner.New(runner.Options{
-		ScannerConfig: *sc,
-		ScannerID:     scannerID,
-		DdEnv:         sc.Env,
-		Workers:       1,
-		ScannersMax:   8,
-		PrintResults:  true,
-		Statsd:        statsd,
+	scanner, err := runner.New(*sc, runner.Options{
+		ScannerID:    scannerID,
+		DdEnv:        sc.Env,
+		Workers:      1,
+		ScannersMax:  8,
+		PrintResults: true,
+		Statsd:       statsd,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)

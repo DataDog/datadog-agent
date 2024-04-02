@@ -233,8 +233,7 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		return err
 	}
 
-	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  *sc,
+	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        1,
@@ -274,8 +273,7 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 	}
 
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
-	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  *sc,
+	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,
