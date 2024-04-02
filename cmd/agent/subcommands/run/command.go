@@ -54,6 +54,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process"
 
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -100,7 +102,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -220,6 +221,7 @@ func run(log log.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	metadatascheduler metadatascheduler.Component,
+	_ healthprobe.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -397,6 +399,13 @@ func getSharedFxOption() fx.Option {
 		collectorimpl.Module(),
 		process.Bundle(),
 		agent.Bundle(),
+		fx.Provide(func(config config.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           config.GetInt("health_port"),
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
+		healthprobeimpl.Module(),
 	)
 }
 
@@ -491,16 +500,7 @@ func startAgent(
 		}
 	}()
 
-	// Setup healthcheck port
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-	healthPort := pkgconfig.Datadog.GetInt("health_port")
-	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, pkgconfig.Datadog, healthPort)
-		if err != nil {
-			return log.Errorf("Error starting health port, exiting: %v", err)
-		}
-		log.Debugf("Health check listening on port %d", healthPort)
-	}
 
 	if cliParams.pidfilePath != "" {
 		err = pidfile.WritePID(cliParams.pidfilePath)

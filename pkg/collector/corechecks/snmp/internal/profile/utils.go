@@ -5,7 +5,11 @@
 
 package profile
 
-import "github.com/mohae/deepcopy"
+import (
+	"os"
+
+	"github.com/mohae/deepcopy"
+)
 
 // mergeProfiles merges two profiles config map
 // we use deepcopy to lower risk of modifying original profiles
@@ -18,4 +22,10 @@ func mergeProfiles(profilesA ProfileConfigMap, profilesB ProfileConfigMap) Profi
 		profiles[k] = deepcopy.Copy(v).(ProfileConfig)
 	}
 	return profiles
+}
+
+// pathExists returns true if the given path exists
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
