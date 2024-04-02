@@ -108,7 +108,6 @@ func awsSnapshotCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConf
 			if err != nil {
 				return err
 			}
-			roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 			scan, err := types.NewScanTask(
 				types.TaskTypeEBS,
 				volumeID.AsText(),
@@ -116,12 +115,12 @@ func awsSnapshotCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConf
 				"unknown",
 				nil,
 				flags.GlobalFlags.DefaultActions,
-				roles,
+				sc.DefaultRolesMapping,
 				flags.GlobalFlags.DiskMode)
 			if err != nil {
 				return err
 			}
-			cfg := awsbackend.GetConfigFromCloudID(ctx, statsd, sc, roles, scan.TargetID)
+			cfg := awsbackend.GetConfigFromCloudID(ctx, statsd, sc, sc.DefaultRolesMapping, scan.TargetID)
 			var waiter awsbackend.ResourceWaiter
 			ec2client := ec2.NewFromConfig(cfg)
 			snapshotID, err := awsbackend.CreateSnapshot(ctx, statsd, scan, &waiter, ec2client, scan.TargetID)
@@ -269,7 +268,6 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 	if err != nil {
 		return err
 	}
-	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),
@@ -277,13 +275,14 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 		targetName,
 		nil,
 		actions,
-		roles,
+		sc.DefaultRolesMapping,
 		diskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
+		ScannerConfig:  sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        1,
@@ -291,7 +290,6 @@ func awsScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 		PrintResults:   true,
 		NoFork:         noForkScanners,
 		DefaultActions: actions,
-		DefaultRoles:   roles,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
@@ -318,8 +316,8 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	}
 
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 	scanner, err := runner.New(runner.Options{
+		ScannerConfig:  sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,
@@ -327,7 +325,6 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 		PrintResults:   printResults,
 		NoFork:         noForkScanners,
 		DefaultActions: actions,
-		DefaultRoles:   roles,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
@@ -338,8 +335,9 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 		log.Error(err)
 	}
 
+	roles := sc.DefaultRolesMapping
 	pushEBSVolumes := func() error {
-		ec2client := ec2.NewFromConfig(awsbackend.GetConfig(ctx, statsd, sc, regionName, roles.GetRole(accountID)))
+		ec2client := ec2.NewFromConfig(awsbackend.GetConfig(ctx, statsd, sc, regionName, roles.GetRole(types.CloudProviderAWS, accountID)))
 		if err != nil {
 			return err
 		}
@@ -429,7 +427,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	}
 
 	pushAMI := func() error {
-		ec2client := ec2.NewFromConfig(awsbackend.GetConfig(ctx, statsd, sc, regionName, roles.GetRole(accountID)))
+		ec2client := ec2.NewFromConfig(awsbackend.GetConfig(ctx, statsd, sc, regionName, roles.GetRole(types.CloudProviderAWS, accountID)))
 		if err != nil {
 			return err
 		}
@@ -512,7 +510,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 	}
 
 	pushLambdaFunctions := func() error {
-		lambdaclient := lambda.NewFromConfig(awsbackend.GetConfig(ctx, statsd, sc, regionName, roles.GetRole(accountID)))
+		lambdaclient := lambda.NewFromConfig(awsbackend.GetConfig(ctx, statsd, sc, regionName, roles.GetRole(types.CloudProviderAWS, accountID)))
 		var marker *string
 		count := 0
 		for {
@@ -588,7 +586,7 @@ func awsOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 }
 
 func awsCleanupCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, region, account string, dryRun bool, delay time.Duration) error {
-	assumedRole := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS).GetRole(account)
+	assumedRole := sc.DefaultRolesMapping.GetRole(types.CloudProviderAWS, account)
 	toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, statsd, sc, delay, region, assumedRole)
 	if err != nil {
 		return err
@@ -610,7 +608,6 @@ func awsCleanupCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *t
 func awsAttachCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, mount bool, diskMode types.DiskMode, defaultActions []types.ScanAction) error {
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAWS)
 	scan, err := types.NewScanTask(
 		types.TaskTypeEBS,
 		resourceID.AsText(),
@@ -618,7 +615,7 @@ func awsAttachCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		"unknown",
 		nil,
 		defaultActions,
-		roles,
+		sc.DefaultRolesMapping,
 		diskMode)
 	if err != nil {
 		return err

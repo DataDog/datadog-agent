@@ -13,9 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CtxTerminated cancels the context on termination signal
@@ -42,15 +40,4 @@ func TryGetHostname(ctx context.Context) string {
 		return "unknown"
 	}
 	return hostname
-}
-
-// GetDefaultRolesMapping returns the default role mapping
-func GetDefaultRolesMapping(sc *types.ScannerConfig, provider types.CloudProvider) types.RolesMapping {
-	roles := sc.DefaultRoles
-	rolesMapping, err := types.ParseRolesMapping(provider, roles)
-	if err != nil {
-		log.Errorf("config error: could not parse `agentless_scanner.default_roles` properly: %s", err)
-		os.Exit(1)
-	}
-	return rolesMapping
 }
