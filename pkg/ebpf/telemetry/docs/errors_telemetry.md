@@ -39,11 +39,11 @@ For helpers, error counts are collected per probe per helper per error code.
 
 ## Implementation
 This telemetry collection mechanism has two parts
-1. Instrumentation
+1. Telemetry preamble
 2. Telemetry macros
 
-### 1. Telemetry instrumentation
-Telemetry instrumentation is a form of [eBPF instrumentation](./ebpf_instrumentation.md) responsible for getting a pointer to the map value. This map value is the structure for holding the telemetry data.
+### 1. Telemetry preamble
+Telemetry preamble is a form of [eBPF instrumentation](./ebpf_instrumentation.md) responsible for getting a pointer to the map value. This map value is the structure for holding the telemetry data.
 Once the map value is acquired the instrumentation code caches it on the stack, so that it may be used in the telemetry macros for recording error telemetry.
 
 #### Pointer Caching
