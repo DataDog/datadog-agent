@@ -8,9 +8,11 @@ package agent
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle())
+	fxutil.TestBundle(t, Bundle(), config.MockModule(), logimpl.MockModule())
 }
