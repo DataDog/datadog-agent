@@ -133,7 +133,7 @@ def get_image_list(distro: bool, custom: bool) -> List[List[str]]:
         if lte_414(k):
             custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"])
         else:
-            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"])
+            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, TICK, "", f"custom-{k}-x86_64"])
 
     distro_kernels: List[List[str]] = list()
     platforms = get_platforms()
