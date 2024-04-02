@@ -224,8 +224,7 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("uretprobe/SSL_read_ex")
-int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
+static __always_inline int SSL_read_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
@@ -267,11 +266,16 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx) {
     // We want to guarantee write-TLS hooks generates the same connection tuple, while read-TLS hooks generate
     // the inverse direction, thus we're normalizing the tuples into a client <-> server direction.
     normalize_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, bytes_count, LIBSSL);
+    tls_process(ctx, &copy, buffer_ptr, bytes_count, tags);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     return 0;
+}
+
+SEC("uretprobe/SSL_read_ex")
+int uretprobe__SSL_read_ex(struct pt_regs* ctx, __u64 tags) {
+    return SSL_read_ex_ret(ctx, LIBSSL);
 }
 
 SEC("uprobe/SSL_write_ex")
@@ -286,8 +290,7 @@ int uprobe__SSL_write_ex(struct pt_regs* ctx) {
     return 0;
 }
 
-SEC("uretprobe/SSL_write_ex")
-int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
+static __always_inline int SSL_write_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
@@ -328,11 +331,16 @@ int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     // to the server <-> client direction.
     normalize_tuple(&copy);
     flip_tuple(&copy);
-    tls_process(ctx, &copy, buffer_ptr, bytes_count, LIBSSL);
+    tls_process(ctx, &copy, buffer_ptr, bytes_count, tags);
     return 0;
 cleanup:
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
     return 0;
+}
+
+SEC("uretprobe/SSL_write_ex")
+int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
+    return SSL_write_ex_ret(ctx, LIBSSL);
 }
 
 SEC("uprobe/SSL_shutdown")
