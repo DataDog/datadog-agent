@@ -7,7 +7,10 @@
 
 package jmx
 
-import dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+import (
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+)
 
 // InitRunner is a stub for builds that do not include jmx
-func InitRunner(_ dogstatsdServer.Component) {}
+func InitRunner(_ dogstatsdServer.Component, _ jmxlogger.Component) {}
