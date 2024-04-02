@@ -47,10 +47,15 @@ type mockedImage struct {
 	containerd.Image
 	mockName   func() string
 	mockConfig func() (ocispec.Descriptor, error)
+	mockTarget func() ocispec.Descriptor
 }
 
 func (m *mockedImage) Config(_ context.Context) (ocispec.Descriptor, error) {
 	return m.mockConfig()
+}
+
+func (m *mockedImage) Target() ocispec.Descriptor {
+	return m.mockTarget()
 }
 
 func TestBuildWorkloadMetaContainer(t *testing.T) {
@@ -78,6 +83,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	image := &mockedImage{
 		mockConfig: func() (ocispec.Descriptor, error) {
 			return ocispec.Descriptor{Digest: "my_image_id"}, nil
+		},
+		mockTarget: func() ocispec.Descriptor {
+			return ocispec.Descriptor{Digest: "my_repo_digest"}
 		},
 	}
 	container := mockedContainer{
