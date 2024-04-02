@@ -7,7 +7,10 @@ e2e_pre_test:
   extends: .new_e2e_template
   needs: []
   script:
-    - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+  after_script:
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - inv -e junit-upload --tgz-path junit-${CI_JOB_ID}.tgz
   variables:
     TEAM: "agent-developer-tools"
     # override to use latest stable agent
