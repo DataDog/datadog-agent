@@ -61,26 +61,32 @@ func GetTopLevelOTelSpans(spanByID map[pcommon.SpanID]ptrace.Span, resByID map[p
 		if span.ParentSpanID().IsEmpty() {
 			// case 1: root span
 			topLevelSpans[spanID] = struct{}{}
-		} else if topLevelByKind {
+			continue
+		}
+
+		if topLevelByKind {
 			// New behavior for computing top level OTel spans, see computeTopLevelAndMeasured in pkg/trace/api/otlp.go
 			spanKind := span.Kind()
 			if spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer {
 				// span is a server-side span, mark as top level
 				topLevelSpans[spanID] = struct{}{}
 			}
-		} else {
-			// Fall back to old behavior in ComputeTopLevel
-			if _, ok := spanByID[span.ParentSpanID()]; !ok {
-				// case 2: parent span not in the same chunk, presumably it belongs to another service
-				topLevelSpans[spanID] = struct{}{}
-			} else {
-				svc := GetOTelAttrVal(resByID[spanID].Attributes(), true, semconv.AttributeServiceName)
-				parentSvc := GetOTelAttrVal(resByID[span.ParentSpanID()].Attributes(), true, semconv.AttributeServiceName)
-				if svc != parentSvc {
-					// case 3: parent is not in the same service
-					topLevelSpans[spanID] = struct{}{}
-				}
-			}
+			continue
+		}
+
+		// Otherwise, fall back to old behavior in ComputeTopLevel
+		parentSpan, ok := spanByID[span.ParentSpanID()]
+		if !ok {
+			// case 2: parent span not in the same chunk, presumably it belongs to another service
+			topLevelSpans[spanID] = struct{}{}
+			continue
+		}
+
+		svc := GetOTelService(span, resByID[spanID], true)
+		parentSvc := GetOTelService(parentSpan, resByID[parentSpan.SpanID()], true)
+		if svc != parentSvc {
+			// case 3: parent is not in the same service
+			topLevelSpans[spanID] = struct{}{}
 		}
 	}
 	return topLevelSpans
