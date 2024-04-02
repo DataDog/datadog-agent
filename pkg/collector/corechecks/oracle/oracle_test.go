@@ -15,11 +15,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConnectionGoOra(t *testing.T) {
@@ -312,4 +314,22 @@ func TestObfuscator(t *testing.T) {
 	sql = "select file# from dual"
 	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
 	assert.Equal(t, sql, obfuscatedStatement.Query)
+}
+
+func TestLegacyMode(t *testing.T) {
+	c, s := newLegacyCheck(t, "")
+	err := c.Run()
+	require.NoError(t, err)
+
+	canConnectServiceCheckName := "oracle.can_query"
+
+	s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, "", []string{"server:localhost"}, "")
+	s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, "", []string{"server:localhost"}, "")
+
+	c, s = newLegacyCheck(t, "only_custom_queries: true")
+	err = c.Run()
+	require.NoError(t, err)
+
+	s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, "", []string{"server:localhost"}, "")
+	s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, "", []string{"server:localhost"}, "")
 }

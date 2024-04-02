@@ -165,20 +165,7 @@ func (c *Check) Run() error {
 		c.db = db
 	}
 
-	// Backward compatibility with the old Python integration
-	if c.config.OnlyCustomQueries {
-		copy(c.tags, c.configTags)
-	}
-
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
-
-	if c.config.OnlyCustomQueries {
-		var err error
-		if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
-			err = c.CustomQueries()
-		}
-		return err
-	}
 
 	if !c.initialized {
 		err := c.init()
@@ -197,7 +184,7 @@ func (c *Check) Run() error {
 
 	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
 
-	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode {
+	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode && !c.config.OnlyCustomQueries {
 		err := sendDbInstanceMetadata(c)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err))
@@ -213,21 +200,43 @@ func (c *Check) Run() error {
 		}
 		fixTags(c)
 
+		err := c.connectionTest()
+		if err != nil {
+			db, errConnect := c.Connect()
+			if errConnect != nil {
+				handleServiceCheck(c, errConnect)
+			} else if db == nil {
+				handleServiceCheck(c, fmt.Errorf("empty connection"))
+			} else {
+				handleServiceCheck(c, nil)
+			}
+			closeDatabase(c, db)
+			allErrors = errors.Join(allErrors, fmt.Errorf("%s connection error %w", c.logPrompt, err))
+		} else {
+			handleServiceCheck(c, nil)
+		}
+
+		if c.config.OnlyCustomQueries {
+			if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
+				err = c.CustomQueries()
+				var message string
+				var status servicecheck.ServiceCheckStatus
+				if allErrors == nil {
+					status = servicecheck.ServiceCheckOK
+				} else {
+					status = servicecheck.ServiceCheckCritical
+					message = allErrors.Error()
+				}
+				sendServiceCheck(c, serviceCheckName, status, message)
+				commit(c)
+				return err
+			}
+		}
+
 		if !c.legacyIntegrationCompatibilityMode {
 			err := c.OS_Stats()
 			if err != nil {
-				db, errConnect := c.Connect()
-				if errConnect != nil {
-					handleServiceCheck(c, errConnect)
-				} else if db == nil {
-					handleServiceCheck(c, fmt.Errorf("empty connection"))
-				} else {
-					handleServiceCheck(c, nil)
-				}
-				closeDatabase(c, db)
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err))
-			} else {
-				handleServiceCheck(c, nil)
 			}
 		}
 

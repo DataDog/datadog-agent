@@ -44,6 +44,8 @@ func (c *Check) init() error {
 			} else {
 				c.connectedToPdb = true
 			}
+			c.tagsWithoutDbRole = make([]string, len(tags))
+			copy(c.tagsWithoutDbRole, tags)
 			return nil
 		}
 		return fmt.Errorf("%s failed to query v$instance: %w", c.logPrompt, err)
