@@ -386,9 +386,13 @@ func (s *Runner) init(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 					triggeredScansCh <- scan
 					s.recordTriggeredScan(scan)
 				}
-			case scan := <-finishedScansCh:
-				s.recordFinishedScan(scan)
 			}
+		}
+	}()
+
+	go func() {
+		for scan := range finishedScansCh {
+			s.recordFinishedScan(scan)
 		}
 	}()
 
@@ -418,6 +422,7 @@ func (s *Runner) Start(ctx context.Context, statsd ddogstatsd.ClientInterface, s
 		log.Infof("stopping agentless-scanner main loop")
 		close(s.scansCh)
 		wg.Wait()
+		close(finishedScansCh)
 		close(s.resultsCh)
 		<-resultsDoneCh
 		log.Infof("stopped agentless-scanner main loop")
@@ -539,19 +544,29 @@ func (s *Runner) StartWithRemoteWorkers(ctx context.Context, statsd ddogstatsd.C
 		if err != nil {
 			log.Warnf("error shutting down: %v", err)
 		}
+		close(s.resultsCh)
+		close(finishedScansCh)
 	}()
 
 	defer func() {
 		close(s.scansCh)
-		close(s.resultsCh)
 		<-resultsDoneCh
 	}()
-	for config := range s.configsCh {
-		for _, scan := range config.Tasks {
-			select {
-			case <-ctx.Done():
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case config, ok := <-s.configsCh:
+			if !ok {
 				return
-			case s.scansCh <- scan:
+			}
+			for _, scan := range config.Tasks {
+				select {
+				case <-ctx.Done():
+					return
+				case s.scansCh <- scan:
+				}
 			}
 		}
 	}
