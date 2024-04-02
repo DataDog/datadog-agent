@@ -3,9 +3,9 @@
 # Contains jobs which run new-e2e tests on the Agent packages.
 
 include:
-  - /.gitlab/kitchen_testing/new-e2e_testing/debian.yml
-  - /.gitlab/kitchen_testing/new-e2e_testing/ubuntu.yml
-  - /.gitlab/kitchen_testing/new-e2e_testing/amazonlinux.yml
-  - /.gitlab/kitchen_testing/new-e2e_testing/centos.yml
-  - /.gitlab/kitchen_testing/new-e2e_testing/suse.yml
-  - /.gitlab/kitchen_testing/new-e2e_testing/windows.yml
+  - .gitlab/kitchen_testing/new-e2e_testing/debian.yml
+  - .gitlab/kitchen_testing/new-e2e_testing/ubuntu.yml
+  - .gitlab/kitchen_testing/new-e2e_testing/amazonlinux.yml
+  - .gitlab/kitchen_testing/new-e2e_testing/centos.yml
+  - .gitlab/kitchen_testing/new-e2e_testing/suse.yml
+  - .gitlab/kitchen_testing/new-e2e_testing/windows.yml
