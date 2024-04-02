@@ -19,6 +19,7 @@ BPF_ARRAY_MAP(bpf_instrumentation_map, instrumentation_blob_t, 1);
 #ifdef EBPF_INSTRUMENTATION
 
 static void (*bpf_patch_telemetry)(unsigned long target, ...) = (void *) -2;
+static instrumentation_blob_t *(*bpf_fetch_instrumentation_blob)() = (void *) -3;
 
 #define STR(x) #x
 #define MK_MAP_INDX(key) STR(key##_telemetry_key)
@@ -32,16 +33,16 @@ static void (*bpf_patch_telemetry)(unsigned long target, ...) = (void *) -2;
         unsigned long map_index;                                                    \
         LOAD_CONSTANT(MK_MAP_INDX(map), map_index);                                 \
         if (errno_ret < 0 && map_index > 0){                                        \
-            instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();                    \
+            instrumentation_blob_t *tb = bpf_fetch_instrumentation_blob();          \
             if (tb) {                                                               \
                 long error = errno_ret * -1;                                        \
                 long offset = (sizeof(map_err_telemetry_t) * map_index) +           \
                     (error * sizeof(unsigned long)) +                               \
                     offsetof(instrumentation_blob_t, map_err_telemetry);            \
-                if (offset < last_writable_slot_in_blob) {                \
-                    unsigned long target = (unsigned long)tb + offset;                                             \
+                if (offset < last_writable_slot_in_blob) {                          \
+                    unsigned long target = (unsigned long)tb + offset;              \
                     unsigned long add = 1;                                          \
-                    bpf_patch_telemetry(target, add);                                    \
+                    bpf_patch_telemetry(target, add);                               \
                 }                                                                   \
             }                                                                       \
         }                                                                           \
@@ -64,7 +65,7 @@ static void (*bpf_patch_telemetry)(unsigned long target, ...) = (void *) -2;
         unsigned long telemetry_program_id;                                                         \
         LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                            \
         if (errno_ret < 0 && telemetry_program_id > 0) {                                            \
-            instrumentation_blob_t *tb = FETCH_TELEMETRY_BLOB();                                    \
+            instrumentation_blob_t *tb = bpf_fetch_instrumentation_blob();          \
             if (tb) {                                                                               \
                 int helper_indx = MK_FN_INDX(fn);                                                   \
                 long errno_slot = errno_ret * -1;                                                   \

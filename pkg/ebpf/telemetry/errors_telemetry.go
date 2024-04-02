@@ -38,7 +38,8 @@ const (
 	// trampoline call or patch point.
 	ebpfEntryTrampolinePatchCall = -1
 
-	ebpfPathTelemetryInc = -2
+	ebpfPathTelemetryInc   = -2
+	ebpfFetchTelemetryBlob = -3
 )
 
 var helperNames = map[int]string{
@@ -206,7 +207,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 				// do not break. We continue looping to get correct 'insCount'
 			}
 
-			if ins.IsBuiltinCall() && ins.Constant == ebpfPathTelemetryInc {
+			if ins.IsBuiltinCall() && (ins.Constant == ebpfPathTelemetryInc || ins.Constant == ebpfFetchTelemetryBlob) {
 				patchSites[ins.Constant] = append(patchSites[ins.Constant], patchSite{ins, int(iter.Offset), iter.Index})
 			}
 		}
@@ -239,6 +240,16 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 				}
 			}
 
+			if patchType == ebpfFetchTelemetryBlob {
+				for _, site := range sites {
+					if shouldSkip(p.Name) {
+						p.Instructions[site.index] = asm.LoadImm(asm.R0, 0, asm.DWord)
+					} else {
+						p.Instructions[site.index] = asm.LoadMem(asm.R0, asm.RFP, int16(512)*-1, asm.DWord)
+					}
+				}
+			}
+
 			if patchType == ebpfEntryTrampolinePatchCall {
 				// there can only be a single trampoline patch site
 				if len(sites) > 1 {
@@ -251,7 +262,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 				// instrument patch point with a immediate store of 0 to the stack slot used for
 				// caching the instrumentation blob
 				if shouldSkip(p.Name) {
-					*trampolinePatchSite.ins = asm.StoreImm(asm.RFP, int16(512)*-1, 0, asm.DWord)
+					*trampolinePatchSite.ins = asm.Instruction{OpCode: asm.Ja.Op(asm.ImmSource), Constant: 0}.WithMetadata(trampolinePatchSite.ins.Metadata)
 					continue
 				}
 				trampolineInstruction := asm.Instruction{
