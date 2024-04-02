@@ -358,34 +358,28 @@ func (s *Runner) init(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 	finishedScansCh := make(chan *types.ScanTask)
 	go func() {
 		defer close(triggeredScansCh)
-		for {
-			select {
-			case scan, ok := <-s.scansCh:
-				if !ok {
-					return
-				}
-				if !s.isScanRunning(scan) {
-					// Gather the  scanned roles / accounts as we go. We only ever
-					// need to store one role associated with one region. They
-					// will be used for cleanup process.
-					s.touchedMu.Lock()
-					{
-						// TODO: we could persist this "touched" map on the
-						// filesystem to have a more robust knowledge of the
-						// accounts / regions with scanned.
-						if s.touched == nil {
-							s.touched = make(map[scanRecord]struct{})
-						}
-						record := scanRecord{
-							Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
-							Region: scan.TargetID.Region(),
-						}
-						s.touched[record] = struct{}{}
+		for scan := range s.scansCh {
+			if !s.isScanRunning(scan) {
+				// Gather the  scanned roles / accounts as we go. We only ever
+				// need to store one role associated with one region. They
+				// will be used for cleanup process.
+				s.touchedMu.Lock()
+				{
+					// TODO: we could persist this "touched" map on the
+					// filesystem to have a more robust knowledge of the
+					// accounts / regions with scanned.
+					if s.touched == nil {
+						s.touched = make(map[scanRecord]struct{})
 					}
-					s.touchedMu.Unlock()
-					triggeredScansCh <- scan
-					s.recordTriggeredScan(scan)
+					record := scanRecord{
+						Role:   scan.Roles.GetCloudIDRole(scan.TargetID),
+						Region: scan.TargetID.Region(),
+					}
+					s.touched[record] = struct{}{}
 				}
+				s.touchedMu.Unlock()
+				triggeredScansCh <- scan
+				s.recordTriggeredScan(scan)
 			}
 		}
 	}()
