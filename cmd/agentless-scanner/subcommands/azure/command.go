@@ -180,8 +180,7 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 
 	log.Infof("Setting up disk %s\n", scan.TargetID)
 
-	var waiter azurebackend.ResourceWaiter
-	if err := azurebackend.SetupDisk(ctx, cfg, scan, &waiter); err != nil {
+	if err := azurebackend.SetupDisk(ctx, cfg, scan); err != nil {
 		return err
 	}
 

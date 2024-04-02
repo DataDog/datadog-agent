@@ -50,9 +50,8 @@ type Worker struct {
 	types.ScannerConfig
 	WorkerOptions
 
-	id       int
-	waiter   awsbackend.ResourceWaiter
-	azWaiter azurebackend.ResourceWaiter
+	id     int
+	waiter awsbackend.ResourceWaiter
 }
 
 // NewWorker creates a new worker.
@@ -269,7 +268,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		if err != nil {
 			return err
 		}
-		if err := azurebackend.SetupDisk(ctx, cfg, scan, &w.azWaiter); err != nil {
+		if err := azurebackend.SetupDisk(ctx, cfg, scan); err != nil {
 			return err
 		}
 		assert(scan.AttachedDeviceName != nil)

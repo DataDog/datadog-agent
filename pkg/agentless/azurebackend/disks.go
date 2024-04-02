@@ -21,12 +21,12 @@ import (
 
 // SetupDisk prepares the disk for scanning.
 // It creates a snapshot of the disk and attaches it to the VM.
-func SetupDisk(ctx context.Context, cfg Config, scan *types.ScanTask, waiter *ResourceWaiter) (err error) {
+func SetupDisk(ctx context.Context, cfg Config, scan *types.ScanTask) (err error) {
 	var snapshot *armcompute.Snapshot
 
 	switch scan.TargetID.ResourceType() {
 	case types.ResourceTypeVolume:
-		snapshot, err = createSnapshot(ctx, cfg, scan, waiter, scan.TargetID)
+		snapshot, err = createSnapshot(ctx, cfg, scan, scan.TargetID)
 	//case types.ResourceTypeSnapshot:
 	//	snapshotID, err = CopySnapshot(ctx, cfg, scan, waiter, scan.TargetID)
 	default:
@@ -48,7 +48,7 @@ func SetupDisk(ctx context.Context, cfg Config, scan *types.ScanTask, waiter *Re
 	}
 }
 
-func createSnapshot(ctx context.Context, cfg Config, scan *types.ScanTask, waiter *ResourceWaiter, diskCloudID types.CloudID) (*armcompute.Snapshot, error) {
+func createSnapshot(ctx context.Context, cfg Config, scan *types.ScanTask, diskCloudID types.CloudID) (*armcompute.Snapshot, error) {
 	diskID, err := diskCloudID.AsAzureID()
 	if err != nil {
 		return nil, log.Error(err)
@@ -92,28 +92,28 @@ func createSnapshot(ctx context.Context, cfg Config, scan *types.ScanTask, waite
 	}
 
 	scan.PushCreatedResource(snapshotCloudID, snapshotCreatedAt)
-
-	poll := <-waiter.Wait(ctx, snapshotCloudID, poller)
-	if err := poll.Err; err != nil {
+	res, err := poller.PollUntilDone(ctx, nil)
+	if err != nil {
 		if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsFailure(err), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 		return nil, err
 	}
 
+	snapshot := &res.Snapshot
 	snapshotDuration := time.Since(snapshotCreatedAt)
 	log.Debugf("%s: volume snapshotting of %q finished successfully %q (took %s)", scan, diskID, snapshotCloudID, snapshotDuration)
 	if err := statsd.Histogram("datadog.agentless_scanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
-	if err := statsd.Histogram("datadog.agentless_scanner.snapshots.size", float64(*poll.Snapshot.Properties.DiskSizeGB), scan.TagsFailure(err), 1.0); err != nil {
+	if err := statsd.Histogram("datadog.agentless_scanner.snapshots.size", float64(*snapshot.Properties.DiskSizeGB), scan.TagsFailure(err), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.finished", 1.0, scan.TagsSuccess(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
 
-	return poll.Snapshot, nil
+	return snapshot, nil
 }
 
 // attachSnapshotWithNBD attaches the given snapshot to the VM using a Network Block Device (NBD).
