@@ -149,9 +149,17 @@ if linux_target?
   extra_package_file '/opt/datadog-packages/'
 end
 
+# Include all package scripts for the intermediary XZ package, or only those
+# for the package being created
 if linux_target?
+  if !generate_distro_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+  end
   if debian_target?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
+  elsif redhat_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
   end
 end
 
