@@ -101,6 +101,9 @@ int uprobe__SSL_read(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
+
+    // Trigger mapping of SSL context to connection tuple in case it is missing.
+    tup_from_ssl_ctx(args.ctx, pid_tgid);
     return 0;
 }
 
@@ -215,6 +218,9 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+
+    // Trigger mapping of SSL context to connection tuple in case it is missing.
+    tup_from_ssl_ctx(args.ctx, pid_tgid);
     return 0;
 }
 
