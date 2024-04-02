@@ -792,11 +792,15 @@ def status(ctx: Context, stack: Optional[str] = None, all=False):
 @task(
     help={
         "path": "Path to the directory containing the rootfs images. If None, use the default path for KMT",
+        "update-only-matching": "Only update the platform info for images that match the given regex",
     }
 )
 def update_platform_info(ctx: Context, path: Optional[str] = None, update_only_matching: Optional[str] = None):
     """Generate a JSON file with platform information for all the images
-    found in the KMT rootfs directory. Alternative paths can be provided.
+    found in the KMT rootfs directory. Alternative paths can be provided for the image.
+
+    Note that it will update only for the images found in the given path. You might want to run
+    inv kmt.update-resources --all-archs to download images for all architectures before running this task.
     """
     if path is None:
         path_fs = get_kmt_os().rootfs_dir
