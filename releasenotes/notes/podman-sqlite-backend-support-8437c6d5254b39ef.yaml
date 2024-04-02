@@ -1,6 +1,4 @@
 ---
 enhancements:
   - |
-    Supports Podman newer versions (4.8+) using SQLite instead of BoltDB for the containers database backend by introducing the parameters ``podman_use_sqlite`` and ``podman_sqlite_db_path``.
-    - ``podman_use_sqlite`` is **false** by default for retro-compatibility and needs to be set to **true** to have the Agent query the SQLite database.
-    - ``podman_sqlite_db_path`` is the directory containing the ``db.sql`` file and defaults to ``/var/lib/containers/storage``.
+    Supports Podman newer versions (4.8+) using SQLite instead of BoltDB for the containers database backend. Setting ``podman_db_path`` to the path with the ``db.sql`` file (e.g. ``/var/lib/containers/storage/db.sql``) will make the Datadog Agent use the SQLite format.

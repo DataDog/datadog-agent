@@ -45,10 +45,7 @@ const (
 	sqliteOptionBusyTimeout = "&_busy_timeout=100000"
 
 	// Assembled sqlite options used when opening the database.
-	sqliteOptions = "db.sql?" +
-		sqliteOptionLocation +
-		sqliteOptionQueryOnly +
-		sqliteOptionBusyTimeout
+	sqliteOptions = "?" + sqliteOptionLocation + sqliteOptionQueryOnly + sqliteOptionBusyTimeout
 )
 
 // NewSQLDBClient returns a DB client that uses the DB stored in dbPath.
