@@ -56,7 +56,6 @@ const (
 )
 
 const serviceCheckName = "oracle.can_query"
-const canConnectServiceCheckName = "oracle.can_query"
 
 type hostingCode string
 

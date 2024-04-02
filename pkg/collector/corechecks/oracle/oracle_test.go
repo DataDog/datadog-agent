@@ -321,6 +321,8 @@ func TestLegacyMode(t *testing.T) {
 	err := c.Run()
 	require.NoError(t, err)
 
+	canConnectServiceCheckName := "oracle.can_query"
+
 	s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, "", []string{"server:localhost"}, "")
 	s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, "", []string{"server:localhost"}, "")
 
