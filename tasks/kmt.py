@@ -28,7 +28,13 @@ from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.system_probe import EMBEDDED_SHARE_DIR
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, DependenciesLayout, PathOrStr  # noqa: F401
+    from tasks.kernel_matrix_testing.types import (  # noqa: F401
+        Arch,
+        ArchOrLocal,
+        Component,
+        DependenciesLayout,
+        PathOrStr,
+    )
 
 try:
     from tabulate import tabulate
@@ -82,7 +88,7 @@ def gen_config(
     output_file: str = "vmconfig.json",
     from_ci_pipeline: Optional[str] = None,
     use_local_if_possible=False,
-    vmconfig_template="system-probe",
+    vmconfig_template: Component = "system-probe",
 ):
     """
     Generate a vmconfig.json file with the given VMs.
@@ -123,6 +129,7 @@ def gen_config_from_ci_pipeline(
     arch: str = "",
     output_file="vmconfig.json",
     vmconfig_template="system-probe",
+    test_job_prefix="sysprobe",
 ):
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
@@ -138,11 +145,7 @@ def gen_config_from_ci_pipeline(
     for job in gitlab.all_jobs(pipeline):
         name = job.get("name", "")
 
-        if (
-            (vcpu is None or memory is None)
-            and name.startswith("kernel_matrix_testing_setup_env")
-            and job["status"] == "success"
-        ):
+        if (vcpu is None or memory is None) and name.startswith("kmt_setup_env") and job["status"] == "success":
             arch = "x86_64" if "x64" in name else "arm64"
             vmconfig_name = f"vmconfig-{pipeline}-{arch}.json"
             info(f"[+] retrieving {vmconfig_name} for {arch} from job {name}")
@@ -168,7 +171,7 @@ def gen_config_from_ci_pipeline(
                 if vcpu is None and len(vcpu_list) > 0:
                     vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
-        elif name.startswith("kernel_matrix_testing_run") and job["status"] == "failed":
+        elif name.startswith(f"kmt_run_{test_job_prefix}") and job["status"] == "failed":
             arch = "x86" if "x64" in name else "arm64"
             match = re.search(r"\[(.*)\]", name)
 
@@ -218,19 +221,6 @@ def pause_stack(_, stack: Optional[str] = None):
 @task
 def resume_stack(_, stack: Optional[str] = None):
     stacks.resume_stack(stack)
-
-
-@task
-def stack(_, stack: Optional[str] = None):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-
-    infrastructure = build_infrastructure(stack, remote_ssh_key="")
-    for instance in infrastructure.values():
-        print(instance)
-        for vm in instance.microvms:
-            print(f"  {vm}")
 
 
 @task
