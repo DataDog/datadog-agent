@@ -1,5 +1,4 @@
 ---
-
 .updater_package_deb_common:
   before_script:
     - source /root/.bashrc
