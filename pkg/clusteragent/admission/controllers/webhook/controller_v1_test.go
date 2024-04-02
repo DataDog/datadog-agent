@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
 
-const waitFor = 5 * time.Second
+const waitFor = 10 * time.Second
 const tick = 50 * time.Millisecond
 
 var v1Cfg = NewConfig(true, false)
