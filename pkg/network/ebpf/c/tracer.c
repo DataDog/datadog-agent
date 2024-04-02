@@ -939,17 +939,17 @@ int kretprobe__tcp_connect(struct pt_regs *ctx) {
     conn_tuple_t tuple = {};    
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
     int err = 0;
-        int ret = PT_REGS_RC(ctx);
+    int ret = PT_REGS_RC(ctx);
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&skp->sk_err));
     if (err != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe/tcp_connect socket err:  %d", err); 
-        flush_tcp_failure(ctx, &tuple, ret);
+        flush_tcp_failure(ctx, &tuple, 998);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
         return 0;
     }
     if (ret != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe__tcp_connect: ret: %d", ret);
-        flush_tcp_failure(ctx, &tuple, ret);
+        flush_tcp_failure(ctx, &tuple, 999);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
         return 0;
     }
@@ -967,13 +967,13 @@ int kretprobe__tcp_v4_connect(struct pt_regs *ctx) {
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&skp->sk_err));
     if (err != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe/tcp_v4_connect socket err:  %d", err);
-        flush_tcp_failure(ctx, &tuple, ret);
+        flush_tcp_failure(ctx, &tuple, 997);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
         return 0;
     }
     if (ret != 0 && tcp_failed_connections_enabled()) {
         log_debug("adamk kretprobe__tcp_v4_connect: ret: %d", ret);
-        flush_tcp_failure(ctx, &tuple, ret);
+        flush_tcp_failure(ctx, &tuple, 996);
         bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
         return 0;
     }
