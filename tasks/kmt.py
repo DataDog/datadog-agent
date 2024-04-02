@@ -17,7 +17,7 @@ from invoke.tasks import task
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.compiler import build_compiler as build_cc
 from tasks.kernel_matrix_testing.compiler import compiler_running, docker_exec
-from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc
+from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc, CONTAINER_AGENT_PATH
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
@@ -365,7 +365,7 @@ def build_dependencies(
         ctx.run(f"cd {os.path.join(source_dir, directory)} && {command}", hide=(not verbose))
 
     def _exec_context(ctx, command, directory):
-        docker_exec(ctx, command, run_dir=f"/datadog-agent/{directory}", verbose=verbose)
+        docker_exec(ctx, command, run_dir=os.path.join(CONTAINER_AGENT_PATH, directory), verbose=verbose)
 
     exec_context = _exec_context
     if ci:
@@ -437,8 +437,8 @@ def prepare(
 
     docker_exec(
         ctx,
-        f"git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
-        run_dir="/datadog-agent",
+        f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
+        run_dir=CONTAINER_AGENT_PATH,
     )
 
     target_instances: List[HostInstance] = list()
@@ -597,9 +597,9 @@ def build(
 
     docker_exec(
         ctx,
-        "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build --no-bundle",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
     )
-    docker_exec(ctx, f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
+    docker_exec(ctx, f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
     for d in domains:
         d.copy(ctx, "./bin/system-probe", "/root")
         d.copy(ctx, f"kmt-deps/{stack}/shared.tar", "/")
@@ -613,7 +613,7 @@ def clean(ctx: Context, stack: Optional[str] = None, container=False, image=Fals
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    docker_exec(ctx, "inv -e system-probe.clean", run_dir="/datadog-agent")
+    docker_exec(ctx, "inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
