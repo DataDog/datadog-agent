@@ -6,9 +6,11 @@ import subprocess
 from collections import defaultdict
 from typing import Dict
 
+import gitlab
 import yaml
+from gitlab.v4.objects import ProjectJob
 
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.gitlab_api import get_gitlab_repo
 from tasks.libs.types import FailedJobs, Test
 
 
@@ -56,13 +58,16 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
     return error
 
 
-def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
+def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWNERS"):
+    repo = get_gitlab_repo(project_name)
     owners = read_owners(owners_file)
-    test_output = gitlab.artifact(job["id"], "test_output.json", ignore_not_found=True)
+    try:
+        test_output = str(repo.jobs.get(job.id, lazy=True).artifact('test_output.json'), 'utf-8')
+    except gitlab.exceptions.GitlabGetError:
+        test_output = ''
     failed_tests = {}  # type: dict[tuple[str, str], Test]
     if test_output:
-        for line in test_output.iter_lines():
+        for line in test_output.splitlines():
             json_test = json.loads(line)
             if 'Test' in json_test:
                 name = json_test['Test']
@@ -90,7 +95,7 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     owners_to_notify = defaultdict(FailedJobs)
 
     for job in failed_jobs.all_non_infra_failures():
-        job_owners = owners.of(job["name"])
+        job_owners = owners.of(job.name)
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-ci-experience')]
 
