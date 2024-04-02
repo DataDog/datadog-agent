@@ -52,16 +52,14 @@ const (
 
 // Options are the runner options.
 type Options struct {
+	types.ScannerConfig
 	ScannerID      types.ScannerID
 	DdEnv          string
 	Workers        int
 	ScannersMax    int
 	PrintResults   bool
-	NoFork         bool
-	DefaultActions []types.ScanAction
 	Statsd         ddogstatsd.ClientInterface
 	EventForwarder eventplatform.Component
-	ScannerConfig  *types.ScannerConfig
 }
 
 type scanRecord struct {
@@ -123,16 +121,16 @@ func New(opts Options) (*Runner, error) {
 }
 
 // Cleanup cleans up all the resources created by the runner.
-func (s *Runner) Cleanup(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, maxTTL time.Duration, region string, assumedRole types.CloudID) error {
-	toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, statsd, sc, maxTTL, region, assumedRole)
+func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole types.CloudID) error {
+	toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, s.Statsd, &s.ScannerConfig, maxTTL, region, assumedRole)
 	if err != nil {
 		return err
 	}
-	awsbackend.ResourcesCleanup(ctx, statsd, sc, toBeDeleted, region, assumedRole)
+	awsbackend.ResourcesCleanup(ctx, s.Statsd, &s.ScannerConfig, toBeDeleted, region, assumedRole)
 	return nil
 }
 
-func (s *Runner) cleanupProcess(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) {
+func (s *Runner) cleanupProcess(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
@@ -154,7 +152,7 @@ func (s *Runner) cleanupProcess(ctx context.Context, statsd ddogstatsd.ClientInt
 
 		if len(touched) > 0 {
 			for record := range touched {
-				if err := s.Cleanup(ctx, statsd, sc, defaultSnapshotsMaxTTL, record.Region, record.Role); err != nil {
+				if err := s.Cleanup(ctx, defaultSnapshotsMaxTTL, record.Region, record.Role); err != nil {
 					log.Warnf("cleanupProcess failed on region %q with role %q: %v", record.Region, record.Role, err)
 				}
 			}
@@ -183,7 +181,7 @@ func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-			config, err := types.UnmarshalConfig(rawConfig.Config, s.ScannerID, s.DefaultActions, s.ScannerConfig.DefaultRolesMapping)
+			config, err := types.UnmarshalConfig(rawConfig.Config, s.ScannerID, s.DefaultActions, s.DefaultRolesMapping)
 			if err != nil {
 				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
@@ -223,7 +221,7 @@ func (s *Runner) healthServer(ctx context.Context) error {
 
 // CleanSlate removes all the files, directories and cloud resources created
 // by the scanner that could still be present at startup.
-func (s *Runner) CleanSlate(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) error {
+func (s *Runner) CleanSlate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -318,13 +316,13 @@ func (s *Runner) CleanSlate(statsd ddogstatsd.ClientInterface, sc *types.Scanner
 				}
 			}
 		}
-		awsbackend.CleanSlate(ctx, statsd, sc, blockDevices, s.ScannerConfig.DefaultRolesMapping)
+		awsbackend.CleanSlate(ctx, s.Statsd, &s.ScannerConfig, blockDevices, s.ScannerConfig.DefaultRolesMapping)
 	}
 
 	return nil
 }
 
-func (s *Runner) init(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) (<-chan *types.ScanTask, chan<- *types.ScanTask, <-chan struct{}) {
+func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *types.ScanTask, <-chan struct{}) {
 	eventPlatform, found := s.EventForwarder.Get()
 	if found {
 		eventPlatform.Start()
@@ -343,7 +341,7 @@ func (s *Runner) init(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 		}
 	}()
 
-	go s.cleanupProcess(ctx, statsd, sc)
+	go s.cleanupProcess(ctx)
 
 	doneCh := make(chan struct{})
 	go func() {
@@ -393,20 +391,20 @@ func (s *Runner) init(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 }
 
 // Start starts the runner main loop.
-func (s *Runner) Start(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) {
-	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx, statsd, sc)
+func (s *Runner) Start(ctx context.Context) {
+	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx)
 
 	var wg sync.WaitGroup
 	wg.Add(s.Workers)
 	for i := 0; i < s.Workers; i++ {
 		go func(id int) {
 			w := NewWorker(id, WorkerOptions{
-				ScannerID:   s.ScannerID,
-				ScannersMax: s.ScannersMax,
-				NoFork:      s.NoFork,
-				Statsd:      s.Statsd,
+				ScannerConfig: s.ScannerConfig,
+				ScannerID:     s.ScannerID,
+				ScannersMax:   s.ScannersMax,
+				Statsd:        s.Statsd,
 			})
-			w.Run(ctx, statsd, sc, triggeredScansCh, finishedScansCh, s.resultsCh)
+			w.Run(ctx, triggeredScansCh, finishedScansCh, s.resultsCh)
 			wg.Done()
 		}(i)
 	}
@@ -443,8 +441,8 @@ func (s *Runner) Start(ctx context.Context, statsd ddogstatsd.ClientInterface, s
 
 // StartWithRemoteWorkers starts the runner main loop with remote workers. It
 // spawns an HTTP server to dispatch scan tasks to remote workers.
-func (s *Runner) StartWithRemoteWorkers(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) {
-	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx, statsd, sc)
+func (s *Runner) StartWithRemoteWorkers(ctx context.Context) {
+	triggeredScansCh, finishedScansCh, resultsDoneCh := s.init(ctx)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/scans", func(w http.ResponseWriter, req *http.Request) {

@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
@@ -45,7 +44,7 @@ func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *c
 			if err != nil {
 				return err
 			}
-			return localScanCmd(statsd, sc, resourceID, localFlags.Hostname, flags.GlobalFlags.DefaultActions, flags.GlobalFlags.DiskMode, flags.GlobalFlags.NoForkScanners)
+			return localScanCmd(statsd, sc, resourceID, localFlags.Hostname)
 		},
 	}
 
@@ -53,7 +52,7 @@ func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *c
 	return cmd
 }
 
-func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string, actions []types.ScanAction, diskMode types.DiskMode, noForkScanners bool) error {
+func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string) error {
 	ctx := common.CtxTerminated()
 
 	hostname := common.TryGetHostname(ctx)
@@ -68,23 +67,21 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 		scannerID,
 		targetHostname,
 		nil,
-		actions,
+		sc.DefaultActions,
 		sc.DefaultRolesMapping,
-		diskMode)
+		sc.DiskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
-		ScannerConfig:  sc,
-		ScannerID:      scannerID,
-		DdEnv:          sc.Env,
-		Workers:        1,
-		ScannersMax:    8,
-		PrintResults:   true,
-		NoFork:         noForkScanners,
-		DefaultActions: actions,
-		Statsd:         statsd,
+		ScannerConfig: *sc,
+		ScannerID:     scannerID,
+		DdEnv:         sc.Env,
+		Workers:       1,
+		ScannersMax:   8,
+		PrintResults:  true,
+		Statsd:        statsd,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -96,6 +93,6 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 		})
 		scanner.Stop()
 	}()
-	scanner.Start(ctx, statsd, sc)
+	scanner.Start(ctx)
 	return nil
 }
