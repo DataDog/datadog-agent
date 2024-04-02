@@ -243,7 +243,7 @@ func PatchEBPFInstrumentation(programs map[string]*ebpf.ProgramSpec, bpfTelemetr
 			if patchType == ebpfFetchTelemetryBlob {
 				for _, site := range sites {
 					if shouldSkip(p.Name) {
-						p.Instructions[site.index] = asm.LoadImm(asm.R0, 0, asm.DWord)
+						p.Instructions[site.index] = asm.Xor.Reg(asm.R0, asm.R0)
 					} else {
 						p.Instructions[site.index] = asm.LoadMem(asm.R0, asm.RFP, int16(512)*-1, asm.DWord)
 					}
