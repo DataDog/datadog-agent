@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package eventlog
+package windowsevent
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"

@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs/util/eventlog"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -86,8 +86,8 @@ func (t *Tailer) Identifier() string {
 	return Identifier(t.config.ChannelPath, t.config.Query)
 }
 
-func (t *Tailer) toMessage(m *eventlog.Map) (*message.Message, error) {
-	return eventlog.MapToMessage(m, t.source, t.config.ProcessRawMessage)
+func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
+	return windowsevent.MapToMessage(m, t.source, t.config.ProcessRawMessage)
 }
 
 // Start starts tailing the event log.
@@ -248,7 +248,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	}
 	xml := windows.UTF16ToString(xmlData)
 
-	m, err := eventlog.NewMapXML([]byte(xml))
+	m, err := windowsevent.NewMapXML([]byte(xml))
 	if err != nil {
 		log.Warnf("Error creating map from xml: %v", err)
 		return
@@ -286,7 +286,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 }
 
 // enrichEvent renders event record fields using EvtFormatMessage and adds them to the map.
-func (t *Tailer) enrichEvent(m *eventlog.Map, event evtapi.EventRecordHandle) error {
+func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle) error {
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
@@ -305,7 +305,7 @@ func (t *Tailer) enrichEvent(m *eventlog.Map, event evtapi.EventRecordHandle) er
 	}
 	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
 
-	eventlog.AddRenderedInfoToMap(m, t.evtapi, pm, event)
+	windowsevent.AddRenderedInfoToMap(m, t.evtapi, pm, event)
 
 	return nil
 }
