@@ -113,13 +113,11 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
 
             if post_channel:
                 recipient = channel
-                print(recipient, '->', str(message))
-                # send_slack_message(recipient, str(message))
+                send_slack_message(recipient, str(message))
 
+            # DM author
             if send_dm:
-                # DM author
                 author_email = get_git_author(email=True)
-                author_email = 'celian.raimbault@datadoghq.com'
                 recipient = email_to_slackid(ctx, author_email)
                 send_slack_message(recipient, str(message))
 

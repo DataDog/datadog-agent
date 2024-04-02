@@ -19,8 +19,7 @@ notify-on-tagged-success:
 notify:
   extends: .slack-notifier-base
   stage: notify
-  needs: ["github_rate_limit_info"]
-  # rules: !reference [.on_main_or_release_branch_or_deploy_always]
+  rules: !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
   tags: ["arch:amd64"]
   resource_group: notification
