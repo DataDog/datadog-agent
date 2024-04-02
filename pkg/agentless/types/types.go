@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,6 +36,18 @@ const (
 	ContainerMountPrefix = "containerd-"
 	// LambdaMountPrefix is the prefix for Lambda code data.
 	LambdaMountPrefix = "lambda-"
+)
+
+// CloudProvider represents a cloud provider.
+type CloudProvider string
+
+const (
+	// CloudProviderNone represents a non-cloud provider.
+	CloudProviderNone CloudProvider = "none"
+	// CloudProviderAWS represents the Amazon Web Services cloud provider.
+	CloudProviderAWS CloudProvider = "aws"
+	// CloudProviderAzure represents the Microsoft Azure cloud provider.
+	CloudProviderAzure CloudProvider = "azure"
 )
 
 // ConfigType is the type of the scan configuration
@@ -63,6 +76,20 @@ const (
 	// TaskTypeAzureDisk is the type of the scan for an Azure disk
 	TaskTypeAzureDisk TaskType = "disk"
 )
+
+var tasksByProvider = map[CloudProvider][]TaskType{
+	CloudProviderAWS: {
+		TaskTypeEBS,
+		TaskTypeAMI,
+		TaskTypeLambda,
+	},
+	CloudProviderAzure: {
+		TaskTypeAzureDisk,
+	},
+	CloudProviderNone: {
+		TaskTypeHost,
+	},
+}
 
 // ScanAction is the action to perform during the scan
 type ScanAction string
@@ -523,6 +550,10 @@ func NewScanTask(taskType TaskType, resourceID string, scanner ScannerID, target
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if !slices.Contains(tasksByProvider[targetID.Provider()], taskType) {
+		return nil, fmt.Errorf("task: invalid task type %q for cloud provider %q", taskType, targetID.Provider())
 	}
 
 	scan := ScanTask{
