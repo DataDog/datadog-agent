@@ -63,10 +63,15 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	if !config.Datadog.GetBool("podman_use_sqlite") {
-		c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
+	dbPath := config.Datadog.GetString("podman_db_path")
+
+	// As the containers database file is hard-coded in Podman (non-user customizable), the client to use is determined thanks to the file extension.
+	// If `podman_db_path` references a `db.sql` file, the SQLite client is used. Defaults to BoltDB client otherwise (`bolt_state.db`).
+	if strings.Contains(dbPath, "db.sql") {
+		log.Debugf("Using SQLite client for Podman DB as provided path contains db.sql")
+		c.client = podman.NewSQLDBClient(config.Datadog.GetString(dbPath))
 	} else {
-		c.client = podman.NewSQLDBClient(config.Datadog.GetString("podman_sqlite_db_path"))
+		c.client = podman.NewDBClient(config.Datadog.GetString(dbPath))
 	}
 	c.store = store
 

@@ -2863,20 +2863,11 @@ api_key:
   # listen_address: /var/vcap/data/garden/garden.sock
 
 ## @param podman_db_path - string - optional - default: /var/lib/containers/storage/libpod/bolt_state.db
+## @env DD_PODMAN_DB_PATH - string - optional - default: /var/lib/containers/storage/libpod/bolt_state.db
 ## Settings for Podman DB that Datadog Agent collects container metrics.
+## If using Podman 4.8+ with SQLite back-end, this parameter should be set to /var/lib/containers/storage/db.sql (rootfull containers).
 #
 # podman_db_path: /var/lib/containers/storage/libpod/bolt_state.db
-
-## @param podman_use_sqlite - boolean - optional - default: false
-## Set to true if Podman DB is SQLite (default in podman 4.8: https://github.com/containers/podman/blob/main/RELEASE_NOTES.md#480)
-#
-# podman_use_sqlite: false
-
-## @param podman_sqlite_db_path - string - optional - default: /var/lib/containers/storage
-## Directory with `db.sql` of Podman DB. The default value is for rootfull containers.
-## Rootless containers are stored in `$HOME/.local/share/containers/storage/` by default.
-#
-# podman_sqlite_db_path: /var/lib/containers/storage
 
 {{ end -}}
 {{- if .ClusterAgent }}
