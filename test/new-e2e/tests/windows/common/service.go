@@ -8,6 +8,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -176,4 +177,15 @@ func GetServiceAccountName(host *components.RemoteHost, service string) (string,
 	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").StartName", service)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
+}
+
+// GetServicePID returns the PID of the service
+func GetServicePID(host *components.RemoteHost, service string) (int, error) {
+	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").ProcessId", service)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return 0, err
+	}
+	out = strings.TrimSpace(out)
+	return strconv.Atoi(out)
 }

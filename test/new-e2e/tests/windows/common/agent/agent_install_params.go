@@ -12,18 +12,34 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
 )
 
 // InstallAgentParams are the parameters used for installing the Agent using msiexec.
 type InstallAgentParams struct {
-	AgentUser           string `installer_arg:"DDAGENTUSER_NAME"`
-	AgentUserPassword   string `installer_arg:"DDAGENTUSER_PASSWORD"`
-	Site                string `installer_arg:"SITE"`
-	DdURL               string `installer_arg:"DD_URL"`
-	APIKey              string `installer_arg:"APIKEY"`
+	Package *Package
+	// Path on local test runner to save the MSI install log
+	LocalInstallLogFile string
+
+	msi.InstallAgentParams
+	// Installer parameters
 	WixFailWhenDeferred string `installer_arg:"WIXFAILWHENDEFERRED"`
-	InstallLogFile      string
-	Package             *Package
+	// Installer parameters for agent config
+	APIKey                  string `installer_arg:"APIKEY"`
+	Tags                    string `installer_arg:"TAGS"`
+	Hostname                string `installer_arg:"HOSTNAME"`
+	CmdPort                 string `installer_arg:"CMD_PORT"`
+	ProxyHost               string `installer_arg:"PROXY_HOST"`
+	ProxyPort               string `installer_arg:"PROXY_PORT"`
+	ProxyUser               string `installer_arg:"PROXY_USER"`
+	ProxyPassword           string `installer_arg:"PROXY_PASSWORD"`
+	LogsDdURL               string `installer_arg:"LOGS_DD_URL"`
+	ProcessDdURL            string `installer_arg:"PROCESS_DD_URL"`
+	TraceDdURL              string `installer_arg:"TRACE_DD_URL"`
+	LogsEnabled             string `installer_arg:"LOGS_ENABLED"`
+	ProcessEnabled          string `installer_arg:"PROCESS_ENABLED"`
+	ProcessDiscoveryEnabled string `installer_arg:"PROCESS_DISCOVERY_ENABLED"`
+	APMEnabled              string `installer_arg:"APM_ENABLED"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -42,6 +58,8 @@ func (p *InstallAgentParams) toArgs() []string {
 			}
 		}
 	}
+	args = append(args, p.InstallAgentParams.ToArgs()...)
+
 	return args
 }
 
@@ -97,10 +115,10 @@ func WithValidAPIKey() InstallAgentOption {
 	}
 }
 
-// WithInstallLogFile specifies the file where to save the MSI install logs.
+// WithInstallLogFile specifies the file on the local test runner to save the MSI install logs.
 func WithInstallLogFile(logFileName string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
-		i.InstallLogFile = logFileName
+		i.LocalInstallLogFile = logFileName
 		return nil
 	}
 }
@@ -137,6 +155,118 @@ func WithFakeIntake(fakeIntake *components.FakeIntake) InstallAgentOption {
 func WithWixFailWhenDeferred() InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.WixFailWhenDeferred = "1"
+		return nil
+	}
+}
+
+// WithTags specifies the TAGS parameter.
+func WithTags(tags string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.Tags = tags
+		return nil
+	}
+}
+
+// WithHostname specifies the HOSTNAME parameter.
+func WithHostname(hostname string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.Hostname = hostname
+		return nil
+	}
+}
+
+// WithCmdPort specifies the CMD_PORT parameter.
+func WithCmdPort(cmdPort string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.CmdPort = cmdPort
+		return nil
+	}
+}
+
+// WithProxyHost specifies the PROXY_HOST parameter.
+func WithProxyHost(proxyHost string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyHost = proxyHost
+		return nil
+	}
+}
+
+// WithProxyPort specifies the PROXY_PORT parameter.
+func WithProxyPort(proxyPort string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyPort = proxyPort
+		return nil
+	}
+}
+
+// WithProxyUser specifies the PROXY_USER parameter.
+func WithProxyUser(proxyUser string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyUser = proxyUser
+		return nil
+	}
+}
+
+// WithProxyPassword specifies the PROXY_PASSWORD parameter.
+func WithProxyPassword(proxyPassword string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProxyPassword = proxyPassword
+		return nil
+	}
+}
+
+// WithLogsDdURL specifies the LOGS_DD_URL parameter.
+func WithLogsDdURL(logsDdURL string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.LogsDdURL = logsDdURL
+		return nil
+	}
+}
+
+// WithProcessDdURL specifies the PROCESS_DD_URL parameter.
+func WithProcessDdURL(processDdURL string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProcessDdURL = processDdURL
+		return nil
+	}
+}
+
+// WithTraceDdURL specifies the TRACE_DD_URL parameter.
+func WithTraceDdURL(traceDdURL string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.TraceDdURL = traceDdURL
+		return nil
+	}
+}
+
+// WithLogsEnabled specifies the LOGS_ENABLED parameter.
+func WithLogsEnabled(logsEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.LogsEnabled = logsEnabled
+		return nil
+	}
+}
+
+// WithProcessEnabled specifies the PROCESS_ENABLED parameter, which controls process_collection.
+func WithProcessEnabled(processEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProcessEnabled = processEnabled
+		return nil
+	}
+}
+
+// WithProcessDiscoveryEnabled specifies the PROCESS_DISCOVERY_ENABLED parameter.
+func WithProcessDiscoveryEnabled(processDiscoveryEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.ProcessDiscoveryEnabled = processDiscoveryEnabled
+		return nil
+	}
+}
+
+// WithAPMEnabled specifies the APM_ENABLED parameter.
+func WithAPMEnabled(apmEnabled string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.APMEnabled = apmEnabled
 		return nil
 	}
 }
