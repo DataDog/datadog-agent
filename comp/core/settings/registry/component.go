@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package settings defines the interface for the component that manage settings that can be changed at runtime
-package settings
+// Package registry defines the interface for the component that manage settings that can be changed at runtime
+package registry
 
 import (
 	"fmt"
@@ -36,6 +36,8 @@ type Component interface {
 	RuntimeSettings() map[string]RuntimeSetting
 	// GetRuntimeSetting returns the value of a runtime configurable setting
 	GetRuntimeSetting(setting string) (interface{}, error)
+	// SetRuntimeSetting changes the value of a runtime configurable setting
+	SetRuntimeSetting(setting string, value interface{}, source model.Source) error
 }
 
 // RuntimeSetting represents a setting that can be changed and read at runtime.

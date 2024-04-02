@@ -5,7 +5,7 @@
 
 //go:build test
 
-package settings
+package registry
 
 // Mock implements mock-specific methods.
 type Mock interface {
