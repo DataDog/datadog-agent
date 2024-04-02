@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -142,6 +143,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() flare.Component { return nil }),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
+			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() serverdebug.Component { return nil }),
 			fx.Provide(func() host.Component { return nil }),
 			fx.Provide(func() inventoryagent.Component { return nil }),

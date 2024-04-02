@@ -292,3 +292,9 @@ func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
 	return validateStringSchema(t, ad, "file:///schemas/activity_dump_proto.schema.json")
 }
+
+//nolint:deadcode,unused
+func validateMessageSchema(t *testing.T, msg string) bool {
+	t.Helper()
+	return validateStringSchema(t, msg, "file:///schemas/message.schema.json")
+}
