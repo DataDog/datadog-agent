@@ -2,52 +2,52 @@ import json
 import os
 import pathlib
 import unittest
+from typing import List
 from unittest.mock import MagicMock, patch
 
+from gitlab.v4.objects import ProjectJob, ProjectPipelineJobManager
 from invoke import MockContext, Result
 from invoke.exceptions import UnexpectedExit
 
 from tasks import notify
+from tasks.libs.common.gitlab_api import get_gitlab_repo
+
+
+def get_fake_jobs() -> List[ProjectJob]:
+    with open("tasks/unit-tests/testdata/jobs.json") as f:
+        jobs = json.load(f)
+    repo = get_gitlab_repo()
+    jobs = [ProjectJob(repo.manager, attrs=job) for job in jobs]
+
+    return jobs
 
 
 class TestSendMessage(unittest.TestCase):
-    @patch("requests.get")
-    def test_merge(self, get_mock):
-        with open("tasks/unit-tests/testdata/jobs.json") as f:
-            jobs = json.load(f)
-        job_list = {"json.return_value": jobs}
-        no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+    @patch.object(ProjectPipelineJobManager, 'list', autospec=True)
+    def test_merge(self, list_mock):
+        list_mock.side_effect = [get_fake_jobs(), []]
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
-        get_mock.assert_called()
+        list_mock.assert_called()
 
 
 class TestSendStats(unittest.TestCase):
-    @patch("requests.get")
+    @patch.object(ProjectPipelineJobManager, 'list', autospec=True)
     @patch("tasks.notify.create_count", new=MagicMock())
-    def test_nominal(self, get_mock):
-        with open("tasks/unit-tests/testdata/jobs.json") as f:
-            jobs = json.load(f)
-        job_list = {"json.return_value": jobs}
-        no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+    def test_nominal(self, list_mock):
+        list_mock.side_effect = [get_fake_jobs(), []]
         notify.send_stats(MockContext(), print_to_stdout=True)
-        get_mock.assert_called()
+        list_mock.assert_called()
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
-    @patch("requests.get")
-    def test_nominal(self, get_mock):
+    @patch.object(ProjectPipelineJobManager, 'list', autospec=True)
+    def test_nominal(self, list_mock):
         os.environ["CI_PIPELINE_ID"] = "456"
-        with open("tasks/unit-tests/testdata/jobs.json") as f:
-            jobs = json.load(f)
-        job_list = {"json.return_value": jobs}
-        no_jobs = {"json.return_value": ""}
-        get_mock.side_effect = [MagicMock(status_code=200, **job_list), MagicMock(status_code=200, **no_jobs)]
+        list_mock.side_effect = [get_fake_jobs(), []]
         notify.check_consistent_failures(
             MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
         )
-        get_mock.assert_called()
+        list_mock.assert_called()
 
 
 class TestRetrieveJobExecutionsCreated(unittest.TestCase):
@@ -85,8 +85,11 @@ class TestRetrieveJobExecutions(unittest.TestCase):
 class TestUpdateStatistics(unittest.TestCase):
     @patch('tasks.notify.get_failed_jobs')
     def test_nominal(self, mock_get_failed):
+        repo = get_gitlab_repo()
         failed_jobs = mock_get_failed.return_value
-        failed_jobs.all_failures.return_value = [{"name": "nifnif"}, {"name": "nafnaf"}]
+        failed_jobs.all_failures.return_value = [
+            ProjectJob(repo.manager, attrs=a) for a in [{"name": "nifnif"}, {"name": "nafnaf"}]
+        ]
         j = {
             "jobs": {
                 "nafnaf": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 0, 0, 0, 0, 0, 1, 1]},
@@ -107,8 +110,11 @@ class TestUpdateStatistics(unittest.TestCase):
 
     @patch('tasks.notify.get_failed_jobs')
     def test_multiple_failures(self, mock_get_failed):
+        repo = get_gitlab_repo()
         failed_jobs = mock_get_failed.return_value
-        failed_jobs.all_failures.return_value = [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
+        failed_jobs.all_failures.return_value = [
+            ProjectJob(repo.manager, attrs=a) for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
+        ]
         j = {
             "jobs": {
                 "poulidor": {"consecutive_failures": 8, "cumulative_failures": [0, 0, 1, 1, 1, 1, 1, 1, 1, 1]},
