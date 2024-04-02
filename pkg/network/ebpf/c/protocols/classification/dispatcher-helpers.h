@@ -49,19 +49,30 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
 
     u32 *tcp_seq = bpf_map_lookup_elem(&connection_states, tup);
 
-    // check if we've seen this TCP segment before. this can happen in the
-    // context of localhost traffic where the same TCP segment can be seen
-    // multiple times coming in and out from different interfaces.
-    //
-    // Note that when the sequence number is greater than the earlier packet,
-    // we don't know for sure that we saw the older segment since segments
-    // in between the previous and the current one could have been lost. But
-    // since we anyway don't do reassembly we can't handle such out-of-order
-    // segments properly if they arrive later. So just drop all older segments
-    // here since it helps on systems where groups of packets (a couple of
-    // TCP segments) are seen to often be duplicated.
-    if (tcp_seq != NULL && *tcp_seq >= skb_info->tcp_seq) {
-        return true;
+    if (tcp_seq != NULL) {
+        u32 old = *tcp_seq;
+        u32 new = skb_info->tcp_seq;
+
+        // Check if we've seen this TCP segment before. This can happen in the
+        // context of localhost traffic where the same TCP segment can be seen
+        // multiple times coming in and out from different interfaces.
+        if (new == old) {
+            return true;
+        }
+
+        // When the sequence number is greater than the earlier packet, we don't
+        // know for sure that we saw the older segment since segments in between
+        // the previous and the current one could have been lost. But since we
+        // anyway don't do reassembly we can't handle such out-of-order segments
+        // properly if they arrive later. So just drop all older segments here
+        // since it helps on systems where groups of packets (a couple of TCP
+        // segments) are seen to often be duplicated.
+        //
+        // This check handles wraparound of sequence numbers.
+        s32 diff = new - old;
+        if (diff < 0) {
+            return true;
+        }
     }
 
     bpf_map_update_elem(&connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
