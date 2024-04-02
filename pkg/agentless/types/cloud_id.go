@@ -219,7 +219,10 @@ func parseAWSARN(s string) (CloudID, error) {
 	if region != "" && !regionReg.MatchString(region) {
 		return CloudID{}, fmt.Errorf("bad cloud id %q: unexpected region (should be empty or match %s)", s, regionReg)
 	}
-	if accountID != "" && !accountIDReg.MatchString(accountID) {
+	if accountID == "" {
+		return CloudID{}, fmt.Errorf("bad cloud id %q: account ID is missing", s)
+	}
+	if !accountIDReg.MatchString(accountID) {
 		return CloudID{}, fmt.Errorf("bad cloud id %q: unexpected account ID (should match %s)", s, accountIDReg)
 	}
 	var resourceType ResourceType
