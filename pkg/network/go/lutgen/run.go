@@ -16,8 +16,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/go-delve/delve/pkg/goversion"
-
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/rungo"
 	"github.com/DataDog/datadog-agent/pkg/network/go/rungo/matrix"
 )
@@ -52,10 +51,9 @@ type LookupTableGenerator struct {
 // Binary wraps the information about a single compiled test binary
 // that is given to the inspection callback.
 type Binary struct {
-	Architecture    string
-	GoVersion       goversion.GoVersion
-	GoVersionString string
-	Path            string
+	Architecture string
+	GoVersion    goversion.GoVersion
+	Path         string
 }
 
 type architectureVersion struct {
@@ -90,7 +88,7 @@ func (g *LookupTableGenerator) Run(ctx context.Context, writer io.Writer) error 
 	})
 	log.Println("versions:")
 	for _, v := range sortedVersions {
-		log.Printf("- %s", versionToString(v))
+		log.Printf("- %s", v)
 	}
 
 	// Create a matrix runner to build the test program
@@ -148,7 +146,7 @@ func (g *LookupTableGenerator) getVersions(ctx context.Context) ([]goversion.GoV
 	// Parse each Go version to the struct form
 	allVersions := []goversion.GoVersion{}
 	for _, rawVersion := range allRawVersions {
-		if version, ok := goversion.Parse(fmt.Sprintf("go%s", rawVersion)); ok {
+		if version, err := goversion.NewGoVersion(rawVersion); err == nil {
 			allVersions = append(allVersions, version)
 		}
 	}
@@ -214,17 +212,15 @@ func (g *LookupTableGenerator) getAllBinaries() []Binary {
 }
 
 func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion.GoVersion, arch string) *exec.Cmd {
-	versionStr := versionToString(version)
-	outPath := filepath.Join(g.OutDirectory, fmt.Sprintf("%s.go%s", arch, versionStr))
+	outPath := filepath.Join(g.OutDirectory, fmt.Sprintf("%s.go%s", arch, version))
 
 	// Store the binary struct in a list so that it can later be opened.
 	// If the command ends up failing, this will be ignored
 	// and the entire lookup table generation will exit early.
 	g.addBinary(Binary{
-		Path:            outPath,
-		GoVersion:       version,
-		GoVersionString: versionStr,
-		Architecture:    arch,
+		Path:         outPath,
+		GoVersion:    version,
+		Architecture: arch,
 	})
 
 	command := exec.CommandContext(
@@ -285,7 +281,7 @@ func (g *LookupTableGenerator) inspectAllBinaries(ctx context.Context) (map[arch
 		case result := <-results:
 			if result.err != nil {
 				// Bail early and return
-				return nil, fmt.Errorf("error inspecting binary for (Go version, arch pair) (go%s, %s) at %q: %w", result.bin.GoVersionString, result.bin.Architecture, result.bin.Path, result.err)
+				return nil, fmt.Errorf("error inspecting binary for (Go version, arch pair) (go%s, %s) at %q: %w", result.bin.GoVersion, result.bin.Architecture, result.bin.Path, result.err)
 			}
 
 			resultTable[architectureVersion{result.bin.Architecture, result.bin.GoVersion}] = result.result
@@ -295,16 +291,4 @@ func (g *LookupTableGenerator) inspectAllBinaries(ctx context.Context) (map[arch
 	}
 
 	return resultTable, nil
-}
-
-func versionToString(v goversion.GoVersion) string {
-	// RC and beta versions always have Rev = 0
-	if v.RC > 0 {
-		return fmt.Sprintf("%d.%drc%d", v.Major, v.Minor, v.RC)
-	} else if v.Beta > 0 {
-		return fmt.Sprintf("%d.%dbeta%d", v.Major, v.Minor, v.Beta)
-	} else if v.Rev > 0 {
-		return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Rev)
-	}
-	return fmt.Sprintf("%d.%d", v.Major, v.Minor)
 }

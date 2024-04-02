@@ -20,9 +20,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/goversion"
-
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/lutgen"
 )
 
@@ -71,8 +70,8 @@ func main() {
 		log.Fatalf("unable to get absolute path to %q: %s", *outFlag, err)
 	}
 
-	minGoVersion, ok := goversion.Parse(fmt.Sprintf("go%s", *minGoVersionFlag))
-	if !ok {
+	minGoVersion, err := goversion.NewGoVersion(*minGoVersionFlag)
+	if err != nil {
 		log.Fatalf("unable to parse min Go version %q", *minGoVersionFlag)
 	}
 
