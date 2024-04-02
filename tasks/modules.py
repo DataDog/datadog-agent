@@ -186,6 +186,7 @@ DEFAULT_MODULES = {
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
+    "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
