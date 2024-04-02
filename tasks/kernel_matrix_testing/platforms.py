@@ -3,18 +3,17 @@ from __future__ import annotations
 import json
 import os
 import re
-import yaml
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, cast, Set
+from typing import TYPE_CHECKING, Dict, List, Set, cast
 
-from tasks.kernel_matrix_testing.tool import Exit, warn, debug, error
-from tasks.pipeline import GitlabYamlLoader
-
+import yaml
 from invoke.context import Context
 
+from tasks.kernel_matrix_testing.tool import Exit, debug, error, warn
+from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch, Component, Platforms, PlatformInfo  # noqa: F401
+    from tasks.kernel_matrix_testing.types import Arch, Component, PlatformInfo, Platforms  # noqa: F401
 
 
 platforms_file = "test/new-e2e/system-probe/config/platforms.json"
