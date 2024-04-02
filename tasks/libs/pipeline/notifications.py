@@ -10,7 +10,7 @@ import yaml
 
 from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.types.types import FailedJobs, Test
+from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
 
 
 def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> Dict[str, str]:
@@ -82,6 +82,11 @@ def get_failed_tests(project_name, job, owners_file=".github/CODEOWNERS"):
 def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> Dict[str, FailedJobs]:
     owners = read_owners(owners_file)
     owners_to_notify = defaultdict(FailedJobs)
+
+    # For e2e test infrastructure errors, notify the agent-e2e-testing team
+    for job in failed_jobs.mandatory_infra_job_failures:
+        if job.failure_type == FailedJobReason.E2E_INFRA_FAILURE:
+            owners_to_notify["@datadog/agent-e2e-testing"].add_failed_job(job)
 
     for job in failed_jobs.all_non_infra_failures():
         job_owners = owners.of(job["name"])
