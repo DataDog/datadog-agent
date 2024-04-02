@@ -656,7 +656,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 
-		if !ebpfLessEnabled {
+		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 				return testMod, err
 			}
@@ -768,7 +768,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if !ebpfLessEnabled {
+	if !disableTracePipe && !ebpfLessEnabled {
 		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 			return nil, err
 		}
