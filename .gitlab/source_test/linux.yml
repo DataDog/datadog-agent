@@ -236,3 +236,4 @@ go_mod_tidy_check:
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv -e check-mod-tidy
+    - inv -e check-go-mod-replaces
