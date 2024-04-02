@@ -419,8 +419,10 @@ def prepare(
         start_compiler(ctx)
 
     constrain_pkgs = ""
-    if not build_from_scratch:
-        constrain_pkgs = f"--packages={packages}"
+    if not build_from_scratch and packages != "":
+        packages_with_ebpf = packages.split(",")
+        packages_with_ebpf.append("./pkg/ebpf/bytecode")
+        constrain_pkgs = f"--packages={','.join(set(packages_with_ebpf))}"
 
     docker_exec(
         ctx,
