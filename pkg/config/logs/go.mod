@@ -10,9 +10,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.9.0
 )
