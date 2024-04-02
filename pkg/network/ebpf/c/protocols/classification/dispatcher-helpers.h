@@ -51,8 +51,16 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
 
     // check if we've seen this TCP segment before. this can happen in the
     // context of localhost traffic where the same TCP segment can be seen
-    // multiple times coming in and out from different interfaces
-    if (tcp_seq != NULL && *tcp_seq == skb_info->tcp_seq) {
+    // multiple times coming in and out from different interfaces.
+    //
+    // Note that when the sequence number is greater than the earlier packet,
+    // we don't know for sure that we saw the older segment since segments
+    // in between the previous and the current one could have been lost. But
+    // since we anyway don't do reassembly we can't handle such out-of-order
+    // segments properly if they arrive later. So just drop all older segments
+    // here since it helps on systems where groups of packets (a couple of
+    // TCP segments) are seen to often be duplicated.
+    if (tcp_seq != NULL && *tcp_seq >= skb_info->tcp_seq) {
         return true;
     }
 
