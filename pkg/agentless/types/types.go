@@ -116,33 +116,31 @@ const (
 
 // RolesMapping is the mapping of roles from accounts IDs to role IDs
 type RolesMapping struct {
-	Provider CloudProvider      `json:"Provider"`
-	Mapping  map[string]CloudID `json:"Mapping"`
+	Mapping map[string]CloudID `json:"Mapping"`
 }
 
 // NewRolesMapping creates a new roles mapping from a list of roles.
-func NewRolesMapping(provider CloudProvider, roles []CloudID) RolesMapping {
+func NewRolesMapping(roles []CloudID) RolesMapping {
 	m := make(map[string]CloudID, len(roles))
 	for _, role := range roles {
 		m[role.AccountID()] = role
 	}
 	return RolesMapping{
-		Provider: provider,
-		Mapping:  m,
+		Mapping: m,
 	}
 }
 
 // GetCloudIDRole returns the role for a cloud resource ID.
 func (r RolesMapping) GetCloudIDRole(id CloudID) CloudID {
-	return r.GetRole(id.AccountID())
+	return r.GetRole(id.Provider(), id.AccountID())
 }
 
 // GetRole returns the role cloud resource ID for an account ID.
-func (r RolesMapping) GetRole(accountID string) CloudID {
+func (r RolesMapping) GetRole(provider CloudProvider, accountID string) CloudID {
 	if r, ok := r.Mapping[accountID]; ok {
 		return r
 	}
-	switch r.Provider {
+	switch provider {
 	case CloudProviderNone:
 		return CloudID{}
 	case CloudProviderAzure:
@@ -154,7 +152,7 @@ func (r RolesMapping) GetRole(accountID string) CloudID {
 		}
 		return role
 	default:
-		panic(fmt.Sprintf("unexpected cloud provider %q", r.Provider))
+		panic(fmt.Sprintf("unexpected cloud provider %q", provider))
 	}
 }
 
@@ -493,7 +491,7 @@ func ParseDiskMode(diskMode string) (DiskMode, error) {
 
 // ParseRolesMapping parses a list of roles into a mapping from account ID to
 // role cloud resource ID.
-func ParseRolesMapping(provider CloudProvider, roles []string) (RolesMapping, error) {
+func ParseRolesMapping(roles []string) (RolesMapping, error) {
 	roleIDs := make([]CloudID, 0, len(roles))
 	for _, role := range roles {
 		roleID, err := ParseCloudID(role, ResourceTypeRole)
@@ -502,7 +500,7 @@ func ParseRolesMapping(provider CloudProvider, roles []string) (RolesMapping, er
 		}
 		roleIDs = append(roleIDs, roleID)
 	}
-	return NewRolesMapping(provider, roleIDs), nil
+	return NewRolesMapping(roleIDs), nil
 }
 
 // NewScanTask creates a new scan task.
@@ -648,7 +646,7 @@ func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanActi
 	}
 
 	if len(configRaw.Roles) > 0 {
-		config.Roles, err = ParseRolesMapping(scannerID.Provider, configRaw.Roles)
+		config.Roles, err = ParseRolesMapping(configRaw.Roles)
 		if err != nil {
 			return nil, err
 		}

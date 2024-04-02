@@ -62,7 +62,6 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 		return err
 	}
 	scannerID := types.NewScannerID(types.CloudProviderNone, hostname)
-	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderNone)
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),
@@ -70,13 +69,14 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 		targetHostname,
 		nil,
 		actions,
-		roles,
+		sc.DefaultRolesMapping,
 		diskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
+		ScannerConfig:  sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        1,
@@ -84,7 +84,6 @@ func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resour
 		PrintResults:   true,
 		NoFork:         noForkScanners,
 		DefaultActions: actions,
-		DefaultRoles:   roles,
 		Statsd:         statsd,
 	})
 	if err != nil {

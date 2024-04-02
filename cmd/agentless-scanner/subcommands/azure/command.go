@@ -153,7 +153,6 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 	scannerHostname := common.TryGetHostname(ctx)
 	scannerID := types.ScannerID{Hostname: scannerHostname, Provider: types.CloudProviderAzure}
 
-	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAzure)
 	cfg, err := azurebackend.GetConfigFromCloudID(ctx, resourceID)
 	if err != nil {
 		return err
@@ -165,7 +164,7 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 		resourceID.ResourceName(),
 		nil,
 		defaultActions,
-		roles,
+		sc.DefaultRolesMapping,
 		diskMode)
 	if err != nil {
 		return err
@@ -225,7 +224,6 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 	if err != nil {
 		return err
 	}
-	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAzure)
 	task, err := types.NewScanTask(
 		taskType,
 		resourceID.AsText(),
@@ -233,13 +231,14 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		targetName,
 		nil,
 		actions,
-		roles,
+		sc.DefaultRolesMapping,
 		diskMode)
 	if err != nil {
 		return err
 	}
 
 	scanner, err := runner.New(runner.Options{
+		ScannerConfig:  sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        1,
@@ -247,7 +246,6 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 		PrintResults:   true,
 		NoFork:         noForkScanners,
 		DefaultActions: actions,
-		DefaultRoles:   roles,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
@@ -282,8 +280,8 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 	}
 
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
-	roles := common.GetDefaultRolesMapping(sc, types.CloudProviderAzure)
 	scanner, err := runner.New(runner.Options{
+		ScannerConfig:  sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,
@@ -291,7 +289,6 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 		PrintResults:   printResults,
 		NoFork:         noForkScanners,
 		DefaultActions: actions,
-		DefaultRoles:   roles,
 		Statsd:         statsd,
 		EventForwarder: *evp,
 	})
@@ -341,7 +338,7 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 					*vm.ID,
 					nil, //ec2TagsToStringTags(instance.Tags),
 					actions,
-					roles,
+					sc.DefaultRolesMapping,
 					diskMode)
 				if err != nil {
 					return err
@@ -350,7 +347,7 @@ func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc 
 				if !scanner.PushConfig(ctx, &types.ScanConfig{
 					Type:  types.ConfigTypeAzure,
 					Tasks: []*types.ScanTask{scan},
-					Roles: roles,
+					Roles: sc.DefaultRolesMapping,
 				}) {
 					return nil
 				}

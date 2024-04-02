@@ -58,7 +58,6 @@ type Options struct {
 	ScannersMax    int
 	PrintResults   bool
 	NoFork         bool
-	DefaultRoles   types.RolesMapping
 	DefaultActions []types.ScanAction
 	Statsd         ddogstatsd.ClientInterface
 	EventForwarder eventplatform.Component
@@ -184,7 +183,7 @@ func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-			config, err := types.UnmarshalConfig(rawConfig.Config, s.ScannerID, s.DefaultActions, s.DefaultRoles)
+			config, err := types.UnmarshalConfig(rawConfig.Config, s.ScannerID, s.DefaultActions, s.ScannerConfig.DefaultRolesMapping)
 			if err != nil {
 				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
@@ -319,7 +318,7 @@ func (s *Runner) CleanSlate(statsd ddogstatsd.ClientInterface, sc *types.Scanner
 				}
 			}
 		}
-		awsbackend.CleanSlate(ctx, statsd, sc, blockDevices, s.DefaultRoles)
+		awsbackend.CleanSlate(ctx, statsd, sc, blockDevices, s.ScannerConfig.DefaultRolesMapping)
 	}
 
 	return nil

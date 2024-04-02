@@ -11,7 +11,7 @@ package types
 type ScannerConfig struct {
 	Env                 string
 	DogstatsdPort       int
-	DefaultRoles        []string
+	DefaultRolesMapping RolesMapping
 	AWSRegion           string
 	AWSEC2Rate          float64
 	AWSEBSListBlockRate float64

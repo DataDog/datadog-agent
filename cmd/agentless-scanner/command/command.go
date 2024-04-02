@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/flags"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/aws"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/azure"
@@ -87,7 +86,11 @@ func RootCommand() *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, config compconfig.Component, eventForwarder eventplatform.Component) error {
-					sc = getScannerConfig(config)
+					var err error
+					sc, err = getScannerConfig(config)
+					if err != nil {
+						return err
+					}
 					evp = eventForwarder
 					statsd = initStatsdClient(sc)
 					diskMode, err := types.ParseDiskMode(localFlags.diskModeStr)
@@ -185,6 +188,7 @@ func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eve
 
 	scannerID := types.NewScannerID(provider, hostname)
 	scanner, err := runner.New(runner.Options{
+		ScannerConfig:  sc,
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
 		Workers:        workers,
@@ -192,10 +196,8 @@ func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eve
 		PrintResults:   false,
 		NoFork:         noForkScanners,
 		DefaultActions: defaultActions,
-		DefaultRoles:   common.GetDefaultRolesMapping(sc, provider),
 		Statsd:         statsd,
 		EventForwarder: *evp,
-		ScannerConfig:  sc,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -280,15 +282,19 @@ func detectCloudProvider(s string) (types.CloudProvider, error) {
 	return types.ParseCloudProvider(s)
 }
 
-func getScannerConfig(c compconfig.Component) types.ScannerConfig {
+func getScannerConfig(c compconfig.Component) (types.ScannerConfig, error) {
+	defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
+	if err != nil {
+		return types.ScannerConfig{}, fmt.Errorf("could not parse default roles mapping: %w", err)
+	}
 	return types.ScannerConfig{
 		Env:                 c.GetString("env"),
 		DogstatsdPort:       c.GetInt("dogstatsd_port"),
-		DefaultRoles:        c.GetStringSlice("agentless_scanner.default_roles"),
+		DefaultRolesMapping: defaultRolesMapping,
 		AWSRegion:           c.GetString("agentless_scanner.aws_region"),
 		AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
 		AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
 		AWSEBSGetBlockRate:  c.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
 		AWSDefaultRate:      c.GetFloat64("agentless_scanner.limits.aws_default_rate"),
-	}
+	}, nil
 }

@@ -252,7 +252,7 @@ func AttachSnapshotWithVolume(ctx context.Context, statsd ddogstatsd.ClientInter
 		return err
 	}
 
-	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, statsd, sc, self.Region, scan.Roles.GetRole(self.AccountID)))
+	locaEC2Client := ec2.NewFromConfig(GetConfig(ctx, statsd, sc, self.Region, scan.Roles.GetRole(types.CloudProviderAWS, self.AccountID)))
 	if localSnapshotID.AccountID() != "" && localSnapshotID.AccountID() != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
 			SnapshotId:    aws.String(snapshotID.ResourceName()),
