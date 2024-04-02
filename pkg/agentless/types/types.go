@@ -658,34 +658,31 @@ func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction,
 	}
 }
 
-// UnmarshalAWSConfig unmarshals an AWS scan configuration from a JSON byte slice.
 func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
 	var configRaw AWSScanConfigRaw
 	err := json.Unmarshal(b, &configRaw)
 	if err != nil {
 		return nil, err
 	}
-
-	var config ScanConfig
-	switch configRaw.Type {
-	case string(ConfigTypeAWS):
-		config.Type = ConfigTypeAWS
-	case string(ConfigTypeAzure):
-		config.Type = ConfigTypeAzure
-	default:
-		return nil, fmt.Errorf("config: unexpected type %q", config.Type)
+	if configRaw.Type != string(ConfigTypeAWS) {
+		panic(fmt.Sprintf("unexpected config type %q", configRaw.Type))
 	}
 
+	var rolesMapping RolesMapping
 	if len(configRaw.Roles) > 0 {
-		config.Roles, err = ParseRolesMapping(configRaw.Roles)
+		rolesMapping, err = ParseRolesMapping(configRaw.Roles)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		config.Roles = defaultRolesMapping
+		rolesMapping = defaultRolesMapping
 	}
 
-	config.Tasks = make([]*ScanTask, 0, len(configRaw.Tasks))
+	config := ScanConfig{
+		Type:  ConfigTypeAWS,
+		Roles: rolesMapping,
+		Tasks: make([]*ScanTask, 0, len(configRaw.Tasks)),
+	}
 	for _, rawScan := range configRaw.Tasks {
 		var actions []ScanAction
 		if rawScan.Actions == nil {
@@ -707,9 +704,6 @@ func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanActi
 		var targetName string
 		var targetTags []string
 		switch scanType {
-		case TaskTypeHost:
-			targetName = rawScan.Hostname
-			targetTags = rawScan.HostTags
 		case TaskTypeEBS:
 			targetName = rawScan.Hostname
 			targetTags = rawScan.HostTags
@@ -719,8 +713,11 @@ func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanActi
 		case TaskTypeLambda:
 			targetName = rawScan.LambdaVersion
 			targetTags = rawScan.LambdaTags
+		default:
+			return nil, fmt.Errorf("config: invalid scan type %q for AWS", scanType)
 		}
-		scan, err := NewScanTask(scanType,
+		scan, err := NewScanTask(
+			scanType,
 			rawScan.TargetID,
 			scannerID,
 			targetName,
@@ -732,7 +729,7 @@ func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanActi
 		if err != nil {
 			return nil, err
 		}
-		if config.Type == ConfigTypeAWS && scan.TargetID.Provider() != CloudProviderAWS {
+		if scan.TargetID.Provider() != CloudProviderAWS {
 			return nil, fmt.Errorf("config: invalid cloud resource identifier %q: expecting cloud provider %s", rawScan.TargetID, CloudProviderAWS)
 		}
 		config.Tasks = append(config.Tasks, scan)
@@ -746,16 +743,15 @@ func unmarshalAzureConfig(b []byte, scannerID ScannerID, defaultActions []ScanAc
 	if err != nil {
 		return nil, err
 	}
+	if configRaw.Type != string(ConfigTypeAzure) {
+		panic(fmt.Sprintf("unexpected config type %q", configRaw.Type))
+	}
 
 	config := ScanConfig{
-		Type:  ConfigType(configRaw.Type),
+		Type:  ConfigTypeAzure,
 		Roles: defaultRolesMapping,
+		Tasks: make([]*ScanTask, 0, len(configRaw.Tasks)),
 	}
-	if config.Type != ConfigTypeAzure {
-		return nil, fmt.Errorf("config: unexpected type %q", configRaw.Type)
-	}
-
-	config.Tasks = make([]*ScanTask, 0, len(configRaw.Tasks))
 	for _, rawScan := range configRaw.Tasks {
 		var actions []ScanAction
 		if rawScan.Actions == nil {
@@ -780,8 +776,11 @@ func unmarshalAzureConfig(b []byte, scannerID ScannerID, defaultActions []ScanAc
 		case TaskTypeAzureDisk:
 			targetName = rawScan.Hostname
 			targetTags = rawScan.HostTags
+		default:
+			return nil, fmt.Errorf("config: invalid scan type %q for Azure", scanType)
 		}
-		scan, err := NewScanTask(scanType,
+		scan, err := NewScanTask(
+			scanType,
 			rawScan.TargetID,
 			scannerID,
 			targetName,
