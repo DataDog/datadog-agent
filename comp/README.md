@@ -4,6 +4,12 @@
 This file lists all components defined in this repository, with their package summary.
 Click the links for more documentation.
 
+## [comp/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package agent implements the "agent" bundle,
+
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
