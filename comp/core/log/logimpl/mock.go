@@ -61,6 +61,8 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (log.Component, error) {
 
 	// flush the seelog logger when the test app stops
 	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		// stop using the logger to avoid a race condition
+		pkglog.ChangeLogLevel(seelog.Default, "debug")
 		iface.Flush()
 		return nil
 	}})
