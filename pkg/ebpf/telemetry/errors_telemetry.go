@@ -37,11 +37,7 @@ const (
 	// a call -1 in the beginning of the bytecode sequence. This 'call -1' is referred to as the
 	// trampoline call or patch point.
 	ebpfEntryTrampolinePatchCall = -1
-	// This patch point is used to add the instruction to fetch the cached instrumentation pointer. We need this
-	// patched at load time because older verifiers cannot track the register type to be a map pointer when reading
-	// from a stack. As such these kernels do not support telemetry. In these cases the patch site is replaced with
-	// `r0 = 0` instruction. When telemetry is supported the patch site is replaced by `r0 = *(u64 *)(r10 - 512)`, i.e.
-	// it reads the cached map value.
+
 	ebpfPathTelemetryInc = -2
 )
 
