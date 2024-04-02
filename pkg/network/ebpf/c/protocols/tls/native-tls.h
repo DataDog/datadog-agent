@@ -154,6 +154,11 @@ int istio_uretprobe__SSL_read(struct pt_regs *ctx) {
     return SSL_read_ret(ctx, ISTIO);
 }
 
+SEC("uretprobe/SSL_read")
+int nodejs_uretprobe__SSL_read(struct pt_regs *ctx) {
+    return SSL_read_ret(ctx, NODEJS);
+}
+
 SEC("uprobe/SSL_write")
 int uprobe__SSL_write(struct pt_regs* ctx) {
     ssl_write_args_t args = {0};
@@ -207,6 +212,11 @@ int uretprobe__SSL_write(struct pt_regs* ctx) {
 SEC("uretprobe/SSL_write")
 int istio_uretprobe__SSL_write(struct pt_regs* ctx) {
     return SSL_write_ret(ctx, ISTIO);
+}
+
+SEC("uretprobe/SSL_write")
+int nodejs_uretprobe__SSL_write(struct pt_regs* ctx) {
+    return SSL_write_ret(ctx, NODEJS);
 }
 
 SEC("uprobe/SSL_read_ex")
@@ -278,6 +288,11 @@ int uretprobe__SSL_read_ex(struct pt_regs* ctx, __u64 tags) {
     return SSL_read_ex_ret(ctx, LIBSSL);
 }
 
+SEC("uretprobe/SSL_read_ex")
+int nodejs_uretprobe__SSL_read_ex(struct pt_regs *ctx) {
+    return SSL_read_ex_ret(ctx, NODEJS);
+}
+
 SEC("uprobe/SSL_write_ex")
 int uprobe__SSL_write_ex(struct pt_regs* ctx) {
     ssl_write_ex_args_t args = {0};
@@ -341,6 +356,11 @@ cleanup:
 SEC("uretprobe/SSL_write_ex")
 int uretprobe__SSL_write_ex(struct pt_regs* ctx) {
     return SSL_write_ex_ret(ctx, LIBSSL);
+}
+
+SEC("uretprobe/SSL_write_ex")
+int nodejs_uretprobe__SSL_write_ex(struct pt_regs *ctx) {
+    return SSL_write_ex_ret(ctx, NODEJS);
 }
 
 SEC("uprobe/SSL_shutdown")
