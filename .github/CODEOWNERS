@@ -202,13 +202,13 @@
 
 /docs/                                  @DataDog/documentation @DataDog/agent-developer-tools
 /docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
-/docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /docs/public/architecture/components/                        @DataDog/agent-shared-components
+/docs/public/architecture/dogstatsd/                         @DataDog/agent-metrics-logs
 /docs/public/guidelines/components/                          @DataDog/agent-shared-components
 /docs/public/how-to/components/                              @DataDog/agent-shared-components
 
@@ -233,6 +233,7 @@
 # The following is managed by `inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
+/comp/agent @DataDog/agent-shared-components
 /comp/aggregator @DataDog/agent-shared-components
 /comp/api @DataDog/agent-shared-components
 /comp/checks @DataDog/agent-shared-components

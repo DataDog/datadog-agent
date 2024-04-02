@@ -75,6 +75,43 @@ service_name: %s
 	return c, sender
 }
 
+func newLegacyCheck(t *testing.T, options string) (Check, *mocksender.MockSender) {
+	// The database user `datadog_legacy` is set up according to
+	// https://docs.datadoghq.com/integrations/guide/deprecated-oracle-integration/?tab=linux
+	return newTestCheck(t, "datadog_legacy", options)
+}
+
+func newTestCheck(t *testing.T, username string, options string) (Check, *mocksender.MockSender) {
+	c := Check{}
+	config := fmt.Sprintf(`
+server: %s
+port: %d
+username: %s
+password: %s
+service_name: %s
+`, HOST, PORT, username, PASSWORD, SERVICE_NAME)
+	if options != "" {
+		config = fmt.Sprintf(`%s
+%s`, config, options)
+	}
+	rawInstanceConfig := []byte(config)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	require.NoError(t, err)
+
+	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
+	sender.SetupAcceptAll()
+	assert.Equal(t, c.config.InstanceConfig.Server, HOST)
+	assert.Equal(t, c.config.InstanceConfig.Port, PORT)
+	assert.Equal(t, c.config.InstanceConfig.Username, username)
+	assert.Equal(t, c.config.InstanceConfig.Password, PASSWORD)
+	assert.Equal(t, c.config.InstanceConfig.ServiceName, SERVICE_NAME)
+
+	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+
+	return c, sender
+}
+
 func skipGodror() bool {
 	return os.Getenv("SKIP_GODROR_TESTS") == "1"
 }
