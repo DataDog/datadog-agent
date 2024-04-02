@@ -7,5 +7,5 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - Add startup timestamp to the host metadata payload.
+  - Add startup timestamp to the Agent metadata payload.
 

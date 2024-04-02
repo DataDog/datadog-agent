@@ -37,6 +37,7 @@ The payload is a JSON dict with the following fields
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
   - `agent_version` - **string**: the version of the Agent.
+  - `agent_startup_time_ms` - **int**: the Agent startup timestamp (Unix milliseconds timestamp).
   - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
     dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
   - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
