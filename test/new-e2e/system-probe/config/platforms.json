@@ -77,9 +77,7 @@
       "os_name": "Fedora Linux",
       "os_id": "fedora",
       "version": "37",
-      "alt_version_names": [
-        ""
-      ],
+      "alt_version_names": [],
       "kernel": "6.0.7-301.fc37"
     },
     "fedora_38": {
@@ -87,9 +85,7 @@
       "os_name": "Fedora Linux",
       "os_id": "fedora",
       "version": "38",
-      "alt_version_names": [
-        ""
-      ],
+      "alt_version_names": [],
       "kernel": "6.2.9-300.fc38"
     },
     "debian_10": {
@@ -239,9 +235,7 @@
       "os_name": "Fedora Linux",
       "os_id": "fedora",
       "version": "37",
-      "alt_version_names": [
-        ""
-      ],
+      "alt_version_names": [],
       "kernel": "6.0.7-301.fc37"
     },
     "fedora_38": {
@@ -249,9 +243,7 @@
       "os_name": "Fedora Linux",
       "os_id": "fedora",
       "version": "38",
-      "alt_version_names": [
-        ""
-      ],
+      "alt_version_names": [],
       "kernel": "6.2.9-300.fc38"
     },
     "debian_10": {
