@@ -96,6 +96,13 @@ class Gitlab(RemoteAPI):
 
         return sorted(pipelines, key=lambda pipeline: pipeline['created_at'], reverse=True)[0]
 
+    def last_pipelines(self):
+        """
+        Get the last 100 pipelines
+        """
+        path = f"/projects/{quote(self.project_name, safe='')}/pipelines?per_page=100&page=1"
+        return self.make_request(path, json_output=True)
+
     def trigger_pipeline(self, data):
         """
         Trigger a pipeline on a project using the trigger endpoint.
