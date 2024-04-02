@@ -50,13 +50,13 @@ func SetupEBSSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 			return scan.TargetID, nil
 		}
 		// Otherwise, copy the snapshot and tag it as an agentless snapshot.
-		return copySnapshot(ctx, statsd, scan, waiter, ec2client, scan.TargetID, snapshot)
+		return copySnapshot2(ctx, statsd, scan, waiter, ec2client, scan.TargetID, snapshot)
 	case types.ResourceTypeHostImage:
 		snapshotID, err := getAMIRootSnapshot(ctx, scan, waiter, ec2client, scan.TargetID)
 		if err != nil {
 			return types.CloudID{}, err
 		}
-		return CopySnapshot(ctx, statsd, scan, waiter, ec2client, snapshotID)
+		return copySnapshot(ctx, statsd, scan, waiter, ec2client, snapshotID)
 	default:
 		return types.CloudID{}, fmt.Errorf("ebs-volume: unexpected resource type for task %q: %q", scan.Type, scan.TargetID)
 	}
@@ -68,9 +68,9 @@ func SetupEBSSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 func SetupEBSVolume(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
 	switch scan.DiskMode {
 	case types.DiskModeVolumeAttach:
-		return AttachSnapshotWithVolume(ctx, statsd, sc, scan, waiter, snapshotID)
+		return attachSnapshotWithVolume(ctx, statsd, sc, scan, waiter, snapshotID)
 	case types.DiskModeNBDAttach:
-		return AttachSnapshotWithNBD(ctx, statsd, sc, scan, snapshotID)
+		return attachSnapshotWithNBD(ctx, statsd, sc, scan, snapshotID)
 	case types.DiskModeNoAttach:
 		return fmt.Errorf("ebs-volume: could not setup volume in no attach mode defined for task %q", scan)
 	default:
@@ -156,17 +156,17 @@ func CreateSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan
 	}
 }
 
-// CopySnapshot copies an EBS snapshot.
-func CopySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
+// copySnapshot copies an EBS snapshot.
+func copySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID) (types.CloudID, error) {
 	poll := <-waiter.Wait(ctx, snapshotID, ec2client)
 	if err := poll.Err; err != nil {
 		return types.CloudID{}, err
 	}
 	snapshot := *poll.Snapshot
-	return copySnapshot(ctx, statsd, scan, waiter, ec2client, snapshotID, snapshot)
+	return copySnapshot2(ctx, statsd, scan, waiter, ec2client, snapshotID, snapshot)
 }
 
-func copySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID, snapshot ec2types.Snapshot) (types.CloudID, error) {
+func copySnapshot2(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, waiter *ResourceWaiter, ec2client *ec2.Client, snapshotID types.CloudID, snapshot ec2types.Snapshot) (types.CloudID, error) {
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return types.CloudID{}, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
@@ -210,9 +210,9 @@ func copySnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *
 	return copiedSnapshotID, nil
 }
 
-// AttachSnapshotWithNBD attaches the given snapshot to the instance using a
+// attachSnapshotWithNBD attaches the given snapshot to the instance using a
 // Network Block Device (NBD).
-func AttachSnapshotWithNBD(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, snapshotID types.CloudID) error {
+func attachSnapshotWithNBD(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, snapshotID types.CloudID) error {
 	ebsclient := ebs.NewFromConfig(GetConfigFromCloudID(ctx, statsd, sc, scan.Roles, scan.TargetID))
 	device, ok := devices.NextNBD()
 	if !ok {
@@ -233,9 +233,9 @@ func AttachSnapshotWithNBD(ctx context.Context, statsd ddogstatsd.ClientInterfac
 	return nil
 }
 
-// AttachSnapshotWithVolume attaches the given snapshot to the instance as a
+// attachSnapshotWithVolume attaches the given snapshot to the instance as a
 // new volume.
-func AttachSnapshotWithVolume(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
+func attachSnapshotWithVolume(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, waiter *ResourceWaiter, snapshotID types.CloudID) error {
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
@@ -244,7 +244,7 @@ func AttachSnapshotWithVolume(ctx context.Context, statsd ddogstatsd.ClientInter
 	remoteEC2Client := ec2.NewFromConfig(GetConfigFromCloudID(ctx, statsd, sc, scan.Roles, snapshotID))
 	var localSnapshotID types.CloudID
 	if snapshotID.Region() != self.Region {
-		localSnapshotID, err = CopySnapshot(ctx, statsd, scan, waiter, remoteEC2Client, snapshotID)
+		localSnapshotID, err = copySnapshot(ctx, statsd, scan, waiter, remoteEC2Client, snapshotID)
 	} else {
 		localSnapshotID = snapshotID
 	}
