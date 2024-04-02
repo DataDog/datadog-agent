@@ -40,7 +40,6 @@ import (
 
 // WorkerOptions holds the configuration for a worker.
 type WorkerOptions struct {
-	types.ScannerConfig
 	ScannerID   types.ScannerID
 	ScannersMax int
 	Statsd      ddogstatsd.ClientInterface
@@ -48,6 +47,7 @@ type WorkerOptions struct {
 
 // Worker is a worker that runs scans.
 type Worker struct {
+	types.ScannerConfig
 	WorkerOptions
 
 	id       int
@@ -56,8 +56,9 @@ type Worker struct {
 }
 
 // NewWorker creates a new worker.
-func NewWorker(id int, opts WorkerOptions) *Worker {
+func NewWorker(id int, config types.ScannerConfig, opts WorkerOptions) *Worker {
 	return &Worker{
+		ScannerConfig: config,
 		WorkerOptions: opts,
 		id:            id,
 	}

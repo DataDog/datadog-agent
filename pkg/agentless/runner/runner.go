@@ -52,7 +52,6 @@ const (
 
 // Options are the runner options.
 type Options struct {
-	types.ScannerConfig
 	ScannerID      types.ScannerID
 	DdEnv          string
 	Workers        int
@@ -69,6 +68,7 @@ type scanRecord struct {
 
 // Runner is the main agentless-scanner runner that schedules scanning tasks.
 type Runner struct {
+	types.ScannerConfig
 	Options
 
 	findingsReporter *LogReporter
@@ -86,7 +86,7 @@ type Runner struct {
 }
 
 // New creates a new runner.
-func New(opts Options) (*Runner, error) {
+func New(config types.ScannerConfig, opts Options) (*Runner, error) {
 	if opts.ScannerID == (types.ScannerID{}) {
 		panic("programmer error: empty ScannerID option")
 	}
@@ -398,11 +398,10 @@ func (s *Runner) Start(ctx context.Context) {
 	wg.Add(s.Workers)
 	for i := 0; i < s.Workers; i++ {
 		go func(id int) {
-			w := NewWorker(id, WorkerOptions{
-				ScannerConfig: s.ScannerConfig,
-				ScannerID:     s.ScannerID,
-				ScannersMax:   s.ScannersMax,
-				Statsd:        s.Statsd,
+			w := NewWorker(id, s.ScannerConfig, WorkerOptions{
+				ScannerID:   s.ScannerID,
+				ScannersMax: s.ScannersMax,
+				Statsd:      s.Statsd,
 			})
 			w.Run(ctx, triggeredScansCh, finishedScansCh, s.resultsCh)
 			wg.Done()
