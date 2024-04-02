@@ -72,6 +72,7 @@ func getToolVersion() (string, string) {
 		if err == nil {
 			version = toolVersion
 		}
+		return tool, version
 	}
 	if _, err := exec.LookPath("rpm"); err == nil {
 		tool = "rpm"
