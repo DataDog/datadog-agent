@@ -249,6 +249,8 @@ variables:
   EXECUTOR_JOB_SECTION_ATTEMPTS: 2
   GET_SOURCES_ATTEMPTS: 2
   RESTORE_CACHE_ATTEMPTS: 2
+  # Feature flags
+  FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
 
 #
 # Condition mixins for simplification of rules
