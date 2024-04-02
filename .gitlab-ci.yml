@@ -258,9 +258,6 @@ variables:
 .if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "main"
 
-.if_not_main_branch: &if_not_main_branch
-  if: $CI_COMMIT_BRANCH != "main"
-
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
 
@@ -284,9 +281,6 @@ variables:
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
-
-.if_not_nightly_repo_branch: &if_not_nightly_repo_branch
-  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly"
 
 .if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
   if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
@@ -350,21 +344,15 @@ variables:
 .if_run_all_unit_tests: &if_run_all_unit_tests
   if: $RUN_UNIT_TESTS == "on"
 
-.if_auto_unit_tests: &if_auto_unit_tests
-  if: $RUN_UNIT_TESTS == "auto"
-
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
-
-.if_deploy_on_stable_repo_branch: &if_deploy_on_stable_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "stable"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
 # Note: due to workflow rules, rc tag => deploy pipeline, so there's technically no
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
-.if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
+.if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 .if_scheduled_main: &if_scheduled_main
@@ -482,18 +470,8 @@ workflow:
   - <<: *if_tagged_commit
   - <<: *if_version_7
 
-.on_tag_or_a7_all_builds:
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_tagged_commit
-  - <<: *if_version_7
-
 .on_deploy:
   - <<: *if_deploy
-
-.on_deploy_failure:
-  - <<: *if_deploy
-    when: on_failure
 
 .on_deploy_a6:
   - <<: *if_not_version_6
@@ -505,84 +483,6 @@ workflow:
     when: never
   - <<: *if_deploy
     when: on_failure
-
-.on_deploy_a6_rc:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-.on_deploy_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
-# Same as on_deploy_a6_manual, except the job would not run on pipelines
-# using beta branch, it would only run for the final release.
-.on_deploy_a6_manual_final:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
-# This rule is a variation of on_deploy_a6_manual where
-# the job is usually run manually, except when the pipeline
-# builds an RC: in this case, the job is run automatically.
-# This is done to reduce the number of manual steps that have
-# to be done when creating RCs.
-.on_deploy_a6_manual_auto_on_rc:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
 
 .on_deploy_a7:
   - <<: *if_not_version_7
@@ -600,27 +500,8 @@ workflow:
     when: never
   - <<: *if_not_deploy
     when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-.on_deploy_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
@@ -681,7 +562,7 @@ workflow:
       AGENT_REPOSITORY: agent-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
@@ -704,7 +585,7 @@ workflow:
     when: never
   - <<: *if_not_deploy
     when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
@@ -750,22 +631,6 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_stable_or_beta_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
 .on_deploy_stable_or_beta_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
@@ -778,45 +643,6 @@ workflow:
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
     when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
-.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-  - <<: *if_deploy_on_stable_repo_branch
-    when: on_success
-  - when: never
-
-.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7_manual_on_stable:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-  - <<: *if_deploy_on_stable_repo_branch
-    when: manual
-    allow_failure: true
-  - when: never
-
-# This rule is a variation of on_deploy_stable_or_beta_repo_branch_a7_manual where
-# the job is usually run manually, except when the pipeline
-# builds an RC: in this case, the job is run automatically.
-# This is done to reduce the number of manual steps that have
-# to be done when creating RCs.
-.on_deploy_stable_or_beta_repo_branch_a7_manual_auto_on_rc:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
   - <<: *if_deploy
     when: manual
     allow_failure: true
@@ -834,15 +660,6 @@ workflow:
     allow_failure: true
   - when: on_success
 
-.on_deploy_stable_repo_branch_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
 .except_deploy:
   - <<: *if_deploy
     when: never
@@ -851,20 +668,6 @@ workflow:
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
     when: never
-
-.on_a6_except_deploy:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-    when: never
-  - when: on_success
-
-.on_a7_except_deploy:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    when: never
-  - when: on_success
 
 .on_main_or_release_branch:
   - <<: *if_main_branch
@@ -1127,50 +930,6 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.always_on_container_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_run_all_e2e_tests
-    when: always
-  - <<: *if_main_branch
-    when: always
-  - <<: *if_release_branch
-    when: always
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: always
-  - changes:
-      paths:
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - changes:
-      paths:
-        - comp/core/tagger/**/*
-        - comp/core/workloadmeta/**/*
-        - comp/core/autodiscovery/listeners/**/*
-        - comp/core/autodiscovery/providers/**/*
-        - pkg/collector/corechecks/cluster/**/*
-        - pkg/collector/corechecks/containers/**/*
-        - pkg/collector/corechecks/containerimage/**/*
-        - pkg/collector/corechecks/containerlifecycle/**/*
-        - pkg/collector/corechecks/kubernetes/**/*
-        - pkg/collector/corechecks/sbom/**/*
-        - pkg/util/clusteragent/**/*
-        - pkg/util/containerd/**/*
-        - pkg/util/containers/**/*
-        - pkg/util/docker/**/*
-        - pkg/util/ecs/**/*
-        - pkg/util/kubernetes/**/*
-        - pkg/util/cgroups/**/*
-        - test/new-e2e/tests/containers/**/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: always
-  - when: manual
-    allow_failure: true
-
 .on_container_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1207,22 +966,6 @@ workflow:
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
-
-.on_any_kmt_test_component_or_manual:
-  - <<: *if_main_branch
-  - <<: *if_run_all_kmt_tests
-  - <<: *if_mergequeue
-    when: never
-  - changes:
-      paths: *system_probe_change_paths
-      compare_to: main
-    when: on_success
-  - changes:
-      paths: *security_agent_change_paths
-      compare_to: main
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -1304,17 +1047,6 @@ workflow:
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
-    allow_failure: true
-
-.on_install_script_release_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_main_branch
-    when: never
-  - <<: *if_installer_tests
-    when: manual
     allow_failure: true
 
 .on_apm_or_e2e_changes_or_manual:
