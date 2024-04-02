@@ -42,7 +42,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestProcess",
 			"~TestOpen",
 			"~TestUnlink",
-			"~KillAction",
+			"~TestActionKill",
 			"~TestRmdir",
 			"~TestRename",
 			"~TestMkdir",
