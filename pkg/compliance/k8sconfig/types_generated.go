@@ -103,7 +103,7 @@ func (l *loader) newK8sKubeApiserverConfig(flags map[string]string) *K8sKubeApis
 	}
 	if v, ok := flags["--audit-policy-file"]; ok {
 		delete(flags, "--audit-policy-file")
-		res.AuditPolicyFile = l.loadConfigFileMeta(v)
+		res.AuditPolicyFile, _ = l.loadConfigFileMeta(v)
 	}
 	if v, ok := flags["--authorization-mode"]; ok {
 		delete(flags, "--authorization-mode")
@@ -300,11 +300,11 @@ func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSche
 	var res K8sKubeSchedulerConfig
 	if v, ok := flags["--config"]; ok {
 		delete(flags, "--config")
-		res.Config = l.loadConfigFileMeta(v)
+		res.Config, _ = l.loadConfigFileMeta(v)
 	}
 	if v, ok := flags["--authentication-kubeconfig"]; ok {
 		delete(flags, "--authentication-kubeconfig")
-		res.AuthenticationKubeconfig = l.loadKubeconfigMeta(v)
+		res.AuthenticationKubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--authorization-kubeconfig"]; ok {
 		delete(flags, "--authorization-kubeconfig")
@@ -331,7 +331,7 @@ func (l *loader) newK8sKubeSchedulerConfig(flags map[string]string) *K8sKubeSche
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--profiling"]; ok {
 		delete(flags, "--profiling")
@@ -434,7 +434,7 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	var res K8sKubeControllerManagerConfig
 	if v, ok := flags["--authentication-kubeconfig"]; ok {
 		delete(flags, "--authentication-kubeconfig")
-		res.AuthenticationKubeconfig = l.loadKubeconfigMeta(v)
+		res.AuthenticationKubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--authorization-kubeconfig"]; ok {
 		delete(flags, "--authorization-kubeconfig")
@@ -469,7 +469,7 @@ func (l *loader) newK8sKubeControllerManagerConfig(flags map[string]string) *K8s
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--profiling"]; ok {
 		delete(flags, "--profiling")
@@ -578,7 +578,7 @@ func (l *loader) newK8sKubeProxyConfig(flags map[string]string) *K8sKubeProxyCon
 	var res K8sKubeProxyConfig
 	if v, ok := flags["--config"]; ok {
 		delete(flags, "--config")
-		res.Config = l.loadConfigFileMeta(v)
+		res.Config, _ = l.loadConfigFileMeta(v)
 	}
 	if v, ok := flags["--bind-address"]; ok {
 		delete(flags, "--bind-address")
@@ -601,7 +601,7 @@ func (l *loader) newK8sKubeProxyConfig(flags map[string]string) *K8sKubeProxyCon
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--profiling"]; ok {
 		delete(flags, "--profiling")
@@ -709,11 +709,11 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	}
 	if v, ok := flags["--image-credential-provider-config"]; ok {
 		delete(flags, "--image-credential-provider-config")
-		res.ImageCredentialProviderConfig = l.loadConfigFileMeta(v)
+		res.ImageCredentialProviderConfig, _ = l.loadConfigFileMeta(v)
 	}
 	if v, ok := flags["--kubeconfig"]; ok {
 		delete(flags, "--kubeconfig")
-		res.Kubeconfig = l.loadKubeconfigMeta(v)
+		res.Kubeconfig, _ = l.loadKubeconfigMeta(v)
 	}
 	if v, ok := flags["--make-iptables-util-chains"]; ok {
 		delete(flags, "--make-iptables-util-chains")

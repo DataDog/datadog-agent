@@ -33,80 +33,29 @@ add_user_and_group() {
 set -e
 case "$1" in
     configure)
+        add_user_and_group 'dd-updater' $PACKAGES_DIR
         add_user_and_group 'dd-agent' $PACKAGES_DIR/datadog-agent
+        usermod -aG dd-agent dd-updater
     ;;
     abort-upgrade|abort-remove|abort-deconfigure)
     ;;
     *)
     ;;
 esac
-#DEBHELPER#
-
-# Set the installation information if not already present;
-# This is done in posttrans for .rpm packages
-if [ ! -f "$CONFIG_DIR/install_info" ]; then
-
-    if command -v dpkg >/dev/null 2>&1 && command -v dpkg-query >/dev/null 2>&1; then
-        tool=dpkg
-        tool_version=dpkg-$(dpkg-query --showformat='${Version}' --show dpkg  | cut -d "." -f 1-3 || echo "unknown")
-    else
-        tool=unknown
-        tool_version=unknown
-    fi
-
-    install_info_content="---
-install_method:
-  tool: $tool
-  tool_version: $tool_version
-  installer_version: deb_package
-  installer: updater
-"
-    echo "$install_info_content" > $CONFIG_DIR/install_info
-fi
-
-set +e
-generate_install_id()
-{
-    # Try generating a UUID based on /proc/sys/kernel/random/uuid
-    uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null)
-    # If that does not work, then try uuidgen
-    if [ ${#uuid} -ne 36 ]; then
-        uuid=$(uuidgen 2>/dev/null)
-    fi
-    # Convert to lowercase
-    uuid=$(echo "$uuid" | tr '[:upper:]' '[:lower:]')
-    printf "$uuid"
-}
-
-generate_install_signature()
-{
-    install_id="$1"
-    install_type="$2"
-    install_time="$3"
-    printf "{\"install_id\":\"$install_id\",\"install_type\":\"$install_type\",\"install_time\":$install_time}"
-}
-
-if [ ! -f "$CONFIG_DIR/install.json" ]; then
-    install_id=$(generate_install_id)
-    install_type="manual_update_via_apt"
-    install_time=$(date +%s)
-    install_signature=$(generate_install_signature "$install_id" "$install_type" "$install_time")
-    echo "$install_signature" > $CONFIG_DIR/install.json
-    chown -R dd-agent:dd-agent ${CONFIG_DIR}
-fi
-set -e
 
 # Set proper rights to the dd-agent user
 chown -R dd-agent:dd-agent ${CONFIG_DIR}
+chmod -R g+rw ${CONFIG_DIR}
 chown -R dd-agent:dd-agent ${LOG_DIR}
-chown -R dd-agent:dd-agent ${INSTALL_DIR}
-chown -R dd-agent:dd-agent ${PACKAGES_DIR}
-chown -R dd-agent:dd-agent ${PACKAGES_LOCK_DIR}
+chmod -R g+rw ${LOG_DIR}
+chown -R dd-updater:dd-updater ${INSTALL_DIR}
+chown -R dd-updater:dd-updater ${PACKAGES_DIR}
+chown -R dd-updater:dd-updater ${PACKAGES_LOCK_DIR}
 
 chmod -R 755 ${PACKAGES_DIR}
-# Lock_dir is world writable as any application with a tracer injected
-# needs to write the PID
-chown -R 666 ${PACKAGES_LOCK_DIR}
+# Lock_dir is world read/write/x as any application with a tracer injected
+# needs to write PID files
+chmod -R 777 ${PACKAGES_LOCK_DIR}
 
 # Make system-probe configs read-only
 chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
@@ -133,8 +82,6 @@ chmod 750 ${UPDATER_HELPER}
 setcap cap_setuid+ep ${UPDATER_HELPER}
 
 $INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent
-# Bootstrap installs first agent with root ownership, overriding to dd-agent
-chown -R dd-agent:dd-agent ${PACKAGES_DIR}
 
 # start updater
 SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true

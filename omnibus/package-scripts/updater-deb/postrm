@@ -16,18 +16,16 @@ case "$1" in
     purge)
         echo "Deleting dd-agent user"
         deluser dd-agent --quiet
+        deluser dd-updater --quiet
         echo "Deleting dd-agent group"
         (getent group dd-agent >/dev/null && delgroup dd-agent --quiet) || true
+        (getent group dd-updater >/dev/null && delgroup dd-updater --quiet) || true
         echo "Force-deleting $INSTALL_DIR"
         rm -rf $INSTALL_DIR
         rm -rf $LOG_DIR
         rm -rf $CONFIG_DIR
         rm -rf $PACKAGES_DIR
         rm -rf $PACKAGES_LOCK_DIR
-    ;;
-    remove)
-        rm "$CONFIG_DIR/install_info" || true
-        rm "$CONFIG_DIR/install.json" || true
     ;;
     *)
     ;;

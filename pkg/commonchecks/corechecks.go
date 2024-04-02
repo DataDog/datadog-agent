@@ -72,7 +72,7 @@ func RegisterChecks(store workloadmeta.Component) {
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory())
 	corecheckLoader.RegisterCheck(ebpf.CheckName, ebpf.Factory())
-	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory())
+	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store))
 	corecheckLoader.RegisterCheck(oomkill.CheckName, oomkill.Factory())
 	corecheckLoader.RegisterCheck(tcpqueuelength.CheckName, tcpqueuelength.Factory())
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
