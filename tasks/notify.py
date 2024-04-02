@@ -111,7 +111,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
                 recipient = channel
             else:
                 # DM author
-                author_email = get_git_author(format='ae')
+                author_email = get_git_author(email=True)
                 recipient = email_to_slackid(ctx, author_email)
 
             send_slack_message(recipient, str(message))

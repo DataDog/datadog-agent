@@ -126,7 +126,9 @@ def base_message(header, state):
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
 
 
-def get_git_author(format='an'):
+def get_git_author(email=False):
+    format = 'ae' if email else 'an'
+
     return (
         subprocess.check_output(["git", "show", "-s", f"--format='%{format}'", "HEAD"])
         .decode('utf-8')
