@@ -20,12 +20,6 @@ type SettingNotFoundError struct {
 	Name string
 }
 
-// RuntimeSettingResponse is used to communicate settings config
-type RuntimeSettingResponse struct {
-	Description string
-	Hidden      bool
-}
-
 func (e *SettingNotFoundError) Error() string {
 	return fmt.Sprintf("setting %s not found", e.Name)
 }

@@ -43,7 +43,7 @@ type settingsRegistry struct {
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (s settingsRegistry) RuntimeSettings() map[string]registry.RuntimeSetting {
+func (s *settingsRegistry) RuntimeSettings() map[string]registry.RuntimeSetting {
 	return s.registeredSettings
 }
 
