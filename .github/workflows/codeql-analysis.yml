@@ -14,6 +14,9 @@ on:
 jobs:
   CodeQL-Build:
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        language: ["go", "javascript", "python", "cpp"]
 
     steps:
       - name: Checkout repository
@@ -42,7 +45,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: go, javascript, python, cpp
+          languages: ${{ matrix.language }}
           setup-python-dependencies: false
           # Defining a fixed CodeQL bundle version
           tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-20230207/codeql-bundle-linux64.tar.gz
