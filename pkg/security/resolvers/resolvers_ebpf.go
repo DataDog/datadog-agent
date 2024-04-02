@@ -45,7 +45,7 @@ import (
 // EBPFResolvers holds the list of the event attribute resolvers
 type EBPFResolvers struct {
 	manager           *manager.Manager
-	MountResolver     *mount.Resolver
+	MountResolver     mount.ResolverInterface
 	ContainerResolver *container.Resolver
 	TimeResolver      *time.Resolver
 	UserGroupResolver *usergroup.Resolver
@@ -118,18 +118,20 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
-	// This means that we can remove mount entries that are still in use.
-	mountResolver, err := mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
-	if err != nil {
-		return nil, err
-	}
+	var mountResolver mount.ResolverInterface
 
 	var pathResolver path.ResolverInterface
 	if opts.PathResolutionEnabled {
+		// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
+		// This means that we can remove mount entries that are still in use.
+		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+		if err != nil {
+			return nil, err
+		}
 		pathResolver = path.NewResolver(dentryResolver, mountResolver)
 	} else {
-		pathResolver = &path.NoResolver{}
+		mountResolver = &mount.NoOpResolver{}
+		pathResolver = &path.NoOpResolver{}
 	}
 	containerResolver := &container.Resolver{}
 
