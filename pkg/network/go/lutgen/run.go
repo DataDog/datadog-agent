@@ -211,7 +211,7 @@ func (g *LookupTableGenerator) getAllBinaries() []Binary {
 	return newSlice
 }
 
-func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion.GoVersion, arch string) *exec.Cmd {
+func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion.GoVersion, arch, goExe string) *exec.Cmd {
 	outPath := filepath.Join(g.OutDirectory, fmt.Sprintf("%s.go%s", arch, version))
 
 	// Store the binary struct in a list so that it can later be opened.
@@ -232,9 +232,6 @@ func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion
 		g.TestProgramPath,
 	)
 
-	// Disable go module support
-	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GO111MODULE", "off"))
-
 	// Set the GOPATH and GOCACHE variables.
 	// Make sure to resolve the absolute path of install directory first.
 	installDirectoryAbs, err := filepath.Abs(g.InstallDirectory)
@@ -244,10 +241,20 @@ func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion
 	}
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOPATH", filepath.Join(installDirectoryAbs, "build-gopath")))
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOCACHE", filepath.Join(installDirectoryAbs, "build-gocache")))
+	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOARCH", arch))
+	// The $HOME directory needs to be set to the Go installation directory
+	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "HOME", filepath.Join(g.InstallDirectory, "install")))
+	command.Path = goExe
 
 	// Add in the normal PATH environment variable
 	// so that Go can resolve gcc in case it needs to use cgo.
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "PATH", os.Getenv("PATH")))
+
+	err = setupGoModule(ctx, command, g.TestProgramPath)
+	if err != nil {
+		log.Printf("error setting up go module for  %s (%s): %s", g.TestProgramPath, version, err)
+		return nil
+	}
 
 	return command
 }
@@ -291,4 +298,46 @@ func (g *LookupTableGenerator) inspectAllBinaries(ctx context.Context) (map[arch
 	}
 
 	return resultTable, nil
+}
+
+func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string) error {
+	moduleDir, err := os.MkdirTemp("", "lut")
+	if err != nil {
+		return err
+	}
+
+	// symlink test program
+	err = os.MkdirAll(filepath.Join(moduleDir, filepath.Dir(programPath)), os.ModePerm)
+	if err != nil {
+		return err
+	}
+	absProgramPath, err := filepath.Abs(programPath)
+	if err != nil {
+		return err
+	}
+	err = os.Symlink(absProgramPath, filepath.Join(moduleDir, programPath))
+	if err != nil {
+		return err
+	}
+
+	// create go.mod file
+	err = os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte("module foobar"), os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("error creating go.mod file: %w", err)
+	}
+
+	// modify original `exec.Cmd` object by setting the `Dir` field to the one we created
+	cmd.Dir = moduleDir
+
+	// now run `go mod tidy`
+	modCmd := exec.CommandContext(ctx, "go", "mod", "tidy")
+	modCmd.Env = cmd.Env
+	modCmd.Dir = cmd.Dir
+	modCmd.Path = cmd.Path
+	output, err := modCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error executing 'go mod tidy': %s\n%s", err, output)
+	}
+
+	return nil
 }
