@@ -1,0 +1,13 @@
+version: '3'
+name: node
+services:
+  node:
+    image: node:lts-alpine3.19
+    command: ["node", "/v/server.js"]
+    ports:
+      - ${PORT}:4141
+    environment:
+      - ADDR
+      - CERTS_DIR
+    volumes:
+      - ${TESTDIR}:/v:z
