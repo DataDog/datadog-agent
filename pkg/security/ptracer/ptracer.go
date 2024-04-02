@@ -57,7 +57,7 @@ type Tracer struct {
 
 	// internals
 	info *arch.Info
-	opts Opts
+	opts TracerOpts
 	// user and group cache
 	// TODO: user opens of passwd/group files to reset the limiters?
 	userCache                map[int]string
@@ -74,8 +74,8 @@ type Creds struct {
 	GID *uint32
 }
 
-// Opts defines syscall filters
-type Opts struct {
+// TracerOpts defines ptracer options
+type TracerOpts struct {
 	Syscalls []string
 	Creds    Creds
 	Logger   Logger
@@ -269,6 +269,9 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
+				if signal == syscall.SIGSTOP {
+					signal = syscall.Signal(0)
+				}
 				if err := syscall.PtraceCont(pid, int(signal)); err == nil {
 					continue
 				}
@@ -276,7 +279,14 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
 				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
-				break
+
+				// it got probably killed
+				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
+
+				if pid == t.PID {
+					break
+				}
+				continue
 			}
 
 			nr := GetSyscallNr(regs)
@@ -328,7 +338,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 	return nil
 }
 
-func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
+func traceFilterProg(opts TracerOpts) (*syscall.SockFprog, error) {
 	policy := seccomp.Policy{
 		DefaultAction: seccomp.ActionAllow,
 		Syscalls: []seccomp.SyscallGroup{
@@ -364,7 +374,7 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 }
 
 // NewTracer returns a tracer
-func NewTracer(path string, args []string, envs []string, opts Opts) (*Tracer, error) {
+func NewTracer(path string, args []string, envs []string, opts TracerOpts) (*Tracer, error) {
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err

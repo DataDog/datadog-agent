@@ -67,6 +67,7 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle",
     "oracle-dbm",
     "sbom",
     "systemd",
@@ -76,6 +77,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_ecs",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -128,6 +130,7 @@ def build(
     cmake_options='',
     bundle=None,
     bundle_ebpf=False,
+    agent_bin=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -199,7 +202,9 @@ def build(
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
-    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    if not agent_bin:
+        agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
@@ -842,7 +847,7 @@ def _send_build_metrics(ctx, overall_duration):
                 }
             )
     dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ.get("API_KEY_ORG2_SSM_NAME")} --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}

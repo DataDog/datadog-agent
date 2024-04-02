@@ -188,7 +188,7 @@ func (cka *createKeyArgs) computeFullPath() {
 	regPathResolver[cka.keyObject] = outstr
 	cka.computedFullPath = outstr
 }
-func (cka *createKeyArgs) string() string {
+func (cka *createKeyArgs) String() string {
 
 	var output strings.Builder
 
@@ -202,8 +202,8 @@ func (cka *createKeyArgs) string() string {
 	return output.String()
 }
 
-func (cka *openKeyArgs) string() string {
-	return (*createKeyArgs)(cka).string()
+func (cka *openKeyArgs) String() string {
+	return (*createKeyArgs)(cka).String()
 }
 
 func parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
@@ -254,7 +254,7 @@ func parseSetSecurityKeyArgs(e *etw.DDEventRecord) (*setSecurityKeyArgs, error) 
 	return (*setSecurityKeyArgs)(dka), nil
 }
 
-func (dka *deleteKeyArgs) string() string {
+func (dka *deleteKeyArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  PID: " + strconv.Itoa(int(dka.ProcessID)) + "\n")
@@ -267,21 +267,21 @@ func (dka *deleteKeyArgs) string() string {
 
 }
 
-func (fka *flushKeyArgs) string() string {
-	return (*deleteKeyArgs)(fka).string()
+func (fka *flushKeyArgs) String() string {
+	return (*deleteKeyArgs)(fka).String()
 }
-func (cka *closeKeyArgs) string() string {
-	return (*deleteKeyArgs)(cka).string()
-}
-
-//nolint:unused
-func (qka *querySecurityKeyArgs) string() string {
-	return (*deleteKeyArgs)(qka).string()
+func (cka *closeKeyArgs) String() string {
+	return (*deleteKeyArgs)(cka).String()
 }
 
 //nolint:unused
-func (ska *setSecurityKeyArgs) string() string {
-	return (*deleteKeyArgs)(ska).string()
+func (qka *querySecurityKeyArgs) String() string {
+	return (*deleteKeyArgs)(qka).String()
+}
+
+//nolint:unused
+func (ska *setSecurityKeyArgs) String() string {
+	return (*deleteKeyArgs)(ska).String()
 }
 
 func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
@@ -340,7 +340,7 @@ func parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
 	return sv, nil
 }
 
-func (sv *setValueKeyArgs) string() string {
+func (sv *setValueKeyArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  PID: " + strconv.Itoa(int(sv.ProcessID)) + "\n")

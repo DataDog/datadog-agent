@@ -1,7 +1,7 @@
 #!/bin/bash
 
 retry_count=0
-max_retries=5
+max_retries=10
 parameter_name="$1"
 
 source /root/.bashrc > /dev/null 2>&1

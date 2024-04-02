@@ -12,12 +12,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/updater/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+type remoteConfigClient interface {
+	Start()
+	Close()
+	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
+	SetUpdaterPackagesState(packages []*pbgo.PackageState)
+}
+
 type remoteConfig struct {
-	client *client.Client
+	client remoteConfigClient
 }
 
 func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
@@ -33,8 +39,15 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 	return &remoteConfig{client: client}, nil
 }
 
+func newNoopRemoteConfig() *remoteConfig {
+	return &remoteConfig{}
+}
+
 // Start starts the remote config client.
 func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate))
 	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	rc.client.Start()
@@ -42,18 +55,18 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 
 // Close closes the remote config client.
 func (rc *remoteConfig) Close() {
+	if rc.client == nil {
+		return
+	}
 	rc.client.Close()
 }
 
 // SetState sets the state of the given package.
-func (rc *remoteConfig) SetState(pkg string, state *repository.State) {
-	rc.client.SetUpdaterPackagesState([]*pbgo.PackageState{
-		{
-			Package:           pkg,
-			StableVersion:     state.Stable,
-			ExperimentVersion: state.Experiment,
-		},
-	})
+func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
+	if rc.client == nil {
+		return
+	}
+	rc.client.SetUpdaterPackagesState(packages)
 }
 
 // Package represents a downloadable package.
@@ -123,10 +136,12 @@ const (
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+	methodBootstrap         = "bootstrap"
 )
 
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
+	Package       string          `json:"package_name"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
@@ -137,7 +152,7 @@ type expectedState struct {
 	Experiment string `json:"experiment"`
 }
 
-type startExperimentParams struct {
+type taskWithVersionParams struct {
 	Version string `json:"version"`
 }
 

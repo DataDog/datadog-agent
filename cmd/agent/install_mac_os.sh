@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.3.1
+install_script_version=1.4.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -57,6 +57,14 @@ if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   agent_minor_version_without_patch="${clean_agent_minor_version%.*}"
   if [ "$clean_agent_minor_version" != "$agent_minor_version_without_patch" ]; then
       agent_patch_version="${clean_agent_minor_version#*.}"
+  fi
+fi
+
+arch=$(/usr/bin/arch)
+if [ "$arch" == "arm64" ]; then
+  if ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
+    printf "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
+    exit 1
   fi
 fi
 

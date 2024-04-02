@@ -71,7 +71,7 @@ func GetHostname(host *components.RemoteHost) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("GetHostname failed: %v", err)
 	}
-	return hostname, nil
+	return strings.TrimSpace(hostname), nil
 }
 
 // GetJoinedDomain returns the domain that the host is joined to
@@ -80,7 +80,7 @@ func GetJoinedDomain(host *components.RemoteHost) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("GetJoinedDomain failed: %v", err)
 	}
-	return domain, nil
+	return strings.TrimSpace(domain), nil
 }
 
 // GetOSInfo returns OSInfo for the given VM

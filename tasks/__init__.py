@@ -6,6 +6,7 @@ from invoke import Collection
 
 from tasks import (
     agent,
+    agentless_scanner,
     bench,
     buildimages,
     cluster_agent,
@@ -14,6 +15,7 @@ from tasks import (
     cws_instrumentation,
     diff,
     docker_tasks,
+    docs,
     dogstatsd,
     ebpf,
     emacs,
@@ -42,6 +44,7 @@ from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.fuzz import fuzz
 from tasks.go import (
+    check_go_mod_replaces,
     check_go_version,
     check_mod_tidy,
     deps,
@@ -106,6 +109,7 @@ ns.add_task(download_tools)
 ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
+ns.add_task(check_go_mod_replaces)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
@@ -121,10 +125,12 @@ ns.add_task(send_unit_tests_stats)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(agentless_scanner)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(docs)
 ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")

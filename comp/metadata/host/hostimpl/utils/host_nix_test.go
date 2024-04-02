@@ -26,7 +26,9 @@ func TestGetHostInfo(t *testing.T) {
 	info := GetInformation()
 	expected, err := host.Info()
 	require.NoError(t, err)
-	assert.Equal(t, expected.BootTime, info.BootTime)
+	// boot time can be computed dynamically using uptime on some platforms, in which case
+	// there can be an off-by-one error
+	assert.InDelta(t, expected.BootTime, info.BootTime, 1.5)
 	assert.Equal(t, expected.HostID, info.HostID)
 	assert.Equal(t, expected.Hostname, info.Hostname)
 	assert.Equal(t, expected.KernelArch, info.KernelArch)

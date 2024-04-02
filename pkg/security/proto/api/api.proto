@@ -100,8 +100,8 @@ message RuleStatus {
 }
 
 message PolicyStatus {
-    string name = 1;
-    string source = 2;
+    string Name = 1;
+    string Source = 2;
     repeated RuleStatus Status = 3;
 }
 
@@ -244,19 +244,33 @@ message ActivityTreeStatsMessage {
     int64 ApproximateSize = 5;
 }
 
+message event_type_state {
+    uint64 last_anomaly_nano = 1;
+    string event_profile_state = 2;
+}
+
+message ProfileContextMessage {
+    uint64 first_seen = 1;
+    uint64 last_seen = 2;
+    map<string, event_type_state> event_type_state = 3;
+    repeated string tags = 4;
+}
+
 message SecurityProfileMessage {
     bool LoadedInKernel = 1;
     string LoadedInKernelTimestamp = 2;
     WorkloadSelectorMessage Selector = 3;
     uint64 ProfileCookie = 4;
     repeated string EventTypes = 5;
-    repeated LastAnomalyTimestampMessage LastAnomalies = 6;
+    repeated LastAnomalyTimestampMessage LastAnomalies = 6 [deprecated = true];
     repeated InstanceMessage Instances = 7;
-    string Status = 8;
-    string Version = 9;
+    string Status = 8 [deprecated = true];
+    string Version = 9 [deprecated = true];
     MetadataMessage Metadata = 10;
-    repeated string Tags = 11;
+    repeated string Tags = 11 [deprecated = true];
     ActivityTreeStatsMessage Stats = 12;
+    string ProfileGlobalState = 13;
+    map<string, ProfileContextMessage> profile_contexts = 14;
 }
 
 message SecurityProfileListParams {

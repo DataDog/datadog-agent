@@ -19,18 +19,15 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path"
 	"path/filepath"
-	"strconv"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -78,6 +75,47 @@ func TestProcess(t *testing.T) {
 		return os.Remove(testFile)
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_rule")
+	})
+}
+
+func TestProcessEBPFLess(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !ebpfLessEnabled {
+		t.Skip("ebpfless specific")
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	t.Run("proc-scan", func(t *testing.T) {
+		err := retry.Do(func() error {
+			var found bool
+			p.Resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
+				if entry.FileEvent.BasenameStr == path.Base(executable) && slices.Contains(entry.ArgsEntry.Values, "-trace") {
+					found = true
+				}
+			})
+
+			if !found {
+				return errors.New("not found")
+			}
+			return nil
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
+		assert.Nil(t, err)
 	})
 }
 
@@ -2024,7 +2062,7 @@ echo "Executing echo insIDe a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print insIDe a python (%s) script insIDe a bash script')
+print('Executing print insIDe a python (%s) script inside a bash script')
 
 EOF
 
@@ -2098,7 +2136,7 @@ chmod 755 pyscript.py
 
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
+			scriptLocation := filepath.Join(os.TempDir(), test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
 			}
@@ -2107,6 +2145,7 @@ chmod 755 pyscript.py
 
 			testModule.WaitSignal(t, func() error {
 				cmd := exec.Command(scriptLocation)
+				cmd.Dir = os.TempDir()
 				output, scriptRunErr := cmd.CombinedOutput()
 				if scriptRunErr != nil {
 					t.Errorf("could not run %s: %s", scriptLocation, scriptRunErr)
@@ -2352,66 +2391,4 @@ func TestProcessFilelessExecution(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestKillAction(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-		return !kv.SupportBPFSendSignal() && config.IsContainerized()
-	})
-
-	rule := &rules.RuleDefinition{
-		ID: "kill_action",
-		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
-		Expression: `process.file.name == "syscall_tester" && open.file.path == "{{.Root}}/test-kill-action"`,
-		Actions: []*rules.ActionDefinition{
-			{
-				Kill: &rules.KillDefinition{
-					Signal: "SIGUSR2",
-				},
-			},
-		},
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testFile, _, err := test.Path("test-kill-action")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("kill_action", func(t *testing.T) {
-		sigpipeCh := make(chan os.Signal, 1)
-		signal.Notify(sigpipeCh, syscall.SIGUSR2)
-
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := runSyscallTesterFunc(
-			timeoutCtx, t, syscallTester,
-			"set-signal-handler", ";",
-			"open", testFile, ";",
-			"sleep", "2", ";",
-			"wait-signal", ";",
-			"signal", "sigusr2", strconv.Itoa(int(os.Getpid())),
-		); err != nil {
-			t.Fatal("no signal")
-		}
-
-		select {
-		case <-sigpipeCh:
-		case <-time.After(time.Second * 3):
-			t.Error("signal timeout")
-		}
-	})
 }

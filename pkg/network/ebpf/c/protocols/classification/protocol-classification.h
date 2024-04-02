@@ -167,7 +167,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     const char *buffer = &(usm_ctx->buffer.data[0]);
     // TLS classification
-    if (is_tls(buffer, usm_ctx->buffer.size)) {
+    if (is_tls(buffer, usm_ctx->buffer.size, skb_info.data_end)) {
         update_protocol_information(usm_ctx, protocol_stack, PROTOCOL_TLS);
         // The connection is TLS encrypted, thus we cannot classify the protocol
         // using the socket filter and therefore we can bail out;

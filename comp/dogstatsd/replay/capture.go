@@ -6,6 +6,7 @@
 package replay
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"sync"
@@ -30,13 +31,15 @@ const (
 type dependencies struct {
 	fx.In
 
+	Lc     fx.Lifecycle
 	Config configComponent.Component
 }
 
 // TrafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
-	writer *TrafficCaptureWriter
-	config config.Reader
+	writer       *TrafficCaptureWriter
+	config       config.Reader
+	startUpError error
 
 	sync.RWMutex
 }
@@ -45,24 +48,31 @@ type trafficCapture struct {
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessTrafficCapture() Component {
-	return newTrafficCaptureCompat(config.Datadog)
+	tc := newTrafficCaptureCompat(config.Datadog)
+	_ = tc.configure(context.TODO())
+	return tc
 }
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
 func newTrafficCapture(deps dependencies) Component {
-	return newTrafficCaptureCompat(deps.Config)
+	tc := newTrafficCaptureCompat(deps.Config)
+	deps.Lc.Append(fx.Hook{
+		OnStart: tc.configure,
+	})
+
+	return tc
 }
 
-func newTrafficCaptureCompat(cfg config.Reader) Component {
+func newTrafficCaptureCompat(cfg config.Reader) *trafficCapture {
 	return &trafficCapture{
 		config: cfg,
 	}
 }
 
-func (tc *trafficCapture) Configure() error {
+func (tc *trafficCapture) configure(_ context.Context) error {
 	writer := NewTrafficCaptureWriter(tc.config.GetInt("dogstatsd_capture_depth"))
 	if writer == nil {
-		return fmt.Errorf("unable to instantiate capture writer")
+		tc.startUpError = fmt.Errorf("unable to instantiate capture writer")
 	}
 	tc.writer = writer
 
@@ -137,4 +147,8 @@ func (tc *trafficCapture) defaultlocation() string {
 	}
 	return location
 
+}
+
+func (tc *trafficCapture) GetStartUpError() error {
+	return tc.startUpError
 }

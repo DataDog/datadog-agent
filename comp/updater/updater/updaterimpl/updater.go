@@ -32,11 +32,6 @@ func Module() fxutil.Module {
 	)
 }
 
-// Parameters contains the parameters for the updater.
-type Parameters struct {
-	Package string
-}
-
 // dependencies contains the dependencies to build the updater.
 type dependencies struct {
 	fx.In
@@ -44,7 +39,6 @@ type dependencies struct {
 	Log          log.Component
 	Config       config.Component
 	RemoteConfig optional.Option[rcservice.Component]
-	Parameters   Parameters
 }
 
 func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercomp.Component, error) {
@@ -52,7 +46,7 @@ func newUpdaterComponent(lc fx.Lifecycle, dependencies dependencies) (updatercom
 	if !ok {
 		return nil, errRemoteConfigRequired
 	}
-	updater, err := updater.NewUpdater(remoteConfig, dependencies.Parameters.Package)
+	updater, err := updater.NewUpdater(remoteConfig, dependencies.Config)
 	if err != nil {
 		return nil, fmt.Errorf("could not create updater: %w", err)
 	}

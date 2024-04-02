@@ -26,10 +26,10 @@ print Dir.entries(root_dir)
 
 Dir.glob("#{root_dir}/**/testsuite.exe").each do |f|
   pkg = f.delete_prefix(root_dir).delete_suffix('/testsuite')
-  describe "security agent tests for #{pkg}" do
+  describe "system probe tests for #{pkg}" do
     it 'successfully runs' do
       Dir.chdir(File.dirname(f)) do
-        Open3.popen2e(f, "-test.v", "-test.count=1") do |_, output, wait_thr|
+        Open3.popen2e(f, "-test.v", "-test.timeout=10m", "-test.count=1") do |_, output, wait_thr|
           test_failures = check_output(output, wait_thr)
           expect(test_failures).to be_empty, test_failures.join("\n")
         end

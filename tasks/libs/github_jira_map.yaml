@@ -33,3 +33,8 @@
 '@datadog/agent-cspm': SEC
 '@datadog/telemetry-and-analytics': DEFAULT_JIRA_PROJECT
 '@datadog/asm-go': APPSEC
+'@datadog/agent-build-and-releases': BARX
+'@datadog/agent-developer-tools': ADXT
+'@datadog/agent-ci-experience': ACIX
+'@datadog/apm-onboarding': APMON
+'@datadog/agent-processing-and-routing': APR

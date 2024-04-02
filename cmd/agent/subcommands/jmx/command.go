@@ -31,6 +31,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -39,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -50,7 +54,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -138,6 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() flare.Component { return nil }),
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
+			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() serverdebug.Component { return nil }),
 			fx.Provide(func() host.Component { return nil }),
 			fx.Provide(func() inventoryagent.Component { return nil }),
@@ -152,6 +156,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			tagger.Module(),
+			autodiscoveryimpl.Module(),
 		)
 	}
 
@@ -280,7 +285,15 @@ func disableCmdPort() {
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
-func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta workloadmeta.Component, taggerComp tagger.Component, diagnoseSendermanager diagnosesendermanager.Component, secretResolver secrets.Component, agentAPI internalAPI.Component, collector optional.Option[collector.Component]) error {
+func runJmxCommandConsole(config config.Component,
+	cliParams *cliParams,
+	wmeta workloadmeta.Component,
+	taggerComp tagger.Component,
+	ac autodiscovery.Component,
+	diagnoseSendermanager diagnosesendermanager.Component,
+	secretResolver secrets.Component,
+	agentAPI internalAPI.Component,
+	collector optional.Option[collector.Component]) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -297,8 +310,8 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 	}
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, config.GetString("confd_path"))
-	common.AC.LoadAndRun(context.Background())
+	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
+	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
@@ -310,16 +323,16 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 	var allConfigs []integration.Config
 	if len(cliParams.cliSelectedChecks) == 0 {
-		allConfigs, err = common.WaitForAllConfigsFromAD(waitCtx)
+		allConfigs, err = common.WaitForAllConfigsFromAD(waitCtx, ac)
 	} else {
-		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
+		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
 	}
 	cancelTimeout()
 	if err != nil {
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, diagnoseSendermanager, agentAPI, collector)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, ac, diagnoseSendermanager, agentAPI, collector)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

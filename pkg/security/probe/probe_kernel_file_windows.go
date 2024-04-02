@@ -169,7 +169,7 @@ func parseCreateNewFileArgs(e *etw.DDEventRecord) (*createNewFileArgs, error) {
 }
 
 // nolint: unused
-func (ca *createHandleArgs) string() string {
+func (ca *createHandleArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  Create PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
@@ -180,8 +180,8 @@ func (ca *createHandleArgs) string() string {
 }
 
 // nolint: unused
-func (ca *createNewFileArgs) string() string {
-	return (*createHandleArgs)(ca).string()
+func (ca *createNewFileArgs) String() string {
+	return (*createHandleArgs)(ca).String()
 }
 
 /*
@@ -245,7 +245,7 @@ func parseInformationArgs(e *etw.DDEventRecord) (*setInformationArgs, error) {
 }
 
 // nolint: unused
-func (sia *setInformationArgs) string() string {
+func (sia *setInformationArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  SIA TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
@@ -331,7 +331,7 @@ func parseFlushArgs(e *etw.DDEventRecord) (*flushArgs, error) {
 }
 
 // nolint: unused
-func (ca *cleanupArgs) string() string {
+func (ca *cleanupArgs) String() string {
 	var output strings.Builder
 
 	output.WriteString("  CLEANUP: TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
@@ -342,11 +342,11 @@ func (ca *cleanupArgs) string() string {
 }
 
 // nolint: unused
-func (ca *closeArgs) string() string {
-	return (*cleanupArgs)(ca).string()
+func (ca *closeArgs) String() string {
+	return (*cleanupArgs)(ca).String()
 }
 
 // nolint: unused
-func (fa *flushArgs) string() string {
-	return (*cleanupArgs)(fa).string()
+func (fa *flushArgs) String() string {
+	return (*cleanupArgs)(fa).String()
 }

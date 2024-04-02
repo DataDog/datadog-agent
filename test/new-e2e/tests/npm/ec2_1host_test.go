@@ -59,7 +59,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -94,9 +94,7 @@ func (v *ec2VMSuite) SetupSuite() {
 	v.Env().RemoteHost.ReconnectSSH()
 
 	// prefetch docker image locally
-	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/k8m1l3p1/alpine/curler:latest")
-	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/docker/library/httpd:latest")
-	v.Env().RemoteHost.MustExecute("docker pull public.ecr.aws/patrickc/troubleshoot-util:latest")
+	v.Env().RemoteHost.MustExecute("docker pull ghcr.io/datadog/apps-npm-tools:main")
 }
 
 // BeforeTest will be called before each test
@@ -107,6 +105,13 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	}
+}
+
+// AfterTest will be called after each test
+func (v *ec2VMSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
 }
 
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
@@ -132,7 +137,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
-	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/k8m1l3p1/alpine/curler curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main curl " + testURL)
 
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -158,7 +163,7 @@ func (v *ec2VMSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/docker/library/httpd ab -n 600 -c 600 " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main ab -n 600 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -181,8 +186,8 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/k8m1l3p1/alpine/curler curl " + testURL)
-	v.Env().RemoteHost.MustExecute("docker run public.ecr.aws/patrickc/troubleshoot-util dig @8.8.8.8 www.google.ch")
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:main dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }

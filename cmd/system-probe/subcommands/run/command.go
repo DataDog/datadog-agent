@@ -29,14 +29,17 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -47,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -80,11 +84,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				config.Module(),
 				telemetry.Module(),
 				sysprobeconfigimpl.Module(),
-				rcclient.Module(),
+				rcclientimpl.Module(),
+				fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
+					return healthprobe.Options{
+						Port:           sysprobeconfig.SysProbeObject().HealthPort,
+						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+					}
+				}),
+				healthprobeimpl.Module(),
 				// use system-probe config instead of agent config for logging
 				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
 				}),
+				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 			)
 		},
 	}
@@ -94,7 +106,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()
@@ -136,7 +148,7 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 		}
 	}()
 
-	if err := startSystemProbe(cliParams, log, statsd, telemetry, sysprobeconfig, rcclient); err != nil {
+	if err := startSystemProbe(cliParams, log, statsd, telemetry, sysprobeconfig, rcclient, wmeta); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -180,9 +192,9 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
 			defer StopSystemProbeWithDefaults()
-			err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient)
+			err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient, wmeta)
 			if err != nil {
 				return err
 			}
@@ -208,11 +220,19 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 		fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 		fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-		rcclient.Module(),
+		rcclientimpl.Module(),
 		config.Module(),
 		telemetry.Module(),
 		compstatsd.Module(),
 		sysprobeconfigimpl.Module(),
+		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {
+			return healthprobe.Options{
+				Port:           sysprobeconfig.SysProbeObject().HealthPort,
+				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+			}
+		}),
+		healthprobeimpl.Module(),
+		fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 		// use system-probe config instead of agent config for logging
 		fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 			return logimpl.NewLogger(lc, params, sysprobeconfig)
@@ -226,7 +246,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component) error {
+func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	var err error
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
@@ -307,17 +327,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 		}()
 	}
 
-	// Setup healthcheck port
-	healthPort := cfg.HealthPort
-	if healthPort > 0 {
-		err := healthprobe.Serve(ctx, ddconfig.Datadog, healthPort)
-		if err != nil {
-			return log.Errorf("error starting health check server, exiting: %s", err)
-		}
-		log.Infof("health check server listening on port %d", healthPort)
-	}
-
-	if err = api.StartServer(cfg, telemetry); err != nil {
+	if err = api.StartServer(cfg, telemetry, wmeta); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil

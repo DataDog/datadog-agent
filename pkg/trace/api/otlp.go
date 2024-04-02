@@ -65,6 +65,11 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	computeTopLevelBySpanKindVal := 0.0
+	if !cfg.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelBySpanKindVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing}
 }
 
@@ -89,6 +94,10 @@ func (o *OTLPReceiver) Start() {
 				}
 			}()
 			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.GRPCPort)
+
+			if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
+				log.Warn("OTLP ingest identifies top-level spans by span kind which may impact trace metrics. This feature can be disabled by adding 'disable_otlp_compute_top_level_by_span_kind' in DD_APM_FEATURES.")
+			}
 		}
 	}
 }
@@ -264,7 +273,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	p := Payload{
 		Source:                 tagstats,
 		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedTopLevel: !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -520,8 +529,14 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	for k, v := range rattr {
 		setMetaOTLP(span, k, v)
 	}
+
+	spanKind := in.Kind()
+	if !o.conf.HasFeature("disable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelAndMeasured(span, spanKind)
+	}
+
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
-	setMetaOTLP(span, "span.kind", spanKindName(in.Kind()))
+	setMetaOTLP(span, "span.kind", spanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
@@ -718,4 +733,23 @@ func spanKindName(k ptrace.SpanKind) string {
 		return "unknown"
 	}
 	return name
+}
+
+// computeTopLevelAndMeasured updates the span's top-level and measured attributes.
+//
+// An OTLP span is considered top-level if it is a root span or has a span kind of server or consumer.
+// An OTLP span is marked as measured if it has a span kind of client or producer.
+func computeTopLevelAndMeasured(span *pb.Span, spanKind ptrace.SpanKind) {
+	if span.ParentID == 0 {
+		// span is a root span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer {
+		// span is a server-side span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer {
+		// span is a client-side span, not top-level but we still want stats
+		traceutil.SetMeasured(span, true)
+	}
 }

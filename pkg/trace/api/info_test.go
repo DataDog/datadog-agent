@@ -34,15 +34,13 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 			if prefix != "" {
 				path = prefix + "." + k
 			}
-			//nolint:revive // TODO(APM) Fix revive linter
-			return fmt.Errorf("Expected key %s, but it is not present in the output.\n", path)
+			return fmt.Errorf("expected key %s, but it is not present in the output", path)
 		}
 
 		if em, ok := ev.(map[string]interface{}); ok {
 			rm, ok := rv.(map[string]interface{})
 			if !ok {
-				//nolint:revive // TODO(APM) Fix revive linter
-				return fmt.Errorf("Expected key %s to be a map, but it is '%#v'.\n", k, rv)
+				return fmt.Errorf("expected key %s to be a map, but it is '%#v'", k, rv)
 			}
 			if prefix != "" {
 				prefix = prefix + "." + k
@@ -61,8 +59,7 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 			if prefix != "" {
 				path = prefix + "." + k
 			}
-			//nolint:revive // TODO(APM) Fix revive linter
-			return fmt.Errorf("Found key %s, but it is not expected in the output. If you've added a new key to the /info endpoint, please add it to the tests.\n", path)
+			return fmt.Errorf("found key %s, but it is not expected in the output. If you've added a new key to the /info endpoint, please add it to the tests", path)
 		}
 	}
 	return nil

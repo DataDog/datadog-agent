@@ -8,7 +8,6 @@ package updater
 import (
 	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -16,124 +15,190 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+
+	"github.com/google/go-containerregistry/pkg/name"
+	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/layout"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	archiveName                = "package.tar.gz"
-	maxArchiveSize             = 5 << 30  // 5GiB
-	maxArchiveDecompressedSize = 10 << 30 // 10GiB
+	ociLayoutArchiveName          = "oci-layout.tar"
+	ociLayoutName                 = "oci-layout"
+	ociLayoutArchiveMaxSize int64 = 1 << 30 // 1GiB
+	ociLayoutMaxSize        int64 = 1 << 30 // 1GiB
 )
 
 // downloader is the downloader used by the updater to download packages.
 type downloader struct {
-	client *http.Client
+	client        *http.Client
+	remoteBaseURL string
 }
 
 // newDownloader returns a new Downloader.
-func newDownloader(client *http.Client) *downloader {
+func newDownloader(client *http.Client, remoteBaseURL string) *downloader {
 	return &downloader{
-		client: client,
+		client:        client,
+		remoteBaseURL: remoteBaseURL,
 	}
 }
 
-// Download downloads the package at the given URL in temporary directory,
-// verifies its SHA256 hash and extracts it to the given destination path.
-// It currently assumes the package is a tar.gz archive.
-func (d *downloader) Download(ctx context.Context, pkg Package, destinationPath string) error {
+// Download downloads the Datadog Package referenced in the given Package struct.
+func (d *downloader) Download(ctx context.Context, tmpDir string, pkg Package) (oci.Image, error) {
 	log.Debugf("Downloading package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
-
-	// Create temporary directory to download the archive
-	tmpDir, err := os.MkdirTemp("", "")
+	url, err := url.Parse(pkg.URL)
 	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
+		return nil, fmt.Errorf("could not parse package URL: %w", err)
 	}
-	defer func() {
-		err := os.RemoveAll(tmpDir)
-		if err != nil {
-			log.Errorf("could not cleanup temporary directory: %v", err)
-		}
-	}()
-
-	// Download archive
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pkg.URL, nil)
+	var image oci.Image
+	switch url.Scheme {
+	case "http", "https":
+		image, err = d.downloadHTTP(ctx, pkg.URL, pkg.SHA256, pkg.Size, tmpDir)
+	case "oci":
+		image, err = d.downloadRegistry(ctx, pkg)
+	default:
+		return nil, fmt.Errorf("unsupported package URL scheme: %s", url.Scheme)
+	}
 	if err != nil {
-		return fmt.Errorf("could not create download request: %w", err)
+		return nil, fmt.Errorf("could not download package from %s: %w", pkg.URL, err)
+	}
+	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
+	return image, nil
+}
+
+func (d *downloader) getRegistryURL(pkg Package) string {
+	downloadURL := strings.TrimPrefix(pkg.URL, "oci://")
+	if d.remoteBaseURL != "" {
+		remoteBaseURL := d.remoteBaseURL
+		if !strings.HasSuffix(d.remoteBaseURL, "/") {
+			remoteBaseURL += "/"
+		}
+		split := strings.Split(pkg.URL, "/")
+		downloadURL = remoteBaseURL + split[len(split)-1]
+	}
+	return downloadURL
+}
+
+func (d *downloader) downloadRegistry(ctx context.Context, pkg Package) (oci.Image, error) {
+	url := d.getRegistryURL(pkg)
+
+	// the image URL is parsed as a digest to ensure we use the <repository>/<image>@<digest> format
+	digest, err := name.NewDigest(url, name.StrictValidation)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse digest: %w", err)
+	}
+
+	platform := oci.Platform{
+		OS:           runtime.GOOS,
+		Architecture: runtime.GOARCH,
+	}
+	index, err := remote.Index(digest, remote.WithContext(ctx))
+	if err != nil {
+		return nil, fmt.Errorf("could not download image: %w", err)
+	}
+	indexManifest, err := index.IndexManifest()
+	if err != nil {
+		return nil, fmt.Errorf("could not get index manifest: %w", err)
+	}
+	for _, manifest := range indexManifest.Manifests {
+		if manifest.Platform != nil && !manifest.Platform.Satisfies(platform) {
+			continue
+		}
+		image, err := index.Image(manifest.Digest)
+		if err != nil {
+			return nil, fmt.Errorf("could not get image: %w", err)
+		}
+		return image, nil
+	}
+	return nil, fmt.Errorf("no matching image found in the index")
+}
+
+func (d *downloader) downloadHTTP(ctx context.Context, url string, sha256hash string, size int64, tmpDir string) (oci.Image, error) {
+	// Request the oci-layout.tar archive from the given URL
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("could not create download request: %w", err)
 	}
 	resp, err := d.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return nil, fmt.Errorf("could not download package: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.ContentLength != pkg.Size {
-		return fmt.Errorf("invalid size for %s: expected %d, got %d", pkg.URL, pkg.Size, resp.ContentLength)
+	if resp.ContentLength != -1 && resp.ContentLength != size {
+		return nil, fmt.Errorf("invalid size: expected %d, got %d", size, resp.ContentLength)
 	}
 
-	// Write archive on disk & check its hash while doing so
+	// Write oci-layout.tar on disk and check its hash while doing so
 	hashWriter := sha256.New()
 	reader := io.TeeReader(
-		io.LimitReader(resp.Body, maxArchiveSize),
+		io.LimitReader(resp.Body, ociLayoutArchiveMaxSize),
 		hashWriter,
 	)
-	archivePath := filepath.Join(tmpDir, archiveName)
-	archiveFile, err := os.Create(archivePath)
+	ociLayoutArchiveFile, err := os.Create(filepath.Join(tmpDir, ociLayoutArchiveName))
 	if err != nil {
-		return fmt.Errorf("could not create archive file: %w", err)
+		return nil, fmt.Errorf("could not create oci layout archive: %w", err)
 	}
-	defer archiveFile.Close()
-	_, err = io.Copy(archiveFile, reader)
+	defer ociLayoutArchiveFile.Close()
+	_, err = io.Copy(ociLayoutArchiveFile, reader)
 	if err != nil {
-		return fmt.Errorf("could not write archive file: %w", err)
+		return nil, fmt.Errorf("could not write oci layout archive: %w", err)
 	}
-	sha256 := hashWriter.Sum(nil)
-	expectedHash, err := hex.DecodeString(pkg.SHA256)
+	computedHash := hashWriter.Sum(nil)
+	expectedHash, err := hex.DecodeString(sha256hash)
 	if err != nil {
-		return fmt.Errorf("could not decode hash: %w", err)
+		return nil, fmt.Errorf("could not decode hash: %w", err)
 	}
-	if !bytes.Equal(expectedHash, sha256) {
-		return fmt.Errorf("invalid hash for %s: expected %s, got %x", pkg.URL, pkg.SHA256, sha256)
+	if !bytes.Equal(expectedHash, computedHash) {
+		return nil, fmt.Errorf("invalid hash: expected %s, got %x", sha256hash, computedHash)
 	}
 
-	// Extract the OCI archive
-	extractedArchivePath := filepath.Join(tmpDir, "archive")
-	if err := os.Mkdir(extractedArchivePath, 0755); err != nil {
-		return fmt.Errorf("could not create archive extraction directory: %w", err)
-	}
-	extractedOCIPath := filepath.Join(tmpDir, "oci")
-	if err := os.Mkdir(extractedOCIPath, 0755); err != nil {
-		return fmt.Errorf("could not create OCI extraction directory: %w", err)
-	}
-	err = extractTarArchive(archivePath, extractedArchivePath, compressionNone)
+	// Extract oci-layout.tar to the oci-layout directory
+	ociLayoutPath := filepath.Join(tmpDir, ociLayoutName)
+	err = os.Mkdir(ociLayoutPath, 0755)
 	if err != nil {
-		return fmt.Errorf("could not extract archive: %w", err)
+		return nil, fmt.Errorf("could not create oci layout directory: %w", err)
 	}
-	err = extractOCI(extractedArchivePath, extractedOCIPath)
+	_, err = ociLayoutArchiveFile.Seek(0, io.SeekStart)
 	if err != nil {
-		return fmt.Errorf("could not extract OCI archive: %w", err)
+		return nil, fmt.Errorf("could not seek to the beginning of the oci layout archive: %w", err)
+	}
+	err = extractTarArchive(ociLayoutArchiveFile, ociLayoutPath, ociLayoutMaxSize)
+	if err != nil {
+		return nil, fmt.Errorf("could not extract oci layout archive: %w", err)
 	}
 
-	// Only keep the package directory /opt/datadog-packages/<package-name>/<package-version>
-	// Other files and directory in the archive are ignored
-	packageDir := filepath.Join(extractedOCIPath, defaultRepositoryPath, pkg.Name, pkg.Version)
-	err = os.Rename(packageDir, destinationPath)
-	if err != nil {
-		return fmt.Errorf("could not move package directory: %w", err)
+	// Load the oci-layout directory as an oci image
+	platform := oci.Platform{
+		OS:           runtime.GOOS,
+		Architecture: runtime.GOARCH,
 	}
-
-	log.Debugf("Successfully downloaded package %s version %s from %s", pkg.Name, pkg.Version, pkg.URL)
-	return nil
+	index, err := layout.ImageIndexFromPath(ociLayoutPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not load oci layout image index: %w", err)
+	}
+	indexManifest, err := index.IndexManifest()
+	if err != nil {
+		return nil, fmt.Errorf("could not get index manifest: %w", err)
+	}
+	for _, manifest := range indexManifest.Manifests {
+		if manifest.Platform != nil && !manifest.Platform.Satisfies(platform) {
+			continue
+		}
+		image, err := index.Image(manifest.Digest)
+		if err != nil {
+			return nil, fmt.Errorf("could not get image: %w", err)
+		}
+		return image, nil
+	}
+	return nil, fmt.Errorf("no matching image found in the index")
 }
-
-type compression int
-
-const (
-	compressionNone compression = iota
-	compressionGzip
-)
 
 // extractTarArchive extracts a tar archive to the given destination path
 //
@@ -141,27 +206,9 @@ const (
 // This is purposeful as the archive is extracted only after its SHA256 hash has been validated
 // against its reference in the package catalog. This catalog is itself sent over Remote Config
 // which guarantees its integrity.
-func extractTarArchive(archivePath string, destinationPath string, compression compression) error {
-	log.Debugf("Extracting archive %s to %s", archivePath, destinationPath)
-
-	f, err := os.Open(archivePath)
-	if err != nil {
-		return fmt.Errorf("could not open archive: %w", err)
-	}
-	defer f.Close()
-
-	var r io.Reader = f
-	switch compression {
-	case compressionGzip:
-		gzr, err := gzip.NewReader(f)
-		if err != nil {
-			return fmt.Errorf("could not create gzip reader: %w", err)
-		}
-		defer gzr.Close()
-		r = gzr
-	}
-
-	tr := tar.NewReader(io.LimitReader(r, maxArchiveDecompressedSize))
+func extractTarArchive(reader io.Reader, destinationPath string, maxSize int64) error {
+	log.Debugf("Extracting archive to %s", destinationPath)
+	tr := tar.NewReader(io.LimitReader(reader, maxSize))
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -184,7 +231,7 @@ func extractTarArchive(archivePath string, destinationPath string, compression c
 		// Extract element depending on its type
 		switch header.Typeflag {
 		case tar.TypeDir:
-			err = os.MkdirAll(target, 0755)
+			err = os.MkdirAll(target, os.FileMode(header.Mode))
 			if err != nil {
 				return fmt.Errorf("could not create directory: %w", err)
 			}
@@ -205,7 +252,7 @@ func extractTarArchive(archivePath string, destinationPath string, compression c
 		}
 	}
 
-	log.Debugf("Successfully extracted archive %s to %s", archivePath, destinationPath)
+	log.Debugf("Successfully extracted archive to %s", destinationPath)
 	return nil
 }
 
