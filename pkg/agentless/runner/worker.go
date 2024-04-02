@@ -203,11 +203,14 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 	pool := newScannersPool(w.Statsd, &w.ScannerConfig, w.NoForkScanners, w.ScannersMax)
 	scan.StartedAt = time.Now()
 	defer w.cleanupScan(scan)
+
 	switch scan.Type {
 	case types.TaskTypeHost:
+		assert(scan.TargetID.Provider() == types.CloudProviderNone)
 		w.scanRootFilesystems(ctx, scan, []string{scan.TargetID.ResourceName()}, pool, resultsCh)
 
 	case types.TaskTypeAMI:
+		assert(scan.TargetID.Provider() == types.CloudProviderAWS)
 		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter)
 		if err != nil {
 			return err
@@ -233,6 +236,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		}
 
 	case types.TaskTypeEBS:
+		assert(scan.TargetID.Provider() == types.CloudProviderAWS)
 		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter)
 		if err != nil {
 			return err
@@ -258,9 +262,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		}
 
 	case types.TaskTypeAzureDisk:
-		if scan.TargetID.Provider() != types.CloudProviderAzure {
-			return fmt.Errorf("unsupported task type %q for cloud provider %q", scan.Type, scan.TargetID.Provider())
-		}
+		assert(scan.TargetID.Provider() == types.CloudProviderAzure)
 		if scan.DiskMode != types.DiskModeNBDAttach {
 			return fmt.Errorf("unsupported attach mode %q for cloud provider %q", scan.DiskMode, scan.TargetID.Provider())
 		}
@@ -283,6 +285,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		w.scanRootFilesystems(ctx, scan, mountpoints, pool, resultsCh)
 
 	case types.TaskTypeLambda:
+		assert(scan.TargetID.Provider() == types.CloudProviderAWS)
 		mountpoint, err := awsbackend.SetupLambda(ctx, w.Statsd, &w.ScannerConfig, scan)
 		if err != nil {
 			return err
@@ -359,7 +362,6 @@ func CleanupScanDir(ctx context.Context, scan *types.ScanTask) {
 			go umount(filepath.Join(scanRoot, entry.Name()))
 		}
 		wg.Wait()
-
 	}
 
 	log.Debugf("%s: removing folder %q", scan, scanRoot)
@@ -386,6 +388,7 @@ func (w *Worker) cleanupScan(scan *types.ScanTask) {
 
 	switch scan.Type {
 	case types.TaskTypeEBS, types.TaskTypeAMI:
+		assert(scan.TargetID.Provider() == types.CloudProviderAWS)
 		for resourceID, createdAt := range scan.CreatedResources {
 			if err := awsbackend.CleanupScanEBS(ctx, w.Statsd, &w.ScannerConfig, scan, resourceID); err != nil {
 				log.Warnf("%s: failed to cleanup EBS resource %q: %v", scan, resourceID, err)
@@ -393,7 +396,9 @@ func (w *Worker) cleanupScan(scan *types.ScanTask) {
 				w.statsResourceTTL(resourceID.ResourceType(), scan, createdAt)
 			}
 		}
+
 	case types.TaskTypeAzureDisk:
+		assert(scan.TargetID.Provider() == types.CloudProviderAzure)
 		for resourceID, createdAt := range scan.CreatedResources {
 			cfg, err := azurebackend.GetConfigFromCloudID(ctx, resourceID)
 			if err != nil {
@@ -408,10 +413,12 @@ func (w *Worker) cleanupScan(scan *types.ScanTask) {
 		}
 
 	case types.TaskTypeLambda, types.TaskTypeHost:
+		assert(scan.TargetID.Provider() == types.CloudProviderAWS || scan.TargetID.Provider() == types.CloudProviderNone)
 		if len(scan.CreatedResources) > 0 {
 			panic(fmt.Errorf("unexpected resources created in %s scan", scan.Type))
 		}
 		// nothing to do
+
 	default:
 		panic("unreachable")
 	}

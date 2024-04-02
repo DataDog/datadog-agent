@@ -123,12 +123,22 @@ func New(config types.ScannerConfig, opts Options) (*Runner, error) {
 
 // Cleanup cleans up all the resources created by the runner.
 func (s *Runner) Cleanup(ctx context.Context, maxTTL time.Duration, region string, assumedRole types.CloudID) error {
-	toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, s.Statsd, &s.ScannerConfig, maxTTL, region, assumedRole)
-	if err != nil {
-		return err
+	switch s.ScannerID.Provider {
+	case types.CloudProviderAWS:
+		toBeDeleted, err := awsbackend.ListResourcesForCleanup(ctx, s.Statsd, &s.ScannerConfig, maxTTL, region, assumedRole)
+		if err != nil {
+			return err
+		}
+		awsbackend.ResourcesCleanup(ctx, s.Statsd, &s.ScannerConfig, toBeDeleted, region, assumedRole)
+		return nil
+	case types.CloudProviderAzure:
+		// TODO: implement Azure cleanup
+		return nil
+	case types.CloudProviderNone:
+		return nil
+	default:
+		panic("programmer error: unknown cloud provider")
 	}
-	awsbackend.ResourcesCleanup(ctx, s.Statsd, &s.ScannerConfig, toBeDeleted, region, assumedRole)
-	return nil
 }
 
 func (s *Runner) cleanupProcess(ctx context.Context) {
@@ -317,7 +327,16 @@ func (s *Runner) CleanSlate() error {
 				}
 			}
 		}
-		awsbackend.CleanSlate(ctx, s.Statsd, &s.ScannerConfig, blockDevices, s.ScannerConfig.DefaultRolesMapping)
+		switch s.ScannerID.Provider {
+		case types.CloudProviderAWS:
+			awsbackend.CleanSlate(ctx, s.Statsd, &s.ScannerConfig, blockDevices, s.DefaultRolesMapping)
+		case types.CloudProviderAzure:
+			// TODO: implement Azure clean slate
+		case types.CloudProviderNone:
+			// Nothing to do
+		default:
+			panic("programmer error: unknown cloud provider")
+		}
 	}
 
 	return nil

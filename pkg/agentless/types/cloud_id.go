@@ -16,18 +16,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 )
 
-// CloudProvider represents a cloud provider.
-type CloudProvider string
-
-const (
-	// CloudProviderNone represents a non-cloud provider.
-	CloudProviderNone CloudProvider = "none"
-	// CloudProviderAWS represents the Amazon Web Services cloud provider.
-	CloudProviderAWS CloudProvider = "aws"
-	// CloudProviderAzure represents the Microsoft Azure cloud provider.
-	CloudProviderAzure CloudProvider = "azure"
-)
-
 // CloudID represents an Cloud Resource Identifier.
 // ie. an ARN for Amazon resources.
 type CloudID struct {
