@@ -656,6 +656,7 @@ def test(
     failfast=False,
     kernel_release=None,
     timeout=None,
+    extra_arguments="",
 ):
     """
     Run tests on eBPF parts
@@ -689,6 +690,7 @@ def test(
     args["run"] = f"-run {run}" if run else ""
     args["go"] = "go"
     args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
+    args["extra_arguments"] = extra_arguments
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
@@ -704,7 +706,7 @@ def test(
         args["dir"] = pdir
         testto = timeout if timeout else get_test_timeout(pdir)
         args["timeout"] = f"-timeout {testto}" if testto else ""
-        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {output_params} {dir} {run}'
+        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
         res = ctx.run(cmd.format(**args), env=env, warn=True)
         if res.exited is None or res.exited > 0:
             failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
