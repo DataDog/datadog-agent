@@ -14,6 +14,7 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
@@ -32,6 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
@@ -115,13 +118,13 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,
+			metadatascheduler metadatascheduler.Component,
 			jmxlogger jmxlogger.Component,
 		) error {
 
 			defer StopAgentWithDefaults(agentAPI)
 
 			err := startAgent(
-				&cliParams{GlobalParams: &command.GlobalParams{}},
 				log,
 				flare,
 				telemetry,
@@ -142,6 +145,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
+				metadatascheduler,
 				jmxlogger,
 			)
 			if err != nil {
@@ -194,6 +198,7 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module(),
 		etwtracerimpl.Module,
+		windowseventlogimpl.Module(),
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
@@ -203,6 +208,7 @@ func getPlatformModules() fx.Option {
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
 		fx.Invoke(func(_ etwtracer.Component) {}),
+		fx.Invoke(func(_ windowseventlog.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }
