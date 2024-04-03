@@ -5,7 +5,7 @@ upload_dependencies_sysprobe_x64:
   needs: ["pull_test_dockers_x64"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
-    ARCH: amd64
+    ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
     TEST_COMPONENT: system-probe
 
@@ -43,7 +43,7 @@ upload_dependencies_sysprobe_arm64:
 pull_test_dockers_x64:
   extends: .pull_test_dockers
   variables:
-    ARCH: amd64
+    ARCH: x86_64
 
 pull_test_dockers_arm64:
   extends: .pull_test_dockers
