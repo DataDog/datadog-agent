@@ -65,8 +65,8 @@ func NewDDSQLClient(apiKey, appKey string) *DDSQLClient {
 func (c *DDSQLClient) Do(query string) (*DDSQLTableResponse, error) {
 	now := time.Now()
 	params := DDSQLTableQueryParams{
-		DefaultStart:    int(now.Add(-10 * time.Minute).Unix()),
-		DefaultEnd:      int(now.Unix()),
+		DefaultStart:    int(now.Add(-1 * time.Hour).UnixMilli()),
+		DefaultEnd:      int(now.UnixMilli()),
 		DefaultInterval: 20000,
 		Query:           query,
 		Source:          "inventories",
