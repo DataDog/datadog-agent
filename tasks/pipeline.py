@@ -510,7 +510,7 @@ def changelog(ctx, new_commit_sha):
     else:
         parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh $CHANGELOG_COMMIT_SHA_SSM_NAME",
+        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh {os.environ['CHANGELOG_COMMIT_SHA_SSM_NAME']}",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:
