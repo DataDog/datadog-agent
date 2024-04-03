@@ -311,7 +311,7 @@ func initMisc(deps miscDeps) error {
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
-		OnStart: func(startCtx context.Context) error {
+		OnStart: func(_ context.Context) error {
 
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
@@ -322,7 +322,7 @@ func initMisc(deps miscDeps) error {
 
 			return nil
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			stopApp()
 
 			return nil

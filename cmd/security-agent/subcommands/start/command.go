@@ -90,7 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "start",
 		Short: "Start the Security Agent",
 		Long:  `Runs Datadog Security agent in the foreground`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// TODO: Similar to the agent itself, once the security agent is represented as a component, and not a function (start),
 			// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 
@@ -265,7 +265,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
+func RunAgent(_ context.Context, log log.Component, config config.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}

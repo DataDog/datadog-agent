@@ -75,7 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "run",
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
@@ -194,7 +194,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 
 func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
-		func(log log.Component, config config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
+		func(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
 			defer StopSystemProbeWithDefaults()
 			err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient, wmeta)
 			if err != nil {
