@@ -527,6 +527,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("dogstatsd_context_expiry_seconds", 20)
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	config.BindEnvAndSetDefault("dogstatsd_origin_detection_client", false)
+	// If enabled, DogStatsD origin detection will use the same logic as other origin detection mechanisms.
+	config.BindEnvAndSetDefault("dogstatsd_origin_detection_unified", true)
 	config.BindEnvAndSetDefault("dogstatsd_origin_optout_enabled", true)
 	config.BindEnvAndSetDefault("dogstatsd_so_rcvbuf", 0)
 	config.BindEnvAndSetDefault("dogstatsd_metrics_stats_enable", false)
