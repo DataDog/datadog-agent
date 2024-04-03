@@ -300,6 +300,7 @@
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
+/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/telemetry-and-analytics
 /comp/core/autodiscovery/listeners/           @DataDog/container-integrations
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
