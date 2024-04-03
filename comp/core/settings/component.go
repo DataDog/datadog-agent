@@ -46,9 +46,9 @@ type Component interface {
 	// GetFullConfig returns the full config
 	GetFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc
 	// GetValue allows to retrive the runtime setting
-	GetValue(w http.ResponseWriter, r *http.Request)
+	GetValue(setting string, w http.ResponseWriter, r *http.Request)
 	// SetValue allows to modify the runtime setting
-	SetValue(w http.ResponseWriter, r *http.Request)
+	SetValue(setting string, w http.ResponseWriter, r *http.Request)
 	// ListConfigurable returns the list of configurable setting at runtime
 	ListConfigurable(w http.ResponseWriter, r *http.Request)
 }

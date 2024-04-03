@@ -52,10 +52,10 @@ func (m mock) GetFullConfig(config.Config, ...string) http.HandlerFunc {
 }
 
 // GetValue allows to retrive the runtime setting
-func (m mock) GetValue(http.ResponseWriter, *http.Request) {}
+func (m mock) GetValue(string, http.ResponseWriter, *http.Request) {}
 
 // SetValue allows to modify the runtime setting
-func (m mock) SetValue(http.ResponseWriter, *http.Request) {}
+func (m mock) SetValue(string, http.ResponseWriter, *http.Request) {}
 
 // ListConfigurable returns the list of configurable setting at runtime
 func (m mock) ListConfigurable(http.ResponseWriter, *http.Request) {}

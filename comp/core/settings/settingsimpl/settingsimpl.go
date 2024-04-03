@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/gorilla/mux"
 )
 
 // Module defines the fx options for this component.
@@ -151,9 +150,7 @@ func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Reque
 	_, _ = w.Write(body)
 }
 
-func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	setting := vars["setting"]
+func (s *settingsRegistry) GetValue(setting string, w http.ResponseWriter, r *http.Request) {
 	s.log.Infof("Got a request to read a setting value: %s", setting)
 
 	val, err := s.GetRuntimeSetting(setting)
@@ -183,9 +180,7 @@ func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	setting := vars["setting"]
+func (s *settingsRegistry) SetValue(setting string, w http.ResponseWriter, r *http.Request) {
 	s.log.Infof("Got a request to change a setting: %s", setting)
 	_ = r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
@@ -200,6 +195,8 @@ func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func newSettings(deps dependencies) provides {
