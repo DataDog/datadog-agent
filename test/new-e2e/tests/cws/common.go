@@ -97,3 +97,21 @@ func testCwsEnabled(t assert.TestingT, ts testSuite) {
 		}
 	}
 }
+
+func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {
+	query := fmt.Sprintf("rule_id:self_test host:%s", ts.Hostname())
+	selftestsEvent, err := ts.Client().GetAppSelftestsEvent(query)
+	if !assert.NoErrorf(t, err, "could not get selftests event for host %s", ts.Hostname()) {
+		return
+	}
+	if !assert.NotNil(t, selftestsEvent, "selftests event should not be nil") {
+		return
+	}
+	if !assert.Equalf(t, "self_test", selftestsEvent.Agent.RuleID, "found unexpected rule_id in selftests event") {
+		return
+	}
+	assert.Empty(t, selftestsEvent.FailedTests, "selftests should not have failed tests")
+	for _, extraValidation := range extraValidations {
+		extraValidation(selftestsEvent)
+	}
+}

@@ -54,3 +54,17 @@ func (c *Client) GetAppRuleEvent(query string) (*RuleEvent, error) {
 	}
 	return &rule, nil
 }
+
+// GetAppSelftestsEvent returns a selftests event
+func (c *Client) GetAppSelftestsEvent(query string) (*SelftestsEvent, error) {
+	log, err := c.getLastMatchingLog(query)
+	if err != nil {
+		return nil, err
+	}
+	var selftests SelftestsEvent
+	err = mapstructure.Decode(log.Attributes, &selftests)
+	if err != nil {
+		return nil, err
+	}
+	return &selftests, nil
+}

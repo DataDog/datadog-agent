@@ -60,3 +60,10 @@ func (e *RulesetLoadedEvent) ContainsPolicy(policySource string, policyName stri
 	}
 	return false
 }
+
+// SelftestsEvent represents a selftests event
+type SelftestsEvent struct {
+	Event          `mapstructure:",squash"`
+	SucceededTests []string `json:"succeeded_tests" mapstructure:"succeeded_tests"`
+	FailedTests    []string `json:"failed_tests" mapstructure:"failed_tests"`
+}
