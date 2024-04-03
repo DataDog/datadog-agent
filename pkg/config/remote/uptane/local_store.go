@@ -33,11 +33,11 @@ type localStore struct {
 	store *transactionalStore
 }
 
-func newLocalStore(db *transactionalStore, repository string, cacheKey string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
+func newLocalStore(db *transactionalStore, repository string, initialRoots meta.EmbeddedRoots) (*localStore, error) {
 	s := &localStore{
 		store:       db,
-		metasBucket: fmt.Sprintf("%s_%s_metas", cacheKey, repository),
-		rootsBucket: fmt.Sprintf("%s_%s_roots", cacheKey, repository),
+		metasBucket: fmt.Sprintf("%s_metas", repository),
+		rootsBucket: fmt.Sprintf("%s_roots", repository),
 	}
 	err := s.init(initialRoots)
 	return s, err
@@ -173,10 +173,10 @@ func (s *localStore) Flush() error {
 	return s.store.commit()
 }
 
-func newLocalStoreDirector(db *transactionalStore, cacheKey string, site string, directorRootOverride string) (*localStore, error) {
-	return newLocalStore(db, "director", cacheKey, meta.RootsDirector(site, directorRootOverride))
+func newLocalStoreDirector(db *transactionalStore, site string, directorRootOverride string) (*localStore, error) {
+	return newLocalStore(db, "director", meta.RootsDirector(site, directorRootOverride))
 }
 
-func newLocalStoreConfig(db *transactionalStore, cacheKey string, site string, configRootOverride string) (*localStore, error) {
-	return newLocalStore(db, "config", cacheKey, meta.RootsConfig(site, configRootOverride))
+func newLocalStoreConfig(db *transactionalStore, site string, configRootOverride string) (*localStore, error) {
+	return newLocalStore(db, "config", meta.RootsConfig(site, configRootOverride))
 }
