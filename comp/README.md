@@ -18,7 +18,7 @@ Package jmxlogger implements the logger for JMX.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-metrics-logs
 
 Package aggregator implements the "aggregator" bundle,
 
@@ -27,6 +27,8 @@ Package aggregator implements the "aggregator" bundle,
 Package demultiplexer defines the aggregator demultiplexer
 
 ### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
+
+*Datadog Team*: agent-shared-components
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
@@ -48,7 +50,7 @@ auth_token file but can fetch it it's available.
 
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-metrics-logs
 
 Package checks implements the "checks" bundle, for all of the component based agent checks
 
