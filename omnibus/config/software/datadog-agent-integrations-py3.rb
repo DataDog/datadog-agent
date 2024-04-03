@@ -75,7 +75,6 @@ build do
   }
 
   # Install dependencies
-  package_index_url = ENV['PYTHON_INDEX_URL']
   lockfile_name = case
     when linux_target?
       arm_target? ? "linux-aarch64_py3.txt" : "linux-x86_64_py3.txt"
@@ -85,9 +84,7 @@ build do
       "windows-x86_64_py3.txt"
   end
   lockfile = windows_safe_path(project_dir, ".deps", "resolved", lockfile_name)
-  command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps "\
-          "--index-url #{package_index_url}/built --extra-index-url #{package_index_url}/external "\
-          "-r #{lockfile}"
+  command "#{python} -m pip install --require-hashes --only-binary=:all: --no-deps -r #{lockfile}"
 
   # Prepare build env for integrations
   wheel_build_dir = windows_safe_path(project_dir, ".wheels")
