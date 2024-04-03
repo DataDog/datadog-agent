@@ -66,7 +66,7 @@
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_deb_testing-a6_x64:
-  rules: !reference [.on_kitchen_tests_a6]
+  rules: !reference [.on_kitchen_tests]
   extends:
     - .deploy_deb_testing-a6
   needs:
@@ -87,7 +87,7 @@ deploy_deb_testing-a6_x64:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a6_arm64:
-  rules: !reference [.on_all_kitchen_builds_a6]
+  rules: !reference [.on_all_new_e2e_tests]
   extends:
     - .deploy_deb_testing-a6
   needs: ["agent_deb-arm64-a6"]
@@ -138,7 +138,7 @@ deploy_deb_testing-a7_x64:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a7_arm64:
-  rules: !reference [.on_all_kitchen_builds_a7]
+  rules: !reference [.on_all_new_e2e_tests]
   extends:
     - .deploy_deb_testing-a7
   needs: ["agent_deb-arm64-a7", "lint_linux-arm64"]
@@ -179,7 +179,7 @@ deploy_deb_testing-u7_arm64:
     - ls $OMNIBUS_PACKAGE_DIR
 
 deploy_rpm_testing-a6_x64:
-  rules: !reference [.on_kitchen_tests_a6]
+  rules: !reference [.on_kitchen_tests]
   extends:
     - .deploy_rpm_testing-a6
   needs:
@@ -193,7 +193,7 @@ deploy_rpm_testing-a6_x64:
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm
 
 deploy_rpm_testing-a6_arm64:
-  rules: !reference [.on_all_kitchen_builds_a6]
+  rules: !reference [.on_all_new_e2e_tests]
   extends:
     - .deploy_rpm_testing-a6
   needs:
@@ -236,7 +236,7 @@ deploy_rpm_testing-a7_x64:
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
 
 deploy_rpm_testing-a7_arm64:
-  rules: !reference [.on_all_kitchen_builds_a7]
+  rules: !reference [.on_all_new_e2e_tests]
   extends:
     - .deploy_rpm_testing-a7
   needs: ["agent_rpm-arm64-a7", "lint_linux-arm64"]
@@ -246,7 +246,7 @@ deploy_rpm_testing-a7_arm64:
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
 
 deploy_suse_rpm_testing_x64-a6:
-  rules: !reference [.on_kitchen_tests_a6]
+  rules: !reference [.on_kitchen_tests]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -291,7 +291,7 @@ deploy_suse_rpm_testing_x64-a7:
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "suse/testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID --repodata-store-public-key $OMNIBUS_PACKAGE_DIR_SUSE/datadog-*-7.*x86_64.rpm
 
 deploy_suse_rpm_testing_arm64-a7:
-  rules: !reference [.on_kitchen_tests_a7]
+  rules: !reference [.on_kitchen_tests]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -308,7 +308,7 @@ deploy_suse_rpm_testing_arm64-a7:
 
 deploy_windows_testing-a6:
   rules:
-    - !reference [.on_kitchen_tests_a6]
+    - !reference [.on_kitchen_tests]
     - !reference [.on_windows_installer_changes_or_manual]
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS

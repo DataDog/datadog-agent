@@ -104,7 +104,7 @@ new-e2e-windows-agent-msi-upgrade-windows-server-a7-x86_64:
   rules:
     - !reference [.except_main_or_release_branch]
     - !reference [.except_windows_installer_changes]
-    - !reference [.on_default_new-e2e_tests_a7]
+    - !reference [.on_default_new_e2e_tests]
     # must be last since it ends with when: on_success
     - !reference [.except_deploy]
   variables:

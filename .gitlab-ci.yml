@@ -616,63 +616,19 @@ workflow:
 .on_all_builds:
   - <<: *if_run_all_builds
 
-.on_all_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_run_all_builds
-
-.on_all_builds_a6_manual:
-  - <<: *if_not_version_6
-    when: never
+.on_all_builds_manual:
   - <<: *if_run_all_builds
     when: manual
     allow_failure: true
 
-.on_all_builds_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_run_all_builds
-
-.on_all_builds_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_run_all_builds
-    when: manual
-    allow_failure: true
-
-.on_kitchen_tests_a6:
-  - <<: *if_not_version_6
-    when: never
+.on_kitchen_tests:
   - <<: *if_installer_tests
 
-.on_kitchen_tests_a6_always:
-  - <<: *if_not_version_6
-    when: never
+.on_kitchen_tests_always:
   - <<: *if_installer_tests
     when: always
 
-.on_all_kitchen_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_installer_tests
-
-.on_kitchen_tests_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_installer_tests
-
-.on_all_kitchen_builds_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_installer_tests
-
-.on_all_new-e2e_tests_a7:
-  - <<: *if_not_version_7
-    when: never
+.on_all_new_e2e_tests:
   - <<: *if_not_run_all_builds
     when: never
   - <<: *if_installer_tests
@@ -680,20 +636,16 @@ workflow:
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
-.on_default_kitchen_tests_a7:
+.on_default_kitchen_tests:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
-.on_default_new-e2e_tests_a7:
+.on_default_new_e2e_tests:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_disable_e2e_tests
     when: never
@@ -702,10 +654,8 @@ workflow:
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
 
-.on_default_kitchen_tests_a7_always:
+.on_default_kitchen_tests_always:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_installer_tests
     when: always

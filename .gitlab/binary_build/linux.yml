@@ -53,7 +53,7 @@ build_dogstatsd-binary_x64:
 
 build_dogstatsd-binary_arm64:
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: binary_build
@@ -88,7 +88,7 @@ build_iot_agent-binary_x64:
     - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
 build_iot_agent-binary_arm64:
-  rules: !reference [.on_all_builds_a7]
+  rules: !reference [.on_all_builds]
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
