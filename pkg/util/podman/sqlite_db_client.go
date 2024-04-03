@@ -77,7 +77,7 @@ func (client *SQLDBClient) GetAllContainers() ([]Container, error) {
 	}
 	defer func() {
 		if errClose := conn.Close(); errClose != nil {
-			log.Warnf("failed to close libpod db: %q", err)
+			log.Warnf("failed to close sqlite db: %q", err)
 		}
 	}()
 

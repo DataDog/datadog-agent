@@ -2862,12 +2862,11 @@ api_key:
   #
   # listen_address: /var/vcap/data/garden/garden.sock
 
-## @param podman_db_path - string - optional - default: /var/lib/containers/storage/libpod/bolt_state.db
-## @env DD_PODMAN_DB_PATH - string - optional - default: /var/lib/containers/storage/libpod/bolt_state.db
+## @param podman_db_path - string - optional - default: ""
+## @env DD_PODMAN_DB_PATH - string - optional - default: ""
 ## Settings for Podman DB that Datadog Agent collects container metrics.
-## If using Podman 4.8+ with SQLite back-end, this parameter should be set to /var/lib/containers/storage/db.sql (rootfull containers).
 #
-# podman_db_path: /var/lib/containers/storage/libpod/bolt_state.db
+# podman_db_path: ""
 
 {{ end -}}
 {{- if .ClusterAgent }}
