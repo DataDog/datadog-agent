@@ -266,9 +266,8 @@ func (s *ecsFargateSuite) TestOpenRule() {
 }
 
 const (
-	cwsInstrumentationFullImagePathParamName = "cwsinstrumentation:fullImagePath"
-	cwsInstrumentationDefaultImagePath       = "public.ecr.aws/datadog/cws-instrumentation:rc"
-	agentDefaultImagePath                    = "public.ecr.aws/datadog/agent:7.51.0-rc.1"
+	cwsInstrumentationDefaultImagePath = "public.ecr.aws/datadog/cws-instrumentation:rc"
+	agentDefaultImagePath              = "public.ecr.aws/datadog/agent:7-rc"
 )
 
 func getCWSInstrumentationFullImagePath() string {
