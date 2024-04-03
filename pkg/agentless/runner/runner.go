@@ -192,7 +192,7 @@ func (s *Runner) SubscribeRemoteConfig(ctx context.Context) error {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-			config, err := types.UnmarshalConfig(rawConfig.Config, s.ScannerID, s.DefaultActions, s.DefaultRolesMapping)
+			config, err := types.UnmarshalConfig(rawConfig.Config, &s.ScannerConfig, s.ScannerID)
 			if err != nil {
 				log.Errorf("could not parse agentless-scanner task: %v", err)
 				return
