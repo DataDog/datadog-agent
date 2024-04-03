@@ -7,21 +7,20 @@
 package types
 
 // ProductOrigin is the origin of the product that sent the entity.
-type ProductOrigin string
+type ProductOrigin int
 
 const (
 	// ProductOriginDogStatsD is the ProductOrigin for DogStatsD.
-	ProductOriginDogStatsD ProductOrigin = "dogstatsd"
+	ProductOriginDogStatsD ProductOrigin = iota
 	// ProductOriginAPM is the ProductOrigin for APM.
-	ProductOriginAPM ProductOrigin = "apm"
+	ProductOriginAPM ProductOrigin = iota
 )
 
 // OriginInfo contains the Origin Detection information.
 type OriginInfo struct {
-	FromUDS       string
-	FromTag       string
-	FromMsg       string
-	Cardinality   string
-	ProductOrigin ProductOrigin
-	OptOutEnabled *bool
+	FromUDS       string        // FromUDS is the origin resolved using Unix Domain Socket.
+	FromTag       string        // FromTag is the origin resolved from tags.
+	FromMsg       string        // FromMsg is the origin resolved from the message.
+	Cardinality   string        // Cardinality is the cardinality of the resolved origin.
+	ProductOrigin ProductOrigin // ProductOrigin is the product that sent the origin information.
 }

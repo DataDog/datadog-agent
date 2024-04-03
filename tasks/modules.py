@@ -166,7 +166,7 @@ DEFAULT_MODULES = {
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
-    "pkg/tagger": GoModule("pkg/tagger", independent=True),
+    "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True),
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),

@@ -6,6 +6,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
+	github.com/DataDog/datadog-agent/pkg/tagger/types => ../../pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
@@ -14,12 +15,12 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../util/sort/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../util/system/socket
-
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/tagset v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.53.0-rc.2

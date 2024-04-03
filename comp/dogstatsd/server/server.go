@@ -312,7 +312,6 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
-			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
 		wmeta: wmeta,
 	}
