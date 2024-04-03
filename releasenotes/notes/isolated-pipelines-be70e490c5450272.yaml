@@ -10,6 +10,6 @@ features:
   - |
     Add ``dogstatsd_pipeline_autoadjust_strategy`` setting with ``max_throughput`` and ``per_origin``
     strategies. ``max_throughput`` is the already existing strategy (when ``dogstatsd_pipeline_autoadjust``
-    is ``true``). ``per_origin`` will let you create an arbitrary number of pipelines (based on ``dogstatsd_pipeline_count`),
+    is ``true``). ``per_origin`` will let you create an arbitrary number of pipelines (based on ``dogstatsd_pipeline_count``),
     and will try to isolate containers based on their advertised origin. This will improve compression.
 
