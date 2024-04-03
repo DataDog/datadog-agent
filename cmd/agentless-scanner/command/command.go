@@ -8,16 +8,13 @@ package command
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"os/signal"
 	"path"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
@@ -27,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
-	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -40,6 +36,7 @@ import (
 	_ "modernc.org/sqlite" // sqlite driver, used by github.com/knqyf263/go-rpmdb
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 const (
@@ -75,50 +72,55 @@ func RootCommand() *cobra.Command {
 	return cmd
 }
 
+type runParams struct {
+	cloudProvider string
+	pidfilePath   string
+	workers       int
+	scannersMax   int
+}
+
 func runCommand() *cobra.Command {
-	var localFlags struct {
-		cloudProvider string
-		pidfilePath   string
-		workers       int
-		scannersMax   int
-	}
+	var params runParams
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
-				if localFlags.workers <= 0 {
-					return fmt.Errorf("workers must be greater than 0")
-				}
-				if localFlags.scannersMax <= 0 {
-					return fmt.Errorf("scanners-max must be greater than 0")
-				}
-				provider, err := detectCloudProvider(localFlags.cloudProvider)
-				if err != nil {
-					return fmt.Errorf("could not detect cloud provider: %w", err)
-				}
-				return runCmd(sc, evp, provider, localFlags.pidfilePath, localFlags.workers, localFlags.scannersMax)
-			}, common.Bundle())
+			return fxutil.OneShot(
+				runCmd,
+				common.Bundle(),
+				fx.Supply(&params),
+			)
 		},
 	}
-	cmd.Flags().StringVarP(&localFlags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	cmd.Flags().StringVar(&localFlags.cloudProvider, "cloud-provider", "auto", fmt.Sprintf("cloud provider to use (auto, %q or %q)", types.CloudProviderAWS, types.CloudProviderNone))
-	cmd.Flags().IntVar(&localFlags.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
-	cmd.Flags().IntVar(&localFlags.scannersMax, "scanners-max", defaultScannersMax, "maximum number of scanner processes in parallel")
+	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	cmd.Flags().StringVar(&params.cloudProvider, "cloud-provider", "auto", fmt.Sprintf("cloud provider to use (auto, %q or %q)", types.CloudProviderAWS, types.CloudProviderNone))
+	cmd.Flags().IntVar(&params.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
+	cmd.Flags().IntVar(&params.scannersMax, "scanners-max", defaultScannersMax, "maximum number of scanner processes in parallel")
 	return cmd
 }
 
-func runCmd(sc *types.ScannerConfig, evp eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
+func runCmd(_ complog.Component, sc *types.ScannerConfig, params *runParams, evp eventplatform.Component) error {
+	ctx := common.CtxTerminated()
+	statsd := common.InitStatsd(*sc)
 
-	if pidfilePath != "" {
-		err := pidfile.WritePID(pidfilePath)
+	if params.workers <= 0 {
+		return fmt.Errorf("workers must be greater than 0")
+	}
+	if params.scannersMax <= 0 {
+		return fmt.Errorf("scanners-max must be greater than 0")
+	}
+	provider, err := detectCloudProvider(params.cloudProvider)
+	if err != nil {
+		return fmt.Errorf("could not detect cloud provider: %w", err)
+	}
+
+	if params.pidfilePath != "" {
+		err := pidfile.WritePID(params.pidfilePath)
 		if err != nil {
 			return fmt.Errorf("could not write PID file, exiting: %w", err)
 		}
-		defer os.Remove(pidfilePath)
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
+		defer os.Remove(params.pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), params.pidfilePath)
 	}
 
 	hostname, err := utils.GetHostnameWithContext(ctx)
@@ -126,13 +128,12 @@ func runCmd(sc *types.ScannerConfig, evp eventplatform.Component, provider types
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
-	statsd := common.InitStatsd(*sc)
 	scannerID := types.NewScannerID(provider, hostname)
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
-		Workers:        workers,
-		ScannersMax:    scannersMax,
+		Workers:        params.workers,
+		ScannersMax:    params.scannersMax,
 		PrintResults:   false,
 		Statsd:         statsd,
 		EventForwarder: evp,
@@ -150,29 +151,34 @@ func runCmd(sc *types.ScannerConfig, evp eventplatform.Component, provider types
 	return nil
 }
 
+type runScannerParams struct {
+	sock string
+}
+
 func runScannerCommand() *cobra.Command {
-	var sock string
+	var params runScannerParams
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig) error {
-				return runScannerCmd(sc, sock)
-			}, common.Bundle())
+			return fxutil.OneShot(
+				runScannerCmd,
+				common.Bundle(),
+				fx.Supply(&params),
+			)
 		},
 	}
-	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
+	cmd.Flags().StringVar(&params.sock, "sock", "", "path to unix socket for IPC")
 	_ = cmd.MarkFlagRequired("sock")
 	return cmd
 }
 
-func runScannerCmd(sc *types.ScannerConfig, sock string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
-	defer stop()
-
+func runScannerCmd(_ complog.Component, sc *types.ScannerConfig, params *runScannerParams) error {
+	ctx := common.CtxTerminated()
+	statsd := common.InitStatsd(*sc)
 	var opts types.ScannerOptions
 
-	conn, err := net.Dial("unix", sock)
+	conn, err := net.Dial("unix", params.sock)
 	if err != nil {
 		return err
 	}
@@ -188,7 +194,6 @@ func runScannerCmd(sc *types.ScannerConfig, sock string) error {
 		return err
 	}
 
-	statsd := common.InitStatsd(*sc)
 	result := runner.LaunchScannerInSameProcess(ctx, statsd, sc, opts)
 	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
 	if err := enc.Encode(result); err != nil {

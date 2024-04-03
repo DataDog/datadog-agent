@@ -12,21 +12,20 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/agentless/azurebackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
 
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 // GroupCommand returns the Azure commands
@@ -44,114 +43,104 @@ func GroupCommand() *cobra.Command {
 	return cmd
 }
 
+type azureAttachParams struct {
+	resourceID string
+	noMount    bool
+}
+
 func azureAttachCommand() *cobra.Command {
-	var localFlags struct {
-		noMount bool
-	}
+	var params azureAttachParams
 	cmd := &cobra.Command{
 		Use:   "attach <snapshot|volume>",
 		Short: "Attaches a snapshot or volume to the current instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
-				ctx := common.CtxTerminated()
-				self, err := azurebackend.GetInstanceMetadata(context.Background())
-				if err != nil {
-					return err
-				}
-				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
-				if err != nil {
-					return err
-				}
-				return azureAttachCmd(ctx, sc, resourceID, !localFlags.noMount)
-			}, common.Bundle())
+			return fxutil.OneShot(
+				azureAttachCmd,
+				fx.Provide(func() *azureAttachParams {
+					params.resourceID = args[0]
+					return &params
+				}), common.Bundle())
 		},
 	}
-	cmd.Flags().BoolVar(&localFlags.noMount, "no-mount", false, "mount the device")
+	cmd.Flags().BoolVar(&params.noMount, "no-mount", false, "mount the device")
 	return cmd
 }
 
+type azureScanParams struct {
+	resourceID string
+	targetName string
+}
+
 func azureScanCommand() *cobra.Command {
-	var localFlags struct {
-		Hostname string
-		Region   string
-	}
+	var params azureScanParams
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
-				ctx := common.CtxTerminated()
-				self, err := azurebackend.GetInstanceMetadata(context.Background())
-				if err != nil {
-					return err
-				}
-				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
-				if err != nil {
-					return err
-				}
-				return azureScanCmd(ctx, sc, evp, resourceID, localFlags.Hostname)
-			}, common.Bundle())
+			return fxutil.OneShot(
+				azureScanCmd,
+				common.Bundle(),
+				fx.Provide(func() *azureScanParams {
+					params.resourceID = args[0]
+					return &params
+				}),
+			)
 		},
 	}
-	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
+	cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
 
 	return cmd
 }
 
+type azureOfflineParams struct {
+	workers       int
+	subscription  string
+	resourceGroup string
+	taskType      string
+	maxScans      int
+	printResults  bool
+}
+
 func azureOfflineCommand() *cobra.Command {
-	var localFlags struct {
-		workers       int
-		subscription  string
-		resourceGroup string
-		taskType      string
-		maxScans      int
-		printResults  bool
-	}
+	var params azureOfflineParams
 	cmd := &cobra.Command{
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
-				ctx := common.CtxTerminated()
-				if localFlags.workers <= 0 {
-					return fmt.Errorf("workers must be greater than 0")
-				}
-				taskType, err := types.ParseTaskType(localFlags.taskType)
-				if err != nil {
-					return err
-				}
-				return azureOfflineCmd(
-					ctx,
-					sc,
-					evp,
-					localFlags.workers,
-					taskType,
-					localFlags.maxScans,
-					localFlags.printResults,
-					localFlags.subscription,
-					localFlags.resourceGroup)
-			}, common.Bundle())
+			return fxutil.OneShot(
+				azureOfflineCmd,
+				fx.Supply(&params),
+				common.Bundle())
 		},
 	}
 
-	cmd.Flags().IntVar(&localFlags.workers, "workers", 40, "number of scans running in parallel")
-	cmd.Flags().StringVar(&localFlags.subscription, "subscription", "", "only scan resources in the specified subscription")
-	cmd.Flags().StringVar(&localFlags.resourceGroup, "resource-group", "", "only scan resources in the specified resource group")
-	cmd.Flags().StringVar(&localFlags.taskType, "task-type", string(types.TaskTypeAzureDisk), fmt.Sprintf("scan type (%s or %s)", types.TaskTypeAzureDisk, types.TaskTypeHost))
-	cmd.Flags().IntVar(&localFlags.maxScans, "max-scans", 0, "maximum number of scans to perform")
-	cmd.Flags().BoolVar(&localFlags.printResults, "print-results", false, "print scan results to stdout")
+	cmd.Flags().IntVar(&params.workers, "workers", 40, "number of scans running in parallel")
+	cmd.Flags().StringVar(&params.subscription, "subscription", "", "only scan resources in the specified subscription")
+	cmd.Flags().StringVar(&params.resourceGroup, "resource-group", "", "only scan resources in the specified resource group")
+	cmd.Flags().StringVar(&params.taskType, "task-type", string(types.TaskTypeAzureDisk), fmt.Sprintf("scan type (%s or %s)", types.TaskTypeAzureDisk, types.TaskTypeHost))
+	cmd.Flags().IntVar(&params.maxScans, "max-scans", 0, "maximum number of scans to perform")
+	cmd.Flags().BoolVar(&params.printResults, "print-results", false, "print scan results to stdout")
 
 	// TODO support scanning all RGs in a subscription
 	_ = cmd.MarkFlagRequired("resource-group")
 	return cmd
 }
 
-func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID types.CloudID, mount bool) error {
+func azureAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *azureAttachParams) error {
+	ctx := common.CtxTerminated()
 	scannerHostname := common.TryGetHostname(ctx)
 	scannerID := types.ScannerID{Hostname: scannerHostname, Provider: types.CloudProviderAzure}
 
+	self, err := azurebackend.GetInstanceMetadata(ctx)
+	if err != nil {
+		return err
+	}
+	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
+	if err != nil {
+		return err
+	}
 	cfg, err := azurebackend.GetConfigFromCloudID(ctx, resourceID)
 	if err != nil {
 		return err
@@ -197,7 +186,7 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 			fmt.Printf("partition\t%s\t%s\n", part.DevicePath, part.FSType)
 		}
 
-		if mount {
+		if !params.noMount {
 			mountpoints, err := devices.Mount(ctx, scan, partitions)
 			if err != nil {
 				return err
@@ -215,10 +204,19 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 	return nil
 }
 
-func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatform.Component, resourceID types.CloudID, targetName string) error {
+func azureScanCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component, params *azureScanParams) error {
+	ctx := common.CtxTerminated()
 	statsd := common.InitStatsd(*sc)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
+	self, err := azurebackend.GetInstanceMetadata(ctx)
+	if err != nil {
+		return err
+	}
+	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
+	if err != nil {
+		return err
+	}
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
@@ -227,7 +225,7 @@ func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatfor
 		taskType,
 		resourceID.AsText(),
 		scannerID,
-		targetName,
+		params.targetName,
 		nil,
 		sc.DefaultActions,
 		sc.DefaultRolesMapping,
@@ -259,15 +257,18 @@ func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatfor
 	return nil
 }
 
-func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string) error {
+func azureOfflineCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component, params *azureOfflineParams) error {
+	ctx := common.CtxTerminated()
 	statsd := common.InitStatsd(*sc)
+	hostname := common.TryGetHostname(ctx)
 	defer statsd.Flush()
 
-	hostname, err := utils.GetHostnameWithContext(ctx)
+	taskType, err := types.ParseTaskType(params.taskType)
 	if err != nil {
-		return fmt.Errorf("could not fetch hostname: %w", err)
+		return err
 	}
 
+	subscription := params.subscription
 	if len(subscription) == 0 {
 		self, err := azurebackend.GetInstanceMetadata(ctx)
 		if err != nil {
@@ -280,9 +281,9 @@ func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplat
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
 		DdEnv:          sc.Env,
-		Workers:        workers,
+		Workers:        params.workers,
 		ScannersMax:    8,
-		PrintResults:   printResults,
+		PrintResults:   params.printResults,
 		Statsd:         statsd,
 		EventForwarder: evp,
 	})
@@ -300,7 +301,7 @@ func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplat
 		}
 		vmClient := config.ComputeClientFactory.NewVirtualMachinesClient()
 
-		pager := vmClient.NewListPager(resourceGroup, nil)
+		pager := vmClient.NewListPager(params.resourceGroup, nil)
 		count := 0
 		for pager.More() {
 			nextResult, err := pager.NextPage(ctx)
@@ -346,7 +347,7 @@ func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplat
 					return nil
 				}
 				count++
-				if maxScans > 0 && count >= maxScans {
+				if params.maxScans > 0 && count >= params.maxScans {
 					return nil
 				}
 			}

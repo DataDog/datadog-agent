@@ -10,13 +10,14 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
-
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
+
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 // GroupCommand returns the local commands
@@ -31,34 +32,43 @@ func GroupCommand() *cobra.Command {
 	return cmd
 }
 
+type localScanParams struct {
+	targetName string
+	resourceID string
+}
+
 func localScanCommand() *cobra.Command {
-	var localFlags struct {
-		Hostname string
-	}
+	var params localScanParams
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig) error {
-				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderNone, "", "")
-				if err != nil {
-					return err
-				}
-				return localScanCmd(sc, resourceID, localFlags.Hostname)
-			}, common.Bundle())
+			return fxutil.OneShot(
+				localScanCmd,
+				common.Bundle(),
+				fx.Provide(func() (*localScanParams, error) {
+					params.resourceID = args[0]
+					return &params, nil
+				}),
+			)
 		},
 	}
 
-	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
+	cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
 	return cmd
 }
 
-func localScanCmd(sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string) error {
+func localScanCmd(_ complog.Component, sc *types.ScannerConfig, params *localScanParams) error {
 	ctx := common.CtxTerminated()
 	statsd := common.InitStatsd(*sc)
 
 	hostname := common.TryGetHostname(ctx)
+	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderNone, "", "")
+	if err != nil {
+		return err
+	}
+
 	taskType, err := types.DefaultTaskType(resourceID)
 	if err != nil {
 		return err
@@ -68,7 +78,7 @@ func localScanCmd(sc *types.ScannerConfig, resourceID types.CloudID, targetHostn
 		taskType,
 		resourceID.AsText(),
 		scannerID,
-		targetHostname,
+		params.targetName,
 		nil,
 		sc.DefaultActions,
 		sc.DefaultRolesMapping,
