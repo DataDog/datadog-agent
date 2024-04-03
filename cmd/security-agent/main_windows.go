@@ -95,7 +95,7 @@ func (s *service) Run(svcctx context.Context) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, telemetry, "", demultiplexer, statusComponent)
+			err := start.RunAgent(ctx, log, config, telemetry, demultiplexer, statusComponent)
 			if err != nil {
 				return err
 			}
