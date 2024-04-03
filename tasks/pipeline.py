@@ -1,6 +1,7 @@
 import os
 import pprint
 import re
+import sys
 import time
 from datetime import datetime, timedelta
 
@@ -215,7 +216,7 @@ def run(
     git_ref=None,
     here=False,
     use_release_entries=False,
-    major_versions='6,7',
+    major_versions=None,
     repo_branch="dev",
     deploy=False,
     all_builds=True,
@@ -277,11 +278,11 @@ def run(
         release_version_6 = nightly_entry_for(6)
         release_version_7 = nightly_entry_for(7)
 
-    major_versions = major_versions.split(',')
-    if '6' not in major_versions:
-        release_version_6 = ""
-    if '7' not in major_versions:
-        release_version_7 = ""
+    if major_versions:
+        print(
+            "[WARNING] --major-versions option will be deprecated soon. Both Agent 6 & 7 will be run everytime.",
+            file=sys.stderr,
+        )
 
     if here:
         git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
@@ -509,7 +510,7 @@ def changelog(ctx, new_commit_sha):
     else:
         parent_dir = os.getcwd()
     old_commit_sha = ctx.run(
-        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh $CHANGELOG_COMMIT_SHA_SSM_NAME",
+        f"{parent_dir}/tools/ci/aws_ssm_get_wrapper.sh {os.environ['CHANGELOG_COMMIT_SHA_SSM_NAME']}",
         hide=True,
     ).stdout.strip()
     if not new_commit_sha:

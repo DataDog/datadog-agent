@@ -3,7 +3,7 @@
     <deployment type="docker-image">
       <settings>
         <option name="imageTag" value="486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-devenv:1-arm64" />
-        <option name="command" value="invoke lint-go" />
+        <option name="command" value="invoke linter.go" />
         <option name="containerName" value="datadog-agent-lint-go" />
         <option name="commandLineOptions" value="-w /home/datadog/go/src/github.com/DataDog/datadog-agent" />
         <option name="showCommandPreview" value="true" />
