@@ -8,6 +8,7 @@ package agent
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -18,5 +19,13 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(), core.MockBundle(), defaultforwarder.MockModule(), orchestratorimpl.MockModule(), eventplatformimpl.MockModule(), demultiplexerimpl.Module(), fx.Supply(demultiplexerimpl.NewDefaultParams()))
+	fxutil.TestBundle(t,
+		Bundle(),
+		core.MockBundle(),
+		defaultforwarder.MockModule(),
+		orchestratorimpl.MockModule(),
+		eventplatformimpl.MockModule(),
+		demultiplexerimpl.Module(),
+		fx.Supply(demultiplexerimpl.NewDefaultParams()),
+		fx.Supply(jmxloggerimpl.NewDefaultParams()))
 }

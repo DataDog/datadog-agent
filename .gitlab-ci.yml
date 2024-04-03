@@ -1,46 +1,46 @@
 ---
 include:
-  - /.gitlab/.pre/cancel-prev-pipelines.yml
-  - /.gitlab/benchmarks/include.yml
-  - /.gitlab/binary_build/include.yml
-  - /.gitlab/check_deploy/check_deploy.yml
-  - /.gitlab/check_merge/do_not_merge.yml
-  - /.gitlab/choco_build/choco_build.yml
-  - /.gitlab/choco_deploy/choco_deploy.yml
-  - /.gitlab/common/shared.yml
-  - /.gitlab/common/pr_commenter.yml
-  - /.gitlab/container_build/include.yml
-  - /.gitlab/container_scan/container_scan.yml
-  - /.gitlab/deploy_containers/deploy_containers.yml
-  - /.gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
-  - /.gitlab/deploy_dca/deploy_dca.yml
-  - /.gitlab/deploy_packages/include.yml
-  - /.gitlab/deps_build/deps_build.yml
-  - /.gitlab/deps_fetch/deps_fetch.yml
-  - /.gitlab/dev_container_deploy/include.yml
-  - /.gitlab/e2e/e2e.yml
-  - /.gitlab/e2e_pre_test/e2e_pre_test.yml
-  - /.gitlab/functional_test/include.yml
-  - /.gitlab/functional_test_cleanup/functional_test_cleanup.yml
-  - /.gitlab/install_script_testing/install_script_testing.yml
-  - /.gitlab/integration_test/include.yml
-  - /.gitlab/internal_image_deploy/internal_image_deploy.yml
-  - /.gitlab/internal_kubernetes_deploy/include.yml
-  - /.gitlab/junit_upload/junit_upload.yml
-  - /.gitlab/kitchen_cleanup/include.yml
-  - /.gitlab/kitchen_deploy/kitchen_deploy.yml
-  - /.gitlab/kitchen_testing/include.yml
-  - /.gitlab/maintenance_jobs/include.yml
-  - /.gitlab/notify/notify.yml
-  - /.gitlab/package_build/include.yml
-  - /.gitlab/packaging/include.yml
-  - /.gitlab/package_deps_build/package_deps_build.yml
-  - /.gitlab/pkg_metrics/pkg_metrics.yml
-  - /.gitlab/post_rc_build/post_rc_tasks.yml
-  - /.gitlab/setup/setup.yml
-  - /.gitlab/software_composition_analysis/software_composition_analysis.yml
-  - /.gitlab/source_test/include.yml
-  - /.gitlab/trigger_release/trigger_release.yml
+  - .gitlab/.pre/cancel-prev-pipelines.yml
+  - .gitlab/benchmarks/include.yml
+  - .gitlab/binary_build/include.yml
+  - .gitlab/check_deploy/check_deploy.yml
+  - .gitlab/check_merge/do_not_merge.yml
+  - .gitlab/choco_build/choco_build.yml
+  - .gitlab/choco_deploy/choco_deploy.yml
+  - .gitlab/common/shared.yml
+  - .gitlab/common/pr_commenter.yml
+  - .gitlab/container_build/include.yml
+  - .gitlab/container_scan/container_scan.yml
+  - .gitlab/deploy_containers/deploy_containers.yml
+  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
+  - .gitlab/deploy_dca/deploy_dca.yml
+  - .gitlab/deploy_packages/include.yml
+  - .gitlab/deps_build/deps_build.yml
+  - .gitlab/deps_fetch/deps_fetch.yml
+  - .gitlab/dev_container_deploy/include.yml
+  - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_pre_test/e2e_pre_test.yml
+  - .gitlab/functional_test/include.yml
+  - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
+  - .gitlab/install_script_testing/install_script_testing.yml
+  - .gitlab/integration_test/include.yml
+  - .gitlab/internal_image_deploy/internal_image_deploy.yml
+  - .gitlab/internal_kubernetes_deploy/include.yml
+  - .gitlab/junit_upload/junit_upload.yml
+  - .gitlab/kitchen_cleanup/include.yml
+  - .gitlab/kitchen_deploy/kitchen_deploy.yml
+  - .gitlab/kitchen_testing/include.yml
+  - .gitlab/maintenance_jobs/include.yml
+  - .gitlab/notify/notify.yml
+  - .gitlab/package_build/include.yml
+  - .gitlab/packaging/include.yml
+  - .gitlab/package_deps_build/package_deps_build.yml
+  - .gitlab/pkg_metrics/pkg_metrics.yml
+  - .gitlab/post_rc_build/post_rc_tasks.yml
+  - .gitlab/setup/setup.yml
+  - .gitlab/software_composition_analysis/software_composition_analysis.yml
+  - .gitlab/source_test/include.yml
+  - .gitlab/trigger_release/trigger_release.yml
 
 default:
   retry:
@@ -178,7 +178,7 @@ variables:
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
   # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 3eac4b5bb0c4
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: e9cf37ed9d96
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -211,8 +211,8 @@ variables:
   ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
   CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.changelog_commit_sha  # agent-ci-experience
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-release
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-release
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
   DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-ci-experience
   DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-ci-experience
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-developer-tools
@@ -225,13 +225,13 @@ variables:
   KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-developer-tools
   GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
   GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token  # ci-cd
-  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-build-and-release
+  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-build-and-releases
   JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-ci-experience
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-release
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-release
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
   SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
   SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
@@ -404,30 +404,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_a6:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-
-.on_a6_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-    when: manual
-    allow_failure: true
-
-.on_a7:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-
-.on_a7_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-    when: manual
-    allow_failure: true
-
 .except_no_a6_or_no_a7:
   - <<: *if_mergequeue
     when: never
@@ -453,16 +429,6 @@ workflow:
   - <<: *if_main_branch
     when: manual
     allow_failure: true
-
-.on_main_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_main_branch
-
-.on_main_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_main_branch
 
 .on_tag_or_a7:
   - <<: *if_mergequeue
@@ -831,7 +797,6 @@ workflow:
   - changes:
       paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -890,7 +855,6 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -1090,8 +1054,10 @@ workflow:
 
 .on_trace_agent_changes_or_manual:
   - changes:
-      - pkg/trace/**/*
-      - .gitlab/benchmarks/*
+      paths:
+        - pkg/trace/**/*
+        - .gitlab/benchmarks/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true

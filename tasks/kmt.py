@@ -224,19 +224,6 @@ def resume_stack(_, stack: Optional[str] = None):
 
 
 @task
-def stack(_, stack: Optional[str] = None):
-    stack = check_and_get_stack(stack)
-    if not stacks.stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
-
-    infrastructure = build_infrastructure(stack, remote_ssh_key="")
-    for instance in infrastructure.values():
-        print(instance)
-        for vm in instance.microvms:
-            print(f"  {vm}")
-
-
-@task
 def ls(_, distro=False, custom=False):
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
@@ -432,8 +419,10 @@ def prepare(
         start_compiler(ctx)
 
     constrain_pkgs = ""
-    if not build_from_scratch:
-        constrain_pkgs = f"--packages={packages}"
+    if not build_from_scratch and packages != "":
+        packages_with_ebpf = packages.split(",")
+        packages_with_ebpf.append("./pkg/ebpf/bytecode")
+        constrain_pkgs = f"--packages={','.join(set(packages_with_ebpf))}"
 
     docker_exec(
         ctx,
