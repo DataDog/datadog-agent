@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: agent-shared-components
@@ -38,6 +39,7 @@ func Bundle() fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		secretsimpl.Module(),
 		fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
+		fx.Provide(func(secrets secrets.Component) optional.Option[secrets.Component] { return optional.NewOption(secrets) }),
 		sysprobeconfigimpl.Module(),
 		telemetry.Module(),
 		hostnameimpl.Module())
