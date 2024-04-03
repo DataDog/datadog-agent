@@ -13,6 +13,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
@@ -83,7 +84,7 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	if err != nil {
 		return NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
-	log.Debugf("Raw results: %+v", results)
+	//log.Debugf("Raw results: %+v", results)
 
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -94,6 +95,7 @@ func RunTraceroute(cfg Config) (NetworkPath, error) {
 	if err != nil {
 		return NetworkPath{}, err
 	}
+	log.Debugf("Processed Results: %+v", results)
 
 	return pathResult, nil
 }
@@ -123,11 +125,17 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 
 	pathID := uuid.New().String()
 
+	networkId, err := ec2.GetNetworkID(context.TODO())
+	if err != nil {
+		log.Debugf("failed to get network ID: %s", err.Error())
+	}
+
 	traceroutePath := NetworkPath{
 		PathID:    pathID,
 		Timestamp: time.Now().UnixMilli(),
 		Source: NetworkPathSource{
-			Hostname: hname,
+			Hostname:  hname,
+			NetworkID: networkId,
 		},
 		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
@@ -156,7 +164,29 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		}
 		var nodes []node
 		// add first hop
-		firstNodeName := hops[0].Sent.IP.SrcIP.String()
+		localAddr := hops[0].Sent.IP.SrcIP
+
+		// get hardware interface info
+		iface, err := getHWInterface(localAddr)
+		if err != nil {
+			// TODO: we probably don't want to stop execution here.
+			// For testing though, we probably do want to see how often
+			// this fails
+			log.Errorf("failed to get hardware interface: %s", err.Error())
+			return NetworkPath{}, err
+		}
+
+		// Resolve subnet from hardware interface
+		subnet, err := ec2.GetSubnetForHardwareAddr(context.TODO(), iface)
+		if err != nil {
+			log.Debugf("hardware interface: %+v", iface)
+			log.Errorf("failed to get subnet from hardware address: %s", err.Error())
+		}
+		// TODO: this should probably all be done outside
+		// this loop
+		traceroutePath.Source.Subnet = subnet.ID
+
+		firstNodeName := localAddr.String()
 		nodes = append(nodes, node{node: firstNodeName, probe: &hops[0]})
 
 		// then add all the other hops
@@ -248,4 +278,33 @@ func getHostname(ipAddr string) string {
 		currHost = ipAddr
 	}
 	return currHost
+}
+
+func getHWInterface(localAddr net.IP) (net.HardwareAddr, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return net.HardwareAddr{}, fmt.Errorf("failed to get interfaces: %w", err)
+	}
+
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			fmt.Printf("failed to get iface addresses: %s\n", err.Error())
+			continue
+		}
+
+		for _, addr := range addrs {
+			ip, _, err := net.ParseCIDR(addr.String())
+			if err != nil {
+				fmt.Printf("failed to parse cidr for %s: %s", addr.String(), err.Error())
+				continue
+			}
+
+			if ip.Equal(localAddr) {
+				return iface.HardwareAddr, nil
+			}
+		}
+	}
+
+	return net.HardwareAddr{}, fmt.Errorf("failed to find matching interface for %q", localAddr.String())
 }

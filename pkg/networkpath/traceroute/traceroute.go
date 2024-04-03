@@ -40,7 +40,9 @@ type (
 	// NetworkPathSource encapsulates information
 	// about the source of a path
 	NetworkPathSource struct {
-		Hostname string `json:"hostname"`
+		Hostname  string `json:"hostname"`
+		Subnet    string `json:"subnet"`
+		NetworkID string `json:"network_id"` // Today this will be a VPC ID since we only resolve AWS resources
 	}
 
 	// NetworkPathDestination encapsulates information
