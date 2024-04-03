@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 
+
 def compiler_built(ctx: Context):
     res = ctx.run("docker images kmt:compile | grep -v REPOSITORY | grep kmt", warn=True)
     return res is not None and res.ok
@@ -48,7 +49,9 @@ def start_compiler(ctx: Context):
     docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 
     if sys.platform != "darwin":  # No need to change permissions in MacOS
-        docker_exec(ctx, f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root")
+        docker_exec(
+            ctx, f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root"
+        )
 
     docker_exec(ctx, "apt install sudo", user="root")
     docker_exec(ctx, "usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
