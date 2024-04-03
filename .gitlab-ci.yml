@@ -9,6 +9,7 @@ include:
   - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/pr_commenter.yml
+  - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
   - .gitlab/container_scan/container_scan.yml
   - .gitlab/deploy_containers/deploy_containers.yml
@@ -174,11 +175,6 @@ variables:
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30370116-6cfed421
-  # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
-  # and check the job creating the image to make sure you have the right SHA prefix
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: e9cf37ed9d96
   DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -439,31 +435,11 @@ workflow:
 .on_deploy:
   - <<: *if_deploy
 
-.on_deploy_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a6_failure:
-  - <<: *if_not_version_6
-    when: never
+.on_deploy_failure:
   - <<: *if_deploy
     when: on_failure
 
-.on_deploy_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a7_failure:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
-.on_deploy_a7_rc:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_rc:
   - <<: *if_not_deploy
     when: never
   - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
@@ -475,10 +451,8 @@ workflow:
 
 # rule to trigger job for internal image deployment if deploy is set or
 # manually if not
-.on_deploy_a7_internal_or_manual:
+.on_deploy_internal_or_manual:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
     variables:
@@ -488,11 +462,9 @@ workflow:
     variables:
       RELEASE_PROD: "false"
 
-# Same as on_deploy_a7_manual, except the job would not run on pipelines
+# Same as on_deploy_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
-.on_deploy_a7_manual_final:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_manual_final:
   - <<: *if_not_deploy
     when: never
   - <<: *if_deploy_on_beta_repo_branch
@@ -511,14 +483,12 @@ workflow:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
-# This rule is a variation of on_deploy_a7_manual where
+# This rule is a variation of on_deploy_manual where
 # the job is usually run manually, except when the pipeline
 # builds an RC: in this case, the job is run automatically.
 # This is done to reduce the number of manual steps that have
 # to be done when creating RCs.
-.on_deploy_a7_manual_auto_on_rc:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_manual_auto_on_rc:
   - <<: *if_not_deploy
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
@@ -546,9 +516,7 @@ workflow:
 # patched, we do not wish to scan this image. For this reason, only
 # agent 7 versions should be published internally using these
 # configurations.
-.on_deploy_a7_internal_rc:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_internal_rc:
   - <<: *if_not_deploy
     when: never
   - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
@@ -559,11 +527,9 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-# Same as on_deploy_a7_manual_final, except the job is used to publish images
+# Same as on_deploy_manual_final, except the job is used to publish images
 # to our internal registries.
-.on_deploy_a7_internal_manual_final:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_internal_manual_final:
   - <<: *if_not_deploy
     when: never
   - <<: *if_deploy_on_beta_repo_branch
@@ -578,16 +544,7 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_nightly_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_nightly_or_dev_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_nightly_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_nightly_repo_branch:
   - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
@@ -597,16 +554,7 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_stable_or_beta_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch_a7_manual:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_stable_or_beta_repo_branch_manual:
   - <<: *if_not_stable_or_beta_repo_branch
     when: never
   - <<: *if_deploy
@@ -664,63 +612,19 @@ workflow:
 .on_all_builds:
   - <<: *if_run_all_builds
 
-.on_all_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_run_all_builds
-
-.on_all_builds_a6_manual:
-  - <<: *if_not_version_6
-    when: never
+.on_all_builds_manual:
   - <<: *if_run_all_builds
     when: manual
     allow_failure: true
 
-.on_all_builds_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_run_all_builds
-
-.on_all_builds_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_run_all_builds
-    when: manual
-    allow_failure: true
-
-.on_kitchen_tests_a6:
-  - <<: *if_not_version_6
-    when: never
+.on_kitchen_tests:
   - <<: *if_installer_tests
 
-.on_kitchen_tests_a6_always:
-  - <<: *if_not_version_6
-    when: never
+.on_kitchen_tests_always:
   - <<: *if_installer_tests
     when: always
 
-.on_all_kitchen_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_installer_tests
-
-.on_kitchen_tests_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_installer_tests
-
-.on_all_kitchen_builds_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_installer_tests
-
-.on_all_new-e2e_tests_a7:
-  - <<: *if_not_version_7
-    when: never
+.on_all_new_e2e_tests:
   - <<: *if_not_run_all_builds
     when: never
   - <<: *if_installer_tests
@@ -728,20 +632,16 @@ workflow:
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
-.on_default_kitchen_tests_a7:
+.on_default_kitchen_tests:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
-.on_default_new-e2e_tests_a7:
+.on_default_new_e2e_tests:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_disable_e2e_tests
     when: never
@@ -750,10 +650,8 @@ workflow:
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
 
-.on_default_kitchen_tests_a7_always:
+.on_default_kitchen_tests_always:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_installer_tests
     when: always

@@ -33,7 +33,7 @@
 
 send_pkg_size-a6:
   allow_failure: true
-  rules: !reference [.on_deploy_a6]
+  rules: !reference [.on_deploy]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -90,7 +90,7 @@ send_pkg_size-a6:
 
 send_pkg_size-a7:
   allow_failure: true
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -269,7 +269,7 @@ check_pkg_size-amd64-a6:
 
 check_pkg_size-arm64-a6:
   extends: .check_pkg_size
-  rules: !reference [.on_all_builds_a6]
+  rules: !reference [.on_all_builds]
   needs:
     - agent_deb-arm64-a6
     - agent_rpm-arm64-a6
@@ -323,7 +323,7 @@ check_pkg_size-amd64-a7:
 
 check_pkg_size-arm64-a7:
   extends: .check_pkg_size
-  rules: !reference [.on_all_builds_a7]
+  rules: !reference [.on_all_builds]
   needs:
     - agent_deb-arm64-a7
     - iot_agent_deb-arm64

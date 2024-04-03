@@ -55,7 +55,7 @@ docker_build_agent6:
 
 docker_build_agent6_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_all_builds_a6]
+  rules: !reference [.on_all_builds]
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
@@ -84,7 +84,7 @@ docker_build_agent6_jmx:
 # build agent6 py2 jmx image
 docker_build_agent6_jmx_arm64:
   extends: .docker_build_job_definition_arm64
-  rules: !reference [.on_all_builds_a6]
+  rules: !reference [.on_all_builds]
   needs:
     - job: agent_deb-arm64-a6
       artifacts: false
