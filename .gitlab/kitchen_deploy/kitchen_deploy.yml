@@ -251,6 +251,8 @@ deploy_rpm_testing-a7_arm64:
   tags: ["arch:amd64"]
   rules:
     - !reference [.except_no_tests_no_deploy]
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-u7
   before_script:
