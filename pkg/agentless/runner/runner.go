@@ -236,26 +236,27 @@ func (s *Runner) CleanSlate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	scansDir, err := os.Open(types.ScansRootDir)
+	scansRootDir := types.ScansRootDir()
+	scansDir, err := os.Open(scansRootDir)
 	if os.IsNotExist(err) {
-		if err := os.Mkdir(types.ScansRootDir, 0700); err != nil {
-			return fmt.Errorf("clean slate: could not create directory %q: %w", types.ScansRootDir, err)
+		if err := os.Mkdir(scansRootDir, 0700); err != nil {
+			return fmt.Errorf("clean slate: could not create directory %q: %w", scansRootDir, err)
 		}
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("clean slate: could not open %q: %w", types.ScansRootDir, err)
+		return fmt.Errorf("clean slate: could not open %q: %w", scansRootDir, err)
 	}
 	scanDirInfo, err := scansDir.Stat()
 	if err != nil {
-		return fmt.Errorf("clean slate: could not stat %q: %w", types.ScansRootDir, err)
+		return fmt.Errorf("clean slate: could not stat %q: %w", scansRootDir, err)
 	}
 	if !scanDirInfo.IsDir() {
-		return fmt.Errorf("clean slate: %q already exists and is not a directory: %w", types.ScansRootDir, os.ErrExist)
+		return fmt.Errorf("clean slate: %q already exists and is not a directory: %w", scansRootDir, os.ErrExist)
 	}
 	if scanDirInfo.Mode() != 0700 {
-		if err := os.Chmod(types.ScansRootDir, 0700); err != nil {
-			return fmt.Errorf("clean slate: could not chmod %q: %w", types.ScansRootDir, err)
+		if err := os.Chmod(scansRootDir, 0700); err != nil {
+			return fmt.Errorf("clean slate: could not chmod %q: %w", scansRootDir, err)
 		}
 	}
 	scanDirs, err := scansDir.ReadDir(0)
@@ -266,7 +267,7 @@ func (s *Runner) CleanSlate() error {
 	var ebsMountPoints []string
 	var ctrMountPoints []string
 	for _, scanDir := range scanDirs {
-		name := filepath.Join(types.ScansRootDir, scanDir.Name())
+		name := filepath.Join(scansRootDir, scanDir.Name())
 		if !scanDir.IsDir() {
 			if err := os.Remove(name); err != nil {
 				log.Warnf("clean slate: could not remove file %q", name)
@@ -279,7 +280,7 @@ func (s *Runner) CleanSlate() error {
 				}
 			case strings.HasPrefix(scanDir.Name(), string(types.TaskTypeEBS)),
 				strings.HasPrefix(scanDir.Name(), string(types.TaskTypeAMI)):
-				scanDirname := filepath.Join(types.ScansRootDir, scanDir.Name())
+				scanDirname := filepath.Join(scansRootDir, scanDir.Name())
 				scanEntries, err := os.ReadDir(scanDirname)
 				if err != nil {
 					log.Errorf("clean slate: %v", err)
@@ -308,7 +309,7 @@ func (s *Runner) CleanSlate() error {
 	}
 
 	for _, scanDir := range scanDirs {
-		scanDirname := filepath.Join(types.ScansRootDir, scanDir.Name())
+		scanDirname := filepath.Join(scansRootDir, scanDir.Name())
 		log.Warnf("clean slate: removing directory %q", scanDirname)
 		if err := os.RemoveAll(scanDirname); err != nil {
 			log.Errorf("clean slate: could not remove directory %q", scanDirname)

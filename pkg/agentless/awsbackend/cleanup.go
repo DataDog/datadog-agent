@@ -37,7 +37,7 @@ func CleanSlate(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *type
 					noMount++
 				} else {
 					for _, mountpoint := range child.Mountpoints {
-						if strings.HasPrefix(mountpoint, types.ScansRootDir+"/") {
+						if strings.HasPrefix(mountpoint, types.ScansRootDir()+"/") {
 							isScan = true
 						}
 					}

@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -26,10 +27,13 @@ import (
 	"github.com/distribution/reference"
 )
 
-const (
-	// ScansRootDir is the root directory where scan tasks can store state on disk.
-	ScansRootDir = "/scans"
+// ScansRootDir returns is the root directory where scan tasks can store state
+// on disk.
+func ScansRootDir() string {
+	return filepath.Join(os.TempDir(), "ddscans")
+}
 
+const (
 	// EBSMountPrefix is the prefix for EBS mounts.
 	EBSMountPrefix = "ebs-"
 	// ContainerMountPrefix is the prefix for containers overlay mounts.
@@ -270,7 +274,7 @@ type ScanTask struct {
 
 // Path returns the path to the scan task. It takes a list of names to join.
 func (s *ScanTask) Path(names ...string) string {
-	root := filepath.Join(ScansRootDir, s.ID)
+	root := filepath.Join(ScansRootDir(), s.ID)
 	for _, name := range names {
 		name = strings.ToLower(name)
 		name = regexp.MustCompile("[^a-z0-9_.-]").ReplaceAllString(name, "")
