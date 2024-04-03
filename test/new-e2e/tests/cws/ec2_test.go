@@ -8,14 +8,12 @@ package cws
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
 	"path"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,12 +121,22 @@ func (a *agentSuite) Test02OpenSignal() {
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
 	// Check if system-probe has started
-	err = a.waitAgentLogs("system-probe", systemProbeStartLog)
-	require.NoError(a.T(), err, "system-probe could not start")
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
+		if !assert.NoError(collect, err) {
+			return
+		}
+		assert.Contains(collect, output, systemProbeStartLog, "system-probe could not start")
+	}, 30*time.Second, 1*time.Second)
 
 	// Check if security-agent has started
-	err = a.waitAgentLogs("security-agent", securityStartLog)
-	require.NoError(a.T(), err, "security-agent could not start")
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/security-agent.log")
+		if !assert.NoError(collect, err) {
+			return
+		}
+		assert.Contains(collect, output, securityStartLog, "security-agent could not start")
+	}, 30*time.Second, 1*time.Second)
 
 	// Download policies
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
@@ -185,23 +193,9 @@ func (a *agentSuite) Test02OpenSignal() {
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
 }
 
-// TestCWSEnabled tests that the detection of CWS is properly working
+// test that the detection of CWS is properly working
 func (a *agentSuite) Test99CWSEnabled() {
 	a.Assert().EventuallyWithTf(func(collect *assert.CollectT) {
 		testCwsEnabled(collect, a)
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
-}
-
-func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
-	err := backoff.Retry(func() error {
-		output, err := a.Env().RemoteHost.Execute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
-		if err != nil {
-			return err
-		}
-		if strings.Contains(output, pattern) {
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return err
 }
