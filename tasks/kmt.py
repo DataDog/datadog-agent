@@ -15,9 +15,10 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import stacks, vmconfig
+from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH
 from tasks.kernel_matrix_testing.compiler import build_compiler as build_cc
 from tasks.kernel_matrix_testing.compiler import compiler_running, docker_exec
-from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc, CONTAINER_AGENT_PATH
+from tasks.kernel_matrix_testing.compiler import start_compiler as start_cc
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
