@@ -257,6 +257,7 @@
 /comp/agent/jmxlogger @DataDog/agent-metrics-logs
 /comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
+/comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/autodiscovery @DataDog/container-integrations
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
