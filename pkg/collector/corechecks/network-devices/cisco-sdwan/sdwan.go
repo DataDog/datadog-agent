@@ -51,49 +51,55 @@ type CiscoSdwanCheck struct {
 	core.CheckBase
 	interval      time.Duration
 	config        checkCfg
-	client        *client.Client
+	clientOptions []client.ClientOptions
 	metricsSender *report.SDWanSender
 }
 
 // Run executes the check
 func (c *CiscoSdwanCheck) Run() error {
-	devices, err := c.client.GetDevices()
+	// Create Cisco SD-WAN API client
+	client, err := client.NewClient(c.config.VManageEndpoint, c.config.Username, c.config.Password, c.config.UseHTTP, c.clientOptions...)
+	if err != nil {
+		return err
+	}
+
+	devices, err := client.GetDevices()
 	if err != nil {
 		log.Warnf("Error getting devices from Cisco SD-WAN API: %s", err)
 	}
-	vEdgeInterfaces, err := c.client.GetVEdgeInterfaces()
+	vEdgeInterfaces, err := client.GetVEdgeInterfaces()
 	if err != nil {
 		log.Warnf("Error getting vEdge interfaces from Cisco SD-WAN API: %s", err)
 	}
-	cEdgeInterfaces, err := c.client.GetCEdgeInterfaces()
+	cEdgeInterfaces, err := client.GetCEdgeInterfaces()
 	if err != nil {
 		log.Warnf("Error getting cEdge interfaces from Cisco SD-WAN API: %s", err)
 	}
-	deviceStats, err := c.client.GetDeviceHardwareMetrics()
+	deviceStats, err := client.GetDeviceHardwareMetrics()
 	if err != nil {
 		log.Warnf("Error getting device metrics from Cisco SD-WAN API: %s", err)
 	}
-	interfaceStats, err := c.client.GetInterfacesMetrics()
+	interfaceStats, err := client.GetInterfacesMetrics()
 	if err != nil {
 		log.Warnf("Error getting interface metrics from Cisco SD-WAN API: %s", err)
 	}
-	appRouteStats, err := c.client.GetApplicationAwareRoutingMetrics()
+	appRouteStats, err := client.GetApplicationAwareRoutingMetrics()
 	if err != nil {
 		log.Warnf("Error getting application-aware routing metrics from Cisco SD-WAN API: %s", err)
 	}
-	controlConnectionsState, err := c.client.GetControlConnectionsState()
+	controlConnectionsState, err := client.GetControlConnectionsState()
 	if err != nil {
 		log.Warnf("Error getting control-connection states from Cisco SD-WAN API: %s", err)
 	}
-	ompPeersState, err := c.client.GetOMPPeersState()
+	ompPeersState, err := client.GetOMPPeersState()
 	if err != nil {
 		log.Warnf("Error getting OMP peer states from Cisco SD-WAN API: %s", err)
 	}
-	bfdSessionsState, err := c.client.GetBFDSessionsState()
+	bfdSessionsState, err := client.GetBFDSessionsState()
 	if err != nil {
 		log.Warnf("Error getting BFD session states from Cisco SD-WAN API: %s", err)
 	}
-	deviceCounters, err := c.client.GetDevicesCounters()
+	deviceCounters, err := client.GetDevicesCounters()
 	if err != nil {
 		log.Warnf("Error getting device counters from Cisco SD-WAN API: %s", err)
 	}
@@ -194,11 +200,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		clientOptions = append(clientOptions, client.WithLookback(time.Second*time.Duration(instanceConfig.Lookback)))
 	}
 
-	// Create Cisco SD-WAN API client
-	c.client, err = client.NewClient(instanceConfig.VManageEndpoint, instanceConfig.Username, instanceConfig.Password, instanceConfig.UseHTTP, clientOptions...)
-	if err != nil {
-		return err
-	}
+	c.clientOptions = clientOptions
 
 	c.metricsSender = report.NewSDWanSender(sender, c.config.Namespace)
 
