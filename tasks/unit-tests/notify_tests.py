@@ -5,44 +5,44 @@ import unittest
 from typing import List
 from unittest.mock import MagicMock, patch
 
-from gitlab.v4.objects import ProjectJob, ProjectPipelineJobManager
+from gitlab.v4.objects import ProjectJob
 from invoke import MockContext, Result
 from invoke.exceptions import UnexpectedExit
 
 from tasks import notify
-from tasks.libs.common.gitlab_api import get_gitlab_repo
 
 
 def get_fake_jobs() -> List[ProjectJob]:
     with open("tasks/unit-tests/testdata/jobs.json") as f:
         jobs = json.load(f)
-    repo = get_gitlab_repo()
-    jobs = [ProjectJob(repo.manager, attrs=job) for job in jobs]
 
-    return jobs
+    return [ProjectJob(MagicMock(), attrs=job) for job in jobs]
 
 
 class TestSendMessage(unittest.TestCase):
-    @patch.object(ProjectPipelineJobManager, 'list', autospec=True)
-    def test_merge(self, list_mock):
+    @patch('tasks.libs.common.gitlab_api.get_gitlab_api')
+    def test_merge(self, api_mock):
+        list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
         list_mock.assert_called()
 
 
 class TestSendStats(unittest.TestCase):
-    @patch.object(ProjectPipelineJobManager, 'list', autospec=True)
+    @patch('tasks.libs.common.gitlab_api.get_gitlab_api')
     @patch("tasks.notify.create_count", new=MagicMock())
-    def test_nominal(self, list_mock):
+    def test_nominal(self, api_mock):
+        list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
         notify.send_stats(MockContext(), print_to_stdout=True)
         list_mock.assert_called()
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
-    @patch.object(ProjectPipelineJobManager, 'list', autospec=True)
-    def test_nominal(self, list_mock):
+    @patch('tasks.libs.common.gitlab_api.get_gitlab_api')
+    def test_nominal(self, api_mock):
         os.environ["CI_PIPELINE_ID"] = "456"
+        list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
         notify.check_consistent_failures(
             MockContext(run=Result("test")), "tasks/unit-tests/testdata/job_executions.json"
@@ -85,10 +85,9 @@ class TestRetrieveJobExecutions(unittest.TestCase):
 class TestUpdateStatistics(unittest.TestCase):
     @patch('tasks.notify.get_failed_jobs')
     def test_nominal(self, mock_get_failed):
-        repo = get_gitlab_repo()
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
-            ProjectJob(repo.manager, attrs=a) for a in [{"name": "nifnif"}, {"name": "nafnaf"}]
+            ProjectJob(MagicMock(), attrs=a) for a in [{"name": "nifnif"}, {"name": "nafnaf"}]
         ]
         j = {
             "jobs": {
@@ -110,10 +109,9 @@ class TestUpdateStatistics(unittest.TestCase):
 
     @patch('tasks.notify.get_failed_jobs')
     def test_multiple_failures(self, mock_get_failed):
-        repo = get_gitlab_repo()
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
-            ProjectJob(repo.manager, attrs=a) for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
+            ProjectJob(MagicMock(), attrs=a) for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
         j = {
             "jobs": {
