@@ -404,30 +404,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_a6:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-
-.on_a6_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-    when: manual
-    allow_failure: true
-
-.on_a7:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-
-.on_a7_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-    when: manual
-    allow_failure: true
-
 .except_no_a6_or_no_a7:
   - <<: *if_mergequeue
     when: never
@@ -453,16 +429,6 @@ workflow:
   - <<: *if_main_branch
     when: manual
     allow_failure: true
-
-.on_main_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_main_branch
-
-.on_main_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_main_branch
 
 .on_tag_or_a7:
   - <<: *if_mergequeue
