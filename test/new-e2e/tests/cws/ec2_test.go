@@ -98,9 +98,25 @@ func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
 }
 
 func (a *agentSuite) Test02OpenSignal() {
+	var agentRuleID, signalRuleID, dirname string
+	// Cleanup function
+	defer func() {
+		if signalRuleID != "" {
+			err := a.apiClient.DeleteSignalRule(signalRuleID)
+			assert.NoErrorf(a.T(), err, "failed to delete signal rule %s", signalRuleID)
+		}
+		if agentRuleID != "" {
+			err := a.apiClient.DeleteAgentRule(agentRuleID)
+			assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
+		}
+		if dirname != "" {
+			a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
+		}
+	}()
+
 	// Create temporary directory
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
-	dirname := strings.TrimSuffix(tempDir, "\n")
+	dirname = strings.TrimSuffix(tempDir, "\n")
 	filepath := fmt.Sprintf("%s/secret", dirname)
 	desc := fmt.Sprintf("e2e test rule %s", a.testID)
 	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
@@ -109,12 +125,12 @@ func (a *agentSuite) Test02OpenSignal() {
 	rule := fmt.Sprintf("open.file.path == \"%s\"", filepath)
 	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
 	require.NoError(a.T(), err, "Agent rule creation failed")
-	agentRuleID := res.Data.GetId()
+	agentRuleID = res.Data.GetId()
 
 	// Create Signal Rule (backend)
 	res2, err := a.apiClient.CreateCwsSignalRule(desc, "signal rule for e2e testing", agentRuleName, []string{})
 	require.NoError(a.T(), err, "Signal rule creation failed")
-	signalRuleID := res2.GetId()
+	signalRuleID = res2.GetId()
 
 	// Check if the agent is ready
 	isReady := a.Env().Agent.Client.IsReady()
@@ -192,13 +208,6 @@ func (a *agentSuite) Test02OpenSignal() {
 		agentContext := signal.Attributes["agent"].(map[string]interface{})
 		assert.Contains(collect, agentContext["rule_id"], agentRuleName, "unable to find tag")
 	}, 5*time.Minute, 20*time.Second)
-
-	// Cleanup
-	err = a.apiClient.DeleteSignalRule(signalRuleID)
-	assert.NoErrorf(a.T(), err, "failed to delete signal rule %s", signalRuleID)
-	err = a.apiClient.DeleteAgentRule(agentRuleID)
-	assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
 }
 
 // test that the detection of CWS is properly working
