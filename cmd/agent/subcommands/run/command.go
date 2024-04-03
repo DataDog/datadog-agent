@@ -52,9 +52,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 
+	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	settingsRegistry "github.com/DataDog/datadog-agent/comp/core/settings/registry"
+	settingsRegistryimpl "github.com/DataDog/datadog-agent/comp/core/settings/registry/registryimpl"
+	settingsServerimpl "github.com/DataDog/datadog-agent/comp/core/settings/server/serverimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -109,6 +113,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -194,7 +199,6 @@ func run(log log.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	_ replay.Component,
-	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
@@ -268,7 +272,6 @@ func run(log log.Component,
 		telemetry,
 		sysprobeconfig,
 		server,
-		serverDebug,
 		wmeta,
 		taggerComp,
 		ac,
@@ -402,6 +405,39 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobeimpl.Module(),
+		settingsRegistryimpl.Module(),
+		settingsServerimpl.Module(),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewLogLevelRuntimeSetting())
+		}),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewRuntimeMutexProfileFraction())
+		}),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewRuntimeBlockProfileRate())
+		}),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"))
+		}),
+
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewLogPayloadsRuntimeSetting())
+		}),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewProfilingGoroutines())
+		}),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."))
+		}),
+		fx.Provide(func(debug dogstatsddebug.Component) settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewDsdStatsRuntimeSetting(debug))
+		}),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."))
+		}),
+		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
+			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"))
+		}),
 	)
 }
 
@@ -413,7 +449,6 @@ func startAgent(
 	telemetry telemetry.Component,
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	ac autodiscovery.Component,
@@ -470,11 +505,6 @@ func startAgent(
 	if v := pkgconfig.Datadog.GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
-	}
-
-	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(serverDebug); err != nil {
-		log.Warnf("Can't initiliaze the runtime settings: %v", err)
 	}
 
 	// Setup Internal Profiling
