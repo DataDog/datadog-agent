@@ -55,24 +55,8 @@ type Column struct {
 	Values []interface{} `json:"values"`
 }
 
-// DDSQLClient is a struct that represents a DDSQL client
-type DDSQLClient struct {
-	http   http.Client
-	apiKey string
-	appKey string
-}
-
-// NewDDSQLClient returns a new DDSQL client
-func NewDDSQLClient(apiKey, appKey string) *DDSQLClient {
-	return &DDSQLClient{
-		http:   http.Client{},
-		apiKey: apiKey,
-		appKey: appKey,
-	}
-}
-
-// Do executes a DDSQL query, returning a DDSQL table response
-func (c *DDSQLClient) Do(query string) (*DDSQLTableResponse, error) {
+// TableQuery executes a DDSQL query, returning a DDSQL table response
+func (c *Client) TableQuery(query string) (*DDSQLTableResponse, error) {
 	now := time.Now()
 	params := DDSQLTableQueryParams{
 		DefaultStart:    int(now.Add(-1 * time.Hour).UnixMilli()),

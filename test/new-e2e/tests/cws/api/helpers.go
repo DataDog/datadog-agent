@@ -7,42 +7,50 @@ package api
 
 import (
 	"errors"
-	"time"
 
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
-	"github.com/cenkalti/backoff"
+	"github.com/mitchellh/mapstructure"
 )
 
-// WaitAppLogs waits for the app log corresponding to the query
-func WaitAppLogs(apiClient *Client, query string) (*datadog.LogAttributes, error) {
-	var resp *datadog.LogAttributes
-	err := backoff.Retry(func() error {
-		tmpResp, err := apiClient.GetAppLog(query)
-		if err != nil {
-			return err
-		}
-		if len(tmpResp.Data) > 0 {
-			resp = tmpResp.Data[0].Attributes
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return resp, err
+// ErrNoSignalFound is returned when no signal is found
+var ErrNoSignalFound = errors.New("no signal found")
+
+// GetSignal returns the last signal matching the query
+func (c *Client) GetSignal(query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
+	resp, err := c.getSignals(query)
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Data) > 0 {
+		return resp.Data[len(resp.Data)-1].Attributes, nil
+	}
+	return nil, ErrNoSignalFound
 }
 
-// WaitAppSignal waits for the signal corresponding to the query
-func WaitAppSignal(apiClient *Client, query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
-	var resp *datadog.SecurityMonitoringSignalAttributes
-	err := backoff.Retry(func() error {
-		tmpResp, err := apiClient.GetAppSignal(query)
-		if err != nil {
-			return err
-		}
-		if len(tmpResp.Data) > 0 {
-			resp = tmpResp.Data[0].Attributes
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return resp, err
+// GetAppRulesetLoadedEvent returns a ruleset loaded event
+func (c *Client) GetAppRulesetLoadedEvent(query string) (*RulesetLoadedEvent, error) {
+	log, err := c.getLastMatchingLog(query)
+	if err != nil {
+		return nil, err
+	}
+	var ruleset RulesetLoadedEvent
+	err = mapstructure.Decode(log.Attributes, &ruleset)
+	if err != nil {
+		return nil, err
+	}
+	return &ruleset, nil
+}
+
+// GetAppRuleEvent returns a rule event
+func (c *Client) GetAppRuleEvent(query string) (*RuleEvent, error) {
+	log, err := c.getLastMatchingLog(query)
+	if err != nil {
+		return nil, err
+	}
+	var rule RuleEvent
+	err = mapstructure.Decode(log.Attributes, &rule)
+	if err != nil {
+		return nil, err
+	}
+	return &rule, nil
 }

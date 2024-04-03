@@ -11,6 +11,7 @@ import (
 	"os"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ecs"
@@ -18,6 +19,7 @@ import (
 	"github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/awsx"
 	ecsx "github.com/pulumi/pulumi-awsx/sdk/v2/go/awsx/ecs"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	configCommon "github.com/DataDog/test-infra-definitions/common/config"
@@ -237,31 +239,30 @@ func (s *ecsFargateSuite) SetupSuite() {
 	s.apiClient = api.NewClient()
 }
 
+func (s *ecsFargateSuite) Hostname() string {
+	return s.ddHostname
+}
+
+func (s *ecsFargateSuite) Client() *api.Client {
+	return s.apiClient
+}
+
 func (s *ecsFargateSuite) TestRulesetLoaded() {
-	query := fmt.Sprintf("host:%s rule_id:ruleset_loaded @policies.name:%s", s.ddHostname, selfTestsPolicyName)
-	result, err := api.WaitAppLogs(s.apiClient, query)
-	s.Require().NoError(err, "could not get new ruleset_loaded event log")
-	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
-	s.Require().True(ok, "unexpected agent context")
-	s.Require().EqualValues("ruleset_loaded", agentContext["rule_id"], "unexpected agent rule ID")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, s, "file", selfTestsPolicyName)
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *ecsFargateSuite) TestExecRule() {
-	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, execRuleID)
-	result, err := api.WaitAppLogs(s.apiClient, query)
-	s.Require().NoError(err, "could not get the exec rule event log")
-	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
-	s.Require().True(ok, "unexpected agent context")
-	s.Require().EqualValues(execRuleID, agentContext["rule_id"], "unexpected agent rule ID")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testRuleEvent(c, s, execRuleID)
+	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *ecsFargateSuite) TestOpenRule() {
-	query := fmt.Sprintf("host:%s rule_id:%s", s.ddHostname, openRuleID)
-	result, err := api.WaitAppLogs(s.apiClient, query)
-	s.Require().NoError(err, "could not get the open rule event log")
-	agentContext, ok := result.Attributes["agent"].(map[string]interface{})
-	s.Require().True(ok, "unexpected agent context")
-	s.Require().EqualValues(openRuleID, agentContext["rule_id"], "unexpected agent rule ID")
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testRuleEvent(c, s, openRuleID)
+	}, 1*time.Minute, 5*time.Second)
 }
 
 const (

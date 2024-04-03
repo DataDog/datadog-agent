@@ -3,86 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package api provides test helpers to interact with the Datadog API
 package api
 
 import (
-	"context"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
-// Client represents the datadog API context
-type Client struct {
-	api *datadog.APIClient
-	ctx context.Context
-}
-
-// NewClient initialise a client with the API and APP keys
-func NewClient() *Client {
-	apiKey, _ := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	appKey, _ := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	ctx := context.WithValue(
-		context.Background(),
-		datadog.ContextAPIKeys,
-		map[string]datadog.APIKey{
-			"apiKeyAuth": {
-				Key: apiKey,
-			},
-			"appKeyAuth": {
-				Key: appKey,
-			},
-		},
-	)
-
-	cfg := datadog.NewConfiguration()
-
-	return &Client{
-		api: datadog.NewAPIClient(cfg),
-		ctx: ctx,
-	}
-}
-
-// GetAppLog returns the logs corresponding to the query
-func (c *Client) GetAppLog(query string) (*datadog.LogsListResponse, error) {
-	sort := datadog.LOGSSORT_TIMESTAMP_ASCENDING
-
-	body := datadog.LogsListRequest{
-		Filter: &datadog.LogsQueryFilter{
-			From:  datadog.PtrString("now-15m"),
-			Query: &query,
-			To:    datadog.PtrString("now"),
-		},
-		Page: &datadog.LogsListRequestPage{
-			Limit: datadog.PtrInt32(25),
-		},
-		Sort: &sort,
-	}
-	request := datadog.ListLogsOptionalParameters{
-		Body: &body,
-	}
-
-	result, r, err := c.api.LogsApi.ListLogs(c.ctx, request)
-	if r != nil {
-		_ = r.Body.Close()
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	return &result, nil
-}
-
-// GetAppSignal returns the signal corresponding to the query
-func (c *Client) GetAppSignal(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
+func (c *Client) getSignals(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
 	now := time.Now().UTC()
 	queryFrom := now.Add(-15 * time.Minute)
 	sort := datadog.SECURITYMONITORINGSIGNALSSORT_TIMESTAMP_ASCENDING
-
 	body := datadog.SecurityMonitoringSignalListRequest{
 		Filter: &datadog.SecurityMonitoringSignalListRequestFilter{
 			From:  &queryFrom,

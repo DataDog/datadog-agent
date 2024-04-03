@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -48,7 +49,8 @@ const (
 
 type agentSuite struct {
 	e2e.BaseSuite[environments.Host]
-	testID string
+	apiClient *api.Client
+	testID    string
 }
 
 //go:embed config/e2e-system-probe.yaml
@@ -59,7 +61,6 @@ var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
 	testID := uuid.NewString()[:4]
-
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
@@ -73,9 +74,32 @@ func TestAgentSuite(t *testing.T) {
 	)
 }
 
-func (a *agentSuite) Test00OpenSignal() {
-	apiClient := api.NewClient()
+func (a *agentSuite) SetupSuite() {
+	a.BaseSuite.SetupSuite()
+	a.apiClient = api.NewClient()
+}
 
+func (a *agentSuite) Hostname() string {
+	return a.Env().Agent.Client.Hostname()
+}
+
+func (a *agentSuite) Client() *api.Client {
+	return a.apiClient
+}
+
+func (a *agentSuite) Test00RulesetLoadedDefaultFile() {
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		testRulesetLoaded(collect, a, "file", "default.policy")
+	}, 2*time.Minute, 20*time.Second)
+}
+
+func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		testRulesetLoaded(collect, a, "remote-config", "default.policy")
+	}, 2*time.Minute, 20*time.Second)
+}
+
+func (a *agentSuite) Test02OpenSignal() {
 	// Create temporary directory
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
 	dirname := strings.TrimSuffix(tempDir, "\n")
@@ -85,12 +109,12 @@ func (a *agentSuite) Test00OpenSignal() {
 
 	// Create CWS Agent rule
 	rule := fmt.Sprintf("open.file.path == \"%s\"", filename)
-	res, err := apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
+	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
 	require.NoError(a.T(), err, "Agent rule creation failed")
 	agentRuleID := res.Data.GetId()
 
 	// Create Signal Rule (backend)
-	res2, err := apiClient.CreateCwsSignalRule(desc, "signal rule for e2e testing", agentRuleName, []string{})
+	res2, err := a.apiClient.CreateCwsSignalRule(desc, "signal rule for e2e testing", agentRuleName, []string{})
 	require.NoError(a.T(), err, "Signal rule creation failed")
 	signalRuleID := res2.GetId()
 
@@ -114,101 +138,57 @@ func (a *agentSuite) Test00OpenSignal() {
 	require.NoError(a.T(), err, "Could not get APP KEY")
 
 	var policies string
-	a.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, securityAgentPath))
 		assert.NotEmpty(c, policies, "should not be empty")
-	}, 5*time.Minute, 10*time.Second)
+	}, 1*time.Minute, 5*time.Second)
 
 	// Check that the newly created rule is in the policies
-	assert.Contains(a.T(), policies, desc, "The policies should contain the created rule")
+	require.Contains(a.T(), policies, desc, "The policies should contain the created rule")
 
 	// Push policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s", policiesPath))
-	a.Env().RemoteHost.MustExecute("rm temp.txt")
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s && rm temp.txt", policiesPath))
 	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPath))
-	assert.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
+	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPath))
 
-	// Check `downloaded` ruleset_loaded
-	result, err := api.WaitAppLogs(apiClient, fmt.Sprintf("host:%s rule_id:ruleset_loaded", a.Env().Agent.Client.Hostname()))
-	require.NoError(a.T(), err, "could not get new ruleset")
-
-	agentContext := result.Attributes["agent"].(map[string]interface{})
-	assert.EqualValues(a.T(), "ruleset_loaded", agentContext["rule_id"], "Ruleset should be loaded")
+	// Check if the policy is loaded
+	policyName := path.Base(policiesPath)
+	require.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		testRulesetLoaded(collect, a, "file", policyName)
+	}, 2*time.Minute, 20*time.Second)
 
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
 
 	// Check app signal
-	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
-	require.NoError(a.T(), err)
-	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
-	agentContext = signal.Attributes["agent"].(map[string]interface{})
-	assert.Contains(a.T(), agentContext["rule_id"], agentRuleName, "unable to find tag")
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		signal, err := a.apiClient.GetSignal(fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
+		if !assert.NoError(collect, err) {
+			return
+		}
+		if !assert.NotNil(collect, signal) {
+			return
+		}
+		assert.Contains(collect, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
+		agentContext := signal.Attributes["agent"].(map[string]interface{})
+		assert.Contains(collect, agentContext["rule_id"], agentRuleName, "unable to find tag")
+	}, 5*time.Minute, 20*time.Second)
 
 	// Cleanup
-	err = apiClient.DeleteSignalRule(signalRuleID)
+	err = a.apiClient.DeleteSignalRule(signalRuleID)
 	assert.NoErrorf(a.T(), err, "failed to delete signal rule %s", signalRuleID)
-	err = apiClient.DeleteAgentRule(agentRuleID)
+	err = a.apiClient.DeleteAgentRule(agentRuleID)
 	assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
 }
 
-// TestFeatureCWSEnabled tests that the CWS activation is properly working
-func (a *agentSuite) Test01FeatureCWSEnabled() {
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	a.Require().NoError(err, "could not get API key")
-	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	a.Require().NoError(err, "could not get APP key")
-	ddSQLClient := api.NewDDSQLClient(apiKey, appKey)
-
-	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", a.Env().Agent.Client.Hostname())
+// TestCWSEnabled tests that the detection of CWS is properly working
+func (a *agentSuite) Test99CWSEnabled() {
 	a.Assert().EventuallyWithTf(func(collect *assert.CollectT) {
-		resp, err := ddSQLClient.Do(query)
-		if !assert.NoErrorf(collect, err, "ddsql query failed") {
-			return
-		}
-		if !assert.Len(collect, resp.Data, 1, "ddsql query didn't returned a single row") {
-			return
-		}
-		if !assert.Len(collect, resp.Data[0].Attributes.Columns, 2, "ddsql query didn't returned two columns") {
-			return
-		}
-
-		columnChecks := []struct {
-			name          string
-			expectedValue interface{}
-		}{
-			{
-				name:          "hostname",
-				expectedValue: a.Env().Agent.Client.Hostname(),
-			},
-			{
-				name:          "feature_cws_enabled",
-				expectedValue: true,
-			},
-		}
-
-		for _, columnCheck := range columnChecks {
-			result := false
-			for _, column := range resp.Data[0].Attributes.Columns {
-				if column.Name == columnCheck.name {
-					if !assert.Len(collect, column.Values, 1, "column %s should have a single value", columnCheck.name) {
-						return
-					}
-					if !assert.Equal(collect, columnCheck.expectedValue, column.Values[0], "column %s should be equal", columnCheck.name) {
-						return
-					}
-					result = true
-					break
-				}
-			}
-			if !assert.Truef(collect, result, "column %s isn't present or has an unexpected value", columnCheck.name) {
-				return
-			}
-		}
+		testCwsEnabled(collect, a)
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }
 
