@@ -953,6 +953,8 @@ workflow:
     allow_failure: true
 
 .on_trace_agent_changes_or_manual:
+  - <<: *if_mergequeue
+    when: never
   - changes:
       paths:
         - pkg/trace/**/*
