@@ -183,7 +183,7 @@ cws_instrumentation_dev_branch_multiarch:
 dev_nightly_docker_hub-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch_a6]
+  rules: !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent6
     - docker_build_agent6_arm64
@@ -203,7 +203,7 @@ dev_nightly_docker_hub-a6:
 dev_nightly-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch_a7]
+  rules: !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -234,7 +234,7 @@ single_machine_performance-nightly-amd64-a7:
 dev_nightly-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch_a7]
+  rules: !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
