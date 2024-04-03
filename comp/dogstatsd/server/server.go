@@ -478,7 +478,7 @@ func (s *server) stop(context.Context) error {
 		s.Statistics.Stop()
 	}
 	if s.tCapture != nil {
-		s.tCapture.Stop()
+		s.tCapture.StopCapture()
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false
