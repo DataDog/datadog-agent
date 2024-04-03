@@ -59,7 +59,8 @@
 windows_msi_and_bosh_zip_x64-a7:
   extends: .windows_main_agent_base
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 7
@@ -70,7 +71,8 @@ windows_msi_and_bosh_zip_x64-a7:
 windows_msi_x64-a6:
   extends: .windows_main_agent_base
   rules:
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 6
@@ -81,9 +83,10 @@ windows_msi_x64-a6:
 
 # cloudfoundry IoT build for Windows
 windows_zip_agent_binaries_x64-a7:
-  rules:
-    - !reference [.on_a7]
   stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:

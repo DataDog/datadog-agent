@@ -5,7 +5,7 @@
 # Not currently used in the pipeline.
 windows_choco_offline_7_x64:
   rules:
-    !reference [.on_a7_manual]
+    !reference [.manual]
   stage: choco_build
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
