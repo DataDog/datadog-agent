@@ -2,7 +2,7 @@
 upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_x64"]
+  needs: ["pull_test_dockers_x64", "go_deps", "go_tools_deps"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: amd64
@@ -12,7 +12,7 @@ upload_dependencies_sysprobe_x64:
 upload_dependencies_sysprobe_arm64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_arm64"]
+  needs: ["pull_test_dockers_arm64", "go_deps", "go_tools_deps"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: arm64
