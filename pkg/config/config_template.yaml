@@ -1553,8 +1553,9 @@ api_key:
   ## @env DD_APM_COMPUTE_STATS_BY_SPAN_KIND - bool - default: false
   ## [BETA] Enables an additional stats computation check on spans to see they have an eligible `span.kind` (server, consumer, client, producer).
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
-  ## NOTE: Stats are computed by span kind for OTel traces by default.
-  ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and enable the "disable_otlp_compute_top_level_by_span_kind" APM feature.
+  ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
+  ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
+  ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
   # compute_stats_by_span_kind: false
 
   ## @param peer_tags_aggregation - bool - default: false
@@ -1582,7 +1583,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","disable_otlp_compute_top_level_by_span_kind"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional

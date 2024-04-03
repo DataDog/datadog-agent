@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
 func TestMarshal(t *testing.T) {
@@ -41,6 +42,7 @@ func TestMarshal(t *testing.T) {
 			AlertType:      event.EventAlertTypeError,
 			AggregationKey: "test aggregation",
 			SourceTypeName: "test source",
+			OriginInfo:     taggertypes.OriginInfo{},
 		}},
 		Hostname: "",
 	}
@@ -79,6 +81,7 @@ func TestMarshalJSON(t *testing.T) {
 			AlertType:      event.EventAlertTypeError,
 			AggregationKey: "my_agg_key",
 			SourceTypeName: "custom_source_type",
+			OriginInfo:     taggertypes.OriginInfo{},
 		}},
 
 		Hostname: "test-hostname",
@@ -94,10 +97,11 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 	events := Events{
 		EventsArr: []*event.Event{{
 			// Don't populate optional fields
-			Title: "An event occurred",
-			Text:  "event description",
-			Ts:    12345,
-			Host:  "my-hostname",
+			Title:      "An event occurred",
+			Text:       "event description",
+			Ts:         12345,
+			Host:       "my-hostname",
+			OriginInfo: taggertypes.OriginInfo{},
 		}},
 		Hostname: "test-hostname",
 	}
@@ -122,6 +126,7 @@ func TestSplitEvents(t *testing.T) {
 			AlertType:      event.EventAlertTypeError,
 			AggregationKey: "my_agg_key",
 			SourceTypeName: "custom_source_type",
+			OriginInfo:     taggertypes.OriginInfo{},
 		}
 		events.EventsArr = append(events.EventsArr, &e)
 
@@ -234,6 +239,7 @@ func createEvent(sourceTypeName string) *event.Event {
 		AggregationKey: "9",
 		SourceTypeName: sourceTypeName,
 		EventType:      "10",
+		OriginInfo:     taggertypes.OriginInfo{},
 	}
 }
 
