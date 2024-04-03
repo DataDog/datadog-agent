@@ -13,13 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
-	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/spf13/cobra"
 )
 
 // GroupCommand returns the local commands
-func GroupCommand(parent *cobra.Command, statsd statsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
+func GroupCommand(parent *cobra.Command, sc *types.ScannerConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "local",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -27,11 +26,11 @@ func GroupCommand(parent *cobra.Command, statsd statsd.ClientInterface, sc *type
 		SilenceUsage:      true,
 		PersistentPreRunE: parent.PersistentPreRunE,
 	}
-	cmd.AddCommand(localScanCommand(statsd, sc))
+	cmd.AddCommand(localScanCommand(sc))
 	return cmd
 }
 
-func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
+func localScanCommand(sc *types.ScannerConfig) *cobra.Command {
 	var localFlags struct {
 		Hostname string
 	}
@@ -44,7 +43,7 @@ func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *c
 			if err != nil {
 				return err
 			}
-			return localScanCmd(statsd, sc, resourceID, localFlags.Hostname)
+			return localScanCmd(sc, resourceID, localFlags.Hostname)
 		},
 	}
 
@@ -52,8 +51,9 @@ func localScanCommand(statsd statsd.ClientInterface, sc *types.ScannerConfig) *c
 	return cmd
 }
 
-func localScanCmd(statsd statsd.ClientInterface, sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string) error {
+func localScanCmd(sc *types.ScannerConfig, resourceID types.CloudID, targetHostname string) error {
 	ctx := common.CtxTerminated()
+	statsd := common.InitStatsd(*sc)
 
 	hostname := common.TryGetHostname(ctx)
 	taskType, err := types.DefaultTaskType(resourceID)

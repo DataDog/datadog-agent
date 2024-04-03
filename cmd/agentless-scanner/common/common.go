@@ -8,13 +8,29 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// InitStatsd initializes the dogstatsd client
+func InitStatsd(sc types.ScannerConfig) ddogstatsd.ClientInterface {
+	statsdAddr := fmt.Sprintf("%s:%d", sc.DogstatsdHost, sc.DogstatsdPort)
+	statsd, err := ddogstatsd.New(statsdAddr)
+	if err != nil {
+		log.Warnf("could not init dogstatsd client: %s", err)
+		return &ddogstatsd.NoOpClient{}
+	}
+	return statsd
+}
 
 // CtxTerminated cancels the context on termination signal
 func CtxTerminated() context.Context {

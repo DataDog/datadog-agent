@@ -10,6 +10,7 @@ package types
 // ScannerConfig is the representation of the scan configuration after being
 type ScannerConfig struct {
 	Env                 string
+	DogstatsdHost       string
 	DogstatsdPort       int
 	DefaultRolesMapping RolesMapping
 	DefaultActions      []ScanAction

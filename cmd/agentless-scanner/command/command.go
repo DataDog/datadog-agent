@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/aws"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/azure"
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/subcommands/local"
@@ -45,8 +46,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	_ "modernc.org/sqlite" // sqlite driver, used by github.com/knqyf263/go-rpmdb
 
 	"github.com/spf13/cobra"
@@ -57,20 +56,8 @@ const (
 	defaultScannersMax  = 8 // max number of child-process scanners spawned by a worker in parallel
 )
 
-func initStatsdClient(sc types.ScannerConfig) ddogstatsd.Client {
-	statsdHost := pkgconfig.GetBindHost()
-	statsdPort := sc.DogstatsdPort
-	statsdAddr := fmt.Sprintf("%s:%d", statsdHost, statsdPort)
-	statsd, err := ddogstatsd.New(statsdAddr)
-	if err != nil {
-		log.Warnf("could not init dogstatsd client: %s", err)
-	}
-	return *statsd //nolint:govet
-}
-
 // RootCommand returns the root commands
 func RootCommand() *cobra.Command {
-	var statsd ddogstatsd.Client
 	var sc types.ScannerConfig
 	var evp eventplatform.Component
 	var localFlags struct {
@@ -93,7 +80,6 @@ func RootCommand() *cobra.Command {
 						return err
 					}
 					evp = eventForwarder
-					statsd = initStatsdClient(sc)
 					return nil
 				},
 				fx.Supply(core.BundleParams{
@@ -109,11 +95,11 @@ func RootCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(runCommand(&statsd, &sc, &evp))
-	cmd.AddCommand(runScannerCommand(&statsd, &sc))
-	cmd.AddCommand(aws.GroupCommand(cmd, &statsd, &sc, &evp))
-	cmd.AddCommand(azure.GroupCommand(cmd, &statsd, &sc, &evp))
-	cmd.AddCommand(local.GroupCommand(cmd, &statsd, &sc))
+	cmd.AddCommand(runCommand(&sc, &evp))
+	cmd.AddCommand(runScannerCommand(&sc))
+	cmd.AddCommand(aws.GroupCommand(cmd, &sc, &evp))
+	cmd.AddCommand(azure.GroupCommand(cmd, &sc, &evp))
+	cmd.AddCommand(local.GroupCommand(cmd, &sc))
 
 	defaultActions := []string{
 		string(types.ScanActionVulnsHostOS),
@@ -128,7 +114,7 @@ func RootCommand() *cobra.Command {
 	return cmd
 }
 
-func runCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func runCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	var localFlags struct {
 		cloudProvider string
 		pidfilePath   string
@@ -149,7 +135,7 @@ func runCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp 
 			if err != nil {
 				return fmt.Errorf("could not detect cloud provider: %w", err)
 			}
-			return runCmd(statsd, sc, evp, provider, localFlags.pidfilePath, localFlags.workers, localFlags.scannersMax)
+			return runCmd(sc, evp, provider, localFlags.pidfilePath, localFlags.workers, localFlags.scannersMax)
 		},
 	}
 	cmd.Flags().StringVarP(&localFlags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -159,7 +145,7 @@ func runCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp 
 	return cmd
 }
 
-func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int) error {
+func runCmd(sc *types.ScannerConfig, evp *eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -177,6 +163,7 @@ func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eve
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
+	statsd := common.InitStatsd(*sc)
 	scannerID := types.NewScannerID(provider, hostname)
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
@@ -200,13 +187,13 @@ func runCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eve
 	return nil
 }
 
-func runScannerCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig) *cobra.Command {
+func runScannerCommand(sc *types.ScannerConfig) *cobra.Command {
 	var sock string
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScannerCmd(statsd, sc, sock)
+			return runScannerCmd(sc, sock)
 		},
 	}
 	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
@@ -214,7 +201,7 @@ func runScannerCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfi
 	return cmd
 }
 
-func runScannerCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, sock string) error {
+func runScannerCmd(sc *types.ScannerConfig, sock string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -236,6 +223,7 @@ func runScannerCmd(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, s
 		return err
 	}
 
+	statsd := common.InitStatsd(*sc)
 	result := runner.LaunchScannerInSameProcess(ctx, statsd, sc, opts)
 	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
 	if err := enc.Encode(result); err != nil {
@@ -285,6 +273,7 @@ func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActions
 	}
 	return types.ScannerConfig{
 		Env:                 c.GetString("env"),
+		DogstatsdHost:       pkgconfig.GetBindHost(),
 		DogstatsdPort:       c.GetInt("dogstatsd_port"),
 		DefaultRolesMapping: defaultRolesMapping,
 		DefaultActions:      defaultActions,
