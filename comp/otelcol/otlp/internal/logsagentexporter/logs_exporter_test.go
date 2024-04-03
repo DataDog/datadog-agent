@@ -212,7 +212,7 @@ func TestLogsExporter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &struct{}{}
 
-			testChannel := make(chan *message.Message, 10)
+			testChannel := make(chan message.TimedMessage[*message.Message], 10)
 
 			params := exportertest.NewNopCreateSettings()
 			f := NewFactory(testChannel)
@@ -226,9 +226,9 @@ func TestLogsExporter(t *testing.T) {
 			for i := 0; i < len(tt.want); i++ {
 				output := <-testChannel
 				outputJSON := make(map[string]interface{})
-				json.Unmarshal(output.GetContent(), &outputJSON)
-				assert.Equal(t, logSourceName, output.Origin.Source())
-				assert.Equal(t, tt.expectedTags[i], output.Origin.Tags())
+				json.Unmarshal(output.Inner.GetContent(), &outputJSON)
+				assert.Equal(t, logSourceName, output.Inner.Origin.Source())
+				assert.Equal(t, tt.expectedTags[i], output.Inner.Origin.Tags())
 				ans = append(ans, outputJSON)
 			}
 			assert.Equal(t, tt.want, ans)

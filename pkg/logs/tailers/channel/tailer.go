@@ -82,7 +82,7 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
-		t.outputChan <- buildMessage(logline, origin)
+		t.outputChan <- message.NewTimedMessage(buildMessage(logline, origin))
 	}
 }
 

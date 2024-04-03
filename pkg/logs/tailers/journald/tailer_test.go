@@ -507,7 +507,7 @@ func TestTailerCanTailJournal(t *testing.T) {
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, true)
+	tailer := NewTailer(source, make(chan message.TimedMessage[*message.Message], 1), mockJournal, true)
 
 	mockJournal.entries = append(mockJournal.entries, &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}})
 
@@ -516,7 +516,7 @@ func TestTailerCanTailJournal(t *testing.T) {
 	resultMessage := <-tailer.outputChan
 
 	var parsedContent map[string]interface{}
-	json.Unmarshal(resultMessage.GetContent(), &parsedContent)
+	json.Unmarshal(resultMessage.Inner.GetContent(), &parsedContent)
 	assert.Equal(t, "foobar", parsedContent["message"])
 
 	tailer.Stop()
@@ -527,7 +527,7 @@ func TestTailerWithStructuredMessage(t *testing.T) {
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, false)
+	tailer := NewTailer(source, make(chan message.TimedMessage[*message.Message], 1), mockJournal, false)
 	mockJournal.entries = append(mockJournal.entries, &sdjournal.JournalEntry{Fields: map[string]string{
 		sdjournal.SD_JOURNAL_FIELD_MESSAGE: "foobar",
 		"_SESSION_UID":                     "a97aaca9-ea7a-4ea5-9ebe-048686f2c78a",
@@ -537,9 +537,9 @@ func TestTailerWithStructuredMessage(t *testing.T) {
 	defer tailer.Stop()
 
 	resultMessage := <-tailer.outputChan
-	assert.Equal([]byte("foobar"), resultMessage.GetContent())
+	assert.Equal([]byte("foobar"), resultMessage.Inner.GetContent())
 
-	data, err := resultMessage.Render()
+	data, err := resultMessage.Inner.Render()
 	assert.NoError(err)
 	assert.Equal(data, []byte("{\"journald\":{\"_SESSION_UID\":\"a97aaca9-ea7a-4ea5-9ebe-048686f2c78a\"},\"message\":\"foobar\"}"))
 }
@@ -551,7 +551,7 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 
 	mockJournalV1 := &MockJournal{m: &sync.Mutex{}}
 	sourceV1 := sources.NewLogSource("", &config.LogsConfig{})
-	tailerV1 := NewTailer(sourceV1, make(chan *message.Message, 1), mockJournalV1, true)
+	tailerV1 := NewTailer(sourceV1, make(chan message.TimedMessage[*message.Message], 1), mockJournalV1, true)
 	mockJournalV1.entries = append(mockJournalV1.entries, &sdjournal.JournalEntry{Fields: map[string]string{
 		sdjournal.SD_JOURNAL_FIELD_MESSAGE: "journald log message content",
 		"_SESSION_UID":                     "a97aaca9-ea7a-4ea5-9ebe-048686f2c78a",
@@ -564,7 +564,7 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 
 	mockJournalV2 := &MockJournal{m: &sync.Mutex{}}
 	sourceV2 := sources.NewLogSource("", &config.LogsConfig{})
-	tailerV2 := NewTailer(sourceV2, make(chan *message.Message, 1), mockJournalV2, false)
+	tailerV2 := NewTailer(sourceV2, make(chan message.TimedMessage[*message.Message], 1), mockJournalV2, false)
 	mockJournalV2.entries = append(mockJournalV2.entries, &sdjournal.JournalEntry{Fields: map[string]string{
 		sdjournal.SD_JOURNAL_FIELD_MESSAGE: "journald log message content",
 		"_SESSION_UID":                     "a97aaca9-ea7a-4ea5-9ebe-048686f2c78a",
@@ -577,8 +577,8 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 	resultMessageV1 := <-tailerV1.outputChan
 	resultMessageV2 := <-tailerV2.outputChan
 
-	v1, err1 := resultMessageV1.Render()
-	v2, err2 := resultMessageV2.Render()
+	v1, err1 := resultMessageV1.Inner.Render()
+	v2, err2 := resultMessageV2.Inner.Render()
 	assert.NoError(err1)
 	assert.NoError(err2)
 
@@ -599,12 +599,12 @@ func TestExpectedTagDuration(t *testing.T) {
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, true)
+	tailer := NewTailer(source, make(chan message.TimedMessage[*message.Message], 1), mockJournal, true)
 
 	mockJournal.entries = append(mockJournal.entries, &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}})
 
 	tailer.Start("")
-	assert.Equal(t, tags, (<-tailer.outputChan).Origin.Tags())
+	assert.Equal(t, tags, (<-tailer.outputChan).Inner.Origin.Tags())
 
 	tailer.Stop()
 

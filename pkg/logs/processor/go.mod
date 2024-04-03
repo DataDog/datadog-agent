@@ -46,6 +46,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/stretchr/testify v1.9.0
 )
@@ -59,7 +60,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect

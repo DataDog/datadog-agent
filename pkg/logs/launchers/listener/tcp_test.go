@@ -51,19 +51,19 @@ func TestTCPDoesNotTruncateMessagesThatAreBiggerThanTheReadBufferSize(t *testing
 	conn, err := net.Dial("tcp", listener.listener.Addr().String())
 	assert.Nil(t, err)
 
-	var msg *message.Message
+	var msg message.TimedMessage[*message.Message]
 
 	fmt.Fprintf(conn, strings.Repeat("a", 80)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 80), string(msg.GetContent()))
+	assert.Equal(t, strings.Repeat("a", 80), string(msg.Inner.GetContent()))
 
 	fmt.Fprintf(conn, strings.Repeat("a", 200)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 200), string(msg.GetContent()))
+	assert.Equal(t, strings.Repeat("a", 200), string(msg.Inner.GetContent()))
 
 	fmt.Fprintf(conn, strings.Repeat("a", 70)+"\n")
 	msg = <-msgChan
-	assert.Equal(t, strings.Repeat("a", 70), string(msg.GetContent()))
+	assert.Equal(t, strings.Repeat("a", 70), string(msg.Inner.GetContent()))
 
 	listener.Stop()
 }

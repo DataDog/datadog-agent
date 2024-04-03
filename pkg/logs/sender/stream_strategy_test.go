@@ -14,7 +14,7 @@ import (
 )
 
 func TestStreamStrategy(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 
 	s := NewStreamStrategy(input, output, IdentityContentType)
@@ -22,7 +22,7 @@ func TestStreamStrategy(t *testing.T) {
 
 	content := []byte("a")
 	message1 := message.NewMessage(content, nil, "", 0)
-	input <- message1
+	input <- message.NewTimedMessage(message1)
 
 	payload := <-output
 	assert.Equal(t, message1, payload.Messages[0])
@@ -31,7 +31,7 @@ func TestStreamStrategy(t *testing.T) {
 
 	content = []byte("b")
 	message2 := message.NewMessage(content, nil, "", 0)
-	input <- message2
+	input <- message.NewTimedMessage(message2)
 
 	payload = <-output
 	assert.Equal(t, message2, payload.Messages[0])
@@ -42,14 +42,14 @@ func TestStreamStrategy(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestStreamStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 
 	s := NewStreamStrategy(input, output, IdentityContentType)
 
-	message := message.NewMessage([]byte{}, nil, "", 0)
+	msg := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
-		input <- message
+		input <- message.NewTimedMessage(msg)
 		s.Stop()
 	}()
 
@@ -57,16 +57,16 @@ func TestStreamStrategyShouldNotBlockWhenForceStopping(t *testing.T) {
 }
 
 func TestStreamStrategyShouldNotBlockWhenStoppingGracefully(t *testing.T) {
-	input := make(chan *message.Message)
+	input := make(chan message.TimedMessage[*message.Message])
 	output := make(chan *message.Payload)
 
 	s := NewStreamStrategy(input, output, IdentityContentType)
 
-	message := message.NewMessage([]byte{}, nil, "", 0)
+	msg := message.NewMessage([]byte{}, nil, "", 0)
 	go func() {
-		input <- message
+		input <- message.NewTimedMessage(msg)
 		s.Stop()
-		assert.Equal(t, message, <-output)
+		assert.Equal(t, msg, <-output)
 	}()
 
 	s.Start()
