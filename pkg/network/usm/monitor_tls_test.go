@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -387,7 +388,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 	return client, func() *nethttp.Request {
 		idx++
 		status := statusCodes[random.Intn(len(statusCodes))]
-		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", targetAddr, status, idx), nil)
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/status/%d/request-%d", targetAddr, status, idx), nil)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
@@ -779,4 +780,73 @@ func getHTTPLikeProtocolStats(monitor *Monitor, protocolType protocols.ProtocolT
 		return nil
 	}
 	return res
+}
+
+func (s *tlsSuite) TestNodeJSTLS() {
+	const (
+		expectedOccurrences = 10
+		serverPort          = "4444"
+	)
+
+	t := s.T()
+
+	cert, key, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+
+	require.NoError(t, nodejs.RunServerNodeJS(t, key, cert, serverPort))
+	nodeJSPID, err := nodejs.GetNodeJSDockerPID()
+	require.NoError(t, err)
+
+	cfg := config.New()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableNodeJSMonitoring = true
+
+	usmMonitor := setupUSMTLSMonitor(t, cfg)
+	utils.WaitForProgramsToBeTraced(t, "nodejs", int(nodeJSPID))
+
+	// This maps will keep track of whether the tracer saw this request already or not
+	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+	var requests []*nethttp.Request
+	for i := 0; i < expectedOccurrences; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	client.CloseIdleConnections()
+	requestsExist := make([]bool, len(requests))
+
+	assert.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP)
+		if stats == nil {
+			return false
+		}
+
+		if len(stats) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(stats, req)
+			}
+		}
+
+		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
+		// otherwise, if all present, abort.
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+				return false
+			}
+		}
+
+		return true
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+
+	for reqIndex, exists := range requestsExist {
+		if !exists {
+			// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+			t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+		}
+	}
 }

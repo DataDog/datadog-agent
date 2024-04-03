@@ -230,6 +230,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_kafka_monitoring"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
+	cfg.BindEnv(join(smNS, "tls", "nodejs", "enabled"))
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)

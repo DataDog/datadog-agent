@@ -1286,6 +1286,33 @@ service_monitoring_config:
 	})
 }
 
+func TestNodeJSMonitoring(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.False(t, cfg.EnableNodeJSMonitoring)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  tls:
+    nodejs:
+      enabled: true
+`)
+		assert.True(t, cfg.EnableNodeJSMonitoring)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_TLS_NODEJS_ENABLED", "true")
+
+		cfg := New()
+		assert.True(t, cfg.EnableNodeJSMonitoring)
+	})
+}
+
 func TestMaxUSMConcurrentRequests(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
