@@ -45,7 +45,7 @@ type dependencies struct {
 }
 
 type settingsRegistry struct {
-	m                  sync.Mutex
+	rwMutex            sync.RWMutex
 	registeredSettings map[string]settings.RuntimeSetting
 	log                log.Component
 }
@@ -57,6 +57,8 @@ func (s *settingsRegistry) RuntimeSettings() map[string]settings.RuntimeSetting 
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
 func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error) {
+	s.rwMutex.RLock()
+	defer s.rwMutex.RUnlock()
 	if _, ok := s.registeredSettings[setting]; !ok {
 		return nil, &settings.SettingNotFoundError{Name: setting}
 	}
@@ -69,8 +71,8 @@ func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
 func (s *settingsRegistry) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
-	s.m.Lock()
-	defer s.m.Unlock()
+	s.rwMutex.Lock()
+	defer s.rwMutex.Unlock()
 	if _, ok := s.registeredSettings[setting]; !ok {
 		return &settings.SettingNotFoundError{Name: setting}
 	}
