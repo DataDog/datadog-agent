@@ -151,6 +151,10 @@ func createFile(t *testing.T, host *components.RemoteHost, filepath string, opti
 
 // assertAgentsUseKey checks that all agents are using the given key.
 func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoken, key string) {
+	if h, ok := t.(testing.TB); ok {
+		h.Helper()
+	}
+
 	for _, endpoint := range []agentConfigEndpointInfo{
 		traceConfigEndpoint(apmCmdPort),
 		processConfigEndpoint(processCmdPort),
@@ -167,6 +171,10 @@ func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoke
 // assertConfigHasKey checks that configYAML contains the given key.
 // As the config is scrubbed, it only checks the last 5 characters of the keys.
 func assertConfigHasKey(t assert.TestingT, configYAML, key string, context string) {
+	if h, ok := t.(testing.TB); ok {
+		h.Helper()
+	}
+
 	var cfg map[string]interface{}
 	err := yaml.Unmarshal([]byte(configYAML), &cfg)
 	if !assert.NoError(t, err, context) {
