@@ -15,7 +15,7 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.compiler import all_compilers, CONTAINER_AGENT_PATH, get_compiler
+from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import SSH_OPTIONS, HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system

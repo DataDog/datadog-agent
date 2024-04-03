@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, cast
@@ -16,6 +15,7 @@ if TYPE_CHECKING:
 
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
+
 
 class CompilerImage:
     def __init__(self, ctx: Context, arch: Arch):
@@ -115,7 +115,9 @@ class CompilerImage:
         self.exec(f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
-            self.exec(f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root")
+            self.exec(
+                f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root"
+            )
 
         self.exec("apt install sudo", user="root")
         self.exec("usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
