@@ -546,14 +546,15 @@ func TestConcentratorStatsCounts(t *testing.T) {
 func TestRootTag(t *testing.T) {
 	now := time.Now()
 	spans := []*pb.Span{
-		testSpan(now, 1, 0, 40, 10, "A1", "resource1", 0, nil),
-		testSpan(now, 2, 1, 30, 10, "A1", "resource1", 0, nil),
-		testSpan(now, 3, 2, 20, 10, "A1", "resource1", 0, map[string]string{"span.kind": "client"}),
-		testSpan(now, 4, 1000, 10, 10, "A1", "resource1", 0, nil),
+		testSpan(now, 1, 0, 40, 10, "A1", "resource1", 0, nil),                                      // root span
+		testSpan(now, 2, 1, 30, 10, "A1", "resource1", 0, nil),                                      // not top level, doesn't produce stats
+		testSpan(now, 3, 2, 20, 10, "A1", "resource1", 0, map[string]string{"span.kind": "client"}), // non-root, non-top level, but client span
+		testSpan(now, 4, 1000, 10, 10, "A1", "resource1", 0, nil),                                   // non-root but top level span
 	}
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "", "", "", "")
 	c := NewTestConcentrator(now)
+	c.computeStatsBySpanKind = true
 	c.addNow(testTrace, "")
 
 	expected := []*pb.ClientGroupedStats{
@@ -562,9 +563,9 @@ func TestRootTag(t *testing.T) {
 			Resource:     "resource1",
 			Type:         "db",
 			Name:         "query",
-			Duration:     60,
-			Hits:         2,
-			TopLevelHits: 2,
+			Duration:     40,
+			Hits:         1,
+			TopLevelHits: 1,
 			Errors:       0,
 			IsTraceRoot:  pb.TraceRootFlag_TRUE,
 		},
@@ -578,6 +579,18 @@ func TestRootTag(t *testing.T) {
 			TopLevelHits: 1,
 			Errors:       0,
 			IsTraceRoot:  pb.TraceRootFlag_FALSE,
+		},
+		{
+			Service:      "A1",
+			Resource:     "resource1",
+			Type:         "db",
+			Name:         "query",
+			Duration:     20,
+			Hits:         1,
+			TopLevelHits: 0,
+			Errors:       0,
+			IsTraceRoot:  pb.TraceRootFlag_FALSE,
+			SpanKind:     "client",
 		},
 	}
 
