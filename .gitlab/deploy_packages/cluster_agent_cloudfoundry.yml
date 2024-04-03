@@ -1,7 +1,7 @@
 ---
 deploy_cluster_agent_cloudfoundry:
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]

@@ -1,7 +1,7 @@
 name: "Serverless Integration Tests"
 
 on:
-  push:
+  pull_request:
     branches-ignore:
       - 'mq-working-branch-*'
     paths:
@@ -59,12 +59,12 @@ jobs:
 
       - name: Run tests if AWS credentials are available
         id: test
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@v3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.SERVERLESS_AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.SERVERLESS_AWS_SECRET_ACCESS_KEY }}
         with:
-          timeout_minutes: 45
+          timeout_minutes: 60
           max_attempts: 2
           command: |
             RAWLOGS_DIR="${{ steps.rawlogs.outputs.dir }}/${{ matrix.architecture }}"

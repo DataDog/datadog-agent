@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build ignore
-
+// Package main is responsible for extracting Go type information
+// from DWARF data across multiple Go versions.
 package main
 
 import (
@@ -18,9 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/goversion"
-
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/lutgen"
 )
 
@@ -45,8 +44,8 @@ func main() {
 		log.Fatalf("unable to get absolute path to %q: %s", *outFlag, err)
 	}
 
-	minGoVersion, ok := goversion.Parse(fmt.Sprintf("go%s", *minGoVersionFlag))
-	if !ok {
+	minGoVersion, err := goversion.NewGoVersion(*minGoVersionFlag)
+	if err != nil {
 		log.Fatalf("unable to parse min Go version %q", *minGoVersionFlag)
 	}
 
@@ -149,6 +148,6 @@ func inspectBinary(binary lutgen.Binary) (interface{}, error) {
 		return 0, err
 	}
 
-	log.Printf("found struct offset for (go%s, %s)", binary.GoVersionString, binary.Architecture)
+	log.Printf("found struct offset for (go%s, %s)", binary.GoVersion, binary.Architecture)
 	return offset, nil
 }
