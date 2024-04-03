@@ -1612,8 +1612,8 @@ def update_build_links(_ctx, new_version, patch_version=False):
     """
     Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
 
-    new_version - should be given as an Agent 7 RC minor version (2 digits), ie. '7.50-rc.1' format.
-    patch-version - if set to True, then task can be used for patch releases (3 digits), ie. '7.50.1-rc.1' format. Otherwise patch release number will be considered as invalid.
+    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format. Does not support patch version unless patch_version is set to True.
+    patch_version - if set to True, then task can be used for patch releases (3 digits), ie. '7.50.1-rc.1' format. Otherwise patch release number will be considered as invalid.
 
     Notes:
     Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
@@ -1629,7 +1629,7 @@ def update_build_links(_ctx, new_version, patch_version=False):
     if not match:
         raise Exit(
             color_message(
-                f"{new_version} is not a valid {'patch' if patch_version else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.0' if patch_version else ''}-rc.1",
+                f"{new_version} is not a valid {'patch' if patch_version else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.1' if patch_version else '.0'}-rc.1",
                 "red",
             ),
             code=1,
