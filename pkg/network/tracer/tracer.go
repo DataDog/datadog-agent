@@ -212,6 +212,8 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		cfg.MaxDNSStatsBuffered,
 		cfg.MaxHTTPStatsBuffered,
 		cfg.MaxKafkaStatsBuffered,
+		cfg.EnableNPMConnectionRollup,
+		cfg.EnableProcessEventMonitoring,
 	)
 
 	return tr, nil
@@ -293,6 +295,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
 	for i := range connections {
 		cs := &connections[i]
+		cs.IsClosed = true
 		if t.shouldSkipConnection(cs) {
 			connections[rejected], connections[i] = connections[i], connections[rejected]
 			rejected++
@@ -321,7 +324,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID = nil
+	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
@@ -348,9 +351,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Env("DD_VERSION"))
 	addTag("service", p.Env("DD_SERVICE"))
 
-	if containerID := p.ContainerID.Get().(string); containerID != "" {
-		c.ContainerID = &containerID
-	}
+	c.ContainerID.Source = p.ContainerID
 }
 
 // Stop stops the tracer

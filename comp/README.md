@@ -4,6 +4,22 @@
 This file lists all components defined in this repository, with their package summary.
 Click the links for more documentation.
 
+## [comp/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package agent implements the "agent" bundle,
+
+### [comp/agent/jmxlogger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/jmxlogger)
+
+*Datadog Team*: agent-metrics-logs
+
+Package jmxlogger implements the logger for JMX.
+
+### [comp/agent/metadatascheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/metadatascheduler)
+
+Package metadatascheduler provides the metadata scheduler component.
+
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
 *Datadog Team*: agent-shared-components

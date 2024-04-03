@@ -20,6 +20,7 @@ type StringCmpOpts struct {
 	PatternCaseInsensitive bool
 	GlobCaseInsensitive    bool
 	RegexpCaseInsensitive  bool
+	PathSeparatorNormalize bool
 }
 
 // DefaultStringCmpOpts defines the default comparison options
@@ -122,7 +123,6 @@ func (s *StringValues) Matches(value string) bool {
 
 // StringMatcher defines a pattern matcher
 type StringMatcher interface {
-	Compile(pattern string, caseInsensitive bool) error
 	Matches(value string) bool
 }
 
@@ -179,12 +179,12 @@ type GlobStringMatcher struct {
 }
 
 // Compile a simple pattern
-func (g *GlobStringMatcher) Compile(pattern string, caseInsensitive bool) error {
+func (g *GlobStringMatcher) Compile(pattern string, caseInsensitive bool, normalizePath bool) error {
 	if g.glob != nil {
 		return nil
 	}
 
-	glob, err := NewGlob(pattern, caseInsensitive)
+	glob, err := NewGlob(pattern, caseInsensitive, normalizePath)
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (
 		return &matcher, nil
 	case GlobValueType:
 		var matcher GlobStringMatcher
-		if err := matcher.Compile(pattern, opts.GlobCaseInsensitive); err != nil {
+		if err := matcher.Compile(pattern, opts.GlobCaseInsensitive, opts.PathSeparatorNormalize); err != nil {
 			return nil, fmt.Errorf("invalid glob `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
