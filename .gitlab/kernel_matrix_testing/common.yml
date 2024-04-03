@@ -108,7 +108,7 @@
     - scp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh metal_instance:/opt/kernel-version-testing
     - |
       if [ -d $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH ]; then
-        tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH
+        tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz -C $DD_AGENT_TESTING_DIR kmt-dockers-$ARCH
         scp $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz metal_instance:/opt/kernel-version-testing
       fi
   variables:

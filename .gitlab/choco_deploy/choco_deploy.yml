@@ -3,7 +3,7 @@
 # Contains a job which deploys the chocolatey Agent package.
 
 publish_choco_7_x64:
-  rules: !reference [.on_deploy_stable_or_beta_repo_branch_a7_manual]
+  rules: !reference [.on_deploy_stable_or_beta_repo_branch_manual]
   stage: choco_deploy
   tags: ["runner:windows-docker", "windowsversion:1809"]
   needs: ["windows_choco_online_7_x64"]

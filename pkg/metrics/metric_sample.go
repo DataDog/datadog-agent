@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -38,7 +39,7 @@ var (
 )
 
 // EnrichTagsfn can be used to Enrich tags with origin detection tags.
-type EnrichTagsfn func(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string)
+type EnrichTagsfn func(tb tagset.TagsAccumulator, origin taggertypes.OriginInfo)
 
 // String returns a string representation of MetricType
 func (m MetricType) String() string {
@@ -94,21 +95,19 @@ type MetricSampleContext interface {
 
 // MetricSample represents a raw metric sample
 type MetricSample struct {
-	Name             string
-	Value            float64
-	RawValue         string
-	Mtype            MetricType
-	Tags             []string
-	Host             string
-	SampleRate       float64
-	Timestamp        float64
-	FlushFirstValue  bool
-	OriginFromUDS    string
-	OriginFromClient string
-	ListenerID       string
-	Cardinality      string
-	NoIndex          bool
-	Source           MetricSource
+	Name            string
+	Value           float64
+	RawValue        string
+	Mtype           MetricType
+	Tags            []string
+	Host            string
+	SampleRate      float64
+	Timestamp       float64
+	FlushFirstValue bool
+	OriginInfo      taggertypes.OriginInfo
+	ListenerID      string
+	NoIndex         bool
+	Source          MetricSource
 }
 
 // Implement the MetricSampleContext interface
@@ -126,7 +125,7 @@ func (m *MetricSample) GetHost() string {
 // GetTags returns the metric sample tags
 func (m *MetricSample) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, fn EnrichTagsfn) {
 	metricBuffer.Append(m.Tags...)
-	fn(taggerBuffer, m.OriginFromUDS, m.OriginFromClient, m.Cardinality)
+	fn(taggerBuffer, m.OriginInfo)
 }
 
 // GetMetricType implements MetricSampleContext#GetMetricType.
