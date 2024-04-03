@@ -11,7 +11,6 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -121,12 +120,20 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 	return len(l.getAdditionalEndpoints()) > 0
 }
 
-// getLogsAPIKey provides the dd api key used by the main logs agent sender.
-func (l *LogsConfigKeys) getLogsAPIKey() string {
-	if configKey := l.getConfigKey("api_key"); l.isSetAndNotEmpty(configKey) {
-		return pkgconfigutils.SanitizeAPIKey(l.getConfig().GetString(configKey))
+// getAPIKeyGetter returns a getter function to retrieve the API key from the configuration. The getter will refetch the
+// value from the configuration upon each call to ensure the latest version is used. This ensure that the logs agent is
+// compatible with rotating the API key at runtime.
+//
+// The getter will use "logs_config.api_key" over "api_key" when needed.
+func (l *LogsConfigKeys) getAPIKeyGetter() func() string {
+	path := "api_key"
+	if configKey := l.getConfigKey(path); l.isSetAndNotEmpty(configKey) {
+		path = configKey
 	}
-	return pkgconfigutils.SanitizeAPIKey(l.getConfig().GetString("api_key"))
+
+	return func() string {
+		return l.getConfig().GetString(path)
+	}
 }
 
 func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
@@ -134,13 +141,13 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 
 }
 
-func (l *LogsConfigKeys) getAdditionalEndpoints() []Endpoint {
-	var endpoints []Endpoint
+func (l *LogsConfigKeys) getAdditionalEndpoints() []unmarshalEndpoint {
+	var endpoints []unmarshalEndpoint
 	var err error
 	configKey := l.getConfigKey("additional_endpoints")
 	raw := l.getConfig().Get(configKey)
 	if raw == nil {
-		return endpoints
+		return nil
 	}
 	if s, ok := raw.(string); ok && s != "" {
 		err = json.Unmarshal([]byte(s), &endpoints)

@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
+
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -258,8 +261,14 @@ type Config struct {
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
 
+	// EnableNPMConnectionRollup enables aggregating connections by rolling up ephemeral ports
+	EnableNPMConnectionRollup bool
+
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
+
+	// NPMRingbuffersEnabled specifies whether ringbuffers are enabled or not
+	NPMRingbuffersEnabled bool
 
 	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
 	EnableUSMConnectionRollup bool
@@ -317,6 +326,8 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
+		NPMRingbuffersEnabled: cfg.GetBool(join(netNS, "enable_ringbuffers")),
+
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
@@ -354,6 +365,8 @@ func New() *Config {
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+
+		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
@@ -398,4 +411,8 @@ func New() *Config {
 		log.Info("network process event monitoring enabled")
 	}
 	return c
+}
+
+func (c *Config) RingBufferSupportedNPM() bool {
+	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
 }

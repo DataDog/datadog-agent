@@ -45,12 +45,12 @@ single-machine-performance-regression_detector:
     - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
-    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-account-id)
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_ACCOUNT_ID_SSM_NAME)
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-agent-team-id)
-    - SMP_API=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-api)
-    - aws configure set aws_access_key_id $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-bot-access-key-id) --profile ${AWS_NAMED_PROFILE}
-    - aws configure set aws_secret_access_key $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-bot-access-key) --profile ${AWS_NAMED_PROFILE}
+    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_AGENT_TEAM_ID_SSM_NAME)
+    - SMP_API=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_API_SSM_NAME)
+    - aws configure set aws_access_key_id $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_ID_SSM_NAME) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_SSM_NAME) --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp

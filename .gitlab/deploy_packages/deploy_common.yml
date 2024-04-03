@@ -12,7 +12,7 @@
   extends: .deploy_packages_deb
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -20,7 +20,7 @@
   extends: .deploy_packages_deb
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 7
 
@@ -39,7 +39,7 @@
   extends: .deploy_packages_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -47,7 +47,7 @@
   extends: .deploy_packages_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 7
 
@@ -61,7 +61,7 @@
   extends: .deploy_packages_suse_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -69,21 +69,32 @@
   extends: .deploy_packages_suse_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 7
 
-.deploy_packages_oci:
+deploy_packages_oci:
   resource_group: oci_bucket
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  needs: [ "packaging_oci" ]
   tags: ["arch:amd64"]
   stage: deploy_packages
-  rules:
-    !reference [.on_deploy_a7]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
+  rules:
+    !reference [.on_deploy]
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent*_${MAJOR_VERSION}.*${PACKAGE_ARCH}.tar" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/oci/${PACKAGE_ARCH}/"
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - set +x
+    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
+    - export GITHUB_APP_ID=682216
+    - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
+    - export VERSION=$(inv agent.version --url-safe)-1
+    - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
+    - git clone https://github.com/DataDog/datadog-packages /tmp/datadog-packages
+    - cd /tmp/datadog-packages/cmd/datadog-package
+    - go build .
+    - ./datadog-package push registry.ddbuild.io/ci/remote-updates/datadog-agent:${VERSION} ${OMNIBUS_PACKAGE_DIR}/datadog-agent-${MAJOR_VERSION}.*.oci.tar
   variables:
     MAJOR_VERSION: 7
 

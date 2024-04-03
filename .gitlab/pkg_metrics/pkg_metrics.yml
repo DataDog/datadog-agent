@@ -28,12 +28,12 @@
 .send_metrics:
   script:
     # Send the metrics accumulated by add_metric
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
     - 'curl --fail -X POST -H "Content-type: application/json" -d "$post_body" "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"'
 
 send_pkg_size-a6:
   allow_failure: true
-  rules: !reference [.on_deploy_a6]
+  rules: !reference [.on_deploy]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -76,7 +76,7 @@ send_pkg_size-a6:
     - AMD64_SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/amd64-agent | sed 's/\([0-9]\+\).\+/\1/')
 
     - currenttime=$(date +%s)
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key)
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
     - |
       curl --fail -X POST -H "Content-type: application/json" \
       -d "{\"series\":[
@@ -90,7 +90,7 @@ send_pkg_size-a6:
 
 send_pkg_size-a7:
   allow_failure: true
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy]
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -248,7 +248,9 @@ send_pkg_size-a7:
 
 check_pkg_size-amd64-a6:
   extends: .check_pkg_size
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
@@ -258,11 +260,11 @@ check_pkg_size-amd64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "50000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
       )
 
 check_pkg_size-arm64-a6:
@@ -276,16 +278,18 @@ check_pkg_size-arm64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "50000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
       )
 
 check_pkg_size-amd64-a7:
   extends: .check_pkg_size
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
@@ -305,12 +309,12 @@ check_pkg_size-amd64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" and ["datadog-heroku-agent"]="70000000" should
+    # FIXME: ["datadog-agent"]="140000000" and ["datadog-heroku-agent"]="140000000" should
     # be replaced by "50000000"
     # "70000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
           ["datadog-heroku-agent"]="70000000"
@@ -333,11 +337,11 @@ check_pkg_size-arm64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "70000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "70000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
           ["datadog-agentless-scanner"]="10000000"

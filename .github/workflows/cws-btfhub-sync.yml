@@ -3,7 +3,7 @@ name: "CWS BTFHub constants sync"
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 4 * * 1-5' # at 4:30 UTC every week-day
+    - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
 jobs:
   sync:
@@ -20,6 +20,7 @@ jobs:
       - name: Checkout btfhub-archive repository
         uses: actions/checkout@v4
         with:
+          ref: no-kmod
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
 

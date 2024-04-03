@@ -208,6 +208,19 @@ func (w *workloadMetaMock) GetECSTask(id string) (*ECSTask, error) {
 	return entity.(*ECSTask), nil
 }
 
+// ListECSTasks implements workloadMetaMock#ListECSTasks
+func (w *workloadMetaMock) ListECSTasks() []*ECSTask {
+	entities := w.listEntitiesByKind(KindECSTask)
+
+	tasks := make([]*ECSTask, 0, len(entities))
+	for _, entity := range entities {
+		task := entity.(*ECSTask)
+		tasks = append(tasks, task)
+	}
+
+	return tasks
+}
+
 // ListImages implements workloadMetaMock#ListImages
 func (w *workloadMetaMock) ListImages() []*ContainerImageMetadata {
 	entities := w.listEntitiesByKind(KindContainerImageMetadata)

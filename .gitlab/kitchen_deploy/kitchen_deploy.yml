@@ -8,8 +8,8 @@
   - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
 
 .setup_apt_signing_key: &setup_apt_signing_key
-  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
+  - APT_SIGNING_PRIVATE_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
+  - APT_SIGNING_KEY_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
 
   - printf -- "$APT_SIGNING_PRIVATE_KEY" | gpg --import --batch
 
@@ -114,7 +114,8 @@ deploy_deb_testing-a6_arm64:
 deploy_deb_testing-a7_x64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   extends:
     - .deploy_deb_testing-a7
   needs:
@@ -153,7 +154,8 @@ deploy_deb_testing-a7_arm64:
 deploy_deb_testing-u7_arm64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   extends:
     - .deploy_deb_testing-u7
   needs: ["updater_deb-arm64", "lint_linux-arm64"]
@@ -217,7 +219,8 @@ deploy_rpm_testing-a6_arm64:
 deploy_rpm_testing-a7_x64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   extends:
     - .deploy_rpm_testing-a7
   needs:
@@ -265,7 +268,8 @@ deploy_suse_rpm_testing_x64-a6:
 deploy_suse_rpm_testing_x64-a7:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -319,8 +323,9 @@ deploy_windows_testing-a6:
 deploy_windows_testing-a7:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
     - !reference [.on_windows_installer_changes_or_manual]
+    - when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]

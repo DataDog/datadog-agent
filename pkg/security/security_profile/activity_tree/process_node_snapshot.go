@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand"
 	"net"
@@ -21,10 +22,6 @@ import (
 	"syscall"
 	"time"
 
-	// shirou/gopsutil uses different logic for getting the memory maps Path
-	// it assumes space-separation and the path is last
-	// DD: combines 6th+ fields into the path
-	legacyprocess "github.com/DataDog/gopsutil/process"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/unix"
@@ -155,7 +152,7 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 
 		// TODO: add open flags by parsing `/proc/[pid]/fdinfo/fd` + O_RDONLY|O_CLOEXEC for the shared libs
 
-		_ = pn.InsertFileEvent(&evt.Open.File, evt, Snapshot, stats, false, reducer, nil)
+		_ = pn.InsertFileEvent(&evt.Open.File, evt, "", Snapshot, stats, false, reducer, nil)
 	}
 }
 
@@ -163,29 +160,31 @@ func (pn *ProcessNode) snapshotFiles(p *process.Process, stats *Stats, newEvent 
 const MaxMmapedFiles = 128
 
 func snapshotMemoryMappedFiles(pid int32, processEventPath string) ([]string, error) {
-	fakeprocess := legacyprocess.Process{Pid: pid}
-	stats, err := fakeprocess.MemoryMaps(false)
-	if err != nil || stats == nil {
+	smapsPath := kernel.HostProc(strconv.Itoa(int(pid)), "smaps")
+	smapsFile, err := os.Open(smapsPath)
+	if err != nil {
 		return nil, err
 	}
+	defer smapsFile.Close()
 
 	files := make([]string, 0, MaxMmapedFiles)
-	for _, mm := range *stats {
-		if len(files) >= MaxMmapedFiles {
-			break
-		}
+	scanner := bufio.NewScanner(smapsFile)
 
-		if len(mm.Path) == 0 {
+	for scanner.Scan() && len(files) < MaxMmapedFiles {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+
+		if len(fields) < 6 || strings.HasSuffix(fields[0], ":") {
 			continue
 		}
 
-		if mm.Path != processEventPath {
-			continue
+		path := strings.Join(fields[5:], " ")
+		if len(path) != 0 && path != processEventPath {
+			files = append(files, path)
 		}
-
-		files = append(files, mm.Path)
 	}
-	return files, nil
+
+	return files, scanner.Err()
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
@@ -283,5 +282,5 @@ func (pn *ProcessNode) insertSnapshottedSocket(family uint16, ip net.IP, port ui
 	}
 	evt.Bind.Addr.Port = port
 
-	_ = pn.InsertBindEvent(evt, Snapshot, stats, false)
+	_ = pn.InsertBindEvent(evt, "", Snapshot, stats, false)
 }

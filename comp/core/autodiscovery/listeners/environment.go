@@ -56,6 +56,7 @@ func (l *EnvironmentListener) createServices() {
 		"cri":               config.Cri,
 		"containerd":        config.Containerd,
 		"kube_orchestrator": config.KubeOrchestratorExplorer,
+		"ecs_orchestrator":  config.ECSOrchestratorExplorer,
 	}
 
 	for name, feature := range features {
