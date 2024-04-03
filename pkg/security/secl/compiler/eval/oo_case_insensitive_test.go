@@ -234,8 +234,7 @@ func TestLowerCaseContains(t *testing.T) {
 		values.AppendFieldValue(FieldValue{Value: "fo*", Type: PatternValueType})
 
 		opts := StringCmpOpts{
-			ScalarCaseInsensitive:  true,
-			PatternCaseInsensitive: true,
+			CaseInsensitive: true,
 		}
 
 		if err := values.Compile(opts); err != nil {
