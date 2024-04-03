@@ -22,12 +22,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
@@ -97,6 +98,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return logimpl.NewLogger(lc, params, sysprobeconfig)
 				}),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
+				autoexitimpl.Module(),
 			)
 		},
 	}
@@ -106,7 +108,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, _ autoexit.Component) error {
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()
@@ -248,8 +250,7 @@ func StopSystemProbeWithDefaults() {
 // startSystemProbe Initializes the system-probe process
 func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	var err error
-	var ctx context.Context
-	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
+	_, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
@@ -297,11 +298,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 			return log.Errorf("error while writing PID file, exiting: %s", err)
 		}
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
-	}
-
-	err = manager.ConfigureAutoExit(ctx, sysprobeconfig)
-	if err != nil {
-		return log.Criticalf("unable to configure auto-exit: %s", err)
 	}
 
 	if err := processstatsd.Configure(cfg.StatsdHost, cfg.StatsdPort, statsd.CreateForHostPort); err != nil {

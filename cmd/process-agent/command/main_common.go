@@ -15,7 +15,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
-	"github.com/DataDog/datadog-agent/cmd/manager"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -156,6 +157,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide configsync module
 		configsyncimpl.OptionalModule(),
 
+		// Provide autoexit module
+		autoexitimpl.Module(),
+
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
 		fx.Provide(func(c config.Component) workloadmeta.Params {
@@ -197,6 +201,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,
 			processAgent agent.Component,
+			_ autoexit.Component,
 		) error {
 			if !processAgent.Enabled() {
 				return errAgentDisabled
@@ -307,12 +312,6 @@ func initMisc(deps miscDeps) error {
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(startCtx context.Context) error {
-
-			err := manager.ConfigureAutoExit(startCtx, deps.Config)
-			if err != nil {
-				deps.Logger.Criticalf("Unable to configure auto-exit, err: %w", err)
-				return err
-			}
 
 			if collector.Enabled(deps.Config) {
 				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)

@@ -30,12 +30,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
-	"github.com/DataDog/datadog-agent/cmd/manager"
 
 	// checks implemented as components
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
@@ -221,6 +221,7 @@ func run(log log.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	_ healthprobe.Component,
+	_ autoexit.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -505,11 +506,6 @@ func startAgent(
 			return log.Errorf("Error while writing PID file, exiting: %v", err)
 		}
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
-	}
-
-	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
-	if err != nil {
-		return log.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
 	hostnameDetected, err := hostname.Get(context.TODO())
