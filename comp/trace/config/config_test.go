@@ -32,9 +32,7 @@ import (
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 
-	//nolint:revive // TODO(APM) Fix revive linter
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +43,7 @@ import (
 // TestParseReplaceRules tests the compileReplaceRules helper function.
 func TestParseRepaceRules(t *testing.T) {
 	assert := assert.New(t)
-	rules := []*config.ReplaceRule{
+	rules := []*traceconfig.ReplaceRule{
 		{Name: "http.url", Pattern: "(token/)([^/]*)", Repl: "${1}?"},
 		{Name: "http.url", Pattern: "guid", Repl: "[REDACTED]"},
 		{Name: "custom.tag", Pattern: "(/foo/bar/).*", Repl: "${1}extra"},
@@ -63,27 +61,27 @@ func TestParseRepaceRules(t *testing.T) {
 func TestSplitTag(t *testing.T) {
 	for _, tt := range []struct {
 		tag string
-		kv  *config.Tag
+		kv  *traceconfig.Tag
 	}{
 		{
 			tag: "",
-			kv:  &config.Tag{K: ""},
+			kv:  &traceconfig.Tag{K: ""},
 		},
 		{
 			tag: "key:value",
-			kv:  &config.Tag{K: "key", V: "value"},
+			kv:  &traceconfig.Tag{K: "key", V: "value"},
 		},
 		{
 			tag: "env:prod",
-			kv:  &config.Tag{K: "env", V: "prod"},
+			kv:  &traceconfig.Tag{K: "env", V: "prod"},
 		},
 		{
 			tag: "env:staging:east",
-			kv:  &config.Tag{K: "env", V: "staging:east"},
+			kv:  &traceconfig.Tag{K: "env", V: "staging:east"},
 		},
 		{
 			tag: "key",
-			kv:  &config.Tag{K: "key"},
+			kv:  &traceconfig.Tag{K: "key"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -95,27 +93,27 @@ func TestSplitTag(t *testing.T) {
 func TestSplitTagRegex(t *testing.T) {
 	for _, tt := range []struct {
 		tag string
-		kv  *config.TagRegex
+		kv  *traceconfig.TagRegex
 	}{
 		{
 			tag: "",
-			kv:  &config.TagRegex{K: ""},
+			kv:  &traceconfig.TagRegex{K: ""},
 		},
 		{
 			tag: "key:^value$",
-			kv:  &config.TagRegex{K: "key", V: regexp.MustCompile("^value$")},
+			kv:  &traceconfig.TagRegex{K: "key", V: regexp.MustCompile("^value$")},
 		},
 		{
 			tag: "env:^prod123$",
-			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^prod123$")},
+			kv:  &traceconfig.TagRegex{K: "env", V: regexp.MustCompile("^prod123$")},
 		},
 		{
 			tag: "env:^staging:east.*$",
-			kv:  &config.TagRegex{K: "env", V: regexp.MustCompile("^staging:east.*$")},
+			kv:  &traceconfig.TagRegex{K: "env", V: regexp.MustCompile("^staging:east.*$")},
 		},
 		{
 			tag: "key",
-			kv:  &config.TagRegex{K: "key"},
+			kv:  &traceconfig.TagRegex{K: "key"},
 		},
 	} {
 		t.Run("normal", func(t *testing.T) {
@@ -124,7 +122,7 @@ func TestSplitTagRegex(t *testing.T) {
 	}
 	bad := struct {
 		tag string
-		kv  *config.Tag
+		kv  *traceconfig.Tag
 	}{
 
 		tag: "key:[value",
@@ -805,7 +803,7 @@ func TestUndocumentedYamlConfig(t *testing.T) {
 }
 
 func TestAcquireHostnameFallback(t *testing.T) {
-	c := config.New()
+	c := traceconfig.New()
 	err := acquireHostnameFallback(c)
 	assert.Nil(t, err)
 	host, _ := os.Hostname()
@@ -1209,17 +1207,17 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		rule1 := &config.ReplaceRule{
+		rule1 := &traceconfig.ReplaceRule{
 			Name:    "name1",
 			Pattern: "pattern1",
 			Repl:    "",
 		}
-		rule2 := &config.ReplaceRule{
+		rule2 := &traceconfig.ReplaceRule{
 			Name:    "name2",
 			Pattern: "pattern2",
 			Repl:    "replace2",
 		}
-		compileReplaceRules([]*config.ReplaceRule{rule1, rule2})
+		compileReplaceRules([]*traceconfig.ReplaceRule{rule1, rule2})
 		assert.Contains(t, cfg.ReplaceTags, rule1)
 		assert.Contains(t, cfg.ReplaceTags, rule2)
 	})
@@ -1241,7 +1239,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1"}, {K: "important2", V: "value1"}})
+		assert.Equal(t, cfg.RequireTags, []*traceconfig.Tag{{K: "important1"}, {K: "important2", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1259,7 +1257,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTags, []*config.Tag{{K: "important1", V: "value with a space"}})
+		assert.Equal(t, cfg.RequireTags, []*traceconfig.Tag{{K: "important1", V: "value with a space"}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REGEX_REQUIRE"
@@ -1279,7 +1277,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1"}, {K: "important2", V: regexp.MustCompile("^value1$")}})
+		assert.Equal(t, cfg.RequireTagsRegex, []*traceconfig.TagRegex{{K: "important1"}, {K: "important2", V: regexp.MustCompile("^value1$")}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1298,7 +1296,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RequireTagsRegex, []*config.TagRegex{{K: "important1", V: regexp.MustCompile("^value with a space$")}})
+		assert.Equal(t, cfg.RequireTagsRegex, []*traceconfig.TagRegex{{K: "important1", V: regexp.MustCompile("^value with a space$")}})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REJECT"
@@ -1317,7 +1315,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value1"}})
+		assert.Equal(t, cfg.RejectTags, []*traceconfig.Tag{{K: "bad1", V: "value1"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1335,7 +1333,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{{K: "bad1", V: "value with a space"}})
+		assert.Equal(t, cfg.RejectTags, []*traceconfig.Tag{{K: "bad1", V: "value with a space"}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1353,7 +1351,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTags, []*config.Tag{
+		assert.Equal(t, cfg.RejectTags, []*traceconfig.Tag{
 			{K: "bad1", V: "value with a space"},
 			{K: "bad2", V: "value with spaces"},
 		})
@@ -1374,7 +1372,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("^value1$")}})
+		assert.Equal(t, cfg.RejectTagsRegex, []*traceconfig.TagRegex{{K: "bad1", V: regexp.MustCompile("^value1$")}})
 	})
 
 	t.Run(env, func(t *testing.T) {
@@ -1391,7 +1389,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, cfg.RejectTagsRegex, []*config.TagRegex{{K: "bad1", V: regexp.MustCompile("value with a space")}})
+		assert.Equal(t, cfg.RejectTagsRegex, []*traceconfig.TagRegex{{K: "bad1", V: regexp.MustCompile("value with a space")}})
 	})
 
 	for _, envKey := range []string{
@@ -1535,9 +1533,9 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key1", Host: "url1"})
-		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key2", Host: "url1"})
-		assert.Contains(t, cfg.Endpoints, &config.Endpoint{APIKey: "key3", Host: "url2"})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key1", Host: "url1"})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key2", Host: "url1"})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key3", Host: "url2"})
 	})
 
 	env = "DD_APM_PROFILING_DD_URL"
@@ -2292,20 +2290,20 @@ func TestLoadEnv(t *testing.T) {
 func TestFargateConfig(t *testing.T) {
 	type testData struct {
 		features             []coreconfig.Feature
-		expectedOrchestrator config.FargateOrchestratorName
+		expectedOrchestrator traceconfig.FargateOrchestratorName
 	}
 	for _, data := range []testData{
 		{
 			features:             []coreconfig.Feature{coreconfig.ECSFargate},
-			expectedOrchestrator: config.OrchestratorECS,
+			expectedOrchestrator: traceconfig.OrchestratorECS,
 		},
 		{
 			features:             []coreconfig.Feature{coreconfig.EKSFargate},
-			expectedOrchestrator: config.OrchestratorEKS,
+			expectedOrchestrator: traceconfig.OrchestratorEKS,
 		},
 		{
 			features:             []coreconfig.Feature{},
-			expectedOrchestrator: config.OrchestratorUnknown,
+			expectedOrchestrator: traceconfig.OrchestratorUnknown,
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -2402,37 +2400,6 @@ func TestSetMaxMemCPU(t *testing.T) {
 	})
 }
 
-func TestPeerServiceAggregation(t *testing.T) {
-	t.Run("disabled", func(t *testing.T) {
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule(),
-			MockModule(),
-		))
-		// underlying config
-		cfg := config.Object()
-
-		require.NotNil(t, cfg)
-		assert.False(t, cfg.PeerServiceAggregation)
-	})
-
-	t.Run("enabled", func(t *testing.T) {
-		overrides := map[string]interface{}{
-			"apm_config.peer_service_aggregation": true,
-		}
-
-		config := fxutil.Test[Component](t, fx.Options(
-			corecomp.MockModule(),
-			fx.Replace(corecomp.MockParams{Overrides: overrides}),
-			MockModule(),
-		))
-		// underlying config
-		cfg := config.Object()
-
-		require.NotNil(t, cfg)
-		assert.True(t, cfg.PeerServiceAggregation)
-	})
-}
-
 func TestComputeStatsBySpanKind(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		config := fxutil.Test[Component](t, fx.Options(
@@ -2497,7 +2464,7 @@ func TestGenerateInstallSignature(t *testing.T) {
 	installFileContent, err := os.ReadFile(installFilePath)
 	assert.NoError(t, err)
 
-	fileSignature := config.InstallSignatureConfig{}
+	fileSignature := traceconfig.InstallSignatureConfig{}
 	err = json.Unmarshal(installFileContent, &fileSignature)
 	assert.NoError(t, err)
 

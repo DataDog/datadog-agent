@@ -136,8 +136,10 @@ func (adm *ActivityDumpManager) cleanup() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
-			if err := adm.storage.Persist(ad); err != nil {
-				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			if ad.GetWorkloadSelector() != nil {
+				if err := adm.storage.Persist(ad); err != nil {
+					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+				}
 			}
 		} else {
 			adm.emptyDropped.Inc()
@@ -184,6 +186,55 @@ func (adm *ActivityDumpManager) getExpiredDumps() []*ActivityDump {
 	return dumps
 }
 
+func (adm *ActivityDumpManager) resolveTagsPerAd(ad *ActivityDump) {
+	ad.Lock()
+	defer ad.Unlock()
+
+	err := ad.resolveTags()
+	if err != nil {
+		seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
+	}
+
+	// check if we should discard this dump based on the manager dump limiter or the deny list
+	selector := ad.GetWorkloadSelector()
+	if selector == nil {
+		// wait for the tags
+		return
+	}
+
+	shouldFinalize := false
+
+	// check if the workload is in the deny list
+	for _, entry := range adm.workloadDenyList {
+		if entry.Match(*selector) {
+			shouldFinalize = true
+			adm.workloadDenyListHits.Inc()
+			break
+		}
+	}
+
+	if !shouldFinalize && !ad.countedByLimiter {
+		counter, ok := adm.dumpLimiter.Get(*selector)
+		if !ok {
+			counter = atomic.NewUint64(0)
+			adm.dumpLimiter.Add(*selector, counter)
+		}
+
+		if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
+			shouldFinalize = true
+			adm.dropMaxDumpReached.Inc()
+		} else {
+			ad.countedByLimiter = true
+			counter.Add(1)
+		}
+	}
+
+	if shouldFinalize {
+		ad.finalize(true)
+		adm.RemoveDump(ad)
+	}
+}
+
 // resolveTags resolves activity dump container tags when they are missing
 func (adm *ActivityDumpManager) resolveTags() {
 	// fetch the list of dumps and release the manager as soon as possible
@@ -192,51 +243,8 @@ func (adm *ActivityDumpManager) resolveTags() {
 	copy(dumps, adm.activeDumps)
 	adm.Unlock()
 
-	var err error
 	for _, ad := range dumps {
-		err = ad.ResolveTags()
-		if err != nil {
-			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
-		}
-
-		// check if we should discard this dump based on the manager dump limiter or the deny list
-		selector := ad.GetWorkloadSelector()
-		if selector == nil {
-			// wait for the tags
-			continue
-		}
-
-		shouldFinalize := false
-
-		// check if the workload is in the deny list
-		for _, entry := range adm.workloadDenyList {
-			if entry.Match(*selector) {
-				shouldFinalize = true
-				adm.workloadDenyListHits.Inc()
-				break
-			}
-		}
-
-		if !shouldFinalize && !ad.countedByLimiter {
-			counter, ok := adm.dumpLimiter.Get(*selector)
-			if !ok {
-				counter = atomic.NewUint64(0)
-				adm.dumpLimiter.Add(*selector, counter)
-			}
-
-			if counter.Load() >= uint64(ad.adm.config.RuntimeSecurity.ActivityDumpMaxDumpCountPerWorkload) {
-				shouldFinalize = true
-				adm.dropMaxDumpReached.Inc()
-			} else {
-				ad.countedByLimiter = true
-				counter.Add(1)
-			}
-		}
-
-		if shouldFinalize {
-			ad.Finalize(true)
-			adm.RemoveDump(ad)
-		}
+		adm.resolveTagsPerAd(ad)
 	}
 }
 
@@ -288,11 +296,7 @@ func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInt
 
 	var denyList []cgroupModel.WorkloadSelector
 	for _, entry := range config.RuntimeSecurity.ActivityDumpWorkloadDenyList {
-		split := strings.Split(entry, ":")
-		if len(split) != 2 {
-			return nil, fmt.Errorf("invalid activity_dump.workload_deny_list parameter: expecting following format \"{image_name}:[{image_tag}|*]\"")
-		}
-		selectorTmp, err := cgroupModel.NewWorkloadSelector(split[0], split[1])
+		selectorTmp, err := cgroupModel.NewWorkloadSelector(entry, "*")
 		if err != nil {
 			return nil, fmt.Errorf("invalid workload selector in activity_dump.workload_deny_list: %w", err)
 		}
@@ -615,8 +619,10 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 			// persist dump if not empty
 			if !d.IsEmpty() {
-				if err := adm.storage.Persist(d); err != nil {
-					seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
+				if d.GetWorkloadSelector() != nil {
+					if err := adm.storage.Persist(d); err != nil {
+						seclog.Errorf("couldn't persist dump [%s]: %v", d.GetSelectorStr(), err)
+					}
 				}
 			} else {
 				adm.emptyDropped.Inc()
@@ -737,8 +743,9 @@ func (pces *processCacheEntrySearcher) SearchTracedProcessCacheEntry(entry *mode
 	}
 	slices.Reverse(ancestors)
 
+	imageTag := utils.GetTagValue("image_tag", pces.ad.Tags)
 	for _, parent = range ancestors {
-		_, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, activity_tree.Snapshot, false, pces.adm.resolvers)
+		_, _, err := pces.ad.ActivityTree.CreateProcessNode(parent, imageTag, activity_tree.Snapshot, false, pces.adm.resolvers)
 		if err != nil {
 			// if one of the parents wasn't inserted, leave now
 			break
@@ -890,8 +897,10 @@ func (adm *ActivityDumpManager) triggerLoadController() {
 
 		// persist dump if not empty
 		if !ad.IsEmpty() {
-			if err := adm.storage.Persist(ad); err != nil {
-				seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+			if ad.GetWorkloadSelector() != nil {
+				if err := adm.storage.Persist(ad); err != nil {
+					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
+				}
 			}
 		} else {
 			adm.emptyDropped.Inc()

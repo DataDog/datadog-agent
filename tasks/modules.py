@@ -186,6 +186,7 @@ DEFAULT_MODULES = {
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
+    "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
@@ -208,6 +209,9 @@ DEFAULT_MODULES = {
     "pkg/logs/status/utils": GoModule("pkg/logs/status/utils", independent=True),
     "pkg/serializer": GoModule("pkg/serializer", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
+    "pkg/security/seclwin": GoModule(
+        "pkg/security/seclwin", independent=True, condition=lambda: False, legacy_go_mod_version=True
+    ),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
     "pkg/util/cgroups": GoModule(

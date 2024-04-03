@@ -114,7 +114,8 @@ deploy_deb_testing-a6_arm64:
 deploy_deb_testing-a7_x64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   extends:
     - .deploy_deb_testing-a7
   needs:
@@ -153,7 +154,8 @@ deploy_deb_testing-a7_arm64:
 deploy_deb_testing-u7_arm64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   extends:
     - .deploy_deb_testing-u7
   needs: ["updater_deb-arm64", "lint_linux-arm64"]
@@ -217,7 +219,8 @@ deploy_rpm_testing-a6_arm64:
 deploy_rpm_testing-a7_x64:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   extends:
     - .deploy_rpm_testing-a7
   needs:
@@ -265,7 +268,8 @@ deploy_suse_rpm_testing_x64-a6:
 deploy_suse_rpm_testing_x64-a7:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -314,13 +318,14 @@ deploy_windows_testing-a6:
     - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*$CI_PIPELINE_ID*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-6.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A6 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 deploy_windows_testing-a7:
   rules:
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
     - !reference [.on_windows_installer_changes_or_manual]
+    - when: on_success
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -330,4 +335,4 @@ deploy_windows_testing-a7:
     - source /root/.bashrc
     - ls $OMNIBUS_PACKAGE_DIR
   script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*$CI_PIPELINE_ID*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-7.*.msi" $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET_A7 --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732

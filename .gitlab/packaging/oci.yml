@@ -1,8 +1,10 @@
 packaging_oci:
   stage: packaging
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules: !reference [.on_a7]
   needs:
     [
       "agent_remote_updater-x64-a7",
@@ -22,7 +24,7 @@ packaging_oci:
     - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - cd /tmp/
-    - git clone https://github.com/DataDog/datadog-packages
+    - for i in $(seq 1 5); do git clone --depth=1 https://github.com/DataDog/datadog-packages && break; done
     - cd datadog-packages/cmd/datadog-package
     - go build .
     - OUTPUT_DIR="/tmp/oci_output"

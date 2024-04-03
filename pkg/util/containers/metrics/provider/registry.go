@@ -14,7 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -50,7 +52,7 @@ type CollectorMetadata struct {
 // CollectorFactory allows to register a factory to dynamically create Collector at startup
 type CollectorFactory struct {
 	ID          string
-	Constructor func(*Cache) (CollectorMetadata, error)
+	Constructor func(*Cache, optional.Option[workloadmeta.Component]) (CollectorMetadata, error)
 }
 
 // GenericProvider offers an interface to retrieve a metrics collector
@@ -75,19 +77,19 @@ func newCollectorRegistry() *collectorRegistry {
 }
 
 // catalogUpdatedCallback : blocking call in the retryCollectors() function (background goroutine)
-func (cr *collectorRegistry) run(c context.Context, cache *Cache, catalogUpdatedCallback func(CollectorCatalog)) {
+func (cr *collectorRegistry) run(c context.Context, cache *Cache, wmeta optional.Option[workloadmeta.Component], catalogUpdatedCallback func(CollectorCatalog)) {
 	cr.discoveryOnce.Do(func() {
 		cr.catalogUpdatedCallback = catalogUpdatedCallback
 
 		// Always run discovery at least once synchronously
-		cr.retryCollectors(cache)
+		cr.retryCollectors(cache, wmeta)
 
 		// Now, we can run the discovery in background
-		go cr.collectorDiscovery(c, cache)
+		go cr.collectorDiscovery(c, cache, wmeta)
 	})
 }
 
-func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache) {
+func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache, wmeta optional.Option[workloadmeta.Component]) {
 	ticker := time.NewTicker(minRetryInterval)
 	for {
 		select {
@@ -95,7 +97,7 @@ func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache)
 			return
 
 		case <-ticker.C:
-			if remainingCollectors := cr.retryCollectors(cache); remainingCollectors == 0 {
+			if remainingCollectors := cr.retryCollectors(cache, wmeta); remainingCollectors == 0 {
 				log.Info("Container metrics provider discovery process finished")
 				return
 			}
@@ -112,13 +114,13 @@ func (cr *collectorRegistry) registerCollector(collectorFactory CollectorFactory
 }
 
 // retryCollectors is not thread safe on purpose. It's only called by a single goroutine from `cr.run`
-func (cr *collectorRegistry) retryCollectors(cache *Cache) int {
+func (cr *collectorRegistry) retryCollectors(cache *Cache, wmeta optional.Option[workloadmeta.Component]) int {
 	cr.registeredCollectorsLock.Lock()
 	defer cr.registeredCollectorsLock.Unlock()
 
 	collectorsUpdated := false
 	for _, collectorFactory := range cr.registeredCollectors {
-		collectorMetadata, err := collectorFactory.Constructor(cache)
+		collectorMetadata, err := collectorFactory.Constructor(cache, wmeta)
 		if err == nil {
 			// No need to register a collector without actual collectors
 			if collectorMetadata.Collectors == nil {
