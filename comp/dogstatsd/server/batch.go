@@ -90,14 +90,15 @@ func (s *shardKeyGeneratorPerOrigin) Generate(sample metrics.MetricSample, shard
 	// We fall back on the generic sharding if:
 	// - the sample has a custom cardinality
 	// - we don't have the origin
-	if sample.Cardinality != "" || (sample.OriginFromUDS == "" && sample.OriginFromClient == "") {
+	if sample.OriginInfo.Cardinality != "" || (sample.OriginInfo.FromUDS == "" && sample.OriginInfo.FromTag == "" && sample.OriginInfo.FromMsg == "") {
 		return s.shardKeyGeneratorBase.Generate(sample, shards)
 	}
 
 	// Otherwise, we isolate the samples based on the origin.
 	i, j := uint64(0), uint64(0)
-	i, j = murmur3.SeedStringSum128(i, j, sample.OriginFromUDS)
-	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginFromClient)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.FromTag)
+	i, j = murmur3.SeedStringSum128(i, j, sample.OriginInfo.FromMsg)
+	i, _ = murmur3.SeedStringSum128(i, j, sample.OriginInfo.FromUDS)
 
 	return fastrange(ckey.ContextKey(i), shards)
 }
