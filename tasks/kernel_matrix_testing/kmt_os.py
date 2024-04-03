@@ -66,6 +66,13 @@ class Linux:
         ctx.run(f"{sudo} sed --in-place 's/#user = \"root\"/user = \"{user}\"/' {Linux.qemu_conf}")
         ctx.run(f"{sudo} sed --in-place 's/#group = \"root\"/group = \"kvm\"/' {Linux.qemu_conf}")
 
+        with open("/etc/exports") as f:
+            if "/opt/kernel-version-testing 100.0.0.0/8(ro,no_root_squash,no_subtree_check)" not in f.read():
+                ctx.run(
+                    f"{sudo} sh -c 'echo \"/opt/kernel-version-testing 100.0.0.0/8(ro,no_root_squash,no_subtree_check)\" >> /etc/exports'"
+                )
+                ctx.run(f"{sudo} exportfs -a")
+
         Linux.restart_libvirtd(ctx, sudo)
 
 
