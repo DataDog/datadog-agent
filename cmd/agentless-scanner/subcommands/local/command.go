@@ -11,26 +11,27 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
 
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
 )
 
 // GroupCommand returns the local commands
-func GroupCommand(parent *cobra.Command, sc *types.ScannerConfig) *cobra.Command {
+func GroupCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               "local",
-		Short:             "Datadog Agentless Scanner at your service.",
-		Long:              `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage:      true,
-		PersistentPreRunE: parent.PersistentPreRunE,
+		Use:          "local",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage: true,
 	}
-	cmd.AddCommand(localScanCommand(sc))
+	cmd.AddCommand(localScanCommand())
 	return cmd
 }
 
-func localScanCommand(sc *types.ScannerConfig) *cobra.Command {
+func localScanCommand() *cobra.Command {
 	var localFlags struct {
 		Hostname string
 	}
@@ -39,11 +40,13 @@ func localScanCommand(sc *types.ScannerConfig) *cobra.Command {
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderNone, "", "")
-			if err != nil {
-				return err
-			}
-			return localScanCmd(sc, resourceID, localFlags.Hostname)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig) error {
+				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderNone, "", "")
+				if err != nil {
+					return err
+				}
+				return localScanCmd(sc, resourceID, localFlags.Hostname)
+			}, common.Bundle())
 		},
 	}
 

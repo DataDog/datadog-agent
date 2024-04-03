@@ -29,20 +29,11 @@ import (
 
 	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/comp/core"
-	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -58,48 +49,18 @@ const (
 
 // RootCommand returns the root commands
 func RootCommand() *cobra.Command {
-	var sc types.ScannerConfig
-	var evp eventplatform.Component
-	var localFlags struct {
-		configFilePath    string
-		diskModeStr       string
-		defaultActionsStr []string
-		noForkScanners    bool
-	}
 	cmd := &cobra.Command{
 		Use:          "agentless-scanner [command]",
 		Short:        "Datadog Agentless Scanner at your service.",
 		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				func(_ complog.Component, config compconfig.Component, eventForwarder eventplatform.Component) error {
-					var err error
-					sc, err = getScannerConfig(config, localFlags.diskModeStr, localFlags.defaultActionsStr, localFlags.noForkScanners)
-					if err != nil {
-						return err
-					}
-					evp = eventForwarder
-					return nil
-				},
-				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewAgentParams(localFlags.configFilePath),
-					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
-				}),
-				core.Bundle(),
-				eventplatformimpl.Module(),
-				fx.Supply(eventplatformimpl.NewDefaultParams()),
-				eventplatformreceiverimpl.Module(),
-			)
-		},
 	}
 
-	cmd.AddCommand(runCommand(&sc, &evp))
-	cmd.AddCommand(runScannerCommand(&sc))
-	cmd.AddCommand(aws.GroupCommand(cmd, &sc, &evp))
-	cmd.AddCommand(azure.GroupCommand(cmd, &sc, &evp))
-	cmd.AddCommand(local.GroupCommand(cmd, &sc))
+	cmd.AddCommand(runCommand())
+	cmd.AddCommand(runScannerCommand())
+	cmd.AddCommand(aws.GroupCommand())
+	cmd.AddCommand(azure.GroupCommand())
+	cmd.AddCommand(local.GroupCommand())
 
 	defaultActions := []string{
 		string(types.ScanActionVulnsHostOS),
@@ -107,14 +68,14 @@ func RootCommand() *cobra.Command {
 	}
 
 	pflags := cmd.PersistentFlags()
-	pflags.StringVarP(&localFlags.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
-	pflags.StringVar(&localFlags.diskModeStr, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
-	pflags.BoolVar(&localFlags.noForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
-	pflags.StringSliceVar(&localFlags.defaultActionsStr, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
+	pflags.StringVarP(&common.GlobalFlags.ConfigFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
+	pflags.StringVar(&common.GlobalFlags.DiskMode, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
+	pflags.BoolVar(&common.GlobalFlags.NoForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&common.GlobalFlags.DefaultActions, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
 	return cmd
 }
 
-func runCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func runCommand() *cobra.Command {
 	var localFlags struct {
 		cloudProvider string
 		pidfilePath   string
@@ -125,17 +86,19 @@ func runCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Co
 		Use:   "run",
 		Short: "Runs the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if localFlags.workers <= 0 {
-				return fmt.Errorf("workers must be greater than 0")
-			}
-			if localFlags.scannersMax <= 0 {
-				return fmt.Errorf("scanners-max must be greater than 0")
-			}
-			provider, err := detectCloudProvider(localFlags.cloudProvider)
-			if err != nil {
-				return fmt.Errorf("could not detect cloud provider: %w", err)
-			}
-			return runCmd(sc, evp, provider, localFlags.pidfilePath, localFlags.workers, localFlags.scannersMax)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
+				if localFlags.workers <= 0 {
+					return fmt.Errorf("workers must be greater than 0")
+				}
+				if localFlags.scannersMax <= 0 {
+					return fmt.Errorf("scanners-max must be greater than 0")
+				}
+				provider, err := detectCloudProvider(localFlags.cloudProvider)
+				if err != nil {
+					return fmt.Errorf("could not detect cloud provider: %w", err)
+				}
+				return runCmd(sc, evp, provider, localFlags.pidfilePath, localFlags.workers, localFlags.scannersMax)
+			}, common.Bundle())
 		},
 	}
 	cmd.Flags().StringVarP(&localFlags.pidfilePath, "pidfile", "p", "", "path to the pidfile")
@@ -145,7 +108,7 @@ func runCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Co
 	return cmd
 }
 
-func runCmd(sc *types.ScannerConfig, evp *eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int) error {
+func runCmd(sc *types.ScannerConfig, evp eventplatform.Component, provider types.CloudProvider, pidfilePath string, workers, scannersMax int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
@@ -172,7 +135,7 @@ func runCmd(sc *types.ScannerConfig, evp *eventplatform.Component, provider type
 		ScannersMax:    scannersMax,
 		PrintResults:   false,
 		Statsd:         statsd,
-		EventForwarder: *evp,
+		EventForwarder: evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -187,13 +150,15 @@ func runCmd(sc *types.ScannerConfig, evp *eventplatform.Component, provider type
 	return nil
 }
 
-func runScannerCommand(sc *types.ScannerConfig) *cobra.Command {
+func runScannerCommand() *cobra.Command {
 	var sock string
 	cmd := &cobra.Command{
 		Use:   "run-scanner",
 		Short: "Runs a scanner (fork/exec model)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runScannerCmd(sc, sock)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig) error {
+				return runScannerCmd(sc, sock)
+			}, common.Bundle())
 		},
 	}
 	cmd.Flags().StringVar(&sock, "sock", "", "path to unix socket for IPC")
@@ -256,33 +221,4 @@ func detectCloudProvider(s string) (types.CloudProvider, error) {
 		return "", fmt.Errorf("could not detect cloud provider automatically, please specify one using --cloud-provider flag")
 	}
 	return types.ParseCloudProvider(s)
-}
-
-func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActionsStr []string, noForkScanner bool) (types.ScannerConfig, error) {
-	defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
-	if err != nil {
-		return types.ScannerConfig{}, fmt.Errorf("could not parse default roles mapping: %w", err)
-	}
-	diskMode, err := types.ParseDiskMode(diskModeStr)
-	if err != nil {
-		return types.ScannerConfig{}, fmt.Errorf("could not parse disk mode: %w", err)
-	}
-	defaultActions, err := types.ParseScanActions(defaultActionsStr)
-	if err != nil {
-		return types.ScannerConfig{}, fmt.Errorf("could not parse default actions: %w", err)
-	}
-	return types.ScannerConfig{
-		Env:                 c.GetString("env"),
-		DogstatsdHost:       pkgconfig.GetBindHost(),
-		DogstatsdPort:       c.GetInt("dogstatsd_port"),
-		DefaultRolesMapping: defaultRolesMapping,
-		DefaultActions:      defaultActions,
-		NoForkScanners:      noForkScanner,
-		DiskMode:            diskMode,
-		AWSRegion:           c.GetString("agentless_scanner.aws_region"),
-		AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
-		AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
-		AWSEBSGetBlockRate:  c.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
-		AWSDefaultRate:      c.GetFloat64("agentless_scanner.limits.aws_default_rate"),
-	}, nil
 }
