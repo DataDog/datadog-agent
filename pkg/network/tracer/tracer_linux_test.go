@@ -1969,7 +1969,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 
 	supported, err := ebpftelemetry.EBPFTelemetrySupported()
 	require.NoError(t, err)
-	if !supported {
+	if !supported || !httpsSupported() {
 		t.Skip("EBPF telemetry not supported")
 	}
 
@@ -2014,7 +2014,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	// to test.
 	supported, err := ebpftelemetry.EBPFTelemetrySupported()
 	require.NoError(t, err)
-	if !supported {
+	if !supported || !httpsSupported() {
 		t.Skip("EBPF telemetry not supported")
 	}
 
