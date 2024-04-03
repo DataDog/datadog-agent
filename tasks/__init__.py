@@ -156,6 +156,7 @@ ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
 ns.add_collection(updater)
+ns.add_collection(modules)
 ns.configure(
     {
         'run': {
