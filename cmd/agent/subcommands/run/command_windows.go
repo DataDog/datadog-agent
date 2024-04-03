@@ -13,7 +13,7 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	"github.com/DataDog/datadog-agent/comp/agent/containertagger"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
