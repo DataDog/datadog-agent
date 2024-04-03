@@ -14,7 +14,7 @@ Package agent implements the "agent" bundle,
 
 *Datadog Team*: platform-integrations
 
-Package cloudfoundrycontainer provides the cloud foundry container component .
+Package cloudfoundrycontainer provides the cloud foundry container component.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
