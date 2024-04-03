@@ -128,7 +128,7 @@ jobs:
           command: pip install -r tasks/libs/requirements-github.txt
           name: Install additional requirements
       - run:
-          command: inv -e lint-releasenote
+          command: inv -e linter.releasenote
           name: run PR check for release note
 
   go_linting:
