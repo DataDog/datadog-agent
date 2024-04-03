@@ -68,7 +68,9 @@
 .docker_build_agent7_windows_common:
   extends:
     - .docker_build_agent_windows_common
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
@@ -78,7 +80,9 @@
 .docker_build_agent6_windows_common:
   extends:
     - .docker_build_agent_windows_common
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["windows_msi_x64-a6", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-6*-x86_64.zip"
@@ -99,5 +103,5 @@
     SERVERCORE: "-servercore"
 
 include:
-  - /.gitlab/container_build/docker_windows_agent6.yml
-  - /.gitlab/container_build/docker_windows_agent7.yml
+  - .gitlab/container_build/docker_windows_agent6.yml
+  - .gitlab/container_build/docker_windows_agent7.yml
