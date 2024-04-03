@@ -49,10 +49,6 @@ func getComponentName() string {
 	if len(components) >= 5 && components[len(components)-5] == "comp" {
 		return fmt.Sprintf("comp/%s/%s", components[len(components)-4], components[len(components)-3])
 	}
-	// Allow to create nested components within core bundle. Ex. core/settings
-	if len(components) >= 5 && components[len(components)-6] == "comp" {
-		return fmt.Sprintf("comp/%s/%s", components[len(components)-5], components[len(components)-4])
-	}
 
 	panic("must be called from a component (comp/<bundle>/<comp>/component.go)")
 }

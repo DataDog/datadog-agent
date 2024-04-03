@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	settingsServer "github.com/DataDog/datadog-agent/comp/core/settings/server"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -89,7 +89,7 @@ func StartServers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	settingsServer settingsServer.Component,
+	settingsComponent settings.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -141,7 +141,7 @@ func StartServers(
 		collector,
 		eventPlatformReceiver,
 		ac,
-		settingsServer,
+		settingsComponent,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

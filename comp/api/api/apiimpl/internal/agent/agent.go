@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	settingsServer "github.com/DataDog/datadog-agent/comp/core/settings/server"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -87,7 +87,7 @@ func SetupHandlers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	settingsServer settingsServer.Component,
+	settingsComponent settings.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -104,10 +104,10 @@ func SetupHandlers(
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
-	r.HandleFunc("/config", settingsServer.GetFullConfig(config.Datadog, "")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingsServer.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingsServer.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingsServer.SetValue).Methods("POST")
+	r.HandleFunc("/config", settingsComponent.GetFullConfig(config.Datadog, "")).Methods("GET")
+	r.HandleFunc("/config/list-runtime", settingsComponent.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingsComponent.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settingsComponent.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)

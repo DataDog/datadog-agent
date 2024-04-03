@@ -8,9 +8,12 @@
 package settingsimpl
 
 import (
+	"net/http"
+
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/settings/registry"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -24,13 +27,13 @@ func MockModule() fxutil.Module {
 
 type mock struct{}
 
-func newMock() registry.Component {
+func newMock() settings.Component {
 	return mock{}
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (m mock) RuntimeSettings() map[string]registry.RuntimeSetting {
-	return map[string]registry.RuntimeSetting{}
+func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
+	return map[string]settings.RuntimeSetting{}
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
@@ -42,3 +45,17 @@ func (m mock) GetRuntimeSetting(setting string) (interface{}, error) {
 func (m mock) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
 	return nil
 }
+
+// GetFullConfig returns the full config
+func (m mock) GetFullConfig(config.Config, ...string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {}
+}
+
+// GetValue allows to retrive the runtime setting
+func (m mock) GetValue(http.ResponseWriter, *http.Request) {}
+
+// SetValue allows to modify the runtime setting
+func (m mock) SetValue(http.ResponseWriter, *http.Request) {}
+
+// ListConfigurable returns the list of configurable setting at runtime
+func (m mock) ListConfigurable(http.ResponseWriter, *http.Request) {}

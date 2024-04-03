@@ -3,20 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package serverimpl implements the interface for the settings server
-package serverimpl
+// Package settingsimpl implements the interface for the settings component
+package settingsimpl
 
 import (
 	"encoding/json"
 	"html"
 	"net/http"
+	"sync"
 
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/settings/registry"
-	"github.com/DataDog/datadog-agent/comp/core/settings/server"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,29 +27,57 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newServer),
+		fx.Provide(newSettings),
 	)
 }
 
 type provides struct {
 	fx.Out
 
-	Comp server.Component
+	Comp settings.Component
 }
 
 type dependencies struct {
 	fx.In
 
 	Log      log.Component
-	Settings registry.Component
+	Settings []settings.RuntimeSetting `group:"runtime_setting"`
 }
 
-type settingsServer struct {
-	settings registry.Component
-	log      log.Component
+type settingsRegistry struct {
+	m                  sync.Mutex
+	registeredSettings map[string]settings.RuntimeSetting
+	log                log.Component
 }
 
-func (s *settingsServer) GetFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc {
+// RuntimeSettings returns all runtime configurable settings
+func (s *settingsRegistry) RuntimeSettings() map[string]settings.RuntimeSetting {
+	return s.registeredSettings
+}
+
+// GetRuntimeSetting returns the value of a runtime configurable setting
+func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error) {
+	if _, ok := s.registeredSettings[setting]; !ok {
+		return nil, &settings.SettingNotFoundError{Name: setting}
+	}
+	value, err := s.registeredSettings[setting].Get()
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+// SetRuntimeSetting changes the value of a runtime configurable setting
+func (s *settingsRegistry) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
+	s.m.Lock()
+	defer s.m.Unlock()
+	if _, ok := s.registeredSettings[setting]; !ok {
+		return &settings.SettingNotFoundError{Name: setting}
+	}
+	return s.registeredSettings[setting].Set(value, source)
+}
+
+func (s *settingsRegistry) GetFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc {
 	requiresUniqueNs := len(namespaces) == 1 && namespaces[0] != ""
 	requiresAllNamespaces := len(namespaces) == 0
 
@@ -103,10 +131,10 @@ func (s *settingsServer) GetFullConfig(cfg config.Config, namespaces ...string) 
 	}
 }
 
-func (s *settingsServer) ListConfigurable(w http.ResponseWriter, _ *http.Request) {
-	configurableSettings := make(map[string]server.RuntimeSettingResponse)
-	for name, setting := range s.settings.RuntimeSettings() {
-		configurableSettings[name] = server.RuntimeSettingResponse{
+func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Request) {
+	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
+	for name, setting := range s.registeredSettings {
+		configurableSettings[name] = settings.RuntimeSettingResponse{
 			Description: setting.Description(),
 			Hidden:      setting.Hidden(),
 		}
@@ -121,16 +149,16 @@ func (s *settingsServer) ListConfigurable(w http.ResponseWriter, _ *http.Request
 	_, _ = w.Write(body)
 }
 
-func (s *settingsServer) GetValue(w http.ResponseWriter, r *http.Request) {
+func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	setting := vars["setting"]
 	s.log.Infof("Got a request to read a setting value: %s", setting)
 
-	val, err := s.settings.GetRuntimeSetting(setting)
+	val, err := s.GetRuntimeSetting(setting)
 	if err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
-		case *registry.SettingNotFoundError:
+		case *settings.SettingNotFoundError:
 			http.Error(w, string(body), http.StatusBadRequest)
 		default:
 			http.Error(w, string(body), http.StatusInternalServerError)
@@ -153,17 +181,17 @@ func (s *settingsServer) GetValue(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-func (s *settingsServer) SetValue(w http.ResponseWriter, r *http.Request) {
+func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	setting := vars["setting"]
 	s.log.Infof("Got a request to change a setting: %s", setting)
 	_ = r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
 
-	if err := s.settings.SetRuntimeSetting(setting, value, model.SourceCLI); err != nil {
+	if err := s.SetRuntimeSetting(setting, value, model.SourceCLI); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
-		case *registry.SettingNotFoundError:
+		case *settings.SettingNotFoundError:
 			http.Error(w, string(body), http.StatusBadRequest)
 		default:
 			http.Error(w, string(body), http.StatusInternalServerError)
@@ -172,10 +200,23 @@ func (s *settingsServer) SetValue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func newServer(deps dependencies) provides {
+func newSettings(deps dependencies) provides {
+	registeredSettings := map[string]settings.RuntimeSetting{}
+
+	providedSettings := fxutil.GetAndFilterGroup(deps.Settings)
+
+	for _, setting := range providedSettings {
+		if _, ok := registeredSettings[setting.Name()]; ok {
+			deps.Log.Warnf("duplicated settings detected: %s", setting.Name())
+			continue
+		}
+		registeredSettings[setting.Name()] = setting
+	}
+
 	return provides{
-		Comp: &settingsServer{
-			settings: deps.Settings,
+		Comp: &settingsRegistry{
+			registeredSettings: registeredSettings,
+			log:                deps.Log,
 		},
 	}
 }

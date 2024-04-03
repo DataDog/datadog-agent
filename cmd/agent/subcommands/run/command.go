@@ -56,9 +56,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	settingsRegistry "github.com/DataDog/datadog-agent/comp/core/settings/registry"
-	settingsRegistryimpl "github.com/DataDog/datadog-agent/comp/core/settings/registry/registryimpl"
-	settingsServerimpl "github.com/DataDog/datadog-agent/comp/core/settings/server/serverimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settingsimpl "github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -224,6 +223,7 @@ func run(log log.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	_ healthprobe.Component,
+	settingsComponent settings.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, agentAPI)
@@ -286,6 +286,7 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		settingsComponent,
 	); err != nil {
 		return err
 	}
@@ -405,38 +406,37 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobeimpl.Module(),
-		settingsRegistryimpl.Module(),
-		settingsServerimpl.Module(),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewLogLevelRuntimeSetting())
+		settingsimpl.Module(),
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(commonsettings.NewLogLevelRuntimeSetting())
 		}),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewRuntimeMutexProfileFraction())
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(commonsettings.NewRuntimeMutexProfileFraction())
 		}),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewRuntimeBlockProfileRate())
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(commonsettings.NewRuntimeBlockProfileRate())
 		}),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"))
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"))
 		}),
 
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewLogPayloadsRuntimeSetting())
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(commonsettings.NewLogPayloadsRuntimeSetting())
 		}),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewProfilingGoroutines())
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(commonsettings.NewProfilingGoroutines())
 		}),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."))
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(internalsettings.NewHighAvailabilityRuntimeSetting("ha.enabled", "Enable/disable High Availability support."))
 		}),
-		fx.Provide(func(debug dogstatsddebug.Component) settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewDsdStatsRuntimeSetting(debug))
+		fx.Provide(func(debug dogstatsddebug.Component) settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(internalsettings.NewDsdStatsRuntimeSetting(debug))
 		}),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(internalsettings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."))
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(internalsettings.NewHighAvailabilityRuntimeSetting("ha.failover", "Enable/disable redirection of telemetry data to failover region."))
 		}),
-		fx.Provide(func() settingsRegistry.RuntimeSettingProvider {
-			return settingsRegistry.NewRuntimeSettingProvider(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"))
+		fx.Provide(func() settings.RuntimeSettingProvider {
+			return settings.NewRuntimeSettingProvider(commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"))
 		}),
 	)
 }
@@ -463,6 +463,7 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	settingsComponent settings.Component,
 ) error {
 
 	var err error
@@ -508,7 +509,7 @@ func startAgent(
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(pkgconfig.Datadog, "")
+	common.SetupInternalProfiling(settingsComponent, pkgconfig.Datadog, "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
