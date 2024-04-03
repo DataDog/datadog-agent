@@ -11,6 +11,7 @@
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
     - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
   script:
+    - source /root/.bashrc
     - inv check-go-version
     - inv -e system-probe.build --strip-object-files --no-bundle
     # fail if references to glibc >= 2.18
