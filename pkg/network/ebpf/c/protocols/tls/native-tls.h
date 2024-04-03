@@ -101,6 +101,9 @@ int uprobe__SSL_read(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%llx", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
+
+    // Trigger mapping of SSL context to connection tuple in case it is missing.
+    tup_from_ssl_ctx(args.ctx, pid_tgid);
     return 0;
 }
 
@@ -215,6 +218,9 @@ int uprobe__SSL_read_ex(struct pt_regs* ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%llx", pid_tgid, args.ctx);
     bpf_map_update_elem(&ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
+
+    // Trigger mapping of SSL context to connection tuple in case it is missing.
+    tup_from_ssl_ctx(args.ctx, pid_tgid);
     return 0;
 }
 
@@ -341,7 +347,7 @@ int uprobe__SSL_shutdown(struct pt_regs *ctx) {
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
-    tls_finish(ctx, t);
+    tls_finish(ctx, t, false);
 
     return 0;
 }
@@ -518,7 +524,7 @@ static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_sessio
 
     // tls_finish can launch a tail call, thus cleanup should be done before.
     bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
-    tls_finish(ctx, t);
+    tls_finish(ctx, t, false);
 }
 
 // int gnutls_bye (gnutls_session_t session, gnutls_close_request_t how)
