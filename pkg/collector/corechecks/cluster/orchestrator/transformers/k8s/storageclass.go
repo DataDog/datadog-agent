@@ -21,7 +21,7 @@ func ExtractStorageClass(sc *storagev1.StorageClass) *model.StorageClass {
 		Metadata:          extractMetadata(&sc.ObjectMeta),
 		MountOptions:      sc.MountOptions,
 		Parameters:        sc.Parameters,
-		Provisionner:      sc.Provisioner,
+		Provisioner:       sc.Provisioner,
 	}
 
 	// Defaults
@@ -42,21 +42,22 @@ func ExtractStorageClass(sc *storagev1.StorageClass) *model.StorageClass {
 	return msg
 }
 
-func extractStorageClassTopologies(topologies []corev1.TopologySelectorTerm) []*model.StorageClassTopology {
-	t := make([]*model.StorageClassTopology, 0, len(topologies))
-	for _, topology := range topologies {
-		t = append(t, extractStorageClassTopology(topology))
+func extractStorageClassTopologies(topologySelectors []corev1.TopologySelectorTerm) *model.StorageClassTopologies {
+	var topologies model.StorageClassTopologies
+	for _, selectors := range topologySelectors {
+		topologies.LabelSelectors = append(topologies.LabelSelectors, extractStorageClassTopologyFromLabelSelectors(selectors)...)
 	}
-	return t
+	return &topologies
 }
 
-func extractStorageClassTopology(topology corev1.TopologySelectorTerm) *model.StorageClassTopology {
-	var t model.StorageClassTopology
+func extractStorageClassTopologyFromLabelSelectors(topology corev1.TopologySelectorTerm) []*model.TopologyLabelSelector {
+	var labelSelectors []*model.TopologyLabelSelector
 	for _, labelSelector := range topology.MatchLabelExpressions {
-		t.TopologySelectors = append(t.TopologySelectors, &model.TopologyLabelSelector{
+		selector := &model.TopologyLabelSelector{
 			Key:    labelSelector.Key,
 			Values: labelSelector.Values,
-		})
+		}
+		labelSelectors = append(labelSelectors, selector)
 	}
-	return &t
+	return labelSelectors
 }

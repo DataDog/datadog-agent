@@ -27,7 +27,7 @@ type StorageClassHandlers struct {
 
 // AfterMarshalling is a handler called after resource marshalling.
 //
-//nolint:revive // TODO(CAPP) Fix revive linter
+//nolint:revive
 func (h *StorageClassHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	return
 }
@@ -54,7 +54,7 @@ func (h *StorageClassHandlers) BuildMessageBody(ctx processors.ProcessorContext,
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
 //
-//nolint:revive // TODO(CAPP) Fix revive linter
+//nolint:revive
 func (h *StorageClassHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (StorageClassModel interface{}) {
 	r := resource.(*storagev1.StorageClass)
 	return k8sTransformers.ExtractStorageClass(r)
@@ -63,7 +63,7 @@ func (h *StorageClassHandlers) ExtractResource(ctx processors.ProcessorContext, 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
 //
-//nolint:revive // TODO(CAPP) Fix revive linter
+//nolint:revive
 func (h *StorageClassHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*storagev1.StorageClass)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -77,14 +77,14 @@ func (h *StorageClassHandlers) ResourceList(ctx processors.ProcessorContext, lis
 
 // ResourceUID is a handler called to retrieve the resource UID.
 //
-//nolint:revive // TODO(CAPP) Fix revive linter
+//nolint:revive
 func (h *StorageClassHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*storagev1.StorageClass).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
 //
-//nolint:revive // TODO(CAPP) Fix revive linter
+//nolint:revive
 func (h *StorageClassHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*storagev1.StorageClass).ResourceVersion
 }
@@ -92,7 +92,7 @@ func (h *StorageClassHandlers) ResourceVersion(ctx processors.ProcessorContext, 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
 //
-//nolint:revive // TODO(CAPP) Fix revive linter
+//nolint:revive
 func (h *StorageClassHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*storagev1.StorageClass)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)

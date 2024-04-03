@@ -39,7 +39,7 @@ func ExtractLimitRange(lr *corev1.LimitRange) *model.LimitRange {
 
 type convertResourceQuantityFn func(name corev1.ResourceName, quantity resource.Quantity) int64
 
-//nolint:revive // TODO(CAPP) Fix revive linter
+//nolint:revive
 func convertRatioFn(name corev1.ResourceName, quantity resource.Quantity) int64 {
 	return quantity.Value()
 }

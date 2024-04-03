@@ -56,15 +56,13 @@ func TestExtractStorageClass(t *testing.T) {
 		}
 
 		expected := &model.StorageClass{
-			AllowedTopologies: []*model.StorageClassTopology{
-				{
-					TopologySelectors: []*model.TopologyLabelSelector{
-						{
-							Key: "topology.kubernetes.io/zone",
-							Values: []string{
-								"us-central-1a",
-								"us-central-1b",
-							},
+			AllowedTopologies: &model.StorageClassTopologies{
+				LabelSelectors: []*model.TopologyLabelSelector{
+					{
+						Key: "topology.kubernetes.io/zone",
+						Values: []string{
+							"us-central-1a",
+							"us-central-1b",
 						},
 					},
 				},
@@ -79,7 +77,7 @@ func TestExtractStorageClass(t *testing.T) {
 				ResourceVersion:   "1234",
 				Uid:               "c63d0b05-a340-46a6-9a38-1161ff1f9bea",
 			},
-			Provisionner:      "provisioner",
+			Provisioner:       "provisioner",
 			ReclaimPolicy:     string(corev1.PersistentVolumeReclaimDelete),
 			VolumeBindingMode: string(storagev1.VolumeBindingImmediate),
 		}
@@ -134,24 +132,18 @@ func TestExtractStorageClass(t *testing.T) {
 		}
 
 		expected := &model.StorageClass{
-			AllowedTopologies: []*model.StorageClassTopology{
-				{
-					TopologySelectors: []*model.TopologyLabelSelector{
-						{
-							Key: "topology.kubernetes.io/zone",
-							Values: []string{
-								"us-central-1a",
-								"us-central-1b",
-							},
+			AllowedTopologies: &model.StorageClassTopologies{
+				LabelSelectors: []*model.TopologyLabelSelector{
+					{
+						Key: "topology.kubernetes.io/zone",
+						Values: []string{
+							"us-central-1a",
+							"us-central-1b",
 						},
 					},
-				},
-				{
-					TopologySelectors: []*model.TopologyLabelSelector{
-						{
-							Key:    "topology.kubernetes.io/region",
-							Values: []string{"us-central1"},
-						},
+					{
+						Key:    "topology.kubernetes.io/region",
+						Values: []string{"us-central1"},
 					},
 				},
 			},
@@ -167,7 +159,7 @@ func TestExtractStorageClass(t *testing.T) {
 			},
 			MountOptions:      []string{"mount-option"},
 			Parameters:        map[string]string{"foo": "bar"},
-			Provisionner:      "provisioner",
+			Provisioner:       "provisioner",
 			ReclaimPolicy:     string(corev1.PersistentVolumeReclaimRetain),
 			VolumeBindingMode: string(storagev1.VolumeBindingWaitForFirstConsumer),
 		}

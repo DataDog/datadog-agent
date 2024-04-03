@@ -852,4 +852,4 @@ replace (
 	github.com/prometheus/common => github.com/prometheus/common v0.46.0
 )
 
-replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.112-0.20240403100753-82d9646d460f
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.112-0.20240405102402-fa8417d176c5
