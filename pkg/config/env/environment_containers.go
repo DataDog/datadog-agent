@@ -200,12 +200,11 @@ func detectPodman(features FeatureMap, cfg model.Reader) {
 	if podmanDbPath != "" {
 		features[Podman] = struct{}{}
 		return
-	} else {
-		for _, defaultPath := range getDefaultPodmanPaths() {
-			if _, err := os.Stat(defaultPath); err == nil {
-				features[Podman] = struct{}{}
-				return
-			}
+	}
+	for _, defaultPath := range getDefaultPodmanPaths() {
+		if _, err := os.Stat(defaultPath); err == nil {
+			features[Podman] = struct{}{}
+			return
 		}
 	}
 }
