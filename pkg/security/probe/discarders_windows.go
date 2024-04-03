@@ -7,4 +7,5 @@ package probe
 
 func init() {
 	SupportedDiscarders["create.file.path"] = true
+	SupportedDiscarders["create.file.name"] = true
 }

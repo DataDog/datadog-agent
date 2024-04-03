@@ -9,6 +9,7 @@ package probe
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -163,6 +164,13 @@ func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandl
 	if _, ok := p.discardedPaths.Get(ca.fileName); ok {
 		return nil, errDiscardedPath
 	}
+
+	// not amazing to double compute the basename..
+	basename := filepath.Base(ca.fileName)
+	if _, ok := p.discardedBasenames.Get(basename); ok {
+		return nil, errDiscardedPath
+	}
+
 	p.filePathResolver[ca.fileObject] = ca.fileName
 
 	return ca, nil

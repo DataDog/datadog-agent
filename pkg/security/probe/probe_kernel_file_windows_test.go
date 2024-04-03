@@ -39,6 +39,11 @@ func createTestProbe() (*WindowsProbe, error) {
 		return nil, err
 	}
 
+	discardedBasenames, err := simplelru.NewLRU[string, struct{}](1<<10, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
@@ -46,7 +51,8 @@ func createTestProbe() (*WindowsProbe, error) {
 		config:           cfg,
 		filePathResolver: make(map[fileObjectPointer]string, 0),
 		regPathResolver:  make(map[regObjectPointer]string, 0),
-		discardedPaths:   discardedPaths,
+		discardedPaths:     discardedPaths,
+		discardedBasenames: discardedBasenames,
 	}
 	err = wp.Init()
 

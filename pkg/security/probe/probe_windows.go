@@ -78,7 +78,8 @@ type WindowsProbe struct {
 	// stats
 	stats stats
 	// discarders
-	discardedPaths *simplelru.LRU[string, struct{}]
+	discardedPaths     *simplelru.LRU[string, struct{}]
+	discardedBasenames *simplelru.LRU[string, struct{}]
 }
 
 type etwNotification struct {
@@ -675,6 +676,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
+	discardedBasenames, err := simplelru.NewLRU[string, struct{}](1<<10, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -692,7 +698,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		filePathResolver: make(map[fileObjectPointer]string, 0),
 		regPathResolver:  make(map[regObjectPointer]string, 0),
 
-		discardedPaths: discardedPaths,
+		discardedPaths:     discardedPaths,
+		discardedBasenames: discardedBasenames,
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
@@ -718,19 +725,28 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 // FlushDiscarders invalidates all the discarders
 func (p *WindowsProbe) FlushDiscarders() error {
 	p.discardedPaths.Purge()
+	p.discardedBasenames.Purge()
 	return nil
 }
 
 // OnNewDiscarder handles discarders
 func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
-	if evalType == "create" && field == "create.file.path" {
-		path := ev.CreateNewFile.File.PathnameStr
-		fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
-
-		seclog.Errorf("new discarder for `%s` -> `%v`", field, path)
-		p.discardedPaths.Add(path, struct{}{})
-		delete(filePathResolver, fileObject)
+	if evalType != "create" {
+		return
 	}
+
+	if field == "create.file.path" {
+		path := ev.CreateNewFile.File.PathnameStr
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
+		p.discardedPaths.Add(path, struct{}{})
+	} else if field == "create.file.name" {
+		basename := ev.CreateNewFile.File.BasenameStr
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, basename)
+		p.discardedBasenames.Add(basename, struct{}{})
+	}
+
+	fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
+	delete(filePathResolver, fileObject)
 }
 
 // NewModel returns a new Model
