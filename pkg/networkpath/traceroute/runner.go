@@ -125,6 +125,9 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 
 	pathID := uuid.New().String()
 
+	// TODO: we should probably cache this info
+	// double check the underlying call doesn't
+	// already do this
 	networkId, err := ec2.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Debugf("failed to get network ID: %s", err.Error())
@@ -177,6 +180,8 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		}
 
 		// Resolve subnet from hardware interface
+		// we should probably cache this in a similar
+		// way to what's done for NPM
 		subnet, err := ec2.GetSubnetForHardwareAddr(context.TODO(), iface)
 		if err != nil {
 			log.Debugf("hardware interface: %+v", iface)
