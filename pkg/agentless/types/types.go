@@ -643,7 +643,7 @@ func ParseScanActions(actions []string) ([]ScanAction, error) {
 }
 
 // UnmarshalConfig unmarshals a scan configuration from a JSON byte slice.
-func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
+func UnmarshalConfig(b []byte, sc *ScannerConfig, scannerID ScannerID) (*ScanConfig, error) {
 	var configRaw struct {
 		Type string `json:"type"`
 	}
@@ -654,15 +654,15 @@ func UnmarshalConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction,
 
 	switch ConfigType(configRaw.Type) {
 	case ConfigTypeAWS:
-		return unmarshalAWSConfig(b, scannerID, defaultActions, defaultRolesMapping)
+		return unmarshalAWSConfig(b, sc, scannerID)
 	case ConfigTypeAzure:
-		return unmarshalAzureConfig(b, scannerID, defaultActions, defaultRolesMapping)
+		return unmarshalAzureConfig(b, sc, scannerID)
 	default:
 		return nil, fmt.Errorf("unexpected config type %q", configRaw.Type)
 	}
 }
 
-func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
+func unmarshalAWSConfig(b []byte, sc *ScannerConfig, scannerID ScannerID) (*ScanConfig, error) {
 	var configRaw AWSScanConfigRaw
 	err := json.Unmarshal(b, &configRaw)
 	if err != nil {
@@ -679,7 +679,7 @@ func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanActi
 			return nil, err
 		}
 	} else {
-		rolesMapping = defaultRolesMapping
+		rolesMapping = sc.DefaultRolesMapping
 	}
 
 	config := ScanConfig{
@@ -690,7 +690,7 @@ func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanActi
 	for _, rawScan := range configRaw.Tasks {
 		var actions []ScanAction
 		if rawScan.Actions == nil {
-			actions = defaultActions
+			actions = sc.DefaultActions
 		} else {
 			actions, err = ParseScanActions(rawScan.Actions)
 			if err != nil {
@@ -741,7 +741,7 @@ func unmarshalAWSConfig(b []byte, scannerID ScannerID, defaultActions []ScanActi
 	return &config, nil
 }
 
-func unmarshalAzureConfig(b []byte, scannerID ScannerID, defaultActions []ScanAction, defaultRolesMapping RolesMapping) (*ScanConfig, error) {
+func unmarshalAzureConfig(b []byte, sc *ScannerConfig, scannerID ScannerID) (*ScanConfig, error) {
 	var configRaw AzureScanConfigRaw
 	err := json.Unmarshal(b, &configRaw)
 	if err != nil {
@@ -753,13 +753,13 @@ func unmarshalAzureConfig(b []byte, scannerID ScannerID, defaultActions []ScanAc
 
 	config := ScanConfig{
 		Type:  ConfigTypeAzure,
-		Roles: defaultRolesMapping,
+		Roles: sc.DefaultRolesMapping,
 		Tasks: make([]*ScanTask, 0, len(configRaw.Tasks)),
 	}
 	for _, rawScan := range configRaw.Tasks {
 		var actions []ScanAction
 		if rawScan.Actions == nil {
-			actions = defaultActions
+			actions = sc.DefaultActions
 		} else {
 			actions, err = ParseScanActions(rawScan.Actions)
 			if err != nil {
