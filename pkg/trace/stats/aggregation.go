@@ -146,6 +146,7 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 			StatusCode:   g.HTTPStatusCode,
 			Synthetics:   g.Synthetics,
 			PeerTagsHash: peerTagsHash(g.PeerTags),
+			IsTraceRoot:  g.IsTraceRoot,
 		},
 	}
 }

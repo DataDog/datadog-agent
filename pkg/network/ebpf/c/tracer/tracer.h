@@ -29,8 +29,16 @@ typedef enum
 typedef struct {
     __u64 sent_bytes;
     __u64 recv_bytes;
+    __u32 sent_packets;
+    __u32 recv_packets;
     __u64 timestamp;
-    __u32 flags;
+    // duration of the connection.
+    // this is initialized to the current unix
+    // timestamp when a conn_stats_ts_t is created.
+    // the field remains unchanged until this object
+    // is removed from the conn_stats map when it
+    // is updated with (CURRENT_TIME - duration)
+    __u64 duration;
     // "cookie" that uniquely identifies
     // a conn_stas_ts_t. This is used
     // in user space to distinguish between
@@ -40,10 +48,9 @@ typedef struct {
     // This is not the same as a TCP cookie or
     // the cookie in struct sock in the kernel
     __u32 cookie;
-    __u64 sent_packets;
-    __u64 recv_packets;
-    __u8 direction;
     protocol_stack_t protocol_stack;
+    __u8 flags;
+    __u8 direction;
 } conn_stats_ts_t;
 
 // Connection flags
