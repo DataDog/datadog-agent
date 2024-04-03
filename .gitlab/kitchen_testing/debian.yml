@@ -34,7 +34,7 @@
 
 kitchen_debian_process_agent-a7:
   rules:
-    - !reference [.on_default_kitchen_tests_a7]
+    - !reference [.on_default_kitchen_tests]
   variables:
     KITCHEN_OSVERS: "debian-11"
     DEFAULT_KITCHEN_OSVERS: "debian-11"

@@ -86,7 +86,7 @@ agent_suse-x64-a7:
 agent_suse-arm64-a7:
   extends: .agent_build_common_suse_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
