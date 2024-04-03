@@ -15,7 +15,7 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.compiler import all_compilers, get_compiler
+from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
 from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
 from tasks.kernel_matrix_testing.infra import SSH_OPTIONS, HostInstance, LibvirtDomain, build_infrastructure
 from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_system
@@ -282,7 +282,7 @@ def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> Set[Arch]:
     return archs
 
 
-TOOLS_PATH = '/datadog-agent/internal/tools'
+TOOLS_PATH = f"{CONTAINER_AGENT_PATH}/internal/tools"
 GOTESTSUM = "gotest.tools/gotestsum"
 
 
@@ -298,7 +298,7 @@ def download_gotestsum(ctx: Context, arch: Arch):
     paths.tools.mkdir(parents=True, exist_ok=True)
 
     cc = get_compiler(ctx, arch)
-    target_path = "/datadog-agent" / paths.tools.relative_to(paths.repo_root)
+    target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root)
     cc.exec(
         f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum {target_path}",
     )
@@ -411,7 +411,7 @@ def build_dependencies(
         if ci:
             ctx.run(f"cd {source_dir / directory} && {command}", hide=(not verbose))
         else:
-            cc.exec(command, run_dir=f"/datadog-agent/{directory}", verbose=verbose)
+            cc.exec(command, run_dir=os.path.join(CONTAINER_AGENT_PATH, directory), verbose=verbose)
         ctx.run(f"cp {artifact} {paths.dependencies}", hide=(not verbose))
 
     with ctx.cd(paths.dependencies.parent):
@@ -486,8 +486,8 @@ def prepare(
 
     info(f"[+] Compiling test binaries for {arch}")
     cc.exec(
-        f"git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
-        run_dir="/datadog-agent",
+        f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.kitchen-prepare --ci {constrain_pkgs}",
+        run_dir=CONTAINER_AGENT_PATH,
     )
 
     target_instances: List[HostInstance] = list()
@@ -660,9 +660,9 @@ def build(
             info(f"[+] Dependencies shared with target VM {d}")
 
     cc.exec(
-        "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build --no-bundle",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
     )
-    cc.exec(f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
+    cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
     for d in domains:
         d.copy(ctx, "./bin/system-probe", "/root")
         d.copy(ctx, f"kmt-deps/{stack}/shared.tar", "/")
@@ -677,7 +677,7 @@ def clean(ctx: Context, stack: Optional[str] = None, container=False, image=Fals
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
     cc = get_compiler(ctx, full_arch("local"))
-    cc.exec("inv -e system-probe.clean", run_dir="/datadog-agent")
+    cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
     ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)

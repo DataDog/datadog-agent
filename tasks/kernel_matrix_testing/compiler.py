@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, PathOrStr
 
 
+CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
+
+
 class CompilerImage:
     def __init__(self, ctx: Context, arch: Arch):
         self.ctx = ctx
@@ -103,7 +106,7 @@ class CompilerImage:
             self.stop()
 
         self.ctx.run(
-            f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target=/datadog-agent {self.image} sleep \"infinity\""
+            f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\""
         )
 
         uid = cast('Result', self.ctx.run("id -u")).stdout.rstrip()
@@ -112,7 +115,9 @@ class CompilerImage:
         self.exec(f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 
         if sys.platform != "darwin":  # No need to change permissions in MacOS
-            self.exec(f"chown {uid}:{gid} /datadog-agent && chown -R {uid}:{gid} /datadog-agent", user="root")
+            self.exec(
+                f"chown {uid}:{gid} {CONTAINER_AGENT_PATH} && chown -R {uid}:{gid} {CONTAINER_AGENT_PATH}", user="root"
+            )
 
         self.exec("apt install sudo", user="root")
         self.exec("usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
