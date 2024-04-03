@@ -48,13 +48,15 @@ type Statistics struct {
 	PeakStates                 stat `json:"peak_states" kernel:"5.2"`
 }
 
-var stackUsage = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
-var verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
-var insnProcessed = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
-var insnLimit = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
-var maxStates = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
-var totalStates = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
-var peakStates = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+var (
+	stackUsage       = regexp.MustCompile(`stack depth\s+(?P<usage>\d+).*\n`)
+	verificationTime = regexp.MustCompile(`verification time\s+(?P<time>\d+).*\n`)
+	insnProcessed    = regexp.MustCompile(`processed (?P<processed>\d+) insns`)
+	insnLimit        = regexp.MustCompile(`\(limit (?P<limit>\d+)\)`)
+	maxStates        = regexp.MustCompile(`max_states_per_insn (?P<max_states>\d+)`)
+	totalStates      = regexp.MustCompile(`total_states (?P<total_states>\d+)`)
+	peakStates       = regexp.MustCompile(`peak_states (?P<peak_states>\d+)`)
+)
 
 func isCOREAsset(path string) bool {
 	return filepath.Base(filepath.Dir(path)) == "co-re"
@@ -62,7 +64,7 @@ func isCOREAsset(path string) bool {
 
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
-func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[string]struct{}, error) {
+func BuildVerifierStats(objectFiles []string, filterPrograms []*regexp.Regexp) (map[string]*Statistics, map[string]struct{}, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get host kernel version: %w", err)
@@ -81,14 +83,14 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[strin
 			}
 			defer bc.Close()
 
-			if err := generateLoadFunction(file, stats, failedToLoad)(bc, manager.Options{}); err != nil {
+			if err := generateLoadFunction(file, filterPrograms, stats, failedToLoad)(bc, manager.Options{}); err != nil {
 				return nil, nil, fmt.Errorf("failed to load non-core asset: %w", err)
 			}
 
 			continue
 		}
 
-		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, stats, failedToLoad)); err != nil {
+		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, filterPrograms, stats, failedToLoad)); err != nil {
 			return nil, nil, fmt.Errorf("failed to load core asset: %w", err)
 		}
 	}
@@ -96,7 +98,7 @@ func BuildVerifierStats(objectFiles []string) (map[string]*Statistics, map[strin
 	return stats, failedToLoad, nil
 }
 
-func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
+func generateLoadFunction(file string, filterPrograms []*regexp.Regexp, stats map[string]*Statistics, failedToLoad map[string]struct{}) func(bytecode.AssetReader, manager.Options) error {
 	return func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		kversion, err := kernel.HostVersion()
 		if err != nil {
@@ -145,6 +147,20 @@ func generateLoadFunction(file string, stats map[string]*Statistics, failedToLoa
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
 		for _, progSpec := range collectionSpec.Programs {
+
+			if len(filterPrograms) > 0 {
+				found := false
+				for _, filter := range filterPrograms {
+					if filter.FindString(progSpec.Name) != "" {
+						found = true
+						break
+					}
+				}
+				if !found {
+					continue
+				}
+			}
+
 			prog := reflect.New(
 				reflect.StructOf([]reflect.StructField{
 					{

@@ -22,7 +22,7 @@ type ContainersTelemetry struct {
 }
 
 // NewContainersTelemetry returns a new ContainersTelemetry based on default/global objects
-func NewContainersTelemetry(senderManager sender.SenderManager) (*ContainersTelemetry, error) {
+func NewContainersTelemetry(senderManager sender.SenderManager, wmeta workloadmeta.Component) (*ContainersTelemetry, error) {
 	sender, err := senderManager.GetDefaultSender()
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func NewContainersTelemetry(senderManager sender.SenderManager) (*ContainersTele
 	return &ContainersTelemetry{
 		Sender: sender,
 		// TODO(components): stop using globals and rely on injected workloadmeta component
-		MetadataStore: workloadmeta.GetGlobalStore(),
+		MetadataStore: wmeta,
 	}, nil
 }
 

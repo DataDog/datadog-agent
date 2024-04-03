@@ -18,8 +18,9 @@
       Total Runs: {{humanize .TotalRuns}}
       Metric Samples: Last Run: {{humanize .MetricSamples}}, Total: {{humanize .TotalMetricSamples}}
       Events: Last Run: {{humanize .Events}}, Total: {{humanize .TotalEvents}}
+      {{- $instance := . }}
       {{- range $k, $v := .TotalEventPlatformEvents }}
-      {{ $k }}: Last Run: {{humanize (index .EventPlatformEvents $k) }}, Total: {{humanize $v}}
+      {{ $k }}: Last Run: {{humanize (index $instance.EventPlatformEvents $k) }}, Total: {{humanize $v}}
       {{- end }}
       Service Checks: Last Run: {{humanize .ServiceChecks}}, Total: {{humanize .TotalServiceChecks}}
       {{- if .TotalHistogramBuckets}}

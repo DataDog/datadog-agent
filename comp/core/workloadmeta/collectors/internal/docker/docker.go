@@ -10,6 +10,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,8 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
+	errorspkg "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -66,7 +66,6 @@ type collector struct {
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
-	scanOptions sbom.ScanOptions //nolint: unused
 }
 
 // NewCollector returns a new docker collector provider and an error
@@ -86,7 +85,7 @@ func GetFxOptions() fx.Option {
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !config.IsFeaturePresent(config.Docker) {
-		return errors.NewDisabled(componentName, "Agent is not running on Docker")
+		return errorspkg.NewDisabled(componentName, "Agent is not running on Docker")
 	}
 
 	c.store = store
@@ -111,12 +110,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx, filter)
+	err = c.generateEventsFromImageList(ctx)
 	if err != nil {
 		return err
 	}
 
-	err = c.generateEventsFromImageList(ctx)
+	err = c.generateEventsFromContainerList(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -179,7 +178,11 @@ func (c *collector) stream(ctx context.Context) {
 }
 
 func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
-	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter)
+	if c.store == nil {
+		return errors.New("Start was not called")
+	}
+
+	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter, c.store)
 	if err != nil {
 		return err
 	}
@@ -300,7 +303,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 				Name:   strings.TrimPrefix(container.Name, "/"),
 				Labels: container.Config.Labels,
 			},
-			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer),
+			Image:   extractImage(ctx, container, c.dockerUtil.ResolveImageNameFromContainer, c.store),
 			EnvVars: extractEnvVars(container.Config.Env),
 			Ports:   extractPorts(container),
 			Runtime: workloadmeta.ContainerRuntimeDocker,
@@ -345,7 +348,7 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 	return event, nil
 }
 
-func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook) workloadmeta.ContainerImage {
+func extractImage(ctx context.Context, container types.ContainerJSON, resolve resolveHook, store workloadmeta.Component) workloadmeta.ContainerImage {
 	imageSpec := container.Config.Image
 	image := workloadmeta.ContainerImage{
 		RawName: imageSpec,
@@ -396,6 +399,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	image.ShortName = shortName
 	image.Tag = tag
 	image.ID = container.Image
+	image.RepoDigest = util.ExtractRepoDigestFromImage(image.ID, image.Registry, store) // "sha256:digest"
 	return image
 }
 

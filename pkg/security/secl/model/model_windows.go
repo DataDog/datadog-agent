@@ -44,15 +44,14 @@ type Event struct {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.CaseInsensitiveGlobCmp"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
 }
 
 // RegistryEvent is the common registry event type
 type RegistryEvent struct {
-	KeyName   string `field:"key_name,opts:length"`   // SECLDoc[key_name] Definition:`Registry's name`
-	KeyPath   string `field:"key_path,opts:length"`   // SECLDoc[key_path] Definition:`Registry's path`
-	ValueName string `field:"value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
+	KeyName string `field:"key_name,opts:length"`                                       // SECLDoc[key_name] Definition:`Registry's name`
+	KeyPath string `field:"key_path,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[key_path] Definition:`Registry's path`
 }
 
 // Process represents a process
@@ -126,7 +125,9 @@ type OpenRegistryKeyEvent struct {
 
 // SetRegistryKeyValueEvent defines the event of setting up a value of a registry key
 type SetRegistryKeyValueEvent struct {
-	Registry RegistryEvent `field:"registry"` // SECLDoc[registry] Definition:`Registry Event`
+	Registry  RegistryEvent `field:"registry"`                                   // SECLDoc[registry] Definition:`Registry Event`
+	ValueName string        `field:"value_name;registry.value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
+
 }
 
 // DeleteRegistryKeyEvent defines registry key deletion

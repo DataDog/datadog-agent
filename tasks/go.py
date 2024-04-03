@@ -84,9 +84,9 @@ def golangci_lint(
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     DEPRECATED
-    Please use inv lint-go instead
+    Please use inv linter.go instead
     """
-    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
+    print("WARNING: golangci-lint task is deprecated, please migrate to linter.go task")
     raise Exit(code=1)
 
 
@@ -154,7 +154,7 @@ def lint_licenses(ctx):
         for line in f:
             licenses.append(line.rstrip())
 
-    new_licenses = get_licenses_list(ctx)
+    new_licenses = get_licenses_list(ctx, file)
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -183,27 +183,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
-    new_licenses = get_licenses_list(ctx)
-
-    # check that all deps have a non-"UNKNOWN" copyright and license
-    unknown_licenses = False
-    for line in new_licenses:
-        if ',UNKNOWN' in line:
-            unknown_licenses = True
-            print(f"! {line}")
-
-    if unknown_licenses:
-        raise Exit(
-            message=textwrap.dedent(
-                """\
-                At least one dependency's license or copyright could not be determined.
-
-                Consult the dependency's source, update
-                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
-                `inv generate-licenses` to update {}."""
-            ).format(filename),
-            code=1,
-        )
+    new_licenses = get_licenses_list(ctx, filename)
 
     with open(filename, 'w') as f:
         f.write("Component,Origin,License,Copyright\n")
@@ -375,13 +355,37 @@ def reset(ctx):
 
 
 @task
+def check_go_mod_replaces(_ctx):
+    errors_found = set()
+    for mod in DEFAULT_MODULES.values():
+        go_sum = os.path.join(mod.full_path(), "go.sum")
+        if not os.path.exists(go_sum):
+            continue
+        with open(go_sum) as f:
+            for line in f:
+                if "github.com/datadog/datadog-agent" in line.lower():
+                    err_mod = line.split()[0]
+                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+    if errors_found:
+        message = "\nErrors found:\n" + "\n".join("  - " + error for error in sorted(errors_found))
+        raise Exit(message=message)
+
+
+@task
 def check_mod_tidy(ctx, test_folder="testmodule"):
     with generate_dummy_package(ctx, test_folder) as dummy_folder:
         errors_found = []
         for mod in DEFAULT_MODULES.values():
             with ctx.cd(mod.full_path()):
                 ctx.run("go mod tidy")
-                res = ctx.run("git diff --exit-code go.mod go.sum", warn=True)
+
+                files = "go.mod"
+                if os.path.exists(os.path.join(mod.full_path(), "go.sum")):
+                    # if the module has no dependency, no go.sum file will be created
+                    files += " go.sum"
+
+                res = ctx.run(f"git diff --exit-code {files}", warn=True)
                 if res.exited is None or res.exited > 0:
                     errors_found.append(f"go.mod or go.sum for {mod.import_path} module is out of sync")
 
@@ -414,7 +418,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.7 linux/amd64"
+    # result is like "go version go1.21.8 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

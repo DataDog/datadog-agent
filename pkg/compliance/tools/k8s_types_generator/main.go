@@ -23,13 +23,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -442,7 +442,7 @@ func printKomponentCode(komp *komponent) string {
 		case "[]string":
 			return fmt.Sprintf("res.%s = strings.Split(%s, \",\")", toGoField(c.flagName), v)
 		case "*K8sKubeconfigMeta":
-			return fmt.Sprintf("res.%s = l.loadKubeconfigMeta(%s)", toGoField(c.flagName), v)
+			return fmt.Sprintf("res.%s, _ = l.loadKubeconfigMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sCertFileMeta":
 			return fmt.Sprintf("res.%s = l.loadCertFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sKeyFileMeta":
@@ -453,7 +453,7 @@ func printKomponentCode(komp *komponent) string {
 			if komp.name == "kubelet" && c.flagName == "config" {
 				return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 			}
-			return fmt.Sprintf("res.%s = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
+			return fmt.Sprintf("res.%s, _ = l.loadConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sKubeletConfigFileMeta":
 			return fmt.Sprintf("res.%s = l.loadKubeletConfigFileMeta(%s)", toGoField(c.flagName), v)
 		case "*K8sAdmissionConfigFileMeta":

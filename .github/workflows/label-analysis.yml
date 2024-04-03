@@ -9,11 +9,23 @@ on:
       - "[0-9]+.[0-9]+.x"
 
 env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   GH_REPO: ${{ github.repository }}
 
 jobs:
+  assign-team-label:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: pip install -r tasks/requirements.txt
+      - name: Auto assign team label
+        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
   fetch-labels:
+    needs: assign-team-label
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     outputs:
@@ -22,7 +34,7 @@ jobs:
       - name: Get PR labels
         id: pr-labels
         run: |
-          labels=$(gh pr view ${{github.event.number}} --json labels --jq '.labels[].name' | tr '\n' ' ')
+          labels="$(gh pr view '${{ github.event.pull_request.number }}' --json labels --jq '[.labels[].name] | (join(" "))')"
           echo "Fetched labels for PR ${{github.event.number}}: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
   team-label:

@@ -22,6 +22,9 @@ const (
 	// EventTypeNetworkDevicesNetFlow is the event type for network devices NetFlow data
 	EventTypeNetworkDevicesNetFlow = "network-devices-netflow"
 
+	// EventTypeNetworkPath is the event type for network devices Network Path data
+	EventTypeNetworkPath = "network-path"
+
 	// EventTypeContainerLifecycle represents a container lifecycle event
 	EventTypeContainerLifecycle = "container-lifecycle"
 	// EventTypeContainerImages represents a container images event

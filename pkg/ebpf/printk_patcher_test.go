@@ -89,7 +89,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 
 	// The logdebugtest program is a kprobe on do_vfs_ioctl, so we can use that to trigger the
 	// it and check that the output is correct. We do not actually care about the arguments.
-	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(0), 0, uintptr(0)); errno != 0 {
+	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(0), 0xfafafefe, uintptr(0)); errno != 0 {
 		// Only valid return value is ENOTTY (invalid ioctl for device) because indeed we
 		// are not doing any valid ioctl, we just want to trigger the kprobe
 		require.Equal(t, syscall.ENOTTY, errno)

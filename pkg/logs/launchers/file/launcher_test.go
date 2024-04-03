@@ -607,6 +607,7 @@ func TestLauncherFileRotation(t *testing.T) {
 
 	launcher.scan()
 	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.Equal(t, 0, len(launcher.rotatedTailers))
 	assert.True(t, launcher.tailers.Contains(path("c.log")))
 	assert.True(t, launcher.tailers.Contains(path("d.log")))
 
@@ -624,8 +625,13 @@ func TestLauncherFileRotation(t *testing.T) {
 
 	launcher.scan()
 	assert.Equal(t, launcher.tailers.Count(), 2)
+	assert.Equal(t, 1, len(launcher.rotatedTailers))
 	assert.True(t, launcher.tailers.Contains(path("c.log")))
 	assert.True(t, launcher.tailers.Contains(path("d.log")))
+
+	launcher.cleanup() // Stop all the tailers
+	assert.Equal(t, launcher.tailers.Count(), 0)
+	assert.Equal(t, len(launcher.rotatedTailers), 0)
 }
 
 func TestLauncherFileDetectionSingleScan(t *testing.T) {

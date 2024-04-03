@@ -12,11 +12,10 @@ package pod
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
@@ -77,7 +76,12 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 	for _, pod := range pods.Items {
 		p.podUtils.PopulateForPod(pod)
-		for _, cStatus := range pod.Status.Containers {
+		// Combine regular containers with init containers for easier iteration
+		allContainers := make([]kubelet.ContainerSpec, 0, len(pod.Spec.InitContainers)+len(pod.Spec.Containers))
+		allContainers = append(allContainers, pod.Spec.InitContainers...)
+		allContainers = append(allContainers, pod.Spec.Containers...)
+
+		for _, cStatus := range pod.Status.AllContainers {
 			if cStatus.ID == "" {
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
 				continue
@@ -89,8 +93,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			}
 
 			var container kubelet.ContainerSpec
-			// for _, status := range pod.Status.Containers {
-			for _, c := range pod.Spec.Containers {
+			for _, c := range allContainers {
 				if cStatus.Name == c.Name {
 					container = c
 					break
@@ -115,6 +118,10 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
+		return
+	}
+	// Filter out containers which have completed, as their resources should be freed
+	if cStatus.State.Terminated != nil && cStatus.State.Terminated.Reason == "Completed" {
 		return
 	}
 

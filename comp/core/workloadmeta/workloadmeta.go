@@ -7,15 +7,17 @@ package workloadmeta
 
 import (
 	"context"
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 // store is a central storage of metadata about workloads. A workload is any
@@ -74,7 +76,7 @@ type optionalProvider struct {
 
 func newWorkloadMeta(deps dependencies) provider {
 	candidates := make(map[string]Collector)
-	for _, c := range deps.Catalog {
+	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
 			candidates[c.GetID()] = c
 		}
@@ -91,9 +93,6 @@ func newWorkloadMeta(deps dependencies) provider {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	// Set global
-	SetGlobalStore(wm)
-
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 
 		var err error
@@ -103,7 +102,6 @@ func newWorkloadMeta(deps dependencies) provider {
 		//                   context provided to the OnStart hook.
 		mainCtx, _ := common.GetMainCtxCancel()
 
-		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
 			err = deps.Params.InitHelper(mainCtx, wm)
 			if err != nil {

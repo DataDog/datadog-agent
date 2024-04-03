@@ -54,6 +54,10 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 static __always_inline u64 offset_socket_sk();
 #endif
 
+#ifndef MSG_SPLICE_PAGES
+#define MSG_SPLICE_PAGES 0x8000000
+#endif
+
 static __always_inline struct sock * socket_sk(struct socket *sock) {
     struct sock * sk = NULL;
 #ifdef COMPILE_PREBUILT

@@ -42,6 +42,7 @@ func init() {
 	registerFeature(ECSFargate)
 	registerFeature(EKSFargate)
 	registerFeature(KubeOrchestratorExplorer)
+	registerFeature(ECSOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
 }
@@ -166,6 +167,10 @@ func isCriSupported() bool {
 func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 	if IsECSFargate() {
 		features[ECSFargate] = struct{}{}
+		if cfg.GetBool("orchestrator_explorer.enabled") &&
+			cfg.GetBool("orchestrator_explorer.ecs_collection.enabled") {
+			features[ECSOrchestratorExplorer] = struct{}{}
+		}
 		return
 	}
 
@@ -177,6 +182,10 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 
 	if IsECS() {
 		features[ECSEC2] = struct{}{}
+		if cfg.GetBool("orchestrator_explorer.enabled") &&
+			cfg.GetBool("orchestrator_explorer.ecs_collection.enabled") {
+			features[ECSOrchestratorExplorer] = struct{}{}
+		}
 	}
 }
 

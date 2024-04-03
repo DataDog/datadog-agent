@@ -2,6 +2,43 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers",
   "$defs": {
+    "AgentContext": {
+      "properties": {
+        "rule_id": {
+          "type": "string"
+        },
+        "rule_version": {
+          "type": "string"
+        },
+        "rule_actions": {
+          "items": true,
+          "type": "array"
+        },
+        "policy_name": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "rule_id"
+      ]
+    },
     "AnomalyDetectionSyscallEvent": {
       "properties": {
         "syscall": {
@@ -209,10 +246,6 @@
           },
           "type": "array",
           "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
-        },
-        "origin": {
-          "type": "string",
-          "description": "Origin of the event"
         },
         "variables": {
           "$ref": "#/$defs/Variables",
@@ -897,10 +930,6 @@
         "source": {
           "type": "string",
           "description": "Process source"
-        },
-        "variables": {
-          "$ref": "#/$defs/Variables",
-          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -1030,10 +1059,6 @@
           "type": "string",
           "description": "Process source"
         },
-        "variables": {
-          "$ref": "#/$defs/Variables",
-          "description": "Variables values"
-        },
         "parent": {
           "$ref": "#/$defs/Process",
           "description": "Parent process"
@@ -1044,6 +1069,10 @@
           },
           "type": "array",
           "description": "Ancestor processes"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -1327,6 +1356,12 @@
     }
   },
   "properties": {
+    "agent": {
+      "$ref": "#/$defs/AgentContext"
+    },
+    "title": {
+      "type": "string"
+    },
     "evt": {
       "$ref": "#/$defs/EventContext"
     },
@@ -1397,5 +1432,8 @@
   },
   "additionalProperties": false,
   "type": "object",
-  "description": "EventSerializer serializes an event to JSON"
+  "required": [
+    "agent",
+    "title"
+  ]
 }

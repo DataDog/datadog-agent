@@ -50,18 +50,18 @@ func TestRuntimeSettings(t *testing.T) {
 	runtimeSetting := runtimeTestSetting{1}
 
 	err := RegisterRuntimeSetting(&runtimeSetting)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, len(RuntimeSettings()))
 
 	v, err := GetRuntimeSetting(runtimeSetting.Name())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, runtimeSetting.value, v)
 
 	err = SetRuntimeSetting(runtimeSetting.Name(), 123, model.SourceDefault)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	v, err = GetRuntimeSetting(runtimeSetting.Name())
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 123, v)
 
 	err = RegisterRuntimeSetting(&runtimeSetting)
@@ -77,18 +77,18 @@ func TestLogLevel(t *testing.T) {
 	assert.Equal(t, "log_level", ll.Name())
 
 	err := ll.Set("off", model.SourceDefault)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	v, err := ll.Get()
 	assert.Equal(t, "off", v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	err = ll.Set("WARNING", model.SourceDefault)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	v, err = ll.Get()
 	assert.Equal(t, "warn", v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	err = ll.Set("invalid", model.SourceDefault)
 	assert.NotNil(t, err)
@@ -96,7 +96,7 @@ func TestLogLevel(t *testing.T) {
 
 	v, err = ll.Get()
 	assert.Equal(t, "warn", v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestProfiling(t *testing.T) {
@@ -108,11 +108,11 @@ func TestProfiling(t *testing.T) {
 	assert.Equal(t, "datadog-agent", ll.Service)
 
 	err := ll.Set("false", model.SourceDefault)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	v, err := ll.Get()
 	assert.Equal(t, false, v)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	err = ll.Set("on", model.SourceDefault)
 	assert.NotNil(t, err)
@@ -149,7 +149,7 @@ func TestGetInt(t *testing.T) {
 		if c.err {
 			assert.NotNil(t, err)
 		} else {
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, v, c.exp)
 		}
 	}

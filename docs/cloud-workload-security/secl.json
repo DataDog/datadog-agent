@@ -28,6 +28,16 @@
           "property_doc_link": "event-async-doc"
         },
         {
+          "name": "event.origin",
+          "definition": "Origin of the event",
+          "property_doc_link": "event-origin-doc"
+        },
+        {
+          "name": "event.os",
+          "definition": "Operating system of the event",
+          "property_doc_link": "event-os-doc"
+        },
+        {
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
@@ -8849,6 +8859,30 @@
       "link": "event-async-doc",
       "type": "bool",
       "definition": "True if the syscall was asynchronous",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.origin",
+      "link": "event-origin-doc",
+      "type": "string",
+      "definition": "Origin of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.os",
+      "link": "event-os-doc",
+      "type": "string",
+      "definition": "Operating system of the event",
       "prefixes": [
         ""
       ],

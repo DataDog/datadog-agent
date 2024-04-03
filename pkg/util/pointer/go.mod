@@ -1,3 +1,3 @@
 module github.com/DataDog/datadog-agent/pkg/util/pointer
 
-go 1.21
+go 1.21.8

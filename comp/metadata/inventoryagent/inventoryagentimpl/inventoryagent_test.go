@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	"golang.org/x/exp/maps"
 
 	"github.com/stretchr/testify/assert"
 
+	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -23,6 +25,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) *inventoryagent {
-	p := newInventoryAgentProvider(
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) provides {
+	return newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
@@ -41,8 +44,13 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprob
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			authtokenimpl.Module(),
 		),
 	)
+}
+
+func getTestInventoryPayload(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) *inventoryagent {
+	p := getProvides(t, confOverrides, sysprobeConfOverrides)
 	return p.Comp.(*inventoryagent)
 }
 
@@ -142,7 +150,7 @@ func TestInitData(t *testing.T) {
 		"process_config.process_dd_url":    "http://name:sekrit@someintake.example.com/",
 		"proxy.http":                       "http://name:sekrit@proxy.example.com/",
 		"proxy.https":                      "https://name:sekrit@proxy.example.com/",
-		"dd_site":                          "test",
+		"site":                             "test",
 
 		"fips.enabled":                                true,
 		"logs_enabled":                                true,
@@ -163,6 +171,7 @@ func TestInitData(t *testing.T) {
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
+		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
@@ -254,22 +263,12 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog.Set("inventories_max_interval", 10*time.Minute, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Datadog.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
-	ret := newInventoryAgentProvider(
-		fxutil.Test[dependencies](
-			t,
-			logimpl.MockModule(),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: nil}),
-			sysprobeconfigimpl.MockModule(),
-			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: nil}),
-			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
-		),
-	)
+	ret := getProvides(t, nil, nil)
 
 	headerStatusProvider := ret.StatusHeaderProvider.Provider
 
@@ -281,7 +280,9 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			assert.NotEmpty(t, stats)
+			keys := maps.Keys(stats)
+
+			assert.Contains(t, keys, "agent_metadata")
 		}},
 		{"Text", func(t *testing.T) {
 			b := new(bytes.Buffer)
@@ -334,7 +335,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
 	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
 
-	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchSecurityConfig = func(_ pkgconfigmodel.Reader) (string, error) {
 		return `compliance_config:
   enabled: true
   host_benchmarks:
@@ -377,7 +378,7 @@ func TestFetchProcessAgent(t *testing.T) {
 	// default to true in the process agent configuration
 	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
 
-	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(_ pkgconfigmodel.Reader) (string, error) {
 		return `
 process_config:
   process_collection:
@@ -426,7 +427,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	}
 	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
 
-	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(_ pkgconfigmodel.Reader) (string, error) {
 		return `
 apm_config:
   enabled: true
@@ -512,6 +513,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+			authtokenimpl.Module(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

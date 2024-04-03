@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(NET) Fix revive linter
+// Package probes contains constants for probe names to be shared in the project.
 package probes
 
 // ProbeFuncName stores the function name of the kernel probes setup for tracing
@@ -27,11 +27,11 @@ const (
 
 	// ProtocolClassifierEntrySocketFilter runs a classifier algorithm as a socket filter
 	ProtocolClassifierEntrySocketFilter ProbeFuncName = "socket__classifier_entry"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ProtocolClassifierQueuesSocketFilter runs a classification rules for Queue protocols.
 	ProtocolClassifierQueuesSocketFilter ProbeFuncName = "socket__classifier_queues"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ProtocolClassifierDBsSocketFilter runs a classification rules for DB protocols.
 	ProtocolClassifierDBsSocketFilter ProbeFuncName = "socket__classifier_dbs"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ProtocolClassifierGRPCSocketFilter runs a classification rules for gRPC protocols.
 	ProtocolClassifierGRPCSocketFilter ProbeFuncName = "socket__classifier_grpc"
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
@@ -91,6 +91,8 @@ const (
 
 	// IPMakeSkb traces ip_make_skb
 	IPMakeSkb ProbeFuncName = "kprobe__ip_make_skb"
+	// IPMakeSkbPre4180 tracer ip_make_sbk on kernels prior to 4.18.0
+	IPMakeSkbPre4180 ProbeFuncName = "kprobe__ip_make_skb__pre_4_18_0"
 	// IPMakeSkbReturn traces return of ip_make_skb
 	IPMakeSkbReturn ProbeFuncName = "kretprobe__ip_make_skb"
 	// IP6MakeSkb traces ip6_make_skb
@@ -140,7 +142,9 @@ const (
 	// UDPDestroySockReturn traces the return of the udp_destroy_sock() system call
 	UDPDestroySockReturn ProbeFuncName = "kretprobe__udp_destroy_sock"
 
-	UDPv6DestroySock       ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	// UDPv6DestroySock traces the udpv6_destroy_sock() system call
+	UDPv6DestroySock ProbeFuncName = "kprobe__udpv6_destroy_sock"
+	// UDPv6DestroySockReturn traces the return of the udpv6_destroy_sock() system call
 	UDPv6DestroySockReturn ProbeFuncName = "kretprobe__udpv6_destroy_sock"
 
 	// TCPRetransmit traces the params for the tcp_retransmit_skb() system call
@@ -178,58 +182,58 @@ type BPFMapName = string
 
 // constants for the map names
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnMap is the map storing connection stats
 	ConnMap BPFMapName = "conn_stats"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TCPStatsMap is the map storing TCP stats
 	TCPStatsMap BPFMapName = "tcp_stats"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TCPRetransmitsMap is the map storing TCP retransmits
 	TCPRetransmitsMap BPFMapName = "tcp_retransmits"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TCPConnectSockPidMap is the map storing the PIDs of ongoing TCP connections
 	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnCloseEventMap is the map storing connection close events
 	ConnCloseEventMap BPFMapName = "conn_close_event"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TracerStatusMap is the map storing the status of the tracer
 	TracerStatusMap BPFMapName = "tracer_status"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConntrackStatusMap is the map storing the status of the conntrack
 	ConntrackStatusMap BPFMapName = "conntrack_status"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// PortBindingsMap is the map storing the port bindings
 	PortBindingsMap BPFMapName = "port_bindings"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// UDPPortBindingsMap is the map storing the UDP port bindings
 	UDPPortBindingsMap BPFMapName = "udp_port_bindings"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TelemetryMap is the map storing telemetry data
 	TelemetryMap BPFMapName = "telemetry"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnCloseBatchMap is the map storing connection close batch events
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConntrackTelemetryMap is the map storing conntrack telemetry
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
-	//nolint:revive // TODO(NET) Fix revive linter
-	TcpSendMsgArgsMap BPFMapName = "tcp_sendmsg_args"
-	//nolint:revive // TODO(NET) Fix revive linter
-	TcpSendPageArgsMap BPFMapName = "tcp_sendpage_args"
-	//nolint:revive // TODO(NET) Fix revive linter
-	UdpSendPageArgsMap BPFMapName = "udp_sendpage_args"
-	//nolint:revive // TODO(NET) Fix revive linter
-	IpMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TCPSendMsgArgsMap is the map storing the arguments of the tcp_sendmsg() system call
+	TCPSendMsgArgsMap BPFMapName = "tcp_sendmsg_args"
+	// TCPSendPageArgsMap is the map storing the arguments of the tcp_sendpage() kernel function
+	TCPSendPageArgsMap BPFMapName = "tcp_sendpage_args"
+	// UDPSendPageArgsMap is the map storing the arguments of the udp_sendpage() kernel function
+	UDPSendPageArgsMap BPFMapName = "udp_sendpage_args"
+	// IPMakeSkbArgsMap is the map storing the arguments of the ip_make_skb() kernel function
+	IPMakeSkbArgsMap BPFMapName = "ip_make_skb_args"
+	// MapErrTelemetryMap is the map storing the map error telemetry
 	MapErrTelemetryMap BPFMapName = "map_err_telemetry_map"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// HelperErrTelemetryMap is the map storing the helper error telemetry
 	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
-	//nolint:revive // TODO(NET) Fix revive linter
-	TcpRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TCPRecvMsgArgsMap is the map storing the arguments of the tcp_recvmsg() kernel function
+	TCPRecvMsgArgsMap BPFMapName = "tcp_recvmsg_args"
+	// ProtocolClassificationBufMap is the map storing the classification buffer
 	ProtocolClassificationBufMap BPFMapName = "classification_buf"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// KafkaClientIDBufMap is the map storing the kafka client ID
 	KafkaClientIDBufMap BPFMapName = "kafka_client_id"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// KafkaTopicNameBufMap is the map storing the kafka topic name
 	KafkaTopicNameBufMap BPFMapName = "kafka_topic_name"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnectionProtocolMap is the map storing the connection protocol
 	ConnectionProtocolMap BPFMapName = "connection_protocol"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ConnectionTupleToSocketSKBConnMap is the map storing the connection tuple to socket skb conn tuple
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// ClassificationProgsMap is the map storing the programs to run on classification events
 	ClassificationProgsMap BPFMapName = "classification_progs"
-	//nolint:revive // TODO(NET) Fix revive linter
+	// TCPCloseProgsMap is the map storing the programs to run on TCP close events
 	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
 )

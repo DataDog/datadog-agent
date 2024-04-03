@@ -13,10 +13,10 @@
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
 
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
-#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 19
+#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 18
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 240 frames in a packet, thus 13 (13*19 = 247) tail calls is enough.
-#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 13
+// Currently we have up to 240 frames in a packet, thus 14 (14*18 = 252) tail calls is enough.
+#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 14
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single tail call.
 #define HTTP2_MAX_FRAMES_ITERATIONS 240
@@ -45,6 +45,14 @@
 
 // A limit of max pseudo headers which we process in the request/response.
 #define HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING 4
+
+// Threshold to to trigger the dynamic table cleanup.
+#define HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD 200
+// Represents the maximum number of dynamic_table entries to clean up in a single tail call.
+// This number is above the HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD to ensure that we clean up all entries, and not missing
+// anything.
+#define HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS 300
+
 
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
 // For request - those are method, path. For response - status code.
@@ -160,11 +168,12 @@ typedef struct {
 typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
+    __u8 tags;
 
     status_code_t status_code;
     method_t request_method;
     path_t path;
-    bool request_end_of_stream;
+    bool end_of_stream_seen;
 } http2_stream_t;
 
 typedef struct {
@@ -235,7 +244,15 @@ typedef struct {
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
-    __u64 fragmented_frame_count;
+    __u64 fragmented_frame_count_headers;
+    __u64 fragmented_frame_count_rst;
+    __u64 fragmented_frame_count_data_eos;
+    __u64 fragmented_frame_count_headers_eos;
 } http2_telemetry_t;
+
+typedef struct {
+    __u64 value;
+    __u64 previous;
+} dynamic_counter_t;
 
 #endif

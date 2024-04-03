@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 	"time"
@@ -74,13 +75,6 @@ type APIServer interface {
 
 // NewRuleEngine returns a new rule engine
 func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
-	var as autosuppression.AutoSuppression
-	if config.SecurityProfileEnabled && config.SecurityProfileAutoSuppressionEnabled {
-		as = autosuppression.Enable(config.SecurityProfileAutoSuppressionEventTypes)
-	} else {
-		as = autosuppression.Disable()
-	}
-
 	engine := &RuleEngine{
 		probe:                     probe,
 		config:                    config,
@@ -94,8 +88,13 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		policyLoader:              rules.NewPolicyLoader(),
 		statsdClient:              statsdClient,
 		rulesetListeners:          rulesetListeners,
-		AutoSuppression:           as,
 	}
+
+	engine.AutoSuppression.Init(autosuppression.Opts{
+		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
+		ActivityDumpAutoSuppressionEnabled:    config.ActivityDumpAutoSuppressionEnabled,
+		EventTypes:                            config.SecurityProfileAutoSuppressionEventTypes,
+	})
 
 	// register as event handler
 	if err := probe.AddFullAccessEventHandler(engine); err != nil {
@@ -105,16 +104,6 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	engine.policyProviders = engine.gatherDefaultPolicyProviders()
 
 	return engine, nil
-}
-
-func getOrigin(cfg *config.RuntimeSecurityConfig) string {
-	if runtime.GOOS == "linux" {
-		if cfg.EBPFLessEnabled {
-			return "ebpfless"
-		}
-		return "ebpf"
-	}
-	return ""
 }
 
 // Start the rule engine
@@ -141,7 +130,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel, err := NewRuleFilterModel(getOrigin(e.config))
+	ruleFilterModel, err := NewRuleFilterModel(e.probe.Origin())
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -197,7 +186,18 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
-				tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+				tags := []string{
+					fmt.Sprintf("version:%s", version.AgentVersion),
+					fmt.Sprintf("os:%s", runtime.GOOS),
+				}
+
+				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_ecs")
+				} else if os.Getenv("DD_EKS_FARGATE") == "true" {
+					tags = append(tags, "mode:fargate_eks")
+				} else {
+					tags = append(tags, "mode:default")
+				}
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
@@ -401,8 +401,12 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	if e.AutoSuppression.CanSuppress(ev) && ev.IsInProfile() && autosuppression.IsAllowAutosuppressionRule(rule) {
-		e.AutoSuppression.Inc(rule.ID)
+	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
+	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
+	}
+
+	if e.AutoSuppression.Suppresses(rule, ev) {
 		return false
 	}
 
@@ -416,10 +420,6 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
 	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
-
-	if ev.ContainerContext.ID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Definition.ID, rule.Definition.Version, rule.Definition.Tags, rule.Definition.Policy.Name, rule.Definition.Policy.Version))
-	}
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {

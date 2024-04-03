@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
-	cebpf "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,52 +30,84 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+type cleanerSignature func(now int64, k int64, v int64) bool
+
 func TestMapCleaner(t *testing.T) {
-	const numMapEntries = 100
-
-	var (
-		key = new(int64)
-		val = new(int64)
-	)
-
-	err := rlimit.RemoveMemlock()
-	require.NoError(t, err)
-
-	m, err := cebpf.NewMap(&cebpf.MapSpec{
-		Type:       cebpf.Hash,
-		KeySize:    8,
-		ValueSize:  8,
-		MaxEntries: numMapEntries,
-	})
-	require.NoError(t, err)
-
-	cleaner, err := NewMapCleaner[int64, int64](m, 10)
-	require.NoError(t, err)
-	for i := 0; i < numMapEntries; i++ {
-		*key = int64(i)
-		err := m.Put(key, val)
-		assert.Nilf(t, err, "can't put key=%d: %s", i, err)
+	tests := []struct {
+		name           string
+		cleanerFactory func(*ebpf.Map) cleanerSignature
+	}{
+		{
+			name: "sanity",
+			cleanerFactory: func(*ebpf.Map) cleanerSignature {
+				return func(now int64, k int64, v int64) bool {
+					return k%2 == 0
+				}
+			},
+		},
+		{
+			name: "key is missing",
+			cleanerFactory: func(e *ebpf.Map) cleanerSignature {
+				return func(now int64, k int64, v int64) bool {
+					// Delete a random key.
+					if k == 4 {
+						e.Delete(&k)
+					}
+					return k%2 == 0
+				}
+			},
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const numMapEntries = 100
+			const cleanerInterval = 100 * time.Millisecond
 
-	// Clean all the even entries
-	cleaner.Clean(100*time.Millisecond, nil, nil, func(now int64, k int64, v int64) bool {
-		return k%2 == 0
-	})
+			var (
+				key = new(int64)
+				val = new(int64)
+			)
 
-	time.Sleep(1 * time.Second)
-	cleaner.Stop()
+			require.NoError(t, rlimit.RemoveMemlock())
 
-	for i := 0; i < numMapEntries; i++ {
-		*key = int64(i)
-		err := m.Lookup(key, val)
+			m, err := ebpf.NewMap(&ebpf.MapSpec{
+				Type:       ebpf.Hash,
+				KeySize:    8,
+				ValueSize:  8,
+				MaxEntries: numMapEntries,
+			})
+			require.NoError(t, err)
 
-		// If the entry is even, it should have been deleted
-		// otherwise it should be present
-		if i%2 == 0 {
-			assert.NotNilf(t, err, "entry key=%d should not be present", i)
-		} else {
-			assert.Nil(t, err)
-		}
+			cleaner, err := NewMapCleaner[int64, int64](m, 10)
+			require.NoError(t, err)
+			for i := 0; i < numMapEntries; i++ {
+				*key = int64(i)
+				err := m.Put(key, val)
+				assert.Nilf(t, err, "can't put key=%d: %s", i, err)
+			}
+
+			// Clean all the even entries
+			cleaner.Clean(cleanerInterval, nil, nil, func(now int64, k int64, v int64) bool {
+				return k%2 == 0
+			})
+
+			// Giving some time to the cleaner to do its job.
+			time.Sleep(3 * cleanerInterval)
+			cleaner.Stop()
+
+			for i := 0; i < numMapEntries; i++ {
+				*key = int64(i)
+				err := m.Lookup(key, val)
+
+				// If the entry is even, it should have been deleted
+				// otherwise it should be present
+				if i%2 == 0 {
+					assert.NotNilf(t, err, "entry key=%d should not be present", i)
+				} else {
+					assert.Nil(t, err)
+				}
+			}
+		})
 	}
 }
 
@@ -85,11 +117,10 @@ func benchmarkBatchCleaner(b *testing.B, numMapEntries, batchSize uint32) {
 		val = new(int64)
 	)
 
-	err := rlimit.RemoveMemlock()
-	require.NoError(b, err)
+	require.NoError(b, rlimit.RemoveMemlock())
 
-	m, err := cebpf.NewMap(&cebpf.MapSpec{
-		Type:       cebpf.Hash,
+	m, err := ebpf.NewMap(&ebpf.MapSpec{
+		Type:       ebpf.Hash,
 		KeySize:    8,
 		ValueSize:  8,
 		MaxEntries: numMapEntries,

@@ -30,6 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -46,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -85,6 +86,7 @@ func SetupHandlers(
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
+	ac autodiscovery.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -98,7 +100,9 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
-	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
+		getConfigCheck(w, r, ac)
+	}).Methods("GET")
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
@@ -115,7 +119,10 @@ func SetupHandlers(
 	r.HandleFunc("/metadata/inventory-agent", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvAgent(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
 	r.HandleFunc("/metadata/package-signing", func(w http.ResponseWriter, r *http.Request) { metadataPayloadPkgSigning(w, r, pkgSigning) }).Methods("GET")
-	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager, collector) }).Methods("POST")
+	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
+		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
+		getDiagnose(w, r, diagnoseDeps)
+	}).Methods("POST")
 
 	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
 	// Some agent subcommands do not provide these dependencies (such as JMX)
@@ -398,23 +405,17 @@ func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
 }
 
-func getConfigCheck(w http.ResponseWriter, _ *http.Request) {
+func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
 	var response response.ConfigCheckResponse
 
-	if common.AC == nil {
-		log.Errorf("Trying to use /config-check before the agent has been initialized.")
-		setJSONError(w, fmt.Errorf("agent not initialized"), 503)
-		return
-	}
-
-	configSlice := common.AC.LoadedConfigs()
+	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 	response.Configs = configSlice
-	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
-	response.ConfigErrors = autodiscovery.GetConfigErrors()
-	response.Unresolved = common.AC.GetUnresolvedTemplates()
+	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
+	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {
@@ -541,7 +542,7 @@ func metadataPayloadPkgSigning(w http.ResponseWriter, _ *http.Request, pkgSignin
 	w.Write(scrubbed)
 }
 
-func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component]) {
+func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.SuitesDeps) {
 	var diagCfg diagnosis.Config
 
 	// Read parameters
@@ -567,7 +568,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.Di
 	diagCfg.RunLocal = true
 
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg, senderManager, collector)
+	diagnoses, err := diagnose.Run(diagCfg, diagnoseDeps)
 	if err != nil {
 		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return

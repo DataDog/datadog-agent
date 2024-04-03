@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/grpc
 
-go 1.21
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../proto
@@ -9,17 +9,17 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/net v0.19.0
 	google.golang.org/grpc v1.59.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect

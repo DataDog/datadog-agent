@@ -114,7 +114,7 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_changelog(ctx, new_version=None, target="all"):
+def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
@@ -123,6 +123,9 @@ def update_changelog(ctx, new_version=None, target="all"):
     If new_version is omitted, a changelog since last tag on the current branch
     will be generated.
     """
+
+    # Step 1 - generate the changelogs
+
     generate_agent = target in ["all", "agent"]
     generate_cluster_agent = target in ["all", "cluster-agent"]
 
@@ -153,6 +156,49 @@ def update_changelog(ctx, new_version=None, target="all"):
         update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
     if generate_cluster_agent:
         update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+
+    # Step 2 - commit changes
+
+    update_branch = f"changelog-update-{new_version}"
+    base_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    print(color_message(f"Branching out to {update_branch}", "bold"))
+    ctx.run(f"git checkout -b {update_branch}")
+
+    print(color_message("Committing CHANGELOG.rst and CHANGELOG-DCA.rst", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
+
+    commit_message = f"'Changelog updates for {new_version} release'"
+
+    ok = try_git_command(ctx, f"git commit -m {commit_message}")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 3 - Push and create PR
+
+    print(color_message("Pushing new branch to the upstream repository", "bold"))
+    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
+                "red",
+            ),
+            code=1,
+        )
+
+    create_pr(f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True)
 
 
 def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
@@ -302,7 +348,7 @@ def list_major_change(_, milestone):
     List all PR labeled "major_changed" for this release.
     """
 
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
     if pull_requests is None:
         return
@@ -373,7 +419,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format(  # noqa: FS002
+        r'(v)?({})[.]({})([.](\d+))+(-devel)?(-rc\.(\d+))?(?!-\w)'.format(  # noqa: FS002
             "|".join(allowed_major_versions), minor_version
         )
     )
@@ -543,22 +589,45 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_windows_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
     release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
 
-    win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
-    win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
-    win_ddnpm_shasum = release_json_version_data['WINDOWS_DDNPM_SHASUM']
+    win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
+    win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
+        release_json_version_data, 'DDPROCMON'
+    )
 
-    if win_ddnpm_driver not in ['release-signed', 'attestation-signed']:
-        print(f"WARN: WINDOWS_DDNPM_DRIVER value '{win_ddnpm_driver}' is not valid")
+    return (
+        win_ddnpm_driver,
+        win_ddnpm_version,
+        win_ddnpm_shasum,
+        win_ddprocmon_driver,
+        win_ddprocmon_version,
+        win_ddprocmon_shasum,
+    )
 
-    print(f"The windows ddnpm version is {win_ddnpm_version}")
 
-    return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
+def _get_windows_driver_info(release_json_version_data, driver_name):
+    """
+    Gets the Windows driver info from the release.json version data.
+    """
+    driver_key = f'WINDOWS_{driver_name}_DRIVER'
+    version_key = f'WINDOWS_{driver_name}_VERSION'
+    shasum_key = f'WINDOWS_{driver_name}_SHASUM'
+
+    driver_value = release_json_version_data[driver_key]
+    version_value = release_json_version_data[version_key]
+    shasum_value = release_json_version_data[shasum_key]
+
+    if driver_value not in ['release-signed', 'attestation-signed']:
+        print(f"WARN: {driver_key} value '{driver_value}' is not valid")
+
+    print(f"The windows {driver_name.lower()} version is {version_value}")
+
+    return driver_value, version_value, shasum_value
 
 
 def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
@@ -595,6 +664,9 @@ def _update_release_json_entry(
     windows_ddnpm_driver,
     windows_ddnpm_version,
     windows_ddnpm_shasum,
+    windows_ddprocmon_driver,
+    windows_ddprocmon_version,
+    windows_ddprocmon_shasum,
 ):
     """
     Adds a new entry to provided release_json object with the provided parameters, and returns the new release_json object.
@@ -602,6 +674,7 @@ def _update_release_json_entry(
 
     print(f"Jmxfetch's SHA256 is {jmxfetch_shasum}")
     print(f"Windows DDNPM's SHA256 is {windows_ddnpm_shasum}")
+    print(f"Windows DDPROCMON's SHA256 is {windows_ddprocmon_shasum}")
 
     new_version_config = OrderedDict()
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integrations_version
@@ -614,6 +687,9 @@ def _update_release_json_entry(
     new_version_config["WINDOWS_DDNPM_DRIVER"] = windows_ddnpm_driver
     new_version_config["WINDOWS_DDNPM_VERSION"] = windows_ddnpm_version
     new_version_config["WINDOWS_DDNPM_SHASUM"] = windows_ddnpm_shasum
+    new_version_config["WINDOWS_DDPROCMON_DRIVER"] = windows_ddprocmon_driver
+    new_version_config["WINDOWS_DDPROCMON_VERSION"] = windows_ddprocmon_version
+    new_version_config["WINDOWS_DDPROCMON_SHASUM"] = windows_ddprocmon_shasum
 
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
@@ -702,9 +778,14 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     )
     print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
-    windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
-    )
+    (
+        windows_ddnpm_driver,
+        windows_ddnpm_version,
+        windows_ddnpm_shasum,
+        windows_ddprocmon_driver,
+        windows_ddprocmon_version,
+        windows_ddprocmon_shasum,
+    ) = _get_windows_release_json_info(release_json, new_version.major, is_first_rc=(new_version.rc == 1))
 
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
@@ -720,6 +801,9 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         windows_ddnpm_driver,
         windows_ddnpm_version,
         windows_ddnpm_shasum,
+        windows_ddprocmon_driver,
+        windows_ddprocmon_version,
+        windows_ddprocmon_shasum,
     )
 
 
@@ -1002,10 +1086,10 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
     # Step 4: add release changelog preludes
     print(color_message("Adding Agent release changelog prelude", "bold"))
-    add_prelude(ctx, new_version)
+    add_prelude(ctx, str(new_version))
 
     print(color_message("Adding DCA release changelog prelude", "bold"))
-    add_dca_prelude(ctx, new_version)
+    add_dca_prelude(ctx, str(new_version))
 
     ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
     if not ok:
@@ -1031,8 +1115,8 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
         )
 
     current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
-    create_release_pr(
-        "Final updates for release.json and Go modules for {new_version} release + preludes",
+    create_pr(
+        f"Final updates for release.json and Go modules for {new_version} release + preludes",
         current_branch,
         final_branch,
         new_version,
@@ -1160,7 +1244,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    create_release_pr(
+    create_pr(
         f"[release] Update release.json and Go modules for {versions_string}",
         current_branch,
         update_branch,
@@ -1168,7 +1252,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
     )
 
 
-def create_release_pr(title, base_branch, target_branch, version):
+def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
@@ -1203,16 +1287,21 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Created PR #{pr.number}", "bold"))
 
+    labels = [
+        "changelog/no-changelog",
+        "qa/no-code-change",
+        "team/agent-build-and-releases",
+        "team/agent-release-management",
+        "category/release_operations",
+    ]
+
+    if changelog_pr:
+        labels.append("backport/main")
+
     updated_pr = github.update_pr(
         pull_number=pr.number,
         milestone_number=milestone.number,
-        labels=[
-            "changelog/no-changelog",
-            "qa/no-code-change",
-            "team/agent-platform",
-            "team/agent-release-management",
-            "category/release_operations",
-        ],
+        labels=labels,
     )
 
     if not updated_pr or not updated_pr.number or not updated_pr.html_url:
@@ -1473,7 +1562,7 @@ def cleanup(ctx):
       - Updates the scheduled nightly pipeline to target the new stable branch
       - Updates the release.json last_stable fields
     """
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     latest_release = gh.latest_release()
     match = VERSION_RE.search(latest_release)
     if not match:
@@ -1604,7 +1693,7 @@ def get_active_release_branch(_ctx):
     If release started and code freeze is in place - main branch is considered active.
     If release started and code freeze is over - release branch is considered active.
     """
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     latest_release = gh.latest_release()
     version = _create_version_from_match(VERSION_RE.search(latest_release))
     next_version = version.next_version(bump_minor=True)

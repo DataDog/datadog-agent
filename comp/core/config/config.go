@@ -9,10 +9,11 @@ import (
 	"os"
 	"strings"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"go.uber.org/fx"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -97,8 +98,4 @@ func newConfig(deps dependencies) (Component, error) {
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 	return c.warnings
-}
-
-func (c *cfg) Object() pkgconfigmodel.Reader {
-	return c.Config
 }

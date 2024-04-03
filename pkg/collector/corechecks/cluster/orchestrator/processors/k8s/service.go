@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
@@ -20,13 +21,13 @@ import (
 
 // ServiceHandlers implements the Handlers interface for Kubernetes Services.
 type ServiceHandlers struct {
-	BaseHandlers
+	common.BaseHandlers
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ServiceHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+func (h *ServiceHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.Service)
 	m.Yaml = yaml
 	return
@@ -34,7 +35,8 @@ func (h *ServiceHandlers) AfterMarshalling(ctx *processors.ProcessorContext, res
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
-func (h *ServiceHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+func (h *ServiceHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	models := make([]*model.Service, 0, len(resourceModels))
 
 	for _, m := range resourceModels {
@@ -42,19 +44,19 @@ func (h *ServiceHandlers) BuildMessageBody(ctx *processors.ProcessorContext, res
 	}
 
 	return &model.CollectorService{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		GroupId:     ctx.MsgGroupID,
+		ClusterName: pctx.Cfg.KubeClusterName,
+		ClusterId:   pctx.ClusterID,
+		GroupId:     pctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Services:    models,
-		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:        append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
 	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ServiceHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
+func (h *ServiceHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Service)
 	return k8sTransformers.ExtractService(r)
 }
@@ -63,7 +65,7 @@ func (h *ServiceHandlers) ExtractResource(ctx *processors.ProcessorContext, reso
 // interface to a list of generic interfaces.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ServiceHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
+func (h *ServiceHandlers) ResourceList(ctx processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.Service)
 	resources = make([]interface{}, 0, len(resourceList))
 
@@ -77,14 +79,14 @@ func (h *ServiceHandlers) ResourceList(ctx *processors.ProcessorContext, list in
 // ResourceUID is a handler called to retrieve the resource UID.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ServiceHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *ServiceHandlers) ResourceUID(ctx processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Service).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ServiceHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
+func (h *ServiceHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.Service).ResourceVersion
 }
 
@@ -92,7 +94,7 @@ func (h *ServiceHandlers) ResourceVersion(ctx *processors.ProcessorContext, reso
 // it is extracted as an internal resource model.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *ServiceHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
+func (h *ServiceHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.Service)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)
 }

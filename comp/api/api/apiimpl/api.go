@@ -13,12 +13,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -46,6 +49,7 @@ type apiServer struct {
 	flare                 flare.Component
 	dogstatsdServer       dogstatsdServer.Component
 	capture               replay.Component
+	pidMap                pidmap.Component
 	serverDebug           dogstatsddebug.Component
 	hostMetadata          host.Component
 	invAgent              inventoryagent.Component
@@ -58,6 +62,7 @@ type apiServer struct {
 	eventPlatformReceiver eventplatformreceiver.Component
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
+	authToken             authtoken.Component
 }
 
 type dependencies struct {
@@ -66,6 +71,7 @@ type dependencies struct {
 	Flare                 flare.Component
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
+	PidMap                pidmap.Component
 	ServerDebug           dogstatsddebug.Component
 	HostMetadata          host.Component
 	InvAgent              inventoryagent.Component
@@ -78,6 +84,7 @@ type dependencies struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
+	AuthToken             authtoken.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -87,6 +94,7 @@ func newAPIServer(deps dependencies) api.Component {
 		flare:                 deps.Flare,
 		dogstatsdServer:       deps.DogstatsdServer,
 		capture:               deps.Capture,
+		pidMap:                deps.PidMap,
 		serverDebug:           deps.ServerDebug,
 		hostMetadata:          deps.HostMetadata,
 		invAgent:              deps.InvAgent,
@@ -99,6 +107,7 @@ func newAPIServer(deps dependencies) api.Component {
 		eventPlatformReceiver: deps.EventPlatformReceiver,
 		rcService:             deps.RcService,
 		rcServiceHA:           deps.RcServiceHA,
+		authToken:             deps.AuthToken,
 	}
 }
 
@@ -106,6 +115,7 @@ func newAPIServer(deps dependencies) api.Component {
 func (server *apiServer) StartServer(
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
+	ac autodiscovery.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
@@ -115,6 +125,7 @@ func (server *apiServer) StartServer(
 		server.flare,
 		server.dogstatsdServer,
 		server.capture,
+		server.pidMap,
 		server.serverDebug,
 		wmeta,
 		taggerComp,
@@ -130,6 +141,7 @@ func (server *apiServer) StartServer(
 		server.statusComponent,
 		collector,
 		server.eventPlatformReceiver,
+		ac,
 	)
 }
 

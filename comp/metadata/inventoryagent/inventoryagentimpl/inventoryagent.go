@@ -15,8 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/viper"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -39,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/viper"
 )
 
 // Module defines the fx options for this component.
@@ -89,6 +91,7 @@ type inventoryagent struct {
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
+	authToken    authtoken.Component
 }
 
 type dependencies struct {
@@ -98,6 +101,7 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig optional.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
+	AuthToken      authtoken.Component
 }
 
 type provides struct {
@@ -117,13 +121,14 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		log:          deps.Log,
 		hostname:     hname,
 		data:         make(agentMetadata),
+		authToken:    deps.AuthToken,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _, _ any) { ia.Refresh() })
 	}
 
 	return provides{
@@ -166,6 +171,7 @@ func (ia *inventoryagent) initData() {
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
+	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 }
 
@@ -189,7 +195,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, conf model.Reader, confi
 			return cfg
 		}
 	} else {
-		ia.log.Errorf("could not fetch %s process configuration: %s", name, err)
+		ia.log.Infof("could not fetch %s process configuration: %s", name, err)
 	}
 	return fallback
 }
@@ -208,7 +214,7 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	}
 
 	ia.data["config_dd_url"] = scrub(ia.conf.GetString("dd_url"))
-	ia.data["config_site"] = scrub(ia.conf.GetString("dd_site"))
+	ia.data["config_site"] = scrub(ia.conf.GetString("site"))
 	ia.data["config_logs_dd_url"] = scrub(ia.conf.GetString("logs_config.logs_dd_url"))
 	ia.data["config_logs_socks5_proxy_address"] = scrub(ia.conf.GetString("logs_config.socks5_proxy_address"))
 	ia.data["config_no_proxy"] = cfgSlice("proxy.no_proxy")
@@ -229,7 +235,7 @@ func (ia *inventoryagent) fetchSecurityAgentMetadata() {
 	securityCfg := ia.getCorrectConfig("security-agent", ia.conf, fetchSecurityConfig, ia.conf)
 
 	ia.data["feature_cspm_enabled"] = securityCfg.GetBool("compliance_config.enabled")
-	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
+	ia.data["feature_cspm_host_benchmarks_enabled"] = securityCfg.GetBool("compliance_config.enabled") && securityCfg.GetBool("compliance_config.host_benchmarks.enabled")
 }
 
 func (ia *inventoryagent) fetchTraceAgentMetadata() {
@@ -249,8 +255,8 @@ func (ia *inventoryagent) fetchProcessAgentMetadata() {
 
 func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// If the system-probe configuration is not loaded we fallback on zero value for all metadata
-	getBoolSysProbe := func(key string) bool { return false }
-	getIntSysProbe := func(key string) int { return 0 }
+	getBoolSysProbe := func(_ string) bool { return false }
+	getIntSysProbe := func(_ string) int { return 0 }
 
 	localSysProbeConf, isSet := ia.sysprobeConf.Get()
 	if isSet {
@@ -387,6 +393,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
 		"remote_configuration":               ia.getRemoteConfiguration,
 		"cli_configuration":                  ia.getCliConfiguration,
+		"source_local_configuration":         ia.getSourceLocalConfiguration,
 	}
 	for layer, getter := range configLayer {
 		if conf, err := getter(); err == nil {
