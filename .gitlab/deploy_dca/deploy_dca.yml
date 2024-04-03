@@ -24,7 +24,7 @@ include:
 
 deploy_containers-dca:
   extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_a7_manual_auto_on_rc]
+  rules: !reference [.on_deploy_manual_auto_on_rc]
 
 deploy_containers-dca-rc:
   extends: .deploy_containers-dca-base
@@ -34,22 +34,22 @@ deploy_containers-dca-rc:
 
 deploy_containers-dca-latest:
   extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_a7_manual_final]
+  rules: !reference [.on_deploy_manual_final]
   variables:
     VERSION: latest
 
 deploy_containers-dca_internal:
   extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_a7_internal_manual_final]
+  rules: !reference [.on_deploy_internal_manual_final]
 
 deploy_containers-dca_internal-rc:
   extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_a7_internal_rc]
+  rules: !reference [.on_deploy_internal_rc]
   variables:
     VERSION: rc
 
 deploy_containers-dca_internal-latest:
   extends: .deploy_containers-dca-base
-  rules: !reference [.on_deploy_a7_internal_manual_final]
+  rules: !reference [.on_deploy_internal_manual_final]
   variables:
     VERSION: latest
