@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -65,7 +64,7 @@ func stopServer(listener net.Listener, name string) {
 	}
 }
 
-// StartServers creates certificates and starts API servers
+// StartServers creates certificates and starts API + IPC servers
 func StartServers(
 	configService optional.Option[rcservice.Component],
 	configServiceHA optional.Option[rcserviceha.Component],
@@ -89,7 +88,6 @@ func StartServers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	settingsComponent settings.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -141,7 +139,6 @@ func StartServers(
 		collector,
 		eventPlatformReceiver,
 		ac,
-		settingsComponent,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

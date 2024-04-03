@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -64,7 +63,6 @@ type apiServer struct {
 	rcService             optional.Option[rcservice.Component]
 	rcServiceHA           optional.Option[rcserviceha.Component]
 	authToken             authtoken.Component
-	settings              settings.Component
 }
 
 type dependencies struct {
@@ -87,7 +85,6 @@ type dependencies struct {
 	RcService             optional.Option[rcservice.Component]
 	RcServiceHA           optional.Option[rcserviceha.Component]
 	AuthToken             authtoken.Component
-	Settings              settings.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -111,7 +108,6 @@ func newAPIServer(deps dependencies) api.Component {
 		rcService:             deps.RcService,
 		rcServiceHA:           deps.RcServiceHA,
 		authToken:             deps.AuthToken,
-		settings:              deps.Settings,
 	}
 }
 
@@ -146,7 +142,6 @@ func (server *apiServer) StartServer(
 		collector,
 		server.eventPlatformReceiver,
 		ac,
-		server.settings,
 	)
 }
 
