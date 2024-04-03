@@ -193,7 +193,8 @@ class GithubAPI:
         """
         Gets the current rate limit info.
         """
-        return self._github.rate_limiting
+        rate_limits = self._github.get_rate_limit()
+        return rate_limits.raw_data
 
     def publish_comment(self, pull_number, comment):
         """
