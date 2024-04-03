@@ -16,10 +16,76 @@ import (
 
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/pkg/agentless/runner"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"go.uber.org/fx"
 )
+
+// GlobalFlags holds the global flags from the root cmd
+var GlobalFlags struct {
+	DiskMode       string
+	DefaultActions []string
+	NoForkScanners bool
+	ConfigFilePath string
+}
+
+func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActionsStr []string, noForkScanner bool) (*types.ScannerConfig, error) {
+	defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
+	if err != nil {
+		return nil, fmt.Errorf("could not parse default roles mapping: %w", err)
+	}
+	diskMode, err := types.ParseDiskMode(diskModeStr)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse disk mode: %w", err)
+	}
+	defaultActions, err := types.ParseScanActions(defaultActionsStr)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse default actions: %w", err)
+	}
+	return &types.ScannerConfig{
+		Env:                 c.GetString("env"),
+		DogstatsdHost:       pkgconfig.GetBindHost(),
+		DogstatsdPort:       c.GetInt("dogstatsd_port"),
+		DefaultRolesMapping: defaultRolesMapping,
+		DefaultActions:      defaultActions,
+		NoForkScanners:      noForkScanner,
+		DiskMode:            diskMode,
+		AWSRegion:           c.GetString("agentless_scanner.aws_region"),
+		AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
+		AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
+		AWSEBSGetBlockRate:  c.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
+		AWSDefaultRate:      c.GetFloat64("agentless_scanner.limits.aws_default_rate"),
+	}, nil
+}
+
+// Bundle returns the fx.Option for the agentless-scanner
+func Bundle() fx.Option {
+	return fx.Options(
+		fx.Provide(func(config compconfig.Component) (*types.ScannerConfig, error) {
+			return getScannerConfig(config, GlobalFlags.DiskMode, GlobalFlags.DefaultActions, GlobalFlags.NoForkScanners)
+		}),
+		fx.Supply(core.BundleParams{
+			ConfigParams: compconfig.NewAgentParams(GlobalFlags.ConfigFilePath),
+			SecretParams: secrets.NewEnabledParams(),
+			LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
+		}),
+		core.Bundle(),
+		eventplatformimpl.Module(),
+		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		eventplatformreceiverimpl.Module(),
+	)
+}
 
 // InitStatsd initializes the dogstatsd client
 func InitStatsd(sc types.ScannerConfig) ddogstatsd.ClientInterface {

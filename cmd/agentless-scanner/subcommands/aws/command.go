@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -31,6 +32,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/spf13/cobra"
@@ -42,26 +44,25 @@ var awsFlags struct {
 }
 
 // GroupCommand returns the AWS commands
-func GroupCommand(parent *cobra.Command, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func GroupCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               "aws",
-		Short:             "Datadog Agentless Scanner at your service.",
-		Long:              `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage:      true,
-		PersistentPreRunE: parent.PersistentPreRunE,
+		Use:          "aws",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage: true,
 	}
 	pflags := cmd.PersistentFlags()
 	pflags.StringVar(&awsFlags.region, "region", "", "AWS region")
 	pflags.StringVar(&awsFlags.account, "account-id", "", "AWS account ID")
-	cmd.AddCommand(awsScanCommand(sc, evp))
-	cmd.AddCommand(awsSnapshotCommand(sc))
-	cmd.AddCommand(awsOfflineCommand(sc, evp))
-	cmd.AddCommand(awsAttachCommand(sc))
-	cmd.AddCommand(awsCleanupCommand(sc))
+	cmd.AddCommand(awsScanCommand())
+	cmd.AddCommand(awsSnapshotCommand())
+	cmd.AddCommand(awsOfflineCommand())
+	cmd.AddCommand(awsAttachCommand())
+	cmd.AddCommand(awsCleanupCommand())
 	return cmd
 }
 
-func awsScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func awsScanCommand() *cobra.Command {
 	var localFlags struct {
 		Hostname string
 		Region   string
@@ -71,16 +72,18 @@ func awsScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobr
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			self, err := probeAWSEnv(ctx, sc)
-			if err != nil {
-				return err
-			}
-			resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
-			if err != nil {
-				return err
-			}
-			return awsScanCmd(ctx, sc, evp, resourceID, localFlags.Hostname)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
+				ctx := common.CtxTerminated()
+				self, err := probeAWSEnv(ctx, sc)
+				if err != nil {
+					return err
+				}
+				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
+				if err != nil {
+					return err
+				}
+				return awsScanCmd(ctx, sc, evp, resourceID, localFlags.Hostname)
+			}, common.Bundle())
 		},
 	}
 
@@ -88,51 +91,53 @@ func awsScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobr
 	return cmd
 }
 
-func awsSnapshotCommand(sc *types.ScannerConfig) *cobra.Command {
+func awsSnapshotCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "snapshot",
 		Short: "Create a snapshot of the given (server-less mode)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			hostname := common.TryGetHostname(ctx)
-			scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-			self, err := probeAWSEnv(ctx, sc)
-			if err != nil {
-				return err
-			}
-			volumeID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
-			if err != nil {
-				return err
-			}
-			scan, err := types.NewScanTask(
-				types.TaskTypeEBS,
-				volumeID.AsText(),
-				scannerID,
-				"unknown",
-				nil,
-				sc.DefaultActions,
-				sc.DefaultRolesMapping,
-				sc.DiskMode)
-			if err != nil {
-				return err
-			}
-			statsd := common.InitStatsd(*sc)
-			cfg := awsbackend.GetConfigFromCloudID(ctx, statsd, sc, sc.DefaultRolesMapping, scan.TargetID)
-			var waiter awsbackend.ResourceWaiter
-			ec2client := ec2.NewFromConfig(cfg)
-			snapshotID, err := awsbackend.CreateSnapshot(ctx, statsd, scan, &waiter, ec2client, scan.TargetID)
-			if err != nil {
-				return err
-			}
-			fmt.Println(snapshotID)
-			return nil
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig) error {
+				ctx := common.CtxTerminated()
+				hostname := common.TryGetHostname(ctx)
+				scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
+				self, err := probeAWSEnv(ctx, sc)
+				if err != nil {
+					return err
+				}
+				volumeID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
+				if err != nil {
+					return err
+				}
+				scan, err := types.NewScanTask(
+					types.TaskTypeEBS,
+					volumeID.AsText(),
+					scannerID,
+					"unknown",
+					nil,
+					sc.DefaultActions,
+					sc.DefaultRolesMapping,
+					sc.DiskMode)
+				if err != nil {
+					return err
+				}
+				statsd := common.InitStatsd(*sc)
+				cfg := awsbackend.GetConfigFromCloudID(ctx, statsd, sc, sc.DefaultRolesMapping, scan.TargetID)
+				var waiter awsbackend.ResourceWaiter
+				ec2client := ec2.NewFromConfig(cfg)
+				snapshotID, err := awsbackend.CreateSnapshot(ctx, statsd, scan, &waiter, ec2client, scan.TargetID)
+				if err != nil {
+					return err
+				}
+				fmt.Println(snapshotID)
+				return nil
+			}, common.Bundle())
 		},
 	}
 	return cmd
 }
 
-func awsOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func awsOfflineCommand() *cobra.Command {
 	parseFilters := func(filters string) ([]ec2types.Filter, error) {
 		var fs []ec2types.Filter
 		if filter := filters; filter != "" {
@@ -170,33 +175,35 @@ func awsOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *c
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			self, err := probeAWSEnv(ctx, sc)
-			if err != nil {
-				return err
-			}
-			if localFlags.workers <= 0 {
-				return fmt.Errorf("workers must be greater than 0")
-			}
-			filters, err := parseFilters(localFlags.filters)
-			if err != nil {
-				return err
-			}
-			taskType, err := types.ParseTaskType(localFlags.taskType)
-			if err != nil {
-				return err
-			}
-			return awsOfflineCmd(
-				ctx,
-				sc,
-				evp,
-				localFlags.workers,
-				taskType,
-				self.AccountID,
-				self.Region,
-				localFlags.maxScans,
-				localFlags.printResults,
-				filters)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
+				ctx := common.CtxTerminated()
+				self, err := probeAWSEnv(ctx, sc)
+				if err != nil {
+					return err
+				}
+				if localFlags.workers <= 0 {
+					return fmt.Errorf("workers must be greater than 0")
+				}
+				filters, err := parseFilters(localFlags.filters)
+				if err != nil {
+					return err
+				}
+				taskType, err := types.ParseTaskType(localFlags.taskType)
+				if err != nil {
+					return err
+				}
+				return awsOfflineCmd(
+					ctx,
+					sc,
+					evp,
+					localFlags.workers,
+					taskType,
+					self.AccountID,
+					self.Region,
+					localFlags.maxScans,
+					localFlags.printResults,
+					filters)
+			}, common.Bundle())
 		},
 	}
 
@@ -208,7 +215,7 @@ func awsOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *c
 	return cmd
 }
 
-func awsAttachCommand(sc *types.ScannerConfig) *cobra.Command {
+func awsAttachCommand() *cobra.Command {
 	var localFlags struct {
 		noMount bool
 	}
@@ -217,23 +224,25 @@ func awsAttachCommand(sc *types.ScannerConfig) *cobra.Command {
 		Short: "Attaches a snapshot or volume to the current instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			self, err := probeAWSEnv(ctx, sc)
-			if err != nil {
-				return err
-			}
-			resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
-			if err != nil {
-				return err
-			}
-			return awsAttachCmd(ctx, sc, resourceID, !localFlags.noMount)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig) error {
+				ctx := common.CtxTerminated()
+				self, err := probeAWSEnv(ctx, sc)
+				if err != nil {
+					return err
+				}
+				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAWS, self.Region, self.AccountID)
+				if err != nil {
+					return err
+				}
+				return awsAttachCmd(ctx, sc, resourceID, !localFlags.noMount)
+			}, common.Bundle())
 		},
 	}
 	cmd.Flags().BoolVar(&localFlags.noMount, "no-mount", false, "mount the device")
 	return cmd
 }
 
-func awsCleanupCommand(sc *types.ScannerConfig) *cobra.Command {
+func awsCleanupCommand() *cobra.Command {
 	var flags struct {
 		dryRun bool
 		delay  time.Duration
@@ -242,12 +251,14 @@ func awsCleanupCommand(sc *types.ScannerConfig) *cobra.Command {
 		Use:   "cleanup",
 		Short: "Cleanup resources created by the agentless-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			self, err := probeAWSEnv(ctx, sc)
-			if err != nil {
-				return err
-			}
-			return awsCleanupCmd(ctx, sc, self.Region, self.AccountID, flags.dryRun, flags.delay)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig) error {
+				ctx := common.CtxTerminated()
+				self, err := probeAWSEnv(ctx, sc)
+				if err != nil {
+					return err
+				}
+				return awsCleanupCmd(ctx, sc, self.Region, self.AccountID, flags.dryRun, flags.delay)
+			}, common.Bundle())
 		},
 	}
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false, "dry run")
@@ -255,7 +266,7 @@ func awsCleanupCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string) error {
+func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatform.Component, resourceID types.CloudID, targetName string) error {
 	statsd := common.InitStatsd(*sc)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
@@ -283,7 +294,7 @@ func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform
 		ScannersMax:    8,
 		PrintResults:   true,
 		Statsd:         statsd,
-		EventForwarder: *evp,
+		EventForwarder: evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -299,7 +310,7 @@ func awsScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform
 	return nil
 }
 
-func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter) error {
+func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatform.Component, workers int, taskType types.TaskType, accountID, regionName string, maxScans int, printResults bool, filters []ec2types.Filter) error {
 	statsd := common.InitStatsd(*sc)
 	defer statsd.Flush()
 
@@ -316,7 +327,7 @@ func awsOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatf
 		ScannersMax:    8,
 		PrintResults:   printResults,
 		Statsd:         statsd,
-		EventForwarder: *evp,
+		EventForwarder: evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)

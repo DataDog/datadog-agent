@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
-
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/agentless/azurebackend"
 	"github.com/DataDog/datadog-agent/pkg/agentless/devices"
@@ -23,28 +22,29 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
 
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/spf13/cobra"
 )
 
 // GroupCommand returns the Azure commands
-func GroupCommand(parent *cobra.Command, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func GroupCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               "azure",
-		Short:             "Datadog Agentless Scanner at your service.",
-		Long:              `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage:      true,
-		PersistentPreRunE: parent.PersistentPreRunE,
+		Use:          "azure",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage: true,
 	}
-	cmd.AddCommand(azureAttachCommand(sc))
-	cmd.AddCommand(azureScanCommand(sc, evp))
-	cmd.AddCommand(azureOfflineCommand(sc, evp))
+	cmd.AddCommand(azureAttachCommand())
+	cmd.AddCommand(azureScanCommand())
+	cmd.AddCommand(azureOfflineCommand())
 
 	return cmd
 }
 
-func azureAttachCommand(sc *types.ScannerConfig) *cobra.Command {
+func azureAttachCommand() *cobra.Command {
 	var localFlags struct {
 		noMount bool
 	}
@@ -53,23 +53,25 @@ func azureAttachCommand(sc *types.ScannerConfig) *cobra.Command {
 		Short: "Attaches a snapshot or volume to the current instance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			self, err := azurebackend.GetInstanceMetadata(context.Background())
-			if err != nil {
-				return err
-			}
-			resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
-			if err != nil {
-				return err
-			}
-			return azureAttachCmd(ctx, sc, resourceID, !localFlags.noMount)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
+				ctx := common.CtxTerminated()
+				self, err := azurebackend.GetInstanceMetadata(context.Background())
+				if err != nil {
+					return err
+				}
+				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
+				if err != nil {
+					return err
+				}
+				return azureAttachCmd(ctx, sc, resourceID, !localFlags.noMount)
+			}, common.Bundle())
 		},
 	}
 	cmd.Flags().BoolVar(&localFlags.noMount, "no-mount", false, "mount the device")
 	return cmd
 }
 
-func azureScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func azureScanCommand() *cobra.Command {
 	var localFlags struct {
 		Hostname string
 		Region   string
@@ -79,16 +81,18 @@ func azureScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *co
 		Short: "Executes a scan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			self, err := azurebackend.GetInstanceMetadata(context.Background())
-			if err != nil {
-				return err
-			}
-			resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
-			if err != nil {
-				return err
-			}
-			return azureScanCmd(ctx, sc, evp, resourceID, localFlags.Hostname)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
+				ctx := common.CtxTerminated()
+				self, err := azurebackend.GetInstanceMetadata(context.Background())
+				if err != nil {
+					return err
+				}
+				resourceID, err := types.HumanParseCloudID(args[0], types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
+				if err != nil {
+					return err
+				}
+				return azureScanCmd(ctx, sc, evp, resourceID, localFlags.Hostname)
+			}, common.Bundle())
 		},
 	}
 	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
@@ -96,7 +100,7 @@ func azureScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *co
 	return cmd
 }
 
-func azureOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func azureOfflineCommand() *cobra.Command {
 	var localFlags struct {
 		workers       int
 		subscription  string
@@ -109,24 +113,26 @@ func azureOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) 
 		Use:   "offline",
 		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := common.CtxTerminated()
-			if localFlags.workers <= 0 {
-				return fmt.Errorf("workers must be greater than 0")
-			}
-			taskType, err := types.ParseTaskType(localFlags.taskType)
-			if err != nil {
-				return err
-			}
-			return azureOfflineCmd(
-				ctx,
-				sc,
-				evp,
-				localFlags.workers,
-				taskType,
-				localFlags.maxScans,
-				localFlags.printResults,
-				localFlags.subscription,
-				localFlags.resourceGroup)
+			return fxutil.OneShot(func(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component) error {
+				ctx := common.CtxTerminated()
+				if localFlags.workers <= 0 {
+					return fmt.Errorf("workers must be greater than 0")
+				}
+				taskType, err := types.ParseTaskType(localFlags.taskType)
+				if err != nil {
+					return err
+				}
+				return azureOfflineCmd(
+					ctx,
+					sc,
+					evp,
+					localFlags.workers,
+					taskType,
+					localFlags.maxScans,
+					localFlags.printResults,
+					localFlags.subscription,
+					localFlags.resourceGroup)
+			}, common.Bundle())
 		},
 	}
 
@@ -209,7 +215,7 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 	return nil
 }
 
-func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string) error {
+func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatform.Component, resourceID types.CloudID, targetName string) error {
 	statsd := common.InitStatsd(*sc)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
@@ -237,7 +243,7 @@ func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatfo
 		ScannersMax:    8,
 		PrintResults:   true,
 		Statsd:         statsd,
-		EventForwarder: *evp,
+		EventForwarder: evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
@@ -253,7 +259,7 @@ func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatfo
 	return nil
 }
 
-func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string) error {
+func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string) error {
 	statsd := common.InitStatsd(*sc)
 	defer statsd.Flush()
 
@@ -278,7 +284,7 @@ func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventpla
 		ScannersMax:    8,
 		PrintResults:   printResults,
 		Statsd:         statsd,
-		EventForwarder: *evp,
+		EventForwarder: evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)
