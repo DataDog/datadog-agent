@@ -39,6 +39,9 @@
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeRollback
       - E2E_MSI_TEST: TestAgentUser
+      - E2E_MSI_TEST: TestInstallOpts
+      - E2E_MSI_TEST: TestSubServicesOpts/all-subservices
+      - E2E_MSI_TEST: TestSubServicesOpts/no-subservices
 
 # Agent 6
 .new-e2e_windows_a6_x86_64:
@@ -56,7 +59,7 @@ new-e2e-windows-agent-msi-windows-server-a6-x86_64:
     - .new-e2e_windows_a6_x86_64
     - .new-e2e_windows_installer_tests
   rules:
-    - !reference [.on_deploy_a6]
+    - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
 
 # Agent 7
@@ -75,7 +78,7 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
     - .new-e2e_windows_a7_x86_64
     - .new-e2e_windows_installer_tests
   rules:
-    - !reference [.on_deploy_a7]
+    - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
 
 new-e2e-windows-agent-domain-tests-a7-x86_64:
@@ -88,7 +91,7 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - .new-e2e_agent_a7
   needs: ["deploy_windows_testing-a7"]
   rules:
-    - !reference [.on_deploy_a7]
+    - !reference [.on_deploy]
     - !reference [.on_windows_installer_changes_or_manual]
 
 ## single test for PRs

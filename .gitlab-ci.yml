@@ -400,30 +400,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_a6:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-
-.on_a6_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-    when: manual
-    allow_failure: true
-
-.on_a7:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-
-.on_a7_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-    when: manual
-    allow_failure: true
-
 .except_no_a6_or_no_a7:
   - <<: *if_mergequeue
     when: never
@@ -450,16 +426,6 @@ workflow:
     when: manual
     allow_failure: true
 
-.on_main_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_main_branch
-
-.on_main_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_main_branch
-
 .on_tag_or_a7:
   - <<: *if_mergequeue
     when: never
@@ -469,31 +435,11 @@ workflow:
 .on_deploy:
   - <<: *if_deploy
 
-.on_deploy_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a6_failure:
-  - <<: *if_not_version_6
-    when: never
+.on_deploy_failure:
   - <<: *if_deploy
     when: on_failure
 
-.on_deploy_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a7_failure:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
-.on_deploy_a7_rc:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_rc:
   - <<: *if_not_deploy
     when: never
   - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
@@ -827,7 +773,6 @@ workflow:
   - changes:
       paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -886,7 +831,6 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -1086,8 +1030,10 @@ workflow:
 
 .on_trace_agent_changes_or_manual:
   - changes:
-      - pkg/trace/**/*
-      - .gitlab/benchmarks/*
+      paths:
+        - pkg/trace/**/*
+        - .gitlab/benchmarks/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true

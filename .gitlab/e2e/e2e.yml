@@ -260,7 +260,7 @@ new-e2e-process:
 new-e2e-orchestrator:
   extends:
     - .new_e2e_template_needs_container_deploy
-  rules: !reference [.on_main_or_rc_and_no_skip_e2e]
+  rules: !reference [.on_orchestrator_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app

@@ -83,7 +83,8 @@ tests_deb-x64-py2:
     - .linux_x64
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   variables:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
@@ -159,7 +160,8 @@ tests_rpm-x64-py2:
   extends: .rtloader_tests
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64_testing$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
@@ -182,7 +184,8 @@ tests_deb-arm64-py2:
   extends: .rtloader_tests
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -209,7 +212,8 @@ tests_rpm-arm64-py2:
   extends: .rtloader_tests
   rules:
     - !reference [.except_disable_unit_tests]
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
   variables:
@@ -236,3 +240,4 @@ go_mod_tidy_check:
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv -e check-mod-tidy
+    - inv -e check-go-mod-replaces

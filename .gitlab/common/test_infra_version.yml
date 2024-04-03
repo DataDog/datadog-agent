@@ -3,5 +3,5 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  # Make sure to update test-infra-definitions version in test/new-e2e/go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 3eac4b5bb0c4
+  # Make sure to update test-infra-definitions version in go.mod as well
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: e9cf37ed9d96

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-
 package file
 
 import (
@@ -45,7 +43,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	var err error
 	suite.testDir = suite.T().TempDir()
 
-	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
+	suite.testPath = filepath.Join(suite.testDir, "tailer.log")
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
@@ -249,7 +247,9 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
-	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tailer.Identifier())
+	suite.Equal(
+		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		suite.tailer.Identifier())
 }
 
 func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
@@ -263,6 +263,7 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 	tags := msg.Origin.Tags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
 }
 
@@ -320,6 +321,7 @@ func (suite *TailerTestSuite) TestBuildTagsFileOnly() {
 	tags := suite.tailer.buildTailerTags()
 	suite.ElementsMatch([]string{
 		"filename:" + filepath.Base(suite.testFile.Name()),
+		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
 }
 
