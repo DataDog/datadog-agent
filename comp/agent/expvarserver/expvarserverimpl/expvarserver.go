@@ -36,15 +36,14 @@ type dependencies struct {
 
 func newExpvarServer(deps dependencies) expvarserver.Component {
 	expvarPort := deps.Config.GetString("expvar_port")
-
 	var expvarServer *http.Server
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
+			expvarServer = &http.Server{
+				Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
+				Handler: http.DefaultServeMux,
+			}
 			go func() {
-				expvarServer = &http.Server{
-					Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
-					Handler: http.DefaultServeMux,
-				}
 				if err := expvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					deps.Log.Errorf("Error creating expvar server on %v: %v", expvarServer.Addr, err)
 				}
@@ -52,10 +51,8 @@ func newExpvarServer(deps dependencies) expvarserver.Component {
 			return nil
 		},
 		OnStop: func(context.Context) error {
-			if expvarServer == nil {
-				if err := expvarServer.Shutdown(context.Background()); err != nil {
-					deps.Log.Errorf("Error shutting down expvar server: %v", err)
-				}
+			if err := expvarServer.Shutdown(context.Background()); err != nil {
+				deps.Log.Errorf("Error shutting down expvar server: %v", err)
 			}
 			return nil
 		}})
