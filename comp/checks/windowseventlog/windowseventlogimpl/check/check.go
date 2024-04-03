@@ -33,6 +33,8 @@ import (
 const (
 	// CheckName is the name of the check
 	CheckName = "win32_event_log"
+	// Feature flag to control dd_security_events feature while it is in development
+	ddSecurityEventsFeatureEnabled = false
 )
 
 // Check defines a check that reads the Windows Event Log and submits Events
@@ -220,6 +222,9 @@ func (c *Check) validateConfig() error {
 	}
 	ddSecurityEventsIsSetAndValid := false
 	if val, isSet := c.config.instance.DDSecurityEvents.Get(); isSet && len(val) > 0 {
+		if !ddSecurityEventsFeatureEnabled {
+			return fmt.Errorf("instance config `dd_security_events` is set, but the feature is not yet available")
+		}
 		if !strings.EqualFold(val, "high") && !strings.EqualFold(val, "low") {
 			return fmt.Errorf("instance config `dd_security_events`, if set, must be either 'high' or 'low'")
 		}
@@ -234,6 +239,7 @@ func (c *Check) validateConfig() error {
 	if channelPathIsSetAndNotEmpty && ddSecurityEventsIsSetAndValid {
 		return fmt.Errorf("instance config `path` and `dd_security_events` are mutually exclusive, only one must be set per instance")
 	}
+
 	if val, isSet := c.config.instance.Query.Get(); !isSet || len(val) == 0 {
 		// Query should always be set by this point, but might be ""
 		return fmt.Errorf("instance config `query` if provided must not be empty")
