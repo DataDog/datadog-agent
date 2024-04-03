@@ -800,7 +800,6 @@ func (s *tlsSuite) TestNodeJSTLS() {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableNodeJSMonitoring = true
-	cfg.BPFDebug = true
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg)
 	utils.WaitForProgramsToBeTraced(t, "nodejs", int(nodeJSPID))

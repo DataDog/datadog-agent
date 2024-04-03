@@ -30,16 +30,7 @@ func copyFile(src, dst string) error {
 	defer destination.Close()
 
 	_, err = io.Copy(destination, source)
-	if err != nil {
-		return err
-	}
-
-	err = destination.Sync()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func linkFile(t *testing.T, src, dst string) error {
