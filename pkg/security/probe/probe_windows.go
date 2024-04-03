@@ -717,6 +717,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 
 // FlushDiscarders invalidates all the discarders
 func (p *WindowsProbe) FlushDiscarders() error {
+	p.discardedPaths.Purge()
 	return nil
 }
 
