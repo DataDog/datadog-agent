@@ -25,13 +25,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/spf13/cobra"
 )
 
 // GroupCommand returns the Azure commands
-func GroupCommand(parent *cobra.Command, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func GroupCommand(parent *cobra.Command, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "azure",
 		Short:             "Datadog Agentless Scanner at your service.",
@@ -40,8 +38,8 @@ func GroupCommand(parent *cobra.Command, statsd ddogstatsd.ClientInterface, sc *
 		PersistentPreRunE: parent.PersistentPreRunE,
 	}
 	cmd.AddCommand(azureAttachCommand(sc))
-	cmd.AddCommand(azureScanCommand(statsd, sc, evp))
-	cmd.AddCommand(azureOfflineCommand(statsd, sc, evp))
+	cmd.AddCommand(azureScanCommand(sc, evp))
+	cmd.AddCommand(azureOfflineCommand(sc, evp))
 
 	return cmd
 }
@@ -71,7 +69,7 @@ func azureAttachCommand(sc *types.ScannerConfig) *cobra.Command {
 	return cmd
 }
 
-func azureScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func azureScanCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	var localFlags struct {
 		Hostname string
 		Region   string
@@ -90,7 +88,7 @@ func azureScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig
 			if err != nil {
 				return err
 			}
-			return azureScanCmd(ctx, statsd, sc, evp, resourceID, localFlags.Hostname)
+			return azureScanCmd(ctx, sc, evp, resourceID, localFlags.Hostname)
 		},
 	}
 	cmd.Flags().StringVar(&localFlags.Hostname, "hostname", "unknown", "scan hostname")
@@ -98,7 +96,7 @@ func azureScanCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig
 	return cmd
 }
 
-func azureOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
+func azureOfflineCommand(sc *types.ScannerConfig, evp *eventplatform.Component) *cobra.Command {
 	var localFlags struct {
 		workers       int
 		subscription  string
@@ -121,7 +119,6 @@ func azureOfflineCommand(statsd ddogstatsd.ClientInterface, sc *types.ScannerCon
 			}
 			return azureOfflineCmd(
 				ctx,
-				statsd,
 				sc,
 				evp,
 				localFlags.workers,
@@ -212,7 +209,8 @@ func azureAttachCmd(ctx context.Context, sc *types.ScannerConfig, resourceID typ
 	return nil
 }
 
-func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string) error {
+func azureScanCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, resourceID types.CloudID, targetName string) error {
+	statsd := common.InitStatsd(*sc)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
 	taskType, err := types.DefaultTaskType(resourceID)
@@ -255,7 +253,8 @@ func azureScanCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *ty
 	return nil
 }
 
-func azureOfflineCmd(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string) error {
+func azureOfflineCmd(ctx context.Context, sc *types.ScannerConfig, evp *eventplatform.Component, workers int, taskType types.TaskType, maxScans int, printResults bool, subscription, resourceGroup string) error {
+	statsd := common.InitStatsd(*sc)
 	defer statsd.Flush()
 
 	hostname, err := utils.GetHostnameWithContext(ctx)
