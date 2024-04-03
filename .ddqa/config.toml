@@ -117,6 +117,13 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "remote-config"
 github_labels = ["team/remote-config"]
 
+[teams."Fleet Automation"]
+jira_project = "FA"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "fleet-automation"
+github_labels = ["team/fleet-automation"]
+
 [teams."Container Integrations"]
 jira_project = "CONTINT"
 jira_issue_type = "Task"
