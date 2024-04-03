@@ -49,10 +49,10 @@ def normalize_logs(stage, aws_account_id):
         "TIMESTAMP UTC | DD_EXTENSION | WARN |",
         "[datadog-wrapper]",
         # Layer logs
-        "[DEBUG]", # Python
-        "[DD_TRACE_DOTNET]", # .NET
-        "\"status\":\"debug\"", # Go, Node
-        "[dd.trace TIMESTAMP]" # Java
+        "[DEBUG]",  # Python
+        "[DD_TRACE_DOTNET]",  # .NET
+        "\"status\":\"debug\"",  # Go, Node
+        "[dd.trace TIMESTAMP]",  # Java
     )
 
     def rm_extra_items_key(log):
