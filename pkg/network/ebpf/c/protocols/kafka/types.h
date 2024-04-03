@@ -24,6 +24,7 @@ typedef struct {
     __u16 request_api_version;
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
     __u16 topic_name_size;
+    __u32 records_count;
 } kafka_transaction_t;
 
 #endif

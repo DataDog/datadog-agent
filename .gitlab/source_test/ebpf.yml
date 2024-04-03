@@ -19,12 +19,13 @@
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - source /root/.bashrc
   script:
     - inv -e install-tools
     - inv -e system-probe.object-files
-    - invoke -e lint-go --build system-probe-unit-tests --cpus 4 --targets ./pkg
+    - invoke -e linter.go --build system-probe-unit-tests --cpus 4 --targets ./pkg
     - invoke -e security-agent.run-ebpf-unit-tests --verbose
-    - invoke -e lint-go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
+    - invoke -e linter.go --targets=./pkg/security/tests --cpus 4 --build-tags="functionaltests stresstests trivy containerd linux_bpf ebpf_bindata" --arch=$TASK_ARCH
 
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
@@ -54,6 +55,7 @@ tests_ebpf_arm64:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools

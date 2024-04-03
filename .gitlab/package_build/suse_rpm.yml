@@ -37,7 +37,8 @@
 agent_suse-x64-a6:
   extends: .agent_build_common_suse_rpm
   rules:
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -60,7 +61,8 @@ agent_suse-x64-a6:
 agent_suse-x64-a7:
   extends: .agent_build_common_suse_rpm
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -84,7 +86,7 @@ agent_suse-x64-a7:
 agent_suse-arm64-a7:
   extends: .agent_build_common_suse_rpm
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -107,9 +109,10 @@ agent_suse-arm64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 iot_agent_suse-x64:
-  rules:
-    - !reference [.on_a7]
   stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
@@ -142,9 +145,10 @@ iot_agent_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 dogstatsd_suse-x64:
-  rules:
-    - !reference [.on_a7]
   stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
@@ -174,9 +178,10 @@ dogstatsd_suse-x64:
       - $OMNIBUS_PACKAGE_DIR_SUSE
 
 agentless_scanner_suse-x64:
-  rules:
-    !reference [.on_a7]
   stage: package_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "build_agentless_scanner-binary_x64", "go_deps"]
@@ -195,7 +200,6 @@ agentless_scanner_suse-x64:
     - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name $RPM_GPG_KEY_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name $RPM_SIGNING_PASSPHRASE_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
-    - set -x
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR

@@ -24,6 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	userSpaceKillWithinMillis = 2000
+)
+
 // ProcessKiller defines a process killer structure
 type ProcessKiller struct {
 	sync.Mutex
@@ -86,18 +90,21 @@ func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, ev *model.Even
 		return errors.New("process not found in procfs")
 	}
 
-	ppid, err := proc.Ppid()
-	if err != nil {
-		return errors.New("process not found in procfs")
-	}
-
 	name, err := proc.Name()
 	if err != nil {
 		return errors.New("process not found in procfs")
 	}
 
-	if ev.ProcessContext.PPid != uint32(ppid) || ev.ProcessContext.Comm != name {
-		return fmt.Errorf("not sharing the same namespace: %d/%d || %s/%s", ev.ProcessContext.PPid, ppid, ev.ProcessContext.Comm, name)
+	createdAt, err := proc.CreateTime()
+	if err != nil {
+		return errors.New("process not found in procfs")
+	}
+	evCreatedAt := ev.ProcessContext.ExecTime.UnixMilli()
+
+	within := uint64(evCreatedAt) >= uint64(createdAt-userSpaceKillWithinMillis) && uint64(evCreatedAt) <= uint64(createdAt+userSpaceKillWithinMillis)
+
+	if !within || ev.ProcessContext.Comm != name {
+		return fmt.Errorf("not sharing the same namespace: %s/%s", ev.ProcessContext.Comm, name)
 	}
 
 	return syscall.Kill(int(pid), syscall.Signal(sig))
@@ -134,6 +141,9 @@ func (p *ProcessKiller) KillAndReport(scope string, signal string, ev *model.Eve
 			seclog.Debugf("failed to kill process %d: %s", pid, err)
 		}
 	}
+
+	p.Lock()
+	defer p.Unlock()
 
 	report := &KillActionReport{
 		Scope:      scope,

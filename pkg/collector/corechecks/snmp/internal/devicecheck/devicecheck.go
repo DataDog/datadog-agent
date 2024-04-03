@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -151,7 +152,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var pingStatus metadata.DeviceStatus
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
-	tags := common.CopyStrings(staticTags)
+	tags := utils.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
@@ -160,8 +161,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
-	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
-	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)
+	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), tags)
+	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), tags)
 
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
@@ -176,8 +177,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
 			pingStatus = metadata.DeviceStatusUnreachable
 			d.diagnoses.Add("error", "SNMP_FAILED_TO_PING_DEVICE", "Agent encountered an error when pinging this network device. Check agent logs for more details.")
-			d.sender.Gauge(pingReachableMetric, common.BoolToFloat64(false), tags)
-			d.sender.Gauge(pingUnreachableMetric, common.BoolToFloat64(true), tags)
+			d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(false), tags)
+			d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(true), tags)
 		} else {
 			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
 			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
@@ -208,8 +209,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
-		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
+		deviceMetadataTags := append(utils.CopyStrings(tags), d.config.InstanceTags...)
+		deviceMetadataTags = append(deviceMetadataTags, utils.GetAgentVersionTag())
 
 		deviceDiagnosis := d.diagnoses.Report()
 
@@ -395,7 +396,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
+	newTags := append(utils.CopyStrings(tags), snmpLoaderTag, utils.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 
@@ -423,7 +424,7 @@ func createPinger(cfg pinger.Config) (pinger.Pinger, error) {
 
 func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string) {
 	d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
-	d.sender.Gauge(pingReachableMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
-	d.sender.Gauge(pingUnreachableMetric, common.BoolToFloat64(!pingResult.CanConnect), tags)
+	d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(pingResult.CanConnect), tags)
+	d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(!pingResult.CanConnect), tags)
 	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 }

@@ -26,6 +26,7 @@ def trigger_macos_workflow(
     version_cache_file_content=None,
     concurrency_key=None,
     fast_tests=None,
+    integrations_core_ref=None,
 ):
     """
     Trigger a workflow to build a MacOS Agent.
@@ -59,12 +60,19 @@ def trigger_macos_workflow(
     if fast_tests is not None:
         inputs["fast_tests"] = fast_tests
 
+    if integrations_core_ref is not None:
+        inputs["integrations_core_ref"] = integrations_core_ref
+
     # Test-only input, only to be passed to the test workflow
     if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":
         inputs["go_test_skip_flake"] = os.environ["GO_TEST_SKIP_FLAKE"]
 
-    # The workflow trigger endpoint doesn't return anything. You need to fetch the workflow run id
-    # by yourself.
+    # The workflow trigger endpoint doesn't return anything.
+    # You need to create a workflow UUID and fetch it by yourself.
+    # See the following
+    #  - https://github.com/orgs/community/discussions/9752
+    #  - https://github.com/orgs/community/discussions/27226
+    #  - https://stackoverflow.com/questions/69479400/get-run-id-after-triggering-a-github-workflow-dispatch-event
     workflow_id = str(uuid.uuid1())
     inputs["id"] = workflow_id
 
@@ -73,7 +81,7 @@ def trigger_macos_workflow(
             github_action_ref, "\n".join([f"  - {k}: {inputs[k]}" for k in inputs])
         )
     )
-    # Hack: get current time to only fetch workflows that started after now.
+    # Hack: get current time to only fetch workflows that started after now
     now = datetime.utcnow()
 
     gh = GithubAPI('DataDog/datadog-agent-macos-build')
@@ -86,20 +94,34 @@ def trigger_macos_workflow(
     # Thus the following hack: Send an id as input when creating a workflow on Github. The worklow will use the id and put it in the name of one of its jobs.
     # We then fetch workflows and check if it contains the id in its job name.
 
+    # Adding another hack to check if the workflow is not waiting a concurrency to be solved before generating the workflow jobs
+    might_be_waiting = set()
+
+    MAX_WAITING_CONCURRENCY_RETRIES = 3  # Retries for up to 1h45
     MAX_RETRIES = 30  # Retry for up to 5 minutes
-    for i in range(MAX_RETRIES):
-        print(f"Fetching triggered workflow (try {i + 1}/{MAX_RETRIES})")
-        recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
-        for recent_run in recent_runs:
-            jobs = recent_run.jobs()
-            if jobs.totalCount >= 2:
-                for job in jobs:
-                    if any([step.name == workflow_id for step in job.steps]):
-                        return recent_run
-            else:
-                print("waiting for jobs to popup...")
-                sleep(5)
-        sleep(10)
+    for i in range(MAX_WAITING_CONCURRENCY_RETRIES):
+        for j in range(MAX_RETRIES):
+            print(f"Fetching triggered workflow (try {j + 1}/{MAX_RETRIES})")
+            recent_runs = gh.workflow_run_for_ref_after_date(workflow_name, github_action_ref, now)
+            for recent_run in recent_runs:
+                jobs = recent_run.jobs()
+                if jobs.totalCount >= 2:
+                    if recent_run.id in might_be_waiting:
+                        might_be_waiting.remove(recent_run.id)
+                    for job in jobs:
+                        if any([step.name == workflow_id for step in job.steps]):
+                            return recent_run
+                else:
+                    might_be_waiting.add(recent_run.id)
+                    print(f"{might_be_waiting} workflows are waiting for jobs to popup...")
+                    sleep(5)
+            sleep(10)
+        if len(might_be_waiting) != 0:
+            print(f"Couldn't find a workflow with expected jobs, and {might_be_waiting} are workflows with no jobs")
+            print(
+                f"This is maybe due to a concurrency issue, retrying ({i + 1}/{MAX_WAITING_CONCURRENCY_RETRIES}) in 30 min"
+            )
+            sleep(1800)
 
     # Something went wrong :(
     print("Couldn't fetch workflow run that was triggered.")
@@ -173,8 +195,13 @@ def print_failed_jobs_logs(run):
 
     for failed_step, log_file in failed_steps.items():
         print(color_message(f"Step: {failed_step} failed:", "red"))
-        print("\n".join(parse_log_file(log_file)))
+        try:
+            print("\n".join(parse_log_file(log_file)))
+        except FileNotFoundError:
+            print(f'Failed to parse {log_file}, file does not exist')
+
     print(color_message("Logs might be incomplete, for complete logs check directly in the worklow logs", "blue"))
+    print(color_message("Workflow run link: " + color_message(run.html_url, "green"), "blue"))
 
 
 def get_failed_jobs(run):

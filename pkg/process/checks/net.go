@@ -18,6 +18,7 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -40,11 +41,12 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
+		wmeta:              wmeta,
 	}
 }
 
@@ -67,6 +69,7 @@ type ConnectionsCheck struct {
 	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
 
 	localresolver *resolver.LocalResolver
+	wmeta         workloadmeta.Component
 }
 
 // ProcessConnRates describes connection rates for processes
@@ -110,7 +113,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.processData.Register(c.serviceExtractor)
 
 	// LocalResolver is a singleton LocalResolver
-	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(), clock.New())
+	c.localresolver = resolver.NewLocalResolver(proccontainers.GetSharedContainerProvider(c.wmeta), clock.New())
 	c.localresolver.Run()
 
 	return nil

@@ -1,49 +1,47 @@
 ---
 include:
-  - /.gitlab/.pre/cancel-prev-pipelines.yml
-  - /.gitlab/benchmarks/include.yml
-  - /.gitlab/binary_build/include.yml
-  - /.gitlab/check_deploy/check_deploy.yml
-  - /.gitlab/check_merge/do_not_merge.yml
-  - /.gitlab/choco_build/choco_build.yml
-  - /.gitlab/choco_deploy/choco_deploy.yml
-  - /.gitlab/common/shared.yml
-  - /.gitlab/common/pr_commenter.yml
-  - /.gitlab/container_build/include.yml
-  - /.gitlab/container_scan/container_scan.yml
-  - /.gitlab/deploy_containers/deploy_containers.yml
-  - /.gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
-  - /.gitlab/deploy_dca/deploy_dca.yml
-  - /.gitlab/deploy_packages/include.yml
-  - /.gitlab/deps_build/deps_build.yml
-  - /.gitlab/deps_fetch/deps_fetch.yml
-  - /.gitlab/dev_container_deploy/include.yml
-  - /.gitlab/e2e/e2e.yml
-  - /.gitlab/e2e_test_junit_upload/e2e_test_junit_upload.yml
-  - /.gitlab/e2e_pre_test/e2e_pre_test.yml
-  - /.gitlab/functional_test/include.yml
-  - /.gitlab/functional_test_cleanup/functional_test_cleanup.yml
-  - /.gitlab/functional_test_junit_upload/include.yml
-  - /.gitlab/install_script_testing/install_script_testing.yml
-  - /.gitlab/integration_test/include.yml
-  - /.gitlab/internal_image_deploy/internal_image_deploy.yml
-  - /.gitlab/internal_kubernetes_deploy/include.yml
-  - /.gitlab/kitchen_cleanup/include.yml
-  - /.gitlab/kitchen_deploy/kitchen_deploy.yml
-  - /.gitlab/kitchen_testing/include.yml
-  - /.gitlab/kitchen_tests_upload/kitchen_tests_upload.yml
-  - /.gitlab/maintenance_jobs/include.yml
-  - /.gitlab/notify/notify.yml
-  - /.gitlab/package_build/include.yml
-  - /.gitlab/packaging/include.yml
-  - /.gitlab/package_deps_build/package_deps_build.yml
-  - /.gitlab/pkg_metrics/pkg_metrics.yml
-  - /.gitlab/post_rc_build/post_rc_tasks.yml
-  - /.gitlab/setup/setup.yml
-  - /.gitlab/software_composition_analysis/software_composition_analysis.yml
-  - /.gitlab/source_test/include.yml
-  - /.gitlab/source_test_junit_upload/source_test_junit_upload.yml
-  - /.gitlab/trigger_release/trigger_release.yml
+  - .gitlab/.pre/cancel-prev-pipelines.yml
+  - .gitlab/benchmarks/include.yml
+  - .gitlab/binary_build/include.yml
+  - .gitlab/check_deploy/check_deploy.yml
+  - .gitlab/check_merge/do_not_merge.yml
+  - .gitlab/choco_build/choco_build.yml
+  - .gitlab/choco_deploy/choco_deploy.yml
+  - .gitlab/common/shared.yml
+  - .gitlab/common/pr_commenter.yml
+  - .gitlab/common/test_infra_version.yml
+  - .gitlab/container_build/include.yml
+  - .gitlab/container_scan/container_scan.yml
+  - .gitlab/deploy_containers/deploy_containers.yml
+  - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
+  - .gitlab/deploy_dca/deploy_dca.yml
+  - .gitlab/deploy_packages/include.yml
+  - .gitlab/deps_build/deps_build.yml
+  - .gitlab/deps_fetch/deps_fetch.yml
+  - .gitlab/dev_container_deploy/include.yml
+  - .gitlab/e2e/e2e.yml
+  - .gitlab/e2e_pre_test/e2e_pre_test.yml
+  - .gitlab/functional_test/include.yml
+  - .gitlab/functional_test_cleanup/functional_test_cleanup.yml
+  - .gitlab/install_script_testing/install_script_testing.yml
+  - .gitlab/integration_test/include.yml
+  - .gitlab/internal_image_deploy/internal_image_deploy.yml
+  - .gitlab/internal_kubernetes_deploy/include.yml
+  - .gitlab/junit_upload/junit_upload.yml
+  - .gitlab/kitchen_cleanup/include.yml
+  - .gitlab/kitchen_deploy/kitchen_deploy.yml
+  - .gitlab/kitchen_testing/include.yml
+  - .gitlab/maintenance_jobs/include.yml
+  - .gitlab/notify/notify.yml
+  - .gitlab/package_build/include.yml
+  - .gitlab/packaging/include.yml
+  - .gitlab/package_deps_build/package_deps_build.yml
+  - .gitlab/pkg_metrics/pkg_metrics.yml
+  - .gitlab/post_rc_build/post_rc_tasks.yml
+  - .gitlab/setup/setup.yml
+  - .gitlab/software_composition_analysis/software_composition_analysis.yml
+  - .gitlab/source_test/include.yml
+  - .gitlab/trigger_release/trigger_release.yml
 
 default:
   retry:
@@ -65,7 +63,6 @@ stages:
   - deps_fetch
   - source_test
   - source_test_stats
-  - source_test_junit_upload
   - software_composition_analysis
   - binary_build
   - package_deps_build
@@ -79,9 +76,7 @@ stages:
   - packaging
   - kitchen_deploy
   - e2e_pre_test
-  - e2e_pre_test_junit_upload
   - kitchen_testing
-  - kitchen_tests_upload
   - pkg_metrics
   - container_build
   - container_scan
@@ -97,12 +92,11 @@ stages:
   - internal_image_deploy
   - install_script_testing
   - e2e
-  - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
   - functional_test_sysprobe
   - functional_test_cleanup
-  - functional_test_junit_upload
+  - junit_upload
   - internal_kubernetes_deploy
   - post_rc_build
   - check_merge
@@ -158,7 +152,7 @@ variables:
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
-  BTFHUB_ARCHIVE_BRANCH: main
+  BTFHUB_ARCHIVE_BRANCH: no-kmod
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -168,25 +162,20 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_WINBUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_ARMBUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v30094440-66830d2d
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v30370116-6cfed421
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30094440-66830d2d
-  # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
-  # and check the job creating the image to make sure you have the right SHA prefix
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  # Make sure to update test-infra-definitions version in go.mod as well
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: eb67dd1667e4
-  DATADOG_AGENT_BUILDERS: v22276738-b36b132
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v30370116-6cfed421
+  DATADOG_AGENT_BUILDERS: v28719426-b6a4fd9
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -218,8 +207,8 @@ variables:
   ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
   CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.changelog_commit_sha  # agent-ci-experience
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-build-and-release
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-build-and-release
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
   DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-ci-experience
   DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-ci-experience
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-developer-tools
@@ -232,13 +221,13 @@ variables:
   KITCHEN_AZURE_TENANT_ID_SSM_NAME: ci.datadog-agent.azure_kitchen_tenant_id  # agent-developer-tools
   GITLAB_SCHEDULER_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_pipelines_scheduler_token  # ci-cd
   GITLAB_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.gitlab_read_api_token  # ci-cd
-  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-build-and-release
+  INSTALL_SCRIPT_API_KEY_SSM_NAME: ci.agent-linux-install-script.datadog_api_key  # agent-build-and-releases
   JIRA_READ_API_TOKEN_SSM_NAME: ci.datadog-agent.jira_read_api_token  # agent-ci-experience
   MACOS_GITHUB_APP_ID_SSM_NAME: ci.datadog-agent.macos_github_app_id  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_SSM_NAME: ci.datadog-agent.macos_github_installation_id  # agent-ci-experience
   MACOS_GITHUB_KEY_SSM_NAME: ci.datadog-agent.macos_github_key_b64  # agent-ci-experience
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-build-and-release
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-build-and-release
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
   SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
   SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
@@ -256,15 +245,14 @@ variables:
   EXECUTOR_JOB_SECTION_ATTEMPTS: 2
   GET_SOURCES_ATTEMPTS: 2
   RESTORE_CACHE_ATTEMPTS: 2
+  # Feature flags
+  FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
 
 #
 # Condition mixins for simplification of rules
 #
 .if_main_branch: &if_main_branch
   if: $CI_COMMIT_BRANCH == "main"
-
-.if_not_main_branch: &if_not_main_branch
-  if: $CI_COMMIT_BRANCH != "main"
 
 .if_release_branch: &if_release_branch
   if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
@@ -289,9 +277,6 @@ variables:
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
-
-.if_not_nightly_repo_branch: &if_not_nightly_repo_branch
-  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly"
 
 .if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
   if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
@@ -355,21 +340,15 @@ variables:
 .if_run_all_unit_tests: &if_run_all_unit_tests
   if: $RUN_UNIT_TESTS == "on"
 
-.if_auto_unit_tests: &if_auto_unit_tests
-  if: $RUN_UNIT_TESTS == "auto"
-
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
-
-.if_deploy_on_stable_repo_branch: &if_deploy_on_stable_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "stable"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
 # Note: due to workflow rules, rc tag => deploy pipeline, so there's technically no
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
-.if_deploy_on_rc_tag_on_beta_repo_branch: &if_rc_tag_on_beta_repo_branch
+.if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
   if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 .if_scheduled_main: &if_scheduled_main
@@ -421,30 +400,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_a6:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-
-.on_a6_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_6
-    when: manual
-    allow_failure: true
-
-.on_a7:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-
-.on_a7_manual:
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_version_7
-    when: manual
-    allow_failure: true
-
 .except_no_a6_or_no_a7:
   - <<: *if_mergequeue
     when: never
@@ -471,24 +426,8 @@ workflow:
     when: manual
     allow_failure: true
 
-.on_main_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_main_branch
-
-.on_main_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_main_branch
-
 .on_tag_or_a7:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_tagged_commit
-  - <<: *if_version_7
-
-.on_tag_or_a7_all_builds:
-  - <<: *if_not_run_all_builds
     when: never
   - <<: *if_tagged_commit
   - <<: *if_version_7
@@ -500,132 +439,11 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
-.on_deploy_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a6_failure:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
-.on_deploy_a6_rc:
-  - <<: *if_not_version_6
-    when: never
+.on_deploy_rc:
   - <<: *if_not_deploy
     when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-.on_deploy_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
-# Same as on_deploy_a6_manual, except the job would not run on pipelines
-# using beta branch, it would only run for the final release.
-.on_deploy_a6_manual_final:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_deploy_on_beta_repo_branch
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
-# This rule is a variation of on_deploy_a6_manual where
-# the job is usually run manually, except when the pipeline
-# builds an RC: in this case, the job is run automatically.
-# This is done to reduce the number of manual steps that have
-# to be done when creating RCs.
-.on_deploy_a6_manual_auto_on_rc:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      IMG_REGISTRIES: dev
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-  - when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent
-      IMG_REGISTRIES: public
-
-.on_deploy_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_a7_failure:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    when: on_failure
-
-.on_deploy_a7_rc:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-    variables:
-      AGENT_REPOSITORY: agent
-      DSD_REPOSITORY: dogstatsd
-      IMG_REGISTRIES: public
-
-.on_deploy_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_deploy
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: manual
-    allow_failure: true
-    variables:
-      AGENT_REPOSITORY: agent-dev
-      DSD_REPOSITORY: dogstatsd-dev
-      IMG_REGISTRIES: dev
-  - when: manual
-    allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
       DSD_REPOSITORY: dogstatsd
@@ -633,10 +451,8 @@ workflow:
 
 # rule to trigger job for internal image deployment if deploy is set or
 # manually if not
-.on_deploy_a7_internal_or_manual:
+.on_deploy_internal_or_manual:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
     variables:
@@ -646,11 +462,9 @@ workflow:
     variables:
       RELEASE_PROD: "false"
 
-# Same as on_deploy_a7_manual, except the job would not run on pipelines
+# Same as on_deploy_manual, except the job would not run on pipelines
 # using beta branch, it would only run for the final release.
-.on_deploy_a7_manual_final:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_manual_final:
   - <<: *if_not_deploy
     when: never
   - <<: *if_deploy_on_beta_repo_branch
@@ -669,14 +483,12 @@ workflow:
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
-# This rule is a variation of on_deploy_a7_manual where
+# This rule is a variation of on_deploy_manual where
 # the job is usually run manually, except when the pipeline
 # builds an RC: in this case, the job is run automatically.
 # This is done to reduce the number of manual steps that have
 # to be done when creating RCs.
-.on_deploy_a7_manual_auto_on_rc:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_manual_auto_on_rc:
   - <<: *if_not_deploy
     when: never
   - <<: *if_not_stable_or_beta_repo_branch
@@ -686,7 +498,7 @@ workflow:
       AGENT_REPOSITORY: agent-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
@@ -704,12 +516,10 @@ workflow:
 # patched, we do not wish to scan this image. For this reason, only
 # agent 7 versions should be published internally using these
 # configurations.
-.on_deploy_a7_internal_rc:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_internal_rc:
   - <<: *if_not_deploy
     when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
+  - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
@@ -717,11 +527,9 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-# Same as on_deploy_a7_manual_final, except the job is used to publish images
+# Same as on_deploy_manual_final, except the job is used to publish images
 # to our internal registries.
-.on_deploy_a7_internal_manual_final:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_internal_manual_final:
   - <<: *if_not_deploy
     when: never
   - <<: *if_deploy_on_beta_repo_branch
@@ -736,16 +544,7 @@ workflow:
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
-.on_deploy_nightly_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_nightly_or_dev_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_nightly_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
+.on_deploy_nightly_repo_branch:
   - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
@@ -755,73 +554,9 @@ workflow:
     when: never
   - <<: *if_deploy
 
-.on_deploy_stable_or_beta_repo_branch_a6:
-  - <<: *if_not_version_6
-    when: never
+.on_deploy_stable_or_beta_repo_branch_manual:
   - <<: *if_not_stable_or_beta_repo_branch
     when: never
-  - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch_a6_manual:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
-.on_deploy_stable_or_beta_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-
-.on_deploy_stable_or_beta_repo_branch_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
-.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-  - <<: *if_deploy_on_stable_repo_branch
-    when: on_success
-  - when: never
-
-.on_deploy_stable_or_rc_tag_on_beta_repo_branch_a7_manual_on_stable:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
-  - <<: *if_deploy_on_stable_repo_branch
-    when: manual
-    allow_failure: true
-  - when: never
-
-# This rule is a variation of on_deploy_stable_or_beta_repo_branch_a7_manual where
-# the job is usually run manually, except when the pipeline
-# builds an RC: in this case, the job is run automatically.
-# This is done to reduce the number of manual steps that have
-# to be done when creating RCs.
-.on_deploy_stable_or_beta_repo_branch_a7_manual_auto_on_rc:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_or_beta_repo_branch
-    when: never
-  - <<: *if_rc_tag_on_beta_repo_branch
-    when: on_success
   - <<: *if_deploy
     when: manual
     allow_failure: true
@@ -839,15 +574,6 @@ workflow:
     allow_failure: true
   - when: on_success
 
-.on_deploy_stable_repo_branch_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_stable_repo_branch
-    when: never
-  - <<: *if_deploy
-    when: manual
-    allow_failure: true
-
 .except_deploy:
   - <<: *if_deploy
     when: never
@@ -856,20 +582,6 @@ workflow:
 .except_no_tests_no_deploy:
   - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
     when: never
-
-.on_a6_except_deploy:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_deploy
-    when: never
-  - when: on_success
-
-.on_a7_except_deploy:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_deploy
-    when: never
-  - when: on_success
 
 .on_main_or_release_branch:
   - <<: *if_main_branch
@@ -900,63 +612,19 @@ workflow:
 .on_all_builds:
   - <<: *if_run_all_builds
 
-.on_all_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_run_all_builds
-
-.on_all_builds_a6_manual:
-  - <<: *if_not_version_6
-    when: never
+.on_all_builds_manual:
   - <<: *if_run_all_builds
     when: manual
     allow_failure: true
 
-.on_all_builds_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_run_all_builds
-
-.on_all_builds_a7_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_run_all_builds
-    when: manual
-    allow_failure: true
-
-.on_kitchen_tests_a6:
-  - <<: *if_not_version_6
-    when: never
+.on_kitchen_tests:
   - <<: *if_installer_tests
 
-.on_kitchen_tests_a6_always:
-  - <<: *if_not_version_6
-    when: never
+.on_kitchen_tests_always:
   - <<: *if_installer_tests
     when: always
 
-.on_all_kitchen_builds_a6:
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_installer_tests
-
-.on_kitchen_tests_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_installer_tests
-
-.on_all_kitchen_builds_a7:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_run_all_builds
-    when: never
-  - <<: *if_installer_tests
-
-.on_all_new-e2e_tests_a7:
-  - <<: *if_not_version_7
-    when: never
+.on_all_new_e2e_tests:
   - <<: *if_not_run_all_builds
     when: never
   - <<: *if_installer_tests
@@ -964,20 +632,16 @@ workflow:
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
-.on_default_kitchen_tests_a7:
+.on_default_kitchen_tests:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_installer_tests
   - <<: *if_auto_e2e_tests
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
-.on_default_new-e2e_tests_a7:
+.on_default_new_e2e_tests:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_disable_e2e_tests
     when: never
@@ -986,10 +650,8 @@ workflow:
     variables:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
 
-.on_default_kitchen_tests_a7_always:
+.on_default_kitchen_tests_always:
   - <<: *if_mergequeue
-    when: never
-  - <<: *if_not_version_7
     when: never
   - <<: *if_installer_tests
     when: always
@@ -1013,8 +675,8 @@ workflow:
   - test/kitchen/test/integration/security-agent-test/**/*
   - test/kitchen/test/integration/security-agent-stress/**/*
   - .gitlab/functional_test/security_agent.yml
-  - .gitlab/kernel_version_testing/security_agent.yml
-  - .gitlab/kernel_version_testing/common.yml
+  - .gitlab/kernel_matrix_testing/security_agent.yml
+  - .gitlab/kernel_matrix_testing/common.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
   - test/new-e2e/runner/**/*
@@ -1033,7 +695,6 @@ workflow:
   - changes:
       paths: *security_agent_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -1092,7 +753,6 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -1132,50 +792,6 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.always_on_container_or_e2e_changes_or_manual:
-  - <<: *if_disable_e2e_tests
-    when: never
-  - <<: *if_mergequeue
-    when: never
-  - <<: *if_run_all_e2e_tests
-    when: always
-  - <<: *if_main_branch
-    when: always
-  - <<: *if_release_branch
-    when: always
-  - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
-    when: always
-  - changes:
-      paths:
-        - test/new-e2e/pkg/**/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - changes:
-      paths:
-        - comp/core/tagger/**/*
-        - comp/core/workloadmeta/**/*
-        - comp/core/autodiscovery/listeners/**/*
-        - comp/core/autodiscovery/providers/**/*
-        - pkg/collector/corechecks/cluster/**/*
-        - pkg/collector/corechecks/containers/**/*
-        - pkg/collector/corechecks/containerimage/**/*
-        - pkg/collector/corechecks/containerlifecycle/**/*
-        - pkg/collector/corechecks/kubernetes/**/*
-        - pkg/collector/corechecks/sbom/**/*
-        - pkg/util/clusteragent/**/*
-        - pkg/util/containerd/**/*
-        - pkg/util/containers/**/*
-        - pkg/util/docker/**/*
-        - pkg/util/ecs/**/*
-        - pkg/util/kubernetes/**/*
-        - pkg/util/cgroups/**/*
-        - test/new-e2e/tests/containers/**/*
-        - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-    when: always
-  - when: manual
-    allow_failure: true
-
 .on_container_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1212,22 +828,6 @@ workflow:
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
-
-.on_any_kmt_test_component_or_manual:
-  - <<: *if_main_branch
-  - <<: *if_run_all_kmt_tests
-  - <<: *if_mergequeue
-    when: never
-  - changes:
-      paths: *system_probe_change_paths
-      compare_to: main
-    when: on_success
-  - changes:
-      paths: *security_agent_change_paths
-      compare_to: main
-    when: on_success
   - when: manual
     allow_failure: true
 
@@ -1311,17 +911,6 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_install_script_release_manual:
-  - <<: *if_not_version_7
-    when: never
-  - <<: *if_not_version_6
-    when: never
-  - <<: *if_not_main_branch
-    when: never
-  - <<: *if_installer_tests
-    when: manual
-    allow_failure: true
-
 .on_apm_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
@@ -1349,9 +938,12 @@ workflow:
     when: on_success
   - changes:
       paths:
+        - .gitlab/**/*
+        - omnibus/config/**/*
         - pkg/updater/**/*
         - cmd/updater/**/*
         - test/new-e2e/tests/updater/**/*
+        - tasks/updater.py
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
@@ -1360,8 +952,10 @@ workflow:
 
 .on_trace_agent_changes_or_manual:
   - changes:
-      - pkg/trace/**/*
-      - .gitlab/benchmarks/*
+      paths:
+        - pkg/trace/**/*
+        - .gitlab/benchmarks/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1434,6 +1028,9 @@ workflow:
     variables:
       FAST_TESTS: "false"
   - <<: *if_release_branch
+    variables:
+      FAST_TESTS: "false"
+  - <<: *if_tagged_commit
     variables:
       FAST_TESTS: "false"
   - <<: *if_triggered_pipeline
