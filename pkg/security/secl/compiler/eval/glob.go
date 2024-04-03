@@ -17,6 +17,7 @@ type Glob struct {
 	elements        []string
 	isScalar        bool
 	caseInsensitive bool
+	normalizePaths  bool
 }
 
 func (g *Glob) contains(filename string) bool {
@@ -112,11 +113,21 @@ func (g *Glob) matches(filename string) bool {
 
 // Contains returns whether the glob pattern matches the beginning of the filename
 func (g *Glob) Contains(filename string) bool {
+	if g.normalizePaths {
+		// normalize to linux-like paths
+		filename = strings.ReplaceAll(filename, "\\", "/")
+	}
+
 	return g.contains(filename)
 }
 
 // Matches the given filename
 func (g *Glob) Matches(filename string) bool {
+	if g.normalizePaths {
+		// normalize to linux-like paths
+		filename = strings.ReplaceAll(filename, "\\", "/")
+	}
+
 	if g.isScalar {
 		if g.caseInsensitive {
 			return strings.EqualFold(g.pattern, filename)
@@ -127,7 +138,12 @@ func (g *Glob) Matches(filename string) bool {
 }
 
 // NewGlob returns a new glob object from the given pattern
-func NewGlob(pattern string, caseInsensitive bool) (*Glob, error) {
+func NewGlob(pattern string, caseInsensitive bool, normalizePaths bool) (*Glob, error) {
+	if normalizePaths {
+		// normalize to linux-like paths
+		pattern = strings.ReplaceAll(pattern, "\\", "/")
+	}
+
 	els := strings.Split(pattern, "/")
 	for i, el := range els {
 		if el == "**" && i+1 != len(els) || strings.Contains(el, "**") && len(el) != len("**") {
@@ -140,5 +156,6 @@ func NewGlob(pattern string, caseInsensitive bool) (*Glob, error) {
 		elements:        els,
 		isScalar:        !strings.Contains(pattern, "*"),
 		caseInsensitive: caseInsensitive,
+		normalizePaths:  normalizePaths,
 	}, nil
 }
