@@ -7,5 +7,6 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - Add startup timestamp to the host metadata payload.
-
+  - |
+    Adding ``dirname`` tag for full filepath log configurations. This tag
+    was only added previously if using a wildcard filepath log configuration.
