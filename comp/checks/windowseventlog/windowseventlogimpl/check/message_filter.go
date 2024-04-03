@@ -58,62 +58,57 @@ func (f *eventMessageFilter) run(w *sync.WaitGroup) {
 	defer w.Done()
 	defer close(f.outCh)
 	for winevent := range f.inCh {
-		e, err := f.renderEvent(winevent)
-		if err != nil {
-			log.Errorf("error processing event: %v", err)
-			continue
+		e := &eventWithMessage{
+			winevent: winevent,
+			evtapi:   f.evtapi,
 		}
 
-		// If the event has rendered text, check it against the regexp patterns to see if
-		// we should send the event or not
-		if !f.includeMessage(e.renderedMessage) {
-			// event did not pass filter, do not output it
-			e.Close()
-			continue
+		err := f.renderEvent(e)
+		if err == nil {
+			// If the event has rendered text, check it against the regexp patterns to see if
+			// we should send the event or not
+			if !f.includeMessage(e.renderedMessage) {
+				// event did not pass filter, do not output it
+				e.Close()
+				continue
+			}
+		} else {
+			log.Errorf("failed to render event: %v", err)
+			// If we failed to render the event, we can't check the message content
+			// but we still want to output the event.
+			// This is how the check has historically functioned, we could consider
+			// adding an option to control this behavior.
 		}
 
 		select {
 		case f.outCh <- e:
 		case <-f.doneCh:
+			e.Close()
 			return
 		}
 	}
 }
 
-func (f *eventMessageFilter) renderEvent(event *evtapi.EventRecord) (*eventWithMessage, error) {
+func (f *eventMessageFilter) renderEvent(e *eventWithMessage) error {
 	// Render the values
-	vals, err := f.evtapi.EvtRenderEventValues(f.systemRenderContext, event.EventRecordHandle)
+	vals, err := f.evtapi.EvtRenderEventValues(f.systemRenderContext, e.winevent.EventRecordHandle)
 	if err != nil {
-		return nil, fmt.Errorf("failed to render values: %w", err)
+		return fmt.Errorf("failed to render values: %w", err)
 	}
-	defer func() {
-		// if we aren't returning the values, close them
-		if vals != nil {
-			vals.Close()
-		}
-	}()
+	e.systemVals = vals
 
 	// Provider
-	providerName, err := vals.String(evtapi.EvtSystemProviderName)
+	providerName, err := e.systemVals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get provider name: %w", err)
+		return fmt.Errorf("failed to get provider name: %w", err)
 	}
 
-	renderedMessage, err := f.getEventMessage(providerName, event)
+	e.renderedMessage, err = f.getEventMessage(providerName, e.winevent)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get event message: %w", err)
+		return fmt.Errorf("failed to get event message: %w", err)
 	}
 
-	// event passed filter, output it
-	e := &eventWithMessage{
-		winevent:        event,
-		systemVals:      vals,
-		renderedMessage: renderedMessage,
-		evtapi:          f.evtapi,
-	}
-	// transfer ownership of vals
-	vals = nil
-	return e, nil
+	return nil
 }
 
 func (f *eventMessageFilter) getEventMessage(providerName string, winevent *evtapi.EventRecord) (string, error) {
