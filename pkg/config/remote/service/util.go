@@ -128,7 +128,7 @@ func openCacheDB(path string, agentVersion string, apiKey string) (*bbolt.DB, er
 	}
 
 	if metadata.Version != agentVersion || metadata.APIKeyHash != apiKeyHash {
-		log.Infof("Different agent version detected")
+		log.Infof("Different agent version or API Key detected")
 		_ = db.Close()
 		return recreate(path, agentVersion, apiKeyHash)
 	}
