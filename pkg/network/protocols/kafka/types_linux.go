@@ -17,10 +17,36 @@ type ConnTuple struct {
 
 type EbpfTx struct {
 	Tup                 ConnTuple
+	Request_started     uint64
 	Request_api_key     uint16
 	Request_api_version uint16
 	Topic_name          [80]byte
 	Topic_name_size     uint16
 	Records_count       uint32
 	Pad_cgo_0           [4]byte
+}
+
+type KafkaTransactionKey struct {
+	Tuple     ConnTuple
+	Id        int32
+	Pad_cgo_0 [4]byte
+}
+type KafkaTransaction struct {
+	Tup                 ConnTuple
+	Request_started     uint64
+	Request_api_key     uint16
+	Request_api_version uint16
+	Topic_name          [80]byte
+	Topic_name_size     uint16
+	Records_count       uint32
+	Pad_cgo_0           [4]byte
+}
+
+type KafkaResponseContext struct {
+	State                    uint8
+	Record_batches_num_bytes int32
+	Record_batch_length      int32
+	Carry_over_offset        int32
+	Partitions_count         uint32
+	Transaction              KafkaTransaction
 }

@@ -12,7 +12,11 @@
 
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
+#define KAFKA_RESPONSE_PARSER_MAX_ITERATIONS 8
+
+#define KAFKA_MAX_ABORTED_TRANSACTIONS 10000
+
 // This controls the number of Kafka transactions read from userspace at a time
-#define KAFKA_BATCH_SIZE 28
+#define KAFKA_BATCH_SIZE 26
 
 #endif

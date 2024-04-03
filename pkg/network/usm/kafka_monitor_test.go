@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 	"github.com/twmb/franz-go/pkg/kversion"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -28,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/google/uuid"
 )
 
 const (
@@ -79,12 +81,12 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 
 type KafkaProtocolParsingSuite struct {
 	suite.Suite
-	testIndex int
 }
 
 func (s *KafkaProtocolParsingSuite) getTopicName() string {
-	s.testIndex++
-	return fmt.Sprintf("%s-%d", "franz-kafka", s.testIndex)
+	// Use unique names for topics to avoid having tests cases
+	// affect each other due to, for example, returning older records.
+	return fmt.Sprintf("%s-%s", "franz-kafka", uuid.New().String())
 }
 
 func TestKafkaProtocolParsing(t *testing.T) {
@@ -140,7 +142,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ConsumeTopics(topicName),
+						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
 					},
 				})
@@ -153,20 +155,23 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-				fetches := client.Client.PollFetches(context.Background())
-				errs := fetches.Errors()
-				for _, err := range errs {
-					t.Errorf("PollFetches error: %+v", err)
-					t.FailNow()
-				}
+				req := kmsg.NewFetchRequest()
+				topic := kmsg.NewFetchRequestTopic()
+				topic.Topic = topicName
+				partition := kmsg.NewFetchRequestTopicPartition()
+				partition.PartitionMaxBytes = 1024
+				topic.Partitions = append(topic.Partitions, partition)
+				req.Topics = append(req.Topics, topic)
+
+				_, err = req.RequestWith(ctxTimeout, client.Client)
+				require.NoError(t, err)
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
 				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
 
-				// kgo client is sending an extra fetch request before running the test, so double the expected fetch request
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
-					expectedNumberOfFetchRequests:   4,
+					expectedNumberOfFetchRequests:   2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
@@ -390,6 +395,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 			configuration: func() *config.Config {
 				cfg := config.New()
 				cfg.EnableHTTPMonitoring = true
+				cfg.MaxTrackedConnections = 1000
 				return cfg
 			},
 		},
@@ -410,7 +416,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					Dialer:        defaultDialer,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ConsumeTopics(topicName),
+						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 					},
 				})
 				require.NoError(t, err)
@@ -423,13 +429,92 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
+				req := kmsg.NewFetchRequest()
+				topic := kmsg.NewFetchRequestTopic()
+				topic.Topic = topicName
+				partition := kmsg.NewFetchRequestTopicPartition()
+				partition.PartitionMaxBytes = 1024
+				topic.Partitions = append(topic.Partitions, partition)
+				req.Topics = append(req.Topics, topic)
 
-				// kgo client is sending an extra fetch request before running the test, so double the expected fetch request
+				_, err = req.RequestWith(ctxTimeout, client.Client)
+				require.NoError(t, err)
+
+				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
+
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 4,
-					expectedNumberOfFetchRequests:   2, // The presence of 2 fetch requests is due to kgo
+					expectedNumberOfProduceRequests: 2 * 2,
+					expectedNumberOfFetchRequests:   2 * 2,
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         11,
+				})
+			},
+			teardown:      kafkaTeardown,
+			configuration: getDefaultTestConfiguration,
+		},
+		{
+			name: "Multiple records with and without batching",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": s.getTopicName(),
+				},
+			},
+			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				topicName := ctx.extras["topic_name"].(string)
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{
+						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.RecordPartitioner(kgo.ManualPartitioner()),
+					},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(topicName))
+
+				record1 := &kgo.Record{Topic: topicName, Partition: 1, Value: []byte("Hello Kafka!")}
+				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
+
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr())
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr())
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
+
+				var batch []*kgo.Record
+				for i := 0; i < 25; i++ {
+					batch = append(batch, record1)
+				}
+				for i := 0; i < 25; i++ {
+					require.NoError(t, client.Client.ProduceSync(ctxTimeout, batch...).FirstErr())
+				}
+
+				req := kmsg.NewFetchRequest()
+				topic := kmsg.NewFetchRequestTopic()
+				topic.Topic = topicName
+				partition := kmsg.NewFetchRequestTopicPartition()
+				partition.PartitionMaxBytes = 1024 * 1024
+				partition1 := kmsg.NewFetchRequestTopicPartition()
+				partition1.Partition = 1
+				partition1.PartitionMaxBytes = 1024 * 1024
+				topic.Partitions = append(topic.Partitions, partition, partition1)
+				req.Topics = append(req.Topics, topic)
+
+				_, err = req.RequestWith(ctxTimeout, client.Client)
+				require.NoError(t, err)
+
+				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
+
+				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: (5 + 25*25) * 2,
+					expectedNumberOfFetchRequests:   (5 + 25*25) * 2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
@@ -511,7 +596,7 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 	require.Equal(t, validation.expectedNumberOfProduceRequests, numberOfProduceRequests,
 		"Expected %d produce requests but got %d", validation.expectedNumberOfProduceRequests, numberOfProduceRequests)
 	require.Equal(t, validation.expectedNumberOfFetchRequests, numberOfFetchRequests,
-		"Expected %d produce requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
+		"Expected %d fetch requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
 }
 
 func testProtocolParsingInner(t *testing.T, params kafkaParsingTestAttributes, cfg *config.Config) {
