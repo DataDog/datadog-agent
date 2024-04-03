@@ -122,7 +122,7 @@ This is the recommended approach, as it automatically configures the proxy jumps
 You can connect manually to the VMs using the IP addresses printed by the following command:
 
 ```bash
-inv -e kmt.stack --stack=demo-stack
+inv -e kmt.status --stack=demo-stack
 ```
 
 To connect to the VM first ssh to the remote machine, if required.
@@ -329,7 +329,7 @@ If you are launching local VMs, you will be queried for your password. This is r
 Prints information about the stack.
 
 ```bash
-inv -e kmt.stack [--stack=<name>]
+inv -e kmt.status [--stack=<name>]
 ```
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.

@@ -112,12 +112,26 @@ def local_vms_in_config(vmconfig: PathOrStr):
     return False
 
 
+def get_all_vms_in_stack(stack: PathOrStr):
+    # Import here to avoid an import loop
+    from tasks.kernel_matrix_testing.vmconfig import get_vmconfig
+
+    data = get_vmconfig(f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}")
+    vms: list[str] = list()
+
+    for vmset in data["vmsets"]:
+        for kernel in vmset.get("kernels", []):
+            if 'recipe' not in vmset:
+                raise Exit("Invalid VMSet, recipe field not found")
+            vms.append(f"{vmset['recipe']}-{kernel['tag']}")
+
+    return vms
+
+
 def kvm_ok() -> None:
     if not os.path.exists("/dev/kvm"):
         error("[-] /dev/kvm not found. KVM not available on system")
         raise Exit("KVM not available")
-
-    info("[+] Kvm available on system")
 
 
 def check_user_in_group(ctx: Context, group: str) -> bool:
