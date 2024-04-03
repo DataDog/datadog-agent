@@ -128,7 +128,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 	// TODO: we should probably cache this info
 	// double check the underlying call doesn't
 	// already do this
-	networkId, err := ec2.GetNetworkID(context.TODO())
+	networkID, err := ec2.GetNetworkID(context.TODO())
 	if err != nil {
 		log.Debugf("failed to get network ID: %s", err.Error())
 	}
@@ -138,7 +138,7 @@ func processResults(r *results.Results, hname string, destinationHost string, de
 		Timestamp: time.Now().UnixMilli(),
 		Source: NetworkPathSource{
 			Hostname:  hname,
-			NetworkID: networkId,
+			NetworkID: networkID,
 		},
 		Destination: NetworkPathDestination{
 			Hostname:  destinationHost,
