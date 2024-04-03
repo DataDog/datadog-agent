@@ -14,18 +14,28 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
-  assign-team-label:
+  assign-team-and-release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install Python dependencies
-        run: pip install -r tasks/requirements.txt
+      - name: Setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+          cache: 'pip'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
       - name: Auto assign team label
         run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
+      - name: Check release note
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: inv -e linter.releasenote
   fetch-labels:
-    needs: assign-team-label
+    needs: assign-team-and-release-note-check
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     outputs:
@@ -37,7 +47,7 @@ jobs:
           labels="$(gh pr view '${{ github.event.pull_request.number }}' --json labels --jq '[.labels[].name] | (join(" "))')"
           echo "Fetched labels for PR ${{github.event.number}}: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
-  team-label:
+  team-label-check:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
@@ -58,7 +68,7 @@ jobs:
           exit 1
         env:
           LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
-  skip-qa:
+  skip-qa-check:
     needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest

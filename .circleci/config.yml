@@ -119,18 +119,6 @@ jobs:
           name: run integration tests
           command: inv -e integration-tests --race --remote-docker
 
-  release_note:
-    <<: *job_template
-    steps:
-      - restore_cache: *restore_source
-      - restore_cache: *restore_deps
-      - run:
-          command: pip install -r tasks/libs/requirements-github.txt
-          name: Install additional requirements
-      - run:
-          command: inv -e linter.releasenote
-          name: run PR check for release note
-
   go_linting:
     <<: *job_template
     resource_class: xlarge
@@ -278,13 +266,6 @@ workflows:
           requires:
             - dependencies
       - integration_tests:
-          requires:
-            - dependencies
-      - release_note:
-          filters:
-            branches:
-              ignore:
-                - main
           requires:
             - dependencies
       - go_linting:

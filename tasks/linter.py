@@ -412,10 +412,10 @@ def releasenote(ctx):
     """
     Lint release notes with Reno
     """
-    branch = os.environ.get("CIRCLE_BRANCH")
-    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    branch = os.environ.get("BRANCH_NAME")
+    pr_url = os.environ.get("PR_ID")
 
-    run_check = is_pr_context(branch, pr_url, "team assignment")
+    run_check = is_pr_context(branch, pr_url, "release note")
     if run_check:
         github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
         pr_id = pr_url.rsplit('/')[-1]
