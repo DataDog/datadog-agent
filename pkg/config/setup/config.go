@@ -1074,7 +1074,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("admission_controller.inject_config.dogstatsd_socket", "unix:///var/run/datadog/dsd.socket")
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.inject_tags.endpoint", "/injecttags")
-	config.BindEnvAndSetDefault("admission_controller.pod_owners_cache_validity", 10) // in minutes
+	config.BindEnvAndSetDefault("admission_controller.inject_tags.pod_owners_cache_validity", 10) // in minutes
+	config.BindEnv("admission_controller.pod_owners_cache_validity")                              // Alias for admission_controller.inject_tags.pod_owners_cache_validity. Was added without the "inject_tags" prefix by mistake but needs to be kept for backwards compatibility
 	config.BindEnvAndSetDefault("admission_controller.namespace_selector_fallback", false)
 	config.BindEnvAndSetDefault("admission_controller.failure_policy", "Ignore")
 	config.BindEnvAndSetDefault("admission_controller.reinvocation_policy", "IfNeeded")
