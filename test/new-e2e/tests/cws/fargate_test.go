@@ -255,13 +255,19 @@ func (s *ecsFargateSuite) TestRulesetLoaded() {
 
 func (s *ecsFargateSuite) TestExecRule() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		testRuleEvent(c, s, execRuleID)
+		testRuleEvent(c, s, execRuleID, func(event *api.RuleEvent) {
+			assert.Equal(c, "exec", event.Evt.Name, "event name should be exec")
+			assert.Equal(c, execFilePath, event.Process.Executable.Path, "exec path does not match")
+		})
 	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *ecsFargateSuite) TestOpenRule() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		testRuleEvent(c, s, openRuleID)
+		testRuleEvent(c, s, openRuleID, func(event *api.RuleEvent) {
+			assert.Equal(c, "open", event.Evt.Name, "event name should be open")
+			assert.Equal(c, openFilePath, event.File.Path, "file path does not match")
+		})
 	}, 1*time.Minute, 5*time.Second)
 }
 

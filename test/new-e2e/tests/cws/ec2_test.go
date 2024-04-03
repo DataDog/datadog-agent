@@ -101,12 +101,12 @@ func (a *agentSuite) Test02OpenSignal() {
 	// Create temporary directory
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
 	dirname := strings.TrimSuffix(tempDir, "\n")
-	filename := fmt.Sprintf("%s/secret", dirname)
+	filepath := fmt.Sprintf("%s/secret", dirname)
 	desc := fmt.Sprintf("e2e test rule %s", a.testID)
 	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 
 	// Create CWS Agent rule
-	rule := fmt.Sprintf("open.file.path == \"%s\"", filename)
+	rule := fmt.Sprintf("open.file.path == \"%s\"", filepath)
 	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
 	require.NoError(a.T(), err, "Agent rule creation failed")
 	agentRuleID := res.Data.GetId()
@@ -169,7 +169,15 @@ func (a *agentSuite) Test02OpenSignal() {
 	}, 2*time.Minute, 20*time.Second)
 
 	// Trigger agent event
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
+
+	// Check backend log
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		testRuleEvent(collect, a, agentRuleName, func(e *api.RuleEvent) {
+			assert.Equal(collect, "open", e.Evt.Name, "event name should be open")
+			assert.Equal(collect, filepath, e.File.Path, "file path does not match")
+		})
+	}, 2*time.Minute, 20*time.Second)
 
 	// Check app signal
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
