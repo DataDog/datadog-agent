@@ -33,8 +33,8 @@ func TestNDMFlowAggregator(t *testing.T) {
 		ndmflows, err := ParseNDMFlowPayload(api.Payload{Data: ndmflowData, Encoding: encodingGzip})
 		assert.NoError(t, err)
 		assert.Equal(t, 16, len(ndmflows))
-		t.Logf("%+v", ndmflows[0])
 
+		t.Logf("%+v", ndmflows[0])
 		assert.Equal(t, int64(1710375648197), ndmflows[0].FlushTimestamp)
 		assert.Equal(t, "netflow5", ndmflows[0].FlowType)
 		assert.Equal(t, uint64(0), ndmflows[0].SamplingRate)
