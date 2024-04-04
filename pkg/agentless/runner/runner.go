@@ -44,7 +44,7 @@ import (
 
 const (
 	// LoggerName is the name of the logger used by this package.
-	LoggerName = "AGENTLESSSCANER"
+	LoggerName = "AGENTLESSSCANNER"
 
 	cleanupMaxDuration     = 2 * time.Minute
 	defaultSnapshotsMaxTTL = 24 * time.Hour
