@@ -235,9 +235,9 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/agent @DataDog/agent-shared-components
-/comp/aggregator @DataDog/agent-shared-components
+/comp/aggregator @DataDog/agent-metrics-logs
 /comp/api @DataDog/agent-shared-components
-/comp/checks @DataDog/agent-shared-components
+/comp/checks @DataDog/agent-metrics-logs
 /comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
@@ -255,7 +255,9 @@
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet
 /comp/agent/jmxlogger @DataDog/agent-metrics-logs
+/comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
+/comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/autodiscovery @DataDog/container-integrations
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
@@ -298,6 +300,8 @@
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
+/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
+/pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/telemetry-and-analytics
 /comp/core/autodiscovery/listeners/           @DataDog/container-integrations
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations

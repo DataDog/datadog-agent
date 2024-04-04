@@ -25,11 +25,11 @@ type Component interface {
 	// IsOngoing returns whether a capture is ongoing for this TrafficCapture instance.
 	IsOngoing() bool
 
-	// Start starts a TrafficCapture and returns an error in the event of an issue.
-	Start(p string, d time.Duration, compressed bool) (string, error)
+	// StartCapture starts a TrafficCapture and returns an error in the event of an issue.
+	StartCapture(p string, d time.Duration, compressed bool) (string, error)
 
-	// Stop stops an ongoing TrafficCapture.
-	Stop()
+	// StopCapture stops an ongoing TrafficCapture.
+	StopCapture()
 
 	// TODO: (components) pool manager should be injected as a component in the future.
 	// RegisterSharedPoolManager registers the shared pool manager with the TrafficCapture.
