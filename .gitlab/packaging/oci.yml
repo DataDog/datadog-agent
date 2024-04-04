@@ -69,8 +69,8 @@ updater_oci:
   extends: .package_oci
   needs:
     [
-      "updater-arm64",
-      "updater-amd64",
+      "updater-arm64-oci",
+      "updater-amd64-oci",
     ]
   variables:
     OCI_PRODUCT: "datadog-updater"
