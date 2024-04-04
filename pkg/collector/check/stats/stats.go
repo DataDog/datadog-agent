@@ -119,7 +119,7 @@ type Stats struct {
 	LastDelay                int64     // most recent check start time delay relative to the previous check run, in seconds
 	LastWarnings             []string  // warnings that occurred in the last run, if any
 	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
-	M                        sync.Mutex
+	m                        sync.Mutex
 	telemetry                bool // do we want telemetry on this Check
 }
 
@@ -162,8 +162,8 @@ func NewStats(c StatsCheck) *Stats {
 
 // Add tracks a new execution time
 func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats SenderStats) {
-	cs.M.Lock()
-	defer cs.M.Unlock()
+	cs.m.Lock()
+	defer cs.m.Unlock()
 
 	cs.LastDelay = calculateCheckDelay(time.Now(), cs, t)
 	if cs.telemetry {
@@ -249,6 +249,13 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 		cs.TotalEventPlatformEvents[k] = cs.TotalEventPlatformEvents[k] + v
 		cs.EventPlatformEvents[k] = v
 	}
+}
+
+// SetStateCancelling sets the check stats to be in a cancelling state
+func (cs *Stats) SetStateCancelling() {
+	cs.m.Lock()
+	defer cs.m.Unlock()
+	cs.Cancelling = true
 }
 
 type aggStats struct {
