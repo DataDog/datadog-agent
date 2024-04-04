@@ -3,12 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ecs contains the definition of the AWS ECS environment.
-package eks
+// Package awskubernetes contains the provisioner for the Kubernetes based environments
+package awskubernetes
 
 import (
-	"fmt"
-
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
@@ -22,8 +20,8 @@ import (
 	localEks "github.com/DataDog/test-infra-definitions/resources/aws/eks"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
@@ -39,142 +37,27 @@ import (
 // eksNodeSelector is the label used to select the node group for tracegen
 const eksNodeSelector = "eks.amazonaws.com/nodegroup"
 
-// ProvisionerParams contains all the parameters needed to create the environment
-type ProvisionerParams struct {
-	agentOptions      []kubernetesagentparams.Option
-	fakeintakeOptions []fakeintake.Option
-
-	extraConfigParams        runner.ConfigMap
-	eksLinuxNodeGroup        bool
-	eksLinuxARMNodeGroup     bool
-	eksBottlerocketNodeGroup bool
-	eksWindowsNodeGroup      bool
-
-	deployDogstatsd  bool
-	workloadAppFuncs []WorkloadAppFunc
-}
-
-func newProvisionerParams() *ProvisionerParams {
-	// We use nil arrays to decide if we should create or not
-	return &ProvisionerParams{
-		agentOptions:      []kubernetesagentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
-
-		extraConfigParams:        runner.ConfigMap{},
-		eksLinuxNodeGroup:        false,
-		eksLinuxARMNodeGroup:     false,
-		eksBottlerocketNodeGroup: false,
-		eksWindowsNodeGroup:      false,
-		deployDogstatsd:          false,
-	}
-}
-
-// GetProvisionerParams return ProvisionerParams from options opts setup
-func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
+// EKSProvisioner creates a new provisioner
+func EKSProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
+	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
+	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
-	err := optional.ApplyOptions(params, opts)
-	if err != nil {
-		panic(fmt.Errorf("unable to apply ProvisionerOption, err: %w", err))
-	}
-	return params
+	_ = optional.ApplyOptions(params, opts)
+
+	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
+		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
+		// and it's easy to forget about it, leading to hard to debug issues.
+		params := newProvisionerParams()
+		_ = optional.ApplyOptions(params, opts)
+
+		return EKSRunFunc(ctx, env, params)
+	}, params.extraConfigParams)
+
+	return provisioner
 }
 
-// ProvisionerOption is a function that modifies the ProvisionerParams
-type ProvisionerOption func(*ProvisionerParams) error
-
-// WithAgentOptions sets the options for the Docker Agent
-func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.agentOptions = append(params.agentOptions, opts...)
-		return nil
-	}
-}
-
-// WithExtraConfigParams sets the extra config params for the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.extraConfigParams = configMap
-		return nil
-	}
-}
-
-// WithFakeIntakeOptions sets the options for the FakeIntake
-func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.fakeintakeOptions = append(params.fakeintakeOptions, opts...)
-		return nil
-	}
-}
-
-// WithEKSLinuxNodeGroup enable aws/ecs/linuxECSOptimizedNodeGroup
-func WithEKSLinuxNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.eksLinuxNodeGroup = true
-		return nil
-	}
-}
-
-// WithEKSLinuxARMNodeGroup enable aws/ecs/linuxECSOptimizedNodeGroup
-func WithEKSLinuxARMNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.eksLinuxARMNodeGroup = true
-		return nil
-	}
-}
-
-// WithEKSBottlerocketNodeGroup enable aws/ecs/linuxECSOptimizedNodeGroup
-func WithEKSBottlerocketNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.eksBottlerocketNodeGroup = true
-		return nil
-	}
-}
-
-// WithECSWindowsNodeGroup enable aws/ecs/windowsLTSCNodeGroup
-func WithEKSWindowsNodeGroup() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.eksWindowsNodeGroup = true
-		return nil
-	}
-}
-
-// WithDeployDogstatsd deploy standalone dogstatd
-func WithDeployDogstatsd() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.deployDogstatsd = true
-		return nil
-	}
-}
-
-// WithoutFakeIntake deactivates the creation of the FakeIntake
-func WithoutFakeIntake() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.fakeintakeOptions = nil
-		return nil
-	}
-}
-
-// WithoutAgent deactivates the creation of the Docker Agent
-func WithoutAgent() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.agentOptions = nil
-		return nil
-	}
-}
-
-// WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
-
-// WithWorkloadApp adds a workload app to the environment
-func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
-		return nil
-	}
-}
-
-// Run deploys a EKS environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.EKS, params *ProvisionerParams) error {
+// EKSRunFunc deploys a EKS environment given a pulumi.Context
+func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 	var awsEnv aws.Environment
 	var err error
 	if env.AwsEnvironment != nil {
