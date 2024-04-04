@@ -205,7 +205,7 @@ variables:
   APP_KEY_ORG2_SSM_NAME: ci.datadog-agent.datadog_app_key_org2  # agent-ci-experience
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token  # agent-ci-experience
   ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
-  CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.changelog_commit_sha  # agent-ci-experience
+  CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-ci-experience
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
   DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
   DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
