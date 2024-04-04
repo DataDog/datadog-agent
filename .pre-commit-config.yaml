@@ -107,3 +107,4 @@ repos:
       language: system
       require_serial: true
       files: (\.yaml|\.sh|Dockerfile)$
+      pass_filenames: false

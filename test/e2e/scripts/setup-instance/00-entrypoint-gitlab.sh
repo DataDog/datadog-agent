@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-euo pipefail
+
+set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
 
