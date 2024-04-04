@@ -208,21 +208,23 @@ func TestRuntimeSettings(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				fx.Supply(
-					settings.NewRuntimeSettingProvider(&runtimeTestSetting{
-						hidden:      false,
-						name:        "foo",
-						description: "foo settings",
-					}),
-					settings.NewRuntimeSettingProvider(&runtimeTestSetting{
-						hidden:      true,
-						name:        "hidden setting",
-						description: "hidden setting",
-					}),
-					settings.NewRuntimeSettingProvider(&runtimeTestSetting{
-						hidden:      false,
-						name:        "bar",
-						description: "bar settings",
-					}),
+					settings.Settings{
+						"foo": &runtimeTestSetting{
+							hidden:      false,
+							name:        "foo",
+							description: "foo settings",
+						},
+						"hidden setting": &runtimeTestSetting{
+							hidden:      true,
+							name:        "hidden setting",
+							description: "hidden setting",
+						},
+						"bar": &runtimeTestSetting{
+							hidden:      false,
+							name:        "bar",
+							description: "bar settings",
+						},
+					},
 				),
 			))
 

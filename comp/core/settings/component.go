@@ -32,10 +32,13 @@ type RuntimeSettingResponse struct {
 	Hidden      bool
 }
 
+// Settings define the runtime settings the component would understand
+type Settings map[string]RuntimeSetting
+
 // Component is the component type.
 type Component interface {
 	// RuntimeSettings returns the configurable settings
-	RuntimeSettings() map[string]RuntimeSetting
+	RuntimeSettings() Settings
 	// GetRuntimeSetting returns the value of a runtime configurable setting
 	GetRuntimeSetting(setting string) (interface{}, error)
 	// SetRuntimeSetting changes the value of a runtime configurable setting

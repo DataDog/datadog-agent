@@ -40,28 +40,28 @@ type dependencies struct {
 	fx.In
 
 	Log      log.Component
-	Settings []settings.RuntimeSetting `group:"runtime_setting"`
+	Settings settings.Settings
 }
 
 type settingsRegistry struct {
-	rwMutex            sync.RWMutex
-	registeredSettings map[string]settings.RuntimeSetting
-	log                log.Component
+	rwMutex  sync.RWMutex
+	settings settings.Settings
+	log      log.Component
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (s *settingsRegistry) RuntimeSettings() map[string]settings.RuntimeSetting {
-	return s.registeredSettings
+func (s *settingsRegistry) RuntimeSettings() settings.Settings {
+	return s.settings
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
 func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error) {
 	s.rwMutex.RLock()
 	defer s.rwMutex.RUnlock()
-	if _, ok := s.registeredSettings[setting]; !ok {
+	if _, ok := s.settings[setting]; !ok {
 		return nil, &settings.SettingNotFoundError{Name: setting}
 	}
-	value, err := s.registeredSettings[setting].Get()
+	value, err := s.settings[setting].Get()
 	if err != nil {
 		return nil, err
 	}
@@ -72,10 +72,10 @@ func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error
 func (s *settingsRegistry) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
 	s.rwMutex.Lock()
 	defer s.rwMutex.Unlock()
-	if _, ok := s.registeredSettings[setting]; !ok {
+	if _, ok := s.settings[setting]; !ok {
 		return &settings.SettingNotFoundError{Name: setting}
 	}
-	return s.registeredSettings[setting].Set(value, source)
+	return s.settings[setting].Set(value, source)
 }
 
 func (s *settingsRegistry) GetFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc {
@@ -134,7 +134,7 @@ func (s *settingsRegistry) GetFullConfig(cfg config.Config, namespaces ...string
 
 func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Request) {
 	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
-	for name, setting := range s.registeredSettings {
+	for name, setting := range s.settings {
 		configurableSettings[name] = settings.RuntimeSettingResponse{
 			Description: setting.Description(),
 			Hidden:      setting.Hidden(),
@@ -200,22 +200,10 @@ func (s *settingsRegistry) SetValue(setting string, w http.ResponseWriter, r *ht
 }
 
 func newSettings(deps dependencies) provides {
-	registeredSettings := map[string]settings.RuntimeSetting{}
-
-	providedSettings := fxutil.GetAndFilterGroup(deps.Settings)
-
-	for _, setting := range providedSettings {
-		if _, ok := registeredSettings[setting.Name()]; ok {
-			deps.Log.Warnf("duplicated settings detected: %s", setting.Name())
-			continue
-		}
-		registeredSettings[setting.Name()] = setting
-	}
-
 	return provides{
 		Comp: &settingsRegistry{
-			registeredSettings: registeredSettings,
-			log:                deps.Log,
+			settings: deps.Settings,
+			log:      deps.Log,
 		},
 	}
 }
