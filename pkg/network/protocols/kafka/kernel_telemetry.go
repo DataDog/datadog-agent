@@ -20,7 +20,7 @@ type kernelTelemetry struct {
 	// pathSizeBucket Count of topic names sizes divided into buckets.
 	pathSizeBucket [TopicNameBuckets]*libtelemetry.Counter
 
-	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
+	// telemetryLastState represents the latest Kafka eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
 }
 
@@ -48,7 +48,7 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 	t.telemetryLastState = *tel
 }
 
-// Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other
+// Sub generates a new RawKernelTelemetry object by subtracting the values of this RawKernelTelemetry object from the other
 func (t *RawKernelTelemetry) Sub(other RawKernelTelemetry) *RawKernelTelemetry {
 	return &RawKernelTelemetry{
 		//Name_exceeds_max_size: t.Name_exceeds_max_size - other.Name_exceeds_max_size,
