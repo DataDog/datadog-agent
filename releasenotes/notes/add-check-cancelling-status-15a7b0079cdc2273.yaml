@@ -8,6 +8,6 @@
 ---
 enhancements:
   - |
-    Updates the agent status output to show if a check is in a cancelling state. Once
+    Updates the Agent status output to show if a check is in a cancelling state. Once
     canceled, the check is removed from the status output.
 
