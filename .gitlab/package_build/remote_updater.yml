@@ -143,6 +143,7 @@ updater-amd64-oci:
   variables:
     DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
   before_script:
+    - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1
 
 updater-arm64-oci:
@@ -150,4 +151,5 @@ updater-arm64-oci:
   variables:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
   before_script:
+    - source /root/.bashrc
     - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1
