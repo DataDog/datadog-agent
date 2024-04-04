@@ -20,7 +20,6 @@ import (
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -43,7 +42,6 @@ type ProvisionerParams struct {
 func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
 		name:              defaultVMName,
-		vmOptions:         []ec2.VMOption{},
 		agentOptions:      []kubernetesagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
