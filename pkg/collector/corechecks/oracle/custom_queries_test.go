@@ -88,6 +88,24 @@ func TestCustomQueries(t *testing.T) {
 	sender.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.c1", []string{"c2:A"})
 }
 
+const customQueryTestConfig = `- metric_prefix: oracle.custom_query.test
+  query: |
+    select 'TAG1', 1.012345 value from dual
+  columns:
+    - name: name
+      type: tag
+    - name: value
+      type: gauge
+`
+
+func assertCustomQuery(t *testing.T, c *Check, s *mocksender.MockSender) {
+	err := c.Run()
+	require.NoError(t, err)
+	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.value", []string{"name:TAG1"})
+	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, c.dbHostname, []string{})
+}
+
 func TestFloat(t *testing.T) {
 	c, s := newRealCheck(t, `custom_queries:
   - metric_prefix: oracle.custom_query.test
@@ -104,4 +122,10 @@ func TestFloat(t *testing.T) {
 	s.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	s.AssertMetricTaggedWith(t, "Gauge", "oracle.custom_query.test.value", []string{"name:TAG1"})
 	s.AssertMetric(t, "Gauge", "oracle.custom_query.test.value", 1.012345, c.dbHostname, []string{})
+}
+
+func TestGlobalCustomQueries(t *testing.T) {
+	globalCustomQueries := fmt.Sprintf("global_custom_queries:\n%s", customQueryTestConfig)
+	c, s := newTestCheck(t, getDefaultConnectData(USER), "", globalCustomQueries)
+	assertCustomQuery(t, &c, s)
 }
