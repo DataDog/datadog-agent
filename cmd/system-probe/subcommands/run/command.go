@@ -286,13 +286,6 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 
 	setupInternalProfiling(sysprobeconfig, configPrefix, log)
 
-	if cliParams.pidfilePath != "" {
-		if err := pidfile.WritePID(cliParams.pidfilePath); err != nil {
-			return log.Errorf("error while writing PID file, exiting: %s", err)
-		}
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
-	}
-
 	err = manager.ConfigureAutoExit(ctx, sysprobeconfig)
 	if err != nil {
 		return log.Criticalf("unable to configure auto-exit: %s", err)
