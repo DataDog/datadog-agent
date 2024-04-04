@@ -31,7 +31,7 @@ jobs:
       - name: Build full comment
         id: old_versions
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           # build the base of the Github URL to the current commit
           GITHUB_HEAD_URL='${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}'
           {
