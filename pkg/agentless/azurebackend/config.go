@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	globalConfigs   sync.Map
+	globalConfigs   map[string]Config
 	globalConfigsMu sync.Mutex
 )
 
@@ -58,12 +58,12 @@ func GetConfigFromCloudID(ctx context.Context, statsd ddogstatsd.ClientInterface
 
 // GetConfig returns the configuration for the given subscription ID.
 func GetConfig(ctx context.Context, _ ddogstatsd.ClientInterface, sc *types.ScannerConfig, subscriptionID string) (Config, error) {
-	if cfg, ok := globalConfigs.Load(subscriptionID); ok {
-		return cfg.(Config), nil
-	}
-
 	globalConfigsMu.Lock()
 	defer globalConfigsMu.Unlock()
+
+	if cfg, ok := globalConfigs[subscriptionID]; ok {
+		return cfg, nil
+	}
 
 	var cred azcore.TokenCredential
 	var err error
@@ -95,6 +95,9 @@ func GetConfig(ctx context.Context, _ ddogstatsd.ClientInterface, sc *types.Scan
 		ScannerLocation:      metadata.Compute.Location,
 		ScannerResourceGroup: metadata.Compute.ResourceGroupName,
 	}
-	globalConfigs.Store(subscriptionID, cfg)
+	if globalConfigs == nil {
+		globalConfigs = make(map[string]Config)
+	}
+	globalConfigs[subscriptionID] = cfg
 	return cfg, nil
 }
