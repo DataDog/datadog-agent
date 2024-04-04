@@ -36,6 +36,8 @@ import (
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/agent"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
@@ -51,8 +53,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 
+	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -111,8 +116,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
-	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -155,13 +158,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		return fxutil.OneShot(run,
-			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
+			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -204,7 +207,6 @@ func run(log log.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
-	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
 	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
@@ -220,10 +222,13 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ pid.Component,
+	metadatascheduler metadatascheduler.Component,
+	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, agentAPI)
+		stopAgent(agentAPI)
 	}()
 
 	// prepare go runtime
@@ -263,7 +268,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams,
+	if err := startAgent(
 		log,
 		flare,
 		telemetry,
@@ -284,6 +289,8 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
+		metadatascheduler,
+		jmxlogger,
 	); err != nil {
 		return err
 	}
@@ -386,7 +393,7 @@ func getSharedFxOption() fx.Option {
 		fx.Supply(eventplatformimpl.NewDefaultParams()),
 		eventplatformreceiverimpl.Module(),
 
-		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
+		// injecting the shared Serializer to FX until we migrate it to a proper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
@@ -397,6 +404,7 @@ func getSharedFxOption() fx.Option {
 		collectorimpl.Module(),
 		process.Bundle(),
 		agent.Bundle(),
+		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           config.GetInt("health_port"),
@@ -409,7 +417,6 @@ func getSharedFxOption() fx.Option {
 
 // startAgent Initializes the agent process
 func startAgent(
-	cliParams *cliParams,
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -430,34 +437,11 @@ func startAgent(
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ metadatascheduler.Component,
+	jmxLogger jmxlogger.Component,
 ) error {
 
 	var err error
-
-	// Setup logger
-	syslogURI := pkgconfig.GetSyslogURI()
-	jmxLogFile := pkgconfig.Datadog.GetString("jmx_log_file")
-	if jmxLogFile == "" {
-		jmxLogFile = path.DefaultJmxLogFile
-	}
-
-	if pkgconfig.Datadog.GetBool("disable_file_logging") {
-		// this will prevent any logging on file
-		jmxLogFile = ""
-	}
-
-	// Setup JMX logger
-	jmxLoggerSetupErr := pkgconfig.SetupJMXLogger(
-		jmxLogFile,
-		syslogURI,
-		pkgconfig.Datadog.GetBool("syslog_rfc"),
-		pkgconfig.Datadog.GetBool("log_to_console"),
-		pkgconfig.Datadog.GetBool("log_format_json"),
-	)
-
-	if jmxLoggerSetupErr != nil {
-		return fmt.Errorf("Error while setting up logging, exiting: %v", jmxLoggerSetupErr)
-	}
 
 	if flavor.GetFlavor() == flavor.IotAgent {
 		log.Infof("Starting Datadog IoT Agent v%v", version.AgentVersion)
@@ -498,14 +482,6 @@ func startAgent(
 	}()
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-
-	if cliParams.pidfilePath != "" {
-		err = pidfile.WritePID(cliParams.pidfilePath)
-		if err != nil {
-			return log.Errorf("Error while writing PID file, exiting: %v", err)
-		}
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
-	}
 
 	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
 	if err != nil {
@@ -602,7 +578,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Init JMX runner and inject dogstatsd component
-	jmx.InitRunner(server)
+	jmx.InitRunner(server, jmxLogger)
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)
@@ -616,15 +592,6 @@ func startAgent(
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
 
-	// setup the metadata collection
-	//
-	// The last metadata provider relying on `pkg/metadata` is "agent_checks" from the collector.
-	// TODO: (components) - Remove this once the collector and its metadata provider are a component.
-	common.MetadataScheduler = pkgMetadata.NewScheduler(demultiplexer)
-	if err := pkgMetadata.SetupMetadataCollection(common.MetadataScheduler, pkgMetadata.AllDefaultCollectors); err != nil {
-		return err
-	}
-
 	// start dependent services
 	go startDependentServices()
 
@@ -633,11 +600,11 @@ func startAgent(
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
 func StopAgentWithDefaults(agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, agentAPI)
+	stopAgent(agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
+func stopAgent(agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -653,17 +620,12 @@ func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 		}
 	}
 
-	if common.MetadataScheduler != nil {
-		common.MetadataScheduler.Stop()
-	}
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 
 	gui.StopGUIServer()
 	profiler.Stop()
-
-	os.Remove(cliParams.pidfilePath)
 
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()

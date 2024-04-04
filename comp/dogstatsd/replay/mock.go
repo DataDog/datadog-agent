@@ -38,8 +38,8 @@ func (tc *mockTrafficCapture) IsOngoing() bool {
 	return tc.isRunning
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
+// StartCapture does nothign on the mock
+func (tc *mockTrafficCapture) StartCapture(_ string, _ time.Duration, _ bool) (string, error) {
 	tc.Lock()
 	defer tc.Unlock()
 	tc.isRunning = true
@@ -47,8 +47,8 @@ func (tc *mockTrafficCapture) Start(p string, d time.Duration, compressed bool) 
 
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) Stop() {
+// StopCapture does nothign on the mock
+func (tc *mockTrafficCapture) StopCapture() {
 	tc.Lock()
 	defer tc.Unlock()
 	tc.isRunning = false
