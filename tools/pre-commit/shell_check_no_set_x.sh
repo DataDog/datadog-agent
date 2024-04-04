@@ -2,7 +2,7 @@
 
 # Verify no set -x is used in this repository
 
-files="$(git grep -rn --color=always 'set -.*x' -- ':*.sh' ':*/Dockerfile' ':*.yaml' ':*.yml' ":(exclude)$0" ':(exclude).pre-commit-config.yaml')"
+files="$(git grep -rnE --color=always 'set( +-[^ ])* +-[^ ]*(x|( +xtrace))' -- ':*.sh' ':*/Dockerfile' ':*.yaml' ':*.yml' ":(exclude)$0" ':(exclude).pre-commit-config.yaml')"
 
 if [ -n "$files" ]; then
     echo "$files" >& 2
