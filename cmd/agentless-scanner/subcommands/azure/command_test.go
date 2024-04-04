@@ -4,8 +4,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"testing"
 
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
-
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,8 +15,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		grp.Commands(),
 		[]string{"attach", "plop"},
 		azureAttachCmd,
-		func(params *azureAttachParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *azureAttachParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
@@ -30,8 +27,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		grp.Commands(),
 		[]string{"scan", "/"},
 		azureScanCmd,
-		func(params *azureScanParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *azureScanParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
@@ -43,8 +39,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		grp.Commands(),
 		[]string{"offline", "--resource-group", "plop"},
 		azureOfflineCmd,
-		func(params *azureOfflineParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *azureOfflineParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)

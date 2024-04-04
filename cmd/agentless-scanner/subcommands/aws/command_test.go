@@ -6,21 +6,18 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
-
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestStartAgentlessScannerAzure(t *testing.T) {
+func TestStartAgentlessScannerAWS(t *testing.T) {
 	grp := GroupCommand()
 
 	fxutil.TestOneShotSubcommand(t,
 		grp.Commands(),
 		[]string{"scan", "plop"},
 		awsScanCmd,
-		func(params *awsScanParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *awsScanParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
@@ -32,8 +29,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		grp.Commands(),
 		[]string{"snapshot", "plop"},
 		awsSnapshotCmd,
-		func(params *awsSnapshotParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *awsSnapshotParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
@@ -44,8 +40,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		grp.Commands(),
 		[]string{"offline"},
 		awsOfflineCmd,
-		func(params *awsOfflineParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *awsOfflineParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
@@ -60,8 +55,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		grp.Commands(),
 		[]string{"attach", "plop"},
 		awsAttachCmd,
-		func(params *awsAttachParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *awsAttachParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
@@ -73,8 +67,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		grp.Commands(),
 		[]string{"cleanup"},
 		awsCleanupCmd,
-		func(params *awsCleanupParams, log complog.Component, sc *types.ScannerConfig) {
-			require.NotNil(t, log)
+		func(params *awsCleanupParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
