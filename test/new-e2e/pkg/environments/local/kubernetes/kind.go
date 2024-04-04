@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -169,7 +169,10 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		}
 
 		if params.agentOptions != nil {
-			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
+			excludeFakeintakeEnvVars := map[string]string{
+				"DD_CONTAINER_EXCLUDE": "name:fakeintake*",
+			}
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake), kubernetesagentparams.WithEnvironmentVariables(excludeFakeintakeEnvVars)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
 	} else {
