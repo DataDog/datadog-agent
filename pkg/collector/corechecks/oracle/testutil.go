@@ -18,6 +18,7 @@ import (
 	oracle_common "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func initCheck(t *testing.T, senderManager sender.SenderManager, server string, port int, user string, password string, serviceName string) (Check, error) {
@@ -73,6 +74,58 @@ service_name: %s
 	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
 
 	return c, sender
+}
+
+func newLegacyCheck(t *testing.T, instanceConfigAddition string) (Check, *mocksender.MockSender) {
+	// The database user `datadog_legacy` is set up according to
+	// https://docs.datadoghq.com/integrations/guide/deprecated-oracle-integration/?tab=linux
+	return newTestCheck(t, getDefaultConnectData("datadog_legacy"), instanceConfigAddition, "")
+}
+
+type testConnectConfig struct {
+	Username    string
+	Password    string
+	Server      string
+	Port        int
+	ServiceName string `yaml:"service_name,omitempty"`
+}
+
+func newTestCheck(t *testing.T, connectConfig testConnectConfig, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
+	c := Check{}
+	var err error
+	connectYaml, err := yaml.Marshal(connectConfig)
+	require.NoError(t, err)
+	instanceConfig := string(connectYaml)
+	if instanceConfigAddition != "" {
+		instanceConfig = fmt.Sprintf("%s\n%s", instanceConfig, instanceConfigAddition)
+	}
+	rawInstanceConfig := []byte(instanceConfig)
+	rawInitConfig := []byte(initConfig)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err = c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "oracle_test")
+	require.NoError(t, err)
+
+	sender := mocksender.NewMockSenderWithSenderManager(c.ID(), senderManager)
+	sender.SetupAcceptAll()
+	assert.Equal(t, c.config.InstanceConfig.Server, connectConfig.Server)
+	assert.Equal(t, c.config.InstanceConfig.Port, connectConfig.Port)
+	assert.Equal(t, c.config.InstanceConfig.Username, connectConfig.Username)
+	assert.Equal(t, c.config.InstanceConfig.Password, connectConfig.Password)
+	assert.Equal(t, c.config.InstanceConfig.ServiceName, connectConfig.ServiceName)
+
+	assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
+
+	return c, sender
+}
+
+func getDefaultConnectData(username string) testConnectConfig {
+	return testConnectConfig{
+		Username:    username,
+		Password:    PASSWORD,
+		Server:      HOST,
+		Port:        PORT,
+		ServiceName: SERVICE_NAME,
+	}
 }
 
 func skipGodror() bool {

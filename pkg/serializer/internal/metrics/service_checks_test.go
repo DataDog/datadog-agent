@@ -22,16 +22,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
 func TestMarshalJSONServiceChecks(t *testing.T) {
 	serviceChecks := ServiceChecks{{
-		CheckName: "my_service.can_connect",
-		Host:      "my-hostname",
-		Ts:        int64(12345),
-		Status:    servicecheck.ServiceCheckOK,
-		Message:   "my_service is up",
-		Tags:      []string{"tag1", "tag2:yes"},
+		CheckName:  "my_service.can_connect",
+		Host:       "my-hostname",
+		Ts:         int64(12345),
+		Status:     servicecheck.ServiceCheckOK,
+		Message:    "my_service is up",
+		Tags:       []string{"tag1", "tag2:yes"},
+		OriginInfo: taggertypes.OriginInfo{},
 	}}
 
 	payload, err := serviceChecks.MarshalJSON()
@@ -44,12 +46,13 @@ func TestSplitServiceChecks(t *testing.T) {
 	var serviceChecks = ServiceChecks{}
 	for i := 0; i < 2; i++ {
 		sc := servicecheck.ServiceCheck{
-			CheckName: "test.check",
-			Host:      "test.localhost",
-			Ts:        1000,
-			Status:    servicecheck.ServiceCheckOK,
-			Message:   "this is fine",
-			Tags:      []string{"tag1", "tag2:yes"},
+			CheckName:  "test.check",
+			Host:       "test.localhost",
+			Ts:         1000,
+			Status:     servicecheck.ServiceCheckOK,
+			Message:    "this is fine",
+			Tags:       []string{"tag1", "tag2:yes"},
+			OriginInfo: taggertypes.OriginInfo{},
 		}
 		serviceChecks = append(serviceChecks, &sc)
 	}
@@ -66,12 +69,14 @@ func TestSplitServiceChecks(t *testing.T) {
 
 func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 	return &servicecheck.ServiceCheck{
-		CheckName: checkName,
-		Host:      "2",
-		Ts:        3,
-		Status:    servicecheck.ServiceCheckUnknown,
-		Message:   "4",
-		Tags:      []string{"5", "6"}}
+		CheckName:  checkName,
+		Host:       "2",
+		Ts:         3,
+		Status:     servicecheck.ServiceCheckUnknown,
+		Message:    "4",
+		Tags:       []string{"5", "6"},
+		OriginInfo: taggertypes.OriginInfo{},
+	}
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
