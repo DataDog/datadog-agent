@@ -34,6 +34,15 @@ func TestSendDeviceMetrics(t *testing.T) {
 			DiskUsed:   30,
 			DiskAvail:  70,
 		},
+		{
+			SystemIP:  "10.0.0.1",
+			EntryTime: 11000,
+			CPUUser:   10,
+			CPUSystem: 10,
+			MemUtil:   0.56,
+			DiskUsed:  30,
+			DiskAvail: 70,
+		},
 	}
 
 	mockSender := mocksender.NewMockSender("foo")
@@ -57,10 +66,11 @@ func TestSendDeviceMetrics(t *testing.T) {
 	}
 
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"cpu.usage", 30+10, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"cpu.usage", 10+10, "", expectedTags, 11) // Assert we fallback to cpu_user
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"memory.usage", float64(0.56)*100, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"disk.usage", 30, "", expectedTags, 10)
 	require.Equal(t, map[string]float64{
-		"device_metrics:test:tag,test2:tag2": 10000,
+		"device_metrics:test:tag,test2:tag2": 11000,
 	}, sender.lastTimeSent)
 
 	devices = append(devices, client.DeviceStatistics{

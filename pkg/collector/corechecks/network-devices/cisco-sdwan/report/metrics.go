@@ -52,9 +52,14 @@ func (ms *SDWanSender) SendDeviceMetrics(deviceStats []client.DeviceStatistics) 
 		setNewSentTimestamp(newTimestamps, key, entry.EntryTime)
 
 		ts := entry.EntryTime / 1000
+		cpuUser := entry.CPUUserNew
+		if cpuUser == 0 {
+			// fallback to cpu_user
+			cpuUser = entry.CPUUser
+		}
 		diskUsage := entry.DiskUsed / (entry.DiskUsed + entry.DiskAvail) * 100
 
-		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"cpu.usage", entry.CPUUserNew+entry.CPUSystem, tags, ts) // Using CPUUserNew and CPUSystem (not new...) to match vManage UI
+		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"cpu.usage", cpuUser+entry.CPUSystem, tags, ts) // Using CPUUserNew and CPUSystem (not new...) to match vManage UI
 		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"memory.usage", entry.MemUtil*100, tags, ts)
 		ms.gaugeWithTimestamp(ciscoSDWANMetricPrefix+"disk.usage", diskUsage, tags, ts)
 	}
