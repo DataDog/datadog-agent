@@ -9,11 +9,13 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 )
 
 type windowsSecretSuite struct {
@@ -21,12 +23,13 @@ type windowsSecretSuite struct {
 }
 
 func TestWindowsSecretSuite(t *testing.T) {
-	e2e.Run(t, &windowsSecretSuite{}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
+	e2e.Run(t, &windowsSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
 }
 
 func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
-	output := v.Env().Agent.Secret()
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
+
+	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
 	assert.Contains(v.T(), output, "Executable permissions: error: secretBackendCommand '/does/not/exist' does not exist")
@@ -34,10 +37,9 @@ func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 }
 
 func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
 
-	output := v.Env().Agent.Secret()
-
+	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: C:\\Windows\\system32\\cmd.exe")
 	assert.Regexp(v.T(), "Executable permissions: error: invalid executable 'C:\\\\Windows\\\\system32\\\\cmd.exe': other users/groups than LOCAL_SYSTEM, .+ have rights on it", output)
@@ -48,27 +50,37 @@ func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 var secretSetupScript []byte
 
 func (v *windowsSecretSuite) TestAgentSecretCorrectPermissions() {
-	config := `secret_backend_command: C:\secret.bat
+	config := `secret_backend_command: C:\TestFolder\secret.bat
 host_aliases:
   - ENC[alias_secret]`
 
 	// We embed a script that file create the secret binary (C:\secret.bat) with the correct permissions
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)),
-		e2e.WithAgentParams(agentparams.WithFile(`C:/secret.bat`, string(secretSetupScript), true)),
-		e2e.WithAgentParams(agentparams.WithFile(`C:/Users/Administator/scripts/setup_secret.ps1`, string(secretSetupScript), true))))
-	v.Env().VM.Execute(`C:/Users/Administator/scripts/setup_secret.ps1 -FilePath "C:/secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithAgentParams(agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithAgentOptions(
+				agentparams.WithFile(`C:/TestFolder/setup_secret.ps1`, string(secretSetupScript), true),
+			),
+		),
+	)
 
-	output := v.Env().Agent.Secret()
+	v.Env().RemoteHost.MustExecute(`C:/TestFolder/setup_secret.ps1 -FilePath "C:/TestFolder/secret.bat" -FileContent '@echo {"alias_secret": {"value": "a_super_secret_string"}}'`)
 
+	v.UpdateEnv(
+		awshost.Provisioner(
+			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
+			awshost.WithAgentOptions(agentparams.WithAgentConfig(config))),
+	)
+
+	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
-	assert.Contains(v.T(), output, "Executable path: C:\\secret.bat")
+	assert.Contains(v.T(), output, "Executable path: C:\\TestFolder\\secret.bat")
 	assert.Contains(v.T(), output, "Executable permissions: OK, the executable has the correct permissions")
 
 	ddagentRegex := `Access : .+\\ddagentuser Allow  ReadAndExecute`
 	assert.Regexp(v.T(), ddagentRegex, output)
 	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
-	assert.Contains(v.T(), output, "- 'alias_secret':\r\n\tused in 'datadog.yaml' configuration in entry 'host_aliases'")
+	assert.Contains(v.T(), output, "- 'alias_secret':\r\n\tused in 'datadog.yaml' configuration in entry 'host_aliases")
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }

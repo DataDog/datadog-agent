@@ -15,6 +15,8 @@ import (
 )
 
 const (
+	pingURL              = "http://unix/" + string(sysconfig.PingModule) + "/ping/"
+	tracerouteURL        = "http://unix/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	connectionsURL       = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/connections"
 	procStatsURL         = "http://unix/" + string(sysconfig.ProcessModule) + "/stats"
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"

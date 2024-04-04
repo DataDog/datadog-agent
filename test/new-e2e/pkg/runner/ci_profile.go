@@ -38,13 +38,14 @@ func NewCIProfile() (Profile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to get pulumi state password, err: %w", err)
 	}
+	// TODO move to job script
 	os.Setenv("PULUMI_CONFIG_PASSPHRASE", passVal)
 
 	// Building name prefix
-	pipelineID := os.Getenv("CI_PIPELINE_ID")
+	jobID := os.Getenv("CI_JOB_ID")
 	projectID := os.Getenv("CI_PROJECT_ID")
-	if pipelineID == "" || projectID == "" {
-		return nil, fmt.Errorf("unable to compute name prefix, missing variables pipeline id: %s, project id: %s", pipelineID, projectID)
+	if jobID == "" || projectID == "" {
+		return nil, fmt.Errorf("unable to compute name prefix, missing variables job id: %s, project id: %s", jobID, projectID)
 	}
 
 	store := parameters.NewEnvStore(EnvPrefix)
@@ -63,9 +64,12 @@ func NewCIProfile() (Profile, error) {
 
 	ciEnvironments := strings.Split(environmentsStr, " ")
 
+	// get output root from env, if not found, empty string "" will tell base profile to use default
+	outputRoot := os.Getenv("CI_PROJECT_DIR")
+
 	return ciProfile{
-		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
-		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
+		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
+		ciUniqueID:  "ci-" + jobID + "-" + projectID,
 	}, nil
 }
 

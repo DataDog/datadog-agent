@@ -1,84 +1,35 @@
 import json
 import os
+import pathlib
 import re
 import subprocess
 from collections import defaultdict
 from typing import Dict
 
-from .common.gitlab import Gitlab, get_gitlab_token
-from .types import FailedJobs, Test
+import yaml
 
-DEFAULT_SLACK_CHANNEL = "#agent-platform"
-DEFAULT_JIRA_PROJECT = "AGNTR"
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.types import FailedJobs, Test
+
+
+def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> Dict[str, str]:
+    p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
+
+    result: Dict[str, str] = {}
+    with p.open(encoding='utf-8') as file_stream:
+        for key, value in yaml.safe_load(file_stream).items():
+            if not (type(key) is str and type(value) is str):
+                raise ValueError(f"File {file_name} contains a non-string key or value. Key: {key}, Value: {value}")
+            result[key] = default_value if value == default_placeholder else value
+    return result
+
+
 DATADOG_AGENT_GITHUB_ORG_URL = "https://github.com/DataDog"
+DEFAULT_SLACK_CHANNEL = "#agent-developer-experience"
+DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
-GITHUB_SLACK_MAP = {
-    "@datadog/agent-platform": DEFAULT_SLACK_CHANNEL,
-    "@datadog/documentation": DEFAULT_SLACK_CHANNEL,
-    "@datadog/container-integrations": "#container-integrations",
-    "@datadog/platform-integrations": "#platform-integrations-ops",
-    "@datadog/agent-security": "#security-and-compliance-agent-ops",
-    "@datadog/agent-apm": "#apm-agent",
-    "@datadog/network-device-monitoring": "#network-device-monitoring",
-    "@datadog/processes": "#process-agent-ops",
-    "@datadog/agent-metrics-logs": "#agent-metrics-logs",
-    "@datadog/agent-shared-components": "#agent-shared-components",
-    "@datadog/container-app": "#container-app",
-    "@datadog/metrics-aggregation": "#metrics-aggregation",
-    "@datadog/serverless": "#serverless-agent",
-    "@datadog/remote-config": "#remote-config-monitoring",
-    "@datadog/fleet": "#fleet-automation",
-    "@datadog/agent-all": "#datadog-agent-pipelines",
-    "@datadog/ebpf-platform": "#ebpf-platform-ops",
-    "@datadog/networks": "#network-performance-monitoring",
-    "@datadog/universal-service-monitoring": "#universal-service-monitoring",
-    "@datadog/windows-agent": "#windows-agent-ops",
-    "@datadog/windows-kernel-integrations": "#windows-kernel-integrations",
-    "@datadog/opentelemetry": "#opentelemetry-ops",
-    "@datadog/agent-e2e-testing": "#agent-testing-and-qa",
-    "@datadog/software-integrity-and-trust": "#sit",
-    "@datadog/single-machine-performance": "#single-machine-performance",
-    "@datadog/agent-integrations": "#agent-integrations",
-    "@datadog/debugger": "#debugger-ops-prod",
-    "@datadog/database-monitoring": "#database-monitoring",
-    "@datadog/agent-cspm": "#k9-cspm-ops",
-    "@datadog/telemetry-and-analytics": "#instrumentation-telemetry",
-    "@datadog/asm-go": "#k9-asm-library-go",
-}
-
-GITHUB_JIRA_MAP = {
-    "@datadog/agent-platform": "APL",
-    "@datadog/documentation": "DOCS",
-    "@datadog/container-integrations": "CONTINT",
-    "@datadog/platform-integrations": "PLINT",
-    "@datadog/agent-security": "SEC",
-    "@datadog/agent-apm": "AIT",
-    "@datadog/network-device-monitoring": "NDMII",
-    "@datadog/processes": "PROCS",
-    "@datadog/agent-metrics-logs": "AMLII",
-    "@datadog/agent-shared-components": "ASCII",
-    "@datadog/container-app": "CAP",
-    "@datadog/metrics-aggregation": "AGGR",
-    "@datadog/serverless": "SVLS",
-    "@datadog/remote-config": "RC",
-    "@datadog/fleet": "RC",
-    "@datadog/agent-all": DEFAULT_JIRA_PROJECT,
-    "@datadog/ebpf-platform": "EBPF",
-    "@datadog/networks": "NPM",
-    "@datadog/universal-service-monitoring": "USMON",
-    "@datadog/windows-agent": "WINA",
-    "@datadog/windows-kernel-integrations": "WKINT",
-    "@datadog/opentelemetry": "OTEL",
-    "@datadog/agent-e2e-testing": "APL",
-    "@datadog/software-integrity-and-trust": "SINT",
-    "@datadog/single-machine-performance": "SMP",
-    "@datadog/agent-integrations": "AI",
-    "@datadog/debugger": "DEBUG",
-    "@datadog/database-monitoring": "DBMON",
-    "@datadog/agent-cspm": "SEC",
-    "@datadog/telemetry-and-analytics": DEFAULT_JIRA_PROJECT,
-    "@datadog/asm-go": "APPSEC",
-}
+GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
 
 
 def read_owners(owners_file):
@@ -141,7 +92,7 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     for job in failed_jobs.all_non_infra_failures():
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
-        # eg. [('TEAM', '@DataDog/agent-platform')]
+        # eg. [('TEAM', '@DataDog/agent-ci-experience')]
 
         for kind, owner in job_owners:
             if kind == "TEAM":

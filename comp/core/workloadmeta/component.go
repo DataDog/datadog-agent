@@ -7,27 +7,16 @@
 package workloadmeta
 
 import (
-	"context"
-
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: container-integrations
 
 // Component is the component type.
 type Component interface {
-	// TODO(components): Start method is currently unused in components and is
-	//                   a legacy method from pre-componentization and will probably
-	//                   not need to ever be part of the component interface. Clean-up
-	//                   the workloademeta.Component interface.
-
-	// Start starts the store, asynchronously initializing collectors and
-	// beginning to gather workload data.  This is typically called during
-	// agent startup.
-	Start(ctx context.Context)
-
 	// Subscribe subscribes the caller to events representing changes to the
 	// store, limited to events matching the filter.  The name is used for
 	// telemetry and debugging.
@@ -86,6 +75,10 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
+	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
+	// entities with kind KindECSTask.
+	ListECSTasks() []*ECSTask
+
 	// GetECSTask returns metadata about an ECS task.  It fetches the entity with
 	// kind KindECSTask and the given ID.
 	GetECSTask(id string) (*ECSTask, error)
@@ -129,6 +122,10 @@ type Component interface {
 	// - EventTypeUnset: one for each entity that exists in the store but is not
 	// present in newEntities.
 	Reset(newEntities []Entity, source Source)
+
+	// Push allows external sources to push events to the metadata store.
+	// Only EventTypeSet and EventTypeUnset event types are allowed.
+	Push(source Source, events ...Event) error
 }
 
 // Module defines the fx options for this component.
@@ -136,7 +133,11 @@ func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(
 			newWorkloadMeta,
-		))
+		),
+		fx.Provide(func(wmeta Component) optional.Option[Component] {
+			return optional.NewOption(wmeta)
+		}),
+	)
 }
 
 // OptionalModule defines the fx options when workloadmeta should be used as an optional.

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && zlib && zstd
 
 package split
 
@@ -20,7 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/compression"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
@@ -48,56 +51,71 @@ func TestSplitPayloadsSeries(t *testing.T) {
 }
 
 func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
-	testSeries := metricsserializer.Series{}
-	for i := 0; i < numPoints; i++ {
-		point := metrics.Serie{
-			Points: []metrics.Point{
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-				{Ts: 2222.0, Value: float64(22.12)},
-				{Ts: 333.0, Value: float64(32.12)},
-				{Ts: 444444.0, Value: float64(42.12)},
-				{Ts: 882787.0, Value: float64(52.12)},
-				{Ts: 99990.0, Value: float64(62.12)},
-				{Ts: 121212.0, Value: float64(72.12)},
-				{Ts: 222227.0, Value: float64(82.12)},
-				{Ts: 808080.0, Value: float64(92.12)},
-				{Ts: 9090.0, Value: float64(13.12)},
-			},
-			MType:    metrics.APIGaugeType,
-			Name:     fmt.Sprintf("test.metrics%d", i),
-			Interval: 1,
-			Host:     "localHost",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
-		}
-		testSeries = append(testSeries, &point)
+
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			testSeries := metricsserializer.Series{}
+			for i := 0; i < numPoints; i++ {
+				point := metrics.Serie{
+					Points: []metrics.Point{
+						{Ts: 12345.0, Value: float64(21.21)},
+						{Ts: 67890.0, Value: float64(12.12)},
+						{Ts: 2222.0, Value: float64(22.12)},
+						{Ts: 333.0, Value: float64(32.12)},
+						{Ts: 444444.0, Value: float64(42.12)},
+						{Ts: 882787.0, Value: float64(52.12)},
+						{Ts: 99990.0, Value: float64(62.12)},
+						{Ts: 121212.0, Value: float64(72.12)},
+						{Ts: 222227.0, Value: float64(82.12)},
+						{Ts: 808080.0, Value: float64(92.12)},
+						{Ts: 9090.0, Value: float64(13.12)},
+					},
+					MType:    metrics.APIGaugeType,
+					Name:     fmt.Sprintf("test.metrics%d", i),
+					Interval: 1,
+					Host:     "localHost",
+					Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+				}
+				testSeries = append(testSeries, &point)
+			}
 
-	payloads, err := Payloads(testSeries, compress, JSONMarshalFct)
-	require.Nil(t, err)
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			strategy := compression.NewCompressorStrategy(mockConfig)
 
-	originalLength := len(testSeries)
-	var splitSeries = []metricsserializer.Series{}
-	for _, payload := range payloads {
-		var s = map[string]metricsserializer.Series{}
-		localPayload := payload.GetContent()
-
-		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
-		}
 
-		err = json.Unmarshal(localPayload, &s)
-		require.Nil(t, err)
-		splitSeries = append(splitSeries, s["series"])
-	}
+			originalLength := len(testSeries)
+			var splitSeries = []metricsserializer.Series{}
+			for _, payload := range payloads {
+				var s = map[string]metricsserializer.Series{}
+				localPayload := payload.GetContent()
 
-	unrolledSeries := metricsserializer.Series{}
-	for _, series := range splitSeries {
-		unrolledSeries = append(unrolledSeries, series...)
+				if compress {
+					localPayload, err = strategy.Decompress(localPayload)
+					require.Nil(t, err)
+				}
+
+				err = json.Unmarshal(localPayload, &s)
+				require.Nil(t, err)
+				splitSeries = append(splitSeries, s["series"])
+			}
+
+			unrolledSeries := metricsserializer.Series{}
+			for _, series := range splitSeries {
+				unrolledSeries = append(unrolledSeries, series...)
+			}
+			newLength := len(unrolledSeries)
+			require.Equal(t, originalLength, newLength)
+		})
 	}
-	newLength := len(unrolledSeries)
-	require.Equal(t, originalLength, newLength)
 }
 
 var result transaction.BytesPayloads
@@ -118,11 +136,13 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 		testSeries = append(testSeries, &point)
 	}
 
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	var r transaction.BytesPayloads
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
-		r, _ = Payloads(testSeries, true, JSONMarshalFct)
+		r, _ = Payloads(testSeries, true, JSONMarshalFct, strategy)
 
 	}
 	// ensure we actually had to split
@@ -170,45 +190,60 @@ func TestSplitPayloadsEvents(t *testing.T) {
 }
 
 func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
-	testEvent := metricsserializer.Events{}
-	for i := 0; i < numPoints; i++ {
-		event := event.Event{
-			Title:          "test title",
-			Text:           "test text",
-			Ts:             12345,
-			Host:           "test.localhost",
-			Tags:           []string{"tag1", "tag2:yes"},
-			AggregationKey: "test aggregation",
-			SourceTypeName: "test source",
-		}
-		testEvent = append(testEvent, &event)
+
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
 
-	payloads, err := Payloads(testEvent, compress, JSONMarshalFct)
-	require.Nil(t, err)
-
-	originalLength := len(testEvent)
-	unrolledEvents := []interface{}{}
-	for _, payload := range payloads {
-		var s map[string]interface{}
-		localPayload := payload.GetContent()
-		if compress {
-			localPayload, err = compression.Decompress(localPayload)
-			require.Nil(t, err)
-		}
-
-		err = json.Unmarshal(localPayload, &s)
-		require.Nil(t, err)
-
-		for _, events := range s["events"].(map[string]interface{}) {
-			for _, evt := range events.([]interface{}) {
-				unrolledEvents = append(unrolledEvents, &evt)
+			testEvent := metricsserializer.Events{}
+			for i := 0; i < numPoints; i++ {
+				event := event.Event{
+					Title:          "test title",
+					Text:           "test text",
+					Ts:             12345,
+					Host:           "test.localhost",
+					Tags:           []string{"tag1", "tag2:yes"},
+					AggregationKey: "test aggregation",
+					SourceTypeName: "test source",
+				}
+				testEvent.EventsArr = append(testEvent.EventsArr, &event)
 			}
-		}
-	}
 
-	newLength := len(unrolledEvents)
-	require.Equal(t, originalLength, newLength)
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			strategy := compression.NewCompressorStrategy(mockConfig)
+			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, strategy)
+			require.Nil(t, err)
+
+			originalLength := len(testEvent.EventsArr)
+			unrolledEvents := []interface{}{}
+			for _, payload := range payloads {
+				var s map[string]interface{}
+				localPayload := payload.GetContent()
+				if compress {
+					localPayload, err = strategy.Decompress(localPayload)
+					require.Nil(t, err)
+				}
+
+				err = json.Unmarshal(localPayload, &s)
+				require.Nil(t, err)
+
+				for _, events := range s["events"].(map[string]interface{}) {
+					for _, evt := range events.([]interface{}) {
+						unrolledEvents = append(unrolledEvents, &evt)
+					}
+				}
+			}
+
+			newLength := len(unrolledEvents)
+			require.Equal(t, originalLength, newLength)
+		})
+	}
 }
 
 func TestSplitPayloadsServiceChecks(t *testing.T) {
@@ -236,40 +271,55 @@ func TestSplitPayloadsServiceChecks(t *testing.T) {
 }
 
 func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) {
-	testServiceChecks := metricsserializer.ServiceChecks{}
-	for i := 0; i < numPoints; i++ {
-		sc := servicecheck.ServiceCheck{
-			CheckName: "test.check",
-			Host:      "test.localhost",
-			Ts:        1000,
-			Status:    servicecheck.ServiceCheckOK,
-			Message:   "this is fine",
-			Tags:      []string{"tag1", "tag2:yes"},
-		}
-		testServiceChecks = append(testServiceChecks, &sc)
+
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			testServiceChecks := metricsserializer.ServiceChecks{}
+			for i := 0; i < numPoints; i++ {
+				sc := servicecheck.ServiceCheck{
+					CheckName: "test.check",
+					Host:      "test.localhost",
+					Ts:        1000,
+					Status:    servicecheck.ServiceCheckOK,
+					Message:   "this is fine",
+					Tags:      []string{"tag1", "tag2:yes"},
+				}
+				testServiceChecks = append(testServiceChecks, &sc)
+			}
 
-	payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct)
-	require.Nil(t, err)
-
-	originalLength := len(testServiceChecks)
-	unrolledServiceChecks := []interface{}{}
-	for _, payload := range payloads {
-		var s []interface{}
-		localPayload := payload.GetContent()
-		if compress {
-			localPayload, err = compression.Decompress(localPayload)
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			strategy := compression.NewCompressorStrategy(mockConfig)
+			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
-		}
 
-		err = json.Unmarshal(localPayload, &s)
-		require.Nil(t, err)
+			originalLength := len(testServiceChecks)
+			unrolledServiceChecks := []interface{}{}
+			for _, payload := range payloads {
+				var s []interface{}
+				localPayload := payload.GetContent()
+				if compress {
+					localPayload, err = strategy.Decompress(localPayload)
+					require.Nil(t, err)
+				}
 
-		for _, sc := range s {
-			unrolledServiceChecks = append(unrolledServiceChecks, &sc)
-		}
+				err = json.Unmarshal(localPayload, &s)
+				require.Nil(t, err)
+
+				for _, sc := range s {
+					unrolledServiceChecks = append(unrolledServiceChecks, &sc)
+				}
+			}
+
+			newLength := len(unrolledServiceChecks)
+			require.Equal(t, originalLength, newLength)
+		})
+
 	}
-
-	newLength := len(unrolledServiceChecks)
-	require.Equal(t, originalLength, newLength)
 }

@@ -12,7 +12,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 )
@@ -27,8 +29,10 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serializer, true, split.ProtoMarshalFct)
+		split.Payloads(serializer, true, split.ProtoMarshalFct, strategy)
 	}
 }
 
@@ -42,7 +46,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 	b.ResetTimer()
 
 	for n := 0; n < b.N; n++ {
-		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext())
+		payloads, err := serializer.MarshalSplitCompress(marshaler.NewBufferContext(), pkgconfigsetup.Conf())
 		require.NoError(b, err)
 		var pb int
 		for _, p := range payloads {

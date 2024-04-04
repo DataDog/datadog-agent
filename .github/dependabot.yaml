@@ -110,9 +110,8 @@ updates:
                               # publish a new version exploiting that it runs automatically after it
                               # is updated to write to our repo.
       - dev/tooling
-      - team/agent-platform
+      - team/agent-build-and-releases
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
     milestone: 22
     schedule:
@@ -139,13 +138,12 @@ updates:
       - dependencies-go
       - team/agent-e2e-test
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/testing
     milestone: 22
     ignore:
       # Ignore test-infra-definitions because bumping the GO package inside `go.mod`
-      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab-ci.yml`
+      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab/common/test_infra_version.yml`
       # and dependabot isn’t able to keep those two synchronized.
       - dependency-name: github.com/DataDog/test-infra-definitions
     schedule:
@@ -158,26 +156,11 @@ updates:
       - dependencies-go
       - team/agent-e2e-test
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/testing
     milestone: 22
     schedule:
       interval: weekly
-    open-pull-requests-limit: 100
-  - package-ecosystem: pip
-    directory: /.circleci
-    labels:
-      - dependencies
-      - python
-      - team/agent-platform
-      - changelog/no-changelog
-      - qa/skip-qa
-      - qa/no-code-change
-      - dev/tooling
-    milestone: 22
-    schedule:
-      interval: monthly
     open-pull-requests-limit: 100
   - package-ecosystem: pip
     directory: /test/e2e/cws-tests
@@ -186,7 +169,6 @@ updates:
       - python
       - team/agent-security
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/tooling
     milestone: 22
@@ -199,7 +181,6 @@ updates:
       - dependencies
       - team/agent-e2e-test
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/testing
     milestone: 22
@@ -211,9 +192,8 @@ updates:
     labels:
       - dependencies
       - dependencies-github-actions
-      - team/agent-platform
+      - team/agent-ci-experience
       - changelog/no-changelog
-      - qa/skip-qa
       - qa/no-code-change
       - dev/tooling
     milestone: 22

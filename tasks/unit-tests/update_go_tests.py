@@ -1,6 +1,6 @@
 import unittest
 
-from ..update_go import (
+from tasks.update_go import (
     PATTERN_MAJOR_MINOR,
     PATTERN_MAJOR_MINOR_BUGFIX,
     _get_major_minor_version,
@@ -22,8 +22,4 @@ class TestUpdateGo(unittest.TestCase):
         _update_references(warn=False, version="1.2.3", dry_run=True)
 
     def test_go_mods(self):
-        _update_go_mods(warn=False, minor="1.2", include_otel_modules=True, dry_run=True)
-
-
-if __name__ == '__main__':
-    unittest.main()
+        _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)

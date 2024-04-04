@@ -26,7 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
@@ -52,7 +54,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 	dynConf := sampler.NewDynamicConfig()
 
 	rawTraceChan := make(chan *Payload, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector())
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	return receiver
 }
@@ -66,7 +68,7 @@ func newTestReceiverConfig() *config.AgentConfig {
 }
 
 func TestMain(m *testing.M) {
-	defer func(old func(string, ...interface{})) { killProcess = old }(killProcess)
+	// We're about to os.Exit, no need to revert this value to original
 	killProcess = func(format string, args ...interface{}) {
 		fmt.Printf(format, args...)
 		fmt.Println()
@@ -129,7 +131,7 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 func TestListenTCP(t *testing.T) {
 	t.Run("measured", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*measuredListener)
@@ -138,7 +140,7 @@ func TestListenTCP(t *testing.T) {
 
 	t.Run("limited", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*rateLimitedListener)
@@ -393,13 +395,20 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					assert.Len(rt, 1)
 					span := rt[0]
 					assert.Equal(uint64(42), span.TraceID)
-					assert.Equal(uint64(42), span.TraceID)
 					assert.Equal(uint64(52), span.SpanID)
 					assert.Equal("fennel_IS amazing!", span.Service)
 					assert.Equal("something &&<@# that should be a metric!", span.Name)
 					assert.Equal("NOT touched because it is going to be hashed", span.Resource)
 					assert.Equal("192.168.0.1", span.Meta["http.host"])
 					assert.Equal(41.99, span.Metrics["http.monitor"])
+					assert.Equal(1, len(span.SpanLinks))
+					assert.Equal(uint64(42), span.SpanLinks[0].TraceID)
+					assert.Equal(uint64(32), span.SpanLinks[0].TraceIDHigh)
+					assert.Equal(uint64(52), span.SpanLinks[0].SpanID)
+					assert.Equal("v1", span.SpanLinks[0].Attributes["a1"])
+					assert.Equal("v2", span.SpanLinks[0].Attributes["a2"])
+					assert.Equal("dd=s:2;o:rum,congo=baz123", span.SpanLinks[0].Tracestate)
+					assert.Equal(uint32(2147483649), span.SpanLinks[0].Flags)
 				case <-time.After(time.Second):
 					t.Fatalf("no data received")
 				}
@@ -497,7 +506,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
-	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.EOF.Load())
+	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.5"}).TracesDropped.MSGPShortBytes.Load())
 }
 
 func TestTraceCount(t *testing.T) {
@@ -563,13 +572,7 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
-		Tags: info.Tags{
-			Lang:          "python",
-			LangVersion:   "3.8.1",
-			TracerVersion: "1.2.3",
-		},
-	}, NewIDProvider(""))
+	tp, _, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -681,6 +684,8 @@ func TestHandleStats(t *testing.T) {
 		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
 		}
+		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
+		assert.True(t, ok)
 	})
 }
 
@@ -772,10 +777,10 @@ func TestHandleTraces(t *testing.T) {
 
 	// We test stats for each app
 	for _, lang := range langs {
-		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
+		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4", Service: "fennel_IS amazing!"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived.Load())
-		assert.Equal(int64(59222), ts.TracesBytes.Load())
+		assert.Equal(int64(83022), ts.TracesBytes.Load())
 	}
 	// make sure we have all our languages registered
 	assert.Equal("C#|go|java|python|ruby", receiver.Languages())
@@ -991,7 +996,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector())
+	r := NewHTTPReceiver(conf, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ResetTimer()
 	b.ReportAllocs()

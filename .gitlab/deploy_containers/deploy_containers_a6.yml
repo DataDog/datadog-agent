@@ -6,8 +6,8 @@ stages:
   - deploy_containers
 
 include:
-  - /.gitlab/docker_common/publish_job_templates.yml
-  - /.gitlab/deploy_containers/conditions.yml
+  - .gitlab/common/container_publish_job_templates.yml
+  - .gitlab/deploy_containers/conditions.yml
 
 #
 # Image tagging & manifest publication
@@ -45,10 +45,9 @@ deploy_containers-a6-rc:
     AGENT_REPOSITORY: agent
     DSD_REPOSITORY: dogstatsd
     IMG_REGISTRIES: public 
+    VERSION: 6-rc
   rules:
     !reference [.on_rc]
-  variables:
-    VERSION: 6-rc
 
 
 #

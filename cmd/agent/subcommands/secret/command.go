@@ -7,7 +7,6 @@
 package secret
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -16,9 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,55 +29,56 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
+
 	secretInfoCommand := &cobra.Command{
 		Use:   "secret",
-		Short: "Print information about decrypted secrets in configuration.",
+		Short: "Display information about secrets in configuration.",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(secret,
-				fx.Supply(cliParams),
+			return fxutil.OneShot(showSecretInfo,
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 			)
 		},
 	}
+	secretRefreshCommand := &cobra.Command{
+		Use:   "refresh",
+		Short: "Refresh secrets in configuration.",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(secretRefresh,
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+	secretInfoCommand.AddCommand(secretRefreshCommand)
 
 	return []*cobra.Command{secretInfoCommand}
 }
 
-func secret(_ log.Component, config config.Component, _ *cliParams) error {
-	if err := util.SetAuthToken(); err != nil {
-		fmt.Println(err)
-		return nil
-	}
-
-	if err := showSecretInfo(config); err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	return nil
-}
-
 func showSecretInfo(config config.Component) error {
-	c := util.GetClient(false)
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	res, err := callIPCEndpoint(config, "agent/secrets")
 	if err != nil {
 		return err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%v/agent/secrets", ipcAddress, config.GetInt("cmd_port"))
-
-	r, err := util.DoGet(c, apiConfigURL, util.LeaveConnectionOpen)
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			return fmt.Errorf("%s", e)
-		}
-
-		return fmt.Errorf("Could not reach agent: %v\nMake sure the agent is running before requesting the runtime configuration and contact support if you continue having issues", err)
-	}
-
-	fmt.Println(string(r))
+	fmt.Println(string(res))
 	return nil
+}
+
+func secretRefresh(config config.Component) error {
+	res, err := callIPCEndpoint(config, "agent/secret/refresh")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(res))
+	return nil
+}
+
+func callIPCEndpoint(config config.Component, endpointURL string) ([]byte, error) {
+	endpoint, err := apiutil.NewIPCEndpoint(config, endpointURL)
+	if err != nil {
+		return nil, err
+	}
+	return endpoint.DoGet()
 }

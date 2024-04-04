@@ -6,10 +6,12 @@
 package rcclient //nolint:revive // TODO(RC) Fix revive linter
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // team: remote-config
@@ -19,16 +21,22 @@ type Component interface {
 	// TODO: (components) Subscribe to AGENT_CONFIG configurations and start the remote config client
 	// Once the remote config client is refactored and can push updates directly to the listeners,
 	// we can remove this.
-	Start(clientName string) error
+	Start(agentName string) error
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
+	// SubscribeApmTracing subscribes the remote-config client to APM_TRACING
+	SubscribeApmTracing()
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newRemoteConfigClient))
+// NoneModule return a None optional type for rcclient.Component.
+//
+// This helper allows code that needs a disabled Optional type for rcclient to get it. The helper is split from
+// the implementation to avoid linking with the dependencies from rcclient.
+func NoneModule() fxutil.Module {
+	return fxutil.Component(fx.Provide(func() optional.Option[Component] {
+		return optional.NewNoneOption[Component]()
+	}))
 }

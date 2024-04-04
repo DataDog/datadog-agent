@@ -14,44 +14,35 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/registry"
+	"github.com/docker/docker/api/types/system"
 )
 
 // SystemAPIClient is a mock
 type SystemAPIClient struct {
-	InfoFunc func() (types.Info, error)
+	InfoFunc func() (system.Info, error)
 }
 
 // Events is a mock method
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *SystemAPIClient) Events(ctx context.Context, options types.EventsOptions) (<-chan events.Message, <-chan error) {
+func (c *SystemAPIClient) Events(context.Context, types.EventsOptions) (<-chan events.Message, <-chan error) {
 	return nil, nil
 }
 
 // Info is a mock method
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *SystemAPIClient) Info(ctx context.Context) (types.Info, error) {
+func (c *SystemAPIClient) Info(context.Context) (system.Info, error) {
 	return c.InfoFunc()
 }
 
 // RegistryLogin is a mock method
-//
-//nolint:revive,staticcheck // TODO(CINT) Fix revive linter // TODO(CINT) Fix staticcheck linter
-func (c *SystemAPIClient) RegistryLogin(ctx context.Context, auth types.AuthConfig) (registry.AuthenticateOKBody, error) {
+func (c *SystemAPIClient) RegistryLogin(context.Context, registry.AuthConfig) (registry.AuthenticateOKBody, error) {
 	return registry.AuthenticateOKBody{}, nil
 }
 
 // DiskUsage is a mock method
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *SystemAPIClient) DiskUsage(ctx context.Context, options types.DiskUsageOptions) (types.DiskUsage, error) {
+func (c *SystemAPIClient) DiskUsage(context.Context, types.DiskUsageOptions) (types.DiskUsage, error) {
 	return types.DiskUsage{}, nil
 }
 
 // Ping is a mock method
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *SystemAPIClient) Ping(ctx context.Context) (types.Ping, error) {
+func (c *SystemAPIClient) Ping(context.Context) (types.Ping, error) {
 	return types.Ping{}, nil
 }

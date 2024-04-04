@@ -12,23 +12,24 @@ import (
 	"io"
 	"net/http"
 
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // LanguageDetectionModule is the language detection module factory
 var LanguageDetectionModule = module.Factory{
 	Name:             config.LanguageDetectionModule,
 	ConfigNamespaces: []string{"language_detection"},
-	Fn: func(cfg *sysconfigtypes.Config) (module.Module, error) {
+	Fn: func(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 		return &languageDetectionModule{
 			languageDetector: privileged.NewLanguageDetector(),
 		}, nil
@@ -48,11 +49,6 @@ func (l *languageDetectionModule) GetStats() map[string]interface{} {
 
 func (l *languageDetectionModule) Register(router *module.Router) error {
 	router.HandleFunc("/detect", l.detectLanguage)
-	return nil
-}
-
-// RegisterGRPC register to system probe gRPC server
-func (l *languageDetectionModule) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 	return nil
 }
 

@@ -8,25 +8,23 @@ package log
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func changeLogLevel(level string) error {
-	l := logger.Load()
-	if l == nil {
-		return errors.New("cannot set log-level: logger not initialized")
-	}
-
-	return l.changeLogLevel(level)
+	return logger.changeLogLevel(level)
 }
 
 // createExtraTextContext defines custom formatter for context logging on tests.
@@ -52,7 +50,7 @@ func TestBasicLogging(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "debug")
 	assert.NotNil(t, logger.Load())
@@ -111,7 +109,7 @@ func TestLogBuffer(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	Tracef("%s", "foo")
 	Debugf("%s", "foo")
@@ -137,7 +135,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	Tracec("baz", "number", 1, "str", "hello")
 	Debugc("baz", "number", 1, "str", "hello")
@@ -173,7 +171,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "info")
 	assert.NotNil(t, logger.Load())
@@ -195,15 +193,15 @@ func TestExtraLogging(t *testing.T) {
 	wA := bufio.NewWriter(&b)
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	lA, err := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %Msg")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	SetupLogger(l, "info")
 	assert.NotNil(t, logger.Load())
 
 	err = RegisterAdditionalLogger("extra", lA)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	Info("don't tell anyone: ", "SECRET")
 	Infof("this is a SECRET password: %s", "hunter2")
@@ -483,7 +481,7 @@ func TestStackDepthfLogging(t *testing.T) {
 			w := bufio.NewWriter(&b)
 
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg\n")
-			assert.Nil(t, err)
+			assert.NoError(t, err)
 
 			SetupLogger(l, tc.strLogLevel)
 
@@ -496,6 +494,123 @@ func TestStackDepthfLogging(t *testing.T) {
 			w.Flush()
 
 			assert.Equal(t, tc.expectedToBeCalled, strings.Count(b.String(), "TestStackDepthfLogging"), tc)
+		})
+	}
+}
+
+func mockScrubBytesWithCount(t *testing.T) *atomic.Int32 {
+	oldScrubber := scrubBytesFunc
+	t.Cleanup(func() { scrubBytesFunc = oldScrubber })
+
+	counterPtr := atomic.NewInt32(0)
+
+	scrubBytesFunc = func(msg []byte) ([]byte, error) {
+		counterPtr.Add(1)
+		return msg, nil
+	}
+
+	return counterPtr
+}
+
+func getFuncName(val reflect.Value) (string, error) {
+	fun := runtime.FuncForPC(val.Pointer())
+	if fun == nil {
+		return "", fmt.Errorf("cannot get function name for %v", val)
+	}
+
+	funcName := fun.Name()
+	if parts := strings.Split(funcName, "."); len(parts) > 0 {
+		funcName = parts[len(parts)-1]
+	}
+
+	return funcName, nil
+}
+
+func TestLoggerScrubbingCount(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	require.NoError(t, err)
+	SetupLogger(l, "trace")
+
+	testCases := []struct {
+		name  string
+		funcs []any
+		args  []any
+	}{
+		// package public methods
+		{
+			"public functions basic",
+			[]any{Trace, Debug, Info, Warn, Error, Critical},
+			[]any{"a", "b"},
+		},
+		{
+			"public functions with format",
+			[]any{Tracef, Debugf, Infof, Warnf, Errorf, Criticalf},
+			[]any{"a %s c", "b"},
+		},
+		{
+			"public functions with format and stack depth",
+			[]any{TracefStackDepth, DebugfStackDepth, InfofStackDepth, WarnfStackDepth, ErrorfStackDepth, CriticalfStackDepth},
+			[]any{1, "a %s c", "b"},
+		},
+		{
+			"public functions with context",
+			[]any{Tracec, Debugc, Infoc, Warnc, Errorc, Criticalc},
+			[]any{"a b", "1 %s 3", "2"},
+		},
+		{
+			"public functions with context and stack depth",
+			[]any{TracecStackDepth, DebugcStackDepth, InfocStackDepth, WarncStackDepth, ErrorcStackDepth, CriticalcStackDepth},
+			[]any{"a b", 1, "1 %s 3", "2"},
+		},
+		{
+			"public functions with anonymous function",
+			[]any{TraceFunc, DebugFunc, InfoFunc, WarnFunc, ErrorFunc, CriticalFunc},
+			[]any{func() string { return "a b" }},
+		},
+		// loggerPointer methods
+		{
+			"loggerPointer methods basic",
+			[]any{logger.trace, logger.debug, logger.info, logger.warn, logger.error, logger.critical},
+			[]any{"a b"},
+		},
+		{
+			"loggerPointer methods with format",
+			[]any{logger.tracef, logger.debugf, logger.infof, logger.warnf, logger.errorf, logger.criticalf},
+			[]any{"a %s c", "b"},
+		},
+		{
+			"loggerPointer methods with stack depth",
+			[]any{logger.traceStackDepth, logger.debugStackDepth, logger.infoStackDepth, logger.warnStackDepth, logger.errorStackDepth, logger.criticalStackDepth},
+			[]any{"a b", 1},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run("scrub count "+tc.name, func(t *testing.T) {
+			for _, fun := range tc.funcs {
+				val := reflect.ValueOf(fun)
+				funcName, err := getFuncName(val)
+				if !assert.NoError(t, err) {
+					continue
+				}
+
+				valTy := reflect.TypeOf(fun)
+				if !assert.Equalf(t, valTy.Kind(), reflect.Func, "expected %s to be a function", funcName) {
+					continue
+				}
+
+				// create a slice of reflect.Value from the args
+				reflArgs := make([]reflect.Value, 0, len(tc.args))
+				for _, arg := range tc.args {
+					reflArgs = append(reflArgs, reflect.ValueOf(arg))
+				}
+
+				counter := mockScrubBytesWithCount(t)
+				val.Call(reflArgs)
+				assert.Equalf(t, 1, int(counter.Load()), "expected %s to call scrubBytesFunc once", funcName)
+			}
 		})
 	}
 }

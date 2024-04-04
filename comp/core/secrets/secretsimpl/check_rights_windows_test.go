@@ -38,10 +38,10 @@ func TestWrongPath(t *testing.T) {
 
 func TestSpaceInPath(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "super temp")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpDir)
 	tmpFile, err := os.CreateTemp(tmpDir, "agent-collector-test")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	require.Nil(t, os.Chmod(tmpFile.Name(), 0700))
 	require.Nil(t, checkRights(tmpFile.Name(), false))
@@ -54,7 +54,7 @@ func TestCheckRightsDoesNotExists(t *testing.T) {
 
 func TestCheckRightsMissingCurrentUser(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
 	err = exec.Command("powershell", "test/setAcl.ps1",
@@ -69,7 +69,7 @@ func TestCheckRightsMissingCurrentUser(t *testing.T) {
 
 func TestCheckRightsMissingLocalSystem(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
 	err = exec.Command("powershell", "test/setAcl.ps1",
@@ -84,7 +84,7 @@ func TestCheckRightsMissingLocalSystem(t *testing.T) {
 
 func TestCheckRightsMissingAdministrator(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
 	err = exec.Command("powershell", "test/setAcl.ps1",
@@ -100,7 +100,7 @@ func TestCheckRightsMissingAdministrator(t *testing.T) {
 func TestCheckRightsExtraRights(t *testing.T) {
 	// extra rights for someone else
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
 	err = exec.Command("powershell", "test/setAcl.ps1",
@@ -116,7 +116,7 @@ func TestCheckRightsExtraRights(t *testing.T) {
 func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
 	// missing localSystem or Administrator
 	tmpfile, err := os.CreateTemp("", "agent-collector-test")
-	require.Nil(t, err)
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
 	err = exec.Command("powershell", "test/setAcl.ps1",

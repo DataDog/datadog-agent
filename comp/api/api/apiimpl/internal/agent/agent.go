@@ -29,35 +29,43 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+var mimeTypeMap = map[string]string{
+	"text": "text/plain",
+	"json": "application/json",
+}
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
@@ -74,21 +82,27 @@ func SetupHandlers(
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
+	pkgSigning packagesigning.Component,
+	statusComponent status.Component,
+	collector optional.Option[collector.Component],
+	eventPlatformReceiver eventplatformreceiver.Component,
+	ac autodiscovery.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, invAgent) }).Methods("GET")
-	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
-	r.HandleFunc("/status/formatted", func(w http.ResponseWriter, r *http.Request) { getFormattedStatus(w, r, invAgent) }).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
+	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
-	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
+	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
+		getConfigCheck(w, r, ac)
+	}).Methods("GET")
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
@@ -98,12 +112,17 @@ func SetupHandlers(
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
+	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
 	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-agent", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvAgent(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
-	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
+	r.HandleFunc("/metadata/package-signing", func(w http.ResponseWriter, r *http.Request) { metadataPayloadPkgSigning(w, r, pkgSigning) }).Methods("GET")
+	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
+		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
+		getDiagnose(w, r, diagnoseDeps)
+	}).Methods("POST")
 
 	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
 	// Some agent subcommands do not provide these dependencies (such as JMX)
@@ -211,34 +230,50 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
-	s, err := status.GetStatus(verbose, invAgent)
-	w.Header().Set("Content-Type", "application/json")
+	format := r.URL.Query().Get("format")
+	var contentType string
+
+	contentType, ok := mimeTypeMap[format]
+
+	if !ok {
+		log.Warn("Got a request with invalid format parameter. Defaulting to 'text' format")
+		format = "text"
+		contentType = mimeTypeMap[format]
+	}
+	w.Header().Set("Content-Type", contentType)
+
+	s, err := statusComponent.GetStatus(format, verbose)
+
 	if err != nil {
+		if format == "text" {
+			http.Error(w, log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
+			return
+		}
+
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 		return
 	}
 
-	jsonStats, err := json.Marshal(s)
-	if err != nil {
-		setJSONError(w, log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s), 500)
-		return
-	}
-
-	w.Write(jsonStats)
+	w.Write(s)
 }
 
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(logsAgent.GetMessageReceiver, "logs", "logs agent")
+	return getStreamFunc(func() messageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
 }
 
-func streamEventPlatform() func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(epforwarder.GetGlobalReceiver, "event platform payloads", "agent")
+func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) func(w http.ResponseWriter, r *http.Request) {
+	return getStreamFunc(func() messageReceiver { return eventPlatformReceiver }, "event platform payloads", "agent")
 }
 
-func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
+type messageReceiver interface {
+	SetEnabled(e bool) bool
+	Filter(filters *diagnostic.Filters, done <-chan struct{}) <-chan string
+}
+
+func getStreamFunc(messageReceiverFunc func() messageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Infof("Got a request to stream %s.", streamType)
 		w.Header().Set("Transfer-Encoding", "chunked")
@@ -349,17 +384,6 @@ func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer d
 	w.Write(jsonStats)
 }
 
-func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
-	log.Info("Got a request for the formatted status. Making formatted status.")
-	s, err := status.GetAndFormatStatus(invAgent)
-	if err != nil {
-		setJSONError(w, log.Errorf("Error getting status: %v %v", err, s), 500)
-		return
-	}
-
-	w.Write(s)
-}
-
 func getHealth(w http.ResponseWriter, _ *http.Request) {
 	h := health.GetReady()
 
@@ -381,23 +405,17 @@ func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
 }
 
-func getConfigCheck(w http.ResponseWriter, _ *http.Request) {
+func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
 	var response response.ConfigCheckResponse
 
-	if common.AC == nil {
-		log.Errorf("Trying to use /config-check before the agent has been initialized.")
-		setJSONError(w, fmt.Errorf("agent not initialized"), 503)
-		return
-	}
-
-	configSlice := common.AC.LoadedConfigs()
+	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 	response.Configs = configSlice
-	response.ResolveWarnings = autodiscovery.GetResolveWarnings()
-	response.ConfigErrors = autodiscovery.GetConfigErrors()
-	response.Unresolved = common.AC.GetUnresolvedTemplates()
+	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
+	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
 
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {
@@ -442,6 +460,15 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 
 func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
 	secretResolver.GetDebugInfo(w)
+}
+
+func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
+	result, err := secretResolver.Refresh()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write([]byte(result))
 }
 
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {
@@ -505,7 +532,17 @@ func metadataPayloadInvHost(w http.ResponseWriter, _ *http.Request, invHost inve
 	w.Write(scrubbed)
 }
 
-func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager) {
+func metadataPayloadPkgSigning(w http.ResponseWriter, _ *http.Request, pkgSigning packagesigning.Component) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := pkgSigning.GetAsJSON()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.SuitesDeps) {
 	var diagCfg diagnosis.Config
 
 	// Read parameters
@@ -531,7 +568,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.Di
 	diagCfg.RunLocal = true
 
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg, senderManager)
+	diagnoses, err := diagnose.Run(diagCfg, diagnoseDeps)
 	if err != nil {
 		setJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return

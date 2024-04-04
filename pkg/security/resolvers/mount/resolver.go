@@ -10,6 +10,7 @@ package mount
 
 import (
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -94,7 +94,7 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 	return true, nil
 }
 
-// SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
+// SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
 func (mr *Resolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -566,7 +566,7 @@ func GetVFSRenameInputType(kernelVersion *skernel.Version) uint64 {
 	return inputType
 }
 
-// SendStats sends metrics about the current state of the namespace resolver
+// SendStats sends metrics about the current state of the mount resolver
 func (mr *Resolver) SendStats() error {
 	mr.lock.RLock()
 	defer mr.lock.RUnlock()

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package workloadmeta
 
 import (
@@ -26,6 +28,10 @@ const (
 	barSource       = "bar"
 )
 
+func newWorkloadmetaObject(deps dependencies) *workloadmeta {
+	return newWorkloadMeta(deps).Comp.(*workloadmeta)
+}
+
 func TestHandleEvents(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
@@ -34,7 +40,7 @@ func TestHandleEvents(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -595,7 +601,7 @@ func TestSubscribe(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 
 			s.handleEvents(tt.preEvents)
 
@@ -637,7 +643,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	deployment := &KubernetesDeployment{
 		EntityID: EntityID{
@@ -680,7 +686,7 @@ func TestGetProcess(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	process := &Process{
 		EntityID: EntityID{
@@ -759,7 +765,7 @@ func TestListContainers(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 
 			s.handleEvents(test.preEvents)
 
@@ -797,7 +803,7 @@ func TestListContainersWithFilter(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	s.handleEvents([]CollectorEvent{
 		{
@@ -856,7 +862,7 @@ func TestListProcesses(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 
 			s.handleEvents(test.preEvents)
 
@@ -894,7 +900,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	s.handleEvents([]CollectorEvent{
 		{
@@ -1011,7 +1017,7 @@ func TestGetKubernetesPodByName(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 
 			for _, pod := range []*KubernetesPod{pod1, pod2, pod3} {
 				s.handleEvents([]CollectorEvent{
@@ -1072,7 +1078,7 @@ func TestListImages(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 
 			s.handleEvents(test.preEvents)
 
@@ -1124,7 +1130,7 @@ func TestGetImage(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 			s.handleEvents(test.preEvents)
 
 			actualImage, err := s.GetImage(test.imageID)
@@ -1135,6 +1141,80 @@ func TestGetImage(t *testing.T) {
 				tassert.NoError(t, err)
 				tassert.Equal(t, test.expectedImage, actualImage)
 			}
+		})
+	}
+}
+
+func TestListECSTasks(t *testing.T) {
+	task1 := &ECSTask{
+		EntityID: EntityID{
+			Kind: KindECSTask,
+			ID:   "task-id-1",
+		},
+		VPCID: "123",
+	}
+	task2 := &ECSTask{
+		EntityID: EntityID{
+			Kind: KindECSTask,
+			ID:   "task-id-1",
+		},
+	}
+	task3 := &ECSTask{
+		EntityID: EntityID{
+			Kind: KindECSTask,
+			ID:   "task-id-2",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		preEvents     []CollectorEvent
+		expectedTasks []*ECSTask
+	}{
+		{
+			name: "some tasks stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: task1,
+				},
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: task2,
+				},
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: task3,
+				},
+			},
+			// task2 replaces task1
+			expectedTasks: []*ECSTask{task2, task3},
+		},
+		{
+			name:          "no task stored",
+			preEvents:     nil,
+			expectedTasks: []*ECSTask{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				logimpl.MockModule(),
+				config.MockModule(),
+				fx.Supply(NewParams()),
+			))
+
+			s := newWorkloadmetaObject(deps)
+
+			s.handleEvents(test.preEvents)
+
+			tasks := s.ListECSTasks()
+
+			tassert.ElementsMatch(t, test.expectedTasks, tasks)
 		})
 	}
 }
@@ -1219,7 +1299,7 @@ func TestResetProcesses(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 			s.handleEvents(test.preEvents)
 
 			ch := s.Subscribe(dummySubscriber, NormalPriority, nil)
@@ -1417,7 +1497,7 @@ func TestReset(t *testing.T) {
 				fx.Supply(NewParams()),
 			))
 
-			s := newWorkloadMeta(deps).(*workloadmeta)
+			s := newWorkloadmetaObject(deps)
 
 			s.handleEvents(test.preEvents)
 
@@ -1464,7 +1544,7 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 		fx.Supply(NewParams()),
 	))
 
-	s := newWorkloadMeta(deps).(*workloadmeta)
+	s := newWorkloadmetaObject(deps)
 
 	container := &Container{
 		EntityID: EntityID{
@@ -1484,4 +1564,73 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 			Entity: container,
 		},
 	})
+}
+
+func TestPushEvents(t *testing.T) {
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(NewParams()),
+	))
+
+	wlm := newWorkloadmetaObject(deps)
+
+	mockSource := Source("mockSource")
+
+	tests := []struct {
+		name        string
+		events      []Event
+		source      Source
+		expectError bool
+	}{
+		{
+			name:        "empty push events slice",
+			events:      []Event{},
+			source:      mockSource,
+			expectError: false,
+		},
+		{
+			name: "push events with valid types",
+			events: []Event{
+				{
+					Type: EventTypeSet,
+				},
+				{
+					Type: EventTypeUnset,
+				},
+				{
+					Type: EventTypeSet,
+				},
+			},
+			source:      mockSource,
+			expectError: false,
+		},
+		{
+			name: "push events with invalid types",
+			events: []Event{
+				{
+					Type: EventTypeSet,
+				},
+				{
+					Type: EventTypeAll,
+				},
+			},
+			source:      mockSource,
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := wlm.Push(mockSource, test.events...)
+
+			if test.expectError {
+				tassert.Error(t, err, "Expected Push operation to fail and return error")
+			} else {
+				tassert.NoError(t, err, "Expected Push operation to succeed and return nil")
+			}
+
+		})
+	}
 }

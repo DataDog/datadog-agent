@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+// Package writer contains the logic for sending payloads to the Datadog intake.
 package writer
 
 import (
@@ -24,13 +24,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // newSenders returns a list of senders based on the given agent configuration, using climit
 // as the maximum number of concurrent outgoing connections, writing to path.
-func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int, telemetryCollector telemetry.TelemetryCollector) []*sender {
+func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, qsize int, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) []*sender {
 	if e := cfg.Endpoints; len(e) == 0 || e[0].Host == "" || e[0].APIKey == "" {
 		panic(errors.New("config was not properly validated"))
 	}
@@ -53,7 +54,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			apiKey:     endpoint.APIKey,
 			recorder:   r,
 			userAgent:  fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
-		})
+		}, statsd)
 	}
 	return senders
 }
@@ -149,16 +150,18 @@ type sender struct {
 
 	mu     sync.RWMutex // guards closed
 	closed bool         // closed reports if the loop is stopped
+	statsd statsd.ClientInterface
 }
 
 // newSender returns a new sender based on the given config cfg.
-func newSender(cfg *senderConfig) *sender {
+func newSender(cfg *senderConfig, statsd statsd.ClientInterface) *sender {
 	s := sender{
 		cfg:        cfg,
 		queue:      make(chan *payload, cfg.maxQueued),
 		inflight:   atomic.NewInt32(0),
 		attempt:    atomic.NewInt32(0),
 		maxRetries: int32(cfg.maxRetries),
+		statsd:     statsd,
 	}
 	for i := 0; i < cfg.maxConns; i++ {
 		go s.loop()
@@ -223,7 +226,7 @@ func (s *sender) Push(p *payload) {
 	select {
 	case s.queue <- p:
 	default:
-		metrics.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
+		_ = s.statsd.Count("datadog.trace_agent.sender.push_blocked", 1, nil, 1)
 		s.queue <- p
 	}
 	s.inflight.Inc()
@@ -266,7 +269,7 @@ func (s *sender) sendPayload(p *payload) {
 			log.Warnf("Retried payload %d times: %s", r, err.Error())
 		}
 		if p.retries.Load() >= s.maxRetries {
-			log.Warnf("Dropping Payload after %d retries.\n", p.retries.Load())
+			log.Warnf("Dropping Payload after %d retries, due to: %v.\n", p.retries.Load(), err)
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
 			return
@@ -276,7 +279,7 @@ func (s *sender) sendPayload(p *payload) {
 			s.recordEvent(eventTypeRetry, stats)
 			return
 		case <-time.After(10 * time.Millisecond):
-			log.Warnf("Sender queue full. Failed payload dropped after only %d retries.\n", p.retries.Load())
+			log.Warnf("Sender queue full. Failed payload dropped after only %d retries, due to %v.\n", p.retries.Load(), err)
 			// queue is full; since this is the oldest payload, we drop it
 			s.releasePayload(p, eventTypeDropped, stats)
 		}
@@ -293,6 +296,7 @@ func (s *sender) sendPayload(p *payload) {
 		s.releasePayload(p, eventTypeSent, stats)
 	default:
 		// this is a fatal error, we have to drop this payload
+		log.Warnf("Dropping Payload due to non-retryable error: %v.\n", err)
 		s.releasePayload(p, eventTypeRejected, stats)
 	}
 }

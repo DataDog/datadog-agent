@@ -1,3 +1,0 @@
-system_probe_config:
-  collect_dns_domains: false
-  max_dns_stats: 100

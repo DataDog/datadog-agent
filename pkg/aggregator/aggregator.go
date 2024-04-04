@@ -13,10 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -24,8 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -234,7 +234,7 @@ type BufferedAggregator struct {
 	mu                     sync.Mutex // to protect the checkSamplers field
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
 	serializer             serializer.MetricSerializer
-	eventPlatformForwarder epforwarder.EventPlatformForwarder
+	eventPlatformForwarder eventplatform.Component
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -266,7 +266,7 @@ func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInPar
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder epforwarder.EventPlatformForwarder, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -381,11 +381,12 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*event.Event, chan 
 }
 
 // GetEventPlatformForwarder returns a event platform forwarder
-func (agg *BufferedAggregator) GetEventPlatformForwarder() (epforwarder.EventPlatformForwarder, error) {
-	if agg.eventPlatformForwarder == nil {
+func (agg *BufferedAggregator) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
 		return nil, errors.New("event platform forwarder not initialized")
 	}
-	return agg.eventPlatformForwarder, nil
+	return forwarder, nil
 }
 
 func (agg *BufferedAggregator) registerSender(id checkid.ID) error {
@@ -434,12 +435,13 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 }
 
 func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatformEvent) error {
-	if agg.eventPlatformForwarder == nil {
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
 		return errors.New("event platform forwarder not initialized")
 	}
 	m := message.NewMessage(event.rawEvent, nil, "", 0)
 	// eventPlatformForwarder is threadsafe so no locking needed here
-	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
+	return forwarder.SendEventPlatformEvent(m, event.eventType)
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
@@ -448,7 +450,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	tagger.EnrichTags(tb, sc.OriginFromUDS, sc.OriginFromClient, sc.Cardinality)
+	tagger.EnrichTags(tb, sc.OriginInfo)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -462,7 +464,7 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	tagger.EnrichTags(tb, e.OriginFromUDS, e.OriginFromClient, e.Cardinality)
+	tagger.EnrichTags(tb, e.OriginInfo)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -658,7 +660,11 @@ func (agg *BufferedAggregator) GetEvents() event.Events {
 // GetEventPlatformEvents grabs the event platform events from the queue and clears them.
 // Note that this works only if using the 'noop' event platform forwarder
 func (agg *BufferedAggregator) GetEventPlatformEvents() map[string][]*message.Message {
-	return agg.eventPlatformForwarder.Purge()
+	forwarder, found := agg.eventPlatformForwarder.Get()
+	if !found {
+		return nil
+	}
+	return forwarder.Purge()
 }
 
 func (agg *BufferedAggregator) sendEvents(start time.Time, events event.Events) {
@@ -825,6 +831,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	}
 	if withVersion {
 		tags = append(tags, "version:"+version.AgentVersion)
+		if version.AgentPackageVersion != "" {
+			tags = append(tags, "package_version:"+version.AgentPackageVersion)
+		}
 	}
 	// nil to empty string
 	// This is expected by other components/tests

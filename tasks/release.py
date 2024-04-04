@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import OrderedDict
 from datetime import date
 from time import sleep
@@ -13,14 +14,11 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from .libs.common.color import color_message
-from .libs.common.github_api import GithubAPI
-from .libs.common.gitlab import Gitlab, get_gitlab_token
-from .libs.common.user_interactions import yes_no_question
-from .libs.version import Version
-from .modules import DEFAULT_MODULES
-from .pipeline import edit_schedule, run
-from .utils import (
+from tasks.libs.common.color import color_message
+from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.common.user_interactions import yes_no_question
+from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     check_clean_branch_state,
@@ -28,6 +26,9 @@ from .utils import (
     nightly_entry_for,
     release_entry_for,
 )
+from tasks.libs.version import Version
+from tasks.modules import DEFAULT_MODULES
+from tasks.pipeline import edit_schedule, run
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -65,7 +66,7 @@ def add_prelude(ctx, version):
         )
 
     ctx.run(f"git add {new_releasenote}")
-    print("\nCommit this with:")
+    print("\nIf not run as part of finish task, commit this with:")
     print(f"git commit -m \"Add prelude for {version} release\"")
 
 
@@ -91,7 +92,7 @@ def add_dca_prelude(ctx, agent7_version, agent6_version=""):
         )
 
     ctx.run(f"git add {new_releasenote}")
-    print("\nCommit this with:")
+    print("\nIf not run as part of finish task, commit this with:")
     print(f"git commit -m \"Add prelude for {agent7_version} release\"")
 
 
@@ -113,7 +114,7 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_changelog(ctx, new_version=None, target="all"):
+def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
@@ -122,6 +123,9 @@ def update_changelog(ctx, new_version=None, target="all"):
     If new_version is omitted, a changelog since last tag on the current branch
     will be generated.
     """
+
+    # Step 1 - generate the changelogs
+
     generate_agent = target in ["all", "agent"]
     generate_cluster_agent = target in ["all", "cluster-agent"]
 
@@ -152,6 +156,49 @@ def update_changelog(ctx, new_version=None, target="all"):
         update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
     if generate_cluster_agent:
         update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+
+    # Step 2 - commit changes
+
+    update_branch = f"changelog-update-{new_version}"
+    base_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+    print(color_message(f"Branching out to {update_branch}", "bold"))
+    ctx.run(f"git checkout -b {update_branch}")
+
+    print(color_message("Committing CHANGELOG.rst and CHANGELOG-DCA.rst", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
+
+    commit_message = f"'Changelog updates for {new_version} release'"
+
+    ok = try_git_command(ctx, f"git commit -m {commit_message}")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 3 - Push and create PR
+
+    print(color_message("Pushing new branch to the upstream repository", "bold"))
+    res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
+                "red",
+            ),
+            code=1,
+        )
+
+    create_pr(f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True)
 
 
 def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
@@ -301,7 +348,7 @@ def list_major_change(_, milestone):
     List all PR labeled "major_changed" for this release.
     """
 
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
     if pull_requests is None:
         return
@@ -372,7 +419,7 @@ def build_compatible_version_re(allowed_major_versions, minor_version):
     the provided minor version.
     """
     return re.compile(
-        r'(v)?({})[.]({})([.](\d+))?(-devel)?(-rc\.(\d+))?'.format(  # noqa: FS002
+        r'(v)?({})[.]({})([.](\d+))+(-devel)?(-rc\.(\d+))?(?!-\w)'.format(  # noqa: FS002
             "|".join(allowed_major_versions), minor_version
         )
     )
@@ -542,22 +589,45 @@ def _get_jmxfetch_release_json_info(release_json, agent_major_version, is_first_
     return jmxfetch_version, jmxfetch_shasum
 
 
-def _get_windows_ddnpm_release_json_info(release_json, agent_major_version, is_first_rc=False):
+def _get_windows_release_json_info(release_json, agent_major_version, is_first_rc=False):
     """
     Gets the Windows NPM driver info from the previous entries in the release.json file.
     """
     release_json_version_data = _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc)
 
-    win_ddnpm_driver = release_json_version_data['WINDOWS_DDNPM_DRIVER']
-    win_ddnpm_version = release_json_version_data['WINDOWS_DDNPM_VERSION']
-    win_ddnpm_shasum = release_json_version_data['WINDOWS_DDNPM_SHASUM']
+    win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum = _get_windows_driver_info(release_json_version_data, 'DDNPM')
+    win_ddprocmon_driver, win_ddprocmon_version, win_ddprocmon_shasum = _get_windows_driver_info(
+        release_json_version_data, 'DDPROCMON'
+    )
 
-    if win_ddnpm_driver not in ['release-signed', 'attestation-signed']:
-        print(f"WARN: WINDOWS_DDNPM_DRIVER value '{win_ddnpm_driver}' is not valid")
+    return (
+        win_ddnpm_driver,
+        win_ddnpm_version,
+        win_ddnpm_shasum,
+        win_ddprocmon_driver,
+        win_ddprocmon_version,
+        win_ddprocmon_shasum,
+    )
 
-    print(f"The windows ddnpm version is {win_ddnpm_version}")
 
-    return win_ddnpm_driver, win_ddnpm_version, win_ddnpm_shasum
+def _get_windows_driver_info(release_json_version_data, driver_name):
+    """
+    Gets the Windows driver info from the release.json version data.
+    """
+    driver_key = f'WINDOWS_{driver_name}_DRIVER'
+    version_key = f'WINDOWS_{driver_name}_VERSION'
+    shasum_key = f'WINDOWS_{driver_name}_SHASUM'
+
+    driver_value = release_json_version_data[driver_key]
+    version_value = release_json_version_data[version_key]
+    shasum_value = release_json_version_data[shasum_key]
+
+    if driver_value not in ['release-signed', 'attestation-signed']:
+        print(f"WARN: {driver_key} value '{driver_value}' is not valid")
+
+    print(f"The windows {driver_name.lower()} version is {version_value}")
+
+    return driver_value, version_value, shasum_value
 
 
 def _get_release_json_info_for_next_rc(release_json, agent_major_version, is_first_rc=False):
@@ -594,6 +664,9 @@ def _update_release_json_entry(
     windows_ddnpm_driver,
     windows_ddnpm_version,
     windows_ddnpm_shasum,
+    windows_ddprocmon_driver,
+    windows_ddprocmon_version,
+    windows_ddprocmon_shasum,
 ):
     """
     Adds a new entry to provided release_json object with the provided parameters, and returns the new release_json object.
@@ -601,6 +674,7 @@ def _update_release_json_entry(
 
     print(f"Jmxfetch's SHA256 is {jmxfetch_shasum}")
     print(f"Windows DDNPM's SHA256 is {windows_ddnpm_shasum}")
+    print(f"Windows DDPROCMON's SHA256 is {windows_ddprocmon_shasum}")
 
     new_version_config = OrderedDict()
     new_version_config["INTEGRATIONS_CORE_VERSION"] = integrations_version
@@ -613,6 +687,9 @@ def _update_release_json_entry(
     new_version_config["WINDOWS_DDNPM_DRIVER"] = windows_ddnpm_driver
     new_version_config["WINDOWS_DDNPM_VERSION"] = windows_ddnpm_version
     new_version_config["WINDOWS_DDNPM_SHASUM"] = windows_ddnpm_shasum
+    new_version_config["WINDOWS_DDPROCMON_DRIVER"] = windows_ddprocmon_driver
+    new_version_config["WINDOWS_DDPROCMON_VERSION"] = windows_ddprocmon_version
+    new_version_config["WINDOWS_DDPROCMON_SHASUM"] = windows_ddprocmon_shasum
 
     # Necessary if we want to maintain the JSON order, so that humans don't get confused
     new_release_json = OrderedDict()
@@ -701,9 +778,14 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     )
     print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
-    windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
-        release_json, new_version.major, is_first_rc=(new_version.rc == 1)
-    )
+    (
+        windows_ddnpm_driver,
+        windows_ddnpm_version,
+        windows_ddnpm_shasum,
+        windows_ddprocmon_driver,
+        windows_ddprocmon_version,
+        windows_ddprocmon_shasum,
+    ) = _get_windows_release_json_info(release_json, new_version.major, is_first_rc=(new_version.rc == 1))
 
     # Add new entry to the release.json object and return it
     return _update_release_json_entry(
@@ -719,6 +801,9 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         windows_ddnpm_driver,
         windows_ddnpm_version,
         windows_ddnpm_shasum,
+        windows_ddprocmon_driver,
+        windows_ddprocmon_version,
+        windows_ddprocmon_shasum,
     )
 
 
@@ -944,7 +1029,7 @@ def try_git_command(ctx, git_command):
 
 
 @task
-def finish(ctx, major_versions="6,7"):
+def finish(ctx, major_versions="6,7", upstream="origin"):
     """
     Updates the release entry in the release.json file for the new version.
 
@@ -970,6 +1055,72 @@ def finish(ctx, major_versions="6,7"):
 
     # Update internal module dependencies
     update_modules(ctx, str(new_version))
+
+    # Step 3: branch out, commit change, push branch
+
+    final_branch = f"{new_version}-final"
+
+    print(color_message(f"Branching out to {final_branch}", "bold"))
+    ctx.run(f"git checkout -b {final_branch}")
+
+    print(color_message("Committing release.json and Go modules updates", "bold"))
+    print(
+        color_message(
+            "If commit signing is enabled, you will have to make sure the commit gets properly signed.", "bold"
+        )
+    )
+    ctx.run("git add release.json")
+    ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
+
+    commit_message = f"'Final updates for release.json and Go modules for {new_version} release'"
+
+    ok = try_git_command(ctx, f"git commit -m {commit_message}")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {final_branch} branch and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 4: add release changelog preludes
+    print(color_message("Adding Agent release changelog prelude", "bold"))
+    add_prelude(ctx, str(new_version))
+
+    print(color_message("Adding DCA release changelog prelude", "bold"))
+    add_dca_prelude(ctx, str(new_version))
+
+    ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
+    if not ok:
+        raise Exit(
+            color_message(
+                f"Could not create commit. Please commit manually, push the {final_branch} branch and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    # Step 5: push branch and create PR
+
+    print(color_message("Pushing new branch to the upstream repository", "bold"))
+    res = ctx.run(f"git push --set-upstream {upstream} {final_branch}", warn=True)
+    if res.exited is None or res.exited > 0:
+        raise Exit(
+            color_message(
+                f"Could not push branch {final_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {final_branch}.",
+                "red",
+            ),
+            code=1,
+        )
+
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    create_pr(
+        f"Final updates for release.json and Go modules for {new_version} release + preludes",
+        current_branch,
+        final_branch,
+        new_version,
+    )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
@@ -1046,21 +1197,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin")
             code=1,
         )
 
-    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = str(new_final_version)
-
-    milestone = github.get_milestone_by_name(milestone_name)
-
-    if not milestone or not milestone.number:
-        raise Exit(
-            color_message(
-                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
-Make sure that milestone is open before trying again.""",
-                "red",
-            ),
-            code=1,
-        )
-
     # Step 1: Update release entries
 
     print(color_message("Updating release entries", "bold"))
@@ -1108,15 +1244,39 @@ Make sure that milestone is open before trying again.""",
             code=1,
         )
 
+    create_pr(
+        f"[release] Update release.json and Go modules for {versions_string}",
+        current_branch,
+        update_branch,
+        new_final_version,
+    )
+
+
+def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
     print(color_message("Creating PR", "bold"))
 
-    # Step 4: create PR
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+
+    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
+    milestone_name = str(version)
+
+    milestone = github.get_milestone_by_name(milestone_name)
+
+    if not milestone or not milestone.number:
+        raise Exit(
+            color_message(
+                f"""Could not find milestone {milestone_name} in the Github repository. Response: {milestone}
+Make sure that milestone is open before trying again.""",
+                "red",
+            ),
+            code=1,
+        )
 
     pr = github.create_pr(
-        pr_title=f"[release] Update release.json and Go modules for {versions_string}",
+        pr_title=title,
         pr_body="",
-        base_branch=current_branch,
-        target_branch=update_branch,
+        base_branch=base_branch,
+        target_branch=target_branch,
     )
 
     if not pr:
@@ -1127,19 +1287,21 @@ Make sure that milestone is open before trying again.""",
 
     print(color_message(f"Created PR #{pr.number}", "bold"))
 
-    # Step 5: add milestone and labels to PR
+    labels = [
+        "changelog/no-changelog",
+        "qa/no-code-change",
+        "team/agent-build-and-releases",
+        "team/agent-release-management",
+        "category/release_operations",
+    ]
+
+    if changelog_pr:
+        labels.append("backport/main")
 
     updated_pr = github.update_pr(
         pull_number=pr.number,
         milestone_number=milestone.number,
-        labels=[
-            "changelog/no-changelog",
-            "qa/skip-qa",
-            "qa/no-code-change",
-            "team/agent-platform",
-            "team/agent-release-management",
-            "category/release_operations",
-        ],
+        labels=labels,
     )
 
     if not updated_pr or not updated_pr.number or not updated_pr.html_url:
@@ -1149,9 +1311,7 @@ Make sure that milestone is open before trying again.""",
         )
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
-    print(
-        color_message(f"Done preparing RC {versions_string}. The PR is available here: {updated_pr.html_url}", "bold")
-    )
+    print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
 
 
 @task
@@ -1231,6 +1391,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
         major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
+        rc_build=True,
         rc_k8s_deployments=k8s_deployments,
     )
 
@@ -1401,7 +1562,7 @@ def cleanup(ctx):
       - Updates the scheduled nightly pipeline to target the new stable branch
       - Updates the release.json last_stable fields
     """
-    gh = GithubAPI('datadog/datadog-agent')
+    gh = GithubAPI()
     latest_release = gh.latest_release()
     match = VERSION_RE.search(latest_release)
     if not match:
@@ -1412,15 +1573,34 @@ def cleanup(ctx):
 
 
 @task
-def check_omnibus_branches(_):
-    for branch in ['nightly', 'nightly-a7']:
-        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
-        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
-        version_re = re.compile(r'(\d+)\.(\d+)\.x')
-        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
-            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
-        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
-            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+def check_omnibus_branches(ctx):
+    base_branch = _get_release_json_value('base_branch')
+    if base_branch == 'main':
+        omnibus_ruby_branch = 'datadog-5.5.0'
+        omnibus_software_branch = 'master'
+    else:
+        omnibus_ruby_branch = base_branch
+        omnibus_software_branch = base_branch
+
+    def _check_commit_in_repo(repo_name, branch, release_json_field):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            ctx.run(
+                f'git clone --depth=50 https://github.com/DataDog/{repo_name} --branch {branch} {tmpdir}/{repo_name}',
+                hide='stdout',
+            )
+            for version in ['nightly', 'nightly-a7']:
+                commit = _get_release_json_value(f'{version}::{release_json_field}')
+                if ctx.run(f'git -C {tmpdir}/{repo_name} branch --contains {commit}', warn=True, hide=True).exited != 0:
+                    raise Exit(
+                        code=1,
+                        message=f'{repo_name} commit ({commit}) is not in the expected branch ({branch}). The PR is not mergeable',
+                    )
+                else:
+                    print(f'[{version}] Commit {commit} was found in {repo_name} branch {branch}')
+
+    _check_commit_in_repo('omnibus-ruby', omnibus_ruby_branch, 'OMNIBUS_RUBY_VERSION')
+    _check_commit_in_repo('omnibus-software', omnibus_software_branch, 'OMNIBUS_SOFTWARE_VERSION')
+
     return True
 
 
@@ -1478,6 +1658,8 @@ def update_build_links(_ctx, new_version):
     for key in patterns:
         body = body.replace(key, patterns[key])
 
+    print(color_message(f"Updating QA Build links page with {new_version}", "bold"))
+
     try:
         confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
     except ApiError as e:
@@ -1488,6 +1670,7 @@ def update_build_links(_ctx, new_version):
             ),
             code=1,
         )
+    print(color_message("Build links page updated", "green"))
 
 
 def _create_build_links_patterns(current_version, new_version):
@@ -1501,3 +1684,21 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
 
     return patterns
+
+
+@task
+def get_active_release_branch(_ctx):
+    """
+    Determine what is the current active release branch for the Agent.
+    If release started and code freeze is in place - main branch is considered active.
+    If release started and code freeze is over - release branch is considered active.
+    """
+    gh = GithubAPI()
+    latest_release = gh.latest_release()
+    version = _create_version_from_match(VERSION_RE.search(latest_release))
+    next_version = version.next_version(bump_minor=True)
+    release_branch = gh.get_branch(next_version.branch())
+    if release_branch:
+        print(f"{release_branch.name}")
+    else:
+        print("main")

@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -20,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -110,7 +108,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 					ReplDstPort: int32(80),
 				},
 
-				Type:      model.ConnectionType_udp,
+				Type:      model.ConnectionType_tcp,
 				Family:    model.ConnectionFamily_v6,
 				Direction: model.ConnectionDirection_local,
 
@@ -237,7 +235,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 						ReplDstPort: 80,
 					},
 
-					Type:      network.UDP,
+					Type:      network.TCP,
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Via: &network.Via{
@@ -257,28 +255,21 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 					Direction:     network.LOCAL,
 					StaticTags:    tagOpenSSL | tagTLS,
 					ProtocolStack: protocols.Stack{Application: protocols.HTTP2},
+					DNSStats: map[dns.Hostname]map[dns.QueryType]dns.Stats{
+						dns.ToHostname("foo.com"): {
+							dns.TypeA: {
+								Timeouts:          0,
+								SuccessLatencySum: 0,
+								FailureLatencySum: 0,
+								CountByRcode:      map[uint32]uint32{0: 1},
+							},
+						},
+					},
 				},
 			},
 		},
 		DNS: map[util.Address][]dns.Hostname{
 			util.AddressFromString("172.217.12.145"): {dns.ToHostname("golang.org")},
-		},
-		DNSStats: dns.StatsByKeyByNameByType{
-			dns.Key{
-				ClientIP:   util.AddressFromString("10.1.1.1"),
-				ServerIP:   util.AddressFromString("8.8.8.8"),
-				ClientPort: uint16(1000),
-				Protocol:   syscall.IPPROTO_UDP,
-			}: map[dns.Hostname]map[dns.QueryType]dns.Stats{
-				dns.ToHostname("foo.com"): {
-					dns.TypeA: {
-						Timeouts:          0,
-						SuccessLatencySum: 0,
-						FailureLatencySum: 0,
-						CountByRcode:      map[uint32]uint32{0: 1},
-					},
-				},
-			},
 		},
 		HTTP: map[http.Key]*http.RequestStats{
 			http.NewKey(

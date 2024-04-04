@@ -12,9 +12,9 @@ import (
 	"io"
 	"net/textproto"
 	"os"
+	"slices"
 
 	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
-	"golang.org/x/exp/slices"
 )
 
 type packageInfo struct {

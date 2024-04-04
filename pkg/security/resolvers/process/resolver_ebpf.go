@@ -10,6 +10,7 @@ package process
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -67,7 +68,7 @@ type EBPFResolver struct {
 	scrubber     *procutil.DataScrubber
 
 	containerResolver *container.Resolver
-	mountResolver     *mount.Resolver
+	mountResolver     mount.ResolverInterface
 	cgroupResolver    *cgroup.Resolver
 	userGroupResolver *usergroup.Resolver
 	timeResolver      *stime.Resolver
@@ -440,7 +441,7 @@ func (p *EBPFResolver) retrieveExecFileFields(procExecPath string) (*model.FileF
 	inode := stat.Ino
 
 	inodeb := make([]byte, 8)
-	model.ByteOrder.PutUint64(inodeb, inode)
+	binary.NativeEndian.PutUint64(inodeb, inode)
 
 	data, err := p.execFileCacheMap.LookupBytes(inodeb)
 	if err != nil {
@@ -759,7 +760,7 @@ func (p *EBPFResolver) ResolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 
 func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
 	pidb := make([]byte, 4)
-	model.ByteOrder.PutUint32(pidb, pid)
+	binary.NativeEndian.PutUint32(pidb, pid)
 
 	pidCache, err := p.pidCacheMap.LookupBytes(pidb)
 	if err != nil {
@@ -1303,7 +1304,7 @@ func (p *EBPFResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
 
 // NewEBPFResolver returns a new process resolver
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver *mount.Resolver,
+	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)

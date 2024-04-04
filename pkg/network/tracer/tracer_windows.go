@@ -78,6 +78,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
+		config.EnableNPMConnectionRollup,
+		config.EnableProcessEventMonitoring,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
@@ -195,7 +197,6 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	conns.HTTP = delta.HTTP
-	conns.DNSStats = delta.DNSStats
 	return conns, nil
 }
 

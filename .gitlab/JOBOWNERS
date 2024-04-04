@@ -1,4 +1,4 @@
-*                                    @DataDog/agent-platform
+*                                    @DataDog/agent-ci-experience
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
@@ -8,7 +8,7 @@ build_processed_btfhub_archive       @DataDog/ebpf-platform
 # Notifications are handled separately for more fine-grained control on go tests
 tests_*                              @DataDog/multiple
 tests_ebpf*                          @DataDog/ebpf-platform
-tests_windows_sysprobe*              @DataDog/ebpf-platform
+tests_windows_sysprobe*              @DataDog/windows-kernel-integrations
 security_go_generate_check           @DataDog/agent-security
 prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
 
@@ -27,6 +27,33 @@ build_serverless*                    @DataDog/serverless
 
 # Package deps build
 generate_minimized_btfs_*            @DataDog/ebpf-platform
+
+# Package build
+agent_deb*                           @DataDog/agent-build-and-releases
+iot_agent_deb*                       @DataDog/agent-build-and-releases
+dogstatsd_deb*                       @DataDog/agent-build-and-releases
+agent_heroku_deb*                    @DataDog/agent-build-and-releases
+agentless_scanner_deb*               @DataDog/agent-build-and-releases
+updater_deb*                         @DataDog/agent-build-and-releases
+agent_rpm*                           @DataDog/agent-build-and-releases
+iot_agent_rpm*                       @DataDog/agent-build-and-releases
+dogstatsd_rpm*                       @DataDog/agent-build-and-releases
+agentless_scanner_rpm*               @DataDog/agent-build-and-releases
+agent_suse*                          @DataDog/agent-build-and-releases
+iot_agent_suse*                      @DataDog/agent-build-and-releases
+dogstatsd_suse*                      @DataDog/agent-build-and-releases
+agentless_scanner_suse*              @DataDog/agent-build-and-releases
+agent_dmg*                           @DataDog/agent-build-and-releases
+windows_msi*                         @DataDog/windows-agent
+
+# Packaging
+packaging_oci                        @DataDog/agent-build-and-releases
+
+# Testing package deploy
+deploy_deb_testing*                  @DataDog/agent-build-and-releases
+deploy_rpm_testing*                  @DataDog/agent-build-and-releases
+deploy_suse_rpm_testing*             @DataDog/agent-build-and-releases
+deploy_windows_testing*              @DataDog/agent-build-and-releases
 
 # Kitchen tests
 kitchen_windows*                     @DataDog/windows-agent
@@ -59,14 +86,26 @@ docker_trigger_cws_instrumentation_internal* @DataDog/agent-security
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @DataDog/container-integrations
 
-# Deploy
+# Deploy packages
+deploy_packages*                       @DataDog/agent-build-and-releases
+publish_winget*                        @DataDog/windows-agent
+
+# Deploy containers
 deploy_containers*                     @DataDog/container-integrations
+
+# Trigger release
+trigger_manual_prod_release            @DataDog/agent-build-and-releases
+trigger_auto_staging_release           @DataDog/agent-build-and-releases
+
+
+# Integration test
+integration_tests_windows*    @DataDog/windows-agent
 
 # Functional test
 kitchen_*_system_probe*                        @DataDog/ebpf-platform
+kitchen_*_system_probe_windows*                @DataDog/windows-kernel-integrations
 kitchen_*_security_agent*                      @DataDog/agent-security
 kitchen_*_process_agent*                       @DataDog/processes
-pull_test_dockers*                             @DataDog/universal-service-monitoring
 cleanup_kitchen_functional_test                @DataDog/ebpf-platform @DataDog/agent-security
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
 
@@ -82,14 +121,27 @@ new-e2e-agent-subcommands*        @DataDog/agent-shared-components
 new-e2e-agent-shared-components*  @DataDog/agent-shared-components
 new-e2e-language-detection*       @DataDog/processes
 new-e2e-process*                  @DataDog/processes
-new-e2e-agent-platform*           @DataDog/agent-platform
+new-e2e-agent-platform*           @DataDog/agent-build-and-releases
 new-e2e-aml*                      @DataDog/agent-metrics-logs
+new-e2e-apm*                      @DataDog/agent-apm
 new-e2e-npm*                      @DataDog/Networks
 new-e2e-cws*                      @DataDog/agent-security
+new-e2e-windows-agent*            @DataDog/windows-agent
+new-e2e-orchestrator*             @DataDog/container-app
+e2e_pre_test*                     @DataDog/agent-developer-tools
+new-e2e-remote-config*            @DataDog/remote-config
+new-e2e-updater*                  @DataDog/fleet
 
-# Kernel version testing
-package_dependencies*             @DataDog/ebpf-platform
-kernel_matrix_testing*            @DataDog/ebpf-platform
+# Kernel matrix testing
+upload_dependencies*              @DataDog/ebpf-platform
+upload_minimized_btfs*            @DataDog/ebpf-platform
+kmt_*                             @DataDog/ebpf-platform
+upload_secagent_tests*            @DataDog/ebpf-platform
+upload_sysprobe_tests*            @DataDog/ebpf-platform
+pull_test_dockers*                @DataDog/universal-service-monitoring
 
 # Single machine performance
 single_machine_performance*       @DataDog/single-machine-performance
+
+# Dependency Security
+software_composition_analysis*    @DataDog/software-integrity-and-trust

@@ -133,7 +133,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("No Error", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/simple/simple"+binExtension, nil, 0, 0, 0, false, false)
+		resolver.Configure(secrets.ConfigParams{Command: "./test/simple/simple" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
 		require.NoError(t, err)
@@ -150,7 +150,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("argument", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/argument/argument"+binExtension, nil, 0, 0, 0, false, false)
+		resolver.Configure(secrets.ConfigParams{Command: "./test/argument/argument" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resolver.backendArguments = []string{"arg1"}
 		_, err := resolver.execCommand(inputPayload)
@@ -163,7 +163,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("input", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/input/input"+binExtension, nil, 0, 0, 0, false, false)
+		resolver.Configure(secrets.ConfigParams{Command: "./test/input/input" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
 		require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestExecCommandError(t *testing.T) {
 
 	t.Run("buffer limit", func(t *testing.T) {
 		resolver := newEnabledSecretResolver()
-		resolver.Configure("./test/response_too_long/response_too_long"+binExtension, nil, 0, 0, 0, false, false)
+		resolver.Configure(secrets.ConfigParams{Command: "./test/response_too_long/response_too_long" + binExtension})
 		setCorrectRight(resolver.backendCommand)
 		resolver.responseMaxSize = 20
 		_, err := resolver.execCommand(inputPayload)

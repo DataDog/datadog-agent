@@ -16,7 +16,6 @@ import (
 	"math"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
@@ -29,12 +28,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -54,6 +54,12 @@ const (
 	TracerTypeKProbeCORE
 	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeFentry
+)
+
+const (
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	// This value should be enough for typical workloads (e.g. some amount of processes blocked on the `accept` syscall).
+	maxActive = 128
 )
 
 // Tracer is the common interface implemented by all connection tracers.
@@ -108,7 +114,7 @@ var ConnTracerTelemetry = struct {
 	UdpSendsMissed *prometheus.Desc
 	//nolint:revive // TODO(NET) Fix revive linter
 	UdpDroppedConns *prometheus.Desc
-	PidCollisions   *nettelemetry.StatCounterWrapper
+	PidCollisions   *telemetry.StatCounterWrapper
 	iterationDups   telemetry.Counter
 	iterationAborts telemetry.Counter
 
@@ -135,7 +141,7 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
-	nettelemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
+	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
 	atomic.NewInt64(0),
@@ -150,9 +156,9 @@ var ConnTracerTelemetry = struct {
 type tracer struct {
 	m *manager.Manager
 
-	conns          *ebpf.Map
-	tcpStats       *ebpf.Map
-	tcpRetransmits *ebpf.Map
+	conns          *maps.GenericMap[netebpf.ConnTuple, netebpf.ConnStats]
+	tcpStats       *maps.GenericMap[netebpf.ConnTuple, netebpf.TCPStats]
+	tcpRetransmits *maps.GenericMap[netebpf.ConnTuple, uint32]
 	config         *config.Config
 
 	// tcp_close events
@@ -171,7 +177,7 @@ type tracer struct {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) (Tracer, error) {
+func NewTracer(config *config.Config) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -189,8 +195,6 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 			probes.TCPRetransmitsMap:                 {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.PortBindingsMap:                   {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.UDPPortBindingsMap:                {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.SockByPidFDMap:                    {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
-			probes.PidFDBySockMap:                    {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionProtocolMap:             {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 			probes.ConnectionTupleToSocketSKBConnMap: {MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries},
 		},
@@ -203,6 +207,7 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 				LogSize: 10 * 1024 * 1024,
 			},
 		},
+		DefaultKProbeMaxActive: maxActive,
 	}
 
 	begin, end := network.EphemeralRange()
@@ -214,12 +219,17 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 	if config.ClosedChannelSize > 0 {
 		closedChannelSize = config.ClosedChannelSize
 	}
-	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
+	var connCloseEventHandler ddebpf.EventHandler
+	if config.RingBufferSupportedNPM() {
+		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
+	} else {
+		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
+	}
 	var m *manager.Manager
 	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
-	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP, bpfTelemetry)
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -229,7 +239,7 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		// load the kprobe tracer
 		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		var kprobeTracerType kprobe.TracerType
-		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, perfHandlerTCP, bpfTelemetry)
+		m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
 		if err != nil {
 			return nil, err
 		}
@@ -240,10 +250,10 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 
 	batchMgr, err := newConnBatchManager(m)
 	if err != nil {
-		return nil, fmt.Errorf("could not create connection batch maanager: %w", err)
+		return nil, fmt.Errorf("could not create connection batch manager: %w", err)
 	}
 
-	closeConsumer := newTCPCloseConsumer(perfHandlerTCP, batchMgr)
+	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
 	tr := &tracer{
 		m:              m,
@@ -256,19 +266,19 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 		ch:             newCookieHasher(),
 	}
 
-	tr.conns, _, err = m.GetMap(probes.ConnMap)
+	tr.conns, err = maps.GetMap[netebpf.ConnTuple, netebpf.ConnStats](m, probes.ConnMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
 	}
 
-	tr.tcpStats, _, err = m.GetMap(probes.TCPStatsMap)
+	tr.tcpStats, err = maps.GetMap[netebpf.ConnTuple, netebpf.TCPStats](m, probes.TCPStatsMap)
 	if err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
 	}
 
-	if tr.tcpRetransmits, _, err = m.GetMap(probes.TCPRetransmitsMap); err != nil {
+	if tr.tcpRetransmits, err = maps.GetMap[netebpf.ConnTuple, uint32](m, probes.TCPRetransmitsMap); err != nil {
 		tr.Stop()
 		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPRetransmitsMap, err)
 	}
@@ -329,7 +339,7 @@ func (t *tracer) Stop() {
 	t.stopOnce.Do(func() {
 		close(t.exitTelemetry)
 		ebpfcheck.RemoveNameMappings(t.m)
-		ddebpf.UnregisterTelemetry(t.m)
+		ebpftelemetry.UnregisterTelemetry(t.m)
 		_ = t.m.Stop(manager.CleanAll)
 		t.closeConsumer.Stop()
 		if t.closeTracer != nil {
@@ -340,7 +350,6 @@ func (t *tracer) Stop() {
 
 func (t *tracer) GetMap(name string) *ebpf.Map {
 	switch name {
-	case probes.SockByPidFDMap:
 	case probes.ConnectionProtocolMap:
 	case probes.MapErrTelemetryMap:
 	case probes.HelperErrTelemetryMap:
@@ -368,7 +377,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 
 	var tcp4, tcp6, udp4, udp6 float64
 	entries := t.conns.Iterate()
-	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
+	for entries.Next(key, stats) {
 		if _, exists := connsByTuple[*key]; exists {
 			// already seen the connection in current batch processing,
 			// due to race between the iterator and bpf_map_delete
@@ -467,7 +476,7 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 		t.removeTuple.Metadata |= uint32(netebpf.UDP)
 	}
 
-	err := t.conns.Delete(unsafe.Pointer(t.removeTuple))
+	err := t.conns.Delete(t.removeTuple)
 	if err != nil {
 		// If this entry no longer exists in the eBPF map it means `tcp_close` has executed
 		// during this function call. In that case state.StoreClosedConnection() was already called for this connection,
@@ -483,21 +492,21 @@ func (t *tracer) Remove(conn *network.ConnectionStats) error {
 	t.removeTuple.Pid = 0
 	if conn.Type == network.TCP {
 		// We can ignore the error for this map since it will not always contain the entry
-		_ = t.tcpStats.Delete(unsafe.Pointer(t.removeTuple))
+		_ = t.tcpStats.Delete(t.removeTuple)
 	}
 	return nil
 }
 
 func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
-	var zero uint64
-	mp, _, err := t.m.GetMap(probes.TelemetryMap)
+	var zero uint32
+	mp, err := maps.GetMap[uint32, netebpf.Telemetry](t.m, probes.TelemetryMap)
 	if err != nil {
 		log.Warnf("error retrieving telemetry map: %s", err)
 		return nil
 	}
 
-	telemetry := &netebpf.Telemetry{}
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(telemetry)); err != nil {
+	tm := &netebpf.Telemetry{}
+	if err := mp.Lookup(&zero, tm); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
 		// so let's just use a trace log
 		if log.ShouldLog(seelog.TraceLvl) {
@@ -505,7 +514,7 @@ func (t *tracer) getEBPFTelemetry() *netebpf.Telemetry {
 		}
 		return nil
 	}
-	return telemetry
+	return tm
 }
 
 // Describe returns all descriptions of the collector
@@ -570,14 +579,14 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial TCP pid->port mapping: %s", err)
 	}
 
-	tcpPortMap, _, err := m.GetMap(probes.PortBindingsMap)
+	tcpPortMap, err := maps.GetMap[netebpf.PortBinding, uint32](m, probes.PortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get TCP port binding map: %w", err)
 	}
 	for p, count := range tcpPorts {
 		log.Debugf("adding initial TCP port binding: netns: %d port: %d", p.Ino, p.Port)
 		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-		err = tcpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		err = tcpPortMap.Update(&pb, &count, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to update TCP port binding map: %w", err)
 		}
@@ -588,7 +597,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 		return fmt.Errorf("failed to read initial UDP pid->port mapping: %s", err)
 	}
 
-	udpPortMap, _, err := m.GetMap(probes.UDPPortBindingsMap)
+	udpPortMap, err := maps.GetMap[netebpf.PortBinding, uint32](m, probes.UDPPortBindingsMap)
 	if err != nil {
 		return fmt.Errorf("failed to get UDP port binding map: %w", err)
 	}
@@ -602,7 +611,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 
 		log.Debugf("adding initial UDP port binding: netns: %d port: %d", p.Ino, p.Port)
 		pb := netebpf.PortBinding{Netns: p.Ino, Port: p.Port}
-		err = udpPortMap.Update(unsafe.Pointer(&pb), unsafe.Pointer(&count), ebpf.UpdateNoExist)
+		err = udpPortMap.Update(&pb, &count, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to update UDP port binding map: %w", err)
 		}
@@ -620,7 +629,7 @@ func (t *tracer) getTCPRetransmits(tuple *netebpf.ConnTuple, seen map[netebpf.Co
 	tuple.Pid = 0
 
 	var retransmits uint32
-	if err := t.tcpRetransmits.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(&retransmits)); err == nil {
+	if err := t.tcpRetransmits.Lookup(tuple, &retransmits); err == nil {
 		// This is required to avoid (over)reporting retransmits for connections sharing the same socket.
 		if _, reported := seen[*tuple]; reported {
 			ConnTracerTelemetry.PidCollisions.Inc()
@@ -640,7 +649,7 @@ func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple) 
 		return false
 	}
 
-	return t.tcpStats.Lookup(unsafe.Pointer(tuple), unsafe.Pointer(stats)) == nil
+	return t.tcpStats.Lookup(tuple, stats) == nil
 }
 
 func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats, ch *cookieHasher) {
@@ -654,12 +663,16 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Monotonic: network.StatCounters{
 			SentBytes:   s.Sent_bytes,
 			RecvBytes:   s.Recv_bytes,
-			SentPackets: s.Sent_packets,
-			RecvPackets: s.Recv_packets,
+			SentPackets: uint64(s.Sent_packets),
+			RecvPackets: uint64(s.Recv_packets),
 		},
 		LastUpdateEpoch: s.Timestamp,
 		IsAssured:       s.IsAssured(),
 		Cookie:          network.StatCookie(s.Cookie),
+	}
+
+	if s.Duration <= uint64(math.MaxInt64) {
+		stats.Duration = time.Duration(s.Duration) * time.Nanosecond
 	}
 
 	stats.ProtocolStack = protocols.Stack{

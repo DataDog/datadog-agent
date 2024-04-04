@@ -27,13 +27,14 @@ COPYRIGHT_REGEX = [
 PATH_EXCLUSION_REGEX = [
     # These are auto-generated files but without headers to indicate it
     '/vendor/',
-    '/pkg/clusteragent/custommetrics/api/generated/',
+    '/pkg/clusteragent/autoscaling/custommetrics/api/generated/',
     '/pkg/process/events/model/.*_gen.go',
     '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
     '/pkg/proto/pbgo/core/.*_gen(_test){,1}.go',
     '/pkg/proto/pbgo/trace/.*_gen(_test){,1}.go',
     '/pkg/remoteconfig/state/products/apmsampling/.*_gen(_test){,1}.go',
     '/pkg/security/security_profile/dump/activity_dump_easyjson.go',
+    '/pkg/security/probe/actions_easyjson.go',
     '/pkg/security/probe/custom_events_easyjson.go',
     '/pkg/security/serializers/serializers_easyjson.go',
     '/pkg/security/serializers/serializers_linux_easyjson.go',

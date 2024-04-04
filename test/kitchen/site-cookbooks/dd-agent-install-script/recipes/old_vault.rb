@@ -1,1 +1,0 @@
-../../dd-system-probe-check/recipes/old_vault.rb

@@ -54,7 +54,7 @@ func stop(config config.Component, _ *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	e := util.SetAuthToken()
+	e := util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}

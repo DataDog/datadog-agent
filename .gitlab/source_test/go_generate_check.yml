@@ -1,9 +1,6 @@
 ---
 # check that go generate has been run in the pkg/security directory
 security_go_generate_check:
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   stage: source_test
@@ -11,6 +8,8 @@ security_go_generate_check:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
+    - source /root/.bashrc
+    - pip3 install wheel
     - pip3 install -r docs/cloud-workload-security/scripts/requirements-docs.txt
     - inv -e install-tools
   script:

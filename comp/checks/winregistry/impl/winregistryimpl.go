@@ -13,12 +13,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"strconv"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -33,9 +37,6 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
-	"io/fs"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -108,8 +109,16 @@ type WindowsRegistryCheck struct {
 	integrationLogsDelegate *integrationLogsRegistryDelegate
 }
 
+func createOptionMapping[T any](reflector *jsonschema.Reflector, sourceType jsonschema.SimpleType) {
+	option := jsonschema.Schema{}
+	option.AddType(sourceType)
+	reflector.AddTypeMapping(optional.Option[T]{}, option)
+}
+
 func createSchema() ([]byte, error) {
 	reflector := jsonschema.Reflector{}
+	createOptionMapping[bool](&reflector, jsonschema.Boolean)
+	createOptionMapping[float64](&reflector, jsonschema.Number)
 	schema, err := reflector.Reflect(checkCfg{})
 	if err != nil {
 		return nil, err
@@ -168,7 +177,7 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 		if initSendOnStart, initSendOnStartSet := initCfg.SendOnStart.Get(); initSendOnStartSet {
 			sendOnStart = initSendOnStart
 		} else {
-			sendOnStart = false
+			sendOnStart = true
 		}
 	}
 
@@ -350,14 +359,14 @@ func (c *WindowsRegistryCheck) Run() error {
 func newWindowsRegistryComponent(deps dependencies) winregistry.Component {
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			core.RegisterCheck(checkName, func() check.Check {
+			core.RegisterCheck(checkName, optional.NewOption(func() check.Check {
 				integrationLogs, _ := deps.LogsComponent.Get()
 				return &WindowsRegistryCheck{
 					CheckBase:     core.NewCheckBase(checkName),
 					logsComponent: integrationLogs,
 					log:           deps.Log,
 				}
-			})
+			}))
 			return nil
 		},
 	})

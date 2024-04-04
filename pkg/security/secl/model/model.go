@@ -11,10 +11,9 @@ package model
 import (
 	"net"
 	"reflect"
+	"runtime"
 	"time"
 	"unsafe"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
@@ -25,7 +24,7 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}}}
+var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 var containerContextZero ContainerContext
 
 // NewEvent returns a new Event
@@ -33,6 +32,7 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
 			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
 		},
 	}
 }
@@ -42,7 +42,7 @@ func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
 			Type:             uint32(kind),
-			FieldHandlers:    &DefaultFieldHandlers{},
+			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
 		},
 	}
@@ -85,57 +85,12 @@ type ContainerContext struct {
 	Resolved  bool     `field:"-"`
 }
 
-// Status defines the possible status of a profile as a bitmask
-type Status uint32
-
-const (
-	// AnomalyDetection will trigger alerts each time an event is not part of the profile
-	AnomalyDetection Status = 1 << iota
-	// AutoSuppression will suppress any signal to events present on the profile
-	AutoSuppression
-	// WorkloadHardening will kill the process that triggered anomaly detection
-	WorkloadHardening
-)
-
-// IsEnabled returns true if enabled
-func (s Status) IsEnabled(option Status) bool {
-	return (s & option) != 0
-}
-
-func (s Status) String() string {
-	var options []string
-	if s.IsEnabled(AnomalyDetection) {
-		options = append(options, "anomaly_detection")
-	}
-	if s.IsEnabled(AutoSuppression) {
-		options = append(options, "auto_suppression")
-	}
-	if s.IsEnabled(WorkloadHardening) {
-		options = append(options, "workload_hardening")
-	}
-
-	var res string
-	for _, option := range options {
-		if len(res) > 0 {
-			res += ","
-		}
-		res += option
-	}
-	return res
-}
-
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name                       string      `field:"name"`                          // SECLDoc[name] Definition:`Name of the security profile`
-	Status                     Status      `field:"status"`                        // SECLDoc[status] Definition:`Status of the security profile`
-	Version                    string      `field:"version"`                       // SECLDoc[version] Definition:`Version of the security profile`
-	Tags                       []string    `field:"tags"`                          // SECLDoc[tags] Definition:`Tags of the security profile`
-	AnomalyDetectionEventTypes []EventType `field:"anomaly_detection_event_types"` // SECLDoc[anomaly_detection_event_types] Definition:`Event types enabled for anomaly detection`
-}
-
-// CanGenerateAnomaliesFor returns true if the current profile can generate anomalies for the provided event type
-func (spc SecurityProfileContext) CanGenerateAnomaliesFor(evtType EventType) bool {
-	return slices.Contains(spc.AnomalyDetectionEventTypes, evtType)
+	Name       string      `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
+	Version    string      `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
+	Tags       []string    `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
+	EventTypes []EventType `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -163,15 +118,16 @@ type SpanContext struct {
 
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
-	ID           string             `field:"-" event:"*"`
-	Type         uint32             `field:"-"`
-	Flags        uint32             `field:"-"`
-	TimestampRaw uint64             `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time          `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
-	Rules        []*MatchedRule     `field:"-"`
-	Actions      []*ActionTriggered `field:"-"`
-	Origin       string             `field:"-"`
-	Suppressed   bool               `field:"-"`
+	ID            string         `field:"-" event:"*"`
+	Type          uint32         `field:"-"`
+	Flags         uint32         `field:"-"`
+	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
+	Timestamp     time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime" event:"*"`
+	Rules         []*MatchedRule `field:"-"`
+	ActionReports []ActionReport `field:"-"`
+	Os            string         `field:"event.os" event:"*"`                             // SECLDoc[event.os] Definition:`Operating system of the event`
+	Origin        string         `field:"event.origin" event:"*"`                         // SECLDoc[event.origin] Definition:`Origin of the event`
+	Service       string         `field:"event.service,handler:ResolveService" event:"*"` // SECLDoc[event.service] Definition:`Service associated with the event`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
@@ -219,12 +175,13 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
-// NewDefaultEvent returns a new event using the default field handlers
-func NewDefaultEvent() *Event {
+// NewFakeEvent returns a new event using the default field handlers
+func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &DefaultFieldHandlers{},
+			FieldHandlers:    &FakeFieldHandlers{},
 			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
 		},
 	}
 }
@@ -255,27 +212,19 @@ func (e *Event) IsInProfile() bool {
 	return e.Flags&EventFlagsSecurityProfileInProfile > 0
 }
 
-// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
-func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
-	return AnomalyDetectionSyscallEventType == e.GetEventType()
+// HasActiveActivityDump returns true if the event has an active activity dump associated to it
+func (e *Event) HasActiveActivityDump() bool {
+	return e.Flags&EventFlagsHasActiveActivityDump > 0
 }
 
 // IsAnomalyDetectionEvent returns true if the current event is an anomaly detection event (kernel or user space)
 func (e *Event) IsAnomalyDetectionEvent() bool {
-	if !e.SecurityProfileContext.Status.IsEnabled(AnomalyDetection) {
-		return false
-	}
+	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
+}
 
-	// first, check if the current event is a kernel generated anomaly detection event
-	if e.IsKernelSpaceAnomalyDetectionEvent() {
-		return true
-	} else if !e.SecurityProfileContext.CanGenerateAnomaliesFor(e.GetEventType()) {
-		// the profile can't generate anomalies for the current event type
-		return false
-	} else if e.IsInProfile() {
-		return false
-	}
-	return true
+// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
+func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
+	return AnomalyDetectionSyscallEventType == e.GetEventType()
 }
 
 // AddToFlags adds a flag to the event
@@ -309,14 +258,9 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
-// GetActions returns the triggred actions
-func (e *Event) GetActions() []*ActionTriggered {
-	return e.Actions
-}
-
-// IsSuppressed returns true if the event is suppressed
-func (e *Event) IsSuppressed() bool {
-	return e.Suppressed
+// GetActionReports returns the triggred action reports
+func (e *Event) GetActionReports() []ActionReport {
+	return e.ActionReports
 }
 
 // GetWorkloadID returns an ID that represents the workload
@@ -349,9 +293,9 @@ func (e *Event) ResolveEventTime() time.Time {
 	return e.FieldHandlers.ResolveEventTime(e, &e.BaseEvent)
 }
 
-// GetProcessService uses the field handler
-func (e *Event) GetProcessService() string {
-	return e.FieldHandlers.GetProcessService(e)
+// ResolveService uses the field handler
+func (e *Event) ResolveService() string {
+	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
 // UserSessionContext describes the user session context
@@ -376,10 +320,9 @@ type MatchedRule struct {
 	PolicyVersion string
 }
 
-// ActionTriggered defines a triggered action
-type ActionTriggered struct {
-	Name  string
-	Value string
+// ActionReport defines an action report
+type ActionReport interface {
+	ToJSON() ([]byte, bool, error)
 }
 
 // NewMatchedRule return a new MatchedRule instance
@@ -588,32 +531,31 @@ type ExitEvent struct {
 
 // DNSEvent represents a DNS event
 type DNSEvent struct {
-	ID    uint16 `field:"id"`                                                      // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.DNSNameCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                           // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                          // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                         // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Name  string `field:"question.name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
+	Type  uint16 `field:"question.type"`                                                   // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+}
+
+// Matches returns true if the two DNS events matches
+func (de *DNSEvent) Matches(new *DNSEvent) bool {
+	return de.Name == new.Name && de.Type == new.Type && de.Class == new.Class
 }
 
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
-	GetProcessService(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 
 // ResolveContainerContext stub implementation
-func (dfh *DefaultFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
+func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
-}
-
-// GetProcessService stub implementation
-func (dfh *DefaultFieldHandlers) GetProcessService(_ *Event) string {
-	return ""
 }

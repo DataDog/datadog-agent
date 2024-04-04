@@ -37,8 +37,8 @@ type subscriber struct {
 	filter   *Filter
 }
 
-// Start starts the workload metadata store.
-func (w *workloadmeta) Start(ctx context.Context) {
+// start starts the workload metadata store.
+func (w *workloadmeta) start(ctx context.Context) {
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
@@ -338,6 +338,19 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*KubernetesDeployment
 	return entity.(*KubernetesDeployment), nil
 }
 
+// ListECSTasks implements Store#ListECSTasks
+func (w *workloadmeta) ListECSTasks() []*ECSTask {
+	entities := w.listEntitiesByKind(KindECSTask)
+
+	tasks := make([]*ECSTask, 0, len(entities))
+	for _, entity := range entities {
+		task := entity.(*ECSTask)
+		tasks = append(tasks, task)
+	}
+
+	return tasks
+}
+
 // GetECSTask implements Store#GetECSTask
 func (w *workloadmeta) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := w.getEntityByKind(KindECSTask, id)
@@ -448,6 +461,35 @@ func (w *workloadmeta) Reset(newEntities []Entity, source Source) {
 	}
 
 	w.Notify(events)
+}
+
+func (w *workloadmeta) validatePushEvents(events []Event) error {
+	for _, event := range events {
+		if event.Type != EventTypeSet && event.Type != EventTypeUnset {
+			return fmt.Errorf("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
+		}
+	}
+	return nil
+}
+
+// Push implements Store#Push
+func (w *workloadmeta) Push(source Source, events ...Event) error {
+	err := w.validatePushEvents(events)
+	if err != nil {
+		return err
+	}
+
+	collectorEvents := make([]CollectorEvent, len(events))
+	for index, event := range events {
+		collectorEvents[index] = CollectorEvent{
+			Type:   event.Type,
+			Source: source,
+			Entity: event.Entity,
+		}
+	}
+
+	w.Notify(collectorEvents)
+	return nil
 }
 
 func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {

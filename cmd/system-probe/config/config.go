@@ -39,6 +39,8 @@ const (
 	LanguageDetectionModule      types.ModuleName = "language_detection"
 	WindowsCrashDetectModule     types.ModuleName = "windows_crash_detection"
 	ComplianceModule             types.ModuleName = "compliance"
+	PingModule                   types.ModuleName = "ping"
+	TracerouteModule             types.ModuleName = "traceroute"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -47,11 +49,6 @@ func New(configPath string) (*types.Config, error) {
 }
 
 func newSysprobeConfig(configPath string) (*types.Config, error) {
-	// System probe is not supported on darwin, so we should fail gracefully in this case.
-	if runtime.GOOS == "darwin" {
-		return &types.Config{}, nil
-	}
-
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -95,7 +92,6 @@ func load() (*types.Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
-		GRPCServerEnabled:  cfg.GetBool(spNS("grpc_enabled")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),
@@ -110,9 +106,8 @@ func load() (*types.Config, error) {
 
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
-	dsmEnabled := cfg.GetBool(dsmNS("enabled"))
 
-	if npmEnabled || usmEnabled || dsmEnabled {
+	if npmEnabled || usmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
@@ -142,12 +137,18 @@ func load() (*types.Config, error) {
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
 		c.EnabledModules[LanguageDetectionModule] = struct{}{}
 	}
+	if cfg.GetBool(pngNS("enabled")) {
+		c.EnabledModules[PingModule] = struct{}{}
+	}
+	if cfg.GetBool(tracerouteNS("enabled")) {
+		c.EnabledModules[TracerouteModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}
 	if runtime.GOOS == "windows" {
-		if c.ModuleIsEnabled(NetworkTracerModule) {
+		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}

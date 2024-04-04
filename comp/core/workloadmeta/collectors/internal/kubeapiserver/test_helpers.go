@@ -35,7 +35,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 
 	overrides := map[string]interface{}{
 		"cluster_agent.collect_kubernetes_tags": true,
-		"language_detection.enabled":            true,
+		"language_detection.reporting.enabled":  true,
 	}
 
 	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
@@ -46,7 +46,6 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		workloadmeta.MockModuleV2(),
 	))
 	ctx := context.TODO()
-	wlm.Start(ctx)
 
 	store, _ := newStore(ctx, wlm, client)
 	stopStore := make(chan struct{})

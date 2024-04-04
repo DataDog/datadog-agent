@@ -8,9 +8,14 @@ package stats
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -38,6 +43,7 @@ type ClientStatsAggregator struct {
 	In      chan *pb.ClientStatsPayload
 	out     chan *pb.StatsPayload
 	buckets map[int64]*bucket // buckets used to aggregate client stats
+	conf    *config.AgentConfig
 
 	flushTicker         *time.Ticker
 	oldestTs            time.Time
@@ -48,22 +54,26 @@ type ClientStatsAggregator struct {
 
 	exit chan struct{}
 	done chan struct{}
+
+	statsd statsd.ClientInterface
 }
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
-func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayload) *ClientStatsAggregator {
+func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayload, statsd statsd.ClientInterface) *ClientStatsAggregator {
 	c := &ClientStatsAggregator{
 		flushTicker:         time.NewTicker(time.Second),
 		In:                  make(chan *pb.ClientStatsPayload, 10),
 		buckets:             make(map[int64]*bucket, 20),
+		conf:                conf,
 		out:                 out,
 		agentEnv:            conf.DefaultEnv,
 		agentHostname:       conf.Hostname,
 		agentVersion:        conf.AgentVersion,
-		peerTagsAggregation: conf.PeerServiceAggregation || conf.PeerTagsAggregation,
+		peerTagsAggregation: conf.PeerTagsAggregation,
 		oldestTs:            alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:                make(chan struct{}),
 		done:                make(chan struct{}),
+		statsd:              statsd,
 	}
 	return c
 }
@@ -71,7 +81,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayloa
 // Start starts the aggregator.
 func (a *ClientStatsAggregator) Start() {
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(a.statsd)
 		for {
 			select {
 			case t := <-a.flushTicker.C:
@@ -138,6 +148,7 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 			a.buckets[ts.Unix()] = b
 		}
 		p.Stats = []*pb.ClientStatsBucket{clientBucket}
+		a.setVersionDataFromContainerTags(p)
 		a.flush(b.add(p, a.peerTagsAggregation))
 	}
 }
@@ -153,6 +164,27 @@ func (a *ClientStatsAggregator) flush(p []*pb.ClientStatsPayload) {
 		AgentHostname:  a.agentHostname,
 		AgentVersion:   a.agentVersion,
 		ClientComputed: true,
+	}
+}
+
+func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) {
+	// No need to go any further if we already have the information in the payload.
+	if p.ImageTag != "" && p.GitCommitSha != "" {
+		return
+	}
+	if p.ContainerID != "" {
+		gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(p.ContainerID, a.conf)
+		if err != nil {
+			log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
+		} else {
+			// Only override if the payload's original values were empty strings.
+			if p.ImageTag == "" {
+				p.ImageTag = imageTag
+			}
+			if p.GitCommitSha == "" {
+				p.GitCommitSha = gitCommitSha
+			}
+		}
 	}
 }
 
@@ -193,6 +225,8 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.Clie
 			Service:          p.GetService(),
 			ContainerID:      p.GetContainerID(),
 			Tags:             p.GetTags(),
+			GitCommitSha:     p.GetGitCommitSha(),
+			ImageTag:         p.GetImageTag(),
 		}
 		return nil
 	}
@@ -210,7 +244,7 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.Clie
 }
 
 func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerTagsAgg bool) {
-	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID)
+	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag)
 	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
 		var size int
@@ -261,6 +295,7 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 				HTTPStatusCode: aggrKey.StatusCode,
 				Type:           aggrKey.Type,
 				Synthetics:     aggrKey.Synthetics,
+				IsTraceRoot:    aggrKey.IsTraceRoot,
 				PeerTags:       counts.peerTags,
 				Hits:           counts.hits,
 				Errors:         counts.errors,
@@ -277,6 +312,8 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 			Hostname:         payloadKey.Hostname,
 			Env:              payloadKey.Env,
 			Version:          payloadKey.Version,
+			ImageTag:         payloadKey.ImageTag,
+			GitCommitSha:     payloadKey.GitCommitSha,
 			Stats:            clientBuckets,
 			AgentAggregation: keyCounts,
 		})
@@ -284,19 +321,27 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 	return res
 }
 
-func newPayloadAggregationKey(env, hostname, version, cid string) PayloadAggregationKey {
-	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version, ContainerID: cid}
+func newPayloadAggregationKey(env, hostname, version, cid string, gitCommitSha string, imageTag string) PayloadAggregationKey {
+	return PayloadAggregationKey{
+		Env:          env,
+		Hostname:     hostname,
+		Version:      version,
+		ContainerID:  cid,
+		GitCommitSha: gitCommitSha,
+		ImageTag:     imageTag,
+	}
 }
 
 func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerTagsAgg bool) BucketsAggregationKey {
 	k := BucketsAggregationKey{
-		Service:    b.Service,
-		Name:       b.Name,
-		SpanKind:   b.SpanKind,
-		Resource:   b.Resource,
-		Type:       b.Type,
-		Synthetics: b.Synthetics,
-		StatusCode: b.HTTPStatusCode,
+		Service:     b.Service,
+		Name:        b.Name,
+		SpanKind:    b.SpanKind,
+		Resource:    b.Resource,
+		Type:        b.Type,
+		Synthetics:  b.Synthetics,
+		StatusCode:  b.HTTPStatusCode,
+		IsTraceRoot: b.IsTraceRoot,
 	}
 	if enablePeerTagsAgg {
 		k.PeerTagsHash = peerTagsHash(b.GetPeerTags())

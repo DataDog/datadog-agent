@@ -20,14 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	saconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -37,11 +43,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/security/agent"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
 
@@ -77,11 +91,11 @@ func (s *service) Run(svcctx context.Context) error {
 	params := &cliParams{}
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
+			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, demultiplexer demultiplexer.Component, statusComponent status.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, "", demultiplexer)
+			err := start.RunAgent(ctx, log, config, telemetry, demultiplexer, statusComponent)
 			if err != nil {
 				return err
 			}
@@ -97,7 +111,7 @@ func (s *service) Run(svcctx context.Context) error {
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(defaultSysProbeConfPath)),
-			LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+			LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", setup.DefaultSecurityAgentLogFile),
 		}),
 		core.Bundle(),
 		dogstatsd.ClientBundle,
@@ -106,11 +120,10 @@ func (s *service) Run(svcctx context.Context) error {
 		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
-		fx.Provide(func() demultiplexerimpl.Params {
-			params := demultiplexerimpl.NewDefaultParams()
-			params.UseEventPlatformForwarder = false
-			return params
-		}),
+		eventplatformimpl.Module(),
+		fx.Supply(eventplatformimpl.NewDisabledParams()),
+		eventplatformreceiverimpl.Module(),
+		fx.Supply(demultiplexerimpl.NewDefaultParams()),
 
 		// workloadmeta setup
 		collectors.GetCatalog(),
@@ -127,6 +140,49 @@ func (s *service) Run(svcctx context.Context) error {
 				AgentType: catalog,
 			}
 		}),
+		fx.Provide(func(log log.Component, config config.Component, statsd statsd.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) (status.InformationProvider, *agent.RuntimeSecurityAgent, error) {
+			stopper := startstop.NewSerialStopper()
+
+			statsdClient, err := statsd.CreateForHostPort(setup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.TODO())
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer, wmeta)
+			if err != nil {
+				return status.NewInformationProvider(nil), nil, err
+			}
+
+			if runtimeAgent == nil {
+				return status.NewInformationProvider(nil), nil, nil
+			}
+
+			// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
+			return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
+		}),
+		fx.Supply(
+			status.Params{
+				PythonVersionGetFunc: python.GetPythonVersion,
+			},
+		),
+		fx.Provide(func(config config.Component) status.HeaderInformationProvider {
+			return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
+				Config: config,
+			})
+		}),
+
+		statusimpl.Module(),
+
+		fetchonlyimpl.Module(),
+		configsyncimpl.OptionalModule(),
+		// Force the instantiation of the component
+		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 	)
 
 	return err

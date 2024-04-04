@@ -23,6 +23,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -48,10 +49,10 @@ type PrioritySampler struct {
 }
 
 // NewPrioritySampler returns an initialized Sampler
-func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
+func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig, statsd statsd.ClientInterface) *PrioritySampler {
 	s := &PrioritySampler{
 		agentEnv:      conf.DefaultEnv,
-		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
+		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}, statsd),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(conf.MaxCatalogEntries),
 		exit:          make(chan struct{}),
@@ -75,12 +76,12 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// UpdateTargetTPS updates the target tps
 func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
 	s.sampler.updateTargetTPS(targetTPS)
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// GetTargetTPS returns the target tps
 func (s *PrioritySampler) GetTargetTPS() float64 {
 	return s.sampler.targetTPS.Load()
 }

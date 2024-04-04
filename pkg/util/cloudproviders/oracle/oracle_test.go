@@ -37,7 +37,7 @@ func TestGetHostAliases(t *testing.T) {
 	metadataURL = ts.URL
 
 	aliases, err := GetHostAliases(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	require.Len(t, aliases, 1)
 	assert.Equal(t, expected, aliases[0])
 	assert.Equal(t, lastRequest.URL.Path, "/opc/v2/instance/id")

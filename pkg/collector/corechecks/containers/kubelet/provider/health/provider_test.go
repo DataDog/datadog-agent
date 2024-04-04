@@ -12,8 +12,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -27,7 +27,7 @@ func TestProvider_Provide(t *testing.T) {
 		err     error
 	}
 	type checkinfo struct {
-		checkName string
+		CheckName string
 		status    servicecheck.ServiceCheckStatus
 		msg       string
 	}
@@ -49,11 +49,11 @@ func TestProvider_Provide(t *testing.T) {
 			},
 			want: want{
 				servicechecks: []checkinfo{
-					{checkName: "kubernetes_core.kubelet.check.ping",
+					{CheckName: "kubernetes.kubelet.check.ping",
 						status: servicecheck.ServiceCheckOK},
-					{checkName: "kubernetes_core.kubelet.check.log",
+					{CheckName: "kubernetes.kubelet.check.log",
 						status: servicecheck.ServiceCheckOK},
-					{checkName: "kubernetes_core.kubelet.check",
+					{CheckName: "kubernetes.kubelet.check",
 						status: servicecheck.ServiceCheckOK},
 				},
 				err: nil,
@@ -68,11 +68,11 @@ func TestProvider_Provide(t *testing.T) {
 			},
 			want: want{
 				servicechecks: []checkinfo{
-					{checkName: "kubernetes_core.kubelet.check.ping",
+					{CheckName: "kubernetes.kubelet.check.ping",
 						status: servicecheck.ServiceCheckCritical},
-					{checkName: "kubernetes_core.kubelet.check.log",
+					{CheckName: "kubernetes.kubelet.check.log",
 						status: servicecheck.ServiceCheckOK},
-					{checkName: "kubernetes_core.kubelet.check",
+					{CheckName: "kubernetes.kubelet.check",
 						status: servicecheck.ServiceCheckCritical,
 						msg:    "Kubelet health check failed, http response code = 200"},
 				},
@@ -123,7 +123,7 @@ func TestProvider_Provide(t *testing.T) {
 				tags := []string{"instance_tag:something"}
 				for _, servicecheck := range tt.want.servicechecks {
 					mockSender.AssertServiceCheck(t,
-						servicecheck.checkName,
+						servicecheck.CheckName,
 						servicecheck.status,
 						"",
 						tags,

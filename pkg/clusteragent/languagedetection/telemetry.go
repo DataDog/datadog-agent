@@ -9,64 +9,19 @@ package languagedetection
 
 import "github.com/DataDog/datadog-agent/pkg/telemetry"
 
-const subsystem = "language_detection_dca_handler"
+const subsystem = "language_detection_patcher"
 
 var (
 	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
 )
 
 var (
-	// PatchRetries determines the number of times a patch request fails and is retried for a gived
-	PatchRetries = telemetry.NewCounterWithOpts(
+	// Patches is the number of patch requests sent by the patcher to the kubernetes api server
+	Patches = telemetry.NewCounterWithOpts(
 		subsystem,
-		"retries",
-		[]string{"owner_kind", "owner_name", "namespace"},
-		"Tracks the number of retries while patching deployments with language annotations",
-		commonOpts,
-	)
-
-	// SuccessPatches tracks the number of successful annotation patch operations
-	SuccessPatches = telemetry.NewCounterWithOpts(
-		subsystem,
-		"success_patch",
-		[]string{"owner_kind", "owner_name", "namespace"},
-		"Tracks the number of successful annotation patch operations",
-		commonOpts,
-	)
-
-	// FailedPatches tracks the number of failing annotation patch operations
-	FailedPatches = telemetry.NewCounterWithOpts(
-		subsystem,
-		"fail_patch",
-		[]string{"owner_kind", "owner_name", "namespace"},
-		"Tracks the number of failing annotation patch operations",
-		commonOpts,
-	)
-
-	// SkippedPatches tracks the number of times a patch was skipped because no new languages are detected
-	SkippedPatches = telemetry.NewCounterWithOpts(
-		subsystem,
-		"skipped_patch",
-		[]string{"owner_kind", "owner_name", "namespace"},
-		"Tracks the number of times a patch was skipped because no new languages are detected",
-		commonOpts,
-	)
-
-	// OkResponses tracks the number the request was processed successfully
-	OkResponses = telemetry.NewCounterWithOpts(
-		subsystem,
-		"ok_response",
-		[]string{},
-		"Tracks the number the request was processed successfully",
-		commonOpts,
-	)
-
-	// ErrorResponses tracks the number of times request processsing fails
-	ErrorResponses = telemetry.NewCounterWithOpts(
-		subsystem,
-		"fail_response",
-		[]string{},
-		"Tracks the number of times request processsing fails",
+		"patches",
+		[]string{"owner_kind", "owner_name", "namespace", "status"},
+		"Tracks the number of patch requests sent by the patcher to the kubernetes api server",
 		commonOpts,
 	)
 )

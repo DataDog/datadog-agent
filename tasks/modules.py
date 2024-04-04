@@ -9,6 +9,7 @@ from invoke import Context, task
 from tasks.libs.common.color import color_message
 
 FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
+AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
 class GoModule:
@@ -28,6 +29,7 @@ class GoModule:
         independent=False,
         lint_targets=None,
         used_by_otel=False,
+        legacy_go_mod_version=False,
     ):
         self.path = path
         self.targets = targets if targets else ["."]
@@ -41,6 +43,7 @@ class GoModule:
         self.importable = importable
         self.independent = independent
         self.used_by_otel = used_by_otel
+        self.legacy_go_mod_version = legacy_go_mod_version
 
         self._dependencies = None
 
@@ -59,7 +62,6 @@ class GoModule:
         """
         Computes the list of github.com/DataDog/datadog-agent/ dependencies of the module.
         """
-        prefix = "github.com/DataDog/datadog-agent/"
         base_path = os.getcwd()
         mod_parser_path = os.path.join(base_path, "internal", "tools", "modparser")
 
@@ -68,7 +70,7 @@ class GoModule:
 
         try:
             output = subprocess.check_output(
-                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", prefix],
+                ["go", "run", ".", "-path", os.path.join(base_path, self.path), "-prefix", AGENT_MODULE_PATH_PREFIX],
                 cwd=mod_parser_path,
             ).decode("utf-8")
         except subprocess.CalledProcessError as e:
@@ -76,7 +78,7 @@ class GoModule:
             raise e
 
         # Remove github.com/DataDog/datadog-agent/ from each line
-        return [line[len(prefix) :] for line in output.strip().splitlines()]
+        return [line[len(AGENT_MODULE_PATH_PREFIX) :] for line in output.strip().splitlines()]
 
     # FIXME: Change when Agent 6 and Agent 7 releases are decoupled
     def tag(self, agent_version):
@@ -121,7 +123,7 @@ class GoModule:
         >>> [mod.import_path for mod in mods]
         ["github.com/DataDog/datadog-agent", "github.com/DataDog/datadog-agent/pkg/util/log"]
         """
-        path = "github.com/DataDog/datadog-agent"
+        path = AGENT_MODULE_PATH_PREFIX.removesuffix('/')
         if self.path != ".":
             path += "/" + self.path
         return path
@@ -144,6 +146,10 @@ DEFAULT_MODULES = {
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/proto": GoModule("internal/tools/proto", condition=lambda: False, should_tag=False),
     "internal/tools/modparser": GoModule("internal/tools/modparser", condition=lambda: False, should_tag=False),
+    "internal/tools/independent-lint": GoModule(
+        "internal/tools/independent-lint", condition=lambda: False, should_tag=False
+    ),
+    "internal/tools/modformatter": GoModule("internal/tools/modformatter", condition=lambda: False, should_tag=False),
     "test/e2e/containers/otlp_sender": GoModule(
         "test/e2e/containers/otlp_sender", condition=lambda: False, should_tag=False
     ),
@@ -160,23 +166,56 @@ DEFAULT_MODULES = {
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
+    "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True),
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
+    "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True),
     "comp/core/log": GoModule("comp/core/log", independent=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
+    "comp/core/status": GoModule("comp/core/status", independent=True),
+    "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
+    "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
+    "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
+        "comp/forwarder/orchestrator/orchestratorinterface", independent=True
+    ),
+    "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
+    ),
+    "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
+    ),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
+    "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
+    "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
     "pkg/config/setup": GoModule("pkg/config/setup", independent=True),
     "pkg/config/utils": GoModule("pkg/config/utils", independent=True),
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
     "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
-    "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
+    "pkg/logs/auditor": GoModule("pkg/logs/auditor", independent=True),
+    "pkg/logs/client": GoModule("pkg/logs/client", independent=True),
+    "pkg/logs/diagnostic": GoModule("pkg/logs/diagnostic", independent=True),
+    "pkg/logs/processor": GoModule("pkg/logs/processor", independent=True),
+    "pkg/logs/util/testutils": GoModule("pkg/logs/util/testutils", independent=True),
+    "pkg/logs/message": GoModule("pkg/logs/message", independent=True),
+    "pkg/logs/metrics": GoModule("pkg/logs/metrics", independent=True),
+    "pkg/logs/pipeline": GoModule("pkg/logs/pipeline", independent=True),
+    "pkg/logs/sender": GoModule("pkg/logs/sender", independent=True),
+    "pkg/logs/sources": GoModule("pkg/logs/sources", independent=True),
+    "pkg/logs/status/statusinterface": GoModule("pkg/logs/status/statusinterface", independent=True),
+    "pkg/logs/status/utils": GoModule("pkg/logs/status/utils", independent=True),
+    "pkg/serializer": GoModule("pkg/serializer", independent=True),
+    "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
+    "pkg/security/seclwin": GoModule(
+        "pkg/security/seclwin", independent=True, condition=lambda: False, legacy_go_mod_version=True
+    ),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
     "pkg/util/cgroups": GoModule(
@@ -186,11 +225,12 @@ DEFAULT_MODULES = {
     "pkg/util/log": GoModule("pkg/util/log", independent=True, used_by_otel=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True, used_by_otel=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True, used_by_otel=True),
+    "pkg/util/startstop": GoModule("pkg/util/startstop", independent=True),
     "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True),
     "pkg/util/cache": GoModule("pkg/util/cache", independent=True),
     "pkg/util/common": GoModule("pkg/util/common", independent=True),
-    "pkg/util/compression": GoModule("pkg/util/compression", independent=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
+    "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),
     "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True),
     "pkg/util/buf": GoModule("pkg/util/buf", independent=True),
@@ -199,8 +239,10 @@ DEFAULT_MODULES = {
     "pkg/util/sort": GoModule("pkg/util/sort", independent=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True),
     "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True),
+    "pkg/util/system": GoModule("pkg/util/system", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/util/uuid": GoModule("pkg/util/uuid", independent=True),
     "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),
     "pkg/util/grpc": GoModule("pkg/util/grpc", independent=True),
     "pkg/version": GoModule("pkg/version", independent=True),
@@ -265,8 +307,6 @@ def go_work(_: Context):
     and the go version contained in the file .go-version.
     If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
-    from semver import VersionInfo
-
     print(
         color_message(
             "WARNING: Using a go.work file is not supported and can cause weird errors "
@@ -280,8 +320,7 @@ def go_work(_: Context):
     # read go version from the .go-version file, removing the bugfix part of the version
 
     with open(".go-version") as f:
-        go_version = VersionInfo.parse(f.read().strip())
-        go_version = f"{go_version.major}.{go_version.minor}"
+        go_version = f.read().strip()
 
     if os.path.exists("go.work"):
         print("go.work already exists. Renaming to go.work.backup")
@@ -293,3 +332,15 @@ def go_work(_: Context):
             prefix = "" if mod.condition() else "//"
             f.write(f"\t{prefix}{mod.path}\n")
         f.write(")\n")
+
+
+@task
+def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+    """
+    Run the given command in the directory of each module.
+    """
+    for mod in DEFAULT_MODULES.values():
+        if skip_untagged and not mod.should_tag:
+            continue
+        with ctx.cd(mod.full_path()):
+            ctx.run(cmd)

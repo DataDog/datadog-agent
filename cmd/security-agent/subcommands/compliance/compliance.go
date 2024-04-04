@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -27,7 +27,7 @@ import (
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
 // and checks.
-func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, senderManager sender.SenderManager) (*compliance.Agent, error) {
+func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, senderManager sender.SenderManager, wmeta workloadmeta.Component) (*compliance.Agent, error) {
 	enabled := config.GetBool("compliance_config.enabled")
 	runPath := config.GetString("compliance_config.run_path")
 	configDir := config.GetString("compliance_config.dir")
@@ -43,11 +43,6 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		log.Error(err)
 	}
 	stopper.Add(context)
-
-	reporter, err := compliance.NewLogReporter(hostname, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
-	if err != nil {
-		return nil, err
-	}
 
 	resolverOptions := compliance.ResolverOptions{
 		Hostname:           hostname,
@@ -73,9 +68,8 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
 	}
 
-	runner := runner.NewRunner(senderManager)
-	stopper.Add(runner)
-	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
+	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", runPath, endpoints, context)
+	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,

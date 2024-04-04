@@ -9,6 +9,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,11 +19,12 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
@@ -33,6 +35,7 @@ import (
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ErrSysprobeUnsupported is the unsupported error prefix, for error-class matching from callers
@@ -41,9 +44,9 @@ var ErrSysprobeUnsupported = errors.New("system-probe unsupported")
 const inactivityLogDuration = 10 * time.Minute
 const inactivityRestartDuration = 20 * time.Minute
 
-var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config", "data_streams_config"}
+var networkTracerModuleConfigNamespaces = []string{"network_config", "service_monitoring_config"}
 
-func createNetworkTracerModule(cfg *sysconfigtypes.Config) (module.Module, error) {
+func createNetworkTracerModule(cfg *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
 	ncfg := networkconfig.New()
 
 	// Checking whether the current OS + kernel version is supported by the tracer
@@ -56,9 +59,6 @@ func createNetworkTracerModule(cfg *sysconfigtypes.Config) (module.Module, error
 	}
 	if ncfg.ServiceMonitoringEnabled {
 		log.Info("enabling universal service monitoring (USM)")
-	}
-	if ncfg.DataStreamsEnabled {
-		log.Info("enabling data streams monitoring (DSM)")
 	}
 
 	t, err := tracer.NewTracer(ncfg)
@@ -82,11 +82,6 @@ type networkTracer struct {
 func (nt *networkTracer) GetStats() map[string]interface{} {
 	stats, _ := nt.tracer.GetStats()
 	return stats
-}
-
-// RegisterGRPC register system probe grpc server
-func (nt *networkTracer) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
 }
 
 // Register all networkTracer endpoints
@@ -150,6 +145,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http_monitoring") {
+			writeDisabledProtocolMessage("http", w)
+			return
+		}
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -162,6 +161,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_kafka_monitoring") {
+			writeDisabledProtocolMessage("kafka", w)
+			return
+		}
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -174,6 +177,10 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring") {
+			writeDisabledProtocolMessage("http2", w)
+			return
+		}
 		id := getClientID(req)
 		cs, err := nt.tracer.GetActiveConnections(id)
 		if err != nil {
@@ -321,4 +328,14 @@ func startTelemetryReporter(_ *sysconfigtypes.Config, done <-chan struct{}) {
 			}
 		}
 	}()
+}
+
+func writeDisabledProtocolMessage(protocolName string, w http.ResponseWriter) {
+	log.Warnf("%s monitoring is disabled", protocolName)
+	w.WriteHeader(404)
+	// Writing JSON to ensure compatibility when using the jq bash utility for output
+	outputString := map[string]string{"error": fmt.Sprintf("%s monitoring is disabled", protocolName)}
+	// We are marshaling a static string, so we can ignore the error
+	buf, _ := json.Marshal(outputString)
+	w.Write(buf)
 }

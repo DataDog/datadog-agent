@@ -19,19 +19,14 @@ import (
 	"strings"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
-
-func init() {
-	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
-}
 
 func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	datadogConfig := config.Datadog
@@ -39,7 +34,8 @@ func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
 
-func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+// Diagnose performs connectivity diagnosis
+func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
@@ -72,7 +68,7 @@ func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagno
 				RawError:    err.Error(),
 			})
 		} else {
-			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
+			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog)
 
 			name := fmt.Sprintf("Connectivity to %s", url)
 			diag := createDiagnosis(name, url, "", err)
@@ -82,16 +78,30 @@ func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagno
 
 	}
 
+	endpointsInfo := getEndpointsInfo(config.Datadog)
+
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
 		// Go through all API Keys of a domain and send an HTTP request on each endpoint
 		for _, apiKey := range domainResolver.GetAPIKeys() {
 			for _, endpointInfo := range endpointsInfo {
-				domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
-				httpTraces := []string{}
-				ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
+				// Initialize variables
+				var logURL string
+				var responseBody []byte
+				var err error
+				var statusCode int
+				var httpTraces []string
 
-				statusCode, responseBody, logURL, err := sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+				if endpointInfo.Method == "HEAD" {
+					logURL = endpointInfo.Endpoint.Route
+					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects())
+				} else {
+					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+					httpTraces = []string{}
+					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
+
+					statusCode, responseBody, logURL, err = sendHTTPRequestToEndpoint(ctx, client, domain, endpointInfo, apiKey)
+				}
 
 				// Check if there is a response and if it's valid
 				report, reportErr := verifyEndpointResponse(statusCode, responseBody, err)
@@ -216,4 +226,26 @@ func noResponseHints(err error) string {
 	}
 
 	return ""
+}
+
+func clientWithOneRedirects() *http.Client {
+	return &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
+// See if the URL is redirected to another URL, and return the status code of the redirection
+func sendHTTPHEADRequestToEndpoint(url string, client *http.Client) (int, error) {
+	res, err := client.Head(url)
+	if err != nil {
+		return -1, err
+	}
+	defer res.Body.Close()
+	// Expected status codes are OK or a redirection
+	if res.StatusCode == http.StatusTemporaryRedirect || res.StatusCode == http.StatusPermanentRedirect || res.StatusCode == http.StatusOK {
+		return res.StatusCode, nil
+	}
+	return res.StatusCode, fmt.Errorf("The request wasn't redirected nor achieving his goal: %v", res.Status)
 }

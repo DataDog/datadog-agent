@@ -18,7 +18,7 @@ func NewHashedTagsFromSlice(tags []string) HashedTags {
 // Get returns the internal slice.
 //
 // NOTE: this returns a mutable reference to data in this immutable data structure.
-// It is still used by pkg/tagger/tagstore, but new uses should not be added.
+// It is still used by comp/core/tagger/tagstore, but new uses should not be added.
 func (h HashedTags) Get() []string {
 	return h.data
 }

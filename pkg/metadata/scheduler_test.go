@@ -15,8 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -65,10 +64,6 @@ func mockNewTimer(_ time.Duration) *time.Timer {
 	return timer
 }
 
-func mockNewTimerNoTick(_ time.Duration) *time.Timer {
-	return time.NewTimer(10 * time.Hour)
-}
-
 func TestNewScheduler(t *testing.T) {
 	deps := buildDeps(t)
 	demux := deps.Demultiplexer
@@ -85,7 +80,7 @@ func TestStopScheduler(t *testing.T) {
 	mockCollector := MockCollector{}
 	RegisterCollector("test", mockCollector)
 
-	err := c.AddCollector("test", 10*time.Hour)
+	err := c.addCollector("test", 10*time.Hour)
 	assert.NoError(t, err)
 
 	c.Stop()
@@ -111,7 +106,7 @@ func TestAddCollector(t *testing.T) {
 	default:
 	}
 
-	c.AddCollector("testCollector", 10*time.Hour)
+	c.addCollector("testCollector", 10*time.Hour)
 
 	select {
 	case <-mockCollector.SendCalledC:
@@ -142,7 +137,7 @@ func TestAddCollectorWithInit(t *testing.T) {
 	default:
 	}
 
-	c.AddCollector("testCollectorWithInit", 10*time.Hour)
+	c.addCollector("testCollectorWithInit", 10*time.Hour)
 
 	select {
 	case <-mockCollectorWithInit.InitCalledC:
@@ -167,7 +162,7 @@ func TestAddCollectorWithFirstRun(t *testing.T) {
 
 	RegisterCollector("testCollectorWithFirstRun", mockCollector)
 
-	c.AddCollector("testCollectorWithFirstRun", 10*time.Hour)
+	c.addCollector("testCollectorWithFirstRun", 10*time.Hour)
 
 	select {
 	case <-mockCollector.sendCalledC:
@@ -182,50 +177,11 @@ func TestAddCollectorWithFirstRun(t *testing.T) {
 	}
 }
 
-func TestTriggerAndResetCollectorTimer(t *testing.T) {
-	newTimer = mockNewTimerNoTick
-	defer func() { newTimer = time.NewTimer }()
-
-	mockCollector := &MockCollector{
-		SendCalledC: make(chan bool),
-	}
-
-	deps := buildDeps(t)
-	demux := deps.Demultiplexer
-	defer demux.Stop(false)
-	c := NewScheduler(demux)
-
-	RegisterCollector("testCollector", mockCollector)
-
-	c.AddCollector("testCollector", 10*time.Hour)
-
-	select {
-	case <-mockCollector.SendCalledC:
-		assert.Fail(t, "Send was called too early")
-	default:
-	}
-
-	c.TriggerAndResetCollectorTimer("testCollector", 0)
-
-	select {
-	case <-mockCollector.SendCalledC:
-	case <-time.After(5 * time.Second):
-		assert.Fail(t, "Timeout waiting for send to be called")
-	}
-
-	select {
-	case <-mockCollector.SendCalledC:
-		assert.Fail(t, "Send was called twice")
-	default:
-	}
-
-}
-
 type deps struct {
 	fx.In
-	Demultiplexer demultiplexer.Component
+	Demultiplexer demultiplexer.Mock
 }
 
 func buildDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, defaultforwarder.MockModule(), config.MockModule(), logimpl.MockModule(), demultiplexerimpl.MockModule())
+	return fxutil.Test[deps](t, defaultforwarder.MockModule(), core.MockBundle(), demultiplexerimpl.MockModule())
 }

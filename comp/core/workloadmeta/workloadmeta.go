@@ -10,11 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 // store is a central storage of metadata about workloads. A workload is any
@@ -57,9 +60,23 @@ type dependencies struct {
 	Params Params
 }
 
-func newWorkloadMeta(deps dependencies) Component {
+type provider struct {
+	fx.Out
+
+	Comp          Component
+	FlareProvider flaretypes.Provider
+}
+
+type optionalProvider struct {
+	fx.Out
+
+	Comp          optional.Option[Component]
+	FlareProvider flaretypes.Provider
+}
+
+func newWorkloadMeta(deps dependencies) provider {
 	candidates := make(map[string]Collector)
-	for _, c := range deps.Catalog {
+	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
 			candidates[c.GetID()] = c
 		}
@@ -76,9 +93,6 @@ func newWorkloadMeta(deps dependencies) Component {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
-	// Set global
-	SetGlobalStore(wm)
-
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 
 		var err error
@@ -88,14 +102,13 @@ func newWorkloadMeta(deps dependencies) Component {
 		//                   context provided to the OnStart hook.
 		mainCtx, _ := common.GetMainCtxCancel()
 
-		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
 			err = deps.Params.InitHelper(mainCtx, wm)
 			if err != nil {
 				return err
 			}
 		}
-		wm.Start(mainCtx)
+		wm.start(mainCtx)
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
@@ -103,14 +116,22 @@ func newWorkloadMeta(deps dependencies) Component {
 		return nil
 	}})
 
-	return wm
+	return provider{
+		Comp:          wm,
+		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
+	}
 }
 
-func newWorkloadMetaOptional(deps dependencies) optional.Option[Component] {
+func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	if deps.Params.NoInstance {
-		return optional.NewNoneOption[Component]()
+		return optionalProvider{
+			Comp: optional.NewNoneOption[Component](),
+		}
 	}
 	c := newWorkloadMeta(deps)
 
-	return optional.NewOption[Component](c)
+	return optionalProvider{
+		Comp:          optional.NewOption(c.Comp),
+		FlareProvider: c.FlareProvider,
+	}
 }

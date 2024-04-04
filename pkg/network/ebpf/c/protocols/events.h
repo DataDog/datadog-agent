@@ -28,7 +28,7 @@
         return val > 0;                                                                                 \
     }                                                                                                   \
                                                                                                         \
-    static __always_inline void name##_batch_flush(void *ctx) {                                         \
+    static __always_inline void name##_batch_flush(struct pt_regs *ctx) {                               \
         if (!is_##name##_monitoring_enabled()) {                                                        \
             return;                                                                                     \
         }                                                                                               \
@@ -38,6 +38,11 @@
             /* batch is not ready to be flushed */                                                      \
             return;                                                                                     \
         }                                                                                               \
+                                                                                                        \
+        u64 use_ring_buffer;                                                                            \
+        LOAD_CONSTANT("use_ring_buffer", use_ring_buffer);                                              \
+        long perf_ret;                                                                                  \
+                                                                                                        \
         _Pragma(_STR(unroll(BATCH_PAGES_PER_CPU)))                                                      \
             for (int i = 0; i < BATCH_PAGES_PER_CPU; i++) {                                             \
                 if (batch_state->idx_to_flush == batch_state->idx) return;                              \
@@ -48,14 +53,18 @@
                     return;                                                                             \
                 }                                                                                       \
                                                                                                         \
-                long ret = bpf_perf_event_output(ctx,                                                   \
-                                                 &name##_batch_events,                                  \
-                                                 key.cpu,                                               \
-                                                 batch,                                                 \
-                                                 sizeof(batch_data_t));                                 \
-                if (ret < 0) {                                                                          \
-                    _LOG(name, "batch flush error: cpu: %d idx: %d err:%d",                             \
-                         key.cpu, batch->idx, ret);                                                     \
+                if (use_ring_buffer) {                                                                  \
+                    perf_ret = bpf_ringbuf_output(&name##_batch_events, batch, sizeof(batch_data_t), 0);\
+                } else {                                                                                \
+                    perf_ret = bpf_perf_event_output(ctx,                                               \
+                                                     &name##_batch_events,                              \
+                                                     key.cpu,                                           \
+                                                     batch,                                             \
+                                                     sizeof(batch_data_t));                             \
+                }                                                                                       \
+                if (perf_ret < 0) {                                                                     \
+                    _LOG(name, "batch flush error: cpu: %d idx: %d err: %d",                            \
+                         key.cpu, batch->idx, perf_ret);                                                \
                     batch->failed_flushes++;                                                            \
                     return;                                                                             \
                 }                                                                                       \
@@ -128,16 +137,6 @@ static __always_inline bool __enqueue_event(batch_data_t *batch, void *event, si
     bpf_memcpy(&batch->data[offset], event, event_size);
     batch->len++;
     return true;
-}
-
-// convenience helper function for determining if bpf_perf_event_output helper
-// is available for socket filter programs. this constant is injected via the
-// constant editor during load time and should evaluate to true on hosts running
-// kernel >= 5.4
-static __always_inline bool is_direct_flush_supported() {
-    __u64 val = 0;
-    LOAD_CONSTANT("direct_flush_supported", val);
-    return val > 0;
 }
 
 #define _LOG(protocol, message, args...) \

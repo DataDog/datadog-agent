@@ -2,11 +2,13 @@ import json
 import os
 import platform
 import subprocess
+from collections import UserList
 from urllib.parse import quote
 
+import yaml
 from invoke.exceptions import Exit
 
-from .remote_api import APIError, RemoteAPI
+from tasks.libs.common.remote_api import APIError, RemoteAPI
 
 __all__ = ["Gitlab"]
 
@@ -18,7 +20,7 @@ class Gitlab(RemoteAPI):
 
     BASE_URL = "https://gitlab.ddbuild.io/api/v4"
 
-    def __init__(self, project_name="", api_token=""):
+    def __init__(self, project_name="DataDog/datadog-agent", api_token=""):
         super(Gitlab, self).__init__("Gitlab")
         self.api_token = api_token
         self.project_name = project_name
@@ -95,6 +97,13 @@ class Gitlab(RemoteAPI):
             return None
 
         return sorted(pipelines, key=lambda pipeline: pipeline['created_at'], reverse=True)[0]
+
+    def last_pipelines(self):
+        """
+        Get the last 100 pipelines
+        """
+        path = f"/projects/{quote(self.project_name, safe='')}/pipelines?per_page=100&page=1"
+        return self.make_request(path, json_output=True)
 
     def trigger_pipeline(self, data):
         """
@@ -353,3 +362,55 @@ def get_gitlab_bot_token():
         )
         raise Exit(code=1)
     return os.environ["GITLAB_BOT_TOKEN"]
+
+
+class ReferenceTag(yaml.YAMLObject):
+    """
+    Custom yaml tag to handle references in gitlab-ci configuration
+    """
+
+    yaml_tag = u'!reference'
+
+    def __init__(self, references):
+        self.references = references
+
+    @classmethod
+    def from_yaml(cls, loader, node):
+        return UserList(loader.construct_sequence(node))
+
+    @classmethod
+    def to_yaml(cls, dumper, data):
+        return dumper.represent_sequence(cls.yaml_tag, data.data, flow_style=True)
+
+
+def generate_gitlab_full_configuration(input_file):
+    """
+    Generate a full gitlab-ci configuration by resolving all includes
+    """
+    # Update loader/dumper to handle !reference tag
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    yaml.SafeDumper.add_representer(UserList, ReferenceTag.to_yaml)
+
+    yaml_contents = []
+    read_includes(input_file, yaml_contents)
+    full_configuration = {}
+    for yaml_file in yaml_contents:
+        full_configuration.update(yaml_file)
+    return yaml.safe_dump(full_configuration)
+
+
+def read_includes(yaml_file, includes):
+    """
+    Recursive method to read all includes from yaml files and store them in a list
+    """
+    with open(yaml_file) as f:
+        current_file = yaml.safe_load(f)
+    if 'include' not in current_file:
+        includes.append(current_file)
+    else:
+        for include in current_file['include']:
+            if include.startswith('http'):
+                continue
+            read_includes(include, includes)
+        del current_file['include']
+        includes.append(current_file)

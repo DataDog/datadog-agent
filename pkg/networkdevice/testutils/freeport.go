@@ -8,21 +8,27 @@
 package testutils
 
 import (
+	"fmt"
 	"net"
+	"strconv"
 )
 
 // GetFreePort finds a free port to use for testing.
-// Borrowed from: https://github.com/phayes/freeport/blame/master/freeport.go#L8-L20
 func GetFreePort() (uint16, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	conn, err := net.ListenPacket("udp", ":0")
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+	defer conn.Close()
+
+	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return 0, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+	portInt, err := strconv.Atoi(portString)
+	if err != nil {
+		return 0, fmt.Errorf("can't convert udp port: %s", err)
 	}
 
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return uint16(l.Addr().(*net.TCPAddr).Port), nil
+	return uint16(portInt), nil
 }

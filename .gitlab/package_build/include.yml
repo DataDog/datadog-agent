@@ -1,0 +1,18 @@
+# package_build stage
+# Contains jobs which build the Agent packages with omnibus.
+
+---
+.upload_sbom_artifacts:
+  - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/version-manifest.json $S3_SBOM_STORAGE_URI/$CI_JOB_NAME/version-manifest.json
+
+.upload_sbom_artifacts_windows:
+  - Invoke-Expression "$S3_CP_CMD omnibus\pkg\version-manifest.json $S3_SBOM_STORAGE_URI/$CI_JOB_NAME/version-manifest.json"
+  - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+include:
+  - .gitlab/package_build/deb.yml
+  - .gitlab/package_build/dmg.yml
+  - .gitlab/package_build/remote_updater.yml
+  - .gitlab/package_build/rpm.yml
+  - .gitlab/package_build/suse_rpm.yml
+  - .gitlab/package_build/windows.yml

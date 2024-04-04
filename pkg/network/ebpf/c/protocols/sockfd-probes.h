@@ -13,6 +13,40 @@
 #include "sock.h"
 #include "sockfd.h"
 
+SEC("kprobe/tcp_close")
+int kprobe__tcp_close(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    if (sk == NULL) {
+        return 0;
+    }
+
+    pid_fd_t* pid_fd = bpf_map_lookup_elem(&pid_fd_by_sock, &sk);
+    if (pid_fd == NULL) {
+        return 0;
+    }
+
+    // Copy map value to stack before re-using it (needed for older kernels)
+    pid_fd_t pid_fd_copy = {};
+    bpf_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
+    pid_fd = &pid_fd_copy;
+
+    bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);
+    bpf_map_delete_elem(&pid_fd_by_sock, &sk);
+
+    conn_tuple_t t;
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
+    // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,
+    // as it does not have access to the PID and NETNS.
+    // Therefore, we use tls_finish to clean the connection. While this approach is not ideal, it is the best option available to us for now.
+    tls_finish(ctx, &t, true);
+    return 0;
+}
+
 SEC("kprobe/sockfd_lookup_light")
 int kprobe__sockfd_lookup_light(struct pt_regs *ctx) {
     int sockfd = (int)PT_REGS_PARM1(ctx);

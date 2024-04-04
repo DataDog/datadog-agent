@@ -3,8 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build unix
 
+// Package main is the entrypoint for system-probe process
 package main
 
 import (
@@ -17,6 +18,6 @@ import (
 
 func main() {
 	rootCmd := command.MakeCommand(subcommands.SysprobeSubcommands())
-	setDefaultCommandIfNonePresent(rootCmd)
+	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))
 }

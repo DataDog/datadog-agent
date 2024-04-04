@@ -1,7 +1,44 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
+  "$id": "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers",
   "$defs": {
+    "AgentContext": {
+      "properties": {
+        "rule_id": {
+          "type": "string"
+        },
+        "rule_version": {
+          "type": "string"
+        },
+        "rule_actions": {
+          "items": true,
+          "type": "array"
+        },
+        "policy_name": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "rule_id"
+      ]
+    },
     "AnomalyDetectionSyscallEvent": {
       "properties": {
         "syscall": {
@@ -107,6 +144,10 @@
           "type": "string",
           "format": "date-time",
           "description": "Creation time of the container"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -206,13 +247,9 @@
           "type": "array",
           "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
         },
-        "origin": {
-          "type": "string",
-          "description": "Origin of the event"
-        },
-        "suppressed": {
-          "type": "boolean",
-          "description": "True if the event has been suppressed"
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -888,7 +925,7 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
@@ -1016,7 +1053,7 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
@@ -1032,6 +1069,10 @@
           },
           "type": "array",
           "description": "Ancestor processes"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -1186,10 +1227,6 @@
           "type": "string",
           "description": "Name of the security profile"
         },
-        "status": {
-          "type": "string",
-          "description": "Status defines in which state the security profile was when the event was triggered"
-        },
         "version": {
           "type": "string",
           "description": "Version of the profile in use"
@@ -1200,15 +1237,19 @@
           },
           "type": "array",
           "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+          "type": "boolean",
+          "description": "True if the corresponding event is part of this profile"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "name",
-        "status",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
@@ -1308,9 +1349,19 @@
       "additionalProperties": false,
       "type": "object",
       "description": "UserSessionContextSerializer serializes the user session context to JSON"
+    },
+    "Variables": {
+      "type": "object",
+      "description": "Variables serializes the variable values"
     }
   },
   "properties": {
+    "agent": {
+      "$ref": "#/$defs/AgentContext"
+    },
+    "title": {
+      "type": "string"
+    },
     "evt": {
       "$ref": "#/$defs/EventContext"
     },
@@ -1381,5 +1432,8 @@
   },
   "additionalProperties": false,
   "type": "object",
-  "description": "EventSerializer serializes an event to JSON"
+  "required": [
+    "agent",
+    "title"
+  ]
 }

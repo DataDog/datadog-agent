@@ -9,11 +9,13 @@
 package testdns
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +24,7 @@ var globalTCPError error
 var globalUDPError error
 var serverOnce sync.Once
 
-const localhostAddr = "127.0.0.1"
+const localhostAddr = "127.0.0.153"
 
 // GetServerIP returns the IP address of the test DNS server. The test DNS server returns canned responses for several
 // known domains that are used in integration tests.
@@ -152,13 +154,16 @@ func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 	msg.RecursionDesired = true
 	for _, domain := range domains {
 		msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
-		rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
+		rep, _, _err := dnsClient.ExchangeWithConn(msg, conn)
+		if _err != nil {
+			err = multierror.Append(err, fmt.Errorf("failed sending dns query for domain %s to server %s: %w", domain, serverIP, _err))
+		}
 		reps = append(reps, rep)
 	}
 
 	_ = conn.Close()
 
-	return clientIP, clientPort, reps, nil
+	return clientIP, clientPort, reps, err
 }
 
 // SendDNSQueriesAndCheckError is a simple helper that requires no errors to be present when calling SendDNSQueries

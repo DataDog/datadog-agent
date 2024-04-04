@@ -3,7 +3,8 @@
   stage: source_test
   rules:
     - !reference [.except_mergequeue]
-    - when: on_success
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   script:
@@ -12,6 +13,8 @@
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
     # inside JUNIT_TAR and then later used by datadog-ci
     - !reference [.setup_python_mirror_win]
+    - $FAST_TESTS_FLAG=""
+    - If ($FAST_TESTS -eq "true") { $FAST_TESTS_FLAG="--only-impacted-packages" }
     - >
       docker run --rm
       -m 16384M
@@ -27,7 +30,8 @@
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
-      -e EXTRA_OPTS="${EXTRA_OPTS}"
+      -e EXTRA_OPTS="$FAST_TESTS_FLAG"
+      -e GO_TEST_SKIP_FLAKE="${GO_TEST_SKIP_FLAKE}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -71,20 +75,77 @@ tests_windows-x64:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
 
-tests_windows-x64-fast:
-  extends: .tests_windows_base
-  variables:
-    PYTHON_RUNTIMES: 3
-    ARCH: "x64"
-    EXTRA_OPTS: "--only-modified-packages"
-    TEST_OUTPUT_FILE: test_output_fast.json
-  allow_failure: true
-
 lint_windows-x64:
   extends: .lint_windows_base
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"
+
+.tests_windows_sysprobe:
+  stage: source_test
+  needs: ["go_deps", "go_tools_deps"]
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - !reference [.setup_python_mirror_win]
+    - >
+      docker run --rm
+      -m 16384M
+      -v "$(Get-Location):c:\mnt"
+      -e AWS_NETWORKING=true
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
+      -e GOMODCACHE="c:\modcache"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      c:\mnt\tasks\winbuildscripts\sysprobe.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
+
+.tests_windows_secagent:
+  stage: source_test
+  needs: ["go_deps", "go_tools_deps"]
+  tags: ["runner:windows-docker", "windowsversion:1809"]
+  script:
+    - $ErrorActionPreference = "Stop"
+    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - !reference [.setup_python_mirror_win]
+    - >
+      docker run --rm
+      -m 16384M
+      -v "$(Get-Location):c:\mnt"
+      -e AWS_NETWORKING=true
+      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
+      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
+      -e SIGN_WINDOWS_DD_WCS=true
+      -e PY_RUNTIMES="$PYTHON_RUNTIMES"
+      -e GOMODCACHE="c:\modcache"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      c:\mnt\tasks\winbuildscripts\secagent.bat
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  artifacts:
+    when: always
+    paths:
+      - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-security-agent-check/files
+
+tests_windows_sysprobe_x64:
+  extends: .tests_windows_sysprobe
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"
+
+tests_windows_secagent_x64:
+  extends: .tests_windows_secagent
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"

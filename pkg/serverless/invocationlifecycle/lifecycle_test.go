@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -531,7 +532,6 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -625,7 +625,6 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -714,7 +713,6 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -800,7 +798,6 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 		tracePayload = payload
 	}
 	demux := createDemultiplexer(t)
-	defer demux.Stop(false)
 
 	testProcessor := &LifecycleProcessor{
 		ExtraTags:           extraTags,
@@ -1176,5 +1173,5 @@ func getEventFromFile(filename string) []byte {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }
