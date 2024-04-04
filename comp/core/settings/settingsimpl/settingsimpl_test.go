@@ -26,7 +26,6 @@ type runtimeTestSetting struct {
 	value       string
 	source      model.Source
 	hidden      bool
-	name        string
 	description string
 }
 
@@ -160,7 +159,7 @@ func TestRuntimeSettings(t *testing.T) {
 
 				comp.GetValue("non_existing", responseRecorder3, request)
 				resp3 := responseRecorder3.Result()
-				defer resp2.Body.Close()
+				defer resp3.Body.Close()
 				body, _ = io.ReadAll(resp3.Body)
 
 				assert.Equal(t, 400, responseRecorder3.Code)
