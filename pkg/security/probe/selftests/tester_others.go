@@ -13,8 +13,9 @@ import (
 )
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester(_ *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
+func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
 	return &SelfTester{
-		probe: probe,
+		probe:  probe,
+		config: cfg,
 	}, nil
 }
