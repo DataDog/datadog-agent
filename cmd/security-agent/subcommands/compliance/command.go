@@ -189,8 +189,7 @@ func eventRun(log log.Component, config config.Component, eventArgs *eventCliPar
 		return err
 	}
 
-	runPath := config.GetString("compliance_config.run_path")
-	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
+	reporter := compliance.NewLogReporter(hostnameDetected, eventArgs.sourceName, eventArgs.sourceType, endpoints, dstContext)
 	defer reporter.Stop()
 
 	eventData := make(map[string]interface{})
