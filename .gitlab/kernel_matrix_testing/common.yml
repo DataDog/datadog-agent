@@ -101,6 +101,7 @@
     - !reference [.write_ssh_key_file]
   tags: ["arch:amd64"]
   script:
+    - source /root/.bashrc
     # upload dependencies
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]

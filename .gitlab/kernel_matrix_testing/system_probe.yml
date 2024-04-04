@@ -56,6 +56,7 @@ pull_test_dockers_arm64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
+    - source /root/.bashrc
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
     - pushd $DEPENDENCIES
@@ -137,6 +138,7 @@ kmt_setup_env_sysprobe_x64:
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
+    - source /root/.bashrc
     - !reference [.prepare_common_dependency_upload]
     # copy system probe tests
     - mkdir -p $SYSTEM_PROBE_TESTS
