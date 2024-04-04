@@ -32,8 +32,8 @@ import (
 	"go.uber.org/fx"
 )
 
-// GlobalFlags holds the global flags from the root cmd
-var GlobalFlags struct {
+// GlobalParams holds the global flags from the root cmd
+var GlobalParams struct {
 	DiskMode       string
 	DefaultActions []string
 	NoForkScanners bool
@@ -73,10 +73,10 @@ func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActions
 func Bundle() fx.Option {
 	return fx.Options(
 		fx.Provide(func(config compconfig.Component) (*types.ScannerConfig, error) {
-			return getScannerConfig(config, GlobalFlags.DiskMode, GlobalFlags.DefaultActions, GlobalFlags.NoForkScanners)
+			return getScannerConfig(config, GlobalParams.DiskMode, GlobalParams.DefaultActions, GlobalParams.NoForkScanners)
 		}),
 		fx.Supply(core.BundleParams{
-			ConfigParams: compconfig.NewAgentParams(GlobalFlags.ConfigFilePath),
+			ConfigParams: compconfig.NewAgentParams(GlobalParams.ConfigFilePath),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
 		}),

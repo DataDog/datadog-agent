@@ -9,11 +9,9 @@ import (
 )
 
 func TestStartAgentlessScannerAzure(t *testing.T) {
-	grp := GroupCommand()
-
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"attach", "plop"},
+		Commands(),
+		[]string{"azure", "attach", "plop"},
 		azureAttachCmd,
 		func(params *azureAttachParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
@@ -24,8 +22,8 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"scan", "/"},
+		Commands(),
+		[]string{"azure", "scan", "/"},
 		azureScanCmd,
 		func(params *azureScanParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
@@ -36,8 +34,8 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"offline", "--resource-group", "plop"},
+		Commands(),
+		[]string{"azure", "offline", "--resource-group", "plop"},
 		azureOfflineCmd,
 		func(params *azureOfflineParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)

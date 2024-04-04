@@ -44,32 +44,9 @@ const (
 	defaultScannersMax  = 8 // max number of child-process scanners spawned by a worker in parallel
 )
 
-// RootCommand returns the root commands
-func RootCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:          "agentless-scanner [command]",
-		Short:        "Datadog Agentless Scanner at your service.",
-		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage: true,
-	}
-
-	cmd.AddCommand(runCommand())
-	cmd.AddCommand(runScannerCommand())
-	cmd.AddCommand(aws.GroupCommand())
-	cmd.AddCommand(azure.GroupCommand())
-	cmd.AddCommand(local.GroupCommand())
-
-	defaultActions := []string{
-		string(types.ScanActionVulnsHostOS),
-		string(types.ScanActionVulnsContainersOS),
-	}
-
-	pflags := cmd.PersistentFlags()
-	pflags.StringVarP(&common.GlobalFlags.ConfigFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
-	pflags.StringVar(&common.GlobalFlags.DiskMode, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
-	pflags.BoolVar(&common.GlobalFlags.NoForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
-	pflags.StringSliceVar(&common.GlobalFlags.DefaultActions, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
-	return cmd
+var defaultActions = []string{
+	string(types.ScanActionVulnsHostOS),
+	string(types.ScanActionVulnsContainersOS),
 }
 
 type runParams struct {
@@ -79,24 +56,68 @@ type runParams struct {
 	scannersMax   int
 }
 
-func runCommand() *cobra.Command {
-	var params runParams
-	cmd := &cobra.Command{
-		Use:   "run",
-		Short: "Runs the agentless-scanner",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				runCmd,
-				common.Bundle(),
-				fx.Supply(&params),
-			)
-		},
+type runScannerParams struct {
+	sock string
+}
+
+// RootCommand returns the root commands
+func RootCommand() *cobra.Command {
+	parent := &cobra.Command{
+		Use:          "agentless-scanner [command]",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage: true,
 	}
-	cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	cmd.Flags().StringVar(&params.cloudProvider, "cloud-provider", "auto", fmt.Sprintf("cloud provider to use (auto, %q or %q)", types.CloudProviderAWS, types.CloudProviderNone))
-	cmd.Flags().IntVar(&params.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
-	cmd.Flags().IntVar(&params.scannersMax, "scanners-max", defaultScannersMax, "maximum number of scanner processes in parallel")
-	return cmd
+
+	pflags := parent.PersistentFlags()
+	pflags.StringVarP(&common.GlobalParams.ConfigFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
+	pflags.StringVar(&common.GlobalParams.DiskMode, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
+	pflags.BoolVar(&common.GlobalParams.NoForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&common.GlobalParams.DefaultActions, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
+
+	{
+		var params runParams
+		cmd := &cobra.Command{
+			Use:   "run",
+			Short: "Runs the agentless-scanner",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					runCmd,
+					common.Bundle(),
+					fx.Supply(&params),
+				)
+			},
+		}
+		cmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+		cmd.Flags().StringVar(&params.cloudProvider, "cloud-provider", "auto", fmt.Sprintf("cloud provider to use (auto, %q or %q)", types.CloudProviderAWS, types.CloudProviderNone))
+		cmd.Flags().IntVar(&params.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
+		cmd.Flags().IntVar(&params.scannersMax, "scanners-max", defaultScannersMax, "maximum number of scanner processes in parallel")
+		parent.AddCommand(cmd)
+	}
+
+	{
+		var params runScannerParams
+		cmd := &cobra.Command{
+			Use:   "run-scanner",
+			Short: "Runs a scanner (fork/exec model)",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					runScannerCmd,
+					common.Bundle(),
+					fx.Supply(&params),
+				)
+			},
+		}
+		cmd.Flags().StringVar(&params.sock, "sock", "", "path to unix socket for IPC")
+		_ = cmd.MarkFlagRequired("sock")
+		parent.AddCommand(cmd)
+	}
+
+	parent.AddCommand(aws.Commands()...)
+	parent.AddCommand(azure.Commands()...)
+	parent.AddCommand(local.Commands()...)
+
+	return parent
 }
 
 func runCmd(_ complog.Component, sc *types.ScannerConfig, params *runParams, evp eventplatform.Component) error {
@@ -149,28 +170,6 @@ func runCmd(_ complog.Component, sc *types.ScannerConfig, params *runParams, evp
 	}
 	scanner.Start(ctx)
 	return nil
-}
-
-type runScannerParams struct {
-	sock string
-}
-
-func runScannerCommand() *cobra.Command {
-	var params runScannerParams
-	cmd := &cobra.Command{
-		Use:   "run-scanner",
-		Short: "Runs a scanner (fork/exec model)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				runScannerCmd,
-				common.Bundle(),
-				fx.Supply(&params),
-			)
-		},
-	}
-	cmd.Flags().StringVar(&params.sock, "sock", "", "path to unix socket for IPC")
-	_ = cmd.MarkFlagRequired("sock")
-	return cmd
 }
 
 func runScannerCmd(_ complog.Component, sc *types.ScannerConfig, params *runScannerParams) error {

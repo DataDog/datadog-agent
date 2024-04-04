@@ -20,43 +20,43 @@ import (
 	"go.uber.org/fx"
 )
 
-// GroupCommand returns the local commands
-func GroupCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:          "local",
-		Short:        "Datadog Agentless Scanner at your service.",
-		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage: true,
-	}
-	cmd.AddCommand(localScanCommand())
-	return cmd
-}
-
 type localScanParams struct {
 	targetName string
 	resourceID string
 }
 
-func localScanCommand() *cobra.Command {
-	var params localScanParams
-	cmd := &cobra.Command{
-		Use:   "scan",
-		Short: "Executes a scan",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				localScanCmd,
-				common.Bundle(),
-				fx.Provide(func() (*localScanParams, error) {
-					params.resourceID = args[0]
-					return &params, nil
-				}),
-			)
-		},
+// Commands returns the local commands
+func Commands() []*cobra.Command {
+	parent := &cobra.Command{
+		Use:          "local",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage: true,
 	}
 
-	cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
-	return cmd
+	{
+		var params localScanParams
+		cmd := &cobra.Command{
+			Use:   "scan <path>",
+			Short: "Performs a scan on the given path",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					localScanCmd,
+					common.Bundle(),
+					fx.Provide(func() (*localScanParams, error) {
+						params.resourceID = args[0]
+						return &params, nil
+					}),
+				)
+			},
+		}
+
+		cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
+		parent.AddCommand(cmd)
+	}
+
+	return []*cobra.Command{parent}
 }
 
 func localScanCmd(_ complog.Component, sc *types.ScannerConfig, params *localScanParams) error {

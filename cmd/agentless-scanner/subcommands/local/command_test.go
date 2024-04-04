@@ -9,10 +9,9 @@ import (
 )
 
 func TestStartAgentlessScannerLocal(t *testing.T) {
-	grp := GroupCommand()
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"scan", "/"},
+		Commands(),
+		[]string{"local", "scan", "/"},
 		localScanCmd,
 		func(params *localScanParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)

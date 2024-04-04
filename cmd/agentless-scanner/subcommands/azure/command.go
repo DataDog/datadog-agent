@@ -28,70 +28,14 @@ import (
 	"go.uber.org/fx"
 )
 
-// GroupCommand returns the Azure commands
-func GroupCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:          "azure",
-		Short:        "Datadog Agentless Scanner at your service.",
-		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage: true,
-	}
-	cmd.AddCommand(azureAttachCommand())
-	cmd.AddCommand(azureScanCommand())
-	cmd.AddCommand(azureOfflineCommand())
-
-	return cmd
-}
-
 type azureAttachParams struct {
 	resourceID string
 	noMount    bool
 }
 
-func azureAttachCommand() *cobra.Command {
-	var params azureAttachParams
-	cmd := &cobra.Command{
-		Use:   "attach <snapshot|volume>",
-		Short: "Attaches a snapshot or volume to the current instance",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				azureAttachCmd,
-				fx.Provide(func() *azureAttachParams {
-					params.resourceID = args[0]
-					return &params
-				}), common.Bundle())
-		},
-	}
-	cmd.Flags().BoolVar(&params.noMount, "no-mount", false, "mount the device")
-	return cmd
-}
-
 type azureScanParams struct {
 	resourceID string
 	targetName string
-}
-
-func azureScanCommand() *cobra.Command {
-	var params azureScanParams
-	cmd := &cobra.Command{
-		Use:   "scan",
-		Short: "Executes a scan",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				azureScanCmd,
-				common.Bundle(),
-				fx.Provide(func() *azureScanParams {
-					params.resourceID = args[0]
-					return &params
-				}),
-			)
-		},
-	}
-	cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
-
-	return cmd
 }
 
 type azureOfflineParams struct {
@@ -103,29 +47,82 @@ type azureOfflineParams struct {
 	printResults  bool
 }
 
-func azureOfflineCommand() *cobra.Command {
-	var params azureOfflineParams
-	cmd := &cobra.Command{
-		Use:   "offline",
-		Short: "Runs the agentless-scanner in offline mode (server-less mode)",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fxutil.OneShot(
-				azureOfflineCmd,
-				fx.Supply(&params),
-				common.Bundle())
-		},
+// Commands returns the Azure commands
+func Commands() []*cobra.Command {
+	parent := &cobra.Command{
+		Use:          "azure",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage: true,
 	}
 
-	cmd.Flags().IntVar(&params.workers, "workers", 40, "number of scans running in parallel")
-	cmd.Flags().StringVar(&params.subscription, "subscription", "", "only scan resources in the specified subscription")
-	cmd.Flags().StringVar(&params.resourceGroup, "resource-group", "", "only scan resources in the specified resource group")
-	cmd.Flags().StringVar(&params.taskType, "task-type", string(types.TaskTypeAzureDisk), fmt.Sprintf("scan type (%s or %s)", types.TaskTypeAzureDisk, types.TaskTypeHost))
-	cmd.Flags().IntVar(&params.maxScans, "max-scans", 0, "maximum number of scans to perform")
-	cmd.Flags().BoolVar(&params.printResults, "print-results", false, "print scan results to stdout")
+	{
+		var params azureAttachParams
+		cmd := &cobra.Command{
+			Use:   "attach <snapshot|disk>",
+			Short: "Attaches a snapshot or disk to the current instance",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					azureAttachCmd,
+					fx.Provide(func() *azureAttachParams {
+						params.resourceID = args[0]
+						return &params
+					}), common.Bundle())
+			},
+		}
+		cmd.Flags().BoolVar(&params.noMount, "no-mount", false, "mount the device")
+		parent.AddCommand(cmd)
+	}
 
-	// TODO support scanning all RGs in a subscription
-	_ = cmd.MarkFlagRequired("resource-group")
-	return cmd
+	{
+		var params azureScanParams
+		cmd := &cobra.Command{
+			Use:   "scan <snapshot|disk>",
+			Short: "Performs a scan on the given resource",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					azureScanCmd,
+					common.Bundle(),
+					fx.Provide(func() *azureScanParams {
+						params.resourceID = args[0]
+						return &params
+					}),
+				)
+			},
+		}
+		cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
+
+		parent.AddCommand(cmd)
+	}
+
+	{
+		var params azureOfflineParams
+		cmd := &cobra.Command{
+			Use:   "offline",
+			Short: "Runs the agentless-scanner in offline mode (server-less mode)",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					azureOfflineCmd,
+					fx.Supply(&params),
+					common.Bundle())
+			},
+		}
+
+		cmd.Flags().IntVar(&params.workers, "workers", 40, "number of scans running in parallel")
+		cmd.Flags().StringVar(&params.subscription, "subscription", "", "only scan resources in the specified subscription")
+		cmd.Flags().StringVar(&params.resourceGroup, "resource-group", "", "only scan resources in the specified resource group")
+		cmd.Flags().StringVar(&params.taskType, "task-type", string(types.TaskTypeAzureDisk), fmt.Sprintf("scan type (%s or %s)", types.TaskTypeAzureDisk, types.TaskTypeHost))
+		cmd.Flags().IntVar(&params.maxScans, "max-scans", 0, "maximum number of scans to perform")
+		cmd.Flags().BoolVar(&params.printResults, "print-results", false, "print scan results to stdout")
+
+		// TODO support scanning all RGs in a subscription
+		_ = cmd.MarkFlagRequired("resource-group")
+		parent.AddCommand(cmd)
+	}
+
+	return []*cobra.Command{parent}
 }
 
 func azureAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *azureAttachParams) error {

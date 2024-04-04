@@ -12,10 +12,8 @@ import (
 )
 
 func TestStartAgentlessScannerAzure(t *testing.T) {
-	grp := RootCommand()
-
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
+		RootCommand().Commands(),
 		[]string{"run"},
 		runCmd,
 		func(params *runParams, log complog.Component, sc *types.ScannerConfig) {
@@ -30,7 +28,7 @@ func TestStartAgentlessScannerAzure(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
+		RootCommand().Commands(),
 		[]string{"run-scanner", "--sock", "plop"},
 		runScannerCmd,
 		func(params *runScannerParams, log complog.Component, sc *types.ScannerConfig) {

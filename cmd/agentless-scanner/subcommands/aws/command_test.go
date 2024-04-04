@@ -11,11 +11,9 @@ import (
 )
 
 func TestStartAgentlessScannerAWS(t *testing.T) {
-	grp := GroupCommand()
-
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"scan", "plop"},
+		Commands(),
+		[]string{"aws", "scan", "plop"},
 		awsScanCmd,
 		func(params *awsScanParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
@@ -26,8 +24,8 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"snapshot", "plop"},
+		Commands(),
+		[]string{"aws", "snapshot", "plop"},
 		awsSnapshotCmd,
 		func(params *awsSnapshotParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
@@ -37,8 +35,8 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"offline"},
+		Commands(),
+		[]string{"aws", "offline"},
 		awsOfflineCmd,
 		func(params *awsOfflineParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
@@ -52,8 +50,8 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"attach", "plop"},
+		Commands(),
+		[]string{"aws", "attach", "plop"},
 		awsAttachCmd,
 		func(params *awsAttachParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
@@ -64,8 +62,8 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		grp.Commands(),
-		[]string{"cleanup"},
+		Commands(),
+		[]string{"aws", "cleanup"},
 		awsCleanupCmd,
 		func(params *awsCleanupParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
