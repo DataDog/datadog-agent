@@ -328,3 +328,15 @@ def go_work(_: Context):
             prefix = "" if mod.condition() else "//"
             f.write(f"\t{prefix}{mod.path}\n")
         f.write(")\n")
+
+
+@task
+def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+    """
+    Run the given command in the directory of each module.
+    """
+    for mod in DEFAULT_MODULES.values():
+        if skip_untagged and not mod.should_tag:
+            continue
+        with ctx.cd(mod.full_path()):
+            ctx.run(cmd)
