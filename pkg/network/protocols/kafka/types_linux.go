@@ -4,7 +4,7 @@
 package kafka
 
 const (
-	topicNameBuckets = 0xa
+	TopicNameBuckets = 0xa
 )
 
 type ConnTuple struct {

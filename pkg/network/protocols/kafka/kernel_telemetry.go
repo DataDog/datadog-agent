@@ -22,7 +22,7 @@ type kernelTelemetry struct {
 	topicNameExceedsMaxSize *libtelemetry.Counter
 
 	// pathSizeBucket Count of topic names sizes divided into buckets.
-	pathSizeBucket [topicNameBuckets + 1]*libtelemetry.Counter
+	pathSizeBucket [TopicNameBuckets + 1]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry

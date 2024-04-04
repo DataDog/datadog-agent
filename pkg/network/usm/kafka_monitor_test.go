@@ -444,34 +444,73 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": strings.Repeat("a", 10),
-				},
+				extras:        map[string]interface{}{},
 			},
 			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
-				topicName := ctx.extras["topic_name"].(string)
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
-						kgo.ConsumeTopics(topicName),
-						kgo.ClientID("test-client"),
-					},
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(topicName))
+				tests := []struct {
+					name                string
+					topicName           string
+					expectedBucketIndex int
+				}{
+					{name: "Topic size is 10", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+					{name: "Topic size is 25", topicName: strings.Repeat("a", 25), expectedBucketIndex: 1},
+					{name: "Topic size is 50", topicName: strings.Repeat("a", 50), expectedBucketIndex: 2},
+					{name: "Topic size is 75", topicName: strings.Repeat("a", 75), expectedBucketIndex: 3},
+					{name: "Topic size is 10 again", topicName: strings.Repeat("a", 10), expectedBucketIndex: 0},
+					{name: "Topic size is 100", topicName: strings.Repeat("a", 100), expectedBucketIndex: 4},
+					{name: "Topic size is 125", topicName: strings.Repeat("a", 125), expectedBucketIndex: 5},
+					{name: "Topic size is 150", topicName: strings.Repeat("a", 150), expectedBucketIndex: 6},
+					{name: "Topic size is 175", topicName: strings.Repeat("a", 175), expectedBucketIndex: 7},
+					{name: "Topic size is 200", topicName: strings.Repeat("a", 200), expectedBucketIndex: 8},
+					{name: "Topic size is 225", topicName: strings.Repeat("a", 225), expectedBucketIndex: 9},
+					{name: "Topic size is 240", topicName: strings.Repeat("a", 240), expectedBucketIndex: 9},
+				}
 
-				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+				currentRawKernelTelemetry := &kafka.RawKernelTelemetry{}
+				for _, tt := range tests {
+					t.Run(tt.name, func(t *testing.T) {
+						client, err := kafka.NewClient(kafka.Options{
+							ServerAddress: ctx.targetAddress,
+							Dialer:        defaultDialer,
+							CustomOptions: []kgo.Opt{
+								kgo.MaxVersions(kversion.V2_5_0()),
+								kgo.ConsumeTopics(tt.topicName),
+								kgo.ClientID("test-client"),
+							},
+						})
+						require.NoError(t, err)
+						ctx.extras["client"] = client
+						require.NoError(t, client.CreateTopic(tt.topicName))
 
-				telemetryMap, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-				require.NoError(t, err)
-				expectedNumberOfOccurrences := 4 // 2 for each connection, 1 for produce and 1 for fetch (fetch auto sent by kgo)
-				require.Equal(t, uint64(expectedNumberOfOccurrences), telemetryMap.Name_size_buckets[0])
+						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
+						ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+						defer cancel()
+						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+						// To prevent races, we introduce a small delay to allow kgo to send fetch requests for the new topic.
+						time.Sleep(100 * time.Millisecond)
+						telemetryMap, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+						require.NoError(t, err)
+
+						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+						for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
+							if idx != tt.expectedBucketIndex {
+								require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
+									telemetryMap.Name_size_buckets[idx],
+									"Expected bucket (%d) to remain unchanged", idx)
+							}
+						}
+
+						// Verify that the expected bucket contains the correct number of occurrences.
+						expectedNumberOfOccurrences := 4 // (1 produce request + 1 fetch request) * 2 connections (docker container and localhost)
+						require.Equal(t,
+							uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex],
+							telemetryMap.Name_size_buckets[tt.expectedBucketIndex])
+
+						// Update the current raw kernel telemetry for the next iteration
+						currentRawKernelTelemetry = telemetryMap
+					})
+				}
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,

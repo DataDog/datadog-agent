@@ -14,11 +14,11 @@ package kafka
 import "C"
 
 const (
-	topicNameBuckets = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
+	TopicNameBuckets = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
 )
 
 type ConnTuple C.conn_tuple_t
 
 type EbpfTx C.kafka_transaction_t
 
-type rawKernelTelemetry C.kafka_telemetry_t
+type RawKernelTelemetry C.kafka_telemetry_t
