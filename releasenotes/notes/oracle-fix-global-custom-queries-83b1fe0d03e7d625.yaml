@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix ``global_custom_queries`` bug.
+    [oracle] Fix ``global_custom_queries`` bug.
