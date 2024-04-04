@@ -85,6 +85,7 @@
 /.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-build-and-releases @DataDog/windows-agent
 
 /.gitlab/common/                                     @DataDog/container-integrations @DataDog/agent-ci-experience
+/.gitlab/common/test_infra_version.yml               @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-developer-tools
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
@@ -122,6 +123,7 @@
 
 /.gitlab/source_test/ebpf.yml                        @DataDog/ebpf-platform @DataDog/agent-ci-experience
 /.gitlab/source_test/windows.yml                     @DataDog/agent-ci-experience @DataDog/windows-agent
+/.gitlab/source_test/go_generate_check.yml           @DataDog/agent-security
 
 /.gitlab/package_build/                              @DataDog/agent-build-and-releases
 /.gitlab/package_build/windows.yml                   @DataDog/agent-build-and-releases @DataDog/windows-agent
@@ -135,7 +137,7 @@
 /.gitlab/software_composition_analysis/              @DataDog/software-integrity-and-trust
 
 /.gitlab/source_test_stats/windows.yml                                   @DataDog/agent-platform @DataDog/windows-agent
-   
+
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
@@ -202,13 +204,13 @@
 
 /docs/                                  @DataDog/documentation @DataDog/agent-developer-tools
 /docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
-/docs/dogstatsd/                        @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-integrations
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
 
 /docs/public/architecture/components/                        @DataDog/agent-shared-components
+/docs/public/architecture/dogstatsd/                         @DataDog/agent-metrics-logs
 /docs/public/guidelines/components/                          @DataDog/agent-shared-components
 /docs/public/how-to/components/                              @DataDog/agent-shared-components
 
@@ -233,9 +235,10 @@
 # The following is managed by `inv lint-components` -- DO NOT EDIT
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
-/comp/aggregator @DataDog/agent-shared-components
+/comp/agent @DataDog/agent-shared-components
+/comp/aggregator @DataDog/agent-metrics-logs
 /comp/api @DataDog/agent-shared-components
-/comp/checks @DataDog/agent-shared-components
+/comp/checks @DataDog/agent-metrics-logs
 /comp/collector @DataDog/agent-metrics-logs
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
@@ -252,7 +255,10 @@
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet
+/comp/agent/jmxlogger @DataDog/agent-metrics-logs
+/comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
+/comp/checks/windowseventlog @DataDog/windows-agent
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/autodiscovery @DataDog/container-integrations
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
@@ -295,6 +301,8 @@
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
+/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
+/pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/telemetry-and-analytics
 /comp/core/autodiscovery/listeners/           @DataDog/container-integrations
 /comp/core/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
@@ -404,6 +412,7 @@
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/logs/tailers/windowsevent          @DataDog/agent-metrics-logs @DataDog/windows-agent
+/pkg/logs/util/windowsevent             @DataDog/agent-metrics-logs @DataDog/windows-agent
 /pkg/process/                           @DataDog/processes
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/util/netns*.go             @DataDog/Networks

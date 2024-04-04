@@ -38,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -61,7 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -96,7 +97,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			// note that any changes to the arguments to OneShot need to be reflected into
 			// the service initialization in ../../main_windows.go
 			return fxutil.OneShot(start,
-				fx.Supply(params),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
@@ -194,6 +194,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				configsyncimpl.OptionalModule(),
 				// Force the instantiation of the component
 				fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
+				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
 			)
 		},
 	}
@@ -208,11 +209,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, params *cliParams, statusComponent status.Component) error {
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, statusComponent status.Component, _ pid.Component) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, telemetry, params.pidfilePath, demultiplexer, statusComponent)
+	err := RunAgent(ctx, log, config, telemetry, demultiplexer, statusComponent)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -263,18 +264,9 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
+func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
-	}
-
-	if pidfilePath != "" {
-		err = pidfile.WritePID(pidfilePath)
-		if err != nil {
-			return log.Errorf("Error while writing PID file, exiting: %v", err)
-		}
-		defer os.Remove(pidfilePath)
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
 	// Check if we have at least one component to start based on config

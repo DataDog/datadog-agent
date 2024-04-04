@@ -57,6 +57,7 @@ type ContainerdItf interface {
 	Labels(namespace string, ctn containerd.Container) (map[string]string, error)
 	LabelsWithContext(ctx context.Context, namespace string, ctn containerd.Container) (map[string]string, error)
 	ListImages(namespace string) ([]containerd.Image, error)
+	ListImagesWithDigest(namespace string, digest string) ([]containerd.Image, error)
 	Image(namespace string, name string) (containerd.Image, error)
 	ImageOfContainer(namespace string, ctn containerd.Container) (containerd.Image, error)
 	ImageSize(namespace string, ctn containerd.Container) (int64, error)
@@ -237,6 +238,17 @@ func (c *ContainerdUtil) ListImages(namespace string) ([]containerd.Image, error
 	ctxNamespace := namespaces.WithNamespace(ctx, namespace)
 
 	return c.cl.ListImages(ctxNamespace)
+}
+
+// ListImagesWithDigest interfaces with the containerd api to list image with digest filter
+// Digest is the sha256 digest (repo digest) of the compressed image manifest which is defined in
+// https://github.com/opencontainers/image-spec/blob/main/descriptor.md#digests
+func (c *ContainerdUtil) ListImagesWithDigest(namespace string, digest string) ([]containerd.Image, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, namespace)
+	filter := "target.digest==" + digest
+	return c.cl.ListImages(ctxNamespace, filter)
 }
 
 // Image interfaces with the containerd api to get an image
