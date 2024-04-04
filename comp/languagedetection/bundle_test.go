@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/languagedetection/client"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
@@ -27,8 +28,10 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(config.Params{}),
 		telemetry.Module(),
 		logimpl.Module(),
+		fx.Provide(func() optional.Option[secrets.Component] {
+			return optional.NewOption[secrets.Component](secretsimpl.NewMock())
+		}),
 		fx.Provide(func() secrets.Component { return secretsimpl.NewMock() }),
-		secretsimpl.MockModule(),
 		fx.Supply(logimpl.Params{}),
 		workloadmeta.Module(),
 		fx.Supply(workloadmeta.NewParams()),
