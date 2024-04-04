@@ -100,10 +100,10 @@ repos:
       always_run: true
       pass_filenames: false
       stages: [pre-push]
-    - id: shell-set-x
-      name: shell-set-x
+    - id: shell-check-no-set-x
+      name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: bash ./tools/pre-commit/verify_set_x.sh
+      entry: bash ./tools/pre-commit/shell_check_no_set_x.sh
       language: system
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
