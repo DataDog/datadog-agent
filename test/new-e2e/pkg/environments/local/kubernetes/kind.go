@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package kubernetes contains the provisioner for the Kubernetes based environments
-package kubernetes
+// Package localkubernetes contains the provisioner for the local Kubernetes based environments
+package localkubernetes
 
 import (
 	"fmt"
@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/common/config"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -132,13 +133,11 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ku
 func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 
 	// Fake Intake is not supported when running a local kind cluster
-	env.FakeIntake = nil
 
 	localEnv, err := config.NewCommonEnvironment(ctx, nil)
 	if err != nil {
 		return err
 	}
-
 	kindCluster, err := kubeComp.NewLocalKindCluster(localEnv, localEnv.CommonNamer.ResourceName("kind"), params.name, localEnv.KubernetesVersion())
 	if err != nil {
 		return err
@@ -155,6 +154,26 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	})
 	if err != nil {
 		return err
+	}
+
+	if params.fakeintakeOptions != nil {
+		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
+		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
+		fakeIntake, err := fakeintakeComp.NewLocalKubernetesFakeintake(localEnv, "fakeintake", kubeProvider)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		if params.agentOptions != nil {
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+		}
+	} else {
+		env.FakeIntake = nil
 	}
 
 	if params.agentOptions != nil {
