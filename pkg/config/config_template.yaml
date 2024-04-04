@@ -1536,12 +1536,6 @@ api_key:
   #
   # log_file: <APM_LOG_FILE_PATH>
 
-  ## @param log_throttling - boolean - default: true
-  ## @env DD_APM_LOG_THROTTLING - boolean - default: true
-  ## Limits the total number of warnings and errors to 10 for every 10 second interval.
-  #
-  # log_throttling: true
-
   ## @param connection_limit - integer - default: 2000
   ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
   ## The APM connection limit for the Agent.

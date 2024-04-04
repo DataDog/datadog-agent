@@ -566,12 +566,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if err := loadDeprecatedValues(c); err != nil {
 		return err
 	}
-
-	if strings.ToLower(core.GetString("log_level")) == "debug" && !core.IsSet("apm_config.log_throttling") {
-		// if we are in "debug mode" and log throttling behavior was not
-		// set by the user, disable it
-		c.LogThrottling = false
-	}
 	c.Site = core.GetString("site")
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
@@ -647,9 +641,6 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := coreconfig.Datadog
 	if cfg.IsSet("apm_config.api_key") {
 		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
-	}
-	if cfg.IsSet("apm_config.log_throttling") {
-		c.LogThrottling = cfg.GetBool("apm_config.log_throttling")
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {
 		d := time.Duration(cfg.GetInt("apm_config.bucket_size_seconds"))

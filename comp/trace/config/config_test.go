@@ -666,7 +666,6 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.Equal(t, 0.5, cfg.MaxCPU)
 	assert.EqualValues(t, 123.4, cfg.MaxMemory)
 	assert.Equal(t, "0.0.0.0", cfg.ReceiverHost)
-	assert.True(t, cfg.LogThrottling)
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
