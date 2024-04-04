@@ -637,9 +637,9 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
     if (!has_valid_first_frame) {
+        // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
         if (dispatcher_args_copy.data_off < dispatcher_args_copy.data_end && dispatcher_args_copy.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.data_end) {
             frame_header_remainder_t new_frame_state = { 0 };
-            // We have a frame header remainder
             new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.data_end - dispatcher_args_copy.data_off);
             bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
         #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
