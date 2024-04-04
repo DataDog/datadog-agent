@@ -389,6 +389,9 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
         if (skb_info->data_off == skb_info->data_end) {
             return false;
         }
+        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
+            return false;
+        }
         reset_frame(current_frame);
         bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
         if (format_http2_frame_header(current_frame)) {
@@ -539,6 +542,18 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     }
 
     if (!has_valid_first_frame) {
+        // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
+        if (dispatcher_args_copy.skb_info.data_off < dispatcher_args_copy.skb_info.data_end && dispatcher_args_copy.skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.skb_info.data_end) {
+            frame_header_remainder_t new_frame_state = { 0 };
+            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.skb_info.data_end - dispatcher_args_copy.skb_info.data_off);
+            bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+        #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+                bpf_skb_load_bytes(skb, dispatcher_args_copy.skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
+            }
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+            bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        }
         return 0;
     }
 
