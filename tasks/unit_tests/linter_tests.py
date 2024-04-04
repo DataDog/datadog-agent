@@ -40,9 +40,7 @@ class TestIsGetParameterCall(unittest.TestCase):
 
     def test_with_wrapper_no_env(self):
         with open(self.test_file, "w") as f:
-            f.write(
-                "export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)"
-            )
+            f.write("export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME")
         matched = linter.is_get_parameter_call(self.test_file)
         self.assertTrue(matched.with_wrapper)
         self.assertFalse(matched.with_env_var)

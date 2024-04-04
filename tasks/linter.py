@@ -308,18 +308,28 @@ def list_ssm_parameters(_):
 
 
 @task
-def ssm_parameters(ctx):
+def ssm_parameters(ctx, mode="all", folders=None):
     """
     Lint SSM parameters in the datadog-agent repository.
     """
-    lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
+    modes = ["env", "wrapper", "all"]
+    if mode not in modes:
+        raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
+    if folders is None:
+        lint_folders = [".circleci", ".github", ".gitlab", "test"]
+    else:
+        lint_folders = folders.split(",")
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
     for filename in repo_files.stdout.split("\n"):
         if any(filename.startswith(f) for f in lint_folders):
-            matched = is_get_parameter_call(filename)
-            if matched:
-                error_files.append(matched)
+            calls = list_get_parameter_calls(file)
+            if calls:
+                error_files.extend(calls)
+    if mode == "env":
+        error_files = [f for f in error_files if not f.with_env_var]
+    elif mode == "wrapper":
+        error_files = [f for f in error_files if not f.with_wrapper]
     if error_files:
         print("The following files contain unexpected syntax for aws ssm get-parameter:")
         for filename in error_files:
@@ -346,10 +356,11 @@ class SSMParameterCall:
         return str(self)
 
 
-def is_get_parameter_call(file):
+def list_get_parameter_calls(file):
     ssm_get = re.compile(r"^.+ssm.get.+$")
     aws_ssm_call = re.compile(r"^.+ssm get-parameter.+--name +(?P<param>[^ ]+).*$")
     ssm_wrapper_call = re.compile(r"^.+aws_ssm_get_wrapper.(sh|ps1) +(?P<param>[^ )]+).*$")
+    calls = []
     with open(file) as f:
         try:
             for nb, line in enumerate(f):
@@ -357,14 +368,17 @@ def is_get_parameter_call(file):
                 if is_ssm_get:
                     m = aws_ssm_call.match(line.strip())
                     if m:
-                        return SSMParameterCall(
-                            file, nb, with_wrapper=False, with_env_var=m.group("param").startswith("$")
+                        calls.append(
+                            SSMParameterCall(
+                                file, nb, with_wrapper=False, with_env_var=m.group("param").startswith("$")
+                            )
                         )
                     m = ssm_wrapper_call.match(line.strip())
                     if m and not m.group("param").startswith("$"):
-                        return SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False)
+                        calls.append(SSMParameterCall(file, nb, with_wrapper=True, with_env_var=False))
         except UnicodeDecodeError:
             pass
+    return calls
 
 
 @task
