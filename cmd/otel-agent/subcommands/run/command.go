@@ -68,6 +68,8 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 	err := fxutil.Run(
 		forwarder.Bundle(),
 		otelcol.Bundle(),
+		// TODO: remove this once we start reading the collector config
+		// We need to create a new config module from the collector config
 		config.Module(),
 		corelogimpl.Module(),
 		inventoryagentimpl.Module(),
@@ -75,18 +77,22 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 		hostnameimpl.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
+
 		fx.Provide(func() workloadmeta.Params {
 			return workloadmeta.NewParams()
 		}),
 
+		// TODO: remove this once we start reading the collector config
 		fx.Provide(func() config.Params {
 			return config.NewAgentParams(params.ConfPath)
 		}),
 		fx.Provide(func() corelogimpl.Params {
+			// TODO configure the log level from collector config
 			return corelogimpl.ForOneShot(params.LoggerName, "debug", true)
 		}),
 		logs.Bundle(),
 		fx.Provide(serializer.NewSerializer),
+		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
 			return s
 		}),
