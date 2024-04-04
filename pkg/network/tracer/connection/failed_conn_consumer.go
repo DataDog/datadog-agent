@@ -8,7 +8,9 @@
 package connection
 
 import (
+	"fmt"
 	"sync"
+	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -30,23 +32,38 @@ var failedConnConsumerTelemetry = struct {
 }
 
 type tcpFailedConnConsumer struct {
-	eventHandler ddebpf.EventHandler
-	batchManager *perfBatchManager
-	requests     chan chan struct{}
-	buffer       *network.ConnectionBuffer
-	once         sync.Once
-	closed       chan struct{}
-	ch           *cookieHasher
+	eventHandler  ddebpf.EventHandler
+	batchManager  *perfBatchManager
+	requests      chan chan struct{}
+	buffer        *network.ConnectionBuffer
+	once          sync.Once
+	closed        chan struct{}
+	failedConnMap failedConnMap
+	mux           sync.Mutex
 }
+
+type failedConnStats struct {
+	countByErrCode map[uint16]uint16
+}
+
+// String returns a string representation of the failedConnStats
+func (t failedConnStats) String() string {
+	return fmt.Sprintf(
+		"failedConnStats{countByErrCode: %v}", t.countByErrCode,
+	)
+}
+
+type failedConnMap map[netebpf.ConnTuple]*failedConnStats
 
 func newFailedConnConsumer(eventHandler ddebpf.EventHandler, batchManager *perfBatchManager) *tcpFailedConnConsumer {
 	return &tcpFailedConnConsumer{
-		eventHandler: eventHandler,
-		batchManager: batchManager,
-		requests:     make(chan chan struct{}),
-		buffer:       network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
-		closed:       make(chan struct{}),
-		ch:           newCookieHasher(),
+		eventHandler:  eventHandler,
+		batchManager:  batchManager,
+		requests:      make(chan chan struct{}),
+		buffer:        network.NewConnectionBuffer(netebpf.BatchSize, netebpf.BatchSize),
+		closed:        make(chan struct{}),
+		failedConnMap: make(failedConnMap),
+		mux:           sync.Mutex{},
 	}
 }
 
@@ -80,8 +97,20 @@ func (c *tcpFailedConnConsumer) Stop() {
 }
 
 func (c *tcpFailedConnConsumer) extractConn(data []byte) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
 	log.Infof("adamk: failed connection: %v, reason: %v", ct.Tup, ct.Reason)
+
+	stats, ok := c.failedConnMap[ct.Tup]
+	if !ok {
+		stats = &failedConnStats{
+			countByErrCode: make(map[uint16]uint16),
+		}
+		c.failedConnMap[ct.Tup] = stats
+	}
+	stats.countByErrCode[ct.Reason]++
+
 	// rollup similar conns here
 }
 
@@ -91,8 +120,8 @@ func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
 	}
 
 	var (
-		//then             = time.Now()
-		closedCount      uint64
+		then             = time.Now()
+		failedCount      uint64
 		lostSamplesCount uint64
 	)
 
@@ -114,12 +143,12 @@ func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
 				case l >= netebpf.SizeofFailedConn:
 					c.extractConn(dataEvent.Data)
 				default:
-					log.Errorf("unknown type received from ring buffer, skipping. data size=%d, expecting %d or %d", len(dataEvent.Data), netebpf.SizeofConn, netebpf.SizeofBatch)
+					log.Errorf("unknown type received from ring buffer, skipping. data size=%d, expecting %d", len(dataEvent.Data), netebpf.SizeofFailedConn)
 					continue
 				}
 
 				failedConnConsumerTelemetry.perfReceived.Add(float64(c.buffer.Len()))
-				closedCount += uint64(c.buffer.Len())
+				failedCount += uint64(c.buffer.Len())
 				c.buffer.Reset()
 				dataEvent.Done()
 			// lost events only occur when using perf buffers
@@ -129,24 +158,23 @@ func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
 				}
 				failedConnConsumerTelemetry.perfLost.Add(float64(lc))
 				lostSamplesCount += lc
-				//case request := <-c.requests:
-				//	oneTimeBuffer := network.NewConnectionBuffer(32, 32)
-				//	c.batchManager.GetPendingConns(oneTimeBuffer)
-				//	close(request)
-				//
-				//	closedCount += uint64(oneTimeBuffer.Len())
-				//	now := time.Now()
-				//	elapsed := now.Sub(then)
-				//	then = now
-				//	log.Debugf(
-				//		"tcp close summary: closed_count=%d elapsed=%s closed_rate=%.2f/s lost_samples_count=%d",
-				//		closedCount,
-				//		elapsed,
-				//		float64(closedCount)/elapsed.Seconds(),
-				//		lostSamplesCount,
-				//	)
-				//	closedCount = 0
-				//	lostSamplesCount = 0
+			case request := <-c.requests:
+				failedCount += uint64(len(c.failedConnMap))
+				//log.Debugf("adamk failed conn map: %v", c.failedConnMap)
+				c.failedConnMap = make(failedConnMap)
+				close(request)
+				now := time.Now()
+				elapsed := now.Sub(then)
+				then = now
+				log.Debugf(
+					"failed conn summary: failed_count=%d elapsed=%s failure_rate=%.2f/s lost_samples_count=%d",
+					failedCount,
+					elapsed,
+					float64(failedCount)/elapsed.Seconds(),
+					lostSamplesCount,
+				)
+				failedCount = 0
+				lostSamplesCount = 0
 			}
 		}
 	}()
