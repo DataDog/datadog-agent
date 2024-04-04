@@ -179,7 +179,6 @@ func (p *protocol) setUpKernelTelemetryCollection(mgr *manager.Manager) {
 					return
 				}
 				p.kernelTelemetry.update(rawTelemetry)
-				p.kernelTelemetry.Log()
 			case <-p.kernelTelemetryStopChannel:
 				return
 			}
