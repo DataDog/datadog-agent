@@ -106,5 +106,5 @@ repos:
       entry: bash ./tools/pre-commit/verify_set_x.sh
       language: system
       require_serial: true
-      files: (\.yaml|\.sh|Dockerfile)$
+      files: (\.yaml|\.yml|\.sh|Dockerfile)$
       pass_filenames: false
