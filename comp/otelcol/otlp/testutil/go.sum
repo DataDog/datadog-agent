@@ -1,16 +1,8 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2 h1:d7vC1NnnIqbD5C977Rb45mxZCYsrx71gC3VAPU+Ioz0=
-github.com/DataDog/datadog-agent/comp/core/flare/types v0.53.0-rc.2/go.mod h1:URifECHSMCPpJkzLoaZ1vJznvkSeBrpqCillUg/QSdo=
-github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 h1:wSRjmeSGXapsud/h7NJ74uYYDxZckT63FCHsCIM2fDA=
-github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2/go.mod h1:CSkP5JShvfZJk+ozpdTeqD1mMdcJVHyfe9Dsvb0sejc=
 github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2 h1:bibziBAxtezV+Nu8TNRUBUmtXkRBDTm8dMbippN6rkg=
 github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2/go.mod h1:XMTAIJrACy6w2W3ZUk4Gk/LW+QLQ3SMhAnvL9Aewb0I=
-github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 h1:hhYjui4xMWxKZKthUEWnYyBjlYepUg76DzaYDcDIpgA=
-github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2/go.mod h1:xjQdJIobj3NIkNF55yUOVVANtsa8DyzVM4eZOAna0IE=
-github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2 h1:y/Apdy1BGEkOabmpMfno6SK+ziuHPCmc99V7qI4nE4c=
-github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2/go.mod h1:YDLfn32NVYA9EbwhwV7oNG6fL+G14NUvA3mN+278rPE=
 github.com/DataDog/viper v1.13.0 h1:XE5cJiXeXkyijwgspwZiH6iroWYLgAPXTOhcBnDBOMs=
 github.com/DataDog/viper v1.13.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
