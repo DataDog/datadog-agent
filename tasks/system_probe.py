@@ -30,7 +30,7 @@ from tasks.libs.common.utils import (
     get_gobin,
     get_version_numeric_only,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.libs.types.ninja import NinjaWriter
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")

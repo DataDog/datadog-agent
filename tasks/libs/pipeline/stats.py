@@ -1,7 +1,7 @@
 from collections import Counter
 
 from tasks.libs.pipeline.data import get_failed_jobs
-from tasks.libs.types import FailedJobType
+from tasks.libs.types.types import FailedJobType
 
 
 def get_failed_jobs_stats(project_name, pipeline_id):

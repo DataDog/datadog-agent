@@ -33,7 +33,7 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         fake_codeowners = read_owners(TestAssignTeamLabelMock.CODEOWNERS_FILE)
 
-        with patch('tasks.libs.common.github_api.GithubAPI') as gh_mock, patch.object(
+        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock, patch.object(
             tasks.github_tasks, 'read_owners'
         ) as read_owners_mock, patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock:
             gh = GithubAPIMock(

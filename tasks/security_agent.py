@@ -26,7 +26,7 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
+from tasks.libs.types.ninja import NinjaWriter
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,

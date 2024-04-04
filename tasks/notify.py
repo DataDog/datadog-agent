@@ -11,7 +11,7 @@ from typing import Dict
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.datadog_api import create_count, send_metrics
+from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
@@ -22,7 +22,7 @@ from tasks.libs.pipeline.notifications import (
     send_slack_message,
 )
 from tasks.libs.pipeline.stats import get_failed_jobs_stats
-from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
+from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -309,7 +309,7 @@ def send_notification(alert_jobs):
 
 @task
 def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
-    from tasks.libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
 
