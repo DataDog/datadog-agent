@@ -188,6 +188,30 @@ func isARepoDigest(imageName string) bool {
 	return strings.Contains(imageName, "@sha256:")
 }
 
+// pullImageReferences pulls all references from containerd for a given DIGEST
+// Note: the DIGEST here is the same as digest (repo digest) field returned from "ctr -n NAMESPACE ls"
+// rather than config.digest (imageID), which is the digest of the image config blob.
+// In general, 3 reference names are returned for a given DIGEST: repo tag, repo digest, and imageID.
+func (c *collector) pullImageReferences(namespace string, img containerd.Image) []string {
+	var refs []string
+	digest := img.Target().Digest.String()
+	if !strings.HasPrefix(digest, "sha256") {
+		return refs // not a valid digest
+	}
+
+	// Get all references for the imageID
+	referenceImages, err := c.containerdClient.ListImagesWithDigest(namespace, digest)
+	if err == nil {
+		for _, image := range referenceImages {
+			imageName := image.Name()
+			refs = append(refs, imageName)
+		}
+	} else {
+		log.Debugf("failed to get reference images for image: %s, repo digests will be missing: %v", img.Name(), err)
+	}
+	return refs
+}
+
 func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *containerdevents.Envelope) error {
 	switch containerdEvent.Topic {
 	case imageCreationTopic:
@@ -297,6 +321,14 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 		SBOM:      sbom,
 		SizeBytes: totalSizeBytes,
 	}
+	// Only pull all image references if not already present
+	if _, found := c.knownImages.getImageID(wlmImage.Name); !found {
+		references := c.pullImageReferences(namespace, img)
+		for _, ref := range references {
+			c.knownImages.addReference(ref, wlmImage.ID)
+		}
+	}
+	// update knownImages with current reference name
 	c.knownImages.addReference(wlmImage.Name, wlmImage.ID)
 
 	// Fill image based on manifest and config, we are not failing if this step fails
