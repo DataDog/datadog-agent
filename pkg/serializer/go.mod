@@ -27,6 +27,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state/
 	github.com/DataDog/datadog-agent/pkg/status/health => ../status/health
+	github.com/DataDog/datadog-agent/pkg/tagger/types => ../tagger/types/
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry
 	github.com/DataDog/datadog-agent/pkg/trace => ../trace
@@ -62,6 +63,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/metrics v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/tagset v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/json v0.53.0-rc.2

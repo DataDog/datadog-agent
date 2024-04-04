@@ -61,10 +61,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux := deps.Demultiplexer
 
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	_, found := demux.forwarders.orchestrator.Get()
+	_, found := deps.EventPlatformFwd.Get()
+	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options no event platform forwarder
@@ -73,11 +74,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseEventPlatformForwarder: false})
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	_, found = demux.forwarders.eventPlatform.Get()
+	_, found = deps.EventPlatformFwd.Get()
 	require.False(found)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options noop event platform forwarder
@@ -86,10 +87,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.Params{UseNoopEventPlatformForwarder: true})
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// now, simulate a cluster-agent environment and enabled the orchestrator feature
@@ -113,8 +115,9 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	require.NotNil(demux.forwarders.shared)
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options no orchestrator forwarder
@@ -124,10 +127,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// options noop orchestrator forwarder
@@ -137,10 +141,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.EventPlatformFwd.Get()
 	require.True(found)
-	require.NotNil(demux.forwarders.shared)
+	_, found = deps.OrchestratorFwd.Get()
+	require.True(found)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 
 	// no options to disable it, but the feature is not enabled
@@ -151,10 +156,11 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	deps = createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
-	require.NotNil(demux.forwarders.eventPlatform)
-	_, found = demux.forwarders.orchestrator.Get()
+	_, found = deps.EventPlatformFwd.Get()
+	require.True(found)
+	_, found = deps.OrchestratorFwd.Get()
 	require.False(found)
-	require.NotNil(demux.forwarders.shared)
+	require.NotNil(deps.SharedForwarder)
 	demux.Stop(false)
 }
 
@@ -311,7 +317,9 @@ func createDemuxDepsWithOrchestratorFwd(
 	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
 	return aggregatorDeps{
-		TestDeps:      deps.TestDeps,
-		Demultiplexer: InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.Compressor, ""),
+		TestDeps:         deps.TestDeps,
+		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, ""),
+		OrchestratorFwd:  deps.OrchestratorForwarder,
+		EventPlatformFwd: deps.Eventplatform,
 	}
 }

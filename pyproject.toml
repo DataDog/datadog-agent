@@ -6,7 +6,6 @@
 [tool.black]
 include = '\.pyi?$'
 line-length = 120
-py36 = false
 skip-string-normalization = true
 exclude = '''
 (

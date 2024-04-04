@@ -110,7 +110,7 @@ func Test_resolveProfiles(t *testing.T) {
 			},
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip`: extend does not exist: `does_not_exist`", 1},
+				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
 		{
@@ -118,7 +118,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          profilesWithInvalidExtendProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"loadResolveProfiles: failed to expand profile `generic-if`: extend does not exist: `invalid`", 1},
+				{"loadResolveProfiles: failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
 		{
@@ -126,7 +126,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected", 1},
+				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
 		},
 		{
