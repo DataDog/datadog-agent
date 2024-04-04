@@ -59,7 +59,7 @@ send_pkg_size:
     - source /root/.bashrc
 
     # Get API key to send metrics
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $APP_KEY_ORG2_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
 
     # Allow failures: some packages are not always built, and therefore stats cannot be sent for them
     - set +e
