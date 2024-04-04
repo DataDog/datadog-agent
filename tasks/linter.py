@@ -18,7 +18,7 @@ from tasks.libs.ciproviders.gitlab import (
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message
+from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context
 from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -395,16 +395,6 @@ def gitlab_ci(_, test="all", custom_context=None):
         if not res["valid"]:
             print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
             raise Exit(code=1)
-
-
-def is_pr_context(branch, pr_url, test_name):
-    if branch == DEFAULT_BRANCH:
-        print(f"Running on {DEFAULT_BRANCH}, skipping check for {test_name}.")
-        return False
-    if not pr_url:
-        print(f"PR not found, skipping check for {test_name}.")
-        return False
-    return True
 
 
 @task
