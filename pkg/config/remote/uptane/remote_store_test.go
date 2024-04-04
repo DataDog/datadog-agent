@@ -96,7 +96,7 @@ func TestRemoteStoreConfig(t *testing.T) {
 	db := newTransactionalStore(getTestDB(t))
 	defer db.commit()
 
-	targetStore := newTargetStore(db, "testcachekey")
+	targetStore := newTargetStore(db)
 	store := newRemoteStoreConfig(targetStore)
 
 	testUpdate1 := generateUpdate(1)
@@ -161,7 +161,7 @@ func TestRemoteStoreConfig(t *testing.T) {
 func TestRemoteStoreDirector(t *testing.T) {
 	db := newTransactionalStore(getTestDB(t))
 	defer db.commit()
-	targetStore := newTargetStore(db, "testcachekey")
+	targetStore := newTargetStore(db)
 	store := newRemoteStoreDirector(targetStore)
 
 	testUpdate1 := generateUpdate(1)
