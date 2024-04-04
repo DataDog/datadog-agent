@@ -1184,6 +1184,36 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: nil,
 		},
+		{
+			name: "remainder + header remainder",
+			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			messageBuilder: func() [][]byte {
+				data := []byte("testcontent")
+				request1 := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).
+					writeData(t, 1, true, data).bytes()
+				request2 := newFramer().
+					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}).
+					writeData(t, 3, true, emptyBody).bytes()
+				firstPacket := request1[:len(request1)-6]
+				secondPacket := append(request1[len(request1)-6:], request2[:5]...)
+				return [][]byte{
+					firstPacket,
+					secondPacket,
+					request2[5:],
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
