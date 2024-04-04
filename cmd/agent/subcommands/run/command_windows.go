@@ -119,7 +119,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,
-			expvarserver expvarserver.Component,
+			_ expvarserver.Component,
 			metadatascheduler metadatascheduler.Component,
 			jmxlogger jmxlogger.Component,
 		) error {
@@ -147,7 +147,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
-				expvarserver,
 				metadatascheduler,
 				jmxlogger,
 			)
