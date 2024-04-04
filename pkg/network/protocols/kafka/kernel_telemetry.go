@@ -51,7 +51,6 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 // Sub generates a new RawKernelTelemetry object by subtracting the values of this RawKernelTelemetry object from the other
 func (t *RawKernelTelemetry) Sub(other RawKernelTelemetry) *RawKernelTelemetry {
 	return &RawKernelTelemetry{
-		//Name_exceeds_max_size: t.Name_exceeds_max_size - other.Name_exceeds_max_size,
 		Name_size_buckets: computePathSizeBucketDifferences(t.Name_size_buckets, other.Name_size_buckets),
 	}
 }
