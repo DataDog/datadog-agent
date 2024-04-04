@@ -261,6 +261,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			if err != nil {
 				return err
 			}
+			env.Agent = nil
 
 			ctx.Export("agent-linux-helm-install-name", helmComponent.LinuxHelmReleaseName)
 			ctx.Export("agent-linux-helm-install-status", helmComponent.LinuxHelmReleaseStatus)
@@ -291,5 +292,5 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		return err
 	}
 
-	return clusterComp.Export(ctx, nil)
+	return clusterComp.Export(ctx, &env.KubernetesCluster.ClusterOutput)
 }
