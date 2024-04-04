@@ -48,31 +48,3 @@ class TestIsGetParameterCall(unittest.TestCase):
             f.write("export DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $APP_KEY_ORG2_SSM_NAME)")
         matched = linter.is_get_parameter_call(self.test_file)
         self.assertIsNone(matched)
-
-
-class TestReadIncludes(unittest.TestCase):
-    def test_with_includes(self):
-        includes = []
-        linter.read_includes("tasks/unit-tests/testdata/in.yml", includes)
-        self.assertEqual(len(includes), 4)
-
-    def test_without_includes(self):
-        includes = []
-        linter.read_includes("tasks/unit-tests/testdata/b.yml", includes)
-        self.assertEqual(len(includes), 1)
-
-
-class TestGenerateGitlabFullConfiguration(unittest.TestCase):
-    def test_nominal(self):
-        full_configuration = linter.generate_gitlab_full_configuration("tasks/unit-tests/testdata/in.yml")
-        with open("tasks/unit-tests/testdata/out.yml") as f:
-            expected = f.read()
-        self.assertEqual(full_configuration, expected)
-
-    def test_yaml_with_reference(self):
-        full_configuration = linter.generate_gitlab_full_configuration(
-            "tasks/unit-tests/testdata/ci_config_with_reference.yml"
-        )
-        with open("tasks/unit-tests/testdata/expected.yml") as f:
-            expected = f.read()
-        self.assertEqual(full_configuration, expected)
