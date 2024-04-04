@@ -318,7 +318,7 @@ func createDemuxDepsWithOrchestratorFwd(
 
 	return aggregatorDeps{
 		TestDeps:         deps.TestDeps,
-		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, ""),
+		Demultiplexer:    InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, deps.Eventplatform, deps.Compressor, ""),
 		OrchestratorFwd:  deps.OrchestratorForwarder,
 		EventPlatformFwd: deps.Eventplatform,
 	}
