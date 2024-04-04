@@ -3,7 +3,7 @@ import pprint
 import re
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import yaml
 from invoke import task
@@ -880,3 +880,58 @@ def trigger_external(ctx, owner_branch_name: str, no_verify=False):
 
     print(f'\nBranch {owner}/{branch} pushed to repo: {repo}')
     print(f'CI-Visibility pipeline link: {pipeline}')
+
+
+@task
+def test_merge_queue(ctx):
+    """
+    Test the pipeline in merge-queue context:
+      - Create a temporary copy of main branch
+      - Create a PR of current branch against this copy
+      - Trigger the merge queue
+      - Check if the pipeline is correctly created
+    """
+    # Create a new main and push it
+    print("Creating a new main branch")
+    timestamp = int(datetime.now(timezone.utc).timestamp())
+    test_main = f"mq/test_{timestamp}"
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    ctx.run("git checkout main", hide=True)
+    ctx.run("git pull", hide=True)
+    ctx.run(f"git checkout -b {test_main}", hide=True)
+    ctx.run(f"git push origin {test_main}", hide=True)
+    # Create a PR towards this new branch and adds it to the merge queue
+    print("Creating a PR and adding it to the merge queue")
+    gh = GithubAPI()
+    pr = gh.create_pr(f"Test MQ for {current_branch}", "", test_main, current_branch)
+    pr.create_issue_comment("/merge")
+    # Search for the generated pipeline
+    print(f"PR {pr.html_url} is waiting for MQ pipeline generation")
+    gitlab = Gitlab(api_token=get_gitlab_token())
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        time.sleep(30)
+        pipelines = gitlab.last_pipelines()
+        try:
+            pipeline = next(p for p in pipelines if p["ref"].startswith(f"mq-working-branch-{test_main}"))
+            print(f"Pipeline found: {pipeline['web_url']}")
+            break
+        except StopIteration:
+            if attempt == max_attempts - 1:
+                raise RuntimeError("No pipeline found for the merge queue")
+            continue
+    success = pipeline["status"] == "running"
+    if success:
+        print("Pipeline correctly created, congrats")
+    else:
+        print(f"[ERROR] Impossible to generate a pipeline for the merge queue, please check {pipeline['web_url']}")
+    # Clean up
+    print("Cleaning up")
+    if success:
+        gitlab.cancel_pipeline(pipeline["id"])
+    pr.edit(state="closed")
+    ctx.run(f"git checkout {current_branch}", hide=True)
+    ctx.run(f"git branch -D {test_main}", hide=True)
+    ctx.run(f"git push origin :{test_main}", hide=True)
+    if not success:
+        raise Exit(message="Merge queue test failed", code=1)
