@@ -95,7 +95,7 @@ functions:
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
       DD_API_KEY: NO_NEED_TO_BE_VALID
-      DD_APPSEC_WAF_TIMEOUT: 1m
+      DD_APPSEC_WAF_TIMEOUT: 60000
       DD_LAMBDA_HANDLER: src/appSecPython.handler
       DD_SERVERLESS_APPSEC_ENABLED: true
 
