@@ -42,7 +42,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestProcess",
 			"~TestOpen",
 			"~TestUnlink",
-			"~KillAction",
+			"~TestActionKill",
 			"~TestRmdir",
 			"~TestRename",
 			"~TestMkdir",
@@ -136,6 +136,7 @@ var (
 	logStatusMetrics bool
 	withProfile      bool
 	trace            bool
+	disableTracePipe bool
 )
 
 var testSuitePid uint32
@@ -145,6 +146,7 @@ func init() {
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
 	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
+	flag.BoolVar(&disableTracePipe, "no-trace-pipe", false, "disable the trace pipe log")
 
 	testSuitePid = utils.Getpid()
 }

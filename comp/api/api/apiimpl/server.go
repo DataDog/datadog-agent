@@ -64,7 +64,7 @@ func stopServer(listener net.Listener, name string) {
 	}
 }
 
-// StartServers creates certificates and starts API servers
+// StartServers creates certificates and starts API + IPC servers
 func StartServers(
 	configService optional.Option[rcservice.Component],
 	configServiceHA optional.Option[rcserviceha.Component],

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package updater contains tests for the updater package
+// Package updater contains tests for the updater package
 package updater
 
 import (
@@ -81,6 +81,23 @@ func (v *vmUpdaterSuite) TestAgentUnitsLoaded() {
 	for _, unit := range stableUnits {
 		require.Equal(v.T(), "enabled\n", v.Env().RemoteHost.MustExecute(fmt.Sprintf(`systemctl is-enabled %s`, unit)))
 	}
+}
+
+func (v *vmUpdaterSuite) TestExperimentCrash() {
+	host := v.Env().RemoteHost
+	t := v.T()
+	startTime := getMonotonicTimestamp(t, host)
+	v.Env().RemoteHost.MustExecute(`sudo systemctl start datadog-agent-exp --no-block`)
+	res := getJournalDOnCondition(t, host, startTime, stopCondition([]JournaldLog{
+		{Unit: "datadog-agent.service", Message: "Started"},
+	}))
+	require.True(t, verifyLogs(res, []JournaldLog{
+		{Unit: "datadog-agent.service", Message: "Stopping"},
+		{Unit: "datadog-agent.service", Message: "Stopped"},
+		{Unit: "datadog-agent-exp.service", Message: "Starting"},
+		{Unit: "datadog-agent-exp.service", Message: "Failed"},
+		{Unit: "datadog-agent.service", Message: "Started"},
+	}), fmt.Sprintf("unexpected logs: %v", res))
 }
 
 func (v *vmUpdaterSuite) TestPurgeAndInstallAgent() {

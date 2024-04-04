@@ -3,7 +3,7 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_testing/testing.yml
+#   - .gitlab/kitchen_testing/testing.yml
 
 # Kitchen: OSes
 # -------------
@@ -34,7 +34,7 @@
 
 kitchen_debian_process_agent-a7:
   rules:
-    - !reference [.on_default_kitchen_tests_a7]
+    - !reference [.on_default_kitchen_tests]
   variables:
     KITCHEN_OSVERS: "debian-11"
     DEFAULT_KITCHEN_OSVERS: "debian-11"
