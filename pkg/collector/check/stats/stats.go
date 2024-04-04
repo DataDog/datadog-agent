@@ -97,6 +97,7 @@ type Stats struct {
 	// LongRunning is true if the check is a long running check
 	// converted to a normal check
 	LongRunning              bool
+	Cancelling               bool
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64

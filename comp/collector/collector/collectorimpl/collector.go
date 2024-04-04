@@ -220,6 +220,14 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	// delete check from checks map even if we encounter an error
 	defer c.delete(id)
 
+	// remove the check from the stats map
+	defer expvars.RemoveCheckStats(id)
+
+	stats, found := expvars.CheckStats(id)
+	if found {
+		stats.Cancelling = true
+	}
+
 	if err := c.runner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
@@ -229,9 +237,6 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	if err := c.cancelCheck(ch, c.cancelCheckTimeout); err != nil {
 		return fmt.Errorf("an error occurred while calling check.Cancel(): %s", err)
 	}
-
-	// remove the check from the stats map
-	expvars.RemoveCheckStats(id)
 
 	return nil
 }
