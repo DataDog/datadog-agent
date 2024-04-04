@@ -6,6 +6,8 @@
 package defaultforwarder
 
 import (
+	"context"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,6 +19,7 @@ type dependencies struct {
 	fx.In
 	Config config.Component
 	Log    log.Component
+	Lc     fx.Lifecycle
 	Params Params
 }
 
@@ -28,20 +31,32 @@ type provides struct {
 }
 
 func newForwarder(dep dependencies) provides {
-	return NewForwarder(dep.Config, dep.Log, dep.Params)
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, dep.Params)
 }
 
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, params Params) provides {
+func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, params Params) provides {
 	if params.UseNoopForwarder {
 		return provides{
 			Comp: NoopForwarder{},
 		}
 	}
+	forwarder := NewDefaultForwarder(config, log, params.Options)
+
+	lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			err := forwarder.Start()
+			if ignoreLifeCycleError {
+				return nil
+			}
+			return err
+		},
+		OnStop: func(context.Context) error { forwarder.Stop(); return nil }})
+
 	return provides{
-		Comp:           NewDefaultForwarder(config, log, params.Options),
+		Comp:           forwarder,
 		StatusProvider: status.NewInformationProvider(statusProvider{config: config}),
 	}
 }

@@ -3,8 +3,8 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_testing/testing.yml
-#   - /.gitlab/functional_test/common.yml
+#   - .gitlab/kitchen_testing/testing.yml
+#   - .gitlab/functional_test/common.yml
 
 .kitchen_test_system_probe_linux:
   extends:
@@ -25,6 +25,10 @@
     - tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
+  after_script:
+    # Upload generated junit files
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - ss=0; for f in $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz; do [[ -e "$f" ]] || continue; inv -e junit-upload --tgz-path $f || ((ss++)); done; exit $ss
   artifacts:
     expire_in: 2 weeks
     when: always

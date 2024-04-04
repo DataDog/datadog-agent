@@ -19,6 +19,11 @@ tests_macos:
     - if [[ "$FAST_TESTS" = "true" ]]; then FAST_TESTS_FLAG="--fast-tests true"; fi
     - inv -e github.trigger-macos --workflow-type "test" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT" $FAST_TESTS_FLAG
   timeout: 6h
+  after_script:
+    - source /root/.bashrc
+    # Upload generated junit files
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f; done
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -30,7 +35,9 @@ tests_macos:
 
 lint_macos:
   stage: source_test
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
