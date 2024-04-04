@@ -255,7 +255,7 @@ func (u *updaterImpl) Bootstrap(ctx context.Context, pkg string) error {
 
 	stablePackage, ok := u.catalog.getDefaultPackage(u.bootstrapVersions, pkg, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get default package %s for %s, %s", pkg, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get default package '%s' for arch '%s' and platform '%s'", pkg, runtime.GOARCH, runtime.GOOS)
 	}
 	return u.boostrapPackage(ctx, stablePackage)
 }
@@ -269,7 +269,7 @@ func (u *updaterImpl) BootstrapVersion(ctx context.Context, pkg string, version 
 
 	stablePackage, ok := u.catalog.getPackage(pkg, version, runtime.GOARCH, runtime.GOOS)
 	if !ok {
-		return fmt.Errorf("could not get package %s version %s for %s, %s", pkg, version, runtime.GOARCH, runtime.GOOS)
+		return fmt.Errorf("could not get package '%s' version '%s' for arch '%s' and platform '%s'", pkg, version, runtime.GOARCH, runtime.GOOS)
 	}
 	return u.boostrapPackage(ctx, stablePackage)
 }
