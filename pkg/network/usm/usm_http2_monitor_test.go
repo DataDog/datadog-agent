@@ -1186,7 +1186,9 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 		},
 		{
 			name: "remainder + header remainder",
-			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
+			// Testing the scenario where we have both a remainder (a frame's payload split over 2 packets) and in the
+			// second packet, we have the remainder and a partial frame header of a new request. We're testing that we
+			// can capture the 2 requests in this scenario.
 			messageBuilder: func() [][]byte {
 				data := []byte("testcontent")
 				request1 := newFramer().
