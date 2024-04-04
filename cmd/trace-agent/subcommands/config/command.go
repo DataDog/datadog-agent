@@ -11,8 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 
 	"github.com/spf13/cobra"
@@ -27,6 +29,7 @@ func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Com
 		RunE: func(*cobra.Command, []string) error {
 			return fxutil.OneShot(printConfig,
 				fx.Supply(config.NewAgentParams(globalParamsGetter().ConfPath)),
+				fx.Provide(func() optional.Option[secrets.Component] { return optional.NewNoneOption[secrets.Component]() }),
 				config.Module(),
 			)
 		},

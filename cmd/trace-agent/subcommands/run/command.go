@@ -74,6 +74,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
 		secretsimpl.Module(),
+		fx.Provide(func() optional.Option[secrets.Component] {
+			return optional.NewNoneOption[secrets.Component]()
+		}),
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module(),
 		fx.Provide(func() corelogimpl.Params {
