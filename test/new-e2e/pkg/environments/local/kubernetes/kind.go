@@ -35,7 +35,6 @@ const (
 // ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name              string
-	vmOptions         []ec2.VMOption
 	agentOptions      []kubernetesagentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
@@ -62,26 +61,10 @@ func WithName(name string) ProvisionerOption {
 	}
 }
 
-// WithEC2VMOptions adds options to the EC2 VM
-func WithEC2VMOptions(opts ...ec2.VMOption) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.vmOptions = opts
-		return nil
-	}
-}
-
 // WithAgentOptions adds options to the agent
 func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = opts
-		return nil
-	}
-}
-
-// WithFakeIntakeOptions adds options to the fake intake
-func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.fakeintakeOptions = opts
 		return nil
 	}
 }
