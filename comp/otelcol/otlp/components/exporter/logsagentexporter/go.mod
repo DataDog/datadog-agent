@@ -17,6 +17,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../../../pkg/util/fxutil

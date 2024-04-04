@@ -10,6 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
