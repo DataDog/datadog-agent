@@ -16,7 +16,7 @@ import (
 func TestConfigureRunner(t *testing.T) {
 	r := &runner{}
 
-	r.initRunner(nil)
+	r.initRunner(nil, nil)
 
 	// Test for no instances in jmx check conf file
 	initConfYaml := []byte("")
