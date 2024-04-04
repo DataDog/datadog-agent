@@ -508,6 +508,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("dogstatsd_socket", "")        // Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_stream_socket", "") // Experimental || Notice: empty means feature disabled
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust", false)
+	config.BindEnvAndSetDefault("dogstatsd_pipeline_autoadjust_strategy", "max_throughput")
 	config.BindEnvAndSetDefault("dogstatsd_pipeline_count", 1)
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
