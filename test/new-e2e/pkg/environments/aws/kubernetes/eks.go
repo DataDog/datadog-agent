@@ -203,7 +203,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// Building Kubernetes provider
 		eksKubeProvider, err := kubernetes.NewProvider(awsEnv.Ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 			EnableServerSideApply: pulumi.BoolPtr(true),
-			Kubeconfig:            utils.KubeconfigToJSON(cluster.Kubeconfig),
+			Kubeconfig:            utils.KubeConfigYAMLToJSON(cluster.Kubeconfig),
 		}, awsEnv.WithProviders(config.ProviderAWS), pulumi.DependsOn(nodeGroups))
 		if err != nil {
 			return err
