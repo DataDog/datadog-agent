@@ -33,9 +33,6 @@ func TestUpdaterWithoutRemoteConfig(t *testing.T) {
 		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-		fx.Supply(Parameters{
-			Package: "test",
-		}),
 		Module(),
 	))
 	_, err := newUpdaterComponent(&mockLifecycle{}, deps.Dependencies)

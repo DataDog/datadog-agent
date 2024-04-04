@@ -56,7 +56,7 @@ func TestMoveConfigurationsFilesProfiles(t *testing.T) {
 
 	moveConfigurationFiles(srcFolder, dstFolder)
 	_, err = os.Stat(filepath.Join(dstFolder, "profiles", "device.yaml"))
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestGetVersionFromReqLine(t *testing.T) {
@@ -97,7 +97,7 @@ func TestValidateArgs(t *testing.T) {
 	assert.NotNil(t, err)
 	args = []string{"datadog-foo"}
 	err = validateArgs(args, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestValidateRequirement(t *testing.T) {

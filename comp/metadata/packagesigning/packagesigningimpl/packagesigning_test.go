@@ -95,3 +95,38 @@ func getTestPackageSigning(t *testing.T) *pkgSigning {
 	)
 	return p.Comp.(*pkgSigning)
 }
+
+func TestCheckInstallationMethod(t *testing.T) {
+	testCases := []struct {
+		name   string
+		input  string
+		output bool
+	}{
+		{
+			name:   "Allowed method",
+			input:  "saltstack",
+			output: true,
+		},
+		{
+			name:   "Forbidden method exact match",
+			input:  "helm",
+			output: false,
+		},
+		{
+			name:   "Forbidden method partial match",
+			input:  "https://github.com/honeyscience/kube-cluster-config/",
+			output: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+
+			isAllowed := isAllowedInstallationTool(testCase.input)
+			if isAllowed != testCase.output {
+				t.Errorf("Wrong value for installation method %s, expected %t get %t", testCase.input, testCase.output, isAllowed)
+			}
+		})
+
+	}
+}

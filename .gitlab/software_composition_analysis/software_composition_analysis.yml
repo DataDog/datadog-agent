@@ -6,22 +6,14 @@
 datadog-sca-ci:
   stage: software_composition_analysis
   tags: ["arch:amd64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci-sbom:2024011006
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-static-analyzer:2024031801
   when: always
   # We don't want to disrupt the pipeline so let's fail silently.
   allow_failure: true
   # This specifies the job does not have any dependency, meaning it can start as soon as it can.
   needs: []
   script:
-    # Disabling tracing to avoid leaking secrets.
-    # See https://www.gnu.org/software/bash/manual/bash.html#The-Set-Builtin:
-    # "Using ‘+’ rather than ‘-’ causes these options to be turned off"
-    - set +o xtrace
-    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.datadog-agent.datadog_api_key_org2" --with-decryption --query "Parameter.Value" --out text)
-    - export DD_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.datadog-agent.datadog_app_key_org2" --with-decryption --query "Parameter.Value" --out text)
-    - set -o xtrace
-    - trivy fs --output /tmp/trivy.sbom --format cyclonedx --offline-scan --skip-update .
-    # Required until we use datadog-ci version https://github.com/DataDog/datadog-ci/releases/tag/v2.30.0
-    # Current version is v2.27.0
-    - export DD_BETA_COMMANDS_ENABLED=true
-    - datadog-ci sbom upload --service datadog-agent --env ci /tmp/trivy.sbom
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")
+    - export DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh "$APP_KEY_ORG2_SSM_NAME")
+    - osv-scanner --skip-git --recursive --experimental-only-packages --format=cyclonedx-1-4 --output=/tmp/sbom.json .
+    - datadog-ci sbom upload --service integrations-core --env ci /tmp/sbom.json

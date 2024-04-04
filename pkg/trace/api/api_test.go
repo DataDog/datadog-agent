@@ -131,7 +131,7 @@ func TestReceiverRequestBodyLength(t *testing.T) {
 func TestListenTCP(t *testing.T) {
 	t.Run("measured", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 0}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*measuredListener)
@@ -140,7 +140,7 @@ func TestListenTCP(t *testing.T) {
 
 	t.Run("limited", func(t *testing.T) {
 		r := &HTTPReceiver{conf: &config.AgentConfig{ConnectionLimit: 10}}
-		ln, err := r.listenTCP(":0")
+		ln, err := r.listenTCP("127.0.0.1:0")
 		require.NoError(t, err)
 		defer ln.Close()
 		_, ok := ln.(*rateLimitedListener)
@@ -572,13 +572,7 @@ func TestDecodeV05(t *testing.T) {
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
 	req.Header.Set(header.ContainerID, "abcdef123789456")
-	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
-		Tags: info.Tags{
-			Lang:          "python",
-			LangVersion:   "3.8.1",
-			TracerVersion: "1.2.3",
-		},
-	}, NewIDProvider(""))
+	tp, _, err := decodeTracerPayload(v05, req, NewIDProvider(""), "python", "3.8.1", "1.2.3")
 	assert.NoError(err)
 	assert.EqualValues(tp, &pb.TracerPayload{
 		ContainerID:     "abcdef123789456",
@@ -690,6 +684,8 @@ func TestHandleStats(t *testing.T) {
 		if !reflect.DeepEqual(gotp, p) || gotlang != "lang1" || gotTracerVersion != "0.1.0" {
 			t.Fatalf("Did not match payload: %v: %v", gotlang, gotp)
 		}
+		_, ok := rcv.Stats.Stats[info.Tags{Lang: "lang1", EndpointVersion: "v0.6", Service: "service", TracerVersion: "0.1.0"}]
+		assert.True(t, ok)
 	})
 }
 
@@ -781,7 +777,7 @@ func TestHandleTraces(t *testing.T) {
 
 	// We test stats for each app
 	for _, lang := range langs {
-		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4"}]
+		ts, ok := rs.Stats[info.Tags{Lang: lang, EndpointVersion: "v0.4", Service: "fennel_IS amazing!"}]
 		assert.True(ok)
 		assert.Equal(int64(20), ts.TracesReceived.Load())
 		assert.Equal(int64(83022), ts.TracesBytes.Load())

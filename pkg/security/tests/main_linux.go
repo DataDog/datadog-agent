@@ -12,10 +12,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
-
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
@@ -43,7 +42,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestProcess",
 			"~TestOpen",
 			"~TestUnlink",
-			"~KillAction",
+			"~TestActionKill",
 			"~TestRmdir",
 			"~TestRename",
 			"~TestMkdir",
@@ -54,6 +53,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestChown",
 			"~TestLoadModule",
 			"~TestUnloadModule",
+			"~TestOsOrigin",
 		}
 
 		exclude := []string{
@@ -112,7 +112,11 @@ func preTestsHook() {
 
 		envs := os.Environ()
 
-		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, ptracer.Creds{}, false /* verbose */, true /* async */, false /* disableStats */)
+		opts := ptracer.Opts{
+			Async: true,
+		}
+
+		err := ptracer.StartCWSPtracer(args, envs, constants.DefaultEBPFLessProbeAddr, opts)
 		if err != nil {
 			fmt.Printf("unable to trace [%v]: %s", args, err)
 			os.Exit(-1)
@@ -132,6 +136,7 @@ var (
 	logStatusMetrics bool
 	withProfile      bool
 	trace            bool
+	disableTracePipe bool
 )
 
 var testSuitePid uint32
@@ -141,6 +146,7 @@ func init() {
 	flag.BoolVar(&logStatusMetrics, "status-metrics", false, "display status metrics")
 	flag.BoolVar(&withProfile, "with-profile", false, "enable profile per test")
 	flag.BoolVar(&trace, "trace", false, "wrap the test suite with the ptracer")
+	flag.BoolVar(&disableTracePipe, "no-trace-pipe", false, "disable the trace pipe log")
 
 	testSuitePid = utils.Getpid()
 }

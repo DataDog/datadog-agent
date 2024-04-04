@@ -736,7 +736,7 @@ api_key:
 # enable_gohai: true
 
 ## @param enable_signing_metadata_collection - boolean - optional - default: true
-## @env DD_ENABLE_SIGNING_METADATA - boolean - optional - default: true
+## @env DD_ENABLE_SIGNING_METADATA_COLLECTION - boolean - optional - default: true
 ## Enable the Linux package signing medatada collection.
 #
 # enable_signing_metadata_collection: true
@@ -1470,8 +1470,8 @@ api_key:
   #             - val1
 
   ## @param filter_tags - object - optional
-  ## @env DD_APM_FILTER_TAG_REQUIRE - object - optional
-  ## @env DD_APM_FILTER_TAG_REJECT - object - optional
+  ## @env DD_APM_FILTER_TAGS_REQUIRE - object - optional
+  ## @env DD_APM_FILTER_TAGS_REJECT - object - optional
   ## Defines rules by which to filter traces based on tags.
   ##  * require - list of key or key/value strings - traces must have those tags in order to be sent to Datadog
   ##  * reject - list of key or key/value strings - traces with these tags are dropped by the Agent
@@ -1555,12 +1555,8 @@ api_key:
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
   ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
+  ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
   # compute_stats_by_span_kind: false
-
-  ## @param peer_service_aggregation - bool - default: false
-  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
-  ## DEPRECATED - please use `peer_tags_aggregation` instead.
-  # peer_service_aggregation: false
 
   ## @param peer_tags_aggregation - bool - default: false
   ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
@@ -1587,7 +1583,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional
@@ -3830,10 +3826,8 @@ api_key:
 
     ## @param users - list of custom objects - optional
     ## List of SNMPv3 users that can be used to listen for traps.
-    ## NOTE: Currently the Datadog Agent only supports having a
-    ## single user in this list.
     ## Each user can contain:
-    ##  * username     - string - The username used by devices when sending Traps to the Agent.
+    ##  * user         - string - The username used by devices when sending Traps to the Agent.
     ##  * authKey      - string - (Optional) The passphrase to use with the given user and authProtocol
     ##  * authProtocol - string - (Optional) The authentication protocol to use when listening for traps from this user.
     ##                            Available options are: MD5, SHA, SHA224, SHA256, SHA384, SHA512.
@@ -3844,7 +3838,7 @@ api_key:
     ##                            Defaults to DES when privKey is set.
     #
     # users:
-    # - username: <USERNAME>
+    # - user: <USERNAME>
     #   authKey: <AUTHENTICATION_KEY>
     #   authProtocol: <AUTHENTICATION_PROTOCOL>
     #   privKey: <PRIVACY_KEY>

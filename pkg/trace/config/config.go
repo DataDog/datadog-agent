@@ -292,7 +292,6 @@ type AgentConfig struct {
 	// Concentrator
 	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
 	ExtraAggregators       []string      // DEPRECATED
-	PeerServiceAggregation bool          // TO BE DEPRECATED - enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
 	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
 	PeerTags               []string      // additional tags to use for peer entity stats aggregation
@@ -538,8 +537,11 @@ func computeGlobalTags() map[string]string {
 	return make(map[string]string)
 }
 
+// ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
+var ErrContainerTagsFuncNotDefined = errors.New("containerTags function not defined")
+
 func noopContainerTagsFunc(_ string) ([]string, error) {
-	return nil, errors.New("ContainerTags function not defined")
+	return nil, ErrContainerTagsFuncNotDefined
 }
 
 // APIKey returns the first (main) endpoint's API key.
@@ -581,13 +583,13 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// HasFeature returns true if the agent has the given feature flag.
 func (c *AgentConfig) HasFeature(feat string) bool {
 	_, ok := c.Features[feat]
 	return ok
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
+// AllFeatures returns a slice of all the feature flags the agent has.
 func (c *AgentConfig) AllFeatures() []string {
 	feats := []string{}
 	for feat := range c.Features {
@@ -596,7 +598,6 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
 func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("APPSVC_RUN_ZIP")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")

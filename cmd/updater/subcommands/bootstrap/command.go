@@ -17,13 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/updater"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -31,11 +26,13 @@ import (
 
 type cliParams struct {
 	command.GlobalParams
+	pkg string
 }
 
 // Commands returns the bootstrap command
 func Commands(global *command.GlobalParams) []*cobra.Command {
 	var timeout time.Duration
+	var pkg string
 	bootstrapCmd := &cobra.Command{
 		Use:   "bootstrap",
 		Short: "Bootstraps the package with the first version.",
@@ -47,10 +44,12 @@ func Commands(global *command.GlobalParams) []*cobra.Command {
 			defer cancel()
 			return boostrapFxWrapper(ctx, &cliParams{
 				GlobalParams: *global,
+				pkg:          pkg,
 			})
 		},
 	}
 	bootstrapCmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
+	bootstrapCmd.Flags().StringVarP(&pkg, "package", "P", "", "package to bootstrap")
 	return []*cobra.Command{bootstrapCmd}
 }
 
@@ -65,22 +64,11 @@ func boostrapFxWrapper(ctx context.Context, params *cliParams) error {
 			LogParams:            logimpl.ForOneShot("UPDATER", "info", true),
 		}),
 		core.Bundle(),
-		fx.Supply(&rcservice.Params{
-			Options: []service.Option{
-				service.WithDatabaseFileName("remote-config-updater.db"),
-			},
-		}),
-		rctelemetryreporterimpl.Module(),
-		rcserviceimpl.Module(),
 	)
 }
 
-func bootstrap(ctx context.Context, params *cliParams, rc optional.Option[rcservice.Component]) error {
-	rcService, ok := rc.Get()
-	if !ok {
-		return fmt.Errorf("remote config service is required for the updater")
-	}
-	err := updater.Install(ctx, rcService, params.Package)
+func bootstrap(ctx context.Context, params *cliParams, config config.Component) error {
+	err := updater.Bootstrap(ctx, params.pkg, config)
 	if err != nil {
 		return fmt.Errorf("could not install package: %w", err)
 	}

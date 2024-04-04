@@ -1,10 +1,10 @@
 module github.com/DataDog/datadog-agent/pkg/util/cache
 
-go 1.21.7
+go 1.21.8
 
 require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 )
 
 require (

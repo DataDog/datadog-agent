@@ -69,6 +69,8 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
+extra_cflags = []
+
 
 def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
@@ -241,10 +243,8 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
 
-    network_flags = "-Ipkg/network/ebpf/c -g"
+    network_flags = ["-Ipkg/network/ebpf/c", "-g"]
     network_programs = [
-        "prebuilt/dns",
-        "prebuilt/offset-guess",
         "tracer",
         "prebuilt/usm",
         "prebuilt/usm_events_test",
@@ -252,20 +252,26 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
         "prebuilt/conntrack",
     ]
     network_co_re_programs = ["tracer", "co-re/tracer-fentry", "runtime/usm", "runtime/shared-libraries"]
+    network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, network_flags)
+        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags + extra_cflags))
+
+    for prog in network_programs_wo_instrumentation:
+        infile = os.path.join(network_c_dir, f"{prog}.c")
+        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
+        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags))
 
     for prog_path in network_co_re_programs:
         prog = os.path.basename(prog_path)
         src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
-        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
+        network_co_re_flags = [f"-I{src_dir}", "-Ipkg/network/ebpf/c"] + extra_cflags
 
         infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
+        ninja_network_ebpf_co_re_program(nw, infile, outfile, ' '.join(network_co_re_flags))
 
 
 def ninja_test_ebpf_programs(nw, build_dir):
@@ -360,9 +366,6 @@ def ninja_cgo_type_files(nw):
         def_files = {
             "pkg/network/driver/types.go": [
                 "pkg/network/driver/ddnpmapi.h",
-            ],
-            "pkg/util/winutil/etw/types.go": [
-                "pkg/util/winutil/etw/etw-provider.h",
             ],
             "pkg/windowsdriver/procmon/types.go": [
                 "pkg/windowsdriver/include/procmonapi.h",
@@ -521,6 +524,7 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
+    instrument_trampoline=False,
 ):
     """
     Build the system-probe
@@ -534,6 +538,7 @@ def build(
             debug=debug,
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
+            instrument_trampoline=instrument_trampoline,
         )
 
     build_sysprobe_binary(
@@ -633,6 +638,7 @@ def test(
     failfast=False,
     kernel_release=None,
     timeout=None,
+    extra_arguments="",
 ):
     """
     Run tests on eBPF parts
@@ -651,6 +657,7 @@ def test(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
+            instrument_trampoline=False,
         )
 
     build_tags = [NPM_TAG]
@@ -665,6 +672,7 @@ def test(
     args["run"] = f"-run {run}" if run else ""
     args["go"] = "go"
     args["sudo"] = "sudo -E " if not is_windows and not output_path and not is_root() else ""
+    args["extra_arguments"] = extra_arguments
 
     _, _, env = get_build_flags(ctx)
     env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
@@ -680,7 +688,7 @@ def test(
         args["dir"] = pdir
         testto = timeout if timeout else get_test_timeout(pdir)
         args["timeout"] = f"-timeout {testto}" if testto else ""
-        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {output_params} {dir} {run}'
+        cmd = '{sudo}{go} test -mod=mod -v {failfast} {timeout} -tags "{build_tags}" {extra_arguments} {output_params} {dir} {run}'
         res = ctx.run(cmd.format(**args), env=env, warn=True)
         if res.exited is None or res.exited > 0:
             failed_pkgs.append(os.path.relpath(pdir, ctx.cwd))
@@ -723,6 +731,7 @@ def test_debug(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
+            instrument_trampoline=False,
         )
 
     build_tags = [NPM_TAG]
@@ -849,7 +858,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/testsuite
     # test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg/ebpf/bytecode/testsuite
     for i, pkg in enumerate(target_packages):
-        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, pkg.lstrip(os.getcwd()))
+        target_path = os.path.join(KITCHEN_ARTIFACT_DIR, os.path.relpath(pkg, os.getcwd()))
         target_bin = "testsuite"
         if is_windows:
             target_bin = "testsuite.exe"
@@ -1355,6 +1364,7 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    instrument_trampoline=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
@@ -1370,6 +1380,10 @@ def build_object_files(
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {build_dir}/runtime")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
+
+    global extra_cflags
+    if instrument_trampoline:
+        extra_cflags = extra_cflags + ["-pg", "-DINSTRUMENTATION_ENABLED"]
 
     run_ninja(
         ctx,
@@ -1438,7 +1452,7 @@ def build_cws_object_files(
 
 @task
 def object_files(ctx, kernel_release=None, with_unit_test=False):
-    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test)
+    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, instrument_trampoline=False)
 
 
 def clean_object_files(
@@ -1756,6 +1770,10 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     if is_windows:
         return
 
+    # crane does not accept 'x86_64' as a valid architecture
+    if arch == "x86_64":
+        arch = "amd64"
+
     # only download images not present in preprepared vm disk
     resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
     docker_ls = {line for line in resp.text.split('\n') if line.strip()}
@@ -1819,7 +1837,8 @@ def start_microvms(
     stack_name="kernel-matrix-testing-system",
     vmconfig=None,
     local=False,
-    provision=False,
+    provision_instance=False,
+    provision_microvms=False,
     run_agent=False,
     agent_version=None,
 ):
@@ -1836,10 +1855,11 @@ def start_microvms(
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
-        "--run-provision" if provision else "",
         "--local" if local else "",
         "--run-agent" if run_agent else "",
         f"--agent-version {agent_version}" if agent_version else "",
+        "--provision-instance" if provision_instance else "",
+        "--provision-microvms" if provision_microvms else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

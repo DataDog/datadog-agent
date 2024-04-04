@@ -38,7 +38,7 @@ func newGeneratedAsset(filename string) *generatedAsset {
 
 // Compile compiles the provided c code to an object file, writes it to the configured output directory, and
 // then opens and returns the compiled output
-func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, additionalFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
+func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, additionalFlags []string, llcFlags []string, client statsd.ClientInterface) (CompiledOutput, error) {
 	log.Debugf("starting runtime compilation of %s", a.filename)
 
 	start := time.Now()
@@ -87,7 +87,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 		}
 	}()
 
-	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, inputHash, additionalFlags, kernelHeaders)
+	out, result, err := compileToObjectFile(protectedFile.Name(), outputDir, a.filename, inputHash, additionalFlags, llcFlags, kernelHeaders)
 	a.tm.compilationResult = result
 
 	return out, err

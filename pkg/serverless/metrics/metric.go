@@ -20,7 +20,7 @@ import (
 
 // ServerlessMetricAgent represents the DogStatsD server and the aggregator
 type ServerlessMetricAgent struct {
-	dogStatsDServer dogstatsdServer.Component
+	dogStatsDServer dogstatsdServer.ServerlessDogstatsd
 	tags            []string
 	Demux           aggregator.Demultiplexer
 
@@ -42,7 +42,7 @@ type MultipleEndpointConfig interface {
 
 // DogStatsDFactory allows create a new DogStatsD server
 type DogStatsDFactory interface {
-	NewServer(aggregator.Demultiplexer) (dogstatsdServer.Component, error)
+	NewServer(aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error)
 }
 
 const (
@@ -56,9 +56,8 @@ func (m *MetricConfig) GetMultipleEndpoints() (map[string][]string, error) {
 }
 
 // NewServer returns a running DogStatsD server
-func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.Component, error) {
-	s := dogstatsdServer.NewServerlessServer()
-	return s, s.Start(demux)
+func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
+	return dogstatsdServer.NewServerlessServer(demux)
 }
 
 // Start starts the DogStatsD agent

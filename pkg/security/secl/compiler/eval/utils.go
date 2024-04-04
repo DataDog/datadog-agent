@@ -39,9 +39,8 @@ func IPToInt(ip net.IP) (*big.Int, int, error) {
 		return val, 32, nil
 	} else if len(ip) == net.IPv6len {
 		return val, 128, nil
-	} else {
-		return nil, 0, fmt.Errorf("unsupported address length %d", len(ip))
 	}
+	return nil, 0, fmt.Errorf("unsupported address length %d", len(ip))
 }
 
 // IntToIP transforms a big Int to an IP

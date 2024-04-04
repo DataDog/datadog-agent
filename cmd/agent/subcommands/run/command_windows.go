@@ -13,10 +13,12 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
-	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
+	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
@@ -31,12 +33,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
+	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -61,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -92,9 +98,11 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			serverDebug dogstatsddebug.Component,
 			wmeta workloadmeta.Component,
 			taggerComp tagger.Component,
+			ac autodiscovery.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
+			processAgent processAgent.Component,
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
@@ -110,12 +118,13 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,
+			metadatascheduler metadatascheduler.Component,
+			jmxlogger jmxlogger.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, agentAPI)
+			defer StopAgentWithDefaults(agentAPI)
 
 			err := startAgent(
-				&cliParams{GlobalParams: &command.GlobalParams{}},
 				log,
 				flare,
 				telemetry,
@@ -124,8 +133,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				serverDebug,
 				wmeta,
 				taggerComp,
+				ac,
 				rcclient,
 				logsAgent,
+				processAgent,
 				forwarder,
 				sharedSerializer,
 				otelcollector,
@@ -134,6 +145,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
+				metadatascheduler,
+				jmxlogger,
 			)
 			if err != nil {
 				return err
@@ -184,7 +197,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module(),
-		apmetwtracerimpl.Module,
+		etwtracerimpl.Module,
+		windowseventlogimpl.Module(),
 		winregistryimpl.Module(),
 		etwimpl.Module,
 		comptraceconfig.Module(),
@@ -193,7 +207,8 @@ func getPlatformModules() fx.Option {
 		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
-		fx.Invoke(func(_ apmetwtracer.Component) {}),
+		fx.Invoke(func(_ etwtracer.Component) {}),
+		fx.Invoke(func(_ windowseventlog.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

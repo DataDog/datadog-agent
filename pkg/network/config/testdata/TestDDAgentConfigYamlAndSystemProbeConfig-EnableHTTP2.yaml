@@ -1,2 +1,0 @@
-service_monitoring_config:
-  enable_http2_monitoring: true

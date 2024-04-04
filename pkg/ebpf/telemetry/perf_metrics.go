@@ -8,13 +8,13 @@
 package telemetry
 
 import (
+	"slices"
 	"strconv"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/slices"
 )
 
 var (

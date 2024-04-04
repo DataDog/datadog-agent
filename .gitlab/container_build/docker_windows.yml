@@ -13,8 +13,8 @@
       docker login --username AWS --password "`${AWS_ECR_PASSWORD}" 486234852809.dkr.ecr.us-east-1.amazonaws.com
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       # DockerHub login
-      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_LOGIN_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
-      `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
+      `$DOCKER_REGISTRY_LOGIN = aws ssm get-parameter --region us-east-1 --name $DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text
+      `$DOCKER_REGISTRY_PWD = aws ssm get-parameter --region us-east-1 --name ${DOCKER_REGISTRY_PWD_SSM_KEY} --with-decryption --query "Parameter.Value" --out text
       docker login --username "`${DOCKER_REGISTRY_LOGIN}" --password "`${DOCKER_REGISTRY_PWD}" "${DOCKER_REGISTRY_URL}"
       If (`$lastExitCode -ne "0") { throw "Previous command returned `$lastExitCode" }
       "@ | out-file ci-scripts/docker-login.ps1
@@ -28,7 +28,7 @@
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
   script:
-    - $ECR_RELEASE_SUFFIX="$(If ($CI_COMMIT_TAG) { `"-release`" } else { `"`" })"
+    - $ECR_RELEASE_SUFFIX="$(If ($BUCKET_BRANCH -eq `"nightly`") { `"-nightly`" } elseif ($CI_COMMIT_TAG) { `"-release`" } else { `"`" })"
     - $TARGET_TAG="${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}${SERVERCORE}-amd64"
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
@@ -69,8 +69,10 @@
   extends:
     - .docker_build_agent_windows_common
   rules:
-    !reference [.on_a7]
-  needs: ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs:
+    ["windows_msi_and_bosh_zip_x64-a7", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-7*-x86_64.zip"
     BUILD_ARG: "--build-arg BASE_IMAGE=mcr.microsoft.com/powershell:nanoserver-${VARIANT} --build-arg WITH_JMX=${WITH_JMX} --build-arg VARIANT=${VARIANT} --build-arg INSTALL_INFO=nano-${VARIANT}"
@@ -79,7 +81,8 @@
   extends:
     - .docker_build_agent_windows_common
   rules:
-    !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs: ["windows_msi_x64-a6", "build_windows_container_entrypoint"]
   variables:
     AGENT_ZIP: "datadog-agent-6*-x86_64.zip"
@@ -100,5 +103,5 @@
     SERVERCORE: "-servercore"
 
 include:
-  - /.gitlab/container_build/docker_windows_agent6.yml
-  - /.gitlab/container_build/docker_windows_agent7.yml
+  - .gitlab/container_build/docker_windows_agent6.yml
+  - .gitlab/container_build/docker_windows_agent7.yml

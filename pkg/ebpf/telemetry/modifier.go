@@ -8,45 +8,8 @@
 package telemetry
 
 import (
-	"io"
-
 	manager "github.com/DataDog/ebpf-manager"
 )
-
-// Manager wraps ebpf-manager.Manager to transparently handle eBPF telemetry
-// Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
-type Manager struct {
-	*manager.Manager
-	bpfTelemetry *EBPFTelemetry
-}
-
-// NewManager creates a Manager
-// Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
-func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
-	return &Manager{
-		Manager:      mgr,
-		bpfTelemetry: bt,
-	}
-}
-
-// InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
-// Deprecated: The telemetry manager wrapper should no longer be used. Instead, use ebpf/manager.Manager instead with the ErrorsTelemetryModifier
-func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
-	if err := setupForTelemetry(m.Manager, &opts, m.bpfTelemetry); err != nil {
-		return err
-	}
-
-	if err := m.Manager.InitWithOptions(bytecode, opts); err != nil {
-		return err
-	}
-
-	if m.bpfTelemetry != nil {
-		if err := m.bpfTelemetry.populateMapsWithKeys(m.Manager); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // ErrorsTelemetryModifier is a modifier that sets up the manager to handle eBPF telemetry.
 type ErrorsTelemetryModifier struct{}

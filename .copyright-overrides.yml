@@ -203,9 +203,15 @@ github.com/aquasecurity/go-gem-version: Copyright (c) 2020 Teppei Fukuda (knqyf2
 github.com/aquasecurity/go-npm-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/aquasecurity/go-pep440-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
+github.com/aquasecurity/trivy-java-db: Copyright 2019-2020 Aqua Security
 github.com/spdx/tools-golang: Copyright (c) 2018 The Authors
 github.com/google/flatbuffers: Copyright (c) 2014 Google
 github.com/gocomply/scap: "CC0 1.0 Universal"
+github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
+github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
+github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
+github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
+
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:
@@ -292,3 +298,21 @@ github.com/pjbgf/sha1cd:
 
 github.com/kr/pretty: Copyright 2012 Keith Rarick
 github.com/kr/text: Copyright 2012 Keith Rarick
+
+# Copyright information is in the Makefile
+github.com/openvex/go-vex: Copyright 2023 The OpenVEX Authors
+
+# Copyright information is in the LICENSE
+github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Security
+github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
+github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
+github.com/go-errors/errors: Copyright (c) 2015 Conrad Irwin <conrad@bugsnag.com>
+
+# Copyright information is in the source headers
+github.com/csaf-poc/csaf_distribution: Copyright 2021-2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
+github.com/google/btree: Copyright 2014-2022 Google Inc.
+github.com/google/shlex: Copyright 2012 Google Inc. All Rights Reserved.
+
+github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+

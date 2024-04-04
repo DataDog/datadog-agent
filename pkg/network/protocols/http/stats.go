@@ -42,6 +42,8 @@ const (
 	MethodOptions
 	// MethodPatch represents the PATCH request method
 	MethodPatch
+	// MethodTrace represents the TRACE request method
+	MethodTrace
 )
 
 // Method returns a string representing the HTTP method of the request
@@ -61,6 +63,8 @@ func (m Method) String() string {
 		return "OPTIONS"
 	case MethodPatch:
 		return "PATCH"
+	case MethodTrace:
+		return "TRACE"
 	default:
 		return "UNKNOWN"
 	}

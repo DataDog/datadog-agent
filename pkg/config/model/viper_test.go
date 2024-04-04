@@ -124,7 +124,7 @@ float_list:
 	config.ReadConfig(bytes.NewBuffer(yamlExample))
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 
 	yamlExample = []byte(`---
@@ -157,7 +157,7 @@ float_list:
 	t.Setenv("DD_FLOAT_LIST", "1.1 2.2 3.3")
 
 	list, err := config.GetFloat64SliceE("float_list")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, list)
 }
 
@@ -223,6 +223,57 @@ func TestIsSet(t *testing.T) {
 	assert.True(t, config.IsSetForSource("foo", SourceFile))
 }
 
+func TestIsKnown(t *testing.T) {
+	testCases := []struct {
+		setDefault bool
+		setEnv     bool
+		setKnown   bool
+		expected   bool
+	}{
+		{false, false, false, false},
+		{false, false, true, true},
+		{false, true, false, true},
+		{false, true, true, true},
+		{true, false, false, true},
+		{true, false, true, true},
+		{true, true, false, true},
+		{true, true, true, true},
+	}
+
+	configDefault := "somedefault"
+	configEnv := "SOME_ENV"
+
+	for _, tc := range testCases {
+		testName := "isknown"
+		if tc.setKnown {
+			testName += "-known"
+		}
+		if tc.setDefault {
+			testName += "-default"
+		}
+		if tc.setEnv {
+			testName += "-env"
+		}
+		t.Run(testName, func(t *testing.T) {
+			for _, configName := range []string{"foo", "BAR", "BaZ", "foo_BAR", "foo.BAR", "foo.BAR.baz"} {
+				config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+				if tc.setKnown {
+					config.SetKnown(configName)
+				}
+				if tc.setDefault {
+					config.SetDefault(configName, configDefault)
+				}
+				if tc.setEnv {
+					config.BindEnv(configName, configEnv)
+				}
+
+				assert.Equal(t, tc.expected, config.IsKnown(configName))
+			}
+		})
+	}
+}
+
 func TestUnsetForSource(t *testing.T) {
 	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	config.Set("foo", "bar", SourceFile)
@@ -269,15 +320,44 @@ func TestNotification(t *testing.T) {
 	updatedKeyCB1 := []string{}
 	updatedKeyCB2 := []string{}
 
-	config.OnUpdate(func(key string) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
 
 	config.Set("foo", "bar", SourceFile)
 	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
 
-	config.OnUpdate(func(key string) { updatedKeyCB2 = append(updatedKeyCB2, key) })
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB2 = append(updatedKeyCB2, key) })
 
 	config.Set("foo", "bar2", SourceFile)
 	config.Set("foo2", "bar2", SourceFile)
 	assert.Equal(t, []string{"foo", "foo", "foo2"}, updatedKeyCB1)
 	assert.Equal(t, []string{"foo", "foo2"}, updatedKeyCB2)
+}
+
+func TestNotificationNoChange(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	updatedKeyCB1 := []string{}
+
+	config.OnUpdate(func(key string, _, _ any) { updatedKeyCB1 = append(updatedKeyCB1, key) })
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+
+	config.Set("foo", "bar", SourceFile)
+	assert.Equal(t, []string{"foo"}, updatedKeyCB1)
+}
+
+func TestCheckKnownKey(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_")).(*safeConfig)
+
+	config.SetKnown("foo")
+	config.Get("foo")
+	assert.Empty(t, config.unknownKeys)
+
+	assert.NotContains(t, config.unknownKeys, "foobar")
+	config.Get("foobar")
+	assert.Contains(t, config.unknownKeys, "foobar")
+
+	config.Get("foobar")
+	assert.Contains(t, config.unknownKeys, "foobar")
 }

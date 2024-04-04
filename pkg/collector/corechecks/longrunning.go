@@ -31,6 +31,8 @@ type LongRunningCheckWrapper struct {
 	LongRunningCheck
 	running bool
 	mutex   sync.Mutex
+
+	stopped bool
 }
 
 // NewLongRunningCheckWrapper returns a new LongRunningCheckWrapper
@@ -47,6 +49,10 @@ func (cw *LongRunningCheckWrapper) Run() error {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
 
+	if cw.stopped {
+		return fmt.Errorf("check already stopped")
+	}
+
 	if cw.running {
 		s, err := cw.LongRunningCheck.GetSender()
 		if err != nil {
@@ -61,9 +67,7 @@ func (cw *LongRunningCheckWrapper) Run() error {
 		if err := cw.LongRunningCheck.Run(); err != nil {
 			fmt.Printf("Error running check: %v\n", err)
 		}
-		cw.mutex.Lock()
-		cw.running = false
-		cw.mutex.Unlock()
+		// Long running checks are not meant to be restarted. Thus we never reset the running flag.
 	}()
 
 	return nil
@@ -88,4 +92,16 @@ func (cw *LongRunningCheckWrapper) GetSenderStats() (stats.SenderStats, error) {
 	}
 	s.LongRunningCheck = true
 	return s, nil
+}
+
+// Cancel calls the cancel method of the check.
+// It makes sure it is called only once.
+func (cw *LongRunningCheckWrapper) Cancel() {
+	cw.mutex.Lock()
+	defer cw.mutex.Unlock()
+	if cw.stopped {
+		return
+	}
+	cw.LongRunningCheck.Cancel()
+	cw.stopped = true
 }

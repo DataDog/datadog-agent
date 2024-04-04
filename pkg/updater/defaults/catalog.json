@@ -1,44 +1,15 @@
 {
-    "packages": [
-        {
-            "name": "datadog-agent",
-            "package": "datadog-agent",
-            "version": "7.52.0-rc.1.git.15.6c19b17.pipeline.28703603-1",
-            "platform": "linux",
-            "arch": "amd64",
-            "url": "https://d34l0745r4hrvf.cloudfront.net/oci/testing/datadog-agent_7.52.0-rc.1.git.15.6c19b17.pipeline.28703603-1_oci_amd64.tar",
-            "sha256": "35f8be32eb2958408342f13e85878bcd5e591f9ad581c2fee3b77af7efee45c7",
-            "size": 373616640
-        },
-        {
-            "name": "datadog-agent",
-            "package": "datadog-agent",
-            "version": "7.52.0-rc.1.git.15.6c19b17.pipeline.28703603-1",
-            "platform": "linux",
-            "arch": "arm64",
-            "url": "https://d34l0745r4hrvf.cloudfront.net/oci/testing/datadog-agent_7.52.0-rc.1.git.15.6c19b17.pipeline.28703603-1_oci_arm64.tar",
-            "sha256": "390aa03cf93a84e340f4baeea01edc0c5f306350a6794a895917bf28f1e306eb",
-            "size": 321075200
-        },
-        {
-            "name": "datadog-agent",
-            "package": "datadog-agent",
-            "version": "7.52.0-rc.1.git.15.6c19b17.pipeline.28703556-1",
-            "platform": "linux",
-            "arch": "amd64",
-            "url": "https://d34l0745r4hrvf.cloudfront.net/oci/testing/datadog-agent_7.52.0-rc.1.git.15.6c19b17.pipeline.28703556-1_oci_amd64.tar",
-            "sha256": "6b6c7abafbe70fe04edbe2a672dcd97e9b87943513a28ac5ecf09a99aed1c40e",
-            "size": 373657600
-        },
-        {
-            "name": "datadog-agent",
-            "package": "datadog-agent",
-            "version": "7.52.0-rc.1.git.15.6c19b17.pipeline.28703556-1",
-            "platform": "linux",
-            "arch": "arm64",
-            "url": "https://d34l0745r4hrvf.cloudfront.net/oci/testing/datadog-agent_7.52.0-rc.1.git.15.6c19b17.pipeline.28703556-1_oci_arm64.tar",
-            "sha256": "0592615015f877abc568fbf71e128ec20d34ff8f9ca70db8847ccee69bc83152",
-            "size": 321044480
-        }
-    ]
+  "packages": [
+    {
+      "package": "datadog-apm-library-java",
+      "version": "1.32.0-SNAPSHOT-a1309de641-pipeline.30019975.beta.a1309de6-1",
+      "url": "oci://public.ecr.aws/b1o7r7e0/updater-sandbox/datadog-apm-library-java@sha256:f26e286e73e0691578306425463f1af13fecb355dc8fae341281187122876092",
+      "sha256": "f26e286e73e0691578306425463f1af13fecb355dc8fae341281187122876092"
+    },
+    {
+      "package": "datadog-agent",
+      "version": "7.53.0-devel.git.156.4681fd9.pipeline.29311299-1",
+      "url": "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"
+    }
+  ]
 }

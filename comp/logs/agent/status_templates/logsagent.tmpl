@@ -24,7 +24,7 @@
 
 {{- if .ProcessFileStats }}
   {{- range $metric_name, $metric_value := .ProcessFileStats }}
-    {{$metric_name}}: {{printf "%.0f" $metric_value}}
+    {{$metric_name}}: {{$metric_value}}
   {{- end}}
 {{- end}}
 
