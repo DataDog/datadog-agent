@@ -37,21 +37,21 @@ func (m mock) RuntimeSettings() settings.Settings {
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
-func (m mock) GetRuntimeSetting(setting string) (interface{}, error) {
+func (m mock) GetRuntimeSetting(string) (interface{}, error) {
 	return nil, nil
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
-func (m mock) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
+func (m mock) SetRuntimeSetting(string, interface{}, model.Source) error {
 	return nil
 }
 
 // GetFullConfig returns the full config
 func (m mock) GetFullConfig(config.Config, ...string) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {}
+	return func(http.ResponseWriter, *http.Request) {}
 }
 
-// GetValue allows to retrive the runtime setting
+// GetValue allows to retrieve the runtime setting
 func (m mock) GetValue(string, http.ResponseWriter, *http.Request) {}
 
 // SetValue allows to modify the runtime setting

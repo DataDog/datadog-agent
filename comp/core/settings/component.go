@@ -48,7 +48,7 @@ type Component interface {
 	// Todo: (Components) Remove these functions once we can register routes using FX value groups
 	// GetFullConfig returns the full config
 	GetFullConfig(cfg config.Config, namespaces ...string) http.HandlerFunc
-	// GetValue allows to retrive the runtime setting
+	// GetValue allows to retrieve the runtime setting
 	GetValue(setting string, w http.ResponseWriter, r *http.Request)
 	// SetValue allows to modify the runtime setting
 	SetValue(setting string, w http.ResponseWriter, r *http.Request)
