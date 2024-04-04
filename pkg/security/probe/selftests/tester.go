@@ -36,7 +36,6 @@ type SelfTest interface {
 type SelfTester struct {
 	sync.Mutex
 
-	//nolint:unused // config is not used at all on macOS, triggering the unused linter
 	config          *config.RuntimeSecurityConfig
 	waitingForEvent *atomic.Bool
 	eventChan       chan selfTestEvent
