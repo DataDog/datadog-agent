@@ -97,11 +97,11 @@
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   before_script:
+    - source /root/.bashrc
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   tags: ["arch:amd64"]
   script:
-    - source /root/.bashrc
     # upload dependencies
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
@@ -177,9 +177,9 @@
   when: always
   tags: ["arch:amd64"]
   before_script:
+    - source /root/.bashrc
     - !reference [.kmt_new_profile]
   script:
-    - source /root/.bashrc
     - !reference [.shared_filters_and_queries]
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE $FILTER_TEST_COMPONENT --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
     - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
@@ -195,6 +195,7 @@
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
   before_script:
+    - source /root/.bashrc
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
@@ -203,7 +204,6 @@
     - echo "CI_JOB_NAME=${CI_JOB_NAME}" >> $DD_AGENT_TESTING_DIR/job_env.txt
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/job_env.txt
   script:
-    - source /root/.bashrc
     - INSTANCE_IP=$(jq --exit-status --arg ARCH $ARCH -r '.[$ARCH].ip' $CI_PROJECT_DIR/stack.output)
     - !reference [.shared_filters_and_queries]
     - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_TEST_COMPONENT "Name=private-ip-address,Values=$INSTANCE_IP" --output text --query $QUERY_INSTANCE_IDS | wc -l )
