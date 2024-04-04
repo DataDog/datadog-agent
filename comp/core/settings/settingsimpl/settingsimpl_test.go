@@ -35,10 +35,6 @@ type returnValue struct {
 	Source model.Source
 }
 
-func (t *runtimeTestSetting) Name() string {
-	return t.name
-}
-
 func (t *runtimeTestSetting) Description() string {
 	return t.description
 }
@@ -211,17 +207,14 @@ func TestRuntimeSettings(t *testing.T) {
 					settings.Settings{
 						"foo": &runtimeTestSetting{
 							hidden:      false,
-							name:        "foo",
 							description: "foo settings",
 						},
 						"hidden setting": &runtimeTestSetting{
 							hidden:      true,
-							name:        "hidden setting",
 							description: "hidden setting",
 						},
 						"bar": &runtimeTestSetting{
 							hidden:      false,
-							name:        "bar",
 							description: "bar settings",
 						},
 					},

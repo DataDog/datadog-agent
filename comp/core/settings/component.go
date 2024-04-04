@@ -60,7 +60,6 @@ type Component interface {
 type RuntimeSetting interface {
 	Get() (interface{}, error)
 	Set(v interface{}, source model.Source) error
-	Name() string
 	Description() string
 	Hidden() bool
 }
