@@ -23,6 +23,9 @@ const (
 	datadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
 	datadogPackageMaxSize                              = 3 << 30 // 3GiB
 	defaultConfigsDir                                  = "/etc"
+
+	packageDatadogAgent = "datadog-agent"
+	packageAPMInjector  = "datadog-apm-inject"
 )
 
 type installer struct {
@@ -52,10 +55,15 @@ func (i *installer) installStable(pkg string, version string, image oci.Image) e
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	if pkg == "datadog-agent" {
+
+	switch pkg {
+	case packageDatadogAgent:
 		return service.SetupAgentUnits()
+	case packageAPMInjector:
+		return service.SetupAPMInjector()
+	default:
+		return nil
 	}
-	return nil
 }
 
 func (i *installer) installExperiment(pkg string, version string, image oci.Image) error {
@@ -96,19 +104,25 @@ func (i *installer) uninstallExperiment(pkg string) error {
 }
 
 func (i *installer) startExperiment(pkg string) error {
-	// TODO(arthur): currently we only support the datadog-agent package
-	if pkg != "datadog-agent" {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.StartAgentExperiment()
+	case packageAPMInjector:
+		return service.StartAPMInjectorExperiment()
+	default:
 		return nil
 	}
-	return service.StartAgentExperiment()
 }
 
 func (i *installer) stopExperiment(pkg string) error {
-	// TODO(arthur): currently we only support the datadog-agent package
-	if pkg != "datadog-agent" {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.StopAgentExperiment()
+	case packageAPMInjector:
+		return service.StopAPMInjectorExperiment()
+	default:
 		return nil
 	}
-	return service.StopAgentExperiment()
 }
 
 func extractPackageLayers(image oci.Image, configDir string, packageDir string) error {
