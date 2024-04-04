@@ -266,11 +266,11 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		if scan.DiskMode != types.DiskModeNBDAttach {
 			return fmt.Errorf("unsupported attach mode %q for cloud provider %q", scan.DiskMode, scan.TargetID.Provider())
 		}
-		cfg, err := azurebackend.GetConfigFromCloudID(ctx, scan.TargetID)
+		cfg, err := azurebackend.GetConfigFromCloudID(ctx, w.Statsd, &w.ScannerConfig, scan.TargetID)
 		if err != nil {
 			return err
 		}
-		if err := azurebackend.SetupDisk(ctx, cfg, scan); err != nil {
+		if err := azurebackend.SetupDisk(ctx, w.Statsd, &w.ScannerConfig, cfg, scan); err != nil {
 			return err
 		}
 		assert(scan.AttachedDeviceName != nil)
@@ -400,7 +400,7 @@ func (w *Worker) cleanupScan(scan *types.ScanTask) {
 	case types.TaskTypeAzureDisk:
 		assert(scan.TargetID.Provider() == types.CloudProviderAzure)
 		for resourceID, createdAt := range scan.CreatedResources {
-			cfg, err := azurebackend.GetConfigFromCloudID(ctx, resourceID)
+			cfg, err := azurebackend.GetConfigFromCloudID(ctx, w.Statsd, &w.ScannerConfig, resourceID)
 			if err != nil {
 				log.Warnf("%s: failed to get config for resource %q: %v", scan, resourceID, err)
 				continue

@@ -127,6 +127,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 
 func azureAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *azureAttachParams) error {
 	ctx := common.CtxTerminated()
+	statsd := common.InitStatsd(*sc)
 	scannerHostname := common.TryGetHostname(ctx)
 	scannerID := types.ScannerID{Hostname: scannerHostname, Provider: types.CloudProviderAzure}
 
@@ -138,7 +139,7 @@ func azureAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *azureA
 	if err != nil {
 		return err
 	}
-	cfg, err := azurebackend.GetConfigFromCloudID(ctx, resourceID)
+	cfg, err := azurebackend.GetConfigFromCloudID(ctx, statsd, sc, resourceID)
 	if err != nil {
 		return err
 	}
@@ -169,7 +170,7 @@ func azureAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *azureA
 
 	log.Infof("Setting up disk %s\n", scan.TargetID)
 
-	if err := azurebackend.SetupDisk(ctx, cfg, scan); err != nil {
+	if err := azurebackend.SetupDisk(ctx, statsd, sc, cfg, scan); err != nil {
 		return err
 	}
 
@@ -292,7 +293,7 @@ func azureOfflineCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplat
 	}
 
 	pushDisks := func() error {
-		config, err := azurebackend.GetConfig(ctx, subscription)
+		config, err := azurebackend.GetConfig(ctx, statsd, sc, subscription)
 		if err != nil {
 			return err
 		}

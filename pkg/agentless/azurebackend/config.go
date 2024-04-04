@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -23,8 +22,6 @@ import (
 )
 
 var (
-	statsd *ddogstatsd.Client
-
 	globalConfigs   sync.Map
 	globalConfigsMu sync.Mutex
 )
@@ -50,17 +47,17 @@ type Config struct {
 }
 
 // GetConfigFromCloudID returns the configuration for the Azure subscription of the given cloud ID.
-func GetConfigFromCloudID(ctx context.Context, cloudID types.CloudID) (Config, error) {
+func GetConfigFromCloudID(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, cloudID types.CloudID) (Config, error) {
 	resourceID, err := cloudID.AsAzureID()
 	if err != nil {
 		return Config{}, err
 	}
 
-	return GetConfig(ctx, resourceID.SubscriptionID)
+	return GetConfig(ctx, statsd, sc, resourceID.SubscriptionID)
 }
 
 // GetConfig returns the configuration for the given subscription ID.
-func GetConfig(ctx context.Context, subscriptionID string) (Config, error) {
+func GetConfig(ctx context.Context, _ ddogstatsd.ClientInterface, sc *types.ScannerConfig, subscriptionID string) (Config, error) {
 	if cfg, ok := globalConfigs.Load(subscriptionID); ok {
 		return cfg.(Config), nil
 	}
@@ -68,16 +65,11 @@ func GetConfig(ctx context.Context, subscriptionID string) (Config, error) {
 	globalConfigsMu.Lock()
 	defer globalConfigsMu.Unlock()
 
-	if statsd == nil {
-		statsd, _ = ddogstatsd.New("localhost:8125")
-	}
-
-	clientID := pkgconfig.Datadog.GetString("agentless_scanner.azure_client_id")
 	var cred azcore.TokenCredential
 	var err error
-	if len(clientID) != 0 {
+	if len(sc.AzureClientID) != 0 {
 		cred, err = azidentity.NewManagedIdentityCredential(&azidentity.ManagedIdentityCredentialOptions{
-			ID: azidentity.ClientID(clientID),
+			ID: azidentity.ClientID(sc.AzureClientID),
 		})
 	} else {
 		cred, err = azidentity.NewDefaultAzureCredential(nil)

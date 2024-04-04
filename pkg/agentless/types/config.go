@@ -22,4 +22,6 @@ type ScannerConfig struct {
 	AWSEBSListBlockRate float64
 	AWSEBSGetBlockRate  float64
 	AWSDefaultRate      float64
+
+	AzureClientID string
 }

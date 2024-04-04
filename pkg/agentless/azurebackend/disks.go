@@ -8,6 +8,9 @@ package azurebackend
 import (
 	"context"
 	"fmt"
+
+	ddogstatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v4"
@@ -21,14 +24,14 @@ import (
 
 // SetupDisk prepares the disk for scanning.
 // It creates a snapshot of the disk and attaches it to the VM.
-func SetupDisk(ctx context.Context, cfg Config, scan *types.ScanTask) (err error) {
+func SetupDisk(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, cfg Config, scan *types.ScanTask) (err error) {
 	var snapshot *armcompute.Snapshot
 
 	switch scan.TargetID.ResourceType() {
 	case types.ResourceTypeVolume:
-		snapshot, err = createSnapshot(ctx, cfg, scan, scan.TargetID)
+		snapshot, err = createSnapshot(ctx, statsd, sc, cfg, scan, scan.TargetID)
 	//case types.ResourceTypeSnapshot:
-	//	snapshotID, err = CopySnapshot(ctx, cfg, scan, waiter, scan.TargetID)
+	//	snapshotID, err = CopySnapshot(ctx, statsd, sc, cfg, scan, waiter, scan.TargetID)
 	default:
 		err = fmt.Errorf("SetupDisk: unexpected resource type for task %q: %q", scan.Type, scan.TargetID)
 	}
@@ -40,7 +43,7 @@ func SetupDisk(ctx context.Context, cfg Config, scan *types.ScanTask) (err error
 	case types.DiskModeVolumeAttach:
 		return fmt.Errorf("SetupDisk: unimplemented attach mode '%q' for task %q", scan.Type, scan.TargetID)
 	case types.DiskModeNBDAttach:
-		return attachSnapshotWithNBD(ctx, cfg, scan, snapshot)
+		return attachSnapshotWithNBD(ctx, statsd, sc, cfg, scan, snapshot)
 	case types.DiskModeNoAttach:
 		return nil // nothing to do. early exit.
 	default:
@@ -48,7 +51,7 @@ func SetupDisk(ctx context.Context, cfg Config, scan *types.ScanTask) (err error
 	}
 }
 
-func createSnapshot(ctx context.Context, cfg Config, scan *types.ScanTask, diskCloudID types.CloudID) (*armcompute.Snapshot, error) {
+func createSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, _ *types.ScannerConfig, cfg Config, scan *types.ScanTask, diskCloudID types.CloudID) (*armcompute.Snapshot, error) {
 	diskID, err := diskCloudID.AsAzureID()
 	if err != nil {
 		return nil, log.Error(err)
@@ -117,7 +120,7 @@ func createSnapshot(ctx context.Context, cfg Config, scan *types.ScanTask, diskC
 }
 
 // attachSnapshotWithNBD attaches the given snapshot to the VM using a Network Block Device (NBD).
-func attachSnapshotWithNBD(ctx context.Context, cfg Config, scan *types.ScanTask, snapshot *armcompute.Snapshot) error {
+func attachSnapshotWithNBD(ctx context.Context, _ ddogstatsd.ClientInterface, _ *types.ScannerConfig, cfg Config, scan *types.ScanTask, snapshot *armcompute.Snapshot) error {
 	device, ok := devices.NextNBD()
 	if !ok {
 		return fmt.Errorf("could not find non busy NBD block device")

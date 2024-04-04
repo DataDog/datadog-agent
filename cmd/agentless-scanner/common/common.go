@@ -66,6 +66,7 @@ func getScannerConfig(c compconfig.Component, globalParams *GlobalParams) (*type
 		AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
 		AWSEBSGetBlockRate:  c.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
 		AWSDefaultRate:      c.GetFloat64("agentless_scanner.limits.aws_default_rate"),
+		AzureClientID:       c.GetString("agentless_scanner.azure_client_id"),
 	}, nil
 }
 
