@@ -225,6 +225,8 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 
 	stats, found := expvars.CheckStats(id)
 	if found {
+		stats.M.Lock()
+		defer stats.M.Unlock()
 		stats.Cancelling = true
 	}
 
