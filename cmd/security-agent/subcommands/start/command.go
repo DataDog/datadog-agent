@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -199,7 +198,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	startCmd.Flags().StringVarP(&params.pidfilePath, flags.PidFile, "p", "", "path to the pidfile")
+	startCmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 
 	return []*cobra.Command{startCmd}
 }
