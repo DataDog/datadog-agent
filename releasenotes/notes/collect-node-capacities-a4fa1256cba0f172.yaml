@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Collect all node resource capacities and allocatable metrics for cluster management.

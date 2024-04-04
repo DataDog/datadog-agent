@@ -13,13 +13,23 @@ import (
 	"time"
 )
 
+// JSONAPIPayload is a struct that represents the body of a JSON API request
+type JSONAPIPayload[Attr any] struct {
+	Data JSONAPIPayloadData[Attr] `json:"data"`
+}
+
+// JSONAPIPayloadData is a struct that represents the data field of a JSON API request
+type JSONAPIPayloadData[Attr any] struct {
+	Type      string `json:"type"`
+	Attribute Attr   `json:"attributes"`
+}
+
 // DDSQLTableQueryParams is a struct that represents a DDSQL table query
 type DDSQLTableQueryParams struct {
 	DefaultStart    int    `json:"default_start"`
 	DefaultEnd      int    `json:"default_end"`
 	DefaultInterval int    `json:"default_interval"`
 	Query           string `json:"query"`
-	Source          string `json:"source"`
 }
 
 // DDSQLTableResponse is a struct that represents a DDSQL table response
@@ -65,14 +75,19 @@ func NewDDSQLClient(apiKey, appKey string) *DDSQLClient {
 func (c *DDSQLClient) Do(query string) (*DDSQLTableResponse, error) {
 	now := time.Now()
 	params := DDSQLTableQueryParams{
-		DefaultStart:    int(now.Add(-10 * time.Minute).Unix()),
-		DefaultEnd:      int(now.Unix()),
+		DefaultStart:    int(now.Add(-1 * time.Hour).UnixMilli()),
+		DefaultEnd:      int(now.UnixMilli()),
 		DefaultInterval: 20000,
 		Query:           query,
-		Source:          "inventories",
+	}
+	payload := JSONAPIPayload[DDSQLTableQueryParams]{
+		Data: JSONAPIPayloadData[DDSQLTableQueryParams]{
+			Type:      "ddsql_table_request",
+			Attribute: params,
+		},
 	}
 
-	reqData, err := json.Marshal(params)
+	reqData, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,8 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/comp/agent/expvarserver/expvarserverimpl"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler/metadataschedulerimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,5 +17,8 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		expvarserverimpl.Module())
+		metadataschedulerimpl.Module(),
+		jmxloggerimpl.Module(),
+		expvarserverimpl.Module(),
+	)
 }
