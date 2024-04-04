@@ -103,16 +103,7 @@ repos:
     - id: shell-set-x
       name: shell-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: |
-        bash -c "
-          grep -rn 'set -x' --include '*.yaml' --include '*.sh' --include 'Dockerfile' --exclude .pre-commit-config.yaml --color=auto
-          if [ "$?" = 0 ]; then
-            echo -e '\nerror: No script should include `set -x`'
-            exit 1
-          else
-            exit 0
-          fi
-          "
+      entry: bash ./tools/pre-commit/verify_set_x.sh
       language: system
       require_serial: true
       files: (\.yaml|\.sh|Dockerfile)$
