@@ -271,6 +271,14 @@ func (s *ecsFargateSuite) TestOpenRule() {
 	}, 1*time.Minute, 5*time.Second)
 }
 
+func (s *ecsFargateSuite) TestSelftests() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		testSelftestsEvent(c, s, func(event *api.SelftestsEvent) {
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_exec", "missing selftest result")
+		})
+	}, 1*time.Minute, 5*time.Second)
+}
+
 const (
 	cwsInstrumentationDefaultImagePath = "public.ecr.aws/datadog/cws-instrumentation:rc"
 	agentDefaultImagePath              = "public.ecr.aws/datadog/agent:7-rc"
