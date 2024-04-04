@@ -547,6 +547,8 @@
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
+/test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/network-device-monitoring
+/test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/network-device-monitoring
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
 /test/new-e2e/test-infra-definition           @DataDog/agent-developer-tools
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
