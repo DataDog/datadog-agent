@@ -16,11 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
-const (
-	// Available is true if the code is compiled in
-	Available = true
-)
-
 var (
 	compressorExpvars    = expvar.NewMap("compressor")
 	expvarsTotalPayloads = expvar.Int{}
@@ -90,7 +85,11 @@ func NewCompressor(input, output *bytes.Buffer, maxPayloadSize, maxUncompressedS
 		separator:           separator,
 	}
 
-	c.zipper = compressor.NewStreamCompressor(c.compressed)
+	zipper := compressor.NewStreamCompressor(c.compressed)
+	if zipper == nil {
+		return nil, errors.New("Stream compression not available")
+	}
+	c.zipper = zipper
 	n, err := c.zipper.Write(header)
 	c.maxZippedItemSize = maxUncompressedSize - c.strategy.CompressBound(len(footer)+len(header))
 	c.uncompressedWritten += n
