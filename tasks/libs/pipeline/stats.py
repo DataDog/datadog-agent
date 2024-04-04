@@ -1,6 +1,6 @@
 from collections import Counter
 
-from tasks.libs.pipeline_data import get_failed_jobs
+from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.types import FailedJobType
 
 

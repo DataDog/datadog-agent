@@ -12,8 +12,8 @@ from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.pipeline_data import get_failed_jobs
-from tasks.libs.pipeline_notifications import (
+from tasks.libs.pipeline.data import get_failed_jobs
+from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
@@ -21,7 +21,7 @@ from tasks.libs.pipeline_notifications import (
     get_failed_tests,
     send_slack_message,
 )
-from tasks.libs.pipeline_stats import get_failed_jobs_stats
+from tasks.libs.pipeline.stats import get_failed_jobs_stats
 from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
@@ -40,8 +40,8 @@ def check_teams(_):
     if check_for_missing_owners_slack_and_jira():
         print(
             "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
-            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/github_slack_map.yaml"
-            " or tasks/libs/github_jira_map.yaml"
+            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/pipeline/github_slack_map.yaml"
+            " or tasks/libs/pipeline/github_jira_map.yaml"
         )
         raise Exit(code=1)
     else:

@@ -21,8 +21,8 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from tasks.libs.pipeline_notifications import read_owners, send_slack_message
-from tasks.libs.pipeline_tools import (
+from tasks.libs.pipeline.notifications import read_owners, send_slack_message
+from tasks.libs.pipeline.tools import (
     FilteredOutException,
     cancel_pipelines_with_confirmation,
     get_running_pipelines_on_same_ref,

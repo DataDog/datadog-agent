@@ -27,7 +27,7 @@ class TestAssignTeamLabelMock(unittest.TestCase):
     CODEOWNERS_FILE = './tasks/unit-tests/testdata/codeowners.txt'
 
     def make_test(self, changed_files, expected_labels, pr_labels=None, possible_labels=None):
-        from tasks.libs.pipeline_notifications import read_owners
+        from tasks.libs.pipeline.notifications import read_owners
 
         possible_labels = possible_labels or ['team/agent-platform', 'team/documentation', 'team/agent-security']
 
