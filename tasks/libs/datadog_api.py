@@ -5,7 +5,29 @@ def create_count(metric_name, timestamp, value, tags):
 
     return MetricSeries(
         metric=metric_name,
-        type=MetricIntakeType(1),  # count
+        # 1 is the count type
+        # https://datadoghq.dev/datadog-api-client-python/datadog_api_client.v2.model.html#module-datadog_api_client.v2.model.metric_intake_type
+        type=MetricIntakeType(1),
+        points=[
+            MetricPoint(
+                timestamp=timestamp,
+                value=value,
+            )
+        ],
+        tags=tags,
+    )
+
+
+def create_gauge(metric_name, timestamp, value, tags):
+    from datadog_api_client.v2.model.metric_intake_type import MetricIntakeType
+    from datadog_api_client.v2.model.metric_point import MetricPoint
+    from datadog_api_client.v2.model.metric_series import MetricSeries
+
+    return MetricSeries(
+        metric=metric_name,
+        # 3 is the gauge type
+        # https://datadoghq.dev/datadog-api-client-python/datadog_api_client.v2.model.html#module-datadog_api_client.v2.model.metric_intake_type
+        type=MetricIntakeType(3),
         points=[
             MetricPoint(
                 timestamp=timestamp,
