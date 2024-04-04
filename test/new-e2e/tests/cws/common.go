@@ -7,8 +7,11 @@ package cws
 
 import (
 	"fmt"
+	"net/http"
+	"os"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 )
@@ -113,5 +116,25 @@ func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eve
 	assert.Empty(t, selftestsEvent.FailedTests, "selftests should not have failed tests")
 	for _, extraValidation := range extraValidations {
 		extraValidation(selftestsEvent)
+	}
+}
+
+func validateEventSchema(t assert.TestingT, e *api.Event, schemaFileName string) {
+	b, err := e.MarshalJSON()
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	fs := os.DirFS("../../../../pkg/security/tests")
+	documentLoader := gojsonschema.NewBytesLoader(b)
+	schemaLoader := gojsonschema.NewReferenceLoaderFileSystem("file:///schemas/"+schemaFileName, http.FS(fs))
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	if !assert.NoError(t, err) {
+		return
+	}
+	if !assert.True(t, result.Valid(), "schema validation failed") {
+		for _, err := range result.Errors() {
+			t.Errorf("%s", err)
+		}
 	}
 }

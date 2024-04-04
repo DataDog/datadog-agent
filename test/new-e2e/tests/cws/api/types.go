@@ -5,6 +5,8 @@
 
 package api
 
+import "errors"
+
 // AgentContext represents the context of an agent
 type AgentContext struct {
 	RuleID string `json:"rule_id" mapstructure:"rule_id"`
@@ -13,7 +15,16 @@ type AgentContext struct {
 
 // Event represents a cws event
 type Event struct {
-	Agent AgentContext `json:"agent" mapstructure:"agent"`
+	marshaler func() ([]byte, error) `json:"-" mapstructure:"-"`
+	Agent     AgentContext           `json:"agent" mapstructure:"agent"`
+}
+
+// MarshalJSON marshals an event
+func (e *Event) MarshalJSON() ([]byte, error) {
+	if e.marshaler == nil {
+		return nil, errors.New("marshaler is nil")
+	}
+	return e.marshaler()
 }
 
 // Evt contains information about a rule event

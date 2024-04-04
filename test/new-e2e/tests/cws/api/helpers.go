@@ -6,6 +6,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
@@ -38,6 +39,9 @@ func (c *Client) GetAppRulesetLoadedEvent(query string) (*RulesetLoadedEvent, er
 	if err != nil {
 		return nil, err
 	}
+	ruleset.marshaler = func() ([]byte, error) {
+		return json.Marshal(log.Attributes)
+	}
 	return &ruleset, nil
 }
 
@@ -47,12 +51,15 @@ func (c *Client) GetAppRuleEvent(query string) (*RuleEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	var rule RuleEvent
-	err = mapstructure.Decode(log.Attributes, &rule)
+	var event RuleEvent
+	err = mapstructure.Decode(log.Attributes, &event)
 	if err != nil {
 		return nil, err
 	}
-	return &rule, nil
+	event.marshaler = func() ([]byte, error) {
+		return json.Marshal(log.Attributes)
+	}
+	return &event, nil
 }
 
 // GetAppSelftestsEvent returns a selftests event
@@ -65,6 +72,9 @@ func (c *Client) GetAppSelftestsEvent(query string) (*SelftestsEvent, error) {
 	err = mapstructure.Decode(log.Attributes, &selftests)
 	if err != nil {
 		return nil, err
+	}
+	selftests.marshaler = func() ([]byte, error) {
+		return json.Marshal(log.Attributes)
 	}
 	return &selftests, nil
 }

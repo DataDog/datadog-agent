@@ -190,6 +190,7 @@ func (a *agentSuite) Test02OpenSignal() {
 			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_open", "missing selftest result")
 			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chmod", "missing selftest result")
 			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
+			validateEventSchema(collect, &event.Event, "self_test_schema.json")
 		})
 	}, 2*time.Minute, 20*time.Second)
 
