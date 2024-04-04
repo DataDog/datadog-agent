@@ -920,15 +920,14 @@ def test_merge_queue(ctx):
             if attempt == max_attempts - 1:
                 raise RuntimeError("No pipeline found for the merge queue")
             continue
-    if pipeline["status"] != "running":
-        print(f"[ERROR] Impossible to generate a pipeline for the merge queue, please check {pipeline['web_url']}")
-        success = False
+    success = pipeline["status"] == "running"
+    if success:
+        print("Pipeline correctly created, congrats")
     else:
-        print("Pipeline correctly created, congrats", "green")
-        success = True
+        print(f"[ERROR] Impossible to generate a pipeline for the merge queue, please check {pipeline['web_url']}")
     # Clean up
     print("Cleaning up")
-    if pipeline["status"] == "running":
+    if success:
         gitlab.cancel_pipeline(pipeline["id"])
     pr.edit(state="closed")
     ctx.run(f"git checkout {current_branch}", hide=True)
