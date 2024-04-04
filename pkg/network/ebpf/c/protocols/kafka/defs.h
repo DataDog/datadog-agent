@@ -16,7 +16,7 @@
 #define KAFKA_BATCH_SIZE 28
 
 // The amount of buckets we have for the kafka topic name length telemetry.
-#define KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS 7
+#define KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS 10
 
 // The size of each bucket we have for the kafka topic name length telemetry.
 #define KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE 10

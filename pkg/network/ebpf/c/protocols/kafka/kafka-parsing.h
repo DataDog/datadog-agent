@@ -116,7 +116,6 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     offset += sizeof(s32);
     READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-        __sync_fetch_and_add(&kafka_tel->topic_name_exceeds_max_size, 1);
         return false;
     }
     update_topic_name_size_telemetry(kafka_tel, topic_name_size);
@@ -206,21 +205,12 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
 
 // update_path_size_telemetry updates the topic name size telemetry.
 static __always_inline void update_topic_name_size_telemetry(kafka_telemetry_t *kafka_tel, __u64 size) {
-    // This line can be considered as a step function of the difference multiplied by difference.
-    // step function of the difference is 0 if the difference is negative, and 1 if the difference is positive.
-    // Thus, if the difference is negative, we will get 0, and if the difference is positive, we will get the difference.
-    size = size < TOPIC_NAME_MAX_STRING_SIZE ? 0 : size - TOPIC_NAME_MAX_STRING_SIZE;
-    // This line acts as a ceil function, which means that if the size is not a multiple of the bucket size, we will
-    // round it up to the next bucket. Since we don't have float numbers in eBPF, we are adding the (bucket size - 1)
-    // to the size, and then dividing it by the bucket size. This will give us the ceil function.
-    __u8 bucket_idx = (size + KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE - 1) / KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE;
+#define BUCKET_SIZE (TOPIC_NAME_MAX_ALLOWED_SIZE / KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS)
+    __u8 bucket_idx = size / BUCKET_SIZE;
 
-    // This line guarantees that the bucket index is between 0 and KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS.
-    // Although, it is not needed, we keep this function to please the verifier, and to have an explicit lower bound.
+    // Ensure that the bucket index falls within the valid range.
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
-    // This line guarantees that the bucket index is between 0 and KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS, and we cannot
-    // exceed the upper bound.
-    bucket_idx = bucket_idx > KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS ? KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS : bucket_idx;
+    bucket_idx = bucket_idx > (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) ? (KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS - 1) : bucket_idx;
 
     __sync_fetch_and_add(&kafka_tel->topic_name_size_buckets[bucket_idx], 1);
 }

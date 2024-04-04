@@ -164,8 +164,8 @@ func (p *protocol) setUpKernelTelemetryCollection(mgr *manager.Manager) {
 		return
 	}
 
-	var zero uint32
-	rawTelemetry := &rawKernelTelemetry{}
+	zero := 0
+	rawTelemetry := &RawKernelTelemetry{}
 	ticker := time.NewTicker(30 * time.Second)
 
 	go func() {
@@ -185,4 +185,18 @@ func (p *protocol) setUpKernelTelemetryCollection(mgr *manager.Manager) {
 			}
 		}
 	}()
+}
+
+func GetKernelTelemetryMap(mgr *manager.Manager) (*RawKernelTelemetry, error) {
+	mp, err := protocols.GetMap(mgr, eBPFTelemetryMap)
+	if err != nil {
+		return nil, err
+	}
+
+	zero := 0
+	rawTelemetry := &RawKernelTelemetry{}
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(rawTelemetry)); err != nil {
+		return nil, err
+	}
+	return rawTelemetry, nil
 }

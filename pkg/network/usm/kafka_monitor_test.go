@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -433,6 +434,44 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
+			},
+			teardown:      kafkaTeardown,
+			configuration: getDefaultTestConfiguration,
+		},
+		{
+			name: "Kafka Kernel Telemetry",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": strings.Repeat("a", 10),
+				},
+			},
+			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				topicName := ctx.extras["topic_name"].(string)
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{
+						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.ConsumeTopics(topicName),
+						kgo.ClientID("test-client"),
+					},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(topicName))
+
+				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+
+				telemetryMap, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+				require.NoError(t, err)
+				expectedNumberOfOccurrences := 4 // 2 for each connection, 1 for produce and 1 for fetch (fetch auto sent by kgo)
+				require.Equal(t, uint64(expectedNumberOfOccurrences), telemetryMap.Name_size_buckets[0])
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,

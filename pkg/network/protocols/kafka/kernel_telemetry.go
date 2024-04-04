@@ -25,7 +25,7 @@ type kernelTelemetry struct {
 	pathSizeBucket [topicNameBuckets + 1]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
-	telemetryLastState rawKernelTelemetry
+	telemetryLastState RawKernelTelemetry
 }
 
 // newKernelTelemetry hold Kafka kernel metrics.
@@ -44,10 +44,10 @@ func newKernelTelemetry() *kernelTelemetry {
 }
 
 // update updates the kernel metrics with the given telemetry.
-func (t *kernelTelemetry) update(tel *rawKernelTelemetry) {
+func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 	// We should only add the delta between the current eBPF map state and the last seen eBPF map state
 	telemetryDelta := tel.Sub(t.telemetryLastState)
-	t.topicNameExceedsMaxSize.Add(int64(telemetryDelta.Name_exceeds_max_size))
+	//t.topicNameExceedsMaxSize.Add(int64(telemetryDelta.Name_exceeds_max_size))
 	for bucketIndex := range t.pathSizeBucket {
 		t.pathSizeBucket[bucketIndex].Add(int64(telemetryDelta.Name_size_buckets[bucketIndex]))
 	}
@@ -60,15 +60,15 @@ func (t *kernelTelemetry) Log() {
 }
 
 // Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other
-func (t *rawKernelTelemetry) Sub(other rawKernelTelemetry) *rawKernelTelemetry {
-	return &rawKernelTelemetry{
-		Name_exceeds_max_size: t.Name_exceeds_max_size - other.Name_exceeds_max_size,
-		Name_size_buckets:     computePathSizeBucketDifferences(t.Name_size_buckets, other.Name_size_buckets),
+func (t *RawKernelTelemetry) Sub(other RawKernelTelemetry) *RawKernelTelemetry {
+	return &RawKernelTelemetry{
+		//Name_exceeds_max_size: t.Name_exceeds_max_size - other.Name_exceeds_max_size,
+		Name_size_buckets: computePathSizeBucketDifferences(t.Name_size_buckets, other.Name_size_buckets),
 	}
 }
 
-func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [8]uint64) [8]uint64 {
-	var result [8]uint64
+func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [10]uint64) [10]uint64 {
+	var result [10]uint64
 
 	for i := 0; i < 8; i++ {
 		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
