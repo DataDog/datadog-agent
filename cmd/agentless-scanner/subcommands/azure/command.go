@@ -231,7 +231,6 @@ func azureScanCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatfor
 
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
-		DdEnv:          sc.Env,
 		Workers:        1,
 		ScannersMax:    8,
 		PrintResults:   true,
@@ -275,7 +274,6 @@ func azureOfflineCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplat
 	scannerID := types.NewScannerID(types.CloudProviderAzure, hostname)
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
-		DdEnv:          sc.Env,
 		Workers:        params.workers,
 		ScannersMax:    8,
 		PrintResults:   params.printResults,

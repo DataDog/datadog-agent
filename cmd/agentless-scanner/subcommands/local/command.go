@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
@@ -58,7 +59,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{parent}
 }
 
-func localScanCmd(_ complog.Component, sc *types.ScannerConfig, params *localScanParams) error {
+func localScanCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.Component, params *localScanParams) error {
 	ctx := common.CtxTerminated()
 	statsd := common.InitStatsd(*sc)
 
@@ -87,12 +88,12 @@ func localScanCmd(_ complog.Component, sc *types.ScannerConfig, params *localSca
 	}
 
 	scanner, err := runner.New(*sc, runner.Options{
-		ScannerID:    scannerID,
-		DdEnv:        sc.Env,
-		Workers:      1,
-		ScannersMax:  8,
-		PrintResults: true,
-		Statsd:       statsd,
+		ScannerID:      scannerID,
+		Workers:        1,
+		ScannersMax:    8,
+		PrintResults:   true,
+		Statsd:         statsd,
+		EventForwarder: evp,
 	})
 	if err != nil {
 		return fmt.Errorf("could not initialize agentless-scanner: %w", err)

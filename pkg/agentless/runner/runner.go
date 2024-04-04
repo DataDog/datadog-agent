@@ -53,7 +53,6 @@ const (
 // Options are the runner options.
 type Options struct {
 	ScannerID      types.ScannerID
-	DdEnv          string
 	Workers        int
 	ScannersMax    int
 	PrintResults   bool
@@ -697,7 +696,7 @@ func (s *Runner) sendSBOM(result types.ScanResult) error {
 		Version:  1,
 		Source:   &sourceAgent,
 		Entities: []*sbommodel.SBOMEntity{entity},
-		DdEnv:    &s.DdEnv,
+		DdEnv:    &s.ScannerConfig.Env,
 	}
 	if result.Scan.Type == types.TaskTypeEBS {
 		payload.Host = result.Scan.TargetName

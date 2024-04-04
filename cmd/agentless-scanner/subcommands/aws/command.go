@@ -231,7 +231,6 @@ func awsScanCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.
 
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
-		DdEnv:          sc.Env,
 		Workers:        1,
 		ScannersMax:    8,
 		PrintResults:   true,
@@ -329,7 +328,6 @@ func awsOfflineCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatfo
 
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
-		DdEnv:          sc.Env,
 		Workers:        params.workers,
 		ScannersMax:    8,
 		PrintResults:   params.printResults,

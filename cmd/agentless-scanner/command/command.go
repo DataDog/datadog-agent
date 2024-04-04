@@ -161,7 +161,6 @@ func runCmd(_ complog.Component, sc *types.ScannerConfig, params *runParams, evp
 	scannerID := types.NewScannerID(provider, hostname)
 	scanner, err := runner.New(*sc, runner.Options{
 		ScannerID:      scannerID,
-		DdEnv:          sc.Env,
 		Workers:        params.workers,
 		ScannersMax:    params.scannersMax,
 		PrintResults:   false,
