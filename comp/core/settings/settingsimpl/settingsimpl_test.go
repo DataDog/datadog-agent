@@ -71,7 +71,6 @@ func TestRuntimeSettings(t *testing.T) {
 				assert.Error(t, err)
 			},
 		},
-
 		{
 			"SetRuntimeSetting",
 			func(t *testing.T, comp settings.Component) {

@@ -51,7 +51,11 @@ type settingsRegistry struct {
 
 // RuntimeSettings returns all runtime configurable settings
 func (s *settingsRegistry) RuntimeSettings() settings.Settings {
-	return s.settings
+	settingsCopy := settings.Settings{}
+	for k, v := range s.settings {
+		settingsCopy[k] = v
+	}
+	return settingsCopy
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
