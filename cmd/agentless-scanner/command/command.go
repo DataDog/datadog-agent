@@ -60,20 +60,9 @@ type runScannerParams struct {
 	sock string
 }
 
-// RootCommand returns the root commands
-func RootCommand() *cobra.Command {
-	parent := &cobra.Command{
-		Use:          "agentless-scanner [command]",
-		Short:        "Datadog Agentless Scanner at your service.",
-		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
-		SilenceUsage: true,
-	}
-
-	pflags := parent.PersistentFlags()
-	pflags.StringVarP(&common.GlobalParams.ConfigFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
-	pflags.StringVar(&common.GlobalParams.DiskMode, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
-	pflags.BoolVar(&common.GlobalParams.NoForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
-	pflags.StringSliceVar(&common.GlobalParams.DefaultActions, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
+// Commands returns the root commands
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+	var cmds []*cobra.Command
 
 	{
 		var params runParams
@@ -83,7 +72,7 @@ func RootCommand() *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					runCmd,
-					common.Bundle(),
+					common.Bundle(globalParams),
 					fx.Supply(&params),
 				)
 			},
@@ -92,7 +81,7 @@ func RootCommand() *cobra.Command {
 		cmd.Flags().StringVar(&params.cloudProvider, "cloud-provider", "auto", fmt.Sprintf("cloud provider to use (auto, %q or %q)", types.CloudProviderAWS, types.CloudProviderNone))
 		cmd.Flags().IntVar(&params.workers, "workers", defaultWorkersCount, "number of snapshots running in parallel")
 		cmd.Flags().IntVar(&params.scannersMax, "scanners-max", defaultScannersMax, "maximum number of scanner processes in parallel")
-		parent.AddCommand(cmd)
+		cmds = append(cmds, cmd)
 	}
 
 	{
@@ -103,19 +92,39 @@ func RootCommand() *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					runScannerCmd,
-					common.Bundle(),
+					common.Bundle(globalParams),
 					fx.Supply(&params),
 				)
 			},
 		}
 		cmd.Flags().StringVar(&params.sock, "sock", "", "path to unix socket for IPC")
 		_ = cmd.MarkFlagRequired("sock")
-		parent.AddCommand(cmd)
+		cmds = append(cmds, cmd)
 	}
 
-	parent.AddCommand(aws.Commands()...)
-	parent.AddCommand(azure.Commands()...)
-	parent.AddCommand(local.Commands()...)
+	return cmds
+}
+
+// RootCommand returns the root commands
+func RootCommand() *cobra.Command {
+	var globalParams common.GlobalParams
+	parent := &cobra.Command{
+		Use:          "agentless-scanner [command]",
+		Short:        "Datadog Agentless Scanner at your service.",
+		Long:         `Datadog Agentless Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
+		SilenceUsage: true,
+	}
+
+	pflags := parent.PersistentFlags()
+	pflags.StringVarP(&globalParams.ConfigFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to agentless-scanner configuration yaml file")
+	pflags.StringVar(&globalParams.DiskMode, "disk-mode", string(types.DiskModeNBDAttach), fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", types.DiskModeNoAttach, types.DiskModeVolumeAttach, types.DiskModeNBDAttach))
+	pflags.BoolVar(&globalParams.NoForkScanners, "no-fork-scanners", false, "disable spawning a dedicated process for launching scanners")
+	pflags.StringSliceVar(&globalParams.DefaultActions, "actions", defaultActions, "disable spawning a dedicated process for launching scanners")
+
+	parent.AddCommand(Commands(&globalParams)...)
+	parent.AddCommand(aws.Commands(&globalParams)...)
+	parent.AddCommand(azure.Commands(&globalParams)...)
+	parent.AddCommand(local.Commands(&globalParams)...)
 
 	return parent
 }

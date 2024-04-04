@@ -36,7 +36,7 @@ import (
 	"go.uber.org/fx"
 )
 
-type awsGlobalFlags struct {
+type awsGlobalParams struct {
 	region  string
 	account string
 }
@@ -74,8 +74,8 @@ type awsEnv struct {
 }
 
 // Commands returns the AWS commands
-func Commands() []*cobra.Command {
-	var parentFlags awsGlobalFlags
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+	var awsGlobalParams awsGlobalParams
 	parent := &cobra.Command{
 		Use:          "aws",
 		Short:        "Datadog Agentless Scanner at your service.",
@@ -84,8 +84,8 @@ func Commands() []*cobra.Command {
 	}
 
 	pflags := parent.PersistentFlags()
-	pflags.StringVar(&parentFlags.region, "region", "", "AWS region")
-	pflags.StringVar(&parentFlags.account, "account-id", "", "AWS account ID")
+	pflags.StringVar(&awsGlobalParams.region, "region", "", "AWS region")
+	pflags.StringVar(&awsGlobalParams.account, "account-id", "", "AWS account ID")
 
 	{
 		var params awsScanParams
@@ -96,8 +96,8 @@ func Commands() []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsScanCmd,
-					common.Bundle(),
-					fx.Supply(&parentFlags),
+					common.Bundle(globalParams),
+					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Provide(func() *awsScanParams {
 						params.resourceID = args[0]
@@ -120,8 +120,8 @@ func Commands() []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsSnapshotCmd,
-					common.Bundle(),
-					fx.Supply(&parentFlags),
+					common.Bundle(globalParams),
+					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Provide(func() *awsSnapshotParams {
 						params.resourceID = args[0]
@@ -141,8 +141,8 @@ func Commands() []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsOfflineCmd,
-					common.Bundle(),
-					fx.Supply(&parentFlags),
+					common.Bundle(globalParams),
+					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Supply(&params),
 				)
@@ -166,8 +166,8 @@ func Commands() []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsAttachCmd,
-					common.Bundle(),
-					fx.Supply(&parentFlags),
+					common.Bundle(globalParams),
+					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Provide(func() *awsAttachParams {
 						params.resourceID = args[0]
@@ -188,8 +188,8 @@ func Commands() []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsCleanupCmd,
-					common.Bundle(),
-					fx.Supply(&parentFlags),
+					common.Bundle(globalParams),
+					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Supply(&params),
 				)
@@ -704,7 +704,7 @@ func ec2TagsToStringTags(tags []ec2types.Tag) []string {
 	return tgs
 }
 
-func probeAWSEnv(sc *types.ScannerConfig, flags *awsGlobalFlags) (*awsEnv, error) {
+func probeAWSEnv(sc *types.ScannerConfig, flags *awsGlobalParams) (*awsEnv, error) {
 	ctx := context.Background()
 	region := flags.region
 	account := flags.account

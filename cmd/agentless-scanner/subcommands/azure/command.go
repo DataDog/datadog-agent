@@ -48,7 +48,7 @@ type azureOfflineParams struct {
 }
 
 // Commands returns the Azure commands
-func Commands() []*cobra.Command {
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	parent := &cobra.Command{
 		Use:          "azure",
 		Short:        "Datadog Agentless Scanner at your service.",
@@ -68,7 +68,7 @@ func Commands() []*cobra.Command {
 					fx.Provide(func() *azureAttachParams {
 						params.resourceID = args[0]
 						return &params
-					}), common.Bundle())
+					}), common.Bundle(globalParams))
 			},
 		}
 		cmd.Flags().BoolVar(&params.noMount, "no-mount", false, "mount the device")
@@ -84,7 +84,7 @@ func Commands() []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					azureScanCmd,
-					common.Bundle(),
+					common.Bundle(globalParams),
 					fx.Provide(func() *azureScanParams {
 						params.resourceID = args[0]
 						return &params
@@ -106,7 +106,7 @@ func Commands() []*cobra.Command {
 				return fxutil.OneShot(
 					azureOfflineCmd,
 					fx.Supply(&params),
-					common.Bundle())
+					common.Bundle(globalParams))
 			},
 		}
 

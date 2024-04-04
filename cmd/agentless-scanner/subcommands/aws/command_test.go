@@ -1,18 +1,21 @@
 package aws
 
 import (
+	"os"
+	"path"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/cmd/agentless-scanner/common"
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStartAgentlessScannerAWS(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		Commands(),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"aws", "scan", "plop"},
 		awsScanCmd,
 		func(params *awsScanParams, sc *types.ScannerConfig) {
@@ -24,7 +27,7 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		Commands(),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"aws", "snapshot", "plop"},
 		awsSnapshotCmd,
 		func(params *awsSnapshotParams, sc *types.ScannerConfig) {
@@ -35,7 +38,7 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		Commands(),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"aws", "offline"},
 		awsOfflineCmd,
 		func(params *awsOfflineParams, sc *types.ScannerConfig) {
@@ -50,7 +53,7 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		Commands(),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"aws", "attach", "plop"},
 		awsAttachCmd,
 		func(params *awsAttachParams, sc *types.ScannerConfig) {
@@ -62,7 +65,7 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 		})
 
 	fxutil.TestOneShotSubcommand(t,
-		Commands(),
+		Commands(newGlobalParamsTest(t)),
 		[]string{"aws", "cleanup"},
 		awsCleanupCmd,
 		func(params *awsCleanupParams, sc *types.ScannerConfig) {
@@ -72,4 +75,15 @@ func TestStartAgentlessScannerAWS(t *testing.T) {
 			require.Equal(t, false, params.dryRun)
 			require.Equal(t, time.Duration(0), params.delay)
 		})
+}
+
+func newGlobalParamsTest(t *testing.T) *common.GlobalParams {
+	// config.Component which requires a valid datadog.yaml
+	config := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	require.NoError(t, err)
+
+	return &common.GlobalParams{
+		ConfigFilePath: config,
+	}
 }

@@ -33,23 +33,23 @@ import (
 )
 
 // GlobalParams holds the global flags from the root cmd
-var GlobalParams struct {
+type GlobalParams struct {
 	DiskMode       string
 	DefaultActions []string
 	NoForkScanners bool
 	ConfigFilePath string
 }
 
-func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActionsStr []string, noForkScanner bool) (*types.ScannerConfig, error) {
+func getScannerConfig(c compconfig.Component, globalParams *GlobalParams) (*types.ScannerConfig, error) {
 	defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
 	if err != nil {
 		return nil, fmt.Errorf("could not parse default roles mapping: %w", err)
 	}
-	diskMode, err := types.ParseDiskMode(diskModeStr)
+	diskMode, err := types.ParseDiskMode(globalParams.DiskMode)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse disk mode: %w", err)
 	}
-	defaultActions, err := types.ParseScanActions(defaultActionsStr)
+	defaultActions, err := types.ParseScanActions(globalParams.DefaultActions)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse default actions: %w", err)
 	}
@@ -59,7 +59,7 @@ func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActions
 		DogstatsdPort:       c.GetInt("dogstatsd_port"),
 		DefaultRolesMapping: defaultRolesMapping,
 		DefaultActions:      defaultActions,
-		NoForkScanners:      noForkScanner,
+		NoForkScanners:      globalParams.NoForkScanners,
 		DiskMode:            diskMode,
 		AWSRegion:           c.GetString("agentless_scanner.aws_region"),
 		AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
@@ -70,13 +70,13 @@ func getScannerConfig(c compconfig.Component, diskModeStr string, defaultActions
 }
 
 // Bundle returns the fx.Option for the agentless-scanner
-func Bundle() fx.Option {
+func Bundle(globalParams *GlobalParams) fx.Option {
 	return fx.Options(
 		fx.Provide(func(config compconfig.Component) (*types.ScannerConfig, error) {
-			return getScannerConfig(config, GlobalParams.DiskMode, GlobalParams.DefaultActions, GlobalParams.NoForkScanners)
+			return getScannerConfig(config, globalParams)
 		}),
 		fx.Supply(core.BundleParams{
-			ConfigParams: compconfig.NewAgentParams(GlobalParams.ConfigFilePath),
+			ConfigParams: compconfig.NewAgentParams(globalParams.ConfigFilePath),
 			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    logimpl.ForDaemon(runner.LoggerName, "log_file", pkgconfigsetup.DefaultAgentlessScannerLogFile),
 		}),

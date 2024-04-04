@@ -26,7 +26,7 @@ type localScanParams struct {
 }
 
 // Commands returns the local commands
-func Commands() []*cobra.Command {
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	parent := &cobra.Command{
 		Use:          "local",
 		Short:        "Datadog Agentless Scanner at your service.",
@@ -43,7 +43,7 @@ func Commands() []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					localScanCmd,
-					common.Bundle(),
+					common.Bundle(globalParams),
 					fx.Provide(func() (*localScanParams, error) {
 						params.resourceID = args[0]
 						return &params, nil
