@@ -13,7 +13,7 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-INSTALL_DIR = '/opt/datadog/updater'
+INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog/updater'
 
 install_dir INSTALL_DIR
 
