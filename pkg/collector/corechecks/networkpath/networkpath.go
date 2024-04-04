@@ -87,6 +87,8 @@ func (c *Check) getCommonTags() []string {
 		tags = append(tags, "agent_host:"+agentHost)
 	}
 
+	tags = append(tags, utils.GetAgentVersionTag())
+
 	return tags
 }
 
@@ -115,7 +117,7 @@ func (c *Check) SendNetPathMDToEP(sender sender.Sender, path traceroute.NetworkP
 }
 
 func (c *Check) submitTelemetryMetrics(senderInstance sender.Sender, path traceroute.NetworkPath, startTime time.Time, tags []string) {
-	newTags := append(utils.CopyStrings(tags), utils.GetAgentVersionTag())
+	newTags := utils.CopyStrings(tags)
 
 	checkDuration := time.Since(startTime)
 	senderInstance.Gauge("datadog.network_path.check_duration", checkDuration.Seconds(), "", newTags)
