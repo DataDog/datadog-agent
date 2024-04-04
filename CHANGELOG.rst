@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+.. _Release Notes_7.52.1:
+
+7.52.1 / 6.52.1
+======
+
+.. _Release Notes_7.52.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-04-04
+
+
+.. _Release Notes_7.52.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a check to the Windows installer to verify that the caller has the correct membership to install the Agent.
+- Ensure the metadata requests are delayed at Agent startup to reduce host tag delays.
+
+
 .. _Release Notes_7.52.0:
 
 7.52.0 / 6.52.0
