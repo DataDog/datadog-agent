@@ -22,7 +22,7 @@ type kernelTelemetry struct {
 	topicNameExceedsMaxSize *libtelemetry.Counter
 
 	// pathSizeBucket Count of topic names sizes divided into buckets.
-	pathSizeBucket [TopicNameBuckets + 1]*libtelemetry.Counter
+	pathSizeBucket [TopicNameBuckets]*libtelemetry.Counter
 
 	// telemetryLastState represents the latest HTTP2 eBPF Kernel telemetry observed from the kernel
 	telemetryLastState RawKernelTelemetry
@@ -56,7 +56,7 @@ func (t *kernelTelemetry) update(tel *RawKernelTelemetry) {
 }
 
 func (t *kernelTelemetry) Log() {
-	log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
+	log.Debugf("kafka kernel telemetry summary: %s", t.metricGroup.Summary())
 }
 
 // Sub generates a new HTTP2Telemetry object by subtracting the values of this HTTP2Telemetry object from the other
@@ -67,10 +67,10 @@ func (t *RawKernelTelemetry) Sub(other RawKernelTelemetry) *RawKernelTelemetry {
 	}
 }
 
-func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [10]uint64) [10]uint64 {
-	var result [10]uint64
+func computePathSizeBucketDifferences(pathSizeBucket, otherPathSizeBucket [TopicNameBuckets]uint64) [TopicNameBuckets]uint64 {
+	var result [TopicNameBuckets]uint64
 
-	for i := 0; i < 8; i++ {
+	for i := 0; i < (TopicNameBuckets - 1); i++ {
 		result[i] = pathSizeBucket[i] - otherPathSizeBucket[i]
 	}
 
