@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	//go:embed defaults/boostrap.json
+	//go:embed defaults/bootstrap.json
 	rawDefaultBootstrapVersions []byte
 	//go:embed defaults/catalog.json
 	rawDefaultCatalog []byte

@@ -116,7 +116,6 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
-ns.add_task(modules.go_work)
 
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
@@ -156,6 +155,7 @@ ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
 ns.add_collection(updater)
+ns.add_collection(modules)
 ns.configure(
     {
         'run': {
