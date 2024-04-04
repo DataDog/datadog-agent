@@ -7,20 +7,19 @@ package k8sfiletailing
 
 import (
 	"context"
-	"fmt"
+	"slices"
 	"testing"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	// fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	customkind "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-logs/customkind"
-
-	// "github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/stretchr/testify/assert"
 )
 
 type myKindSuite struct {
@@ -31,52 +30,9 @@ func TestMyKindSuite(t *testing.T) {
 	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(customkind.Provisioner()))
 }
 
-func (v *myKindSuite) TestAgentOutput() {
-
+func (v *myKindSuite) TestSingleLog() {
 	var backOffLimit int32 = 4
-
-	jobSpcec := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "job-0",
-			Namespace: "default",
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "query-job-0",
-							Image:   "ubunutu",
-							Command: []string{"echo", "'a thing'"},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicyNever,
-				},
-			},
-			BackoffLimit: &backOffLimit,
-		},
-	}
-
-	_, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
-	assert.NoError(v.T(), err, "Could not properly start job")
-
-	// logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
-	// fmt.Printf("logs service names: %v", logsServiceNames)
-
-	// logs, err := v.Env().FakeIntake.Client().FilterLogs("query-job", fi.WithMessageContaining("hello world"))
-	// assert.NoError(v.T(), err, "Failed to filter logs")
-	// fmt.Println(logs)
-
-	// fmt.Printf("Fake intake output : %s\n", fakeIntakeOutput.URL)
-	// if v.Env().FakeIntake == nil {
-	// 	fmt.Println("fake intake is nil")
-	// } else {
-	// 	fmt.Println("fake intake is not nil")
-	// }
-}
-
-func (v *myKindSuite) TestBatchJob() {
-	var backOffLimit int32 = 4
+	testLogMessage := "Test log message"
 
 	jobSpcec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -89,8 +45,8 @@ func (v *myKindSuite) TestBatchJob() {
 					Containers: []corev1.Container{
 						{
 							Name:    "query-job-1",
-							Image:   "ubunutu",
-							Command: []string{"echo", "Another thing \n"},
+							Image:   "ubuntu",
+							Command: []string{"echo", testLogMessage},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -103,11 +59,21 @@ func (v *myKindSuite) TestBatchJob() {
 	_, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").Create(context.TODO(), jobSpcec, metav1.CreateOptions{})
 	assert.NoError(v.T(), err, "Could not properly start job")
 
-	jobList, err := v.Env().KubernetesCluster.Client().BatchV1().Jobs("default").List(context.TODO(), metav1.ListOptions{})
-	fmt.Printf("job list: %s", jobList.String())
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
+		assert.NoError(c, err, "Error starting job")
+		assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found")
 
-	logsServiceNames, err := v.Env().FakeIntake.Client().GetLogServiceNames()
-	logsConnections, err := v.Env().FakeIntake.Client().GetConnectionsNames()
-	fmt.Printf("logs service names: %v\n", logsServiceNames)
-	fmt.Printf("logs connections names: %v\n", logsConnections)
+		if slices.Contains(logsServiceNames, "ubuntu") {
+			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
+			assert.NoError(c, err, "Error filtering logs")
+			assert.Equal(c, filteredLogs[0].Message, testLogMessage, "Test log doesn't match")
+
+			// Check container metatdata
+			assert.Equal(c, filteredLogs[0].Service, "ubuntu", "Could not find service")
+			assert.NotNil(c, filteredLogs[0].HostName, "Hostname not found")
+			assert.NotNil(c, filteredLogs[0].Tags, "Log tags not found")
+		}
+
+	}, 1*time.Minute, 10*time.Second)
 }
