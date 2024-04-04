@@ -123,6 +123,7 @@
 
 /.gitlab/source_test/ebpf.yml                        @DataDog/ebpf-platform @DataDog/agent-ci-experience
 /.gitlab/source_test/windows.yml                     @DataDog/agent-ci-experience @DataDog/windows-agent
+/.gitlab/source_test/go_generate_check.yml           @DataDog/agent-security
 
 /.gitlab/package_build/                              @DataDog/agent-build-and-releases
 /.gitlab/package_build/windows.yml                   @DataDog/agent-build-and-releases @DataDog/windows-agent
