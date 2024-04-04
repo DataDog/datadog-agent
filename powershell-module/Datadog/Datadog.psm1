@@ -175,7 +175,7 @@ function installAgent($params, $uniqueID)
 
 function installDotnetTracer($uniqueID)
 {
-    $latestVersionTag = ((Invoke-WebRequest https://api.github.com/repos/DataDog/dd-trace-dotnet/releases/latest).Content | ConvertFrom-Json).tag_name
+    $latestVersionTag = ((Invoke-WebRequest -UseBasicParsing https://api.github.com/repos/DataDog/dd-trace-dotnet/releases/latest).Content | ConvertFrom-Json).tag_name
     $latestVersion = $latestVersionTag.TrimStart("v")
 
     $installerPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath "datadog-dotnet-apm-$uniqueID.msi"
