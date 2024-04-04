@@ -59,20 +59,38 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
 
+	// Add tags to path
+	commonTags := c.getCommonTags()
+	path.Tags = commonTags
+
 	// send to EP
 	err = c.SendNetPathMDToEP(senderInstance, path)
 	if err != nil {
 		return fmt.Errorf("failed to send network path metadata: %w", err)
 	}
 
-	tags := c.getCommonTags()
-	c.submitTelemetryMetrics(senderInstance, path, startTime, tags)
+	metricTags := c.getCommonTagsForMetrics()
+	metricTags = append(metricTags, commonTags...)
+	c.submitTelemetryMetrics(senderInstance, path, startTime, metricTags)
 
 	senderInstance.Commit()
 	return nil
 }
 
 func (c *Check) getCommonTags() []string {
+	tags := utils.CopyStrings(c.config.Tags)
+
+	agentHost, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+	} else {
+		tags = append(tags, "agent_host:"+agentHost)
+	}
+
+	return tags
+}
+
+func (c *Check) getCommonTagsForMetrics() []string {
 	destPortTag := "unspecified"
 	if c.config.DestPort > 0 {
 		destPortTag = strconv.Itoa(int(c.config.DestPort))
@@ -81,13 +99,6 @@ func (c *Check) getCommonTags() []string {
 		"protocol:udp", // TODO: Update to protocol from config when we support tcp/icmp
 		"destination_hostname:" + c.config.DestHostname,
 		"destination_port:" + destPortTag,
-	}
-
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		log.Warnf("Error getting the hostname: %v", err)
-	} else {
-		tags = append(tags, "agent_host:"+hname)
 	}
 	return tags
 }
