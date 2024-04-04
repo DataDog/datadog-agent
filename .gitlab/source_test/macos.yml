@@ -17,7 +17,9 @@ tests_macos:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" = "true" ]]; then FAST_TESTS_FLAG="--fast-tests true"; fi
+    - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID --no-send
     - inv -e github.trigger-macos --workflow-type "test" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT" $FAST_TESTS_FLAG
+    - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID --no-send
   timeout: 6h
   after_script:
     - source /root/.bashrc
@@ -52,4 +54,6 @@ lint_macos:
     - export VERSION_CACHE_CONTENT=$(cat agent-version.cache | base64 -)
     - !reference [.setup_python_mirror_linux]
     - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID --no-send
     - inv -e github.trigger-macos --workflow-type "lint" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
+    - inv github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID --no-send

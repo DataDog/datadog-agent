@@ -176,7 +176,7 @@ def get_milestone_id(_, milestone):
 
 
 @task
-def send_rate_limit_info_datadog(_, pipeline_id):
+def send_rate_limit_info_datadog(_, pipeline_id, send=True):
     from tasks.libs.common.github_api import GithubAPI
 
     gh = GithubAPI()
@@ -185,13 +185,14 @@ def send_rate_limit_info_datadog(_, pipeline_id):
         print(
             f"Status on {limit} limit: used {info['used']}/{info['limit']} resets at {datetime.fromtimestamp(info['reset']).isoformat()}"
         )
-        metric = create_count(
-            metric_name=f'github.rate_limit.{limit}.remaining',
-            timestamp=int(time.time()),
-            value=info["used"],
-            tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
-        )
-        send_metrics([metric])
+        if send:
+            metric = create_count(
+                metric_name=f'github.rate_limit.{limit}.remaining',
+                timestamp=int(time.time()),
+                value=info["used"],
+                tags=['source:github', 'repository:datadog-agent', f'pipeline_id:{pipeline_id}'],
+            )
+            send_metrics([metric])
 
 
 @task
