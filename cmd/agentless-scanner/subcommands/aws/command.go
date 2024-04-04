@@ -42,12 +42,12 @@ type awsGlobalParams struct {
 }
 
 type awsScanParams struct {
-	resourceID string
+	targetID   string
 	targetName string
 }
 
 type awsSnapshotParams struct {
-	resourceID string
+	targetID string
 }
 
 type awsOfflineParams struct {
@@ -59,8 +59,8 @@ type awsOfflineParams struct {
 }
 
 type awsAttachParams struct {
-	resourceID string
-	noMount    bool
+	targetID string
+	noMount  bool
 }
 
 type awsCleanupParams struct {
@@ -92,22 +92,21 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		cmd := &cobra.Command{
 			Use:   "scan <snapshot|volume>",
 			Short: "Performs a scan on the given resource",
-			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsScanCmd,
 					common.Bundle(globalParams),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
-					fx.Provide(func() *awsScanParams {
-						params.resourceID = args[0]
-						return &params
-					}),
+					fx.Supply(&params),
 				)
 			},
 		}
 
+		cmd.Flags().StringVar(&params.targetID, "target-id", "", "attch target id")
 		cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
+		_ = cmd.MarkFlagRequired("target-id")
+
 		parent.AddCommand(cmd)
 	}
 
@@ -116,19 +115,20 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		cmd := &cobra.Command{
 			Use:   "snapshot <snapshot|volume>",
 			Short: "Create a snapshot of the given resource",
-			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsSnapshotCmd,
 					common.Bundle(globalParams),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
-					fx.Provide(func() *awsSnapshotParams {
-						params.resourceID = args[0]
-						return &params
-					}))
+					fx.Supply(&params),
+				)
 			},
 		}
+
+		cmd.Flags().StringVar(&params.targetID, "target-id", "", "attch target id")
+		_ = cmd.MarkFlagRequired("target-id")
+
 		parent.AddCommand(cmd)
 	}
 
@@ -162,21 +162,21 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		cmd := &cobra.Command{
 			Use:   "attach <snapshot|volume>",
 			Short: "Attaches a snapshot or volume to the current instance",
-			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					awsAttachCmd,
 					common.Bundle(globalParams),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
-					fx.Provide(func() *awsAttachParams {
-						params.resourceID = args[0]
-						return &params
-					}),
+					fx.Supply(&params),
 				)
 			},
 		}
+
+		cmd.Flags().StringVar(&params.targetID, "target-id", "", "attch target id")
 		cmd.Flags().BoolVar(&params.noMount, "no-mount", false, "mount the device")
+		_ = cmd.MarkFlagRequired("target-id")
+
 		parent.AddCommand(cmd)
 	}
 
@@ -208,7 +208,7 @@ func awsScanCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatform.
 	statsd := common.InitStatsd(*sc)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderAWS, self.Region, self.AccountID)
+	resourceID, err := types.HumanParseCloudID(params.targetID, types.CloudProviderAWS, self.Region, self.AccountID)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func awsSnapshotCmd(_ complog.Component, sc *types.ScannerConfig, params *awsSna
 	statsd := common.InitStatsd(*sc)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	volumeID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderAWS, self.Region, self.AccountID)
+	volumeID, err := types.HumanParseCloudID(params.targetID, types.CloudProviderAWS, self.Region, self.AccountID)
 	if err != nil {
 		return err
 	}
@@ -622,7 +622,7 @@ func awsAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *awsAttac
 	statsd := common.InitStatsd(*sc)
 	hostname := common.TryGetHostname(ctx)
 	scannerID := types.NewScannerID(types.CloudProviderAWS, hostname)
-	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderAWS, self.Region, self.AccountID)
+	resourceID, err := types.HumanParseCloudID(params.targetID, types.CloudProviderAWS, self.Region, self.AccountID)
 	if err != nil {
 		return err
 	}

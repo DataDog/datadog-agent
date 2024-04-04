@@ -21,8 +21,8 @@ import (
 )
 
 type localScanParams struct {
+	path       string
 	targetName string
-	resourceID string
 }
 
 // Commands returns the local commands
@@ -37,22 +37,21 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	{
 		var params localScanParams
 		cmd := &cobra.Command{
-			Use:   "scan <path>",
+			Use:   "scan",
 			Short: "Performs a scan on the given path",
-			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					localScanCmd,
 					common.Bundle(globalParams),
-					fx.Provide(func() (*localScanParams, error) {
-						params.resourceID = args[0]
-						return &params, nil
-					}),
+					fx.Supply(&params),
 				)
 			},
 		}
 
+		cmd.Flags().StringVar(&params.path, "path", "", "attch target id")
 		cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
+		_ = cmd.MarkFlagRequired("path")
+
 		parent.AddCommand(cmd)
 	}
 
@@ -64,7 +63,7 @@ func localScanCmd(_ complog.Component, sc *types.ScannerConfig, params *localSca
 	statsd := common.InitStatsd(*sc)
 
 	hostname := common.TryGetHostname(ctx)
-	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderNone, "", "")
+	resourceID, err := types.HumanParseCloudID(params.path, types.CloudProviderNone, "", "")
 	if err != nil {
 		return err
 	}

@@ -15,13 +15,13 @@ import (
 func TestStartAgentlessScannerLocal(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(newGlobalParamsTest(t)),
-		[]string{"local", "scan", "/"},
+		[]string{"local", "scan", "--path", "/"},
 		localScanCmd,
 		func(params *localScanParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
-			require.Equal(t, "/", params.resourceID)
+			require.Equal(t, "/", params.path)
 			require.Equal(t, "unknown", params.targetName)
 		})
 }

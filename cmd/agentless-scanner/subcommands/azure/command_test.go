@@ -15,25 +15,25 @@ import (
 func TestStartAgentlessScannerAzure(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(newGlobalParamsTest(t)),
-		[]string{"azure", "attach", "plop"},
+		[]string{"azure", "attach", "--target-id", "plop"},
 		azureAttachCmd,
 		func(params *azureAttachParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
-			require.Equal(t, "plop", params.resourceID)
+			require.Equal(t, "plop", params.targetID)
 			require.Equal(t, false, params.noMount)
 		})
 
 	fxutil.TestOneShotSubcommand(t,
 		Commands(newGlobalParamsTest(t)),
-		[]string{"azure", "scan", "/"},
+		[]string{"azure", "scan", "--target-id", "plop"},
 		azureScanCmd,
 		func(params *azureScanParams, sc *types.ScannerConfig) {
 			require.NotNil(t, sc)
 
 			require.NotNil(t, params)
-			require.Equal(t, "/", params.resourceID)
+			require.Equal(t, "plop", params.targetID)
 			require.Equal(t, "unknown", params.targetName)
 		})
 

@@ -29,12 +29,12 @@ import (
 )
 
 type azureAttachParams struct {
-	resourceID string
-	noMount    bool
+	targetID string
+	noMount  bool
 }
 
 type azureScanParams struct {
-	resourceID string
+	targetID   string
 	targetName string
 }
 
@@ -59,19 +59,18 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	{
 		var params azureAttachParams
 		cmd := &cobra.Command{
-			Use:   "attach <snapshot|disk>",
+			Use:   "attach",
 			Short: "Attaches a snapshot or disk to the current instance",
-			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					azureAttachCmd,
-					fx.Provide(func() *azureAttachParams {
-						params.resourceID = args[0]
-						return &params
-					}), common.Bundle(globalParams))
+					fx.Supply(&params),
+					common.Bundle(globalParams))
 			},
 		}
+		cmd.Flags().StringVar(&params.targetID, "target-id", "", "attch target id")
 		cmd.Flags().BoolVar(&params.noMount, "no-mount", false, "mount the device")
+		_ = cmd.MarkFlagRequired("target-id")
 		parent.AddCommand(cmd)
 	}
 
@@ -80,19 +79,17 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		cmd := &cobra.Command{
 			Use:   "scan <snapshot|disk>",
 			Short: "Performs a scan on the given resource",
-			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(
 					azureScanCmd,
 					common.Bundle(globalParams),
-					fx.Provide(func() *azureScanParams {
-						params.resourceID = args[0]
-						return &params
-					}),
+					fx.Supply(&params),
 				)
 			},
 		}
+		cmd.Flags().StringVar(&params.targetID, "target-id", "", "attch target id")
 		cmd.Flags().StringVar(&params.targetName, "target-name", "unknown", "scan target name")
+		_ = cmd.MarkFlagRequired("target-id")
 
 		parent.AddCommand(cmd)
 	}
@@ -135,7 +132,7 @@ func azureAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *azureA
 	if err != nil {
 		return err
 	}
-	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
+	resourceID, err := types.HumanParseCloudID(params.targetID, types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
 	if err != nil {
 		return err
 	}
@@ -211,7 +208,7 @@ func azureScanCmd(_ complog.Component, sc *types.ScannerConfig, evp eventplatfor
 	if err != nil {
 		return err
 	}
-	resourceID, err := types.HumanParseCloudID(params.resourceID, types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
+	resourceID, err := types.HumanParseCloudID(params.targetID, types.CloudProviderAzure, self.Compute.Location, self.Compute.SubscriptionID)
 	if err != nil {
 		return err
 	}
