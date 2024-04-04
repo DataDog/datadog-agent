@@ -15,20 +15,22 @@ import (
 type unitCommand string
 
 const (
-	startCommand         unitCommand = "start"
-	stopCommand          unitCommand = "stop"
-	enableCommand        unitCommand = "enable"
-	disableCommand       unitCommand = "disable"
-	loadCommand          unitCommand = "load-unit"
-	removeCommand        unitCommand = "remove-unit"
-	systemdReloadCommand             = `{"command":"systemd-reload"}`
-	adminExecutor                    = "datadog-updater-admin.service"
+	startCommand          unitCommand = "start"
+	stopCommand           unitCommand = "stop"
+	enableCommand         unitCommand = "enable"
+	disableCommand        unitCommand = "disable"
+	loadCommand           unitCommand = "load-unit"
+	removeCommand         unitCommand = "remove-unit"
+	writeLdPreloadCommand unitCommand = "write-ldpreload"
+	systemdReloadCommand              = `{"command":"systemd-reload"}`
+	adminExecutor                     = "datadog-updater-admin.service"
 )
 
 type privilegeCommand struct {
 	Command string `json:"command,omitempty"`
 	Unit    string `json:"unit,omitempty"`
 	Path    string `json:"path,omitempty"`
+	Content string `json:"content,omitempty"`
 }
 
 func stopUnit(unit string) error {
@@ -57,6 +59,17 @@ func removeUnit(unit string) error {
 
 func systemdReload() error {
 	return executeCommand(systemdReloadCommand)
+}
+
+func writeLdpreload(content []byte) error {
+	privilegeCommand := privilegeCommand{Command: string(writeLdPreloadCommand), Content: string(content)}
+	rawJSON, err := json.Marshal(privilegeCommand)
+	if err != nil {
+		// can't happen as we control the struct
+		panic(err)
+	}
+	privilegeCommandJSON := string(rawJSON)
+	return executeCommand(privilegeCommandJSON)
 }
 
 func wrapUnitCommand(command unitCommand, unit string) string {

@@ -36,6 +36,7 @@ type privilegeCommand struct {
 	Command string `json:"command,omitempty"`
 	Unit    string `json:"unit,omitempty"`
 	Path    string `json:"path,omitempty"`
+	Content string `json:"content,omitempty"`
 }
 
 func isValidUnitChar(c rune) bool {
@@ -66,9 +67,25 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "/usr/bin/datadog-agent"), nil
 	case "rm-agent-symlink":
 		return exec.Command("rm", "-f", "/usr/bin/datadog-agent"), nil
+	case "write-ldpreload":
+		return exec.Command("echo", inputCommand.Content), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
+}
+
+// setCommandOutput sets the output file for the command
+func setCommandOutput(inputCommand privilegeCommand, command *exec.Cmd) error {
+	switch inputCommand.Command {
+	case "write-ldpreload":
+		outfile, err := os.Create("/etc/ld.so.preload")
+		if err != nil {
+			return err
+		}
+		defer outfile.Close()
+		command.Stdout = outfile
+	}
+	return nil
 }
 
 func buildUnitCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
@@ -149,6 +166,9 @@ func executeCommand() error {
 			}
 		}()
 	}
+
+	// set the output file if needed, must be done as root or dd-updater
+	setCommandOutput(pc, command)
 
 	log.Printf("Running command: %s", command.String())
 	return command.Run()

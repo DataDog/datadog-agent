@@ -66,7 +66,7 @@ func setupInjector(basePath string) error {
 		ldSoPreload = append(ldSoPreload, launcherPreload...)
 	}
 
-	err = os.WriteFile(ldSoPreloadPath, ldSoPreload, 0644)
+	err = writeLdpreload(ldSoPreload)
 	if err != nil {
 		return err
 	}
