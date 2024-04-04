@@ -8,13 +8,11 @@ package awskubernetes
 
 import (
 	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	localEks "github.com/DataDog/test-infra-definitions/resources/aws/eks"
@@ -203,7 +201,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		// Building Kubernetes provider
 		eksKubeProvider, err := kubernetes.NewProvider(awsEnv.Ctx, awsEnv.Namer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 			EnableServerSideApply: pulumi.BoolPtr(true),
-			Kubeconfig:            utils.KubeConfigYAMLToJSON(cluster.Kubeconfig),
+			Kubeconfig:            cluster.KubeconfigJson,
 		}, awsEnv.WithProviders(config.ProviderAWS), pulumi.DependsOn(nodeGroups))
 		if err != nil {
 			return err

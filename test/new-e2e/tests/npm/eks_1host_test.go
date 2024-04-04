@@ -43,7 +43,7 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 		if err != nil {
 			return err
 		}
-		env.EKS.AwsEnvironment = &awsEnv
+		env.Kubernetes.AwsEnvironment = &awsEnv
 
 		vmName := "httpbinvm"
 		httpbinHost, err := ec2.NewVM(awsEnv, vmName)
@@ -56,7 +56,7 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, httpbinHost, true)
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, httpbinHost)
 		if err != nil {
 			return err
 		}
