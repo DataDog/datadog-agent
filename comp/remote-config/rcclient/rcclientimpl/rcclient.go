@@ -9,6 +9,7 @@ package rcclientimpl
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Module defines the fx options for this component.
@@ -77,17 +77,14 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		return nil, err
 	}
 
-	// Append default options to the client
-	optsWithDefault := []func(*client.Options){
-		client.WithAgent("unknown", version.AgentVersion),
-		client.WithPollInterval(5 * time.Second),
+	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
+		return nil, fmt.Errorf("Remote config client is missing agent name or version parameter")
 	}
 
-	if deps.Params.AgentName != "" && deps.Params.AgentVersion != "" {
-		optsWithDefault = append(
-			optsWithDefault,
-			client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
-		)
+	// Append client options
+	optsWithDefault := []func(*client.Options){
+		client.WithPollInterval(5 * time.Second),
+		client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
 	}
 
 	// We have to create the client in the constructor and set its name later
