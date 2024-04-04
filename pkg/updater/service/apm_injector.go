@@ -14,7 +14,7 @@ import (
 	"regexp"
 )
 
-var preloadBlockRegex = regexp.MustCompile(`^\/.+\/launcher\.preload\.so$`)
+var preloadBlockRegex = regexp.MustCompile(`(?m)^\/.+\/launcher\.preload\.so$`)
 
 // SetupAPMInjector sets up the injector at bootstrap
 func SetupAPMInjector() error {
@@ -45,25 +45,24 @@ func setupInjector(basePath string) error {
 	// This loads the whole file in memory but it's fine, it should only be
 	// a few lines long at most
 	ldSoPreloadPath := "/etc/ld.so.preload"
-	ldSoPreload, err := os.ReadFile(ldSoPreloadPath)
-	if err != nil {
-		return err
-	}
-
-	launcherPreloadPath := path.Join(basePath, "inject", "launcher.preload.so")
-	launcherPreload, err := os.ReadFile(launcherPreloadPath)
-	if err != nil {
-		return err
-	}
-
-	// Replace or add the preload block
-	if preloadBlockRegex.Match(ldSoPreload) {
-		ldSoPreload = preloadBlockRegex.ReplaceAll(ldSoPreload, launcherPreload)
-	} else {
-		if ldSoPreload[len(ldSoPreload)-1] != '\n' {
+	ldSoPreload := make([]byte, 0)
+	if _, err := os.Stat(ldSoPreloadPath); err == nil {
+		ldSoPreload, err = os.ReadFile(ldSoPreloadPath)
+		if err != nil {
+			return err
+		}
+		if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
 			ldSoPreload = append(ldSoPreload, '\n')
 		}
-		ldSoPreload = append(ldSoPreload, launcherPreload...)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	launcherPreloadPath := path.Join(basePath, "inject", "launcher.preload.so")
+	// Replace or add the preload block
+	if preloadBlockRegex.Match(ldSoPreload) {
+		ldSoPreload = preloadBlockRegex.ReplaceAll(ldSoPreload, []byte(launcherPreloadPath))
+	} else {
+		ldSoPreload = append(ldSoPreload, launcherPreloadPath...)
 	}
 
 	err = writeLdpreload(ldSoPreload)

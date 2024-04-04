@@ -68,24 +68,24 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	case "rm-agent-symlink":
 		return exec.Command("rm", "-f", "/usr/bin/datadog-agent"), nil
 	case "write-ldpreload":
-		return exec.Command("echo", inputCommand.Content), nil
+		return exec.Command("echo", "-n", inputCommand.Content), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
 }
 
-// setCommandOutput sets the output file for the command
-func setCommandOutput(inputCommand privilegeCommand, command *exec.Cmd) error {
+// getCommandOutput sets the output file for the command
+func getCommandOutput(inputCommand privilegeCommand) (*os.File, error) {
 	switch inputCommand.Command {
 	case "write-ldpreload":
-		outfile, err := os.Create("/etc/ld.so.preload")
+		// File has to be closed after the command is run
+		outputFile, err := os.OpenFile("/etc/ld.so.preload", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		defer outfile.Close()
-		command.Stdout = outfile
+		return outputFile, nil
 	}
-	return nil
+	return nil, nil
 }
 
 func buildUnitCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
@@ -168,7 +168,14 @@ func executeCommand() error {
 	}
 
 	// set the output file if needed, must be done as root or dd-updater
-	setCommandOutput(pc, command)
+	stdout, err := getCommandOutput(pc)
+	if err != nil {
+		return err
+	}
+	if stdout != nil {
+		defer stdout.Close()
+		command.Stdout = stdout
+	}
 
 	log.Printf("Running command: %s", command.String())
 	return command.Run()
