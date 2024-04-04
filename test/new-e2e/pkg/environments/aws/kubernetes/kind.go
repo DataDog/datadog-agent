@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -131,14 +130,12 @@ func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environment
 >>>>>>> 4e4239cf7422 (eks)
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
-	params := newProvisionerParams()
-	_ = optional.ApplyOptions(params, opts)
+	params := GetProvisionerParams(opts...)
 
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
-		params := newProvisionerParams()
-		_ = optional.ApplyOptions(params, opts)
+		params := GetProvisionerParams(opts...)
 
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)

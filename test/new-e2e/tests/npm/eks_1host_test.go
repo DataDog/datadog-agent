@@ -10,10 +10,6 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	enveks "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/eks"
 	"github.com/DataDog/test-infra-definitions/common/config"
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
@@ -22,11 +18,16 @@ import (
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	envkube "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 type eksHttpbinEnv struct {
-	environments.EKS
+	environments.Kubernetes
 
 	// Extra Components
 	HTTPBinHost *components.RemoteHost
@@ -72,12 +73,12 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 			return npmtools.K8sAppDefinition(*awsEnv.CommonEnvironment, kubeProvider, "npmtools", testURL)
 		}
 
-		params := enveks.GetProvisionerParams(
-			enveks.WithEKSLinuxNodeGroup(),
-			enveks.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
-			enveks.WithWorkloadApp(npmToolsWorkload),
+		params := envkube.GetProvisionerParams(
+			envkube.WithEKSLinuxNodeGroup(),
+			envkube.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
+			envkube.WithWorkloadApp(npmToolsWorkload),
 		)
-		enveks.Run(ctx, &env.EKS, params)
+		envkube.EKSRunFunc(ctx, &env.Kubernetes, params)
 
 		return nil
 	}
