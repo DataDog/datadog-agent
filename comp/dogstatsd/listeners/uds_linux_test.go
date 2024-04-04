@@ -36,8 +36,8 @@ func TestUDSPassCred(t *testing.T) {
 
 	pool := packets.NewPool(512)
 	poolManager := packets.NewPoolManager(pool)
-	config := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDSDatagramListener(nil, poolManager, nil, config, nil, optional.NewNoneOption[workloadmeta.Component]())
+	deps := fulfillDepsWithConfig(t, cfg)
+	s, err := NewUDSDatagramListener(nil, poolManager, nil, deps.Config, nil, optional.NewNoneOption[workloadmeta.Component](), deps.PidMap)
 	defer s.Stop()
 
 	assert.Nil(t, err)

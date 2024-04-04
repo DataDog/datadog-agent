@@ -34,6 +34,7 @@ const (
 	Java    ConnTag = C.JAVA_TLS
 	TLS     ConnTag = C.CONN_TLS
 	Istio   ConnTag = C.ISTIO
+	NodeJS  ConnTag = C.NODEJS
 )
 
 var (
@@ -44,5 +45,6 @@ var (
 		Java:    "tls.library:java",
 		TLS:     "tls.connection:encrypted",
 		Istio:   "tls.library:istio",
+		NodeJS:  "tls.library:nodejs",
 	}
 )
