@@ -145,8 +145,6 @@ function installAgent($params, $uniqueID)
         downloadAsset -url $url -outFile $installerPath
     }
 
-    $installerParameters = formatAgentInstallerParameters -params $params
-
     $logFile = ""
     if ($params.ContainsKey('AgentInstallLogPath'))
     {
@@ -157,8 +155,11 @@ function installAgent($params, $uniqueID)
         $logFile = createTemporaryLogFile -prefix "ddagent-msi"
     }
 
+    $defaultInstallArgs = @("/qn", "/log `"$logFile`"", "/i `"$installerPath`"")
+    $customInstallArgs = formatAgentInstallerArguments -params $params
+
     Write-Host "Installing Datadog Windows Agent"
-    $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath $installerParameters /log $logFile" -PassThru
+    $installResult = Start-Process -Wait msiexec -ArgumentList $($defaultInstallArgs; $customInstallArgs) -PassThru
 
     if ($downloadInstaller)
     {
@@ -209,25 +210,26 @@ function doesDatadogYamlExist()
     }
 }
 
-function formatAgentInstallerParameters($params)
+function formatAgentInstallerArguments($params)
 {
-    $formattedparams = ""
-    if ($params.ContainsKey('ApiKey'))                      { $formattedparams += " APIKEY=$($params.ApiKey)"}
-    if ($params.ContainsKey('Site'))                        { $formattedparams += " SITE=$($params.Site)"}
-    if ($params.ContainsKey('Tags'))                        { $formattedparams += " TAGS=``$($params.Tags)``" }
-    if ($params.ContainsKey('Hostname'))                    { $formattedparams += " HOSTNAME=$($params.Hostname)" }
-    if ($params.ContainsKey('DDAgentUsername'))             { $formattedparams += " DDAGENTUSER_NAME=$($params.DDAgentUsername)" }
-    if ($params.ContainsKey('DDAgentPassword'))             { $formattedparams += " DDAGENTUSER_PASSWORD=$($params.DDAgentPassword)" }
-    if ($params.ContainsKey('ApplicationDataDirectory'))    { $formattedparams += " APPLICATIONDATADIRECTORY=$($params.ApplicationDataDirectory)" }
-    if ($params.ContainsKey('ProjectLocation'))             { $formattedparams += " PROJECTLOCATION=$($params.ProjectLocation)" }
+    [string[]] $formattedArgs = @()
 
-    if (($formattedparams -ne "") -and (doesDatadogYamlExist -eq $true))
+    if ($params.ContainsKey('ApiKey'))                      { $formattedArgs += "APIKEY=$($params.ApiKey)"}
+    if ($params.ContainsKey('Site'))                        { $formattedArgs += "SITE=$($params.Site)"}
+    if ($params.ContainsKey('Hostname'))                    { $formattedArgs += "HOSTNAME=$($params.Hostname)" }
+    if ($params.ContainsKey('DDAgentUsername'))             { $formattedArgs += "DDAGENTUSER_NAME=$($params.DDAgentUsername)" }
+    if ($params.ContainsKey('DDAgentPassword'))             { $formattedArgs += "DDAGENTUSER_PASSWORD=$($params.DDAgentPassword)" }
+    if ($params.ContainsKey('Tags'))                        { $formattedArgs += "TAGS=`"$($params.Tags)`"" }
+    if ($params.ContainsKey('ApplicationDataDirectory'))    { $formattedArgs += "APPLICATIONDATADIRECTORY=`"$($params.ApplicationDataDirectory)`"" }
+    if ($params.ContainsKey('ProjectLocation'))             { $formattedArgs += "PROJECTLOCATION=`"$($params.ProjectLocation)`"" }
+    
+    if (($formattedArgs.Count -ne 0) -and (doesDatadogYamlExist -eq $true))
     {
-        Write-Warning "A datadog.yaml file already exists. The contents of that file will take precedence over the following parameters: $formattedparams"
+        Write-Warning "A datadog.yaml file already exists. The contents of that file will take precedence over the following parameters: $formattedArgs"
         # We will still pass the parameters along to the installer, and let it decide what to do with them
     }
 
-    return $formattedparams
+    return $formattedArgs
 }
 
 function downloadAsset($url, $outFile)
