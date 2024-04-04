@@ -73,6 +73,7 @@ AGENT_TAGS = {
     "process",
     "python",
     "systemd",
+    "trivy",
     "zk",
     "zlib",
     "zstd",

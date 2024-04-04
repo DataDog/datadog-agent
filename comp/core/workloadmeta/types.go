@@ -13,6 +13,7 @@ import (
 
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
@@ -1029,7 +1030,7 @@ type ContainerImageLayer struct {
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
 type SBOM struct {
-	CycloneDXBOM       *interface{}
+	CycloneDXBOM       *cyclonedx.BOM
 	GenerationTime     time.Time
 	GenerationDuration time.Duration
 	Status             SBOMStatus
