@@ -296,7 +296,7 @@ func (id *inodeDiscarders) getParentDiscarderFnc(rs *rules.RuleSet, eventType mo
 		if values := rule.GetFieldValues(field); len(values) > 0 {
 			for _, value := range values {
 				if value.Type == eval.GlobValueType {
-					glob, err := eval.NewGlob(value.Value.(string), false)
+					glob, err := eval.NewGlob(value.Value.(string), false, false)
 					if err != nil {
 						return nil, fmt.Errorf("unexpected glob `%v`: %w", value.Value, err)
 					}

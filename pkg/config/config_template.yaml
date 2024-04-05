@@ -736,7 +736,7 @@ api_key:
 # enable_gohai: true
 
 ## @param enable_signing_metadata_collection - boolean - optional - default: true
-## @env DD_ENABLE_SIGNING_METADATA - boolean - optional - default: true
+## @env DD_ENABLE_SIGNING_METADATA_COLLECTION - boolean - optional - default: true
 ## Enable the Linux package signing medatada collection.
 #
 # enable_signing_metadata_collection: true
@@ -1380,8 +1380,8 @@ api_key:
   # obfuscation:
   #     credit_cards:
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_ENABLED - boolean - optional
-  ##        Enables obfuscation rules for credit cards. Disabled by default.
-  #         enabled: false
+  ##        Enables obfuscation rules for credit cards. Enabled by default.
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_CREDIT_CARDS_LUHN - boolean - optional
   ##        Enables a Luhn checksum check in order to eliminate false negatives. Disabled by default.
   #         luhn: false
@@ -1389,7 +1389,7 @@ api_key:
   #     elasticsearch:
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "elasticsearch". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
@@ -1410,7 +1410,7 @@ api_key:
   #     memcached:
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "memcached". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND - boolean - optional
   ##        If enabled, the full command for the query will be kept, including any lookup
   ##        keys that could be present. The value for storage commands will still be
@@ -1420,7 +1420,7 @@ api_key:
   #     mongodb:
   ##        @param DD_APM_OBFUSCATION_MONGODB_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "mongodb". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_MONGODB_KEEP_VALUES - object - optional
   ##        List of keys that should not be obfuscated.
   #         keep_values:
@@ -1433,7 +1433,7 @@ api_key:
   #     redis:
   ##        @param DD_APM_OBFUSCATION_REDIS_ENABLED - boolean - optional
   ##        Enables obfuscation rules for spans of type "redis". Enabled by default.
-  #         enabled: false
+  #         enabled: true
   ##        @param DD_APM_OBFUSCATION_REDIS_REMOVE_ALL_ARGS - boolean - optional
   ##        When true, replaces all arguments of a redis command with a single "?". Disabled by default.
   #         remove_all_args: false
@@ -1536,12 +1536,6 @@ api_key:
   #
   # log_file: <APM_LOG_FILE_PATH>
 
-  ## @param log_throttling - boolean - default: true
-  ## @env DD_APM_LOG_THROTTLING - boolean - default: true
-  ## Limits the total number of warnings and errors to 10 for every 10 second interval.
-  #
-  # log_throttling: true
-
   ## @param connection_limit - integer - default: 2000
   ## @env DD_APM_CONNECTION_LIMIT - integer - default: 2000
   ## The APM connection limit for the Agent.
@@ -1555,12 +1549,8 @@ api_key:
   ## If enabled, a span with an eligible `span.kind` will have stats computed. If disabled, only top-level and measured spans will have stats computed.
   ## NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
+  ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
   # compute_stats_by_span_kind: false
-
-  ## @param peer_service_aggregation - bool - default: false
-  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
-  ## DEPRECATED - please use `peer_tags_aggregation` instead.
-  # peer_service_aggregation: false
 
   ## @param peer_tags_aggregation - bool - default: false
   ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
@@ -1587,7 +1577,7 @@ api_key:
   ## The list of items available under apm_config.features is not guaranteed to persist across versions;
   ## a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
   #
-  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","disable_otlp_compute_top_level_by_span_kind"]
+  # features: ["error_rare_sample_tracer_drop","table_names","component2name","sql_cache","enable_otlp_compute_top_level_by_span_kind"]
 
   ## @param additional_endpoints - object - optional
   ## @env DD_APM_ADDITIONAL_ENDPOINTS - object - optional

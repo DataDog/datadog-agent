@@ -12,7 +12,7 @@
   extends: .deploy_packages_deb
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -20,7 +20,7 @@
   extends: .deploy_packages_deb
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 7
 
@@ -39,7 +39,7 @@
   extends: .deploy_packages_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -47,7 +47,7 @@
   extends: .deploy_packages_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 7
 
@@ -61,7 +61,7 @@
   extends: .deploy_packages_suse_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 6
 
@@ -69,22 +69,7 @@
   extends: .deploy_packages_suse_rpm
   stage: deploy_packages
   rules:
-    !reference [.on_deploy_a7]
-  variables:
-    MAJOR_VERSION: 7
-
-deploy_packages_oci:
-  resource_group: oci_bucket
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
-  needs: [ "packaging_oci" ]
-  tags: ["arch:amd64"]
-  stage: deploy_packages
-  rules:
-    !reference [.on_deploy_a7]
-  before_script:
-    - ls $OMNIBUS_PACKAGE_DIR
-  script:
-    - $S3_CP_CMD --recursive --exclude "*" --include "datadog-agent-*oci.tar" "$OMNIBUS_PACKAGE_DIR" "$S3_RELEASE_ARTIFACTS_URI/oci/"
+    !reference [.on_deploy]
   variables:
     MAJOR_VERSION: 7
 

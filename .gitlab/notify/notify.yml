@@ -44,8 +44,7 @@ notify:
 
 send_pipeline_stats:
   stage: notify
-  # Using a buildimage image with python 3.7+, datadog-api-client and invoke installed
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader:$DATADOG_CI_UPLOADER_IMAGE
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   when: always
   dependencies: []
@@ -64,8 +63,13 @@ notify_github:
     - !reference [.except_mergequeue]
     - !reference [.except_main_or_release_branch]
     - !reference [.except_no_tests_no_deploy]
-    - !reference [.on_a7]
-    - when: on_success
+    - if: $RELEASE_VERSION_7 != ""
+      changes:
+        paths:
+          - '**/*.go'
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      when: on_success
+    - when: never
   needs:
     - job: "deploy_deb_testing-a7_x64"
       optional: true

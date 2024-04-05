@@ -11,12 +11,15 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math/rand"
 	"net/http"
-	"path/filepath"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -454,10 +457,16 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 		}
 		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
 		for keyGroup, proc := range groups {
-			rootPath := filepath.Join(a.opts.HostRoot, keyGroup.rootPath)
-			resource, ok := dbconfig.LoadDBResource(ctx, rootPath, proc, keyGroup.containerID)
-			if ok {
-				a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+			if keyGroup.containerID != "" {
+				if err := a.reportDBConfigurationFromSystemProbe(ctx, keyGroup.containerID, proc.Pid); err != nil {
+					log.Warnf("error reporting DB configuration from system-probe: %s", err)
+				}
+			} else {
+				resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, a.opts.HostRoot, proc)
+				if ok {
+					log := NewResourceLog(a.opts.Hostname, resourceType, resource)
+					a.reportResourceLog(defaultCheckIntervalLowPriority, log)
+				}
 			}
 		}
 		if sleepAborted(ctx, runTicker.C) {
@@ -466,10 +475,55 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 	}
 }
 
+func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, containerID utils.ContainerID, pid int32) error {
+	if a.opts.SysProbeClient == nil {
+		return fmt.Errorf("system-probe socket client was not created")
+	}
+
+	qs := make(url.Values)
+	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
+	sysProbeComplianceModuleURL := &url.URL{
+		Scheme:   "http",
+		Host:     "unix",
+		Path:     "/compliance/dbconfig",
+		RawQuery: qs.Encode(),
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sysProbeComplianceModuleURL.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := a.opts.SysProbeClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error running cross-container benchmark: %s", resp.Status)
+	}
+
+	var resource *dbconfig.DBResource
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, &resource); err != nil {
+		return err
+	}
+	if resource != nil {
+		dbResourceLog := NewResourceLog(a.opts.Hostname+"_"+string(containerID), resource.Type, resource.Config)
+		dbResourceLog.Container = &CheckContainerMeta{
+			ContainerID: string(containerID),
+		}
+		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
+	}
+	return nil
+}
+
 type procGroup struct {
 	key         string
 	containerID utils.ContainerID
-	rootPath    string
 }
 
 func groupProcesses(procs []*process.Process, getKey func(*process.Process) (string, bool)) map[procGroup]*process.Process {
@@ -482,25 +536,16 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (str
 		// if the process does not run in any form of container, containerID
 		// is the empty string "" and it can be run locally
 		containerID, _ := utils.GetProcessContainerID(proc.Pid)
-		var rootPath string
-		if containerID != "" {
-			p, err := utils.GetContainerOverlayPath(proc.Pid)
-			if err != nil {
-				continue
-			}
-			rootPath = p
-		} else {
-			rootPath = "/"
-		}
 		// We dedupe our scans based on the resource type and the container
 		// ID, assuming that we will scan the same configuration for each
 		// containers running the process.
 		groupKey := procGroup{
 			key:         key,
 			containerID: containerID,
-			rootPath:    rootPath,
 		}
-		groups[groupKey] = proc
+		if _, ok := groups[groupKey]; !ok {
+			groups[groupKey] = proc
+		}
 	}
 	return groups
 }

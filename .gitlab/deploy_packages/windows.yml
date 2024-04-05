@@ -4,7 +4,7 @@
 #
 deploy_packages_windows-x64-6:
   rules:
-    !reference [.on_deploy_a6]
+    !reference [.on_deploy]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -15,8 +15,8 @@ deploy_packages_windows-x64-6:
     - $S3_CP_CMD
       --recursive
       --exclude "*"
-      --include "datadog-agent-6*$CI_PIPELINE_ID*.msi"
-      --include "datadog-agent-6*$CI_PIPELINE_ID*.debug.zip"
+      --include "datadog-agent-6*.msi"
+      --include "datadog-agent-6*.debug.zip"
       $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
 
 #
@@ -24,7 +24,7 @@ deploy_packages_windows-x64-6:
 #
 deploy_packages_windows-x64-7:
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -35,13 +35,13 @@ deploy_packages_windows-x64-7:
     - $S3_CP_CMD
       --recursive
       --exclude "*"
-      --include "datadog-agent-7*$CI_PIPELINE_ID*.msi"
-      --include "datadog-agent-7*$CI_PIPELINE_ID*.debug.zip"
+      --include "datadog-agent-7*.msi"
+      --include "datadog-agent-7*.debug.zip"
       $OMNIBUS_PACKAGE_DIR $S3_RELEASE_ARTIFACTS_URI/msi/x86_64/ || true
 
 deploy_staging_windows_tags-7:
   rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch_a7]
+    !reference [.on_deploy_stable_or_beta_repo_branch]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]

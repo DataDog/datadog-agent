@@ -8,15 +8,25 @@ package adlistener
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
 	adsched := scheduler.NewMetaScheduler()
-	ac := autodiscoveryimpl.CreateMockAutoConfig(t, adsched)
+	ac := fxutil.Test[autodiscovery.Mock](t,
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
+		autodiscoveryimpl.MockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		core.MockBundle())
 
 	got1 := make(chan struct{}, 1)
 	l1 := NewADListener("l1", ac, func(configs []integration.Config) {

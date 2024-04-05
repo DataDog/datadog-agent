@@ -141,6 +141,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.ConsumeTopics(topicName),
+						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
 					},
 				})
 				require.NoError(t, err)
@@ -391,6 +392,50 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				cfg.EnableHTTPMonitoring = true
 				return cfg
 			},
+		},
+		{
+			name: "Multiple records within the same produce requests",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": s.getTopicName(),
+				},
+			},
+			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				topicName := ctx.extras["topic_name"].(string)
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{
+						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.ConsumeTopics(topicName),
+					},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(topicName))
+
+				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
+				record2 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka again!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
+
+				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
+
+				// kgo client is sending an extra fetch request before running the test, so double the expected fetch request
+				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: 4,
+					expectedNumberOfFetchRequests:   2, // The presence of 2 fetch requests is due to kgo
+					expectedAPIVersionProduce:       8,
+					expectedAPIVersionFetch:         11,
+				})
+			},
+			teardown:      kafkaTeardown,
+			configuration: getDefaultTestConfiguration,
 		},
 	}
 

@@ -138,6 +138,7 @@ runtime_security_config:
   security_profile:
     enabled: {{ .EnableSecurityProfile }}
 {{if .EnableSecurityProfile}}
+    max_image_tags: {{ .SecurityProfileMaxImageTags }}
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     auto_suppression:
@@ -239,6 +240,7 @@ type testModule struct {
 	proFile       *os.File
 	ruleEngine    *rulesmodule.RuleEngine
 	tracePipe     *tracePipeLogger
+	msgSender     *fakeMsgSender
 }
 
 var testMod *testModule
@@ -655,7 +657,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 
-		if !ebpfLessEnabled {
+		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 				return testMod, err
 			}
@@ -713,7 +715,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if opts.staticOpts.tagsResolver != nil {
 		emopts.ProbeOpts.TagsResolver = opts.staticOpts.tagsResolver
 	} else {
-		emopts.ProbeOpts.TagsResolver = NewFakeResolver()
+		emopts.ProbeOpts.TagsResolver = NewFakeResolverDifferentImageNames()
 	}
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, emopts, optional.NewNoneOption[workloadmeta.Component]())
 	if err != nil {
@@ -723,12 +725,15 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	var ruleSetloadedErr *multierror.Error
 	if !opts.staticOpts.disableRuntimeSecurity {
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod})
+		msgSender := newFakeMsgSender(testMod)
+
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod, MsgSender: msgSender})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
 		testMod.cws = cws
 		testMod.ruleEngine = cws.GetRuleEngine()
+		testMod.msgSender = msgSender
 
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
@@ -767,7 +772,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if !ebpfLessEnabled {
+	if !disableTracePipe && !ebpfLessEnabled {
 		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 			return nil, err
 		}
@@ -961,6 +966,10 @@ func (tm *testModule) Close() {
 	}
 
 	tm.statsdClient.Flush()
+
+	if tm.msgSender != nil {
+		tm.msgSender.flush()
+	}
 
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
@@ -1229,7 +1238,22 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 		return nil, err
 	}
 
+	time.Sleep(1 * time.Second) // a quick sleep to ensure the dump has started
 	return docker, nil
+}
+
+func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*activityDumpIdentifier, error) {
+	dumps, err := tm.ListActivityDumps()
+	if err != nil {
+		_, _ = dockerInstance.stop()
+		return nil, err
+	}
+	dump := findLearningContainerID(dumps, dockerInstance.containerID)
+	if dump == nil {
+		_, _ = dockerInstance.stop()
+		return nil, errors.New("ContainerID not found on activity dump list")
+	}
+	return dump, nil
 }
 
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
@@ -1237,16 +1261,9 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	if err != nil {
 		return nil, nil, err
 	}
-	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
-	dumps, err := tm.ListActivityDumps()
+	dump, err := tm.GetDumpFromDocker(dockerInstance)
 	if err != nil {
-		_, _ = dockerInstance.stop()
 		return nil, nil, err
-	}
-	dump := findLearningContainerID(dumps, dockerInstance.containerID)
-	if dump == nil {
-		_, _ = dockerInstance.stop()
-		return nil, nil, errors.New("ContainerID not found on activity dump list")
 	}
 	return dockerInstance, dump, nil
 }
@@ -1641,4 +1658,74 @@ func removeFakePasswd() error {
 
 func removeFakeGroup() error {
 	return os.Remove(fakeGroupPath)
+}
+
+func (tm *testModule) ListAllProfiles() {
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return
+	}
+
+	m := p.GetProfileManagers()
+	if m == nil {
+		return
+	}
+
+	spm := m.GetSecurityProfileManager()
+	if spm == nil {
+		return
+	}
+	spm.ListAllProfileStates()
+}
+
+func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state profile.EventFilteringProfileState) error {
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return errors.New("no ebpf probe")
+	}
+
+	m := p.GetProfileManagers()
+	if m == nil {
+		return errors.New("no profile managers")
+	}
+
+	spm := m.GetSecurityProfileManager()
+	if spm == nil {
+		return errors.New("no security profile managers")
+	}
+
+	profile := spm.GetProfile(*selector)
+	if profile == nil {
+		return errors.New("no profile")
+	}
+
+	err := profile.SetVersionState(imageTag, state)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (tm *testModule) GetProfileVersions(imageName string) ([]string, error) {
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return []string{}, errors.New("no ebpf probe")
+	}
+
+	m := p.GetProfileManagers()
+	if m == nil {
+		return []string{}, errors.New("no profile managers")
+	}
+
+	spm := m.GetSecurityProfileManager()
+	if spm == nil {
+		return []string{}, errors.New("no security profile managers")
+	}
+
+	profile := spm.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+	if profile == nil {
+		return []string{}, errors.New("no profile")
+	}
+
+	return profile.GetVersions(), nil
 }

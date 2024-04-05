@@ -20,69 +20,64 @@ import (
 
 func TestDBConfLoader(t *testing.T) {
 	{
-		res, ok := LoadDBResourceFromPID(context.Background(), 0)
+		proc, err := process.NewProcess(int32(os.Getpid()))
+		assert.NoError(t, err)
+		resourceType, res, ok := LoadConfiguration(context.Background(), "/", proc)
 		assert.False(t, ok)
-		assert.Nil(t, res)
-	}
-
-	{
-		res, ok := LoadDBResourceFromPID(context.Background(), int32(os.Getpid()))
-		assert.False(t, ok)
+		assert.Empty(t, resourceType)
 		assert.Nil(t, res)
 	}
 
 	{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		proc := launchFakeProcess(ctx, t, "postgres")
-
-		res, ok := LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
+		proc, stop := launchFakeProcess(ctx, t, "postgres")
+		defer stop()
+		resourceType, res, ok := LoadConfiguration(context.Background(), "/", proc)
 		assert.True(t, ok)
 		assert.NotNil(t, res)
-		assert.Equal(t, postgresqlResourceType, res.Type)
-		assert.NotNil(t, res.Config)
-		assert.NotNil(t, res.Config.ConfigData)
-
-		err := proc.Kill()
-		assert.NoError(t, err)
-		proc.Wait()
-
-		res, ok = LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
-		assert.False(t, ok)
-		assert.Nil(t, res)
+		assert.Equal(t, postgresqlResourceType, resourceType)
+		assert.NotNil(t, res)
+		assert.NotNil(t, res.ConfigData)
+		assert.NotEmpty(t, res.ProcessName)
+		assert.NotEmpty(t, res.ProcessUser)
+		assert.Empty(t, res.ConfigFilePath)
+		assert.Equal(t, "<none>", res.ConfigFileUser)
+		assert.Equal(t, "<none>", res.ConfigFileGroup)
+		assert.Zero(t, res.ConfigFileMode)
 	}
 
 	{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		configPath := filepath.Join(t.TempDir(), "postgres.conf")
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, "postgres.conf")
 		err := os.WriteFile(configPath, []byte(pgConfigCommon), 0600)
 		assert.NoError(t, err)
 
-		proc := launchFakeProcess(ctx, t, "postgres", "--config-file", configPath)
+		proc, stop := launchFakeProcess(ctx, t, "postgres", "--config-file", "postgres.conf")
+		defer stop()
 
-		proc2, err := process.NewProcessWithContext(ctx, int32(proc.Pid))
-		assert.NoError(t, err)
-		resourceType, ok := GetProcResourceType(proc2)
+		resourceType, ok := GetProcResourceType(proc)
 		assert.True(t, ok)
 		assert.Equal(t, postgresqlResourceType, resourceType)
 
-		res, ok := LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
+		resourceType, res, ok := LoadConfiguration(context.Background(), tempDir, proc)
 		assert.True(t, ok)
 		assert.NotNil(t, res)
-
-		err = proc.Kill()
-		assert.NoError(t, err)
-		proc.Wait()
-
-		res, ok = LoadDBResourceFromPID(context.Background(), int32(proc.Pid))
-		assert.False(t, ok)
-		assert.Nil(t, res)
+		assert.Equal(t, postgresqlResourceType, resourceType)
+		assert.NotNil(t, res.ConfigData)
+		assert.NotEmpty(t, res.ProcessName)
+		assert.NotEmpty(t, res.ProcessUser)
+		assert.NotEmpty(t, res.ConfigFilePath)
+		assert.NotEmpty(t, res.ConfigFileUser)
+		assert.NotEmpty(t, res.ConfigFileGroup)
+		assert.Equal(t, uint32(0600), res.ConfigFileMode)
 	}
 }
 
-func launchFakeProcess(ctx context.Context, t *testing.T, procname string, args ...string) *os.Process {
+func launchFakeProcess(ctx context.Context, t *testing.T, procname string, args ...string) (*process.Process, func()) {
 	binPath := filepath.Join(t.TempDir(), procname)
 	if err := os.WriteFile(binPath, []byte("#!/bin/bash\nsleep 10"), 0700); err != nil {
 		t.Fatal(err)
@@ -93,7 +88,13 @@ func launchFakeProcess(ctx context.Context, t *testing.T, procname string, args 
 		t.Fatalf("could not start fake process %q: %v", procname, err)
 	}
 
-	return cmd.Process
+	proc, err := process.NewProcess(int32(cmd.Process.Pid))
+	assert.NoError(t, err)
+
+	return proc, func() {
+		cmd.Process.Kill()
+		cmd.Process.Wait()
+	}
 }
 
 func TestPGConfParsingIncludeRel(t *testing.T) {
@@ -117,13 +118,8 @@ dynamic_shared_memory_type = 'overridden'`
 		t.Fatal(err)
 	}
 
-	p := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
-	defer func() {
-		p.Kill()
-		p.Wait()
-	}()
-	proc, err := process.NewProcess(int32(p.Pid))
-	assert.NoError(t, err)
+	proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	defer stop()
 	conf, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 	assert.Equal(t, true, ok)
 	configData := conf.ConfigData.(map[string]interface{})
@@ -153,13 +149,8 @@ dynamic_shared_memory_type = 'overridden'
 		t.Fatal(err)
 	}
 
-	p := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
-	defer func() {
-		p.Kill()
-		p.Wait()
-	}()
-	proc, err := process.NewProcess(int32(p.Pid))
-	assert.NoError(t, err)
+	proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	defer stop()
 	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 	assert.Equal(t, true, ok)
 	configData := c.ConfigData.(map[string]interface{})
@@ -183,13 +174,8 @@ func TestPGConfParsingCustom(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
-	defer func() {
-		p.Kill()
-		p.Wait()
-	}()
-	proc, err := process.NewProcess(int32(p.Pid))
-	assert.NoError(t, err)
+	proc, stop := launchFakeProcess(context.Background(), t, "postgres", "--config", configPath)
+	defer stop()
 	c, ok := LoadPostgreSQLConfig(context.Background(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(map[string]interface{})
@@ -288,13 +274,8 @@ func TestCassandraConfParsing(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(hostroot, "/etc/cassandra/logback.xml"), []byte(cassandraLogbackSample), 0600); err != nil {
 		t.Fatal(err)
 	}
-	p := launchFakeProcess(context.Background(), t, "java")
-	defer func() {
-		p.Kill()
-		p.Wait()
-	}()
-	proc, err := process.NewProcess(int32(p.Pid))
-	assert.NoError(t, err)
+	proc, stop := launchFakeProcess(context.Background(), t, "java")
+	defer stop()
 	c, ok := LoadCassandraConfig(context.Background(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(*cassandraDBConfig)
@@ -314,13 +295,8 @@ func TestMongoDBConfParsing(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(hostroot, "/etc/mongod.conf"), []byte(mongodConfigSample), 0600); err != nil {
 		t.Fatal(err)
 	}
-	p := launchFakeProcess(context.Background(), t, "mongod")
-	defer func() {
-		p.Kill()
-		p.Wait()
-	}()
-	proc, err := process.NewProcess(int32(p.Pid))
-	assert.NoError(t, err)
+	proc, stop := launchFakeProcess(context.Background(), t, "mongod")
+	defer stop()
 	c, ok := LoadMongoDBConfig(context.Background(), hostroot, proc)
 	assert.True(t, ok)
 	configData := c.ConfigData.(*mongoDBConfig)

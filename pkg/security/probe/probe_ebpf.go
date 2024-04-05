@@ -421,7 +421,8 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
-		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
+		imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+		p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext, imageTag)
 		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
 			p.sendAnomalyDetection(event)
 		}
@@ -1357,19 +1358,16 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 
 	// Resolve mount point
 	if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
-		seclog.Debugf("failed to set mount point: %v", err)
-		return err
+		return fmt.Errorf("failed to set mount point: %w", err)
 	}
 	// Resolve root
 	if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
-		seclog.Debugf("failed to set mount root: %v", err)
-		return err
+		return fmt.Errorf("failed to set mount root: %w", err)
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
 	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
-		seclog.Errorf("failed to insert mount event: %v", err)
-		return err
+		return fmt.Errorf("failed to insert mount event: %w", err)
 	}
 
 	return nil

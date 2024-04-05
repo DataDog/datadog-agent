@@ -88,7 +88,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
-	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)
+	fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) })
 	fb.AddFileFromFunc("docker_ps.log", getDockerPs)
 
 	getRegistryJSON(fb)

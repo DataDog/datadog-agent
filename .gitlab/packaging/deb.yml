@@ -1,0 +1,45 @@
+---
+.updater_package_deb_common:
+  before_script:
+    - source /root/.bashrc
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+    - export INSTALL_DIR=/opt/datadog/updater/
+  stage: packaging
+  script:
+    - source /root/.bashrc
+    - !reference [.setup_ruby_mirror_linux]
+    - echo "About to package for $RELEASE_VERSION"
+    - export OMNIBUS_PACKAGE_ARTIFACT="$(ls ${OMNIBUS_PACKAGE_DIR}/*.tar.xz | head -n 1)"
+    - echo "Packaging artifact ${OMNIBUS_PACKAGE_ARTIFACT} to .deb"
+    - !reference [.setup_deb_signing_key]
+    - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+updater_deb-amd64:
+  extends: .updater_package_deb_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["updater-amd64"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DESTINATION_DEB: "datadog-updater_7_amd64.deb"
+
+updater_deb-arm64:
+  extends: .updater_package_deb_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["updater-arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DESTINATION_DEB: "datadog-updater_7_arm64.deb"
+

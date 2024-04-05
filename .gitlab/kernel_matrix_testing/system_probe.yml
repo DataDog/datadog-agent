@@ -2,17 +2,17 @@
 upload_dependencies_sysprobe_x64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_x64"]
+  needs: ["pull_test_dockers_x64", "go_deps", "go_tools_deps"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
-    ARCH: amd64
+    ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
     TEST_COMPONENT: system-probe
 
 upload_dependencies_sysprobe_arm64:
   extends:
     - .package_dependencies
-  needs: ["pull_test_dockers_arm64"]
+  needs: ["pull_test_dockers_arm64", "go_deps", "go_tools_deps"]
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     ARCH: arm64
@@ -43,7 +43,7 @@ upload_dependencies_sysprobe_arm64:
 pull_test_dockers_x64:
   extends: .pull_test_dockers
   variables:
-    ARCH: amd64
+    ARCH: x86_64
 
 pull_test_dockers_arm64:
   extends: .pull_test_dockers
@@ -236,6 +236,9 @@ kmt_run_sysprobe_tests_x64:
           - "centos_79"
           - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
 
 kmt_run_sysprobe_tests_arm64:
   extends:
@@ -268,6 +271,8 @@ kmt_run_sysprobe_tests_arm64:
           - "centos_79"
           - "centos_8"
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
 
 .kmt_sysprobe_cleanup:
   extends:

@@ -10,13 +10,13 @@ go 1.21.8
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.13.3
 	github.com/DataDog/sketches-go v1.4.2
@@ -39,6 +39,7 @@ require (
 	go.opentelemetry.io/collector/processor v0.93.0
 	go.opentelemetry.io/collector/semconv v0.93.0
 	go.opentelemetry.io/otel v1.22.0
+	go.opentelemetry.io/otel/metric v1.22.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.16.0
 	golang.org/x/time v0.3.0
@@ -101,7 +102,6 @@ require (
 	go.opentelemetry.io/collector/confmap v0.93.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.0.1 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.45.0 // indirect
-	go.opentelemetry.io/otel/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.22.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/trace v1.22.0 // indirect

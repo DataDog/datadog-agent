@@ -1,0 +1,72 @@
+---
+unit_tests_arm64_windows_junit_upload:
+  stage: junit_upload
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  allow_failure: true
+  needs:
+    - tests_deb-arm64-py3
+    - tests_rpm-arm64-py3
+    - tests_windows-x64
+    - integration_tests_windows-x64
+  script:
+    - source /root/.bashrc
+    # Upload generated junit files
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    # As we collect junit files from different jobs, we allow failures (normally "no file found") in the junit-upload task at each iteration
+    - for f in junit-*.tgz; do inv -e junit-upload --tgz-path $f || echo "No file found"; done
+
+kmt_arm64_junit_upload:
+  stage: junit_upload
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  allow_failure: true
+  needs:
+    - job: kmt_run_sysprobe_tests_arm64
+      parallel:
+        matrix:
+          - TAG:
+            - "ubuntu_18.04"
+            - "ubuntu_20.04"
+            - "ubuntu_22.04"
+            - "ubuntu_23.10"
+            - "amzn_4.14"
+            - "amzn_5.4"
+            - "amzn_5.10"
+            - "fedora_37"
+            - "fedora_38"
+            - "debian_10"
+            - "debian_11"
+            - "debian_12"
+            - "centos_79"
+            - "centos_8"
+            TEST_SET: ["no_tracersuite", "only_tracersuite"]
+      optional: true
+    - job: kmt_run_secagent_tests_arm64
+      parallel:
+        matrix:
+          - TAG:
+              - "ubuntu_18.04"
+              - "ubuntu_20.04"
+              - "ubuntu_22.04"
+              - "ubuntu_23.10"
+              - "amzn_5.4"
+              - "amzn_5.10"
+              - "fedora_37"
+              - "fedora_38"
+              - "debian_10"
+              - "debian_11"
+              - "debian_12"
+            TEST_SET: ["all_tests"]
+      optional: true
+  script:
+    - source /root/.bashrc
+    # Upload generated junit files
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - ss=0; for f in $DD_AGENT_TESTING_DIR/junit-*.tar.gz; do [[ -e "$f" ]] || continue; inv -e junit-upload --tgz-path $f || ((ss++)); done; exit $ss

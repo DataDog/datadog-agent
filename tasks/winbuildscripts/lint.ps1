@@ -10,8 +10,6 @@ if ($Env:TARGET_ARCH -eq "x64") {
 $LINT_ROOT=(Get-Location).Path
 $Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH;$Env:VSTUDIO_ROOT\VC\Tools\Llvm\bin"
 
-& $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
-
 $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
@@ -29,7 +27,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e lint-go --arch $archflag
+& inv -e linter.go --arch $archflag
 
 $err = $LASTEXITCODE
 Write-Host Lint result is $err

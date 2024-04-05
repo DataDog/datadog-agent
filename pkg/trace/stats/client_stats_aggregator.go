@@ -6,8 +6,9 @@
 package stats
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/trace/version"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/version"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -68,7 +69,7 @@ func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayloa
 		agentEnv:            conf.DefaultEnv,
 		agentHostname:       conf.Hostname,
 		agentVersion:        conf.AgentVersion,
-		peerTagsAggregation: conf.PeerServiceAggregation || conf.PeerTagsAggregation,
+		peerTagsAggregation: conf.PeerTagsAggregation,
 		oldestTs:            alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
 		exit:                make(chan struct{}),
 		done:                make(chan struct{}),
@@ -294,6 +295,7 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 				HTTPStatusCode: aggrKey.StatusCode,
 				Type:           aggrKey.Type,
 				Synthetics:     aggrKey.Synthetics,
+				IsTraceRoot:    aggrKey.IsTraceRoot,
 				PeerTags:       counts.peerTags,
 				Hits:           counts.hits,
 				Errors:         counts.errors,
@@ -332,13 +334,14 @@ func newPayloadAggregationKey(env, hostname, version, cid string, gitCommitSha s
 
 func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerTagsAgg bool) BucketsAggregationKey {
 	k := BucketsAggregationKey{
-		Service:    b.Service,
-		Name:       b.Name,
-		SpanKind:   b.SpanKind,
-		Resource:   b.Resource,
-		Type:       b.Type,
-		Synthetics: b.Synthetics,
-		StatusCode: b.HTTPStatusCode,
+		Service:     b.Service,
+		Name:        b.Name,
+		SpanKind:    b.SpanKind,
+		Resource:    b.Resource,
+		Type:        b.Type,
+		Synthetics:  b.Synthetics,
+		StatusCode:  b.HTTPStatusCode,
+		IsTraceRoot: b.IsTraceRoot,
 	}
 	if enablePeerTagsAgg {
 		k.PeerTagsHash = peerTagsHash(b.GetPeerTags())
