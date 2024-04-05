@@ -30,6 +30,18 @@ provider:
     DD_CAPTURE_LAMBDA_PAYLOAD: true
     DD_COLD_START_TRACING: false
     DD_LOG_LEVEL: DEBUG
+    DD_LOGS_CONFIG_PROCESSING_RULES: >-
+      [
+      {"type": "mask_sequences", "name": "masked_value", "replace_placeholder": "masked", "pattern": "__[\\w|_]*__"},
+      {"type": "exclude_at_match", "name": "exclude_extension_logs", "pattern": "\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2}:\\d{2}\\sUTC\\s\\|\\sDD_EXTENSION"},
+      {"type": "exclude_at_match", "name": "exclude_datadog_wrapper_logs", "pattern": "\\[datadog-wrapper\\]"},
+      {"type": "exclude_at_match", "name": "exclude_dotnet_tracer_logs", "pattern": "\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2}:\\d{2}:\\d{3}\\s\\[DD_TRACE_DOTNET\\]"},
+      {"type": "exclude_at_match", "name": "exclude_go_tracer_logs", "pattern": "\\d{4}/\\d{2}/\\d{2}\\s\\d{2}:\\d{2}:\\d{2}\\sDatadog\\sTracer"},
+      {"type": "exclude_at_match", "name": "exclude_go_tracer_logs_2", "pattern": "\\d{4}/\\d{2}/\\d{2}\\s\\d{2}:\\d{2}:\\d{2}\\s{\"status\":\"debug\",.*?}"},
+      {"type": "exclude_at_match", "name": "exclude_java_tracer_logs", "pattern": "\\[dd.trace\\s\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2}:\\d{2}:\\d{3}\\s\\+\\d{4}\\]"},
+      {"type": "exclude_at_match", "name": "exclude_node_tracer_logs", "pattern": "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z\\s[a-z0-9\\-]+\\sDEBUG\\s{\"status\":\"debug\",.*?}"},
+      {"type": "exclude_at_match", "name": "exclude_python_tracer_logs", "pattern": "\\[DEBUG\\]\\s\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z"}
+      ]
   timeout: 15
   deploymentBucket:
     name: integration-tests-serververless-deployment-bucket
@@ -388,8 +400,6 @@ functions:
     runtime: nodejs18.x
     package:
       individually: true
-      patterns:
-        - datadog.yaml
     handler: src/log.logTest
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
@@ -403,8 +413,6 @@ functions:
     runtime: python3.8
     package:
       individually: true
-      patterns:
-        - datadog.yaml
     handler: datadog_lambda.handler.handler
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python38${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
@@ -421,7 +429,6 @@ functions:
       individually: true
       patterns:
         - src/bin/log
-        - datadog.yaml
     handler: src/bin/log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -436,8 +443,6 @@ functions:
     package:
       individually: true
       artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
-      patterns:
-        - datadog.yaml
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
@@ -453,8 +458,6 @@ functions:
     package:
       individually: true
       artifact: src/java-tests/log/target/log-dev.jar
-      patterns:
-        - datadog.yaml
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
@@ -469,8 +472,6 @@ functions:
     runtime: nodejs18.x
     package:
       individually: true
-      patterns:
-        - datadog.yaml
     handler: src/proxyTestFunctions.log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
