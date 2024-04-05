@@ -17,7 +17,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -57,9 +56,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	statusCmd.Flags().BoolVarP(&cliParams.json, flags.JSON, "j", false, "print out raw json")
-	statusCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, flags.PrettyJSON, "p", false, "pretty print JSON")
-	statusCmd.Flags().StringVarP(&cliParams.file, flags.File, "o", "", "Output the status command to a file")
+	statusCmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	statusCmd.Flags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
+	statusCmd.Flags().StringVarP(&cliParams.file, "file", "o", "", "Output the status command to a file")
 
 	return []*cobra.Command{statusCmd}
 }

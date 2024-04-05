@@ -3,7 +3,7 @@
 import sys
 
 sys.path.insert(0, "tasks")
-from libs.copyright import CopyrightLinter, LintFailure  # noqa: E402
+from tasks.libs.types.copyright import CopyrightLinter, LintFailure  # noqa: E402
 
 # Exclude non go files
 files = [path for path in sys.argv[1:] if path.endswith(".go")]

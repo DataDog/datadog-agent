@@ -1,6 +1,6 @@
 # Security agent overrides
 upload_dependencies_secagent_x64:
-  needs: []
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -11,7 +11,7 @@ upload_dependencies_secagent_x64:
     TEST_COMPONENT: security-agent
 
 upload_dependencies_secagent_arm64:
-  needs: []
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -154,7 +154,15 @@ kmt_run_secagent_tests_x64:
           - "debian_10"
           - "debian_11"
           - "debian_12"
+          - "oracle_8.9"
+          - "oracle_9.3"
+          - "rocky_8.5"
+          - "rocky_9.3"
         TEST_SET: [all_tests]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
 
 kmt_run_secagent_tests_arm64:
   extends:
@@ -179,7 +187,13 @@ kmt_run_secagent_tests_arm64:
           - "fedora_38"
           - "debian_11"
           - "debian_12"
+          - "oracle_8.9"
+          - "oracle_9.3"
+          - "rocky_8.5"
+          - "rocky_9.3"
         TEST_SET: ["all_tests"]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
 
 .kmt_secagent_cleanup:
   extends:

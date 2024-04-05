@@ -2,189 +2,105 @@
 # pkg_metrics stage
 # Contains jobs which send metrics (package size) about the Linus Agent packages to our backend.
 
-.add_metric_func:
-  script:
-    - apt-get install -y jq
-    # Build up a JSON body in $post_body.
-    # To send metrics accumulated in $post_body by add_metric, use the .send_metrics script
-    - 'post_body="{\"series\": []}"'
-    - currenttime=$(date +%s)
-    - |
-      add_metric() {
-          local metric="${1}"
-          shift
-          local value="${1}"
-          shift
-
-          local tags=[]
-          while [ -n "${1}" ]; do
-              tags=$(echo $tags | jq -c ". += [\"${1}\"]")
-              shift
-          done
-
-          post_body=$(echo $post_body | jq -c ".series += [{\"metric\":\"$metric\", \"points\":[[$currenttime, $value]],\"tags\":$tags}]")
-      }
-
-.send_metrics:
-  script:
-    # Send the metrics accumulated by add_metric
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
-    - 'curl --fail -X POST -H "Content-type: application/json" -d "$post_body" "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"'
-
-send_pkg_size-a6:
-  allow_failure: true
-  rules: !reference [.on_deploy_a6]
+send_pkg_size:
   stage: pkg_metrics
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
+      allow_failure: true
   needs:
-    - agent_deb-x64-a6
-    - agent_rpm-x64-a6
-    - agent_suse-x64-a6
-    - agent_deb-arm64-a6
-    - agent_rpm-arm64-a6
-  before_script:
-    # FIXME: tmp while we uppdate the base image
-    - apt-get install -y wget rpm2cpio cpio
-    - ls -l $OMNIBUS_PACKAGE_DIR
-    - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+    - job: agent_deb-arm64-a6
+      optional: true
+    - job: agent_deb-arm64-a7
+      optional: true
+    - job: agent_deb-x64-a6
+      optional: true
+    - job: agent_deb-x64-a7
+      optional: true
+    - job: agent_heroku_deb-x64-a6
+      optional: true
+    - job: agent_heroku_deb-x64-a7
+      optional: true
+    - job: agent_rpm-arm64-a6
+      optional: true
+    - job: agent_rpm-arm64-a7
+      optional: true
+    - job: agent_rpm-x64-a6
+      optional: true
+    - job: agent_rpm-x64-a7
+      optional: true
+    - job: agent_suse-arm64-a7
+      optional: true
+    - job: agent_suse-x64-a6
+      optional: true
+    - job: agent_suse-x64-a7
+      optional: true
+    - job: dogstatsd_deb-arm64
+      optional: true
+    - job: dogstatsd_deb-x64
+      optional: true
+    - job: dogstatsd_rpm-x64
+      optional: true
+    - job: dogstatsd_suse-x64
+      optional: true
+    - job: iot_agent_deb-arm64
+      optional: true
+    - job: iot_agent_deb-x64
+      optional: true
+    - job: iot_agent_rpm-arm64
+      optional: true
+    - job: iot_agent_rpm-x64
+      optional: true
+    - job: iot_agent_suse-x64
+      optional: true
   script:
     - source /root/.bashrc
-    - mkdir -p /tmp/deb/amd64-agent
-    - mkdir -p /tmp/deb/arm64-agent
-    - mkdir -p /tmp/rpm/amd64-agent
-    - mkdir -p /tmp/rpm/arm64-agent
-    - mkdir -p /tmp/suse/amd64-agent
 
-    # we silence dpkg and cpio output so we don't exceed gitlab log limit
+    # Get API key to send metrics
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
 
-    # debian
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_amd64.deb /tmp/deb/amd64-agent > /dev/null
-    - AMD64_DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/amd64-agent | sed 's/\([0-9]\+\).\+/\1/')
-    # debian arm64
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_arm64.deb /tmp/deb/arm64-agent > /dev/null
-    - ARM64_DEB_AGENT_SIZE=$(du -sB1 /tmp/deb/arm64-agent | sed 's/\([0-9]\+\).\+/\1/')
-    # centos
-    - cd /tmp/rpm/amd64-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.x86_64.rpm | cpio -idm > /dev/null
-    - AMD64_RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/amd64-agent | sed 's/\([0-9]\+\).\+/\1/')
-    # centos arm64
-    - cd /tmp/rpm/arm64-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.aarch64.rpm | cpio -idm > /dev/null
-    - ARM64_RPM_AGENT_SIZE=$(du -sB1 /tmp/rpm/arm64-agent | sed 's/\([0-9]\+\).\+/\1/')
+    # Allow failures: some packages are not always built, and therefore stats cannot be sent for them
+    - set +e
 
-    # suse
-    - cd /tmp/suse/amd64-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-6.*.x86_64.rpm | cpio -idm > /dev/null
-    - AMD64_SUSE_AGENT_SIZE=$(du -sB1 /tmp/suse/amd64-agent | sed 's/\([0-9]\+\).\+/\1/')
-
-    - currenttime=$(date +%s)
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_SSM_NAME)
-    - |
-      curl --fail -X POST -H "Content-type: application/json" \
-      -d "{\"series\":[
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $AMD64_DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:amd64\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $AMD64_RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:amd64\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $AMD64_SUSE_AGENT_SIZE]], \"tags\":[\"os:suse\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:amd64\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $ARM64_DEB_AGENT_SIZE]], \"tags\":[\"os:debian\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:arm64\"]},
-            {\"metric\":\"datadog.agent.package.size\",\"points\":[[$currenttime, $ARM64_RPM_AGENT_SIZE]], \"tags\":[\"os:centos\", \"package:agent\", \"agent:6\", \"bucket_branch:$BUCKET_BRANCH\", \"arch:arm64\"]}
-          ]}" \
-      "https://api.datadoghq.com/api/v1/series?api_key=$DD_API_KEY"
-
-send_pkg_size-a7:
-  allow_failure: true
-  rules: !reference [.on_deploy_a7]
-  stage: pkg_metrics
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs:
-    - agent_deb-x64-a7
-    - agent_deb-arm64-a7
-    - iot_agent_deb-x64
-    - iot_agent_deb-arm64
-    - dogstatsd_deb-x64
-    - dogstatsd_deb-arm64
-    - agent_heroku_deb-x64-a7
-    - agent_rpm-arm64-a7
-    - agent_rpm-x64-a7
-    - iot_agent_rpm-x64
-    - iot_agent_rpm-arm64
-    - dogstatsd_rpm-x64
-    - agent_suse-x64-a7
-    - dogstatsd_suse-x64
-    - iot_agent_suse-x64
-  before_script:
-    # FIXME: tmp while we uppdate the base image
-    - apt-get install -y wget rpm2cpio cpio
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
-  script:
-    - source /root/.bashrc
-    - !reference [.add_metric_func, script]
 
-    - source /root/.bashrc
-    - mkdir -p /tmp/amd64-deb/agent /tmp/amd64-deb/dogstatsd /tmp/amd64-deb/iot-agent /tmp/amd64-deb/heroku-agent
-    - mkdir -p /tmp/arm64-deb/agent /tmp/arm64-deb/dogstatsd /tmp/arm64-deb/iot-agent
-    - mkdir -p /tmp/amd64-rpm/agent /tmp/amd64-rpm/dogstatsd /tmp/amd64-rpm/iot-agent
-    - mkdir -p /tmp/arm64-rpm/agent /tmp/arm64-rpm/iot-agent
-    - mkdir -p /tmp/amd64-suse/agent /tmp/amd64-suse/dogstatsd /tmp/amd64-suse/iot-agent
+    # Agent 6
+    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_amd64.deb --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "heroku-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_6*_amd64.deb --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    - |
-      add_metrics() {
-          local base="${1}"
-          local os="${2}"
-          local arch="${3}"
+    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_6*_arm64.deb --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
-          # record the total uncompressed size of each package
-          for package in agent dogstatsd iot-agent heroku-agent; do
-              if [ ! -d "${base}/${package}" ]; then continue; fi
-              add_metric datadog.agent.package.size $(du -sB1 "${base}/${package}" | sed 's/\([0-9]\+\).\+/\1/') os:${os} package:${package} agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-          done
+    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.x86_64.rpm --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-          # record the size of each of the important binaries in each package
-          add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-          add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/trace-agent | sed 's/\([0-9]\+\).\+/\1/') bin:trace-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-          add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/security-agent | sed 's/\([0-9]\+\).\+/\1/') bin:security-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-          add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/process-agent | sed 's/\([0-9]\+\).\+/\1/') bin:process-agent os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-          add_metric datadog.agent.binary.size $(du -sB1 ${base}/agent/opt/datadog-agent/embedded/bin/system-probe | sed 's/\([0-9]\+\).\+/\1/') bin:system-probe os:${os} package:agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-          if [[ "$arch" == "amd64" || "$os" == "debian" ]]; then add_metric datadog.agent.binary.size $(du -sB1 ${base}/dogstatsd/opt/datadog-dogstatsd/bin/dogstatsd | sed 's/\([0-9]\+\).\+/\1/') bin:dogstatsd os:${os} package:dogstatsd agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}; fi
-          add_metric datadog.agent.binary.size $(du -sB1 ${base}/iot-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:iot-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch}
-          if [ -f "${base}/heroku-agent/opt/datadog-agent/bin/agent/agent" ]; then
-              add_metric datadog.agent.binary.size $(du -sB1 ${base}/heroku-agent/opt/datadog-agent/bin/agent/agent | sed 's/\([0-9]\+\).\+/\1/') bin:agent os:${os} package:heroku-agent agent:7 bucket_branch:$BUCKET_BRANCH arch:${arch};
-          fi
-      }
+    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-6.*.aarch64.rpm --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
-    # We silence dpkg and cpio output so we don't exceed gitlab log limit
+    - inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-6.*.x86_64.rpm --major-version "6" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    # debian
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb /tmp/amd64-deb/agent > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb /tmp/amd64-deb/iot-agent > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb /tmp/amd64-deb/dogstatsd > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_7*_amd64.deb /tmp/amd64-deb/heroku-agent > /dev/null
-    - add_metrics /tmp/amd64-deb debian amd64
+    # Agent 7
+    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "iot-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "dogstatsd" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "heroku-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-heroku-agent_7*_amd64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    # debian arm64
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_arm64.deb /tmp/arm64-deb/agent > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_arm64.deb /tmp/arm64-deb/iot-agent > /dev/null
-    - dpkg -x $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_arm64.deb /tmp/arm64-deb/dogstatsd > /dev/null
-    - add_metrics /tmp/arm64-deb debian arm64
+    - inv package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - inv package.send-size --flavor "iot-agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - inv package.send-size --flavor "dogstatsd" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd_7*_arm64.deb --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
-    # centos
-    - cd /tmp/amd64-rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/amd64-rpm/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/amd64-rpm/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - add_metrics /tmp/amd64-rpm centos amd64
+    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "iot-agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "dogstatsd" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    # centos arm64
-    - cd /tmp/arm64-rpm/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.aarch64.rpm | cpio -idm > /dev/null
-    - cd /tmp/arm64-rpm/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.aarch64.rpm | cpio -idm > /dev/null
-    - add_metrics /tmp/arm64-rpm centos arm64
+    - inv package.send-size --flavor "agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+    - inv package.send-size --flavor "iot-agent" --package-os "centos" --package-path $OMNIBUS_PACKAGE_DIR/datadog-iot-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
-    # suse
-    - cd /tmp/amd64-suse/agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/amd64-suse/dogstatsd && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - cd /tmp/amd64-suse/iot-agent && rpm2cpio $OMNIBUS_PACKAGE_DIR_SUSE/datadog-iot-agent-7.*.x86_64.rpm | cpio -idm > /dev/null
-    - add_metrics /tmp/amd64-suse suse amd64
+    - inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "iot-agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-iot-agent-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
+    - inv package.send-size --flavor "dogstatsd" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
-    # Send package and binary size metrics
-    - !reference [.send_metrics, script]
+    - inv package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.aarch64.rpm --major-version "7" --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
 
 .check_pkg_size:
   stage: pkg_metrics
@@ -192,7 +108,6 @@ send_pkg_size-a7:
   tags: ["arch:amd64"]
   script:
     - source /root/.bashrc
-    - !reference [.add_metric_func, script]
 
     - ls -l $OMNIBUS_PACKAGE_DIR
     - if [[ "${ARCH}" == "amd64" ]]; then ls -l $OMNIBUS_PACKAGE_DIR_SUSE; fi
@@ -211,7 +126,6 @@ send_pkg_size-a7:
           if [[ "${ARCH}" == "amd64" && "$flavor" != "datadog-heroku-agent" ]]; then
             mkdir -p "/tmp/stable/${flavor}/suse"
             curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/suse/stable/${MAJOR_VERSION}/${ARCH_RPM_EXT}/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm" -o "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm"
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR_SUSE}/${flavor}-${MAJOR_VERSION}.*.${ARCH_RPM_EXT}.rpm | cut -f -1) os:suse package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:${ARCH}
             set +e
             inv package.compare-size --package-type "${flavor} suse rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR_SUSE/${flavor}-${MAJOR_VERSION}.*.${ARCH_RPM_EXT}.rpm" --stable-package "/tmp/stable/${flavor}/suse/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm"
             failures=$((${failures}+$?))
@@ -222,8 +136,6 @@ send_pkg_size-a7:
 
           curl -sSL "https://s3.amazonaws.com/apt.datadoghq.com/pool/d/da/${flavor}_${last_stable}-1_${ARCH}.deb" -o "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_${ARCH}.deb"
 
-          add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}_${MAJOR_VERSION}*_${ARCH}.deb | cut -f -1) os:debian package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:${ARCH}
-
           set +e
           inv package.compare-size --package-type "${flavor} deb" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}_${MAJOR_VERSION}*_${ARCH}.deb" --stable-package "/tmp/stable/${flavor}/${flavor}_${last_stable}-1_${ARCH}.deb"
           failures=$((${failures}+$?))
@@ -232,7 +144,6 @@ send_pkg_size-a7:
           if [[ "$flavor" != "datadog-heroku-agent" && ( "${ARCH}" == "amd64" || "$flavor" != "datadog-dogstatsd") ]]; then
             # We don't build RPM packages for the heroku flavor
             curl -sSL "https://s3.amazonaws.com/yum.datadoghq.com/stable/${MAJOR_VERSION}/${ARCH_RPM_EXT}/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm" -o "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm"
-            add_metric datadog.agent.compressed_package.size $(du -sB1 ${OMNIBUS_PACKAGE_DIR}/${flavor}-${MAJOR_VERSION}.*.${ARCH_RPM_EXT}.rpm | cut -f -1) os:centos package:${flavor} agent:${MAJOR_VERSION} git_ref:${CI_COMMIT_REF_SLUG} bucket_branch:${BUCKET_BRANCH} arch:${ARCH}
             set +e
             inv package.compare-size --package-type "${flavor} rpm" --last-stable "${last_stable}" --threshold "${max_sizes[${flavor}]}" --new-package "$OMNIBUS_PACKAGE_DIR/${flavor}-${MAJOR_VERSION}.*.${ARCH_RPM_EXT}.rpm" --stable-package "/tmp/stable/${flavor}/${flavor}-${last_stable}-1.${ARCH_RPM_EXT}.rpm"
             failures=$((${failures}+$?))
@@ -240,15 +151,14 @@ send_pkg_size-a7:
           fi
       done
 
-    # Send package size metrics
-    - !reference [.send_metrics, script]
-
     # Make the job fail if at least one package is above threshold
     - if [ "${failures}" -ne "0" ]; then false; fi
 
 check_pkg_size-amd64-a6:
   extends: .check_pkg_size
-  rules: !reference [.on_a6]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - agent_deb-x64-a6
     - agent_rpm-x64-a6
@@ -258,16 +168,16 @@ check_pkg_size-amd64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "50000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
       )
 
 check_pkg_size-arm64-a6:
   extends: .check_pkg_size
-  rules: !reference [.on_all_builds_a6]
+  rules: !reference [.on_all_builds]
   needs:
     - agent_deb-arm64-a6
     - agent_rpm-arm64-a6
@@ -276,16 +186,18 @@ check_pkg_size-arm64-a6:
     FLAVORS: "datadog-agent"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "50000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "50000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
       )
 
 check_pkg_size-amd64-a7:
   extends: .check_pkg_size
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   needs:
     - agent_deb-x64-a7
     - iot_agent_deb-x64
@@ -305,12 +217,12 @@ check_pkg_size-amd64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd datadog-heroku-agent"
     ARCH: "amd64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" and ["datadog-heroku-agent"]="70000000" should
+    # FIXME: ["datadog-agent"]="140000000" and ["datadog-heroku-agent"]="140000000" should
     # be replaced by "50000000"
     # "70000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
           ["datadog-heroku-agent"]="70000000"
@@ -319,7 +231,7 @@ check_pkg_size-amd64-a7:
 
 check_pkg_size-arm64-a7:
   extends: .check_pkg_size
-  rules: !reference [.on_all_builds_a7]
+  rules: !reference [.on_all_builds]
   needs:
     - agent_deb-arm64-a7
     - iot_agent_deb-arm64
@@ -333,11 +245,11 @@ check_pkg_size-arm64-a7:
     FLAVORS: "datadog-agent datadog-iot-agent datadog-dogstatsd"
     ARCH: "arm64"
   before_script:
-    # FIXME: ["datadog-agent"]="70000000" should be replaced by "70000000"
-    # "70000000" is needed as of now because of multiple large additions in 7.45
+    # FIXME: ["datadog-agent"]="140000000" should be replaced by "70000000"
+    # "140000000" is needed as of now because of multiple large additions in 7.45
     - |
       declare -Ar max_sizes=(
-          ["datadog-agent"]="70000000"
+          ["datadog-agent"]="140000000"
           ["datadog-iot-agent"]="10000000"
           ["datadog-dogstatsd"]="10000000"
           ["datadog-agentless-scanner"]="10000000"

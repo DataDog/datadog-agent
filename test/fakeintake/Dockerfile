@@ -14,6 +14,7 @@ COPY test/fakeintake/go.mod test/fakeintake/go.sum ./
 
 # every datadog-agent module imported by the fakeintake has to be copied in the build image
 COPY pkg/proto /pkg/proto
+COPY comp/netflow/payload /comp/netflow/payload
 
 RUN go mod download
 

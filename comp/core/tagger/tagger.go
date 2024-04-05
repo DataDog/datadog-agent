@@ -21,14 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"go.uber.org/fx"
 )
 
@@ -50,18 +53,40 @@ func Module() fxutil.Module {
 		))
 }
 
+// tagger defines a tagger interface for internal usage of TaggerClient,
+// so that Start and Stop methods are not exposed in component
+// The structure of tagger component:
+// Tagger Component
+//
+//	-> TaggerClient {captureTagger, defaultTagger}
+//	                  -> tagger, is an interface with Start, Stop, Component methods (internal usage)
+//	                        -> local, remote, replay, mock tagger etc.
+type tagger interface {
+	Start(ctx context.Context) error
+	Stop() error
+	Component
+}
+
+type datadogConfig struct {
+	dogstatsdEntityIDPrecedenceEnabled bool
+	dogstatsdOptOutEnabled             bool
+}
+
 // TaggerClient is a component that contains two tagger component: capturetagger and defaulttagger
 //
 // nolint:revive // TODO(containers) Fix revive linter
 type TaggerClient struct {
 	// captureTagger is a tagger instance that contains a tagger that will contain the tagger
 	// state when replaying a capture scenario
-	captureTagger Component
+	captureTagger tagger
 
 	mux sync.RWMutex
 
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
-	defaultTagger Component
+	defaultTagger tagger
+
+	wmeta         workloadmeta.Component
+	datadogConfig datadogConfig
 }
 
 var (
@@ -129,6 +154,14 @@ func newTaggerClient(deps dependencies) Component {
 			captureTagger: nil,
 		}
 	}
+
+	if taggerClient != nil {
+		taggerClient.wmeta = deps.Wmeta
+	}
+
+	taggerClient.datadogConfig.dogstatsdEntityIDPrecedenceEnabled = deps.Config.GetBool("dogstatsd_entity_id_precedence")
+	taggerClient.datadogConfig.dogstatsdOptOutEnabled = deps.Config.GetBool("dogstatsd_origin_optout_enabled")
+
 	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
@@ -148,28 +181,28 @@ func newTaggerClient(deps dependencies) Component {
 		}
 		// Main context passed to components, consistent with the one used in the workloadmeta component
 		mainCtx, _ := common.GetMainCtxCancel()
-		err = taggerClient.Start(mainCtx)
+		err = taggerClient.start(mainCtx)
 		if err != nil && deps.Params.fallBackToLocalIfRemoteTaggerFails {
 			deps.Log.Warnf("Starting remote tagger failed. Falling back to local tagger: %s", err)
 			taggerClient.defaultTagger = local.NewTagger(deps.Wmeta)
 			// Retry to start the local tagger
-			return taggerClient.Start(mainCtx)
+			return taggerClient.start(mainCtx)
 		}
 		return err
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
-		return taggerClient.Stop()
+		return taggerClient.stop()
 	}})
 	return taggerClient
 }
 
-// Start calls defaultTagger.Start
-func (t *TaggerClient) Start(ctx context.Context) error {
+// start calls defaultTagger.Start
+func (t *TaggerClient) start(ctx context.Context) error {
 	return t.defaultTagger.Start(ctx)
 }
 
-// Stop calls defaultTagger.Stop
-func (t *TaggerClient) Stop() error {
+// stop calls defaultTagger.Stop
+func (t *TaggerClient) stop() error {
 	return t.defaultTagger.Stop()
 }
 
@@ -257,7 +290,7 @@ func (t *TaggerClient) Standard(entity string) ([]string, error) {
 // AgentTags returns the agent tags
 // It relies on the container provider utils to get the Agent container ID
 func (t *TaggerClient) AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
-	ctrID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	ctrID, err := metrics.GetProvider(optional.NewOption(t.wmeta)).GetMetaCollector().GetSelfContainerID()
 	if err != nil {
 		return nil, err
 	}
@@ -324,12 +357,82 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string, cardinalityName string) {
-	cardinality := taggerCardinality(cardinalityName)
+func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
+	cardinality := taggerCardinality(originInfo.Cardinality)
 
-	if udsOrigin != packets.NoOrigin {
-		if err := t.AccumulateTagsFor(udsOrigin, cardinality, tb); err != nil {
-			log.Errorf(err.Error())
+	switch originInfo.ProductOrigin {
+	case taggertypes.ProductOriginDogStatsD:
+		// The following was moved from the dogstatsd package
+		// originFromUDS is the origin discovered via UDS origin detection (container ID).
+		// originFromTag is the origin sent by the client via the dd.internal.entity_id tag (non-prefixed pod uid).
+		// originFromMsg is the origin sent by the client via the container field (non-prefixed container ID).
+		// entityIDPrecedenceEnabled refers to the dogstatsd_entity_id_precedence parameter.
+		//
+		//	---------------------------------------------------------------------------------
+		//
+		// | originFromUDS | originFromTag | entityIDPrecedenceEnabled || Result: udsOrigin  |
+		// |---------------|---------------|---------------------------||--------------------|
+		// | any           | any           | false                     || originFromUDS      |
+		// | any           | any           | true                      || empty              |
+		// | any           | empty         | any                       || originFromUDS      |
+		//
+		//	---------------------------------------------------------------------------------
+		//
+		//	---------------------------------------------------------------------------------
+		//
+		// | originFromTag          | originFromMsg   || Result: originFromClient            |
+		// |------------------------|-----------------||-------------------------------------|
+		// | not empty && not none  | any             || pod prefix + originFromTag          |
+		// | empty                  | empty           || empty                               |
+		// | none                   | empty           || empty                               |
+		// | empty                  | not empty       || container prefix + originFromMsg    |
+		// | none                   | not empty       || container prefix + originFromMsg    |
+		if t.datadogConfig.dogstatsdOptOutEnabled && originInfo.Cardinality == "none" {
+			originInfo.FromUDS = packets.NoOrigin
+			originInfo.FromTag = ""
+			originInfo.FromMsg = ""
+			return
+		}
+
+		// We use the UDS socket origin if no origin ID was specify in the tags
+		// or 'dogstatsd_entity_id_precedence' is set to False (default false).
+		if originInfo.FromUDS != packets.NoOrigin &&
+			(originInfo.FromTag == "" || !t.datadogConfig.dogstatsdEntityIDPrecedenceEnabled) {
+			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+
+		// originFromClient can either be originInfo.FromTag or originInfo.FromMsg
+		originFromClient := ""
+		if originInfo.FromTag != "" && originInfo.FromTag != "none" {
+			// Check if the value is not "none" in order to avoid calling the tagger for entity that doesn't exist.
+			// Currently only supported for pods
+			originFromClient = kubelet.KubePodTaggerEntityPrefix + originInfo.FromTag
+		} else if originInfo.FromTag == "" && len(originInfo.FromMsg) > 0 {
+			// originInfo.FromMsg is the container ID sent by the newer clients.
+			originFromClient = containers.BuildTaggerEntityName(originInfo.FromMsg)
+		}
+
+		if originFromClient != "" {
+			if err := t.AccumulateTagsFor(originFromClient, cardinality, tb); err != nil {
+				tlmUDPOriginDetectionError.Inc()
+				log.Tracef("Cannot get tags for entity %s: %s", originFromClient, err)
+			}
+		}
+	default:
+		if originInfo.FromUDS != packets.NoOrigin {
+			if err := t.AccumulateTagsFor(originInfo.FromUDS, cardinality, tb); err != nil {
+				log.Errorf(err.Error())
+			}
+		}
+
+		if err := t.AccumulateTagsFor(containers.BuildTaggerEntityName(originInfo.FromMsg), cardinality, tb); err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
+		}
+
+		if err := t.AccumulateTagsFor(kubelet.KubePodTaggerEntityPrefix+originInfo.FromTag, cardinality, tb); err != nil {
+			log.Tracef("Cannot get tags for entity %s: %s", originInfo.FromMsg, err)
 		}
 	}
 
@@ -337,12 +440,6 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, c
 		log.Error(err.Error())
 	}
 
-	if clientOrigin != "" {
-		if err := t.AccumulateTagsFor(clientOrigin, cardinality, tb); err != nil {
-			tlmUDPOriginDetectionError.Inc()
-			log.Tracef("Cannot get tags for entity %s: %s", clientOrigin, err)
-		}
-	}
 }
 
 // taggerCardinality converts tagger cardinality string to collectors.TagCardinality

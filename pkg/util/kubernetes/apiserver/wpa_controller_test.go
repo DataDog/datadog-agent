@@ -25,6 +25,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	//nolint:revive // TODO(CAPP) Fix revive linter
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -41,7 +42,7 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
@@ -50,9 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
-var (
-	scheme = kscheme.Scheme
-)
+var scheme = kscheme.Scheme
 
 func init() {
 	v1alpha1.AddToScheme(scheme)
@@ -170,7 +169,6 @@ func TestUpdateWPA(t *testing.T) {
 			require.True(t, reflect.DeepEqual(m.Labels, map[string]string{"foo": "baz"}))
 		}
 	}
-
 }
 
 // newFakeWPAController creates an AutoscalersController. Use enableWPA(wpa_informers.SharedInformerFactory) to add the event handlers to it. Use Run() to add the event handlers and start processing the events.
@@ -472,7 +470,6 @@ func TestWPASync(t *testing.T) {
 	fakeKey := "default/prometheus"
 	err = hctrl.syncWPA(fakeKey)
 	require.Error(t, err, errors.IsNotFound)
-
 }
 
 // TestWPAGC tests the GC process of of the controller
@@ -622,7 +619,6 @@ func TestUnstructuredIntoWPA(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestWPACRDCheck(t *testing.T) {
