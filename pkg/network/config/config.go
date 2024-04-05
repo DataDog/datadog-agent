@@ -261,6 +261,9 @@ type Config struct {
 	// instead of the status code family.
 	EnableHTTPStatsByStatusCode bool
 
+	// EnableNPMConnectionRollup enables aggregating connections by rolling up ephemeral ports
+	EnableNPMConnectionRollup bool
+
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
 
@@ -362,6 +365,8 @@ func New() *Config {
 
 		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+
+		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),

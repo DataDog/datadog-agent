@@ -8,6 +8,8 @@ package agent
 
 import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler/metadataschedulerimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -17,5 +19,7 @@ import (
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		autoexitimpl.Module(),
+		metadataschedulerimpl.Module(),
+		jmxloggerimpl.Module(),
 	)
 }
