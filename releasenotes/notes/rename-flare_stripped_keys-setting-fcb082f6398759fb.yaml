@@ -1,4 +1,4 @@
 enhancements:
   - |
-    Rename 'flare_stripped_keys' to 'scrubber.additional_keys' keys define under
-    'flare_stripped_keys' are still scrubbed.
+    Rename 'flare_stripped_keys' to 'scrubber.additional_keys' however keys
+    define under 'flare_stripped_keys' are still scrubbed.
