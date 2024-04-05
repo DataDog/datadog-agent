@@ -47,6 +47,9 @@ const (
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling = "-4"
 
+	// probabilitySampling is the value for _dd.p.dm when the agent is configured to use the ProbabilitySampler.
+	probabilitySampling = "-9"
+
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
 )
@@ -563,6 +566,7 @@ func (a *Agent) runProbabilisticSampler(now time.Time, pt *traceutil.ProcessedTr
 		return true
 	}
 	if a.ProbabilisticSampler.Sample(pt.Root) {
+		pt.TraceChunk.Tags[tagDecisionMaker] = probabilitySampling
 		return true
 	}
 	if traceContainsError(pt.TraceChunk.Spans) {
@@ -613,14 +617,13 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 	return events
 }
 
-// runSamplers runs all the agent's samplers on pt and returns the sampling decision along with the
-// sampling rate.
+// runSamplers runs the agent's priority sampler on pt and returns the sampling decision along with
+// the sampling rate.
 //
-// The rare sampler is run first, catching all rare traces early. If the Probabilistic sampler is
-// enabled, it is run next. Only when the Probabilistic sampler is *not* enabled, and the trace has
-// a priority set, the sampling priority is used with te Priority Sampler. If none of these have
-// chosen to sample the trace, the error sampler is run. Finally, for traces with no priority set,
-// the NoPrioritySampler is run.
+// The rare sampler is run first, catching all rare traces early. If the trace has a priority set,
+// the sampling priority is used with the Priority Sampler. When there is no priority set, the
+// NoPrioritySampler is run. Finally, if the trace has not been sampled by the other samplers, the
+// error sampler is run.
 func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
 	// run this early to make sure the signature gets counted by the RareSampler.
 	if a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv) {
