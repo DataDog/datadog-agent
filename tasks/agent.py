@@ -938,7 +938,7 @@ def omnibus_build(
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
     use_omnibus_git_cache = omnibus_cache_dir is not None
     if use_omnibus_git_cache:
-        omnibus_cache_dir += install_directory
+        omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
         remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
