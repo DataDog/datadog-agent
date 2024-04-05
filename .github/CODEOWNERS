@@ -257,7 +257,6 @@
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/updater @DataDog/fleet
-/comp/installer @DataDog/fleet
 /comp/agent/jmxlogger @DataDog/agent-metrics-logs
 /comp/aggregator/diagnosesendermanager @DataDog/agent-shared-components
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
