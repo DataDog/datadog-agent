@@ -2,7 +2,6 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
 
 # ${DATADOG_AGENT_IMAGE} and ${DATADOG_CLUSTER_AGENT_IMAGE} are provided by the CI
 if [[ -z ${DATADOG_AGENT_IMAGE:+x} ]] || [[ -z ${DATADOG_CLUSTER_AGENT_IMAGE:+x} ]]; then

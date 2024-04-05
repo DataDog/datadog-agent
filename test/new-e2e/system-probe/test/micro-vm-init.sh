@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eEuxo pipefail
+set -eEuo pipefail
 
 runner_config=$@
 docker_dir=/kmt-dockers

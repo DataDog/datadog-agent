@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eo xtrace
+set -e
 
 DIR_NAME=$(dirname "$0")
 
@@ -37,7 +37,7 @@ else
         socat \
         curl \
         libvirt \
-        gnu-sed 
+        gnu-sed
 fi
 
 pip3 install -r "${DIR_NAME}"/requirements.txt

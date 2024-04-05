@@ -2,7 +2,6 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
 
 cd "$(dirname "$0")"
 ssh-keygen -b 4096 -t rsa -C "datadog" -N "" -f "id_rsa"
