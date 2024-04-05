@@ -3,18 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build freebsd || netbsd || openbsd || solaris || dragonfly || linux
+//go:build python
 
-package guiimpl
+package gui
 
 import (
-	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
-func restartEnabled() bool {
-	return false
-}
-
-func restart() error {
-	return fmt.Errorf("restarting the agent is not implemented on non-windows platforms")
+func getPythonChecks() ([]string, error) {
+	return python.GetPythonIntegrationList()
 }

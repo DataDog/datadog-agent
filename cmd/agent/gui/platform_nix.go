@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package guiimpl
+//go:build freebsd || netbsd || openbsd || solaris || dragonfly || linux
+
+package gui
 
 import (
 	"fmt"

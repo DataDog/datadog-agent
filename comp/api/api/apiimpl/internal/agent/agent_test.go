@@ -14,9 +14,6 @@ import (
 	"testing"
 
 	// component dependencies
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -25,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -49,6 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	// package dependencies
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -80,7 +78,6 @@ type handlerdeps struct {
 	Collector             optional.Option[collector.Component]
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
-	Gui                   optional.Option[gui.Component]
 }
 
 func getComponentDeps(t *testing.T) handlerdeps {
@@ -118,7 +115,6 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
 		),
-		fx.Supply(optional.NewNoneOption[gui.Component]()),
 	)
 }
 
@@ -146,7 +142,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Collector,
 		deps.EventPlatformReceiver,
 		deps.Ac,
-		deps.Gui,
 	)
 
 	return router
