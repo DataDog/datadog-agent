@@ -297,8 +297,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	builder.WithKubeClient(c.InformerCl)
 
-	builder.WithVPAClient(c.VPAInformerClient)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
 	builder.WithContext(ctx)
@@ -404,9 +402,13 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	factories = manageResourcesReplacement(c, factories, resources)
 
+	clientConfig, err := apiserver.GetClientConfig(time.Duration(config.Datadog.GetInt64("kubernetes_apiserver_client_timeout")) * time.Second)
+	if err != nil {
+	}
+
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
-		client, _ := f.CreateClient(nil)
+		client, _ := f.CreateClient(clientConfig)
 		clients[f.Name()] = client
 	}
 

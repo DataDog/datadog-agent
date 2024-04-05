@@ -176,7 +176,7 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	}
 }
 
-func getClientConfig(timeout time.Duration) (*rest.Config, error) {
+func GetClientConfig(timeout time.Duration) (*rest.Config, error) {
 	var clientConfig *rest.Config
 	var err error
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -221,7 +221,7 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
-	clientConfig, err := getClientConfig(timeout)
+	clientConfig, err := GetClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +230,7 @@ func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 }
 
 func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
-	clientConfig, err := getClientConfig(timeout)
+	clientConfig, err := GetClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +239,7 @@ func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
 }
 
 func getCRDClient(timeout time.Duration) (*clientset.Clientset, error) {
-	clientConfig, err := getClientConfig(timeout)
+	clientConfig, err := GetClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func getCRDClient(timeout time.Duration) (*clientset.Clientset, error) {
 }
 
 func getAPISClient(timeout time.Duration) (*apiregistrationclient.ApiregistrationV1Client, error) {
-	clientConfig, err := getClientConfig(timeout)
+	clientConfig, err := GetClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ func getAPISClient(timeout time.Duration) (*apiregistrationclient.Apiregistratio
 }
 
 func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
-	clientConfig, err := getClientConfig(timeout)
+	clientConfig, err := GetClientConfig(timeout)
 	if err != nil {
 		return nil, err
 	}
