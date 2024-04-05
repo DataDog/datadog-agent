@@ -180,12 +180,15 @@ class KMTTestRunJob(KMTJob):
     def get_test_results(self) -> Dict[str, Optional[bool]]:
         results: Dict[str, Optional[bool]] = {}
         for report in self.get_junit_reports():
-            for testcase in report.findall(".//testcase"):
-                name = testcase.get("name")
-                if name is not None:
-                    failed = len(testcase.findall(".//failure")) > 0
-                    skipped = len(testcase.findall(".//skipped")) > 0
-                    results[name] = None if skipped else not failed
+            for testsuite in report.findall(".//testsuite"):
+                pkgname = testsuite.get("name")
+
+                for testcase in report.findall(".//testcase"):
+                    name = testcase.get("name")
+                    if name is not None:
+                        failed = len(testcase.findall(".//failure")) > 0
+                        skipped = len(testcase.findall(".//skipped")) > 0
+                        results[f"{pkgname}:{name}"] = None if skipped else not failed
 
         return results
 

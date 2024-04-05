@@ -154,20 +154,25 @@ def gen_config_from_ci_pipeline(
                     vcpu = str(vcpu_list[0])
                     info(f"[+] setting vcpu to {vcpu}")
 
+    failed_packages: Set[str] = set()
     for job in test_jobs:
         if job.status == "failed" and job.component == vmconfig_template:
             vm_arch = job.arch
             if use_local_if_possible and vm_arch == local_arch:
                 vm_arch = local_arch
 
+            failed_tests = job.get_test_results()
+            failed_packages.update({test.split(':')[0] for test in failed_tests.keys()})
             vms.add(f"{vm_arch}-{job.distro}-distro")
 
-    info(f"[+] generating vmconfig.json file for VMs {vms}")
+    info(f"[+] generating {output_file} file for VMs {vms}")
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
-    return vmconfig.gen_config(
+    vmconfig.gen_config(
         ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
     )
+    info("[+] You can run the following command to execute only packages with failed tests")
+    print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
 
 
 @task
