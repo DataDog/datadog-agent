@@ -40,7 +40,7 @@ func SetupEBSSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, sc
 	ec2client := ec2.NewFromConfig(cfg)
 	switch scan.TargetID.ResourceType() {
 	case types.ResourceTypeVolume:
-		return CreateSnapshot(ctx, statsd, scan, ec2client, scan.TargetID)
+		return createSnapshot(ctx, statsd, scan, ec2client, scan.TargetID)
 	case types.ResourceTypeSnapshot:
 		// Check if the snapshot is already tagged as an agentless snapshot.
 		poll := <-waiter.Wait(ctx, scan.TargetID, ec2client)
@@ -81,7 +81,13 @@ func SetupEBSVolume(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *
 }
 
 // CreateSnapshot creates a snapshot of the given EBS volume and returns its Cloud Identifier.
-func CreateSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
+func CreateSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, sc *types.ScannerConfig, scan *types.ScanTask, volumeID types.CloudID) (types.CloudID, error) {
+	cfg := GetConfigFromCloudID(ctx, statsd, sc, scan.Roles, scan.TargetID)
+	ec2client := ec2.NewFromConfig(cfg)
+	return createSnapshot(ctx, statsd, scan, ec2client, volumeID)
+}
+
+func createSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan *types.ScanTask, ec2client *ec2.Client, volumeID types.CloudID) (types.CloudID, error) {
 	if err := statsd.Count("datadog.agentless_scanner.snapshots.started", 1.0, scan.Tags(), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}

@@ -272,9 +272,7 @@ func awsSnapshotCmd(_ complog.Component, sc *types.ScannerConfig, params *awsSna
 	if err != nil {
 		return err
 	}
-	cfg := awsbackend.GetConfigFromCloudID(ctx, statsd, sc, sc.DefaultRolesMapping, scan.TargetID)
-	ec2client := ec2.NewFromConfig(cfg)
-	snapshotID, err := awsbackend.CreateSnapshot(ctx, statsd, scan, ec2client, scan.TargetID)
+	snapshotID, err := awsbackend.CreateSnapshot(ctx, statsd, sc, scan, scan.TargetID)
 	if err != nil {
 		return err
 	}
