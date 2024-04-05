@@ -130,7 +130,7 @@ func (a *agentSuite) Test02OpenSignal() {
 	// Create Signal Rule (backend)
 	res2, err := a.apiClient.CreateCwsSignalRule(desc, "signal rule for e2e testing", agentRuleName, []string{})
 	require.NoError(a.T(), err, "Signal rule creation failed")
-	signalRuleID = res2.GetId()
+	signalRuleID = *res2.SecurityMonitoringStandardRuleResponse.Id
 
 	// Check if the agent is ready
 	isReady := a.Env().Agent.Client.IsReady()
@@ -215,9 +215,19 @@ func (a *agentSuite) Test02OpenSignal() {
 			return
 		}
 		assert.Contains(collect, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
-		agentContext := signal.Attributes["agent"].(map[string]interface{})
-		assert.Contains(collect, agentContext["rule_id"], agentRuleName, "unable to find tag")
-	}, 5*time.Minute, 20*time.Second)
+		if !assert.Contains(collect, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
+			return
+		}
+		attributes := signal.AdditionalProperties["attributes"].(map[string]interface{})
+		if !assert.Contains(collect, attributes, "agent", "unable to find 'agent' field in signal's attributes") {
+			return
+		}
+		agentContext := attributes["agent"].(map[string]interface{})
+		if !assert.Contains(collect, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context") {
+			return
+		}
+		assert.Contains(collect, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
+	}, 2*time.Minute, 20*time.Second)
 }
 
 // test that the detection of CWS is properly working

@@ -9,27 +9,27 @@ package api
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 )
 
-func (c *Client) listLogs(query string) (*datadog.LogsListResponse, error) {
-	sort := datadog.LOGSSORT_TIMESTAMP_ASCENDING
-	body := datadog.LogsListRequest{
-		Filter: &datadog.LogsQueryFilter{
+func (c *Client) listLogs(query string) (*datadogV2.LogsListResponse, error) {
+	body := datadogV2.LogsListRequest{
+		Filter: &datadogV2.LogsQueryFilter{
 			From:  datadog.PtrString("now-15m"),
-			Query: &query,
+			Query: datadog.PtrString(query),
 			To:    datadog.PtrString("now"),
 		},
-		Page: &datadog.LogsListRequestPage{
+		Page: &datadogV2.LogsListRequestPage{
 			Limit: datadog.PtrInt32(25),
 		},
-		Sort: &sort,
-	}
-	request := datadog.ListLogsOptionalParameters{
-		Body: &body,
+		Sort: datadogV2.LOGSSORT_TIMESTAMP_ASCENDING.Ptr(),
 	}
 
-	result, r, err := c.api.LogsApi.ListLogs(c.ctx, request)
+	request := datadogV2.NewListLogsOptionalParameters().WithBody(body)
+	api := datadogV2.NewLogsApi(c.api)
+
+	result, r, err := api.ListLogs(c.ctx, *request)
 	if r != nil {
 		_ = r.Body.Close()
 	}
@@ -43,7 +43,7 @@ func (c *Client) listLogs(query string) (*datadog.LogsListResponse, error) {
 // ErrNoLogFound is returned when no log is found
 var ErrNoLogFound = errors.New("no log found")
 
-func (c *Client) getLastMatchingLog(query string) (*datadog.LogAttributes, error) {
+func (c *Client) getLastMatchingLog(query string) (*datadogV2.LogAttributes, error) {
 	resp, err := c.listLogs(query)
 	if err != nil {
 		return nil, err

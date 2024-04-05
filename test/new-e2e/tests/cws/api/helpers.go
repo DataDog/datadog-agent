@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -17,7 +17,7 @@ import (
 var ErrNoSignalFound = errors.New("no signal found")
 
 // GetSignal returns the last signal matching the query
-func (c *Client) GetSignal(query string) (*datadog.SecurityMonitoringSignalAttributes, error) {
+func (c *Client) GetSignal(query string) (*datadogV2.SecurityMonitoringSignalAttributes, error) {
 	resp, err := c.getSignals(query)
 	if err != nil {
 		return nil, err

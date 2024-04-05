@@ -8,30 +8,29 @@ package api
 import (
 	"time"
 
-	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 )
 
-func (c *Client) getSignals(query string) (*datadog.SecurityMonitoringSignalsListResponse, error) {
+func (c *Client) getSignals(query string) (*datadogV2.SecurityMonitoringSignalsListResponse, error) {
 	now := time.Now().UTC()
 	queryFrom := now.Add(-15 * time.Minute)
-	sort := datadog.SECURITYMONITORINGSIGNALSSORT_TIMESTAMP_ASCENDING
-	body := datadog.SecurityMonitoringSignalListRequest{
-		Filter: &datadog.SecurityMonitoringSignalListRequestFilter{
+	body := datadogV2.SecurityMonitoringSignalListRequest{
+		Filter: &datadogV2.SecurityMonitoringSignalListRequestFilter{
 			From:  &queryFrom,
 			Query: &query,
 			To:    &now,
 		},
-		Page: &datadog.SecurityMonitoringSignalListRequestPage{
+		Page: &datadogV2.SecurityMonitoringSignalListRequestPage{
 			Limit: datadog.PtrInt32(25),
 		},
-		Sort: &sort,
+		Sort: datadogV2.SECURITYMONITORINGSIGNALSSORT_TIMESTAMP_ASCENDING.Ptr(),
 	}
 
-	request := datadog.SearchSecurityMonitoringSignalsOptionalParameters{
-		Body: &body,
-	}
+	request := datadogV2.NewSearchSecurityMonitoringSignalsOptionalParameters().WithBody(body)
+	api := datadogV2.NewSecurityMonitoringApi(c.api)
 
-	result, r, err := c.api.SecurityMonitoringApi.SearchSecurityMonitoringSignals(c.ctx, request)
+	result, r, err := api.SearchSecurityMonitoringSignals(c.ctx, *request)
 	if r != nil {
 		_ = r.Body.Close()
 	}
@@ -43,50 +42,54 @@ func (c *Client) getSignals(query string) (*datadog.SecurityMonitoringSignalsLis
 }
 
 // CreateCwsSignalRule creates a cws signal rule
-func (c *Client) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadog.SecurityMonitoringRuleResponse, error) {
+func (c *Client) CreateCwsSignalRule(name string, msg string, agentRuleID string, tags []string) (*datadogV2.SecurityMonitoringRuleResponse, error) {
 	if tags == nil {
 		tags = []string{}
 	}
 	var (
-		detectionMethod    = datadog.SECURITYMONITORINGRULEDETECTIONMETHOD_THRESHOLD
-		evaluationWindow   = datadog.SECURITYMONITORINGRULEEVALUATIONWINDOW_ZERO_MINUTES
-		keepAlive          = datadog.SECURITYMONITORINGRULEKEEPALIVE_ZERO_MINUTES
-		maxSignalDuration  = datadog.SECURITYMONITORINGRULEMAXSIGNALDURATION_ZERO_MINUTES
-		aggregation        = datadog.SECURITYMONITORINGRULEQUERYAGGREGATION_COUNT
-		monitoringRuleType = datadog.SECURITYMONITORINGRULETYPECREATE_WORKLOAD_SECURITY
+		detectionMethod    = datadogV2.SECURITYMONITORINGRULEDETECTIONMETHOD_THRESHOLD
+		evaluationWindow   = datadogV2.SECURITYMONITORINGRULEEVALUATIONWINDOW_ZERO_MINUTES
+		keepAlive          = datadogV2.SECURITYMONITORINGRULEKEEPALIVE_ZERO_MINUTES
+		maxSignalDuration  = datadogV2.SECURITYMONITORINGRULEMAXSIGNALDURATION_ZERO_MINUTES
+		aggregation        = datadogV2.SECURITYMONITORINGRULEQUERYAGGREGATION_COUNT
+		monitoringRuleType = datadogV2.SECURITYMONITORINGRULETYPECREATE_WORKLOAD_SECURITY
 	)
 
-	body := datadog.SecurityMonitoringRuleCreatePayload{
-		Cases: []datadog.SecurityMonitoringRuleCaseCreate{
-			{
-				Condition: datadog.PtrString("a > 0"),
-				Status:    datadog.SECURITYMONITORINGRULESEVERITY_INFO,
+	body := datadogV2.SecurityMonitoringRuleCreatePayload{
+		SecurityMonitoringStandardRuleCreatePayload: &datadogV2.SecurityMonitoringStandardRuleCreatePayload{
+			Cases: []datadogV2.SecurityMonitoringRuleCaseCreate{
+				{
+					Condition: datadog.PtrString("a > 0"),
+					Status:    datadogV2.SECURITYMONITORINGRULESEVERITY_INFO,
+				},
 			},
-		},
 
-		HasExtendedTitle: datadog.PtrBool(true),
-		IsEnabled:        true,
-		Name:             name,
-		Message:          msg,
-		Options: datadog.SecurityMonitoringRuleOptions{
-			DetectionMethod:   &detectionMethod,
-			EvaluationWindow:  &evaluationWindow,
-			KeepAlive:         &keepAlive,
-			MaxSignalDuration: &maxSignalDuration,
-		},
-
-		Queries: []datadog.SecurityMonitoringRuleQueryCreate{
-			{
-				Aggregation: &aggregation,
-				Query:       "@agent.rule_id:" + agentRuleID,
-				Name:        datadog.PtrString("a"),
+			HasExtendedTitle: datadog.PtrBool(true),
+			IsEnabled:        true,
+			Name:             name,
+			Message:          msg,
+			Options: datadogV2.SecurityMonitoringRuleOptions{
+				DetectionMethod:   &detectionMethod,
+				EvaluationWindow:  &evaluationWindow,
+				KeepAlive:         &keepAlive,
+				MaxSignalDuration: &maxSignalDuration,
 			},
+
+			Queries: []datadogV2.SecurityMonitoringStandardRuleQuery{
+				{
+					Aggregation: &aggregation,
+					Query:       datadog.PtrString("@agent.rule_id:" + agentRuleID),
+					Name:        datadog.PtrString("a"),
+				},
+			},
+			Tags: tags,
+			Type: &monitoringRuleType,
 		},
-		Tags: tags,
-		Type: &monitoringRuleType,
 	}
 
-	response, r, err := c.api.SecurityMonitoringApi.CreateSecurityMonitoringRule(c.ctx, body)
+	api := datadogV2.NewSecurityMonitoringApi(c.api)
+
+	response, r, err := api.CreateSecurityMonitoringRule(c.ctx, body)
 	if r != nil {
 		_ = r.Body.Close()
 	}
@@ -98,10 +101,10 @@ func (c *Client) CreateCwsSignalRule(name string, msg string, agentRuleID string
 }
 
 // CreateCWSAgentRule creates a cws agent rule
-func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*datadog.CloudWorkloadSecurityAgentRuleResponse, error) {
-	body := datadog.CloudWorkloadSecurityAgentRuleCreateRequest{
-		Data: datadog.CloudWorkloadSecurityAgentRuleCreateData{
-			Attributes: datadog.CloudWorkloadSecurityAgentRuleCreateAttributes{
+func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*datadogV2.CloudWorkloadSecurityAgentRuleResponse, error) {
+	body := datadogV2.CloudWorkloadSecurityAgentRuleCreateRequest{
+		Data: datadogV2.CloudWorkloadSecurityAgentRuleCreateData{
+			Attributes: datadogV2.CloudWorkloadSecurityAgentRuleCreateAttributes{
 				Description: &msg,
 				Enabled:     datadog.PtrBool(true),
 				Expression:  secl,
@@ -111,7 +114,9 @@ func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*data
 		},
 	}
 
-	response, r, err := c.api.CloudWorkloadSecurityApi.CreateCloudWorkloadSecurityAgentRule(c.ctx, body)
+	api := datadogV2.NewCloudWorkloadSecurityApi(c.api)
+
+	response, r, err := api.CreateCloudWorkloadSecurityAgentRule(c.ctx, body)
 	if r != nil {
 		_ = r.Body.Close()
 	}
@@ -124,7 +129,8 @@ func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*data
 
 // DeleteSignalRule deletes a signal rule
 func (c *Client) DeleteSignalRule(ruleID string) error {
-	r, err := c.api.SecurityMonitoringApi.DeleteSecurityMonitoringRule(c.ctx, ruleID)
+	api := datadogV2.NewSecurityMonitoringApi(c.api)
+	r, err := api.DeleteSecurityMonitoringRule(c.ctx, ruleID)
 	if r != nil {
 		_ = r.Body.Close()
 	}
@@ -133,7 +139,8 @@ func (c *Client) DeleteSignalRule(ruleID string) error {
 
 // DeleteAgentRule deletes an agent rule
 func (c *Client) DeleteAgentRule(ruleID string) error {
-	r, err := c.api.CloudWorkloadSecurityApi.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
+	api := datadogV2.NewCloudWorkloadSecurityApi(c.api)
+	r, err := api.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
 	if r != nil {
 		_ = r.Body.Close()
 	}
