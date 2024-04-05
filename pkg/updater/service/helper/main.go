@@ -69,6 +69,12 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("rm", "-f", "/usr/bin/datadog-agent"), nil
 	case "write-ldpreload":
 		return exec.Command("echo", "-n", inputCommand.Content), nil
+	case "backup-docker-daemon":
+		return exec.Command("cp", "/etc/docker/daemon.json", "/etc/docker/daemon.json.bak"), nil
+	case "restore-docker-daemon":
+		return exec.Command("mv", "/etc/docker/daemon.json.bak", "/etc/docker/daemon.json"), nil
+	case "reload-docker":
+		return exec.Command("systemctl", "reload", "docker"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
@@ -124,6 +130,10 @@ func buildPathCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("chown", "-R", "dd-agent:dd-agent", path), nil
 	case "rm":
 		return exec.Command("rm", "-rf", path), nil
+	case "link-docker-daemon":
+		return exec.Command("ln", "-sf", path, "/etc/docker/daemon.json"), nil
+	case "cleanup-docker-daemon":
+		return exec.Command("cp", path, "/etc/docker/daemon.json"), nil
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
@@ -178,6 +188,9 @@ func executeCommand() error {
 	}
 
 	log.Printf("Running command: %s", command.String())
+	// Debugging, todo remove
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
 	return command.Run()
 }
 

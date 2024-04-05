@@ -22,6 +22,11 @@ const (
 	loadCommand           unitCommand = "load-unit"
 	removeCommand         unitCommand = "remove-unit"
 	writeLdPreloadCommand unitCommand = "write-ldpreload"
+	linkDockerCommand     unitCommand = "link-docker-daemon"
+	cleanupDockerCommand  unitCommand = "cleanup-docker-daemon"
+	backupDockerCommand               = `{"command":"backup-docker-daemon"}`
+	restoreDockerCommand              = `{"command":"restore-docker-daemon"}`
+	reloadDockerCommand               = `{"command":"reload-docker"}`
 	systemdReloadCommand              = `{"command":"systemd-reload"}`
 	adminExecutor                     = "datadog-updater-admin.service"
 )
@@ -61,17 +66,6 @@ func systemdReload() error {
 	return executeCommand(systemdReloadCommand)
 }
 
-func writeLdpreload(content []byte) error {
-	privilegeCommand := privilegeCommand{Command: string(writeLdPreloadCommand), Content: string(content)}
-	rawJSON, err := json.Marshal(privilegeCommand)
-	if err != nil {
-		// can't happen as we control the struct
-		panic(err)
-	}
-	privilegeCommandJSON := string(rawJSON)
-	return executeCommand(privilegeCommandJSON)
-}
-
 func wrapUnitCommand(command unitCommand, unit string) string {
 	privilegeCommand := privilegeCommand{Command: string(command), Unit: unit}
 	rawJSON, err := json.Marshal(privilegeCommand)
@@ -80,4 +74,13 @@ func wrapUnitCommand(command unitCommand, unit string) string {
 		panic(err)
 	}
 	return string(rawJSON)
+}
+
+func executeCommandStruct(command privilegeCommand) error {
+	rawJSON, err := json.Marshal(command)
+	if err != nil {
+		return err
+	}
+	privilegeCommandJSON := string(rawJSON)
+	return executeCommand(privilegeCommandJSON)
 }
