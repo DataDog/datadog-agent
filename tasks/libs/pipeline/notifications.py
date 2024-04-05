@@ -8,8 +8,8 @@ from typing import Dict
 
 import yaml
 
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
-from tasks.libs.types import FailedJobs, Test
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.types.types import FailedJobs, Test
 
 
 def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> Dict[str, str]:

@@ -2,7 +2,7 @@ import os
 
 from invoke import Exit, task
 
-from tasks.libs.common.github_api import GithubAPI
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME
 
 

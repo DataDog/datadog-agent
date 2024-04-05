@@ -1,7 +1,7 @@
 import re
 
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
-from tasks.libs.types import FailedJobReason, FailedJobs, FailedJobType
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
 def get_failed_jobs(project_name: str, pipeline_id: str) -> FailedJobs:

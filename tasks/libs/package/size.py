@@ -77,7 +77,7 @@ def compute_package_size_metrics(
     of interesting binaries inside, and returns gauge metrics to report them to Datadog.
     """
 
-    from tasks.libs.datadog_api import create_gauge
+    from tasks.libs.common.datadog_api import create_gauge
 
     if flavor not in SCANNED_BINARIES.keys():
         raise ValueError(f"'{flavor}' is not part of the accepted flavors: {', '.join(SCANNED_BINARIES.keys())}")
