@@ -571,6 +571,7 @@ func startAgent(
 
 	// Init JMX runner and inject dogstatsd component
 	jmx.InitRunner(server, jmxLogger)
+	jmx.RegisterWith(ac)
 
 	// Set up check collector
 	commonchecks.RegisterChecks(wmeta)

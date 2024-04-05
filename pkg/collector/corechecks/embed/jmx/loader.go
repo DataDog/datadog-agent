@@ -83,5 +83,7 @@ func init() {
 		return NewJMXCheckLoader()
 	}
 
-	loaders.RegisterLoader(10, factory)
+	if false {
+		loaders.RegisterLoader(10, factory)
+	}
 }
