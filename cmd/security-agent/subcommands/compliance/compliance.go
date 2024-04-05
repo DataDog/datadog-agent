@@ -61,7 +61,6 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 
 	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
-		compliance.AptExporter,
 		compliance.KubernetesExporter,
 	}
 	if config.GetBool("compliance_config.database_benchmarks.enabled") {
