@@ -107,8 +107,6 @@ func (i *installer) startExperiment(pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StartAgentExperiment()
-	case packageAPMInjector:
-		return service.StartAPMInjectorExperiment()
 	default:
 		return nil
 	}
@@ -118,8 +116,6 @@ func (i *installer) stopExperiment(pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StopAgentExperiment()
-	case packageAPMInjector:
-		return service.StopAPMInjectorExperiment()
 	default:
 		return nil
 	}

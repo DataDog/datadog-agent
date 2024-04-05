@@ -11,49 +11,25 @@ package service
 import (
 	"os"
 	"path"
-	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var preloadBlockRegex = regexp.MustCompile(`(?m)^\/.+\/launcher\.preload\.so$`)
-
 // SetupAPMInjector sets up the injector at bootstrap
 func SetupAPMInjector() error {
 	injectorPath := "/opt/datadog-packages/datadog-apm-inject/stable"
-	return setupInjector(injectorPath)
-}
-
-// StartAPMInjectorExperiment sets up an APM injector experiment
-func StartAPMInjectorExperiment() error {
-	injectorPath := "/opt/datadog-packages/datadog-apm-inject/experiment"
-	return setupInjector(injectorPath)
-}
-
-// StopAPMInjectorExperiment stops an APM injector experiment and reset to stable
-func StopAPMInjectorExperiment() error {
-	injectorPath := "/opt/datadog-packages/datadog-apm-inject/stable"
-	return setupInjector(injectorPath)
-}
-
-// RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector() error {
-	injectorPath := "/opt/datadog-packages/datadog-apm-inject/stable"
-	return removeInjector(injectorPath)
-}
-
-func setupInjector(basePath string) error {
-	err := os.Chmod(path.Join(basePath, "run"), 0777)
+	err := os.Chmod(path.Join(injectorPath, "run"), 0777)
 	if err != nil {
 		return err
 	}
 
-	err = setupLDPreload(basePath)
+	err = setupLDPreload(injectorPath)
 	if err != nil {
 		return err
 	}
 
-	err = setupDockerDaemon(basePath)
+	err = setupDockerDaemon(injectorPath)
 	if err != nil {
 		return err
 	}
@@ -61,13 +37,15 @@ func setupInjector(basePath string) error {
 	return nil
 }
 
-func removeInjector(basePath string) error {
+// RemoveAPMInjector removes the APM injector
+func RemoveAPMInjector() error {
+	injectorPath := "/opt/datadog-packages/datadog-apm-inject/stable"
 	err := removeLDPreload()
 	if err != nil {
 		return err
 	}
 
-	err = removeDockerDaemon(basePath)
+	err = removeDockerDaemon(injectorPath)
 	if err != nil {
 		return err
 	}
@@ -76,61 +54,32 @@ func removeInjector(basePath string) error {
 
 // setupLDPreload adds preload options on /etc/ld.so.preload, overriding existing ones
 func setupLDPreload(basePath string) error {
+	launcherPreloadPath := path.Join(basePath, "inject", "launcher.preload.so")
 	ldSoPreloadPath := "/etc/ld.so.preload"
-	ldSoPreload := make([]byte, 0)
+	var ldSoPreload []byte
 	if _, err := os.Stat(ldSoPreloadPath); err == nil {
 		ldSoPreload, err = os.ReadFile(ldSoPreloadPath)
 		if err != nil {
 			return err
 		}
+		if strings.Contains(string(ldSoPreload), launcherPreloadPath) {
+			// If the line of interest is already in /etc/ld.so.preload, return fast
+			return nil
+		}
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-
-	launcherPreloadPath := path.Join(basePath, "inject", "launcher.preload.so")
-	if preloadBlockRegex.Match(ldSoPreload) {
-		ldSoPreload = preloadBlockRegex.ReplaceAll(ldSoPreload, []byte(launcherPreloadPath))
-	} else {
-		// Add a newline at the end of the file if it doesn't exist
-		if len(ldSoPreload) > 0 && ldSoPreload[len(ldSoPreload)-1] != '\n' {
-			ldSoPreload = append(ldSoPreload, '\n')
-		}
-		ldSoPreload = append(ldSoPreload, launcherPreloadPath...)
-	}
-
-	return writeLDPreload(ldSoPreload)
+	return writeLDPreload()
 }
 
 // removeLDPreload removes the preload options from /etc/ld.so.preload
 func removeLDPreload() error {
-	// Remove preload options from /etc/ld.so.preload
-	ldSoPreloadPath := "/etc/ld.so.preload"
-	ldSoPreload := make([]byte, 0)
-	if _, err := os.Stat(ldSoPreloadPath); err == nil {
-		ldSoPreload, err = os.ReadFile(ldSoPreloadPath)
-		if err != nil {
-			return err
-		}
-		if preloadBlockRegex.Match(ldSoPreload) {
-			ldSoPreload = preloadBlockRegex.ReplaceAll(ldSoPreload, []byte(""))
-		}
-		err = writeLDPreload(ldSoPreload)
-		if err != nil {
-			return err
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-
-	return nil
+	return executeCommand(string(removeLdPreloadCommand))
 }
 
 // writeLDPreload writes the content to /etc/ld.so.preload
-func writeLDPreload(content []byte) error {
-	return executeCommandStruct(privilegeCommand{
-		Command: string(writeLdPreloadCommand),
-		Content: string(content),
-	})
+func writeLDPreload() error {
+	return executeCommand(string(setupLdPreloadCommand))
 }
 
 // setupDockerDaemon sets up the docker daemon to use the APM injector

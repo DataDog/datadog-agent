@@ -12,13 +12,3 @@ package service
 func SetupAPMInjector() error {
 	return nil
 }
-
-// StartAPMInjectorExperiment noop
-func StartAPMInjectorExperiment() error {
-	return nil
-}
-
-// StopAPMInjectorExperiment noop
-func StopAPMInjectorExperiment() error {
-	return nil
-}

@@ -67,8 +67,10 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 		return exec.Command("ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "/usr/bin/datadog-agent"), nil
 	case "rm-agent-symlink":
 		return exec.Command("rm", "-f", "/usr/bin/datadog-agent"), nil
-	case "write-ldpreload":
-		return exec.Command("echo", "-n", inputCommand.Content), nil
+	case "setup-ldpreload":
+		return exec.Command("/bin/sh", "-c", "echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so >> /etc/ld.so.preload"), nil
+	case "remove-ldpreload":
+		return exec.Command("/bin/sh", "-c", "sed -ze 's/\\/opt\\/datadog-packages\\/datadog-apm-inject\\/stable\\/inject\\/launcher.preload.so\\n//g' /etc/ld.so.preload > /etc/ld.so.preload.tmp && mv /etc/ld.so.preload.tmp /etc/ld.so.preload"), nil
 	case "backup-docker-daemon":
 		return exec.Command("cp", "/etc/docker/daemon.json", "/etc/docker/daemon.json.bak"), nil
 	case "restore-docker-daemon":
@@ -78,20 +80,6 @@ func buildCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
 	default:
 		return nil, fmt.Errorf("invalid command")
 	}
-}
-
-// getCommandOutput sets the output file for the command
-func getCommandOutput(inputCommand privilegeCommand) (*os.File, error) {
-	switch inputCommand.Command {
-	case "write-ldpreload":
-		// File has to be closed after the command is run
-		outputFile, err := os.OpenFile("/etc/ld.so.preload", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			return nil, err
-		}
-		return outputFile, nil
-	}
-	return nil, nil
 }
 
 func buildUnitCommand(inputCommand privilegeCommand) (*exec.Cmd, error) {
@@ -177,20 +165,7 @@ func executeCommand() error {
 		}()
 	}
 
-	// set the output file if needed, must be done as root or dd-updater
-	stdout, err := getCommandOutput(pc)
-	if err != nil {
-		return err
-	}
-	if stdout != nil {
-		defer stdout.Close()
-		command.Stdout = stdout
-	}
-
 	log.Printf("Running command: %s", command.String())
-	// Debugging, todo remove
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
 	return command.Run()
 }
 

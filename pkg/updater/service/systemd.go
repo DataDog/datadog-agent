@@ -15,20 +15,21 @@ import (
 type unitCommand string
 
 const (
-	startCommand          unitCommand = "start"
-	stopCommand           unitCommand = "stop"
-	enableCommand         unitCommand = "enable"
-	disableCommand        unitCommand = "disable"
-	loadCommand           unitCommand = "load-unit"
-	removeCommand         unitCommand = "remove-unit"
-	writeLdPreloadCommand unitCommand = "write-ldpreload"
-	linkDockerCommand     unitCommand = "link-docker-daemon"
-	cleanupDockerCommand  unitCommand = "cleanup-docker-daemon"
-	backupDockerCommand               = `{"command":"backup-docker-daemon"}`
-	restoreDockerCommand              = `{"command":"restore-docker-daemon"}`
-	reloadDockerCommand               = `{"command":"reload-docker"}`
-	systemdReloadCommand              = `{"command":"systemd-reload"}`
-	adminExecutor                     = "datadog-updater-admin.service"
+	startCommand           unitCommand = "start"
+	stopCommand            unitCommand = "stop"
+	enableCommand          unitCommand = "enable"
+	disableCommand         unitCommand = "disable"
+	loadCommand            unitCommand = "load-unit"
+	removeCommand          unitCommand = "remove-unit"
+	linkDockerCommand      unitCommand = "link-docker-daemon"
+	cleanupDockerCommand   unitCommand = "cleanup-docker-daemon"
+	backupDockerCommand                = `{"command":"backup-docker-daemon"}`
+	restoreDockerCommand               = `{"command":"restore-docker-daemon"}`
+	reloadDockerCommand                = `{"command":"reload-docker"}`
+	setupLdPreloadCommand              = `{"command":"setup-ldpreload"}`
+	removeLdPreloadCommand             = `{"command":"remove-ldpreload"}`
+	systemdReloadCommand               = `{"command":"systemd-reload"}`
+	adminExecutor                      = "datadog-updater-admin.service"
 )
 
 type privilegeCommand struct {

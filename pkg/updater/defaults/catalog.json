@@ -13,9 +13,9 @@
     },
     {
       "package": "datadog-apm-inject",
-      "version": "0.12.3-dev.bbde8e9.glci478042103.ga8a8daff-1",
-      "url": "oci://docker.io/datadog/apm-inject-package-dev@sha256:40e17fe9292aa57b9bc0bb11e145b0a0a1e6c1f4bddc882eb42cd8dd0da21ab3",
-      "sha256": "40e17fe9292aa57b9bc0bb11e145b0a0a1e6c1f4bddc882eb42cd8dd0da21ab3"
+      "version": "0.12.3-dev.bbde8e9.glci480385625.g3d679b20-1",
+      "url": "oci://docker.io/datadog/apm-inject-package-dev@sha256:4d5f062b6cc59dd891961a7db0b780b65a7a00b67aa0f61032e160d09d6a0706",
+      "sha256": "4d5f062b6cc59dd891961a7db0b780b65a7a00b67aa0f61032e160d09d6a0706"
     }
   ]
 }
