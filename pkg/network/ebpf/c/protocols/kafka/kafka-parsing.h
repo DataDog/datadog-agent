@@ -639,8 +639,7 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
-    log_debug("kafka: kafka_header.api_key: %d", kafka_header.api_key);
-    log_debug("kafka: kafka_header.api_version: %d", kafka_header.api_version);
+    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
@@ -744,8 +743,6 @@ static __always_inline bool kafka_process(kafka_info_t *kafka, struct __sk_buff*
      }
 
     if (kafka_header.api_key == KAFKA_FETCH) {
-        log_debug("kafka: Adding fetch request to in_flight\n");
-
         kafka_transaction_t transaction;
         kafka_transaction_key_t key;
         bpf_memset(&key, 0, sizeof(key));
