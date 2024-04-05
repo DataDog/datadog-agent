@@ -26,13 +26,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -87,6 +88,7 @@ func SetupHandlers(
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
+	gui optional.Option[gui.Component],
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -99,7 +101,7 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
+	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
 	r.HandleFunc("/config-check", func(w http.ResponseWriter, r *http.Request) {
 		getConfigCheck(w, r, ac)
 	}).Methods("GET")
@@ -401,8 +403,13 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Write(jsonHealth)
 }
 
-func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte(gui.CsrfToken))
+func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) {
+	// WARNING: GUI comp currently not provided to JMX
+	gui, guiExist := optGui.Get()
+	if !guiExist {
+		return
+	}
+	w.Write([]byte(gui.GetCSRFToken()))
 }
 
 func getConfigCheck(w http.ResponseWriter, _ *http.Request, ac autodiscovery.Component) {
