@@ -282,9 +282,7 @@ labels that can be use:
 - `community`: for community PRs.
 - `changelog/no-changelog`: for PRs that don't require a reno releasenote
   (useful for PRs only changing documentation or tests).
-- `qa/done`, `qa/no-code-change`: if either the `qa/no-code-change` label or the
-  `qa/done` label is set, it will skip the creation of a QA card related to this
-  PR during next release process (example: documentation-only PRs).
+- `qa/done`, `qa/no-code-change`: indicate that the PR does not need to go through QA after merge, during the QA week. If the PR changes do not impact the agent's code, for example if the PR changes the documentation, use `qa/no-code-change`. If the PR changes the agent code and the impacted featurss are covered by automated unit, integration and/or e2e tests, or if the PR was manually tested before merge, use `qa/done` and specify in the PR description QA details.
 - `major_change`: to flag the PR as a major change impacting many/all teams
   working on the agent and will require deeper QA (example: when we change the
   Python version shipped in the agent).
