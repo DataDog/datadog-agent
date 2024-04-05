@@ -10,9 +10,9 @@
   - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 include:
-  - /.gitlab/package_build/deb.yml
-  - /.gitlab/package_build/dmg.yml
-  - /.gitlab/package_build/remote_updater.yml
-  - /.gitlab/package_build/rpm.yml
-  - /.gitlab/package_build/suse_rpm.yml
-  - /.gitlab/package_build/windows.yml
+  - .gitlab/package_build/deb.yml
+  - .gitlab/package_build/dmg.yml
+  - .gitlab/package_build/remote_updater.yml
+  - .gitlab/package_build/rpm.yml
+  - .gitlab/package_build/suse_rpm.yml
+  - .gitlab/package_build/windows.yml

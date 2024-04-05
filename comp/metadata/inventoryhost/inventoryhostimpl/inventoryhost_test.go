@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
 	"github.com/DataDog/datadog-agent/pkg/gohai/network"
@@ -153,7 +152,6 @@ func TestGetPayload(t *testing.T) {
 		IPv6Address:                  "fe80::20c:29ff:feb6:d232",
 		MacAddress:                   "00:0c:29:b6:d2:32",
 		AgentVersion:                 version.AgentVersion,
-		AgentStartupTime:             pkgconfigsetup.StartTime.UnixNano(),
 		CloudProvider:                "some_cloud_provider",
 		CloudProviderAccountID:       "some_host_id",
 		CloudProviderSource:          "test_source",
@@ -181,7 +179,6 @@ func TestGetPayloadError(t *testing.T) {
 	p := ih.getPayload().(*Payload)
 	expected := &hostMetadata{
 		AgentVersion:                 version.AgentVersion,
-		AgentStartupTime:             pkgconfigsetup.StartTime.UnixNano(),
 		CloudProvider:                "some_cloud_provider",
 		CloudProviderAccountID:       "some_host_id",
 		CloudProviderSource:          "test_source",

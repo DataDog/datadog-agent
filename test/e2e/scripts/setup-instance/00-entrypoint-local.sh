@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 printf '=%.0s' {0..79} ; echo
-set -ex
+set -e
 cd "$(dirname "$0")"
 
 ../run-instance/10-setup-kind.sh

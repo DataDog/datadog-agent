@@ -1,9 +1,4 @@
 ---
-.setup_deb_signing_key: &setup_deb_signing_key
-  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
-  - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
-  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)
-
 .agent_build_common_deb:
   script:
     - source /root/.bashrc
@@ -15,7 +10,7 @@
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
+    - !reference [.setup_deb_signing_key]
     - tar -xf $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
     - mkdir -p /tmp/system-probe
     - $S3_CP_CMD $S3_PERMANENT_ARTIFACTS_URI/clang-$CLANG_LLVM_VER.${PACKAGE_ARCH} /tmp/system-probe/clang-bpf
@@ -36,31 +31,11 @@
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-.updater_build_common_deb:
-  script:
-    - source /root/.bashrc
-    - !reference [.setup_ruby_mirror_linux]
-    - !reference [.retrieve_linux_go_deps]
-    - echo "About to build for $RELEASE_VERSION"
-    # remove artifacts from previous pipelines that may come from the cache
-    - rm -rf $OMNIBUS_PACKAGE_DIR/*
-    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
-    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
-    - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
-    - ls -la $OMNIBUS_PACKAGE_DIR
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater-dbg_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DBG_DEB
-    - !reference [.upload_sbom_artifacts]
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $OMNIBUS_PACKAGE_DIR
-
 agent_deb-x64-a6:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a6]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -83,7 +58,8 @@ agent_deb-x64-a6:
 agent_deb-x64-a7:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -106,7 +82,7 @@ agent_deb-x64-a7:
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a6]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -131,7 +107,8 @@ agent_deb-arm64-a6:
 agent_deb-arm64-a7:
   extends: .agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -165,7 +142,7 @@ agent_deb-arm64-a7:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
+    - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agent.omnibus-build --flavor iot --log-level debug --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
@@ -183,7 +160,8 @@ agent_deb-arm64-a7:
 iot_agent_deb-x64:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -195,7 +173,7 @@ iot_agent_deb-x64:
 iot_agent_deb-arm64:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -209,7 +187,7 @@ iot_agent_deb-arm64:
 iot_agent_deb-armhf:
   extends: .iot_agent_build_common_deb
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -223,7 +201,8 @@ iot_agent_deb-armhf:
 
 dogstatsd_deb-x64:
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -238,7 +217,7 @@ dogstatsd_deb-x64:
     - !reference [.setup_ruby_mirror_linux]
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
+    - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
@@ -251,7 +230,7 @@ dogstatsd_deb-x64:
 
 dogstatsd_deb-arm64:
   rules:
-    - !reference [.on_all_builds_a7]
+    - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
   stage: package_build
@@ -267,7 +246,7 @@ dogstatsd_deb-arm64:
     - !reference [.setup_ruby_mirror_linux]
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
+    - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e dogstatsd.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
@@ -278,39 +257,10 @@ dogstatsd_deb-arm64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-updater_deb-amd64:
-  extends: .updater_build_common_deb
-  rules: !reference [.on_a7]
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "go_deps", "generate_minimized_btfs_x64"]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PACKAGE_ARCH: amd64
-    DESTINATION_DEB: "datadog-updater_7_amd64.deb"
-    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_amd64.deb"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
-
-updater_deb-arm64:
-  extends: .updater_build_common_deb
-  rules: !reference [.on_a7]
-  stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
-  needs: ["go_mod_tidy_check", "go_deps", "generate_minimized_btfs_arm64"]
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    PACKAGE_ARCH: arm64
-    DESTINATION_DEB: "datadog-updater_7_arm64.deb"
-    DESTINATION_DBG_DEB: "datadog-updater-dbg_7_arm64.deb"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
-
 agentless_scanner_deb-x64:
   rules:
-    !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -325,7 +275,7 @@ agentless_scanner_deb-x64:
     - !reference [.setup_ruby_mirror_linux]
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
+    - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
@@ -338,7 +288,7 @@ agentless_scanner_deb-x64:
 
 agentless_scanner_deb-arm64:
   rules:
-    !reference [.on_all_builds_a7]
+    !reference [.on_all_builds]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
@@ -352,7 +302,7 @@ agentless_scanner_deb-arm64:
     - !reference [.setup_ruby_mirror_linux]
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - *setup_deb_signing_key
+    - !reference [.setup_deb_signing_key]
     # Use --skip-deps since the deps are installed by `before_script`.
     - inv -e agentless-scanner.omnibus-build --release-version "$RELEASE_VERSION_7" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR

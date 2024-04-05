@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -62,7 +61,6 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 
 	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
-		compliance.AptExporter,
 		compliance.KubernetesExporter,
 	}
 	if config.GetBool("compliance_config.database_benchmarks.enabled") {
@@ -70,8 +68,6 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 
 	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", runPath, endpoints, context)
-	runner := runner.NewRunner(senderManager)
-	stopper.Add(runner)
 	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,

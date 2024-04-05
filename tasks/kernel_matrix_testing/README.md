@@ -120,7 +120,7 @@ This is the recommended approach, as it automatically configures the proxy jumps
 You can connect manually to the VMs using the IP addresses printed by the following command:
 
 ```bash
-inv -e kmt.stack --stack=demo-stack
+inv -e kmt.status --stack=demo-stack
 ```
 
 To connect to the VM first ssh to the remote machine, if required.
@@ -324,7 +324,7 @@ If you are launching local VMs, you will be queried for you password. This is re
 Prints information about the stack.
 
 ```bash
-inv -e kmt.stack [--stack=<name>]
+inv -e kmt.status [--stack=<name>]
 ```
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
@@ -365,3 +365,25 @@ This is only relevant for VMs running in the local environment. This has no effe
 ### Resuming the stack
 
 This resumes a previously paused stack. This is only applicable for VMs running locally.
+
+## Interacting with the CI
+
+KMT has some tasks whose purpose is to make it easier to interact with the CI. They are described below.
+
+### Creating a stack from a failed CI pipeline
+
+To avoid having to copy and paste all the data from the CI to generate a list of VMs, you can use the `--from-ci-pipeline` flag to automatically generate a configuration file that replicates the jobs that failed in a CI pipeline. See the [Configuring stack from a failed CI pipeline](#configuring-stack-from-a-failed-ci-pipeline) section for more details.
+
+### Summary of failed tests in a CI pipeline
+
+To get a summary of the tests that were run in a CI pipeline, you can use the following command:
+
+```bash
+inv -e kmt.explain-ci-failure <pipeline-id>
+```
+
+This will show several tables, skipping the cases where all jobs/tests passed to avoid polluting the output.
+
+- For each component (security-agent or system-probe) and vmset (e.g., in system-probe we have `only_tracersuite` and `no_tracersuite` test sets) it will show the jobs that failed and why (e.g., if the job failed due to an infra or a test failure).
+- Again, for each component and vmset, it will show which tests failed in a table showing in which distros/archs they failed (tests and distros that did not have any failures will not be shown).
+- For each job that failed due to infra reasons, it will show a summary with quick detection of possible boot causes (e.g., it will show if the VM did not reach the login prompt, or if it didn't get an IP address, etc).
