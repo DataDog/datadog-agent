@@ -8,7 +8,7 @@ import tarfile
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, overload
 
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
 
 if TYPE_CHECKING:
     from typing_extensions import Literal
