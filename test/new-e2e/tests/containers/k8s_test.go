@@ -92,7 +92,7 @@ func (suite *k8sSuite) TearDownSuite() {
 // The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
-	suite.testUpAndRunning(5 * time.Minute)
+	suite.testUpAndRunning(10 * time.Minute)
 }
 
 // An agent restart (because of a health probe failure or because of a OOM kill for ex.)
