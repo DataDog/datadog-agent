@@ -1,13 +1,19 @@
-def create_count(metric_name, timestamp, value, tags):
-    from datadog_api_client.v2.model.metric_intake_type import MetricIntakeType
+from invoke.exceptions import Exit
+
+
+def create_metric(metric_type, metric_name, timestamp, value, tags, unit=None):
+    """
+    - metric_type: See types in the following documentation https://datadoghq.dev/datadog-api-client-python/datadog_api_client.v2.model.html#module-datadog_api_client.v2.model.metric_intake_type
+    """
+    from datadog_api_client.model_utils import unset
     from datadog_api_client.v2.model.metric_point import MetricPoint
     from datadog_api_client.v2.model.metric_series import MetricSeries
 
+    unit = unit or unset
+
     return MetricSeries(
         metric=metric_name,
-        # 1 is the count type
-        # https://datadoghq.dev/datadog-api-client-python/datadog_api_client.v2.model.html#module-datadog_api_client.v2.model.metric_intake_type
-        type=MetricIntakeType(1),
+        type=metric_type,
         points=[
             MetricPoint(
                 timestamp=timestamp,
@@ -15,27 +21,20 @@ def create_count(metric_name, timestamp, value, tags):
             )
         ],
         tags=tags,
+        unit=unit,
     )
 
 
-def create_gauge(metric_name, timestamp, value, tags):
+def create_count(metric_name, timestamp, value, tags, unit=None):
     from datadog_api_client.v2.model.metric_intake_type import MetricIntakeType
-    from datadog_api_client.v2.model.metric_point import MetricPoint
-    from datadog_api_client.v2.model.metric_series import MetricSeries
 
-    return MetricSeries(
-        metric=metric_name,
-        # 3 is the gauge type
-        # https://datadoghq.dev/datadog-api-client-python/datadog_api_client.v2.model.html#module-datadog_api_client.v2.model.metric_intake_type
-        type=MetricIntakeType(3),
-        points=[
-            MetricPoint(
-                timestamp=timestamp,
-                value=value,
-            )
-        ],
-        tags=tags,
-    )
+    return create_metric(MetricIntakeType.COUNT, metric_name, timestamp, value, tags, unit)
+
+
+def create_gauge(metric_name, timestamp, value, tags, unit=None):
+    from datadog_api_client.v2.model.metric_intake_type import MetricIntakeType
+
+    return create_metric(MetricIntakeType.GAUGE, metric_name, timestamp, value, tags, unit)
 
 
 def send_metrics(series):
@@ -46,4 +45,10 @@ def send_metrics(series):
     configuration = Configuration()
     with ApiClient(configuration) as api_client:
         api_instance = MetricsApi(api_client)
-        return api_instance.submit_metrics(body=MetricPayload(series=series))
+        response = api_instance.submit_metrics(body=MetricPayload(series=series))
+
+        if response["errors"]:
+            print(f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}")
+            raise Exit(code=1)
+
+        return response
