@@ -27,7 +27,6 @@ type dependencies struct {
 	fx.In
 
 	Config config.Component
-	Lc     fx.Lifecycle
 }
 
 // ExitDetector is common interface for shutdown mechanisms
