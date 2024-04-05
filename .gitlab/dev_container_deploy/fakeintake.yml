@@ -5,7 +5,9 @@ publish_fakeintake:
   rules:
     - !reference [.except_mergequeue]
     - !reference [.on_fakeintake_changes]
-  needs: [docker_build_fakeintake]
+  needs:
+    - job: docker_build_fakeintake
+      optional: false
   variables:
     IMG_SOURCES: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/fakeintake:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}
     IMG_DESTINATIONS: fakeintake:v${CI_COMMIT_SHORT_SHA}
