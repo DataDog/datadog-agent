@@ -15,6 +15,7 @@ from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -26,7 +27,6 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
@@ -723,7 +723,7 @@ def generate_syscall_table(ctx):
             f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
-    linux_version = "v6.1"
+    linux_version = "v6.8"
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",

@@ -34,10 +34,12 @@ import (
 func TestBuildCollectorEvent(t *testing.T) {
 	containerID := "10"
 	namespace := "test_namespace"
-
 	image := &mockedImage{
 		mockConfig: func() (ocispec.Descriptor, error) {
 			return ocispec.Descriptor{Digest: "my_image_id"}, nil
+		},
+		mockTarget: func() ocispec.Descriptor {
+			return ocispec.Descriptor{Digest: "my_repo_digest"}
 		},
 	}
 
@@ -64,7 +66,9 @@ func TestBuildCollectorEvent(t *testing.T) {
 	))
 	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	workloadMetaContainer.Namespace = namespace
+
 	assert.NoError(t, err)
+	assert.Equal(t, "my_repo_digest", workloadMetaContainer.Image.RepoDigest)
 
 	containerCreationEvent, err := proto.Marshal(&events.ContainerCreate{
 		ID: containerID,
@@ -314,6 +318,9 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 			return &mockedImage{
 				mockName: func() string {
 					return imgName
+				},
+				mockTarget: func() ocispec.Descriptor {
+					return ocispec.Descriptor{Digest: "my_repo_digest"}
 				},
 			}, nil
 		},

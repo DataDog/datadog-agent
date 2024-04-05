@@ -91,7 +91,11 @@ func TestCheckEvents(t *testing.T) {
 	}
 	cha <- &en
 
-	require.Eventually(t, sub.isRunning, testTimeout, testTicker)
+	require.Eventually(t, func() bool {
+		sub.Lock()
+		defer sub.Unlock()
+		return len(sub.Events) > 0
+	}, testTimeout, testTicker)
 
 	ev := sub.Flush(time.Now().Unix())
 	assert.Len(t, ev, 1)
@@ -131,10 +135,13 @@ func TestCheckEvents(t *testing.T) {
 	cha <- &ek
 	cha <- &evnd
 
-	require.Eventually(t, sub.isRunning, testTimeout, testTicker)
+	require.Eventually(t, func() bool {
+		sub.Lock()
+		defer sub.Unlock()
+		return len(sub.Events) > 0
+	}, testTimeout, testTicker)
 
 	ev2 := sub.Flush(time.Now().Unix())
-	fmt.Printf("\n\n 2/ Flush %v\n\n", ev2)
 	assert.Len(t, ev2, 1)
 	assert.Equal(t, ev2[0].Topic, "/tasks/oom")
 }

@@ -8,7 +8,7 @@ default_stages:
 
 repos:
 - repo: https://github.com/pycqa/flake8
-  rev: 3.9.2 # should match major Python version
+  rev: c6e0d27593a45342ffa96a18bba708a5aab32fdf # 3.9.2 should match major Python version
   hooks:
     - id: flake8
       additional_dependencies:
@@ -17,25 +17,25 @@ repos:
         - flake8-unused-arguments==0.0.6
         - flake8-use-fstring==1.3.0
 - repo: https://github.com/psf/black
-  rev: 22.3.0
+  rev: ae2c0758c9e61a385df9700dc9c231bf54887041 # 22.3.0
   hooks:
     - id: black
 - repo: https://github.com/timothycrosley/isort/
-  rev: 5.12.0
+  rev: e44834b7b294701f596c9118d6c370f86671a50d # 5.12.0
   hooks:
     - id: isort
 - repo: https://github.com/jendrikseipp/vulture
-  rev: v2.3
+  rev: 44aed44e226ec0e5660851462f764ec5d5da957c # v2.3
   hooks:
     - id: vulture
       args: ["--ignore-decorators", "@task", "--ignore-names", "test_*,Test*", "tasks"]
 - repo: https://github.com/jumanjihouse/pre-commit-hooks
-  rev: 2.1.5
+  rev: 7cc5848088fd8412905ab79feea6c8edc3ac76c6 # 2.1.5
   hooks:
     - id: shellcheck
       args: ["--severity=info", "-e", "SC2059", "-e", "SC2028"]
 - repo: https://github.com/tekwizely/pre-commit-golang
-  rev: v1.0.0-beta.5
+  rev: bd69b816c43306f28bad4d7b303d981b0ecd2fd5 # v1.0.0-beta.5
   hooks:
     - id: go-fmt
       args: [ "-w", "-s" ]
@@ -91,3 +91,20 @@ repos:
       pass_filenames: false
       # inv tidy-all takes several seconds so only run it on pre-push
       stages: [pre-push]
+    - id: go-test
+      name: go-test
+      description: run go test on modified packages
+      entry: 'inv test --only-modified-packages'
+      language: system
+      require_serial: true
+      always_run: true
+      pass_filenames: false
+      stages: [pre-push]
+    - id: shell-check-no-set-x
+      name: shell-check-no-set-x
+      description: check that no `set -x` is set within github / gitlab workflows
+      entry: bash ./tools/pre-commit/shell_check_no_set_x.sh
+      language: system
+      require_serial: true
+      files: (\.yaml|\.yml|\.sh|Dockerfile)$
+      pass_filenames: false
