@@ -36,6 +36,8 @@ const (
 	TextContentType     = "text/plain"
 	JSONContentType     = "application/json"
 	ProtobufContentType = "application/x-protobuf"
+
+	payloadsDroppedTelemetryMetricName = "datadog.logs_agent.http_destination_logs_dropped"
 )
 
 // HTTP errors.
@@ -336,8 +338,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
 		resp.StatusCode == http.StatusRequestEntityTooLarge {
+
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
+		telemetry.GetStatsTelemetryProvider().CountNoIndex(payloadsDroppedTelemetryMetricName, 1, []string{})
 		return errClient
 	} else if resp.StatusCode > http.StatusBadRequest {
 		// the server could not serve the request, most likely because of an

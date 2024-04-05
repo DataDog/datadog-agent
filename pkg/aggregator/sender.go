@@ -236,6 +236,11 @@ func (s *checkSender) Count(metric string, value float64, hostname string, tags 
 	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, false, 0)
 }
 
+// CountNoIndex should be used to count a number of events that occurred during the check run
+func (s *checkSender) CountNoIndex(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType, false, true, 0)
+}
+
 // MonotonicCount should be used to track the increase of a monotonic raw counter
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType, false, false, 0)

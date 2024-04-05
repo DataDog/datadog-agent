@@ -24,6 +24,11 @@ func (m *MockSender) Count(metric string, value float64, hostname string, tags [
 	m.Called(metric, value, hostname, tags)
 }
 
+// CountNoIndex should be used to count a number of events that occurred during the check run
+func (m *MockSender) CountNoIndex(metric string, value float64, hostname string, tags []string) {
+	m.Called(metric, value, hostname, tags)
+}
+
 // MonotonicCount adds a monotonic count type to the mock calls.
 func (m *MockSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
