@@ -7,9 +7,7 @@ from typing import List
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import DEFAULT_BRANCH, get_git_pretty_ref
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.github_actions_tools import (
+from tasks.libs.ciproviders.github_actions_tools import (
     download_artifacts,
     download_with_retry,
     follow_workflow_run,
@@ -17,8 +15,10 @@ from tasks.libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from tasks.libs.junit_upload_core import repack_macos_junit_tar
-from tasks.libs.pipeline_notifications import read_owners
+from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
+from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
+from tasks.libs.pipeline.notifications import read_owners
 from tasks.release import _get_release_json_value
 
 
@@ -67,6 +67,8 @@ def trigger_macos(
     version_cache=None,
     retry_download=3,
     retry_interval=10,
+    fast_tests=None,
+    integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
@@ -87,6 +89,7 @@ def trigger_macos(
             gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
             bucket_branch=os.environ.get("BUCKET_BRANCH", None),
             version_cache_file_content=version_cache,
+            integrations_core_ref=integrations_core_ref,
         )
     elif workflow_type == "test":
         conclusion = _trigger_macos_workflow(
@@ -98,6 +101,7 @@ def trigger_macos(
             datadog_agent_ref=datadog_agent_ref,
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
+            fast_tests=fast_tests,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
@@ -161,9 +165,9 @@ def _get_code_owners(root_folder):
 def get_milestone_id(_, milestone):
     # Local import as github isn't part of our default set of installed
     # dependencies, and we don't want to propagate it to files importing this one
-    from libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
-    gh = GithubAPI('DataDog/datadog-agent')
+    gh = GithubAPI()
     m = gh.get_milestone_by_name(milestone)
     if not m:
         raise Exit(f'Milestone {milestone} wasn\'t found in the repo', code=1)
@@ -172,9 +176,9 @@ def get_milestone_id(_, milestone):
 
 @task
 def send_rate_limit_info_datadog(_, pipeline_id):
-    from .libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
-    gh = GithubAPI('DataDog/datadog-agent')
+    gh = GithubAPI()
     rate_limit_info = gh.get_rate_limit_info()
     print(f"Remaining rate limit: {rate_limit_info[0]}/{rate_limit_info[1]}")
     metric = create_count(
@@ -188,7 +192,7 @@ def send_rate_limit_info_datadog(_, pipeline_id):
 
 @task
 def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
-    from .libs.common.github_api import GithubAPI
+    from .libs.ciproviders.github_api import GithubAPI
 
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
@@ -231,7 +235,7 @@ def assign_team_label(_, pr_id=-1):
     """
     import github
 
-    from tasks.libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
 

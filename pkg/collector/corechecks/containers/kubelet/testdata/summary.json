@@ -732,6 +732,128 @@
             "process_stats": {
                 "process_count": 0
             }
+        },
+        {
+            "podRef": {
+                "name": "long-running-init",
+                "namespace": "default",
+                "uid": "d2dfd16e-e829-4f66-91d5-f9233ca7332b"
+            },
+            "startTime": "2024-02-28T19:29:01Z",
+            "containers": [
+                {
+                    "name": "init",
+                    "startTime": "2024-02-28T19:29:12Z",
+                    "cpu": {
+                        "time": "2024-02-28T20:11:33Z",
+                        "usageNanoCores": 0,
+                        "usageCoreNanoSeconds": 9927000
+                    },
+                    "memory": {
+                        "time": "2024-02-28T20:11:33Z",
+                        "usageBytes": 229376,
+                        "workingSetBytes": 229376,
+                        "rssBytes": 49152,
+                        "pageFaults": 997,
+                        "majorPageFaults": 0
+                    },
+                    "rootfs": {
+                        "time": "2024-02-28T20:11:47Z",
+                        "availableBytes": 22153883648,
+                        "capacityBytes": 196528123904,
+                        "usedBytes": 28672,
+                        "inodesFree": 8264878,
+                        "inodes": 12214272,
+                        "inodesUsed": 8
+                    },
+                    "logs": {
+                        "time": "2024-02-28T20:11:53Z",
+                        "availableBytes": 22153883648,
+                        "capacityBytes": 196528123904,
+                        "usedBytes": 0,
+                        "inodesFree": 8264878,
+                        "inodes": 12214272,
+                        "inodesUsed": 1
+                    },
+                    "swap": {
+                        "time": "2024-02-28T20:11:53Z",
+                        "swapAvailableBytes": 0,
+                        "swapUsageBytes": 0
+                    }
+                }
+            ],
+            "cpu": {
+                "time": "2024-02-28T20:11:45Z",
+                "usageNanoCores": 0,
+                "usageCoreNanoSeconds": 36023000
+            },
+            "memory": {
+                "time": "2024-02-28T20:11:45Z",
+                "usageBytes": 471040,
+                "workingSetBytes": 471040,
+                "rssBytes": 86016,
+                "pageFaults": 3283,
+                "majorPageFaults": 0
+            },
+            "network": {
+                "time": "2024-02-28T20:11:36Z",
+                "name": "eth0",
+                "rxBytes": 0,
+                "rxErrors": 0,
+                "txBytes": 1146,
+                "txErrors": 0,
+                "interfaces": [
+                    {
+                        "name": "tunl0",
+                        "rxBytes": 0,
+                        "rxErrors": 0,
+                        "txBytes": 0,
+                        "txErrors": 0
+                    },
+                    {
+                        "name": "ip6tnl0",
+                        "rxBytes": 0,
+                        "rxErrors": 0,
+                        "txBytes": 0,
+                        "txErrors": 0
+                    },
+                    {
+                        "name": "eth0",
+                        "rxBytes": 0,
+                        "rxErrors": 0,
+                        "txBytes": 1146,
+                        "txErrors": 0
+                    }
+                ]
+            },
+            "volume": [
+                {
+                    "time": "2024-02-28T20:11:39Z",
+                    "availableBytes": 8232882176,
+                    "capacityBytes": 8232894464,
+                    "usedBytes": 12288,
+                    "inodesFree": 1004983,
+                    "inodes": 1004992,
+                    "inodesUsed": 9,
+                    "name": "kube-api-access-ffm7z"
+                }
+            ],
+            "ephemeral-storage": {
+                "time": "2024-02-28T20:11:53Z",
+                "availableBytes": 22153883648,
+                "capacityBytes": 196528123904,
+                "usedBytes": 32768,
+                "inodesFree": 8264878,
+                "inodes": 12214272,
+                "inodesUsed": 10
+            },
+            "process_stats": {
+                "process_count": 0
+            },
+            "swap": {
+                "time": "2024-02-28T20:11:45Z",
+                "swapUsageBytes": 0
+            }
         }
     ]
 }

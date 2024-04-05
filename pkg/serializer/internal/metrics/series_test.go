@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib && test
+//go:build zlib && test && zstd
 
 package metrics
 
@@ -18,9 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
+	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -370,99 +373,147 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 }
 
 func TestMarshalSplitCompress(t *testing.T) {
-	series := makeSeries(10000, 50)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			series := makeSeries(10000, 50)
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig)
+			require.NoError(t, err)
+			// check that we got multiple payloads, so splitting occurred
+			require.Greater(t, len(payloads), 1)
+			strategy := compression.NewCompressorStrategy(mockConfig)
+			for _, compressedPayload := range payloads {
+				payload, err := strategy.Decompress(compressedPayload.GetContent())
+				require.NoError(t, err)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), pkgconfigsetup.Conf())
-	require.NoError(t, err)
-	// check that we got multiple payloads, so splitting occurred
-	require.Greater(t, len(payloads), 1)
-	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(compressedPayload.GetContent())
-		require.NoError(t, err)
-
-		pl := new(gogen.MetricPayload)
-		err = pl.Unmarshal(payload)
-		for _, s := range pl.Series {
-			assert.Equal(t, []*gogen.MetricPayload_Resource{{Type: "host", Name: "localHost"}, {Type: "device", Name: "SomeDevice"}, {Type: "device", Name: "some_other_device"}, {Type: "database_instance", Name: "some_instance"}, {Type: "aws_rds_instance", Name: "some_endpoint"}}, s.Resources)
-			assert.Equal(t, []string{"tag1", "tag2:yes"}, s.Tags)
-		}
-		require.NoError(t, err)
+				pl := new(gogen.MetricPayload)
+				err = pl.Unmarshal(payload)
+				for _, s := range pl.Series {
+					assert.Equal(t, []*gogen.MetricPayload_Resource{{Type: "host", Name: "localHost"}, {Type: "device", Name: "SomeDevice"}, {Type: "device", Name: "some_other_device"}, {Type: "database_instance", Name: "some_instance"}, {Type: "aws_rds_instance", Name: "some_endpoint"}}, s.Resources)
+					assert.Equal(t, []string{"tag1", "tag2:yes"}, s.Tags)
+				}
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
 func TestMarshalSplitCompressPointsLimit(t *testing.T) {
-	mockConfig := pkgconfigsetup.Conf()
-	mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 100)
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 100)
 
-	// ten series, each with 50 points, so two should fit in each payload
-	series := makeSeries(10, 50)
+			// ten series, each with 50 points, so two should fit in each payload
+			series := makeSeries(10, 50)
 
-	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig)
-	require.NoError(t, err)
-	require.Equal(t, 5, len(payloads))
+			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig)
+			require.NoError(t, err)
+			require.Equal(t, 5, len(payloads))
+		})
+	}
 }
 
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 1)
 
-	mockConfig := pkgconfigsetup.Conf()
-	mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", 1)
+			series := makeSeries(1, 2)
+			payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig)
+			require.NoError(t, err)
+			require.Len(t, payloads, 0)
+		})
+	}
 
-	series := makeSeries(1, 2)
-	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext(), mockConfig)
-	require.NoError(t, err)
-	require.Len(t, payloads, 0)
 }
 
 // test taken from the spliter
 func TestPayloadsSeries(t *testing.T) {
-	testSeries := metrics.Series{}
-	for i := 0; i < 30000; i++ {
-		point := metrics.Serie{
-			Points: []metrics.Point{
-				{Ts: 12345.0, Value: float64(21.21)},
-				{Ts: 67890.0, Value: float64(12.12)},
-				{Ts: 2222.0, Value: float64(22.12)},
-				{Ts: 333.0, Value: float64(32.12)},
-				{Ts: 444444.0, Value: float64(42.12)},
-				{Ts: 882787.0, Value: float64(52.12)},
-				{Ts: 99990.0, Value: float64(62.12)},
-				{Ts: 121212.0, Value: float64(72.12)},
-				{Ts: 222227.0, Value: float64(82.12)},
-				{Ts: 808080.0, Value: float64(92.12)},
-				{Ts: 9090.0, Value: float64(13.12)},
-			},
-			MType:    metrics.APIGaugeType,
-			Name:     fmt.Sprintf("test.metrics%d", i),
-			Interval: 1,
-			Host:     "localHost",
-			Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
-		}
-		testSeries = append(testSeries, &point)
+
+	tests := map[string]struct {
+		kind string
+	}{
+		"zlib": {kind: strategyUtils.ZlibKind},
+		"zstd": {kind: strategyUtils.ZstdKind},
 	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			testSeries := metrics.Series{}
+			for i := 0; i < 30000; i++ {
+				point := metrics.Serie{
+					Points: []metrics.Point{
+						{Ts: 12345.0, Value: float64(21.21)},
+						{Ts: 67890.0, Value: float64(12.12)},
+						{Ts: 2222.0, Value: float64(22.12)},
+						{Ts: 333.0, Value: float64(32.12)},
+						{Ts: 444444.0, Value: float64(42.12)},
+						{Ts: 882787.0, Value: float64(52.12)},
+						{Ts: 99990.0, Value: float64(62.12)},
+						{Ts: 121212.0, Value: float64(72.12)},
+						{Ts: 222227.0, Value: float64(82.12)},
+						{Ts: 808080.0, Value: float64(92.12)},
+						{Ts: 9090.0, Value: float64(13.12)},
+					},
+					MType:    metrics.APIGaugeType,
+					Name:     fmt.Sprintf("test.metrics%d", i),
+					Interval: 1,
+					Host:     "localHost",
+					Tags:     tagset.CompositeTagsFromSlice([]string{"tag1", "tag2:yes"}),
+				}
+				testSeries = append(testSeries, &point)
+			}
 
-	originalLength := len(testSeries)
-	builder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
-	iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
-	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
-	require.Nil(t, err)
-	var splitSeries = []Series{}
-	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(compressedPayload.GetContent())
-		require.NoError(t, err)
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
+			originalLength := len(testSeries)
+			builder := stream.NewJSONPayloadBuilder(true, mockConfig)
+			iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
+			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
+			require.Nil(t, err)
+			var splitSeries = []Series{}
+			strategy := compression.NewCompressorStrategy(mockConfig)
+			for _, compressedPayload := range payloads {
+				payload, err := strategy.Decompress(compressedPayload.GetContent())
+				require.NoError(t, err)
 
-		var s = map[string]Series{}
-		err = json.Unmarshal(payload, &s)
-		require.NoError(t, err)
-		splitSeries = append(splitSeries, s["series"])
+				var s = map[string]Series{}
+				err = json.Unmarshal(payload, &s)
+				require.NoError(t, err)
+				splitSeries = append(splitSeries, s["series"])
+			}
+
+			unrolledSeries := Series{}
+			for _, series := range splitSeries {
+				unrolledSeries = append(unrolledSeries, series...)
+			}
+
+			newLength := len(unrolledSeries)
+			require.Equal(t, originalLength, newLength)
+		})
 	}
-
-	unrolledSeries := Series{}
-	for _, series := range splitSeries {
-		unrolledSeries = append(unrolledSeries, series...)
-	}
-
-	newLength := len(unrolledSeries)
-	require.Equal(t, originalLength, newLength)
 }
 
 var result transaction.BytesPayloads

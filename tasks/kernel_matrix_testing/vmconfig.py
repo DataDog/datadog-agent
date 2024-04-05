@@ -10,8 +10,8 @@ from urllib.parse import urlparse
 
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.platforms import get_platforms
+from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
+from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, warn
 from tasks.kernel_matrix_testing.vars import VMCONFIG, arch_mapping
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
         Arch,
         ArchOrLocal,
+        Component,
         CustomKernel,
         DistroKernel,
         Kernel,
@@ -113,6 +114,9 @@ distributions = {
     "centos_79": "centos_79",
     "centos_7": "centos_79",
     "centos_8": "centos_8",
+    # Rocky Linux mappings
+    "rocky_8.5": "rocky_8.5",
+    "rocky_9.3": "rocky_9.3",
 }
 
 TICK = "\u2713"
@@ -138,7 +142,7 @@ def get_vmconfig_template_file(template="system-probe"):
 
 def get_vmconfig(file: PathOrStr) -> VMConfig:
     with open(file) as f:
-        return cast(VMConfig, json.load(f))
+        return cast('VMConfig', json.load(f))
 
 
 def get_vmconfig_template(template="system-probe") -> VMConfig:
@@ -317,15 +321,18 @@ def add_custom_vmset(vmset: 'VMSet', vm_config: VMConfig):
     if vmset_exists(vm_config, vmset.tags):
         return
 
-    new_set = VMSetDict(
-        tags=list(vmset.tags),
-        recipe=f"{vmset.recipe}-{vmset.arch}",
-        arch=vmset.arch,
-        kernels=list(),
-        image={
-            "image_path": image_path,
-            "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
-        },
+    new_set = cast(
+        'VMSetDict',
+        dict(
+            tags=list(vmset.tags),
+            recipe=f"{vmset.recipe}-{vmset.arch}",
+            arch=vmset.arch,
+            kernels=list(),
+            image={
+                "image_path": image_path,
+                "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
+            },
+        ),
     )
 
     vm_config["vmsets"].append(new_set)
@@ -338,7 +345,9 @@ def add_vmset(vmset: 'VMSet', vm_config: VMConfig):
     if vmset.recipe == "custom":
         return add_custom_vmset(vmset, vm_config)
 
-    new_set = VMSetDict(tags=list(vmset.tags), recipe=vmset.recipe, arch=vmset.arch, kernels=list())
+    new_set = cast(
+        'VMSetDict', dict(tags=list(vmset.tags), recipe=f"{vmset.recipe}-{vmset.arch}", arch=vmset.arch, kernels=list())
+    )
 
     vm_config["vmsets"].append(new_set)
 
@@ -392,6 +401,17 @@ def add_disks(vmconfig_template: VMConfig, vmset: VMSetDict):
         if tname in template.get("tags", []):
             vmset["disks"] = copy.deepcopy(template.get("disks", []))
 
+            if "arch" not in vmset:
+                raise Exit("arch is not defined in vmset")
+            if vmset["arch"] == local_arch:
+                kmt_os = get_kmt_os()
+            else:
+                # Remote VMs are always Linux instances
+                kmt_os = Linux
+
+            for disk in vmset.get("disks", []):
+                disk["target"] = disk["target"].replace("%KMTDIR%", os.fspath(kmt_os.kmt_dir))
+
 
 def add_console(vmset: VMSetDict):
     vmset["console_type"] = "file"
@@ -413,7 +433,7 @@ def image_source_to_path(vmset: VMSetDict):
         vmset["image"]["image_source"] = url_to_fspath(vmset["image"]["image_source"])
         return
 
-    for kernel in cast(List[DistroKernel], vmset.get("kernels", [])):
+    for kernel in cast(List['DistroKernel'], vmset.get("kernels", [])):
         kernel["image_source"] = url_to_fspath(kernel["image_source"])
 
     for disk in vmset.get("disks", []):
@@ -609,8 +629,10 @@ def gen_config_for_stack(
     info(f"[+] vmconfig @ {vmconfig_file}")
 
 
-def list_all_distro_normalized_vms(archs: List[Arch]):
+def list_all_distro_normalized_vms(archs: List[Arch], component: Optional[Component] = None):
     platforms = get_platforms()
+    if component is not None:
+        platforms = filter_by_ci_component(platforms, component)
 
     vms: List[VMDef] = list()
     for arch in archs:
@@ -632,7 +654,7 @@ def gen_config(
     ci: bool,
     arch: str,
     output_file: PathOrStr,
-    template: str,
+    template: Component,
 ):
     vcpu_ls = vcpu.split(',')
     memory_ls = memory.split(',')
@@ -660,7 +682,7 @@ def gen_config(
     if arch != "":
         arch_ls = [arch_mapping[arch]]
 
-    vms_to_generate = list_all_distro_normalized_vms(arch_ls)
+    vms_to_generate = list_all_distro_normalized_vms(arch_ls, template)
     vm_config = generate_vmconfig(
         {"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci, template
     )

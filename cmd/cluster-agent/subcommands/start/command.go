@@ -36,6 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
+	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -53,7 +55,6 @@ import (
 	rccomp "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -167,6 +168,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				autodiscoveryimpl.Module(),
 				rcserviceimpl.Module(),
 				rctelemetryreporterimpl.Module(),
+				fx.Provide(func(config config.Component) healthprobe.Options {
+					return healthprobe.Options{
+						Port:           config.GetInt("health_port"),
+						LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
+					}
+				}),
+				healthprobeimpl.Module(),
 			)
 		},
 	}
@@ -184,7 +192,9 @@ func start(log log.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	rcService optional.Option[rccomp.Component]) error {
+	rcService optional.Option[rccomp.Component],
+	_ healthprobe.Component,
+) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -227,17 +237,6 @@ func start(log log.Component,
 		}
 	}()
 
-	// Setup healthcheck port
-	healthPort := config.GetInt("health_port")
-	if healthPort > 0 {
-		err := healthprobe.Serve(mainCtx, config, healthPort)
-		if err != nil {
-			return fmt.Errorf("Error starting health port, exiting: %v", err)
-		}
-
-		pkglog.Debugf("Health check listening on port %d", healthPort)
-	}
-
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
@@ -255,7 +254,7 @@ func start(log log.Component,
 	}
 
 	// Setup the leader forwarder for language detection and cluster checks
-	if config.GetBool("cluster_checks.enabled") || config.GetBool("language_detection.reporting.enabled") {
+	if config.GetBool("cluster_checks.enabled") || (config.GetBool("language_detection.enabled") && config.GetBool("language_detection.reporting.enabled")) {
 		apidca.NewGlobalLeaderForwarder(
 			config.GetInt("cluster_agent.cmd_port"),
 			config.GetInt("cluster_agent.max_connections"),
@@ -390,7 +389,7 @@ func start(log log.Component,
 		}()
 	}
 
-	if config.GetBool("cluster_agent.language_detection.patcher.enabled") {
+	if config.GetBool("language_detection.enabled") && config.GetBool("cluster_agent.language_detection.patcher.enabled") {
 		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
@@ -432,7 +431,7 @@ func start(log log.Component,
 			server := admissioncmd.NewServer()
 
 			for _, webhookConf := range webhooks {
-				server.Register(webhookConf.Endpoint(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
+				server.Register(webhookConf.Endpoint(), webhookConf.Name(), webhookConf.MutateFunc(), apiCl.DynamicCl, apiCl.Cl)
 			}
 
 			// Start the k8s admission webhook server
@@ -534,7 +533,7 @@ func initializeRemoteConfigClient(ctx context.Context, rcService rccomp.Componen
 		rcclient.WithCluster(clusterName, clusterID),
 		rcclient.WithProducts(state.ProductAPMTracing),
 		rcclient.WithPollInterval(5*time.Second),
-		rcclient.WithDirectorRootOverride(config.GetString("remote_configuration.director_root")),
+		rcclient.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)

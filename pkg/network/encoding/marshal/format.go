@@ -38,24 +38,42 @@ func (ipc ipCache) Get(addr util.Address) string {
 	return v
 }
 
+func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct{}) {
+	for _, tags := range dynamicTags {
+		if out == nil {
+			out = tags
+			continue
+		}
+		for k, v := range tags {
+			out[k] = v
+		}
+	}
+	return
+}
+
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx, httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
 
 	builder.SetPid(int32(conn.Pid))
 
 	var containerID string
-	if conn.ContainerID != nil {
-		containerID = *conn.ContainerID
+	if conn.ContainerID.Source != nil {
+		containerID = conn.ContainerID.Source.Get().(string)
 	}
-
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Source))
 		w.SetPort(int32(conn.SPort))
 		w.SetContainerId(containerID)
 	})
+
+	containerID = ""
+	if conn.ContainerID.Dest != nil {
+		containerID = conn.ContainerID.Dest.Get().(string)
+	}
 	builder.SetRaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Dest))
 		w.SetPort(int32(conn.DPort))
+		w.SetContainerId(containerID)
 	})
 	builder.SetFamily(uint64(formatFamily(conn.Family)))
 	builder.SetType(uint64(formatType(conn.Type)))
@@ -91,12 +109,11 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetRouteIdx(formatRouteIdx(conn.Via, routes))
 	dnsFormatter.FormatConnectionDNS(conn, builder)
 
-	var (
-		staticTags  uint64
-		dynamicTags map[string]struct{}
-	)
-	staticTags, dynamicTags = httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
-	_, _ = http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
+	httpStaticTags, httpDynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
+	http2StaticTags, http2DynamicTags := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
+
+	staticTags := httpStaticTags | http2StaticTags
+	dynamicTags := mergeDynamicTags(httpDynamicTags, http2DynamicTags)
 
 	kafkaEncoder.WriteKafkaAggregations(conn, builder)
 

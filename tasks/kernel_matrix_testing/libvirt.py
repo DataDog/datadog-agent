@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, Callable, Iterable, List
 
 from tasks.kernel_matrix_testing.tool import info
@@ -8,6 +9,11 @@ if TYPE_CHECKING:
     import libvirt
 
     from tasks.kernel_matrix_testing.types import TNamed
+else:
+    try:
+        import libvirt
+    except ImportError:
+        libvirt = None
 
 
 def resource_in_stack(stack: str, resource: str) -> bool:
@@ -32,7 +38,13 @@ def delete_domains(conn: 'libvirt.virConnect', stack: str):
         name = domain.name()
         if domain.isActive():
             domain.destroy()
-        domain.undefine()
+
+        undefine_flags = 0
+        if sys.platform == "darwin":
+            undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
+
+        domain.undefineFlags(undefine_flags)
+
         info(f"[+] VM {name} deleted")
 
 

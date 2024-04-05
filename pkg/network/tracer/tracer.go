@@ -213,6 +213,8 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		cfg.MaxDNSStatsBuffered,
 		cfg.MaxHTTPStatsBuffered,
 		cfg.MaxKafkaStatsBuffered,
+		cfg.EnableNPMConnectionRollup,
+		cfg.EnableProcessEventMonitoring,
 	)
 
 	return tr, nil
@@ -224,7 +226,7 @@ func (tr *Tracer) start() error {
 	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
-		return fmt.Errorf("could not start ebpf manager: %s", err)
+		return fmt.Errorf("could not start ebpf tracer: %s", err)
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
@@ -252,16 +254,18 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
 		}
 	}
-
-	if c, err = NewEBPFConntracker(cfg); err == nil {
-		return c, nil
-	}
-
-	if cfg.AllowNetlinkConntrackerFallback {
-		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
-		if c, err = netlink.NewConntracker(cfg); err == nil {
+	if cfg.EnableEbpfConntracker {
+		if c, err = NewEBPFConntracker(cfg); err == nil {
 			return c, nil
 		}
+		log.Warnf("error initializing ebpf conntracker: %s", err)
+	} else {
+		log.Info("ebpf conntracker disabled")
+	}
+
+	log.Info("falling back to netlink conntracker")
+	if c, err = netlink.NewConntracker(cfg); err == nil {
+		return c, nil
 	}
 
 	if cfg.IgnoreConntrackInitFailure {
@@ -292,6 +296,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
 	for i := range connections {
 		cs := &connections[i]
+		cs.IsClosed = true
 		if t.shouldSkipConnection(cs) {
 			connections[rejected], connections[i] = connections[i], connections[rejected]
 			rejected++
@@ -320,7 +325,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID = nil
+	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
@@ -347,9 +352,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Env("DD_VERSION"))
 	addTag("service", p.Env("DD_SERVICE"))
 
-	if containerID := p.ContainerID.Get().(string); containerID != "" {
-		c.ContainerID = &containerID
-	}
+	c.ContainerID.Source = p.ContainerID
 }
 
 // Stop stops the tracer

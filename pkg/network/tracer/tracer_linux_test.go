@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -28,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1861,6 +1864,22 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	t := s.T()
+	t.Run("ringbuf_enabled", func(t *testing.T) {
+		if features.HaveMapType(ebpf.RingBuf) != nil {
+			t.Skip("skipping test as ringbuffers are not supported on this kernel")
+		}
+		c := testConfig()
+		c.NPMRingbuffersEnabled = true
+		testPreexistingEmptyIncomingConnectionDirection(t, c)
+	})
+	t.Run("ringbuf_disabled", func(t *testing.T) {
+		c := testConfig()
+		c.NPMRingbuffersEnabled = false
+		testPreexistingEmptyIncomingConnectionDirection(t, c)
+	})
+}
+
+func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *config.Config) {
 	// Start the client and server before we enable the system probe to test that the tracer picks
 	// up the pre-existing connection
 
@@ -1876,7 +1895,7 @@ func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
 	require.NoError(t, err)
 
 	// Enable BPF-based system probe
-	tr := setupTracer(t, testConfig())
+	tr := setupTracer(t, config)
 
 	// close the server connection so the tracer picks it up
 	close(ch)
@@ -2110,10 +2129,8 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 }
 
 func TestConntrackerFallback(t *testing.T) {
-	ebpftest.LogLevel(t, "trace")
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
-	cfg.AllowNetlinkConntrackerFallback = true
 	conntracker, err := newConntracker(cfg)
 	// ensure we always clean up the conntracker, regardless of behavior
 	if conntracker != nil {
@@ -2121,15 +2138,7 @@ func TestConntrackerFallback(t *testing.T) {
 	}
 	assert.NoError(t, err)
 	require.NotNil(t, conntracker)
-
-	cfg.AllowNetlinkConntrackerFallback = false
-	conntracker, err = newConntracker(cfg)
-	// ensure we always clean up the conntracker, regardless of behavior
-	if conntracker != nil {
-		t.Cleanup(conntracker.Close)
-	}
-	assert.Error(t, err)
-	require.Nil(t, conntracker)
+	require.Equal(t, "netlink", conntracker.GetType())
 }
 
 func testConfig() *config.Config {
@@ -2162,4 +2171,71 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	}
 	// fail if tracer cannot start
 	_ = setupTracer(t, cfg)
+}
+
+func (s *TracerSuite) TestConnectionDuration() {
+	t := s.T()
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
+
+	srv := NewTCPServer(func(c net.Conn) {
+		var b [4]byte
+		for {
+			_, err := c.Read(b[:])
+			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				return
+			}
+			require.NoError(t, err)
+			_, err = c.Write([]byte("pong"))
+			if err != nil && (errors.Is(err, net.ErrClosed) || err == io.EOF) {
+				return
+			}
+			require.NoError(t, err)
+		}
+	})
+
+	require.NoError(t, srv.Run(), "error running server")
+	t.Cleanup(srv.Shutdown)
+
+	srvAddr := srv.address
+	c, err := net.DialTimeout("tcp", srvAddr, time.Second)
+	require.NoError(t, err, "could not connect to server at %s", srvAddr)
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	t.Cleanup(ticker.Stop)
+
+	timer := time.NewTimer(time.Second)
+	t.Cleanup(func() { timer.Stop() })
+
+LOOP:
+	for {
+		select {
+		case <-timer.C:
+			break LOOP
+		case <-ticker.C:
+			_, err = c.Write([]byte("ping"))
+			require.NoError(t, err, "error writing ping to server")
+			var b [4]byte
+			_, err = c.Read(b[:])
+			require.NoError(t, err, "error reading from server")
+		}
+	}
+
+	// get connections, the client connection will still
+	// not be in the closed state, so duration will the
+	// timestamp of when it was created
+	conns := getConnections(t, tr)
+	conn, found := findConnection(c.LocalAddr(), srv.ln.Addr(), conns)
+	require.True(t, found)
+	// all we can do is verify it is > 0
+	assert.Greater(t, conn.Duration, time.Duration(0))
+
+	require.NoError(t, c.Close(), "error closing client connection")
+	// after closing the client connection, the duration should be
+	// updated to a value between 1s and 1.1s
+	conn, found = findConnection(c.LocalAddr(), srv.ln.Addr(), getConnections(t, tr))
+	require.True(t, found)
+	t.Log(conn.Duration)
+	assert.GreaterOrEqual(t, conn.Duration, time.Second, "connection duration should be between 1 and 1.1 seconds")
+	assert.Less(t, conn.Duration, 1100*time.Millisecond, "connection duration should be between 1 and 1.1 seconds")
 }

@@ -56,16 +56,43 @@ func TestCheckSubcommand(t *testing.T) {
 	}
 }
 
+func TestLoadSubcommand(t *testing.T) {
+	tests := []struct {
+		name     string
+		cliInput []string
+		check    func(cliParams *loadCliParams, params core.BundleParams)
+	}{
+		{
+			name:     "compliance load",
+			cliInput: []string{"compliance", "load", "k8s"},
+			check: func(cliParams *loadCliParams, params core.BundleParams) {
+				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
+				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
+				require.Equal(t, "k8s", cliParams.confType)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		fxutil.TestOneShotSubcommand(t,
+			Commands(&command.GlobalParams{}),
+			test.cliInput,
+			loadRun,
+			test.check,
+		)
+	}
+}
+
 func TestCommand_kubeapiserver(t *testing.T) {
 	tests := []struct {
 		name     string
 		cliInput []string
-		check    func(cliParams *cliParams, params core.BundleParams)
+		check    func(cliParams *eventCliParams, params core.BundleParams)
 	}{
 		{
 			name:     "compliance event tags",
 			cliInput: []string{"compliance", "event", "--tags", "test:tag"},
-			check: func(cliParams *cliParams, params core.BundleParams) {
+			check: func(cliParams *eventCliParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
 				require.Equal(t, []string{"test:tag"}, cliParams.event.Tags, "tags arg input not matching")
@@ -80,7 +107,7 @@ func TestCommand_kubeapiserver(t *testing.T) {
 		for _, subcommand := range rootCommand.Commands() {
 			subcommandNames = append(subcommandNames, subcommand.Use)
 		}
-		require.Equal(t, []string{"check", "event"}, subcommandNames, "subcommand missing")
+		require.Equal(t, []string{"check", "event", "load <conf-type>"}, subcommandNames, "subcommand missing")
 
 		fxutil.TestOneShotSubcommand(t,
 			Commands(&command.GlobalParams{}),

@@ -66,7 +66,6 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         if not os.path.exists(path):
             to_download.append(f)
 
-    disks_to_download: list[str] = list()
     for vmset in vmconfig_template["vmsets"]:
         if "arch" not in vmset:
             raise Exit("arch is not defined in vmset")
@@ -75,12 +74,15 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
             continue
 
         for disk in vmset.get("disks", []):
-            d = os.path.basename(disk["source"])
+            # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
+            d = os.path.basename(disk["target"])
             if not os.path.exists(os.path.join(rootfs_dir, d)):
-                disks_to_download.append(d)
+                if d.endswith(".xz"):
+                    d = d[: -len(".xz")]
+                to_download.append(d)
 
     # download and compare hash sums
-    present_files = list(set(file_ls) - set(to_download)) + disks_to_download
+    present_files = list(set(file_ls) - set(to_download))
     for f in present_files:
         if requires_update(url_base, rootfs_dir, f, branch_mapping.get(f, "master")):
             debug(f"[debug] updating {f} from S3.")
@@ -99,10 +101,9 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
             for f in to_download:
                 branch = branch_mapping.get(f, "master")
                 info(f"[+] {f} needs to be downloaded, using branch {branch}")
-                xz = ".xz" if f not in disks_to_download else ""
-                filename = f"{f}{xz}"
+                filename = f"{f}.xz"
                 sum_file = f"{f}.sum"
-                # remove this file and sum
+                # remove this file and sum, uncompressed file too if it exists
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
                 ctx.run(f"rm -f {os.path.join(rootfs_dir, f)} || true")  # remove old file if it exists
@@ -123,7 +124,7 @@ def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name:
         os.remove(path)
 
     # extract files
-    res = ctx.run(f"find {rootfs_dir} -name \"*qcow2.xz\" -type f -exec xz -d {{}} \\;")
+    res = ctx.run(f"find {rootfs_dir} -name \"*qcow*.xz\" -type f -exec xz -d {{}} \\;")
     if res is None or not res.ok:
         raise Exit("Failed to extract qcow2 files")
 

@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -34,35 +33,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var ownerCacheTTL = config.Datadog.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
-
 var labelsToEnv = map[string]string{
 	kubernetes.EnvTagLabelKey:     kubernetes.EnvTagEnvVar,
 	kubernetes.ServiceTagLabelKey: kubernetes.ServiceTagEnvVar,
 	kubernetes.VersionTagLabelKey: kubernetes.VersionTagEnvVar,
 }
 
-const webhookName = "tags"
+const webhookName = "standard_tags"
 
 // Webhook is the webhook that injects DD_ENV, DD_VERSION, DD_SERVICE env vars
 type Webhook struct {
-	name       string
-	isEnabled  bool
-	endpoint   string
-	resources  []string
-	operations []admiv1.OperationType
-	wmeta      workloadmeta.Component
+	name          string
+	isEnabled     bool
+	endpoint      string
+	resources     []string
+	operations    []admiv1.OperationType
+	ownerCacheTTL time.Duration
+	wmeta         workloadmeta.Component
 }
 
 // NewWebhook returns a new Webhook
 func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
-		name:       webhookName,
-		isEnabled:  config.Datadog.GetBool("admission_controller.inject_tags.enabled"),
-		endpoint:   config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
-		resources:  []string{"pods"},
-		operations: []admiv1.OperationType{admiv1.Create},
-		wmeta:      wmeta,
+		name:          webhookName,
+		isEnabled:     config.Datadog.GetBool("admission_controller.inject_tags.enabled"),
+		endpoint:      config.Datadog.GetString("admission_controller.inject_tags.endpoint"),
+		resources:     []string{"pods"},
+		operations:    []admiv1.OperationType{admiv1.Create},
+		ownerCacheTTL: ownerCacheTTL(),
+		wmeta:         wmeta,
 	}
 }
 
@@ -126,61 +125,56 @@ func (o *ownerInfo) buildID(ns string) string {
 // mutate adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
 func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
-	return common.Mutate(request.Raw, request.Namespace, func(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
-		return injectTags(pod, ns, dc, w.wmeta)
+	return common.Mutate(request.Raw, request.Namespace, w.Name(), func(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
+		return w.injectTags(pod, ns, dc)
 	}, request.DynamicClient)
 }
 
 // injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed
-func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, wmeta workloadmeta.Component) error {
+func (w *Webhook) injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error) {
 	var injected bool
-	defer func() {
-		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected), "", "")
-	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "nil pod", "", "")
-		return errors.New("cannot inject tags into nil pod")
+		return false, errors.New(metrics.InvalidInput)
 	}
 
-	if !autoinstrumentation.ShouldInject(pod, wmeta) {
+	if !autoinstrumentation.ShouldInject(pod, w.wmeta) {
 		// Ignore pod if it has the label admission.datadoghq.com/enabled=false or Single step configuration is disabled
-		return nil
+		return false, nil
 	}
 
 	var found bool
 	if found, injected = injectTagsFromLabels(pod.GetLabels(), pod); found {
 		// Standard labels found in the pod's labels
 		// No need to lookup the pod's owner
-		return nil
+		return injected, nil
 	}
 
 	if ns == "" {
 		if pod.GetNamespace() != "" {
 			ns = pod.GetNamespace()
 		} else {
-			metrics.MutationErrors.Inc(metrics.TagsMutationType, "empty namespace", "", "")
-			return errors.New("cannot get standard tags from parent object: empty namespace")
+			return false, errors.New(metrics.InvalidInput)
 		}
 	}
 
 	// Try to discover standard labels on the pod's owner
 	owners := pod.GetOwnerReferences()
 	if len(owners) == 0 {
-		return nil
+		return false, nil
 	}
 
-	owner, err := getOwner(owners[0], ns, dc)
+	owner, err := w.getOwner(owners[0], ns, dc)
 	if err != nil {
-		metrics.MutationErrors.Inc(metrics.TagsMutationType, "cannot get owner", "", "")
-		return err
+		log.Error(err)
+		return false, errors.New(metrics.InternalError)
 	}
 
 	log.Debugf("Looking for standard labels on '%s/%s' - kind '%s' owner of pod %s", owner.namespace, owner.name, owner.kind, common.PodString(pod))
 	_, injected = injectTagsFromLabels(owner.labels, pod)
 
-	return nil
+	return injected, nil
 }
 
 // injectTagsFromLabels looks for standard tags in pod labels
@@ -217,13 +211,13 @@ func getOwnerInfo(owner metav1.OwnerReference) (*ownerInfo, error) {
 
 // getOwner returns the object of the pod's owner
 // If the owner is a replicaset it returns the corresponding deployment
-func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*owner, error) {
+func (w *Webhook) getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*owner, error) {
 	ownerInfo, err := getOwnerInfo(owner)
 	if err != nil {
 		return nil, err
 	}
 
-	obj, err := getAndCacheOwner(ownerInfo, ns, dc)
+	obj, err := w.getAndCacheOwner(ownerInfo, ns, dc)
 	if err != nil {
 		return nil, err
 	}
@@ -235,14 +229,14 @@ func getOwner(owner metav1.OwnerReference, ns string, dc dynamic.Interface) (*ow
 			return nil, err
 		}
 
-		return getAndCacheOwner(rsOwnerInfo, ns, dc)
+		return w.getAndCacheOwner(rsOwnerInfo, ns, dc)
 	}
 
 	return obj, nil
 }
 
 // getAndCacheOwner tries to fetch the owner object from cache before querying the api server
-func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*owner, error) {
+func (w *Webhook) getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*owner, error) {
 	infoID := info.buildID(ns)
 	if cachedObj, hit := cache.Cache.Get(infoID); hit {
 		metrics.GetOwnerCacheHit.Inc(info.gvr.Resource)
@@ -269,6 +263,14 @@ func getAndCacheOwner(info *ownerInfo, ns string, dc dynamic.Interface) (*owner,
 		ownerReferences: ownerObj.GetOwnerReferences(),
 	}
 
-	cache.Cache.Set(infoID, owner, ownerCacheTTL)
+	cache.Cache.Set(infoID, owner, w.ownerCacheTTL)
 	return owner, nil
+}
+
+func ownerCacheTTL() time.Duration {
+	if config.Datadog.IsSet("admission_controller.pod_owners_cache_validity") { // old option. Kept for backwards compatibility
+		return config.Datadog.GetDuration("admission_controller.pod_owners_cache_validity") * time.Minute
+	}
+
+	return config.Datadog.GetDuration("admission_controller.inject_tags.pod_owners_cache_validity") * time.Minute
 }

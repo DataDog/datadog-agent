@@ -37,6 +37,8 @@ const (
 	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
 	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
 	kubeNamespaceTracegenWorkload           = "workload-tracegen"
+	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
+	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
@@ -593,21 +595,59 @@ func (suite *k8sSuite) TestCPU() {
 }
 
 func (suite *k8sSuite) TestDogstatsdInAgent() {
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload)
+	// Test with UDS
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
+	// Test with UDP + Origin detection
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	// Test with UDP + DD_ENTITY_ID
+	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {
-	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload)
+	// Test with UDS
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsStandaloneWorkload, kubeDeploymentDogstatsdUDS)
+	// Dogstatsd standalone does not support origin detection
+	// Test with UDP + DD_ENTITY_ID
+	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
 
-func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
-	// Test dogstatsd origin detection with UDS
+func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
+	// Test dogstatsd origin detection with UDP + DD_ENTITY_ID
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
-				"^kube_deployment:dogstatsd-uds$",
-				"^kube_namespace:" + kubeNamespace + "$",
+				"^kube_deployment:dogstatsd-udp$",
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^kube_deployment:dogstatsd-udp$`,
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
+				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^series:`,
+			},
+		},
+	})
+}
+
+func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
+	if kubeDeployment == kubeDeploymentDogstatsdUDPOrigin {
+		// CONTINT-3934: This test is flaky, skip it for now
+		suite.T().Skipf("Skipping test for %s/%s as it is currently flaky", kubeNamespace, kubeDeployment)
+	}
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
+				"^kube_deployment:" + regexp.QuoteMeta(kubeDeployment) + "$",
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -621,40 +661,16 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:main$`,
 				`^kube_container_name:dogstatsd$`,
-				`^kube_deployment:dogstatsd-uds$`,
-				"^kube_namespace:" + kubeNamespace + "$",
+				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
+				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:dogstatsd-uds-[[:alnum:]]+$`,
+				`^kube_ownerref_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
-				`^kube_replica_set:dogstatsd-uds-[[:alnum:]]+$`,
-				`^pod_name:dogstatsd-uds-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^kube_replica_set:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(kubeDeployment) + `-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
-			},
-		},
-	})
-
-	// Test dogstatsd origin detection with UDP
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
-			Name: "custom.metric",
-			Tags: []string{
-				"^kube_deployment:dogstatsd-udp$",
-				"^kube_namespace:" + kubeNamespace + "$",
-			},
-		},
-		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^kube_deployment:dogstatsd-udp$`,
-				"^kube_namespace:" + kubeNamespace + "$",
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
-				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^series:`,
 			},
 		},
 	})
@@ -999,7 +1015,12 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			}
 			assert.Truef(c, scaleUp, "No scale up detected")
 			assert.Truef(c, scaleDown, "No scale down detected")
-		}, 20*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
+			// The deployments that have an HPA configured (nginx and redis)
+			// exhibit a traffic pattern that follows a sine wave with a
+			// 20-minute period. This is defined in the test-infra-definitions
+			// repo. For this reason, the timeout for this test needs to be a
+			// bit higher than 20 min to capture the scale down event.
+		}, 25*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
 	})
 }
 

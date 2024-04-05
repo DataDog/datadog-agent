@@ -63,10 +63,8 @@ static __always_inline bool tls_read_hpack_int(tls_dispatcher_arguments_t *info,
     return tls_read_hpack_int_with_given_current_char(info, current_char_as_number, max_number_for_bits, out);
 }
 
-// Handles the case in which a header is not a pseudo header. We don't need to save it as interesting or modify our telemetry.
-// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.3
-// https://datatracker.ietf.org/doc/html/rfc7540#section-8.1.2.4
-static __always_inline bool tls_handle_non_pseudo_headers(tls_dispatcher_arguments_t *info, __u64 index) {
+// Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
+static __always_inline bool tls_process_and_skip_literal_headers(tls_dispatcher_arguments_t *info, __u64 index) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
@@ -288,7 +286,7 @@ static __always_inline __u8 tls_filter_relevant_headers(tls_dispatcher_arguments
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
 
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!tls_handle_non_pseudo_headers(info, index)) {
+        if (!tls_process_and_skip_literal_headers(info, index)) {
             break;
         }
     }
@@ -503,6 +501,9 @@ static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info
         if (info->data_off == info->data_end) {
             return false;
         }
+        if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
+            return false;
+        }
         reset_frame(current_frame);
         read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
         if (format_http2_frame_header(current_frame)) {
@@ -636,12 +637,19 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
     if (!has_valid_first_frame) {
+        // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
+        if (dispatcher_args_copy.data_off < dispatcher_args_copy.data_end && dispatcher_args_copy.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.data_end) {
+            frame_header_remainder_t new_frame_state = { 0 };
+            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.data_end - dispatcher_args_copy.data_off);
+            bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
+        #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
+            for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
+                bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.data_off + iteration);
+            }
+            new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+            bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        }
         return 0;
-    }
-
-    // If we have a state and we consumed it, then delete it.
-    if (frame_state != NULL && frame_state->remainder == 0) {
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
 
     check_frame_split(http2_tel, dispatcher_args_copy.data_off, dispatcher_args_copy.data_end, current_frame);
@@ -820,6 +828,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
             continue;
         }
         dispatcher_args_copy.data_off = current_frame.offset;
+        current_stream->tags |= args->tags;
         tls_process_headers_frame(&dispatcher_args_copy, current_stream, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
     }
 
@@ -1015,6 +1024,8 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
         return 0;
     }
 
+    bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
+
     terminated_http2_batch_enqueue(&args->tup);
     // Deleting the entry for the original tuple.
     bpf_map_delete_elem(&http2_remainder, &args->tup);
@@ -1024,8 +1035,6 @@ int uprobe__http2_tls_termination(struct pt_regs *ctx) {
     flip_tuple(&args->tup);
     bpf_map_delete_elem(&http2_dynamic_counter_table, &args->tup);
     bpf_map_delete_elem(&http2_remainder, &args->tup);
-
-    bpf_map_delete_elem(&tls_http2_iterations, &args->tup);
 
     return 0;
 }

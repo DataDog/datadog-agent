@@ -17,10 +17,7 @@ single-machine-performance-regression_detector:
       - outputs/report.html # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.12.0
-    LADING_VERSION: 0.20.9
-    CPUS: 7
-    MEMORY: "30g"
+    SMP_VERSION: 0.13.0
   # At present we require two artifacts to exist for the 'baseline' and the
   # 'comparison'. We are guaranteed by the structure of the pipeline that
   # 'comparison' exists, not so much with 'baseline' as it has to come from main
@@ -45,12 +42,12 @@ single-machine-performance-regression_detector:
     - echo "Merge base is ${SMP_MERGE_BASE}"
     # Setup AWS credentials for single-machine-performance AWS account
     - AWS_NAMED_PROFILE="single-machine-performance"
-    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-account-id)
+    - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_ACCOUNT_ID_SSM_NAME)
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-agent-team-id)
-    - SMP_API=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-api)
-    - aws configure set aws_access_key_id $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-bot-access-key-id) --profile ${AWS_NAMED_PROFILE}
-    - aws configure set aws_secret_access_key $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.single-machine-performance-bot-access-key) --profile ${AWS_NAMED_PROFILE}
+    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_AGENT_TEAM_ID_SSM_NAME)
+    - SMP_API=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_API_SSM_NAME)
+    - aws configure set aws_access_key_id $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_ID_SSM_NAME) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key $($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SMP_BOT_ACCESS_KEY_SSM_NAME) --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
@@ -72,17 +69,11 @@ single-machine-performance-regression_detector:
     - RUST_LOG_DEBUG="debug,aws_config::profile::credentials=error"
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job submit
-      --lading-version ${LADING_VERSION}
       --baseline-image ${BASELINE_IMAGE}
       --comparison-image ${COMPARISON_IMAGE}
       --baseline-sha ${BASELINE_SHA}
       --comparison-sha ${CI_COMMIT_SHA}
-      --target-name datadog-agent
-      --target-command "/bin/entrypoint.sh"
-      --target-environment-variables "DD_HOSTNAME=smp-regression,DD_DD_URL=http://127.0.0.1:9092"
       --target-config-dir test/regression/
-      --target-cpu-allotment ${CPUS}
-      --target-memory-allotment ${MEMORY}
       --submission-metadata submission_metadata
     # Wait for job to complete.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
@@ -101,28 +92,9 @@ single-machine-performance-regression_detector:
     # space characters. This avoids
     # https://gitlab.com/gitlab-org/gitlab/-/issues/217231.
     - cat outputs/report.md | sed "s/^\$/$(echo -ne '\uFEFF\u00A0\u200B')/g"
-    # Add janky means of installing PR commenter borrowed from
-    # https://github.com/DataDog/dogweb/blob/45d7fcf035d0d515ebd901919099d4c8bfa82829/docker/docker-builder/Dockerfile#L69-L77
-    - apt-get update
-    - apt-get install -y curl
-    - curl -OL https://s3.amazonaws.com/dd-package-public/dd-package.deb
-    - dpkg -i dd-package.deb
-    - rm dd-package.deb
-    - apt-get update
-    - dd-package --bucket binaries.ddbuild.io --package devtools/dd-package-dev --distribution "20.04"
-    # Kludge from https://gitlab.com/gitlab-org/gitlab-runner/-/issues/4645#note_287636439 to avoid
-    # doubled output
-    - echo ""
-    - "####################### NOTE TO MAINTAINERS #####################################"
-    - "# Ignore bdist_wheel build error raised when installing 'devtools/pr-commenter' #"
-    - "# This error is known behavior, and you should see a successful install         #"
-    - "# beneath the error message in the GitLab CI logs                               #"
-    - "#################################################################################"
-    - echo ""
-    # Pinned version of pr-commenter taken from https://github.com/DataDog/dogweb/blob/b249c0815f70e71e07846f5e42fb6504c17a7c3e/tasks/gitlab/k8s-diff-helper.sh#L22
-    - dd-package --bucket binaries.ddbuild.io --package devtools/pr-commenter --distribution "20.04" --version "16841676-368d2e2d"
+    - !reference [.install_pr_commenter]
     # Post HTML report to GitHub
-    - cat outputs/report.md | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME"
+    - cat outputs/report.md | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Regression Detector"
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
       job result

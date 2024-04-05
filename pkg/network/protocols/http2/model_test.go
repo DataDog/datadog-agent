@@ -19,9 +19,10 @@ import (
 
 func TestHTTP2Path(t *testing.T) {
 	tests := []struct {
-		name        string
-		rawPath     string
-		expectedErr bool
+		name         string
+		rawPath      string
+		expectedPath string
+		expectedErr  bool
 	}{
 		{
 			name:    "Short path",
@@ -40,6 +41,11 @@ func TestHTTP2Path(t *testing.T) {
 			name:        "Empty path",
 			rawPath:     "",
 			expectedErr: true,
+		},
+		{
+			name:         "Query string",
+			rawPath:      "/foo/bar?a=1&b=2",
+			expectedPath: "/foo/bar",
 		},
 	}
 
@@ -74,7 +80,11 @@ func TestHTTP2Path(t *testing.T) {
 					return
 				}
 				assert.True(t, ok)
-				assert.Equal(t, tt.rawPath, string(path))
+				expectedPath := tt.rawPath
+				if tt.expectedPath != "" {
+					expectedPath = tt.expectedPath
+				}
+				assert.Equal(t, expectedPath, string(path))
 			})
 		}
 	}

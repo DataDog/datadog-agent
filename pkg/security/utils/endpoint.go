@@ -16,7 +16,7 @@ import (
 func GetEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 	port := endpoint.Port
 	var protocol string
-	if endpoint.GetUseSSL() {
+	if endpoint.UseSSL() {
 		protocol = "https"
 		if port == 0 {
 			port = 443 // use default port

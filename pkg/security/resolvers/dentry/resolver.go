@@ -9,6 +9,7 @@
 package dentry
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -484,9 +485,29 @@ func (dr *Resolver) cacheEntries(keys []model.PathKey, entries []PathEntry) erro
 	return nil
 }
 
+func (dr *Resolver) computeSegmentCount() int {
+	count := 0
+	i := 0
+	for i < dr.erpcSegmentSize {
+		i += 16 // skip the path key
+
+		if i < dr.erpcSegmentSize {
+			if dr.erpcSegment[i] == '/' {
+				break
+			}
+
+			// skip the segment
+			i += bytes.IndexByte(dr.erpcSegment[i:], 0)
+		}
+
+		i++ // skip the null terminator
+		count++
+	}
+	return count
+}
+
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, error) {
-	var segment string
 	var resolutionErr error
 	depth := int64(0)
 
@@ -502,13 +523,13 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
 	}
 
-	var keys []model.PathKey
-	var entries []PathEntry
-
-	filenameParts := make([]string, 0, 128)
+	segmentCount := dr.computeSegmentCount()
+	filenameParts := make([]string, 0, segmentCount)
+	keys := make([]model.PathKey, 0, segmentCount)
+	entries := make([]PathEntry, 0, segmentCount)
 
 	i := 0
-	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
+	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(pathID) + 1 = 17)
 	for i < dr.erpcSegmentSize-17 {
 		depth++
 
@@ -538,13 +559,13 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 			break
 		}
 
-		if dr.erpcSegment[i] != '/' {
-			segment = model.NullTerminatedString(dr.erpcSegment[i:])
-			filenameParts = append(filenameParts, segment)
-			i += len(segment) + 1
-		} else {
+		if dr.erpcSegment[i] == '/' {
 			break
 		}
+
+		segment := model.NullTerminatedString(dr.erpcSegment[i:])
+		filenameParts = append(filenameParts, segment)
+		i += len(segment) + 1
 
 		if !IsFakeInode(pathKey.Inode) && cache {
 			keys = append(keys, pathKey)
