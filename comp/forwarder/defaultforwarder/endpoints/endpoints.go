@@ -11,26 +11,26 @@ import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transac
 
 var (
 	// V1SeriesEndpoint is a v1 endpoint used to send series
-	V1SeriesEndpoint = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"}
+	V1SeriesEndpoint = transaction.Endpoint{Route: "/api/v1/series", Name: "series_v1"} // works
 	// V1CheckRunsEndpoint is a v1 endpoint used to send checks results
-	V1CheckRunsEndpoint = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"}
+	V1CheckRunsEndpoint = transaction.Endpoint{Route: "/api/v1/check_run", Name: "check_run_v1"} // works
 	// V1IntakeEndpoint is a v1 endpoint, used by Agent v.5, still used for metadata
-	V1IntakeEndpoint = transaction.Endpoint{Route: "/intake/", Name: "intake"}
+	V1IntakeEndpoint = transaction.Endpoint{Route: "/intake/", Name: "intake"} // works
 	// V1SketchSeriesEndpoint is a v1 endpoint used to send sketches
 	V1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} //nolint unused for now
 	// V1ValidateEndpoint is a v1 endpoint used to validate API keys
-	V1ValidateEndpoint = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"}
+	V1ValidateEndpoint = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"} // works
 	// V1MetadataEndpoint is a v1 endpoint used for metadata (only used for inventory metadata for now)
-	V1MetadataEndpoint = transaction.Endpoint{Route: "/api/v1/metadata", Name: "metadata_v1"}
+	V1MetadataEndpoint = transaction.Endpoint{Route: "/api/v1/metadata", Name: "metadata_v1"} // works
 
 	// SeriesEndpoint is the v2 endpoint used to send series
-	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
+	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"} // works
 	// EventsEndpoint is the v2 endpoint used to send events
 	EventsEndpoint = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
 	// ServiceChecksEndpoint is the v2 endpoint used to send service checks
 	ServiceChecksEndpoint = transaction.Endpoint{Route: "/api/v2/service_checks", Name: "services_checks_v2"}
 	// SketchSeriesEndpoint is the v2 endpoint used to send sketches
-	SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"}
+	SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"} // works
 	// HostMetadataEndpoint is the v2 endpoint used to send host medatada
 	HostMetadataEndpoint = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
 
