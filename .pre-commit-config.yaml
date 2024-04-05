@@ -62,7 +62,7 @@ repos:
     - id: copyright
       name: copyright
       description: copyright headers
-      entry: 'python3 tasks/git-hooks/copyright.py'
+      entry: 'python3 -m tasks.git-hooks.copyright'
       language: system
       require_serial: true
       files: \.go$
