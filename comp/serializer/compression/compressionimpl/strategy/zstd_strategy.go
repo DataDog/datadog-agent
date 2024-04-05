@@ -3,17 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zstd
-
-// Package compression provides a set of functions for compressing with zlib / zstd
-package compression
+// Package strategy provides a set of functions for compressing with zlib / zstd
+package strategy
 
 import (
 	"bytes"
 
 	"github.com/DataDog/zstd"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 )
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
@@ -42,10 +40,10 @@ func (s *ZstdStrategy) CompressBound(sourceLen int) int {
 
 // ContentEncoding returns the content encoding value for zstd
 func (s *ZstdStrategy) ContentEncoding() string {
-	return utils.ZstdEncoding
+	return compression.ZstdEncoding
 }
 
-// NewZstdStreamCompressor returns a new zstd Writer
-func NewZstdStreamCompressor(output *bytes.Buffer) *zstd.Writer {
+// NewStreamCompressor returns a new zstd Writer
+func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
 	return zstd.NewWriter(output)
 }

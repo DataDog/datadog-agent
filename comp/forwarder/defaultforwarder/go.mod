@@ -10,6 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../core/status
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../core/telemetry
+	github.com/DataDog/datadog-agent/comp/serializer/compression => ../../comp/serializer/compression/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/logs => ../../../pkg/config/logs

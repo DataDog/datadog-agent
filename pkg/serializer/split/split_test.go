@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -22,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
-	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 )
 
 func TestSplitPayloadsSeries(t *testing.T) {
@@ -55,8 +54,8 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategyUtils.ZlibKind},
-		"zstd": {kind: strategyUtils.ZstdKind},
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -87,7 +86,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compression.NewCompressorStrategy(mockConfig)
+			strategy := compressionimpl.NewCompressor(mockConfig)
 
 			payloads, err := Payloads(testSeries, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
@@ -137,7 +136,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	}
 
 	mockConfig := pkgconfigsetup.Conf()
-	strategy := compression.NewCompressorStrategy(mockConfig)
+	strategy := compressionimpl.NewCompressor(mockConfig)
 	var r transaction.BytesPayloads
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
@@ -194,8 +193,8 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategyUtils.ZlibKind},
-		"zstd": {kind: strategyUtils.ZstdKind},
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -216,7 +215,7 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compression.NewCompressorStrategy(mockConfig)
+			strategy := compressionimpl.NewCompressor(mockConfig)
 			payloads, err := Payloads(testEvent, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
 
@@ -275,8 +274,8 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategyUtils.ZlibKind},
-		"zstd": {kind: strategyUtils.ZstdKind},
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -295,7 +294,7 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", tc.kind)
-			strategy := compression.NewCompressorStrategy(mockConfig)
+			strategy := compressionimpl.NewCompressor(mockConfig)
 			payloads, err := Payloads(testServiceChecks, compress, JSONMarshalFct, strategy)
 			require.Nil(t, err)
 

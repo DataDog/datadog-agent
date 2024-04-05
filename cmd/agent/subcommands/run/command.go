@@ -56,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
@@ -349,6 +350,7 @@ func getSharedFxOption() fx.Option {
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),

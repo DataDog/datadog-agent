@@ -7,6 +7,7 @@
 package serializer
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"expvar"
@@ -20,6 +21,7 @@ import (
 	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -30,8 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
-	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -110,7 +110,7 @@ type Serializer struct {
 	orchestratorForwarder orchestratorForwarder.Component
 	config                config.Component
 
-	Strategy                            strategyUtils.Compressor
+	Strategy                            compression.Component
 	seriesJSONPayloadBuilder            *stream.JSONPayloadBuilder
 	jsonExtraHeaders                    http.Header
 	protobufExtraHeaders                http.Header
@@ -136,24 +136,27 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, config config.Component, hostName string) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder orchestratorForwarder.Component, compressor compression.Component, config config.Component, hostName string) *Serializer {
+
+	streamAvailable := compressor.NewStreamCompressor(&bytes.Buffer{}) != nil
+
 	s := &Serializer{
 		clock:                               clock.New(),
 		Forwarder:                           forwarder,
 		orchestratorForwarder:               orchestratorForwarder,
 		config:                              config,
-		seriesJSONPayloadBuilder:            stream.NewJSONPayloadBuilder(config.GetBool("enable_json_stream_shared_compressor_buffers"), config),
+		seriesJSONPayloadBuilder:            stream.NewJSONPayloadBuilder(config.GetBool("enable_json_stream_shared_compressor_buffers"), config, compressor),
 		enableEvents:                        config.GetBool("enable_payloads.events"),
 		enableSeries:                        config.GetBool("enable_payloads.series"),
 		enableServiceChecks:                 config.GetBool("enable_payloads.service_checks"),
 		enableSketches:                      config.GetBool("enable_payloads.sketches"),
 		enableJSONToV1Intake:                config.GetBool("enable_payloads.json_to_v1_intake"),
-		enableJSONStream:                    stream.Available && config.GetBool("enable_stream_payload_serialization"),
-		enableServiceChecksJSONStream:       stream.Available && config.GetBool("enable_service_checks_stream_payload_serialization"),
-		enableEventsJSONStream:              stream.Available && config.GetBool("enable_events_stream_payload_serialization"),
-		enableSketchProtobufStream:          stream.Available && config.GetBool("enable_sketch_stream_payload_serialization"),
+		enableJSONStream:                    streamAvailable && config.GetBool("enable_stream_payload_serialization"),
+		enableServiceChecksJSONStream:       streamAvailable && config.GetBool("enable_service_checks_stream_payload_serialization"),
+		enableEventsJSONStream:              streamAvailable && config.GetBool("enable_events_stream_payload_serialization"),
+		enableSketchProtobufStream:          streamAvailable && config.GetBool("enable_sketch_stream_payload_serialization"),
 		hostname:                            hostName,
-		Strategy:                            compression.NewCompressorStrategy(config),
+		Strategy:                            compressor,
 		jsonExtraHeaders:                    make(http.Header),
 		protobufExtraHeaders:                make(http.Header),
 		jsonExtraHeadersWithCompression:     make(http.Header),
@@ -351,7 +354,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config)
+		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
 		extraHeaders = s.protobufExtraHeadersWithCompression
 	}
 
@@ -378,7 +381,7 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 	if s.enableSketchProtobufStream {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config)
+		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
 		if err != nil {
 			return fmt.Errorf("dropping sketch payload: %v", err)
 		}
