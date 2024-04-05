@@ -55,8 +55,6 @@ pull_test_dockers_arm64:
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
-  before_script:
-    - source /root/.bashrc
   script:
     # Build dependencies directory
     - mkdir -p $DEPENDENCIES
@@ -135,7 +133,6 @@ kmt_setup_env_sysprobe_x64:
   stage: kernel_matrix_testing_prepare
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]

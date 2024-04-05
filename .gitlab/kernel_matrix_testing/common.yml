@@ -97,7 +97,6 @@
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   before_script:
-    - source /root/.bashrc
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   tags: ["arch:amd64"]
@@ -177,7 +176,6 @@
   when: always
   tags: ["arch:amd64"]
   before_script:
-    - source /root/.bashrc
     - !reference [.kmt_new_profile]
   script:
     - !reference [.shared_filters_and_queries]
@@ -195,7 +193,6 @@
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
   before_script:
-    - source /root/.bashrc
     - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]

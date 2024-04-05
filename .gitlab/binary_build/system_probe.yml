@@ -4,7 +4,6 @@
     - !reference [.except_mergequeue]
     - when: on_success
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     # HACK: empty the build directory cache (that can come from previous runs)
     #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
