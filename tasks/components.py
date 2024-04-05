@@ -9,7 +9,7 @@ from string import Template
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.copyright import COPYRIGHT_HEADER
+from tasks.libs.types.copyright import COPYRIGHT_HEADER
 
 Component = namedtuple('Component', ['path', 'doc', 'team'])
 Bundle = namedtuple('Bundle', ['path', 'doc', 'team', 'components'])

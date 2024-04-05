@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/stormcat24/protodep/pkg/logger"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	logsmapping "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs"
+	"github.com/stormcat24/protodep/pkg/logger"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/plog"
 )

@@ -9,8 +9,8 @@ from time import sleep
 
 from invoke.exceptions import Exit
 
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
-from tasks.libs.common.github_api import GithubAPI
 from tasks.libs.common.utils import DEFAULT_BRANCH
 
 
