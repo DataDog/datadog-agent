@@ -124,7 +124,6 @@ func getComponentDependencies(t *testing.T) testdeps {
 
 func getTestAPIServer(deps testdeps) *apiServer {
 	apideps := dependencies{
-		// Flare:                 deps.Flare,
 		DogstatsdServer:       deps.DogstatsdServer,
 		Capture:               deps.Capture,
 		ServerDebug:           deps.ServerDebug,

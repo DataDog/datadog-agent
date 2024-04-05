@@ -40,15 +40,21 @@ func GetDatadogAgentProductCode(host *components.RemoteHost) (string, error) {
 
 // InstallAgent installs the agent and returns the remote MSI path and any errors
 func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (string, error) {
-	p, err := infraCommon.ApplyOption(&InstallAgentParams{
-		InstallLogFile: filepath.Join(os.TempDir(), "install.log"),
-	}, options)
+	p, err := infraCommon.ApplyOption(&InstallAgentParams{}, options)
 	if err != nil {
 		return "", err
 	}
 
 	if p.Package == nil {
 		return "", fmt.Errorf("missing agent package to install")
+	}
+	if p.InstallLogFile != "" {
+		// InstallMSI always used a temporary file path
+		return "", fmt.Errorf("Setting the remote MSI log file path is not supported")
+	}
+
+	if p.LocalInstallLogFile == "" {
+		p.LocalInstallLogFile = filepath.Join(os.TempDir(), "install.log")
 	}
 
 	args := p.toArgs()
@@ -62,7 +68,7 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 		return "", err
 	}
 
-	return remoteMSIPath, windowsCommon.InstallMSI(host, remoteMSIPath, strings.Join(args, " "), p.InstallLogFile)
+	return remoteMSIPath, windowsCommon.InstallMSI(host, remoteMSIPath, strings.Join(args, " "), p.LocalInstallLogFile)
 }
 
 // RepairAllAgent repairs the Datadog Agent

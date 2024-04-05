@@ -166,7 +166,7 @@ DEFAULT_MODULES = {
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
-    "pkg/tagger": GoModule("pkg/tagger", independent=True),
+    "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True),
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
@@ -185,7 +185,12 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
+    ),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
+    "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
@@ -327,3 +332,15 @@ def go_work(_: Context):
             prefix = "" if mod.condition() else "//"
             f.write(f"\t{prefix}{mod.path}\n")
         f.write(")\n")
+
+
+@task
+def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+    """
+    Run the given command in the directory of each module.
+    """
+    for mod in DEFAULT_MODULES.values():
+        if skip_untagged and not mod.should_tag:
+            continue
+        with ctx.cd(mod.full_path()):
+            ctx.run(cmd)

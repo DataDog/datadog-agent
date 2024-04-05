@@ -34,6 +34,7 @@ import (
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -65,6 +66,7 @@ func startCMDServer(
 	configServiceHA optional.Option[rcserviceha.Component],
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
+	pidMap pidmap.Component,
 	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
@@ -109,6 +111,7 @@ func startCMDServer(
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,
 		capture:            capture,
+		pidMap:             pidMap,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{

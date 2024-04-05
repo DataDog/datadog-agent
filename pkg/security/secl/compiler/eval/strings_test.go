@@ -33,7 +33,7 @@ func TestStringValues(t *testing.T) {
 		var values StringValues
 		values.AppendScalarValue("test123")
 
-		if err := values.Compile(StringCmpOpts{ScalarCaseInsensitive: true}); err != nil {
+		if err := values.Compile(StringCmpOpts{CaseInsensitive: true}); err != nil {
 			t.Error(err)
 		}
 
@@ -64,7 +64,7 @@ func TestScalar(t *testing.T) {
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(ScalarValueType, "test123", StringCmpOpts{ScalarCaseInsensitive: true})
+		matcher, err := NewStringMatcher(ScalarValueType, "test123", StringCmpOpts{CaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
@@ -96,7 +96,7 @@ func TestPattern(t *testing.T) {
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(PatternValueType, "http://TEst*", StringCmpOpts{PatternCaseInsensitive: true})
+		matcher, err := NewStringMatcher(PatternValueType, "http://TEst*", StringCmpOpts{CaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
@@ -126,7 +126,7 @@ func TestPattern(t *testing.T) {
 	})
 
 	t.Run("insensitive-case-scalar", func(t *testing.T) {
-		matcher, err := NewStringMatcher(PatternValueType, "http://test123", StringCmpOpts{PatternCaseInsensitive: true})
+		matcher, err := NewStringMatcher(PatternValueType, "http://test123", StringCmpOpts{CaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
@@ -158,7 +158,7 @@ func TestGlob(t *testing.T) {
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(GlobValueType, "/etc/TEst*", StringCmpOpts{GlobCaseInsensitive: true})
+		matcher, err := NewStringMatcher(GlobValueType, "/etc/TEst*", StringCmpOpts{CaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
@@ -188,7 +188,7 @@ func TestGlob(t *testing.T) {
 	})
 
 	t.Run("insensitive-case-scalar", func(t *testing.T) {
-		matcher, err := NewStringMatcher(GlobValueType, "/etc/test123", StringCmpOpts{GlobCaseInsensitive: true})
+		matcher, err := NewStringMatcher(GlobValueType, "/etc/test123", StringCmpOpts{CaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
@@ -220,7 +220,7 @@ func TestRegexp(t *testing.T) {
 	})
 
 	t.Run("insensitive-case", func(t *testing.T) {
-		matcher, err := NewStringMatcher(RegexpValueType, "test.*", StringCmpOpts{RegexpCaseInsensitive: true})
+		matcher, err := NewStringMatcher(RegexpValueType, "test.*", StringCmpOpts{CaseInsensitive: true})
 		if err != nil {
 			t.Error(err)
 		}
