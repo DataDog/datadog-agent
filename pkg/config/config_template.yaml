@@ -478,6 +478,7 @@ api_key:
 #
 # azure_hostname_style: "os"
 
+## Deprecated: use `scrubber.additional_keys` instead
 ## @param flare_stripped_keys - list of strings - optional
 ## @env DD_FLARE_STRIPPED_KEYS - space separated list of strings - optional
 ## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
@@ -486,6 +487,17 @@ api_key:
 ## the yaml files included in the flare.
 #
 # flare_stripped_keys:
+#   - "sensitive_key_1"
+#   - "sensitive_key_2"
+
+## @param scrubber.additional_keys - list of strings - optional
+## @env DD_SCRUBBER_ADDITIONAL_KEYS - space separated list of strings - optional
+## By default, the Agent removes known sensitive keys from Agent and Integrations yaml configs before
+## including them in the flare.
+## Use this parameter to define additional sensitive keys that the Agent should scrub from
+## the yaml files included in the flare.
+#
+# scrubber.additional_keys:
 #   - "sensitive_key_1"
 #   - "sensitive_key_2"
 

@@ -108,7 +108,10 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	scrubber.AddStrippedKeys(cfg.GetStringSlice("flare_stripped_keys"))
+	scrubber.AddStrippedKeys(merge(
+		cfg.GetStringSlice("flare_stripped_keys"),
+		cfg.GetStringSlice("scrubber.additional_keys"),
+	))
 	return nil
 }
 
