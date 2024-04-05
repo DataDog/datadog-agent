@@ -59,7 +59,7 @@ package:
     - "!src/bin"
     - "!recorder-extension"
     - "!snapshots"
-    - '!datadog.yaml'
+    - "!datadog.yaml"
 
 custom:
   ddLayerArchitectureFlag:
