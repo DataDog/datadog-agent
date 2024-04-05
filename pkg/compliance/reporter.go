@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,7 +30,6 @@ import (
 type LogReporter struct {
 	hostname         string
 	pipelineProvider pipeline.Provider
-	auditor          *auditor.RegistryAuditor
 	logSource        *sources.LogSource
 	logChan          chan *message.Message
 	endpoints        *config.Endpoints
@@ -39,14 +37,9 @@ type LogReporter struct {
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(hostname string, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
-	health := health.RegisterLiveness(sourceType)
-
-	// setup the auditor
-	auditor := auditor.New(runPath, sourceType+"-registry.json", coreconfig.DefaultAuditorTTL, health)
-	auditor.Start()
-
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
 	// setup the pipeline provider that provides pairs of processor and sender
+	auditor := auditor.NewNullAuditor()
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agent.NewStatusProvider(), hostnameimpl.NewHostnameService(), coreconfig.Datadog)
 	pipelineProvider.Start()
 
@@ -76,7 +69,6 @@ func NewLogReporter(hostname string, sourceName, sourceType, runPath string, end
 	return &LogReporter{
 		hostname:         hostname,
 		pipelineProvider: pipelineProvider,
-		auditor:          auditor,
 		logSource:        logSource,
 		logChan:          logChan,
 		endpoints:        endpoints,
@@ -87,7 +79,6 @@ func NewLogReporter(hostname string, sourceName, sourceType, runPath string, end
 // Stop stops the LogReporter
 func (r *LogReporter) Stop() {
 	r.pipelineProvider.Stop()
-	r.auditor.Stop()
 }
 
 // Endpoints returns the endpoints associated with the log reporter.
