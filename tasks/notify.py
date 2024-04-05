@@ -58,7 +58,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     real slack messages.
     """
     default_branch = os.getenv('CI_DEFAULT_BRANCH')
-    branch = os.getenv('CI_COMMIT_REF_NAME')
+    git_ref = os.getenv('CI_COMMIT_REF_NAME')
 
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
@@ -108,8 +108,8 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == '#datadog-agent-pipelines'
-            post_channel = _should_send_message_to_channel(branch, default_branch) or all_teams
-            send_dm = not _should_send_message_to_channel(branch, default_branch) and all_teams
+            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
+            send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
 
             if post_channel:
                 recipient = channel
@@ -122,13 +122,13 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
                 send_slack_message(recipient, str(message))
 
 
-def _should_send_message_to_channel(branch: str, default_branch: str) -> bool:
+def _should_send_message_to_channel(git_ref: str, default_branch: str) -> bool:
     # Must match X.Y.Z, X.Y.x, W.X.Y-rc.Z
     # Must not match W.X.Y-rc.Z-some-feature
-    release_branch_regex = re.compile(r"^[0-9]+\.[0-9]+\.(x|[0-9]+)$")
-    release_branch_regex_rc = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]-rc.[0-9]+$")
+    release_ref_regex = re.compile(r"^[0-9]+\.[0-9]+\.(x|[0-9]+)$")
+    release_ref_regex_rc = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]-rc.[0-9]+$")
 
-    return branch == default_branch or release_branch_regex.match(branch) or release_branch_regex_rc.match(branch)
+    return git_ref == default_branch or release_ref_regex.match(git_ref) or release_ref_regex_rc.match(git_ref)
 
 
 @task
