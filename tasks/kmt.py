@@ -827,6 +827,11 @@ def explain_ci_failure(_, pipeline: str):
     ok = "✅"
     testfail = "❌"
     infrafail = "⚙️"
+    result_to_emoji = {
+        True: ok,
+        False: testfail,
+        None: " ",
+    }
 
     if len(failed_jobs) == 0:
         info("[+] No KMT tests failed")
@@ -861,13 +866,48 @@ def explain_ci_failure(_, pipeline: str):
     # Show first a matrix of failed distros and archs for each tuple of component and vmset
     jobs_by_comp_and_vmset = itertools.groupby(sorted(failed_jobs, key=groupby_comp_vmset), groupby_comp_vmset)
     for (component, vmset), group_jobs in jobs_by_comp_and_vmset:
+        group_jobs = list(group_jobs)  # Consume the iterator, make a copy
         distros: Dict[str, Dict[Arch, str]] = defaultdict(lambda: {"x86_64": ok, "arm64": ok})
-        for job in group_jobs:
-            distros[job.distro][job.arch] = failreasons[job.name]
+        distro_arch_with_test_failures: List[Tuple[str, Arch]] = []
 
-        print(f"\n=== Failures for {component} - {vmset}")
+        for job in group_jobs:
+            failreason = failreasons[job.name]
+            distros[job.distro][job.arch] = failreason
+            if failreason == testfail:
+                distro_arch_with_test_failures.append((job.distro, job.arch))
+
+        print(f"\n=== Job failures for {component} - {vmset}")
         table = [[d, v["x86_64"], v["arm64"]] for d, v in distros.items()]
         print(tabulate(table, headers=["Distro", "x86_64", "arm64"]))
+
+        ## Show a table summary with failed tests
+        jobs_with_failed_tests = [j for j in group_jobs if failreasons[j.name] == testfail]
+        test_results_by_distro_arch = {(j.distro, j.arch): j.get_test_results() for j in jobs_with_failed_tests}
+        # Get the names of all tests
+        all_tests = set(itertools.chain.from_iterable(d.keys() for d in test_results_by_distro_arch.values()))
+        test_failure_table: List[List[str]] = []
+
+        for testname in sorted(all_tests):
+            test_row = [testname]
+            for distro, arch in distro_arch_with_test_failures:
+                test_result = test_results_by_distro_arch.get((distro, arch), {}).get(testname)
+                test_row.append(result_to_emoji[test_result])
+
+            # Only show tests with at least one failure:
+            if any(r == testfail for r in test_row[1:]):
+                test_failure_table.append(test_row)
+
+        if len(test_failure_table) > 0:
+            print(
+                f"\n=== Test failures for {component} - {vmset} (show only tests and distros with at least one fail, empty means skipped)"
+            )
+            print(
+                tabulate(
+                    test_failure_table,
+                    headers=["Test name"] + [f"{d} {a}" for d, a in distro_arch_with_test_failures],
+                    tablefmt="simple_grid",
+                )
+            )
 
     def groupby_arch_comp(job: KMTTestRunJob) -> Tuple[str, str]:
         return (job.arch, job.component)
@@ -884,7 +924,7 @@ def explain_ci_failure(_, pipeline: str):
             error("[x] No corresponding setup job found")
             continue
 
-        infra_fail_table: List[Tuple[str, bool, bool, bool, str]] = []
+        infra_fail_table: List[List[str]] = []
         for failed_job in group_jobs:
             boot_log = setup_job.get_vm_boot_log(failed_job.distro, failed_job.vmset)
             if boot_log is None:
@@ -909,7 +949,15 @@ def explain_ci_failure(_, pipeline: str):
             boot_log_savepath.parent.mkdir(parents=True, exist_ok=True)
             boot_log_savepath.write_text(boot_log)
 
-            infra_fail_table.append((failed_job.distro, booted, setup_ddvm, ip_assigned, os.fspath(boot_log_savepath)))
+            infra_fail_table.append(
+                [
+                    failed_job.distro,
+                    result_to_emoji[booted],
+                    result_to_emoji[setup_ddvm],
+                    result_to_emoji[ip_assigned],
+                    os.fspath(boot_log_savepath),
+                ]
+            )
 
         print(
             tabulate(

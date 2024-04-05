@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
+import os
 import re
+import tarfile
+import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, overload
 
 from tasks.kernel_matrix_testing.types import VMConfig
@@ -59,6 +63,18 @@ class KMTJob:
         ...
 
     def artifact_file(self, file: str, ignore_not_found: bool = False) -> Optional[str]:
+        data = self.artifact_file_binary(file, ignore_not_found=ignore_not_found)  # type: ignore
+        return data.decode('utf-8') if data is not None else None
+
+    @overload
+    def artifact_file_binary(self, file: str, ignore_not_found: Literal[True]) -> Optional[bytes]:  # noqa: U100
+        ...
+
+    @overload
+    def artifact_file_binary(self, file: str, ignore_not_found: Literal[False] = False) -> bytes:  # noqa: U100
+        ...
+
+    def artifact_file_binary(self, file: str, ignore_not_found: bool = False) -> Optional[bytes]:
         try:
             res = self.gitlab.artifact(self.id, file, ignore_not_found=ignore_not_found)
             if res is None:
@@ -69,7 +85,7 @@ class KMTJob:
             res.raise_for_status()
         except Exception as e:
             raise RuntimeError(f"Could not retrieve artifact {file}") from e
-        return res.content.decode('utf-8')
+        return res.content
 
 
 class KMTSetupEnvJob(KMTJob):
@@ -144,6 +160,34 @@ class KMTTestRunJob(KMTJob):
     @property
     def vmset(self) -> str:
         return self.vars[1]
+
+    def get_junit_reports(self) -> List[ET.ElementTree]:
+        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
+        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}")
+        bytearr = io.BytesIO(junit_archive)
+        tar = tarfile.open(fileobj=bytearr)
+
+        reports: List[ET.ElementTree] = []
+        for member in tar.getmembers():
+            filename = os.path.basename(member.name)
+            if filename.endswith(".xml"):
+                data = tar.extractfile(member)
+                if data is not None:
+                    reports.append(ET.parse(data))
+
+        return reports
+
+    def get_test_results(self) -> Dict[str, Optional[bool]]:
+        results: Dict[str, Optional[bool]] = {}
+        for report in self.get_junit_reports():
+            for testcase in report.findall(".//testcase"):
+                name = testcase.get("name")
+                if name is not None:
+                    failed = len(testcase.findall(".//failure")) > 0
+                    skipped = len(testcase.findall(".//skipped")) > 0
+                    results[name] = None if skipped else not failed
+
+        return results
 
 
 def get_all_jobs_for_pipeline(pipeline_id: Union[int, str]) -> Tuple[List[KMTSetupEnvJob], List[KMTTestRunJob]]:
