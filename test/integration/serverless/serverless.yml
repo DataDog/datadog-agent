@@ -30,6 +30,7 @@ provider:
     DD_CAPTURE_LAMBDA_PAYLOAD: true
     DD_COLD_START_TRACING: false
     DD_LOG_LEVEL: DEBUG
+    DD_SERVERLESS_FLUSH_STRATEGY: periodically,60000
     DD_LOGS_CONFIG_PROCESSING_RULES: >-
       [
       {"type": "mask_sequences", "name": "masked_value", "replace_placeholder": "masked", "pattern": "__[\\w|_]*__"},
