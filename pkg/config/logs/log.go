@@ -19,10 +19,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/cihub/seelog"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
 )
