@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -171,6 +172,8 @@ func TestSetupHandlers(t *testing.T) {
 
 		resp, err := ts.Client().Do(req)
 		require.NoError(t, err)
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
 
 		assert.Equal(t, tc.wantCode, resp.StatusCode)
 	}

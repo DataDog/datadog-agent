@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
+// EndpointProvider wraps the flare component with a http.Handler interface
 type EndpointProvider struct {
 	flareComp *flare
 }
