@@ -109,11 +109,24 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	scrubber.AddStrippedKeys(merge(
+	scrubber.AddStrippedKeys(buildAddKeysToScrubber(
 		cfg.GetStringSlice("flare_stripped_keys"),
-		cfg.GetStringSlice("scrubber.additional_keys"),
-	))
+		cfg.GetStringSlice("scrubber.additional_keys")))
 	return nil
+}
+
+func buildAddKeysToScrubber(elems ...[]string) []string {
+	keys := make(map[string]struct{})
+	for _, elem := range elems {
+		for _, key := range elem {
+			keys[key] = struct{}{}
+		}
+	}
+	res := make([]string, 0, len(keys))
+	for key := range keys {
+		res = append(res, key)
+	}
+	return res
 }
 
 // SetupJMXLogger sets up a logger with JMX logger name and log level
