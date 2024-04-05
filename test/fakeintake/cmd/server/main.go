@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	portPtr := flag.Int("port", 80, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
+	portPtr := flag.Int("port", 8000, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
 	flag.Parse()
 
 	sigs := make(chan os.Signal, 1)

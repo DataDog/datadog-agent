@@ -120,7 +120,7 @@ func NewServer(options ...func(*Server)) *Server {
 
 	fi.server = http.Server{
 		Handler: mux,
-		Addr:    ":8000",
+		Addr:    ":0",
 	}
 
 	for _, opt := range options {
