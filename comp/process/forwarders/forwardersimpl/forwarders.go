@@ -32,6 +32,7 @@ type dependencies struct {
 
 	Config config.Component
 	Logger log.Component
+	Lc     fx.Lifecycle
 }
 
 type forwardersComp struct {
@@ -64,12 +65,15 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	processForwarderOpts := createParams(deps.Config, deps.Logger, queueBytes, processAPIEndpoints)
 
 	return &forwardersComp{
-		eventForwarder:       defaultforwarder.NewForwarder(deps.Config, deps.Logger, eventForwarderOpts).Comp,
-		processForwarder:     defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
-		rtProcessForwarder:   defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
-		connectionsForwarder: defaultforwarder.NewForwarder(deps.Config, deps.Logger, processForwarderOpts).Comp,
+		eventForwarder:       createForwarder(deps, eventForwarderOpts),
+		processForwarder:     createForwarder(deps, processForwarderOpts),
+		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
+		connectionsForwarder: createForwarder(deps, processForwarderOpts),
 	}, nil
+}
 
+func createForwarder(deps dependencies, params defaultforwarder.Params) defaultforwarder.Component {
+	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, params).Comp
 }
 
 func createParams(config config.Component, log log.Component, queueBytes int, endpoints []apicfg.Endpoint) defaultforwarder.Params {

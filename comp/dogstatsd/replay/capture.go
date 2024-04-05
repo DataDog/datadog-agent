@@ -91,8 +91,8 @@ func (tc *trafficCapture) IsOngoing() bool {
 	return tc.writer.IsOngoing()
 }
 
-// Start starts a TrafficCapture and returns an error in the event of an issue.
-func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
+// StartCapture starts a TrafficCapture and returns an error in the event of an issue.
+func (tc *trafficCapture) StartCapture(p string, d time.Duration, compressed bool) (string, error) {
 	if tc.IsOngoing() {
 		return "", fmt.Errorf("Ongoing capture in progress")
 	}
@@ -108,8 +108,8 @@ func (tc *trafficCapture) Start(p string, d time.Duration, compressed bool) (str
 
 }
 
-// Stop stops an ongoing TrafficCapture.
-func (tc *trafficCapture) Stop() {
+// StopCapture stops an ongoing TrafficCapture.
+func (tc *trafficCapture) StopCapture() {
 	tc.Lock()
 	defer tc.Unlock()
 	if tc.writer == nil {

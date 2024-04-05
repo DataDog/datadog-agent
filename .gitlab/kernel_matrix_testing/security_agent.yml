@@ -1,6 +1,6 @@
 # Security agent overrides
 upload_dependencies_secagent_x64:
-  needs: []
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -11,7 +11,7 @@ upload_dependencies_secagent_x64:
     TEST_COMPONENT: security-agent
 
 upload_dependencies_secagent_arm64:
-  needs: []
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -52,6 +52,7 @@ kmt_setup_env_secagent_x64:
   allow_failure: true
   rules: !reference [.on_security_agent_changes_or_manual]
   before_script:
+    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
