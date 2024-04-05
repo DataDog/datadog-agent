@@ -92,10 +92,10 @@ func (s *service) Run(svcctx context.Context) error {
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
 			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, demultiplexer demultiplexer.Component, statusComponent status.Component) error {
-			ctx, cancel := context.WithCancel(context.Background())
+			_, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, telemetry, demultiplexer, statusComponent)
+			err := start.RunAgent(log, config, telemetry, demultiplexer, statusComponent)
 			if err != nil {
 				return err
 			}
