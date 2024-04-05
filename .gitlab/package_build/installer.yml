@@ -2,7 +2,7 @@
 #
 # Remote updater payloads
 #
-.agent_build_common_remote_updater:
+.common_build_oci:
   script:
     - echo "About to build for $RELEASE_VERSION"
     - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
@@ -33,9 +33,9 @@
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Agent package for remote_updater-x64
-agent_remote_updater-x64-a7:
-  extends: .agent_build_common_remote_updater
+# build Agent package for the new installer
+datadog-agent-oci-x64-a7:
+  extends: .common_build_oci
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -58,9 +58,9 @@ agent_remote_updater-x64-a7:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-# build Agent package for remote_updater-x64
-agent_remote_updater-arm64-a7:
-  extends: .agent_build_common_remote_updater
+# build Agent package for installer-x64
+datadog-agent-oci-arm64-a7:
+  extends: .common_build_oci
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -84,9 +84,9 @@ agent_remote_updater-arm64-a7:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 #
-# The updater program
+# The installer program
 #
-.updater_build_common:
+.installer_build_common:
   script:
     - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
@@ -96,9 +96,9 @@ agent_remote_updater-arm64-a7:
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - inv -e installer.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater-*-${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer-*-${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
     - !reference [.upload_sbom_artifacts]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -110,8 +110,8 @@ agent_remote_updater-arm64-a7:
 # We build a "regular" updater, meant to be packaged as deb/rpm, without a custom install path
 # and an artifact intended for OCI packaging, which has a custom install path
 
-updater-amd64:
-  extends: .updater_build_common
+installer-amd64:
+  extends: .installer_build_common
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -121,11 +121,11 @@ updater-amd64:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
-    DESTINATION_FILE: "datadog-updater_7-amd64.tar.xz"
+    DESTINATION_FILE: "datadog-installer-amd64.tar.xz"
     RELEASE_VERSION: "$RELEASE_VERSION_7"
 
-updater-arm64:
-  extends: .updater_build_common
+installer-arm64:
+  extends: .installer_build_common
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -135,21 +135,23 @@ updater-arm64:
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
-    DESTINATION_FILE: "datadog-updater_7-arm64.tar.xz"
+    DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
     RELEASE_VERSION: "$RELEASE_VERSION_7"
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-updater-amd64-oci:
-  extends: updater-amd64
+installer-amd64-oci:
+  extends: installer-amd64
   variables:
     DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
   before_script:
     - source /root/.bashrc
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
 
-updater-arm64-oci:
-  extends: updater-arm64
+installer-arm64-oci:
+  extends: installer-arm64
   variables:
     DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
   before_script:
     - source /root/.bashrc
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/$(inv agent.version -u)-1
