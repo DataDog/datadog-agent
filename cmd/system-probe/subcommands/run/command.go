@@ -34,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -45,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -77,7 +78,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(cliParams),
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
@@ -99,6 +99,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Supply(optional.NewNoneOption[workloadmeta.Component]()),
 				autoexitimpl.Module(),
+				pidimpl.Module(),
+				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			)
 		},
 	}
@@ -108,9 +110,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component, _ autoexit.Component) error {
+func run(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ pid.Component, _ healthprobe.Component, _ autoexit.Component) error {
 	defer func() {
-		stopSystemProbe(cliParams)
+		stopSystemProbe()
 	}()
 
 	// prepare go runtime
@@ -150,7 +152,7 @@ func run(log log.Component, _ config.Component, statsd compstatsd.Component, tel
 		}
 	}()
 
-	if err := startSystemProbe(cliParams, log, statsd, telemetry, sysprobeconfig, rcclient, wmeta); err != nil {
+	if err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -196,7 +198,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 	return fxutil.OneShot(
 		func(log log.Component, _ config.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component], _ healthprobe.Component) error {
 			defer StopSystemProbeWithDefaults()
-			err := startSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}}, log, statsd, telemetry, sysprobeconfig, rcclient, wmeta)
+			err := startSystemProbe(log, statsd, telemetry, sysprobeconfig, rcclient, wmeta)
 			if err != nil {
 				return err
 			}
@@ -244,11 +246,11 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 
 // StopSystemProbeWithDefaults is a temporary way for other packages to use stopAgent.
 func StopSystemProbeWithDefaults() {
-	stopSystemProbe(&cliParams{GlobalParams: &command.GlobalParams{}})
+	stopSystemProbe()
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
+func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	var err error
 	_, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
@@ -293,13 +295,6 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 		}
 	}
 
-	if cliParams.pidfilePath != "" {
-		if err := pidfile.WritePID(cliParams.pidfilePath); err != nil {
-			return log.Errorf("error while writing PID file, exiting: %s", err)
-		}
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
-	}
-
 	if err := processstatsd.Configure(cfg.StatsdHost, cfg.StatsdPort, statsd.CreateForHostPort); err != nil {
 		return log.Criticalf("error configuring statsd: %s", err)
 	}
@@ -330,7 +325,7 @@ func startSystemProbe(cliParams *cliParams, log log.Component, statsd compstatsd
 }
 
 // stopSystemProbe Tears down the system-probe process
-func stopSystemProbe(cliParams *cliParams) {
+func stopSystemProbe() {
 	module.Close()
 	if common.ExpvarServer != nil {
 		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
@@ -341,7 +336,6 @@ func stopSystemProbe(cliParams *cliParams) {
 	if common.MemoryMonitor != nil {
 		common.MemoryMonitor.Stop()
 	}
-	_ = os.Remove(cliParams.pidfilePath)
 
 	// gracefully shut down any component
 	common.MainCtxCancel()

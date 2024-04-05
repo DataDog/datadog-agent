@@ -14,6 +14,10 @@ Package agent implements the "agent" bundle,
 
 Package autoexit lets setup automatic shutdown mechanism if necessary
 
+### [comp/agent/expvarserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/expvarserver)
+
+Package expvarserver contains the component type for the expVar server.
+
 ### [comp/agent/jmxlogger](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/agent/jmxlogger)
 
 *Datadog Team*: agent-metrics-logs
@@ -26,7 +30,7 @@ Package metadatascheduler provides the metadata scheduler component.
 
 ## [comp/aggregator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-metrics-logs
 
 Package aggregator implements the "aggregator" bundle,
 
@@ -35,6 +39,8 @@ Package aggregator implements the "aggregator" bundle,
 Package demultiplexer defines the aggregator demultiplexer
 
 ### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
+
+*Datadog Team*: agent-shared-components
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
@@ -56,7 +62,7 @@ auth_token file but can fetch it it's available.
 
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
-*Datadog Team*: agent-shared-components
+*Datadog Team*: agent-metrics-logs
 
 Package checks implements the "checks" bundle, for all of the component based agent checks
 
@@ -65,6 +71,12 @@ Package checks implements the "checks" bundle, for all of the component based ag
 *Datadog Team*: windows-kernel-integrations
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
+
+### [comp/checks/windowseventlog](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/windowseventlog)
+
+*Datadog Team*: windows-agent
+
+Package windowseventlog defines the Windows Event Log check component
 
 ### [comp/checks/winregistry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/winregistry)
 
@@ -123,6 +135,11 @@ Package hostnameinterface describes the interface for hostname methods
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.
+
+### [comp/core/pid](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/pid)
+
+Package pid writes the current PID to a file, ensuring that the file
+doesn't exist or doesn't contain a PID for a running process.
 
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
