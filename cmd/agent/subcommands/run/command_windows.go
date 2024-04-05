@@ -13,6 +13,7 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
@@ -119,7 +120,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,
-			containerTagger containertagger.Component,
+			cloudfoundrycontainer cloudfoundrycontainer.Component,
 			_ expvarserver.Component,
 			metadatascheduler metadatascheduler.Component,
 			jmxlogger jmxlogger.Component,
@@ -148,7 +149,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invChecks,
 				statusComponent,
 				collector,
-				containerTagger,
+				cloudfoundrycontainer,
 				metadatascheduler,
 				jmxlogger,
 			)
