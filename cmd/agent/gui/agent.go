@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package guiimpl implements the component gui
-package guiimpl
+// Package gui contains the gui subcommand
+package gui
 
 import (
 	"encoding/json"
@@ -20,33 +20,31 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-
-	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, startTimestamp int64) {
-	r.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) }).Methods("POST")
+func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component) {
+	r.HandleFunc("/ping", http.HandlerFunc(ping)).Methods("POST")
 	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
 	r.HandleFunc("/hostname", http.HandlerFunc(getHostname)).Methods("POST")
-	r.HandleFunc("/log/{flip}", func(w http.ResponseWriter, r *http.Request) { getLog(w, r, config) }).Methods("POST")
+	r.HandleFunc("/log/{flip}", http.HandlerFunc(getLog)).Methods("POST")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
 	r.HandleFunc("/restart", http.HandlerFunc(restartAgent)).Methods("POST")
-	r.HandleFunc("/getConfig", func(w http.ResponseWriter, _ *http.Request) { getConfigFile(w, config) }).Methods("POST")
-	r.HandleFunc("/getConfig/{setting}", func(w http.ResponseWriter, r *http.Request) { getConfigSetting(w, r, config) }).Methods("GET")
-	r.HandleFunc("/setConfig", func(w http.ResponseWriter, r *http.Request) { setConfigFile(w, r, config) }).Methods("POST")
+	r.HandleFunc("/getConfig", http.HandlerFunc(getConfigFile)).Methods("POST")
+	r.HandleFunc("/getConfig/{setting}", http.HandlerFunc(getConfigSetting)).Methods("GET")
+	r.HandleFunc("/setConfig", http.HandlerFunc(setConfigFile)).Methods("POST")
 }
 
 // Sends a simple reply (for checking connection to server)
-func ping(w http.ResponseWriter, startTimestamp int64) {
+func ping(w http.ResponseWriter, _ *http.Request) {
 	elapsed := time.Now().Unix() - startTimestamp
 	w.Write([]byte(strconv.FormatInt(elapsed, 10)))
 }
@@ -106,10 +104,10 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 // Sends the log file (agent.log)
-func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
+func getLog(w http.ResponseWriter, r *http.Request) {
 	flip, _ := strconv.ParseBool(mux.Vars(r)["flip"])
 
-	logFile := config.GetString("log_file")
+	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = path.DefaultLogFile
 	}
@@ -181,7 +179,7 @@ func restartAgent(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("Success"))
 }
 
-func getConfigSetting(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
+func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	setting := mux.Vars(r)["setting"]
 	if _, ok := map[string]bool{
@@ -193,7 +191,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request, config configmodel
 		return
 	}
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
-		setting: config.Get(setting),
+		setting: config.Datadog.Get(setting),
 	}); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, `"error": "%v"`, err)
@@ -201,8 +199,8 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request, config configmodel
 }
 
 // Sends the configuration (aka datadog.yaml) file
-func getConfigFile(w http.ResponseWriter, config configmodel.Reader) {
-	path := config.ConfigFileUsed()
+func getConfigFile(w http.ResponseWriter, _ *http.Request) {
+	path := config.Datadog.ConfigFileUsed()
 	settings, e := os.ReadFile(path)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
@@ -214,7 +212,7 @@ func getConfigFile(w http.ResponseWriter, config configmodel.Reader) {
 }
 
 // Overwrites the main config file (datadog.yaml) with new data
-func setConfigFile(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
+func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
@@ -230,7 +228,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request, config configmodel.Re
 		return
 	}
 
-	path := config.ConfigFileUsed()
+	path := config.Datadog.ConfigFileUsed()
 	e = os.WriteFile(path, data, 0644)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))

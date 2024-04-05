@@ -116,10 +116,6 @@ Package configsync implements synchronizing the configuration using the core age
 
 Package flare implements a component to generate flares from the agent.
 
-### [comp/core/gui](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/gui)
-
-Package gui provides the GUI server component for the Datadog Agent.
-
 ### [comp/core/healthprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/healthprobe)
 
 Package healthprobe implements the health check server
