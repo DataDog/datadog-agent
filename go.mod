@@ -564,7 +564,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.23.1
 	go.opentelemetry.io/otel/sdk/metric v1.22.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
+	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/mod v0.16.0
 	golang.org/x/oauth2 v0.18.0 // indirect
@@ -865,3 +865,6 @@ replace (
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.18.0
 	github.com/prometheus/common => github.com/prometheus/common v0.46.0
 )
+
+// Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
+exclude go.opentelemetry.io/proto/otlp v1.1.0
