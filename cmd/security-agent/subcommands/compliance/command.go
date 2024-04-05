@@ -19,7 +19,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -106,15 +105,15 @@ func loadRun(_ log.Component, _ config.Component, loadArgs *loadCliParams) error
 		if loadArgs.procPid == 0 {
 			return fmt.Errorf("missing required flag --proc-pid")
 		}
-		proc, containerID, rootPath, err := getProcMeta(hostroot, int32(loadArgs.procPid))
+		proc, _, rootPath, err := getProcMeta(hostroot, int32(loadArgs.procPid))
 		if err != nil {
 			return err
 		}
-		dbresource, ok := dbconfig.LoadDBResource(ctx, rootPath, proc, containerID)
+		var ok bool
+		resourceType, resource, ok = dbconfig.LoadConfiguration(ctx, rootPath, proc)
 		if !ok {
 			return fmt.Errorf("failed to load database config from process %d in %q", loadArgs.procPid, rootPath)
 		}
-		resourceType, resource = dbresource.Type, dbresource.Config
 	default:
 		return fmt.Errorf("unknown config type %q", loadArgs.confType)
 	}
@@ -167,13 +166,13 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 		Hidden: true,
 	}
 
-	eventCmd.Flags().StringVarP(&eventArgs.sourceType, flags.SourceType, "", "compliance", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.sourceName, flags.SourceName, "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, flags.RuleID, "", "", "Rule ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, flags.ResourceID, "", "", "Resource ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, flags.ResourceType, "", "", "Resource type")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, flags.Tags, "t", []string{"security:compliance"}, "Tags")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.data, flags.Data, "d", []string{}, "Data KV fields")
+	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
+	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
+	eventCmd.Flags().StringVarP(&eventArgs.event.RuleID, "rule-id", "", "", "Rule ID")
+	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
+	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
+	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
+	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
 
 	return eventCmd
 }

@@ -89,7 +89,12 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         determine_connection_direction(&conn.tup, &conn.conn_stats);
     }
 
-    conn.conn_stats.timestamp = bpf_ktime_get_ns();
+    // update the `duration` field to reflect the duration of the
+    // connection; `duration` had the creation timestamp for
+    // the conn_stats_ts_t object up to now. we re-use this field
+    // for the duration since we would overrun stack size limits
+    // if we added another field
+    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
 
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);

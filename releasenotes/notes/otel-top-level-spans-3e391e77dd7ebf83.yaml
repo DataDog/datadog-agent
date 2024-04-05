@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    OTLP ingest now identifies top-level spans by span kind for OpenTelemetry spans by default. This is both a breaking change and a bug fix that may increase the number of spans that generate trace metrics. This new logic can be disabled if needed by adding `disable_otlp_compute_top_level_by_span_kind` in DD_APM_FEATURES.
+    OTLP ingest now has a feature flag to identify top-level spans by span kind. This new logic can be enabled by adding `enable_otlp_compute_top_level_by_span_kind` in DD_APM_FEATURES.
     - With this new logic, root spans and spans with a server or consumer `span.kind` will be marked as top-level. Additionally, spans with a client or producer `span.kind` will have stats computed.
-    - If `disable_otlp_compute_top_level_by_span_kind` is enabled, this new logic will be disabled and OpenTelemetry spans may be misidentified as top-level.
+    - Enabling this feature flag may increase the number of spans that generate trace metrics, and may change which spans appear as top-level in Datadog.

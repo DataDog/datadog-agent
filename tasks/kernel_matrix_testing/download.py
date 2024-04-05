@@ -1,10 +1,15 @@
-import json
+from __future__ import annotations
+
 import os
 import platform
 import tempfile
+from typing import TYPE_CHECKING, List
 
+from invoke.context import Context
+
+from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
-from tasks.kernel_matrix_testing.vars import arch_mapping, platforms_file
+from tasks.kernel_matrix_testing.vars import arch_mapping
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 
 try:
@@ -12,8 +17,14 @@ try:
 except ImportError:
     requests = None
 
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import PathOrStr
 
-def requires_update(url_base, rootfs_dir, image, branch):
+
+def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str):
+    if requests is None:
+        raise Exit("requests module is not installed, please install it to continue")
+
     sum_url = os.path.join(url_base, branch, image + ".sum")
     r = requests.get(sum_url)
     new_sum = r.text.rstrip().split(' ')[0]
@@ -30,17 +41,15 @@ def requires_update(url_base, rootfs_dir, image, branch):
     return False
 
 
-def download_rootfs(ctx, rootfs_dir, vmconfig_template):
-    with open(platforms_file) as f:
-        platforms = json.load(f)
-
-    vmconfig_template = get_vmconfig_template(vmconfig_template)
+def download_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template_name: str):
+    platforms = get_platforms()
+    vmconfig_template = get_vmconfig_template(vmconfig_template_name)
 
     url_base = platforms["url_base"]
 
     arch = arch_mapping[platform.machine()]
-    to_download = list()
-    file_ls = list()
+    to_download: List[str] = list()
+    file_ls: List[str] = list()
     branch_mapping: dict[str, str] = dict()
 
     for tag in platforms[arch]:
@@ -58,14 +67,18 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
             to_download.append(f)
 
     for vmset in vmconfig_template["vmsets"]:
+        if "arch" not in vmset:
+            raise Exit("arch is not defined in vmset")
+
         if vmset["arch"] != arch:
             continue
 
-        for disk in vmset["disks"]:
+        for disk in vmset.get("disks", []):
             # Use the uncompressed disk name, avoid errors due to images being downloaded but not extracted
             d = os.path.basename(disk["target"])
             if not os.path.exists(os.path.join(rootfs_dir, d)):
-                d = d.removesuffix(".xz")
+                if d.endswith(".xz"):
+                    d = d[: -len(".xz")]
                 to_download.append(d)
 
     # download and compare hash sums
@@ -105,23 +118,23 @@ def download_rootfs(ctx, rootfs_dir, vmconfig_template):
             tmp.write("\n")
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
-        if not res.ok:
+        if res is None or not res.ok:
             raise Exit("Failed to download image files")
     finally:
         os.remove(path)
 
     # extract files
-    res = ctx.run(f"find {rootfs_dir} -name \"*qcow2.xz\" -type f -exec xz -d {{}} \\;")
-    if not res.ok:
+    res = ctx.run(f"find {rootfs_dir} -name \"*qcow*.xz\" -type f -exec xz -d {{}} \\;")
+    if res is None or not res.ok:
         raise Exit("Failed to extract qcow2 files")
 
     # set permissions
     res = ctx.run(f"find {rootfs_dir} -name \"*qcow*\" -type f -exec chmod 0766 {{}} \\;")
-    if not res.ok:
+    if res is None or not res.ok:
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def update_rootfs(ctx, rootfs_dir, vmconfig_template):
+def update_rootfs(ctx: Context, rootfs_dir: PathOrStr, vmconfig_template: str):
     download_rootfs(ctx, rootfs_dir, vmconfig_template)
 
     info("[+] Root filesystem and bootables images updated")

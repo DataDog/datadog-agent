@@ -32,6 +32,7 @@ import (
 
 func TestConntrackers(t *testing.T) {
 	ebpftest.LogLevel(t, "trace")
+	ebpftest.LogTracePipe(t)
 	t.Run("netlink", func(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})

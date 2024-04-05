@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/viper"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -40,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/viper"
 )
 
 // Module defines the fx options for this component.
@@ -170,6 +171,7 @@ func (ia *inventoryagent) initData() {
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
+	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
 }
 
@@ -253,8 +255,8 @@ func (ia *inventoryagent) fetchProcessAgentMetadata() {
 
 func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// If the system-probe configuration is not loaded we fallback on zero value for all metadata
-	getBoolSysProbe := func(key string) bool { return false }
-	getIntSysProbe := func(key string) int { return 0 }
+	getBoolSysProbe := func(_ string) bool { return false }
+	getIntSysProbe := func(_ string) int { return 0 }
 
 	localSysProbeConf, isSet := ia.sysprobeConf.Get()
 	if isSet {
@@ -391,6 +393,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
 		"remote_configuration":               ia.getRemoteConfiguration,
 		"cli_configuration":                  ia.getCliConfiguration,
+		"source_local_configuration":         ia.getSourceLocalConfiguration,
 	}
 	for layer, getter := range configLayer {
 		if conf, err := getter(); err == nil {

@@ -44,7 +44,7 @@ type Event struct {
 
 // FileEvent is the common file event type
 type FileEvent struct {
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.WindowsPathCmp"`         // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
 }
 

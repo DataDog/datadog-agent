@@ -53,7 +53,6 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.SetKnown("apm_config.stats_writer.connection_limit")
 	config.SetKnown("apm_config.stats_writer.queue_size")
 	config.SetKnown("apm_config.analyzed_rate_by_service.*")
-	config.SetKnown("apm_config.log_throttling")
 	config.SetKnown("apm_config.bucket_size_seconds")
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
@@ -74,7 +73,6 @@ func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_buffer_size", 1_000_000, "DD_APM_WINDOWS_PIPE_BUFFER_SIZE")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", true, "DD_APM_REMOTE_TAGGER")                                                     //nolint:errcheck
-	config.BindEnvAndSetDefault("apm_config.peer_service_aggregation", false, "DD_APM_PEER_SERVICE_AGGREGATION")                              //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", false, "DD_APM_PEER_TAGS_AGGREGATION")                                    //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", false, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                          //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")

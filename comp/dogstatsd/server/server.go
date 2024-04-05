@@ -19,9 +19,11 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -33,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
@@ -73,7 +76,9 @@ type dependencies struct {
 	Config configComponent.Component
 	Debug  serverdebug.Component
 	Replay replay.Component
+	PidMap pidmap.Component
 	Params Params
+	WMeta  optional.Option[workloadmeta.Component]
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -118,6 +123,7 @@ type server struct {
 	Debug                   serverdebug.Component
 
 	tCapture                replay.Component
+	pidMap                  pidmap.Component
 	mapper                  *mapper.MetricMapper
 	eolTerminationUDP       bool
 	eolTerminationUDS       bool
@@ -145,6 +151,8 @@ type server struct {
 	originTelemetry bool
 
 	enrichConfig enrichConfig
+
+	wmeta optional.Option[workloadmeta.Component]
 }
 
 func initTelemetry(cfg config.Reader, logger logComponent.Component) {
@@ -191,7 +199,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) Component {
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap)
 
 	if config.Datadog.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
@@ -204,7 +212,7 @@ func newServer(deps dependencies) Component {
 
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer) *server {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -293,6 +301,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		originTelemetry: cfg.GetBool("telemetry.enabled") &&
 			cfg.GetBool("telemetry.dogstatsd_origin"),
 		tCapture:             capture,
+		pidMap:               pidMap,
 		udsListenerRunning:   false,
 		cachedOriginCounters: make(map[string]cachedOriginCounter),
 		ServerlessMode:       serverless,
@@ -303,8 +312,8 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
-			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
+		wmeta: wmeta,
 	}
 
 	return s
@@ -357,7 +366,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
@@ -368,7 +377,7 @@ func (s *server) start(context.Context) error {
 
 	if len(socketStreamPath) > 0 {
 		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
-		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
@@ -469,7 +478,7 @@ func (s *server) stop(context.Context) error {
 		s.Statistics.Stop()
 	}
 	if s.tCapture != nil {
-		s.tCapture.Stop()
+		s.tCapture.StopCapture()
 	}
 	s.health.Deregister() //nolint:errcheck
 	s.Started = false
@@ -508,7 +517,7 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i)
+		worker := newWorker(s, i, s.wmeta)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}

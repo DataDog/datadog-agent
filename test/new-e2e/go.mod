@@ -7,6 +7,7 @@ go 1.21.8
 // TODO: Implement hard check in CI
 
 replace (
+	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ../../pkg/util/testutil
@@ -16,18 +17,18 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/version v0.52.0-rc.3
-	github.com/DataDog/datadog-agent/test/fakeintake v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/test/fakeintake v0.53.0-rc.2
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
-	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab-ci.yml`
+	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab/common/test_infra_version.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240318100125-f2ab6e511638
+	github.com/DataDog/test-infra-definitions v0.0.0-20240402111756-e9cf37ed9d96
 	github.com/aws/aws-sdk-go-v2 v1.25.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.6
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -41,7 +42,6 @@ require (
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
 	github.com/pulumi/pulumi/sdk/v3 v3.108.1
-	github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13
 	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
@@ -60,7 +60,7 @@ require (
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.2
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -184,6 +184,7 @@ require (
 	// So, do not upgrade pulumi-random to v4.14.0 or above before migration to GO 1.21.
 	github.com/pulumi/pulumi-random/sdk/v4 v4.16.0 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
+	github.com/pulumiverse/pulumi-time/sdk v0.0.0-20231010123146-089d7304da13 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
@@ -243,6 +244,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.53.0-rc.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1 // indirect
