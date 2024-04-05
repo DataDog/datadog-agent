@@ -357,6 +357,29 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 		}
 	}()
 
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		tags := []string{
+			fmt.Sprintf("agent_version:%s", version.AgentVersion),
+			fmt.Sprintf("cloud_provider:%s", string(s.ScannerID.Provider)),
+			fmt.Sprintf("dd_env:%s", s.Env),
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				if err := s.Statsd.Count("datadog.agentless_scanner.running", 0.0, tags, 1.0); err != nil {
+					log.Warnf("failed to send metric: %v", err)
+				}
+				return
+			case <-ticker.C:
+				if err := s.Statsd.Count("datadog.agentless_scanner.running", 1.0, tags, 1.0); err != nil {
+					log.Warnf("failed to send metric: %v", err)
+				}
+			}
+		}
+	}()
+
 	go s.cleanupProcess(ctx)
 
 	doneCh := make(chan struct{})
