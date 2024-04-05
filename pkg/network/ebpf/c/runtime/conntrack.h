@@ -45,10 +45,10 @@ static __always_inline u32 get_netns(const struct nf_conn *ct) {
         nt = pnet.net;
     } else {
         // will not exist if CONFIG_NET_NS undefined
-        if (!bpf_core_field_exists(ct->ct_net)) {
+        if (!bpf_core_field_exists(((struct nf_conn___old*)ct)->ct_net)) {
             return 0;
         }
-        BPF_CORE_READ_INTO(&nt, ct, ct_net);
+        BPF_CORE_READ_INTO(&nt, (struct nf_conn___old*)ct, ct_net);
     }
 
     if (bpf_core_field_exists(((struct net___old*)nt)->proc_inum)) {
