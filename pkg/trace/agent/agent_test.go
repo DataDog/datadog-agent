@@ -1057,6 +1057,7 @@ func TestSampling(t *testing.T) {
 			RareSamplerEnabled:                     !ac.rareSamplerDisabled,
 			RareSamplerCardinality:                 200,
 			RareSamplerTPS:                         5,
+			RareSamplerCooldownPeriod:              5 * time.Minute,
 			ProbabilisticSamplerEnabled:            ac.probabilisticSampler,
 			ProbabilisticSamplerSamplingPercentage: ac.probabilisticSamplerSamplingPercentage,
 		}
@@ -1236,6 +1237,12 @@ func TestSampling(t *testing.T) {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+			},
+		},
+		"probabilistic-rare-prio-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true},
 			},
 		},
 		"probabilistic-error-100": {

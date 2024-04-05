@@ -80,13 +80,7 @@ func NewRareSampler(conf *config.AgentConfig, statsd statsd.ClientInterface) *Ra
 
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
-
 	if !e.enabled.Load() {
-		return false
-	}
-
-	if priority, ok := GetSamplingPriority(t); priority > 0 && ok {
-		e.handlePriorityTrace(now, env, t, e.priorityTTL)
 		return false
 	}
 	return e.handleTrace(now, env, t)
@@ -127,6 +121,7 @@ func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) b
 			break
 		}
 	}
+
 	if sampled {
 		e.handlePriorityTrace(now, env, t, e.ttl)
 	}
