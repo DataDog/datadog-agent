@@ -319,6 +319,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	if len(libsToInject) == 0 {
 		return false, nil
 	}
+	injectSecurityClientLibraryConfig(pod)
 	// Inject env variables used for Onboarding KPIs propagation
 	var injectionType string
 	if w.isEnabledInNamespace(pod.Namespace) {
@@ -337,6 +338,27 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	}
 
 	return true, nil
+}
+
+// The config for the security products has three states: <unset> | true | false.
+// This is because the products themselves have treat these cases differently:
+// * <unset> - product disactivated but can be activated remotely
+// * true - product activated, not overridable remotely
+// * false - product disactivated, not overridable remotely
+func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
+	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm.enabled", "DD_APPSEC_ENABLED")
+	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.iast.enabled", "DD_IAST_ENABLED")
+	injectEnvVarIfConfigKeySet(pod, "admission_controller.auto_instrumentation.asm_sca.enabled", "DD_APPSEC_SCA_ENABLED")
+}
+
+func injectEnvVarIfConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
+	if config.Datadog.IsSet(configKey) {
+		enabledValue := config.Datadog.GetBool(configKey)
+		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
+			Name:  envVarKey,
+			Value: strconv.FormatBool(enabledValue),
+		})
+	}
 }
 
 func injectApmTelemetryConfig(pod *corev1.Pod) {

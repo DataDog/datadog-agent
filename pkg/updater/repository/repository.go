@@ -363,6 +363,9 @@ func movePackageFromSource(packageName string, rootPath string, lockedPackages m
 	if err != nil {
 		return "", fmt.Errorf("could not move source: %w", err)
 	}
+	if err := os.Chmod(targetPath, 0755); err != nil {
+		return "", fmt.Errorf("could not set permissions on package: %w", err)
+	}
 	if strings.HasSuffix(rootPath, "datadog-agent") {
 		if err := service.ChownDDAgent(targetPath); err != nil {
 			return "", err

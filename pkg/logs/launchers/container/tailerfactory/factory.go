@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Factory supports making new tailers.
@@ -41,7 +42,7 @@ type factory struct {
 
 	// workloadmetaStore is the global WLM store containing information about
 	// containers and pods.
-	workloadmetaStore workloadmeta.Component
+	workloadmetaStore optional.Option[workloadmeta.Component]
 
 	// cop allows the factory to determine whether the agent is logging
 	// containers or pods.
@@ -54,7 +55,7 @@ type factory struct {
 var _ Factory = (*factory)(nil)
 
 // New creates a new Factory.
-func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore workloadmeta.Component) Factory {
+func New(sources *sources.LogSources, pipelineProvider pipeline.Provider, registry auditor.Registry, workloadmetaStore optional.Option[workloadmeta.Component]) Factory {
 	return &factory{
 		sources:           sources,
 		pipelineProvider:  pipelineProvider,
