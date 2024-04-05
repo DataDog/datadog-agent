@@ -17,10 +17,6 @@ const (
 
 	// TCPConnect traces the connect() system call
 	TCPConnect ProbeFuncName = "kprobe__tcp_connect"
-	// TCPv4ConnectReturn traces the return value for the v4 connect() system call
-	TCPv4ConnectReturn = "kretprobe__tcp_v4_connect"
-	// TCPConnectReturn traces the return value for the connect() system call
-	TCPConnectReturn = "kretprobe__tcp_connect"
 	// TCPFinishConnect traces tcp_finish_connect() kernel function. This is
 	// used to know when a TCP connection switches to the ESTABLISHED state
 	TCPFinishConnect ProbeFuncName = "kprobe__tcp_finish_connect"

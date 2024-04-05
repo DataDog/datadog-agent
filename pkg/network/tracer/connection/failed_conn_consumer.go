@@ -110,7 +110,6 @@ func (c *tcpFailedConnConsumer) extractConn(data []byte) {
 		c.failedConnMap[ct.Tup] = stats
 	}
 	stats.countByErrCode[ct.Reason]++
-
 	// rollup similar conns here
 }
 
@@ -160,8 +159,8 @@ func (c *tcpFailedConnConsumer) Start(_ func([]network.ConnectionStats)) {
 				lostSamplesCount += lc
 			case request := <-c.requests:
 				failedCount += uint64(len(c.failedConnMap))
-				//log.Debugf("adamk failed conn map: %v", c.failedConnMap)
-				c.failedConnMap = make(failedConnMap)
+				log.Debugf("adamk failed conn map: %v", c.failedConnMap)
+				clear(c.failedConnMap)
 				close(request)
 				now := time.Now()
 				elapsed := now.Sub(then)
