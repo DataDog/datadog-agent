@@ -66,6 +66,7 @@ func (h *RemoteHost) WaitForAgentsReady(opts ...AgentReadyOption) {
 
 	require.EventuallyWithT(h.context.T(), func(t *assert.CollectT) {
 		if params.authToken == "" {
+			h.context.T().Log("Reading auth token...")
 			authToken, err := h.Execute("sudo cat " + params.authTokenPath)
 			if !assert.NoError(t, err, "reading auth token") {
 				return
@@ -85,9 +86,13 @@ func (h *RemoteHost) WaitForAgentsReady(opts ...AgentReadyOption) {
 				continue
 			}
 
+			h.context.T().Logf("Checking status of the %s...", name)
 			cmd := curlCommand(h.OSFamily, endpoint, params.authToken)
 			_, err := h.Execute(cmd)
-			assert.NoErrorf(t, err, "%s is not ready", name)
+
+			if !assert.NoErrorf(t, err, "%s did not become ready", name) {
+				h.context.T().Logf("Failed to check %s status: %s", name, err)
+			}
 		}
 	}, params.waitFor, params.tick, "Waiting for agents to be ready")
 }
