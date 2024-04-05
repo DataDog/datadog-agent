@@ -52,7 +52,6 @@ kmt_setup_env_secagent_x64:
   allow_failure: true
   rules: !reference [.on_security_agent_changes_or_manual]
   before_script:
-    - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
