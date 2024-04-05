@@ -76,7 +76,8 @@ VMDef = Tuple[Recipe, str, ArchOrLocal]
 
 
 class HasName(Protocol):
-    def name(self) -> str: ...
+    def name(self) -> str:
+        ...
 
 
 TNamed = TypeVar('TNamed', bound=HasName)
