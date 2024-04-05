@@ -1257,8 +1257,6 @@ func TestSampling(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			a := configureAgent(tt.agentConfig)
 			for _, tc := range tt.testCases {
-				//_, hasPriority := sampler.GetSamplingPriority(tc.trace.TraceChunk)
-				//sampled := //a.runSamplers(time.Now(), tc.trace, hasPriority)
 				sampled, _ := a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace)
 				assert.EqualValues(t, tc.wantSampled, sampled)
 			}
@@ -1281,7 +1279,6 @@ func TestSample(t *testing.T) {
 		chunk := testutil.TraceChunkWithSpan(root)
 		if decisionMaker != "" {
 			chunk.Tags["_dd.p.dm"] = decisionMaker
-			// root.Meta["_dd.p.dm"] = decisionMaker
 		}
 		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
 		pt.TraceChunk.Priority = int32(priority)
