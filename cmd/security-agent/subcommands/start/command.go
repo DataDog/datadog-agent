@@ -211,10 +211,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
 func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component) error {
-	ctx, cancel := context.WithCancel(context.Background())
+	_, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, telemetry, demultiplexer, statusComponent)
+	err := RunAgent(log, config, telemetry, demultiplexer, statusComponent)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -265,7 +265,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
+func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, statusComponent status.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
