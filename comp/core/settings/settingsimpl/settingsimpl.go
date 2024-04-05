@@ -51,6 +51,8 @@ type settingsRegistry struct {
 
 // RuntimeSettings returns all runtime configurable settings
 func (s *settingsRegistry) RuntimeSettings() settings.Settings {
+	s.rwMutex.RLock()
+	defer s.rwMutex.RUnlock()
 	settingsCopy := settings.Settings{}
 	for k, v := range s.settings {
 		settingsCopy[k] = v
@@ -138,7 +140,7 @@ func (s *settingsRegistry) GetFullConfig(cfg config.Config, namespaces ...string
 
 func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Request) {
 	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
-	for name, setting := range s.settings {
+	for name, setting := range s.RuntimeSettings() {
 		configurableSettings[name] = settings.RuntimeSettingResponse{
 			Description: setting.Description(),
 			Hidden:      setting.Hidden(),
