@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
-func TestSample(t *testing.T) {
+func TestProbabilisticSampler(t *testing.T) {
 	t.Run("keep-otel", func(t *testing.T) {
 		tid := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 		conf := &config.AgentConfig{

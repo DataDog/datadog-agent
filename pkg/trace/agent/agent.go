@@ -557,8 +557,29 @@ func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
 	return dm == manualSampling
 }
 
+func (a *Agent) runProbabilisticSampler(now time.Time, pt *traceutil.ProcessedTrace) bool {
+	// run this early to make sure the signature gets counted by the RareSampler.
+	if a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv) {
+		return true
+	}
+	if a.ProbabilisticSampler.Sample(pt.Root) {
+		return true
+	}
+	if traceContainsError(pt.TraceChunk.Spans) {
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	}
+	return false
+}
+
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
 func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
+	if a.conf.ProbabilisticSamplerEnabled {
+		// when using the probabilistic sampler, we ignore all priority.
+		sampled := a.runProbabilisticSampler(now, pt)
+		pt.TraceChunk.DroppedTrace = !sampled
+		return sampled, true
+	}
+
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
 
 	if hasPriority {
@@ -606,12 +627,11 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 		return true
 	}
 
-	if a.conf.ProbabilisticSamplerEnabled {
-		if a.ProbabilisticSampler.Sample(pt.Root) {
+	if hasPriority {
+		if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 			return true
 		}
-	} else if hasPriority && a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
-		// Can only run this if we have priority and the probabilistic sampler is *not* enabled
+	} else if a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv) {
 		return true
 	}
 
@@ -619,9 +639,6 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
 
-	if !hasPriority {
-		return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
-	}
 	return false
 }
 

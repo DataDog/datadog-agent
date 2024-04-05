@@ -1048,19 +1048,36 @@ func TestClientComputedStats(t *testing.T) {
 func TestSampling(t *testing.T) {
 	// agentConfig allows the test to customize how the agent is configured.
 	type agentConfig struct {
-		rareSamplerDisabled, errorsSampled, noPrioritySampled bool
+		rareSamplerDisabled, errorsSampled, noPrioritySampled, probabilisticSampler bool
+		probabilisticSamplerSamplingPercentage                                      float32
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerEnabled: !ac.rareSamplerDisabled, RareSamplerCardinality: 200, RareSamplerTPS: 5}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerEnabled: !ac.rareSamplerDisabled}
+		cfg := &config.AgentConfig{
+			RareSamplerEnabled:                     !ac.rareSamplerDisabled,
+			RareSamplerCardinality:                 200,
+			RareSamplerTPS:                         5,
+			ProbabilisticSamplerEnabled:            ac.probabilisticSampler,
+			ProbabilisticSamplerSamplingPercentage: ac.probabilisticSamplerSamplingPercentage,
+		}
+		sampledCfg := &config.AgentConfig{
+			ExtraSampleRate:    1,
+			TargetTPS:          5,
+			ErrorTPS:           10,
+			RareSamplerEnabled: !ac.rareSamplerDisabled,
+			// 			ProbabilisticSamplerEnabled:            ac.probabilisticSampler,
+			// 			ProbabilisticSamplerSamplingPercentage: ac.probabilisticSamplerSamplingPercentage,
+		}
+		//fmt.Printf("SAMPLED CONFIG: %#v\n", sampledCfg)
+
 		statsd := &statsd.NoOpClient{}
 		a := &Agent{
-			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
-			ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
-			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
-			RareSampler:       sampler.NewRareSampler(cfg, statsd),
-			conf:              cfg,
+			NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg, statsd),
+			ErrorsSampler:        sampler.NewErrorsSampler(cfg, statsd),
+			PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+			RareSampler:          sampler.NewRareSampler(cfg, statsd),
+			ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+			conf:                 cfg,
 		}
 		if ac.errorsSampled {
 			a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg, statsd)
@@ -1173,12 +1190,76 @@ func TestSampling(t *testing.T) {
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
 			},
 		},
+		// These tests use 0% and 100% to ensure traces are sampled or not by the sampler. They are
+		// intended to test the sampling logic of the agent under various configurations. The exact
+		// behavior of the probabilistic sampler is tested in pkg/trace/sampler.
+		"probabilistic-no-prio-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+			},
+		},
+		"probabilistic-no-prio-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: false},
+			},
+		},
+		"probabilistic-prio-drop-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: true},
+			},
+		},
+		"probabilistic-prio-drop-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: false},
+			},
+		},
+		"probabilistic-prio-keep-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true},
+			},
+		},
+		"probabilistic-prio-keep-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: false},
+			},
+		},
+		"probabilistic-rare-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+			},
+		},
+		"probabilistic-rare-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+			},
+		},
+		"probabilistic-error-100": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 100},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+			},
+		},
+		"probabilistic-error-0": {
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 0},
+			testCases: []samplingTestCase{
+				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			a := configureAgent(tt.agentConfig)
 			for _, tc := range tt.testCases {
-				_, hasPriority := sampler.GetSamplingPriority(tc.trace.TraceChunk)
-				sampled := a.runSamplers(time.Now(), tc.trace, hasPriority)
+				//_, hasPriority := sampler.GetSamplingPriority(tc.trace.TraceChunk)
+				//sampled := //a.runSamplers(time.Now(), tc.trace, hasPriority)
+				sampled, _ := a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace)
 				assert.EqualValues(t, tc.wantSampled, sampled)
 			}
 		})
