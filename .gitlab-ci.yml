@@ -76,7 +76,6 @@ stages:
   - pkg_metrics
   - packaging
   - kitchen_deploy
-  - e2e_pre_test
   - kitchen_testing
   - container_build
   - container_scan
@@ -91,6 +90,7 @@ stages:
   - choco_deploy
   - internal_image_deploy
   - install_script_testing
+  - e2e_pre_test
   - e2e
   - kitchen_cleanup
   - functional_test
