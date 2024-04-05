@@ -297,6 +297,15 @@ class Gitlab(RemoteAPI):
             else:
                 raise e
 
+    def lint(self, configuration):
+        """
+        Lint a gitlab-ci configuration.
+        """
+        path = f"/projects/{quote(self.project_name, safe='')}/ci/lint?dry_run=true&include_jobs=true"
+        headers = {"Content-Type": "application/json"}
+        data = {"content": configuration}
+        return self.make_request(path, headers=headers, data=data, json_input=True, json_output=True)
+
     def make_request(
         self, path, headers=None, data=None, json_input=False, json_output=False, stream_output=False, method=None
     ):
@@ -383,7 +392,7 @@ class ReferenceTag(yaml.YAMLObject):
         return dumper.represent_sequence(cls.yaml_tag, data.data, flow_style=True)
 
 
-def generate_gitlab_full_configuration(input_file):
+def generate_gitlab_full_configuration(input_file, context=None):
     """
     Generate a full gitlab-ci configuration by resolving all includes
     """
@@ -396,6 +405,9 @@ def generate_gitlab_full_configuration(input_file):
     full_configuration = {}
     for yaml_file in yaml_contents:
         full_configuration.update(yaml_file)
+    # Override some variables with a dedicated context
+    if context:
+        full_configuration["variables"].update(context)
     return yaml.safe_dump(full_configuration)
 
 
@@ -403,14 +415,102 @@ def read_includes(yaml_file, includes):
     """
     Recursive method to read all includes from yaml files and store them in a list
     """
-    with open(yaml_file) as f:
-        current_file = yaml.safe_load(f)
+    current_file = read_content(yaml_file)
     if 'include' not in current_file:
         includes.append(current_file)
     else:
         for include in current_file['include']:
-            if include.startswith('http'):
-                continue
             read_includes(include, includes)
         del current_file['include']
         includes.append(current_file)
+
+
+def read_content(file_path):
+    content = None
+    if file_path.startswith('http'):
+        import requests
+
+        response = requests.get(file_path)
+        response.raise_for_status()
+        content = response.text
+    else:
+        with open(file_path) as f:
+            content = f.read()
+    return yaml.safe_load(content)
+
+
+def get_preset_contexts(test):
+    tests = ["all", "main", "release", "mq"]
+    if test not in tests:
+        raise Exit(f"Invalid test type: {test}, must belong to {tests}", 1)
+    main_contexts = [
+        ("BUCKET_BRANCH", ["nightly", "stable"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
+        ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
+        ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
+        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
+        ("DEPLOY_AGENT", ["true", "false"]),
+        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_E2E_TESTS", ["auto"]),
+        ("RUN_KMT_TESTS", ["on"]),
+        ("RUN_UNIT_TESTS", ["on"]),
+        ("TESTING_CLEANUP", ["true"]),
+    ]
+    release_contexts = [
+        ("BUCKET_BRANCH", ["stable"]),
+        ("CI_COMMIT_BRANCH", ["7.42.x"]),
+        ("CI_COMMIT_TAG", ["3.2.1", "1.2.3-rc.4"]),
+        ("CI_PIPELINE_SOURCE", ["trigger", "schedule"]),
+        ("DEPLOY_AGENT", ["true"]),
+        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_E2E_TESTS", ["auto"]),
+        ("RUN_KMT_TESTS", ["on"]),
+        ("RUN_UNIT_TESTS", ["on"]),
+        ("TESTING_CLEANUP", ["true"]),
+    ]
+    mq_contexts = [
+        ("BUCKET_BRANCH", ["dev"]),
+        ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
+        ("CI_PIPELINE_SOURCE", ["pipeline"]),
+        ("DEPLOY_AGENT", ["false"]),
+        ("RUN_ALL_BUILDS", ["false"]),
+        ("RUN_E2E_TESTS", ["auto"]),
+        ("RUN_KMT_TESTS", ["off"]),
+        ("RUN_UNIT_TESTS", ["off"]),
+        ("TESTING_CLEANUP", ["false"]),
+    ]
+    all_contexts = []
+    if test in ["all", "main"]:
+        generate_contexts(main_contexts, [], all_contexts)
+    if test in ["all", "release"]:
+        generate_contexts(release_contexts, [], all_contexts)
+    if test in ["all", "mq"]:
+        generate_contexts(mq_contexts, [], all_contexts)
+    return all_contexts
+
+
+def generate_contexts(contexts, context, all_contexts):
+    if len(contexts) == 0:
+        all_contexts.append(context[:])
+        return
+    for value in contexts[0][1]:
+        context.append((contexts[0][0], value))
+        generate_contexts(contexts[1:], context, all_contexts)
+        context.pop()
+
+
+def retrieve_context(context):
+    if os.path.exists(context):
+        with open(context) as f:
+            y = yaml.safe_load(f)
+        if "variables" not in y:
+            raise Exit(
+                f"Invalid context file: {context}, missing 'variables' key. Input file must be similar to tasks/unit-tests/testdata/gitlab_main_context_template.yml",
+                1,
+            )
+        return [[(k, v) for k, v in y["variables"].items()]]
+    else:
+        try:
+            j = json.loads(context)
+            return [[(k, v) for k, v in j.items()]]
+        except json.JSONDecodeError:
+            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1)
