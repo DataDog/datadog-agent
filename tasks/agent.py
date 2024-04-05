@@ -67,6 +67,7 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle",
     "oracle-dbm",
     "sbom",
     "systemd",
@@ -76,6 +77,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_ecs",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -582,7 +584,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
         {
             # Run eventlog check tests with the Windows API, which depend on the EventLog service
             "dir": ".",
-            'prefix': './pkg/collector/corechecks/windows_event_log/...',
+            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check/...',
             'extra_args': '-evtapi Windows',
         },
     ]
@@ -845,7 +847,7 @@ def _send_build_metrics(ctx, overall_duration):
                 }
             )
     dd_api_key = ctx.run(
-        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ.get("API_KEY_ORG2_SSM_NAME")} --with-decryption --query "Parameter.Value" --out text',
+        f'{aws_cmd} ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2_SSM_NAME"]} --with-decryption --query "Parameter.Value" --out text',
         hide=True,
     ).stdout.strip()
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': dd_api_key}

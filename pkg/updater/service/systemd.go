@@ -9,29 +9,27 @@
 package service
 
 import (
-	"errors"
-	"io"
-	"os"
-	"os/exec"
-	"path/filepath"
-
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"encoding/json"
 )
 
 type unitCommand string
 
 const (
-	startCommand         = unitCommand("start")
-	stopCommand          = unitCommand("stop")
-	enableCommand        = unitCommand("enable")
-	disableCommand       = unitCommand("disable")
-	loadCommand          = unitCommand("load-unit")
-	removeCommand        = unitCommand("remove-unit")
-	systemdReloadCommand = "systemd-reload"
-	adminExecutor        = "datadog-updater-admin.service"
+	startCommand         unitCommand = "start"
+	stopCommand          unitCommand = "stop"
+	enableCommand        unitCommand = "enable"
+	disableCommand       unitCommand = "disable"
+	loadCommand          unitCommand = "load-unit"
+	removeCommand        unitCommand = "remove-unit"
+	systemdReloadCommand             = `{"command":"systemd-reload"}`
+	adminExecutor                    = "datadog-updater-admin.service"
 )
 
-var updaterHelper = filepath.Join(setup.InstallPath, "bin", "updater", "updater-helper")
+type privilegeCommand struct {
+	Command string `json:"command,omitempty"`
+	Unit    string `json:"unit,omitempty"`
+	Path    string `json:"path,omitempty"`
+}
 
 func stopUnit(unit string) error {
 	return executeCommand(wrapUnitCommand(stopCommand, unit))
@@ -61,27 +59,12 @@ func systemdReload() error {
 	return executeCommand(systemdReloadCommand)
 }
 
-func executeCommand(command string) error {
-	cmd := exec.Command(updaterHelper, command)
-	cmd.Stdout = os.Stdout
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	stderrOutput, err := io.ReadAll(stderr)
-	if err != nil {
-		return err
-	}
-	if err := cmd.Wait(); err != nil {
-		return errors.New(string(stderrOutput))
-	}
-	return nil
-}
-
 func wrapUnitCommand(command unitCommand, unit string) string {
-	return string(command) + " " + unit
+	privilegeCommand := privilegeCommand{Command: string(command), Unit: unit}
+	rawJSON, err := json.Marshal(privilegeCommand)
+	if err != nil {
+		// can't happen as we control the struct
+		panic(err)
+	}
+	return string(rawJSON)
 }

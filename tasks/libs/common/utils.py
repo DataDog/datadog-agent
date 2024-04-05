@@ -18,6 +18,7 @@ from tasks.libs.common.color import color_message
 
 # constants
 DEFAULT_BRANCH = "main"
+DEFAULT_INTEGRATIONS_CORE_BRANCH = "master"
 GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
 GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
@@ -175,7 +176,7 @@ def get_build_flags(
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version)
+    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
@@ -308,7 +309,7 @@ def get_payload_version():
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
-def get_version_ldflags(ctx, prefix=None, major_version='7'):
+def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -319,6 +320,10 @@ def get_version_ldflags(ctx, prefix=None, major_version='7'):
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, prefix=prefix, major_version=major_version)} "
     ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    if install_path:
+        package_version = os.path.basename(install_path)
+        if package_version != "datadog-agent":
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
 
     return ldflags
 

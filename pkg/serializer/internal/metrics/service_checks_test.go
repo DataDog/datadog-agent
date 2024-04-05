@@ -8,10 +8,7 @@
 package metrics
 
 import (
-	"bytes"
-	"compress/zlib"
 	"fmt"
-	"io"
 	"strings"
 	"testing"
 
@@ -21,19 +18,22 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
 func TestMarshalJSONServiceChecks(t *testing.T) {
 	serviceChecks := ServiceChecks{{
-		CheckName: "my_service.can_connect",
-		Host:      "my-hostname",
-		Ts:        int64(12345),
-		Status:    servicecheck.ServiceCheckOK,
-		Message:   "my_service is up",
-		Tags:      []string{"tag1", "tag2:yes"},
+		CheckName:  "my_service.can_connect",
+		Host:       "my-hostname",
+		Ts:         int64(12345),
+		Status:     servicecheck.ServiceCheckOK,
+		Message:    "my_service is up",
+		Tags:       []string{"tag1", "tag2:yes"},
+		OriginInfo: taggertypes.OriginInfo{},
 	}}
 
 	payload, err := serviceChecks.MarshalJSON()
@@ -46,12 +46,13 @@ func TestSplitServiceChecks(t *testing.T) {
 	var serviceChecks = ServiceChecks{}
 	for i := 0; i < 2; i++ {
 		sc := servicecheck.ServiceCheck{
-			CheckName: "test.check",
-			Host:      "test.localhost",
-			Ts:        1000,
-			Status:    servicecheck.ServiceCheckOK,
-			Message:   "this is fine",
-			Tags:      []string{"tag1", "tag2:yes"},
+			CheckName:  "test.check",
+			Host:       "test.localhost",
+			Ts:         1000,
+			Status:     servicecheck.ServiceCheckOK,
+			Message:    "this is fine",
+			Tags:       []string{"tag1", "tag2:yes"},
+			OriginInfo: taggertypes.OriginInfo{},
 		}
 		serviceChecks = append(serviceChecks, &sc)
 	}
@@ -68,12 +69,14 @@ func TestSplitServiceChecks(t *testing.T) {
 
 func createServiceCheck(checkName string) *servicecheck.ServiceCheck {
 	return &servicecheck.ServiceCheck{
-		CheckName: checkName,
-		Host:      "2",
-		Ts:        3,
-		Status:    servicecheck.ServiceCheckUnknown,
-		Message:   "4",
-		Tags:      []string{"5", "6"}}
+		CheckName:  checkName,
+		Host:       "2",
+		Ts:         3,
+		Status:     servicecheck.ServiceCheckUnknown,
+		Message:    "4",
+		Tags:       []string{"5", "6"},
+		OriginInfo: taggertypes.OriginInfo{},
+	}
 }
 
 func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmodel.Config) [][]byte {
@@ -82,8 +85,9 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmo
 	assert.NoError(t, err)
 	var uncompressedPayloads [][]byte
 
+	strategy := compression.NewCompressorStrategy(cfg)
 	for _, compressedPayload := range payloads {
-		payload, err := decompressPayload(compressedPayload.GetContent())
+		payload, err := strategy.Decompress(compressedPayload.GetContent())
 		assert.NoError(t, err)
 
 		uncompressedPayloads = append(uncompressedPayloads, payload)
@@ -153,20 +157,6 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 	return ServiceChecks(serviceCheckCollections)
 }
 
-func decompressPayload(payload []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	dst, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
-}
-
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
 	payloadBuilder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf())
 	serviceChecks := createServiceChecks(numberOfItem)
@@ -208,8 +198,10 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 
 	b.ResetTimer()
 
+	mockConfig := pkgconfigsetup.Conf()
+	strategy := compression.NewCompressorStrategy(mockConfig)
 	for n := 0; n < b.N; n++ {
-		split.Payloads(serviceChecks, true, split.JSONMarshalFct)
+		split.Payloads(serviceChecks, true, split.JSONMarshalFct, strategy)
 	}
 }
 

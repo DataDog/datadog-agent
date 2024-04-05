@@ -17,7 +17,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -104,19 +103,19 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	activityDumpStopCmd.Flags().StringVar(
 		&cliParams.name,
-		flags.Name,
+		"name",
 		"",
 		"an activity dump name can be used to filter the activity dump.",
 	)
 	activityDumpStopCmd.Flags().StringVar(
 		&cliParams.containerID,
-		flags.ContainerID,
+		"container-id",
 		"",
 		"an containerID can be used to filter the activity dump.",
 	)
 	activityDumpStopCmd.Flags().StringVar(
 		&cliParams.comm,
-		flags.Comm,
+		"comm",
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
@@ -158,55 +157,55 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.comm,
-		flags.Comm,
+		"comm",
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.containerID,
-		flags.ContainerID,
+		"container-id",
 		"",
 		"a container identifier can be used to filter the activity dump from a specific container.",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.timeout,
-		flags.Timeout,
+		"timeout",
 		"1m",
 		"timeout for the activity dump",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.differentiateArgs,
-		flags.DifferentiateArgs,
+		"differentiate-args",
 		true,
 		"add the arguments in the process node merge algorithm",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
-		flags.Output,
+		"output",
 		"/tmp/activity_dumps/",
 		"local storage output directory",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.localStorageCompression,
-		flags.Compression,
+		"compression",
 		false,
 		"defines if the local storage output should be compressed before persisting the data to disk",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
 		&cliParams.localStorageFormats,
-		flags.Format,
+		"format",
 		[]string{},
 		fmt.Sprintf("local storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.remoteStorageCompression,
-		flags.RemoteCompression,
+		"remote-compression",
 		true,
 		"defines if the remote storage output should be compressed before sending the data",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
 		&cliParams.remoteStorageFormats,
-		flags.RemoteFormat,
+		"remote-format",
 		[]string{},
 		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
 	)
@@ -236,44 +235,44 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 
 	activityDumpGenerateEncodingCmd.Flags().StringVar(
 		&cliParams.file,
-		flags.Input,
+		"input",
 		"",
 		"path to the activity dump file",
 	)
-	_ = activityDumpGenerateEncodingCmd.MarkFlagRequired(flags.Input)
+	_ = activityDumpGenerateEncodingCmd.MarkFlagRequired("input")
 	activityDumpGenerateEncodingCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
-		flags.Output,
+		"output",
 		"/tmp/activity_dumps/",
 		"local storage output directory",
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.localStorageCompression,
-		flags.Compression,
+		"compression",
 		false,
 		"defines if the local storage output should be compressed before persisting the data to disk",
 	)
 	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
 		&cliParams.localStorageFormats,
-		flags.Format,
+		"format",
 		[]string{},
 		fmt.Sprintf("local storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.remoteStorageCompression,
-		flags.RemoteCompression,
+		"remote-compression",
 		true,
 		"defines if the remote storage output should be compressed before sending the data",
 	)
 	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
 		&cliParams.remoteStorageFormats,
-		flags.RemoteFormat,
+		"remote-format",
 		[]string{},
 		fmt.Sprintf("remote storage output formats. Available options are %v.", secconfig.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.remoteRequest,
-		flags.Remote,
+		"remote",
 		false,
 		"when set, the transcoding will be done by system-probe instead of the current security-agent instance",
 	)
@@ -303,14 +302,14 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	activityDumpDiffCmd.Flags().StringVar(
 		&cliParams.file,
-		flags.Origin,
+		"origin",
 		"",
 		"path to the first activity dump file",
 	)
 
 	activityDumpDiffCmd.Flags().StringVar(
 		&cliParams.file2,
-		flags.Target,
+		"target",
 		"",
 		"path to the second activity dump file",
 	)

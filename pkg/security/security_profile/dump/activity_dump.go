@@ -236,11 +236,14 @@ func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 	if ad.selector != nil && ad.selector.IsReady() {
 		return ad.selector
 	}
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	imageTag := utils.GetTagValue("image_tag", ad.Tags)
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), imageTag)
 	if err != nil {
 		return nil
 	}
 	ad.selector = &selector
+	// Once per workload, when tags are resolved and the firs time we successfully get the selector, tag all the existing nodes
+	ad.ActivityTree.TagAllNodes(imageTag)
 	return ad.selector
 }
 
@@ -516,7 +519,8 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		return
 	}
 
-	if ok, err := ad.ActivityTree.Insert(event, true, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
+	imageTag := utils.GetTagValue("image_tag", ad.Tags)
+	if ok, err := ad.ActivityTree.Insert(event, true, imageTag, activity_tree.Runtime, ad.adm.resolvers); ok && err == nil {
 		// check dump size
 		ad.checkInMemorySize()
 	}
@@ -718,7 +722,10 @@ func (ad *ActivityDump) EncodeProfile() (*bytes.Buffer, error) {
 	ad.Lock()
 	defer ad.Unlock()
 
-	profileProto := ActivityDumpToSecurityProfileProto(ad)
+	profileProto, err := ActivityDumpToSecurityProfileProto(ad)
+	if profileProto == nil {
+		return nil, fmt.Errorf("Error while encoding security dump: %v", err)
+	}
 	raw, err := profileProto.MarshalVT()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't encode dump to `%s` format: %v", config.Profile, err)

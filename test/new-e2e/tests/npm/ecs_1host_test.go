@@ -52,7 +52,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -97,6 +97,13 @@ func (v *ecsVMSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
+// AfterTest will be called after each test
+func (v *ecsVMSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
+}
+
 // Test00FakeIntakeNPM Validate the agent can communicate with the (fake) backend and send connections every 30 seconds
 // 2 tests generate the request on the host and on docker
 //   - looking for 1 host to send CollectorConnections payload to the fakeintake
@@ -105,15 +112,12 @@ func (v *ecsVMSuite) BeforeTest(suiteName, testName string) {
 // The test start by 00 to validate the agent/system-probe is up and running
 // On ECS the agent is slow to start and this avoid flaky tests
 func (v *ecsVMSuite) Test00FakeIntakeNPM() {
-	v.T().Skip("skip as the test as it's flaky under load")
-
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
 
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
-func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
-	v.T().Skip("skip as the test as it's flaky under load")
+func (v *ecsVMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
 	// deployed workload generate these connections every 20 seconds
 	//v.Env().RemoteHost.MustExecute("curl " + testURL)
 	//v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")

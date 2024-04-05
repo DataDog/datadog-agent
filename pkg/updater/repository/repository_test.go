@@ -13,11 +13,13 @@ import (
 	"path"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/updater/service"
 	"github.com/stretchr/testify/assert"
 )
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string) *Repository {
 	repositoryPath := path.Join(dir, "repository")
+	assert.Nil(t, service.BuildHelperForTests(repositoryPath, t.TempDir(), true))
 	locksPath := path.Join(dir, "run")
 	os.MkdirAll(repositoryPath, 0755)
 	os.MkdirAll(locksPath, 0777)

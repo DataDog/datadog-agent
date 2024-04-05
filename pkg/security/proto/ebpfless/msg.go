@@ -60,7 +60,7 @@ const (
 	SyscallTypeUtimes
 	// SyscallTypeLink link/linkat/symlink/symlinkat type
 	SyscallTypeLink
-	// SyscallTypeChmod chmod/fchmod/fchmodat type
+	// SyscallTypeChmod chmod/fchmod/fchmodat/fchmodat2 type
 	SyscallTypeChmod
 	// SyscallTypeChown chown/fchown/lchown/fchownat/fchownat2 type
 	SyscallTypeChown
@@ -106,6 +106,7 @@ type ExecSyscallMsg struct {
 	EnvsTruncated bool
 	TTY           string
 	Credentials   *Credentials
+	PPID          uint32
 }
 
 // ForkSyscallMsg defines a fork message

@@ -45,6 +45,13 @@ func (v *ec2VMSELinuxSuite) BeforeTest(suiteName, testName string) {
 	}
 }
 
+// AfterTest will be called after each test
+func (v *ec2VMSELinuxSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
+}
+
 func (v *ec2VMSELinuxSuite) SetupSuite() {
 	v.BaseSuite.SetupSuite()
 

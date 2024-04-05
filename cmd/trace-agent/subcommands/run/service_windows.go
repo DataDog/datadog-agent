@@ -14,7 +14,7 @@ import (
 
 type service struct {
 	servicemain.DefaultSettings
-	cliParams       *RunParams
+	cliParams       *Params
 	defaultConfPath string
 }
 
