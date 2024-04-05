@@ -8,13 +8,12 @@ import tarfile
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, Union, overload
 
-from tasks.kernel_matrix_testing.types import VMConfig
 from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 
 if TYPE_CHECKING:
     from typing_extensions import Literal
 
-    from tasks.kernel_matrix_testing.types import Arch, Component, StackOutput
+    from tasks.kernel_matrix_testing.types import Arch, Component, StackOutput, VMConfig
 
 
 def get_gitlab() -> Gitlab:
