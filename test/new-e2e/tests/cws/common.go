@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/xeipuuv/gojsonschema"
@@ -137,4 +138,25 @@ func validateEventSchema(t assert.TestingT, e *api.Event, schemaFileName string)
 			t.Errorf("%s", err)
 		}
 	}
+}
+
+func testMetricExists(t assert.TestingT, ts testSuite, metricName string, metricTags ...map[string]string) {
+	var tags []string
+	for _, tag := range metricTags {
+		for k, v := range tag {
+			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+		}
+	}
+	if len(tags) == 0 {
+		tags = append(tags, "*")
+	}
+	query := fmt.Sprintf("%s{%s}", metricName, strings.Join(tags, ","))
+	resp, err := ts.Client().QueryMetric(query)
+	if !assert.NoError(t, err) {
+		return
+	}
+	if !assert.NotNil(t, resp, "query returned a nil response") {
+		return
+	}
+	assert.Greater(t, len(resp.Series), 0, "metric query returned empty series")
 }

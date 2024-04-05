@@ -194,6 +194,11 @@ func (a *agentSuite) Test02OpenSignal() {
 		})
 	}, 2*time.Minute, 20*time.Second)
 
+	// Check 'datadog.security_agent.runtime.running' metric
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		testMetricExists(collect, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
+	}, 1*time.Minute, 10*time.Second)
+
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
 
