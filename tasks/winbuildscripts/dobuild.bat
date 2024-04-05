@@ -11,6 +11,7 @@ if NOT DEFINED GO_VERSION_CHECK set GO_VERSION_CHECK=%~4
 
 set OMNIBUS_BUILD=agent.omnibus-build
 set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
+set INSTALL_DIR=opt\datadog-agent
 
 if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--flavor iot
 if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_BUILD=dogstatsd.omnibus-build && set OMNIBUS_ARGS=
@@ -52,7 +53,7 @@ if "%GO_VERSION_CHECK%" == "true" (
 )
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
-inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 105
+inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% --install-directory=%INSTALL_DIR% || exit /b 105
 
 REM only build MSI for main targets for now.
 if "%OMNIBUS_TARGET%" == "main" (
