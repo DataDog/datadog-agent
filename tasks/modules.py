@@ -208,6 +208,7 @@ DEFAULT_MODULES = {
     "pkg/logs/message": GoModule("pkg/logs/message", independent=True),
     "pkg/logs/metrics": GoModule("pkg/logs/metrics", independent=True),
     "pkg/logs/pipeline": GoModule("pkg/logs/pipeline", independent=True),
+    "pkg/logs/sds": GoModule("pkg/logs/sds", independent=True),
     "pkg/logs/sender": GoModule("pkg/logs/sender", independent=True),
     "pkg/logs/sources": GoModule("pkg/logs/sources", independent=True),
     "pkg/logs/status/statusinterface": GoModule("pkg/logs/status/statusinterface", independent=True),

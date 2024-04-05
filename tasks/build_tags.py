@@ -39,6 +39,7 @@ ALL_TAGS = {
     "podman",
     "process",
     "python",
+    "sds",
     "serverless",
     "systemd",
     "trivy",
