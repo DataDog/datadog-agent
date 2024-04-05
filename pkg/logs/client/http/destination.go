@@ -37,7 +37,7 @@ const (
 	JSONContentType     = "application/json"
 	ProtobufContentType = "application/x-protobuf"
 
-	payloadsDroppedTelemetryMetricName = "datadog.logs_agent.http_destination_logs_dropped"
+	payloadsDroppedTelemetryMetricName = "datadog.logs_agent.http_destination_payloads_dropped"
 )
 
 // HTTP errors.
