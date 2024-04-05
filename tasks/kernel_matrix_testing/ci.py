@@ -21,6 +21,8 @@ def get_gitlab() -> Gitlab:
 
 
 class KMTJob:
+    """Abstract class representing a Kernel Matrix Testing job, with common properties and methods for all job types"""
+
     def __init__(self, job_data: Dict[str, Any]):
         self.gitlab = get_gitlab()
         self.job_data = job_data
@@ -46,7 +48,7 @@ class KMTJob:
         return "system-probe" if "sysprobe" in self.name else "security-agent"
 
     @property
-    def status(self) -> Literal['success', 'failed']:
+    def status(self) -> str:
         return self.job_data['status']
 
     @property
@@ -62,6 +64,11 @@ class KMTJob:
         ...
 
     def artifact_file(self, file: str, ignore_not_found: bool = False) -> Optional[str]:
+        """Download an artifact file from this job, returning its content as a string (decoded UTF-8)
+
+        file: the path to the file inside the artifact
+        ignore_not_found: if True, return None if the file is not found, otherwise raise an error
+        """
         data = self.artifact_file_binary(file, ignore_not_found=ignore_not_found)  # type: ignore
         return data.decode('utf-8') if data is not None else None
 
@@ -74,6 +81,11 @@ class KMTJob:
         ...
 
     def artifact_file_binary(self, file: str, ignore_not_found: bool = False) -> Optional[bytes]:
+        """Download an artifact file from this job, returning its content as a byte array
+
+        file: the path to the file inside the artifact
+        ignore_not_found: if True, return None if the file is not found, otherwise raise an error
+        """
         try:
             res = self.gitlab.artifact(self.id, file, ignore_not_found=ignore_not_found)
             if res is None:
@@ -88,6 +100,10 @@ class KMTJob:
 
 
 class KMTSetupEnvJob(KMTJob):
+    """Represent a kmt_setup_env_* job, with properties that allow extracting data from
+    the job name and output artifacts
+    """
+
     def __init__(self, job_data: Dict[str, Any]):
         super().__init__(job_data)
 
@@ -141,6 +157,10 @@ class KMTSetupEnvJob(KMTJob):
 
 
 class KMTTestRunJob(KMTJob):
+    """Represent a kmt_test_* job, with properties that allow extracting data from
+    the job name and output artifacts
+    """
+
     def __init__(self, job_data: Dict[str, Any]):
         super().__init__(job_data)
         self.setup_job: Optional[KMTSetupEnvJob] = None
@@ -161,8 +181,12 @@ class KMTTestRunJob(KMTJob):
         return self.vars[1]
 
     def get_junit_reports(self) -> List[ET.ElementTree]:
+        """Return the XML data from all JUnit reports in this job. Does not fail if the file is not found."""
         junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
-        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}")
+        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
+        if junit_archive is None:
+            return []
+
         bytearr = io.BytesIO(junit_archive)
         tar = tarfile.open(fileobj=bytearr)
 
@@ -177,6 +201,9 @@ class KMTTestRunJob(KMTJob):
         return reports
 
     def get_test_results(self) -> Dict[str, Optional[bool]]:
+        """Return a dictionary with the results of all tests in this job, indexed by "package_name:testname".
+        The values are True if test passed, False if failed, None if skipped.
+        """
         results: Dict[str, Optional[bool]] = {}
         for report in self.get_junit_reports():
             for testsuite in report.findall(".//testsuite"):

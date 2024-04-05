@@ -821,11 +821,12 @@ def status(ctx: Context, stack: Optional[str] = None, all=False, ssh_key: Option
 
 @task
 def explain_ci_failure(_, pipeline: str):
+    """Show a summary of KMT failures in the given pipeline."""
     if tabulate is None:
         raise Exit("tabulate module is not installed, please install it to continue")
 
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
-    setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
+    _, test_jobs = get_all_jobs_for_pipeline(pipeline)
 
     failed_jobs = [j for j in test_jobs if j.status == "failed"]
     failreasons: Dict[str, str] = {}
