@@ -197,12 +197,12 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	}
 
 	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
+		var set bool
 		for _, span := range chunk.Spans {
-			if dm, ok := span.Meta[tagDecisionMaker]; ok {
+			if dm, ok := span.Meta[tagDecisionMaker]; !set && ok {
 				chunk.Tags[tagDecisionMaker] = dm
-				//todo: delete the dm on the span we found?
-				break
 			}
+			delete(span.Meta, tagDecisionMaker)
 		}
 	}
 }
