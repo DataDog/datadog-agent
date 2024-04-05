@@ -325,6 +325,14 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
                     return RET_ERR;
                 }
 
+                // All the records have to fit inside the record batch, so guard against
+                // unreasonable values in corrupt packets.
+                if (records_count >= response->record_batch_length) {
+                    extra_debug("Bogus records count %d (batch_length %d)",
+                                records_count, response->record_batch_length);
+                    return RET_ERR;
+                }
+
                 response->transaction.records_count += records_count;
             }
 
@@ -452,10 +460,9 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         // more to do for now.
         break;
     case RET_ERR:
-        // Error during processing result continuation.  Try
-        // to parse it as a new response.
+        // Error during processing response continuation, abandon this
+        // response.
         bpf_map_delete_elem(&kafka_response, &tup);
-        kafka_process_response(kafka, skb, &skb_info);
         break;
     case RET_DONE:
         // Response parsed fully.
@@ -469,7 +476,7 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         // If we failed (due to exceeding tail calls), at least flush what
         // we have.
         if (response->transaction.records_count) {
-            extra_debug("kafka: enqueue (incomplete), records_count %d", response->transaction.records_count);
+            extra_debug("kafka: enqueue (loop exceeded), records_count %d", response->transaction.records_count);
             kafka_batch_enqueue(&response->transaction);
         }
         break;
@@ -478,14 +485,24 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
     return 0;
 }
 
+static __always_inline void kafka_save_tcp_seq(conn_tuple_t *tup, skb_info_t *skb_info) {
+    u32 data_len = skb_info->data_end - skb_info->data_off;
+    u32 next_seq = skb_info->tcp_seq + data_len;
+
+    bpf_map_update_elem(&kafka_tcp_seq, tup, &next_seq, BPF_ANY);
+}
+
 // Somewhat similar to has_sequence_seen_before() except that this ignores all
 // segments with an older sequence number.
-static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info_t *skb_info) {
+static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info_t *skb_info, u32 *expected_seq) {
     if (!skb_info || !skb_info->tcp_seq) {
         return false;
     }
 
     u32 *tcp_seq = bpf_map_lookup_elem(&kafka_tcp_seq, tup);
+    if (tcp_seq) {
+        *expected_seq = *tcp_seq;
+    }
 
     if (tcp_seq != NULL && skb_info->tcp_seq != *tcp_seq) {
         u32 old = *tcp_seq;
@@ -507,10 +524,6 @@ static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info
         }
     }
 
-    u32 data_len = skb_info->data_end - skb_info->data_off;
-    u32 next_seq = skb_info->tcp_seq + data_len;
-
-    bpf_map_update_elem(&kafka_tcp_seq, tup, &next_seq, BPF_ANY);
     return false;
 }
 
@@ -520,14 +533,34 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     __u32 orig_offset = offset;
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
     if (response) {
-        if (kafka_is_old_tcp_segment(&tup, skb_info)) {
+        u32 expected_seq = 0;
+        if (kafka_is_old_tcp_segment(&tup, skb_info, &expected_seq)) {
             extra_debug("kafka: skip old TCP segment");
             // We know it's on the response path, so not need to process as request.
             return true;
         }
 
-        kafka_call_response_parser(&tup, skb);
-        return false;
+        if (skb_info->tcp_seq != expected_seq) {
+            // The segment is not old, but it is not the next one we were expecting.
+            // No point in parsing this as a response continuation since it may
+            // yield bogus values. Flush what we have and forget about this current
+            // response.
+
+            extra_debug("kafka: lost response TCP segments expected %u got %u", expected_seq,
+                        skb_info->tcp_seq);
+
+            if (response->transaction.records_count) {
+                extra_debug("kafka: enqueue (broken stream), records_count %d", response->transaction.records_count);
+                kafka_batch_enqueue(&response->transaction);
+            }
+
+            bpf_map_delete_elem(&kafka_response, &tup);
+            // Try to parse it as a new response.
+        } else {
+            kafka_save_tcp_seq(&tup, skb_info);
+            kafka_call_response_parser(&tup, skb);
+            return false;
+        }
     }
 
     offset += sizeof(__s32); // Skip message size
@@ -584,6 +617,8 @@ static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct _
     bpf_memcpy(&responsectx, &kafka->response, sizeof(responsectx));
 
     bpf_map_update_elem(&kafka_response, &tup, &responsectx, BPF_ANY);
+
+    kafka_save_tcp_seq(&tup, skb_info);
     kafka_call_response_parser(&tup, skb);
 
     return true;
