@@ -43,7 +43,7 @@ type AgentReadyOption func(*agentReadyParams)
 // WaitForAgentsReady waits for the given agents to be ready.
 // The given options configure which Agents to wait for, and how long to wait.
 //
-// Under the hood, this function checks the readiness of the agents by querying their configuration endpoints.
+// Under the hood, this function checks the readiness of the agents by querying their status endpoints.
 // The function will wait until all agents are ready, or until the timeout is reached.
 // If the timeout is reached, the function will fail the test.
 // The function is only implemented for Linux.
@@ -74,9 +74,9 @@ func (h *RemoteHost) WaitForAgentsReady(opts ...AgentReadyOption) {
 		}
 
 		agents := map[string]func() (string, bool){
-			"process-agent":  params.processAgentConfigEndpoint,
-			"trace-agent":    params.traceAgentConfigEndpoint,
-			"security-agent": params.securityAgentConfigEndpoint,
+			"process-agent":  params.processAgentStatusEndpoint,
+			"trace-agent":    params.traceAgentStatusEndpoint,
+			"security-agent": params.securityAgentStatusEndpoint,
 		}
 
 		for name, ep := range agents {
@@ -158,25 +158,25 @@ func WithTick(d time.Duration) AgentReadyOption {
 	}
 }
 
-func (p *agentReadyParams) processAgentConfigEndpoint() (string, bool) {
+func (p *agentReadyParams) processAgentStatusEndpoint() (string, bool) {
 	if p.processAgentPort == 0 {
 		return "", false
 	}
-	return fmt.Sprintf("http://localhost:%d/config/all", p.processAgentPort), true
+	return fmt.Sprintf("http://localhost:%d/agent/status", p.processAgentPort), true
 }
 
-func (p *agentReadyParams) traceAgentConfigEndpoint() (string, bool) {
+func (p *agentReadyParams) traceAgentStatusEndpoint() (string, bool) {
 	if p.traceAgentPort == 0 {
 		return "", false
 	}
-	return fmt.Sprintf("http://localhost:%d/config", p.traceAgentPort), true
+	return fmt.Sprintf("http://localhost:%d/info", p.traceAgentPort), true
 }
 
-func (p *agentReadyParams) securityAgentConfigEndpoint() (string, bool) {
+func (p *agentReadyParams) securityAgentStatusEndpoint() (string, bool) {
 	if p.securityAgentPort == 0 {
 		return "", false
 	}
-	return fmt.Sprintf("https://localhost:%d/agent/config", p.securityAgentPort), true
+	return fmt.Sprintf("https://localhost:%d/agent/status", p.securityAgentPort), true
 }
 
 func curlCommand(_ osComp.Family, endpoint string, authToken string) string {
