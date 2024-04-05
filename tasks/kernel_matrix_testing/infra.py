@@ -11,7 +11,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, ask, error
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr
+    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, StackOutput
 
 # Common SSH options for all SSH commands
 SSH_OPTIONS = {
@@ -171,7 +171,7 @@ def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
 
     with open(stack_output, 'r') as f:
         try:
-            infra_map = json.load(f)
+            infra_map: StackOutput = json.load(f)
         except json.decoder.JSONDecodeError:
             raise Exit(f"{stack_output} file is not a valid json file")
 

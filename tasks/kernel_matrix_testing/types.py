@@ -76,8 +76,20 @@ VMDef = Tuple[Recipe, str, ArchOrLocal]
 
 
 class HasName(Protocol):
-    def name(self) -> str:
-        ...
+    def name(self) -> str: ...
 
 
 TNamed = TypeVar('TNamed', bound=HasName)
+
+
+StackOutputMicroVM = TypedDict(
+    'StackOutputMicroVM', {'id': str, 'ip': 'str', 'ssh-key-path': str, 'tag': str, 'vmset-tags': List[str]}
+)
+
+
+class StackOutputArchData(TypedDict):
+    ip: str
+    microvms: List[StackOutputMicroVM]
+
+
+StackOutput = Dict[Arch, StackOutputArchData]
