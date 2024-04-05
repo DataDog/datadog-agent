@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Perform necessary datadog-updater removal steps after package is uninstalled
+# or during the removal of the previous version after an upgrade
+#
+
+INSTALL_DIR=/opt/datadog
+PACKAGES_DIR=/opt/datadog-packages
+LOG_DIR=/var/log/datadog
+PACKAGES_LOCK_DIR=/var/run/datadog-packages
+
+set -e
+
+if [ "$1" -ne 0 ]; then
+    # This is an upgrade, there is nothing to do now
+    exit 0
+fi
+
+echo "Deleting dd-agent user"
+userdel dd-agent
+userdel dd-updater
+echo "Deleting dd-agent group"
+(getent group dd-agent >/dev/null && groupdel dd-agent) || true
+(getent group dd-updater >/dev/null && groupdel dd-updater) || true
+echo "Force-deleting $INSTALL_DIR"
+rm -rf $INSTALL_DIR
+rm -rf $LOG_DIR
+rm -rf $PACKAGES_DIR
+rm -rf $PACKAGES_LOCK_DIR
+
+exit 0
+
