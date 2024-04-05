@@ -115,8 +115,8 @@ type stats struct {
 	regSetValueKey uint64
 
 	//filePathResolver status
-	filePathNewWrites  uint64
-	filePathOverwrites uint64
+	fileCreateSkippedDiscardedPaths     uint64
+	fileCreateSkippedDiscardedBasenames uint64
 }
 
 /*
@@ -636,6 +636,13 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileIDRename29, float64(p.stats.fileidRename29), nil, 1); err != nil {
 		return err
 	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateSkippedDiscardedPaths, float64(p.stats.fileCreateSkippedDiscardedPaths), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateSkippedDiscardedBasenames, float64(p.stats.fileCreateSkippedDiscardedBasenames), nil, 1); err != nil {
+		return err
+	}
+
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegCreateKey, float64(p.stats.regCreateKey), nil, 1); err != nil {
 		return err
 	}
@@ -658,12 +665,6 @@ func (p *WindowsProbe) SendStats() error {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
-		return err
-	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverNew, float64(p.stats.filePathNewWrites), nil, 1); err != nil {
-		return err
-	}
-	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileResolverOverwrite, float64(p.stats.filePathOverwrites), nil, 1); err != nil {
 		return err
 	}
 	return nil

@@ -162,12 +162,14 @@ func (p *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHandl
 	defer p.filePathResolverLock.Unlock()
 
 	if _, ok := p.discardedPaths.Get(ca.fileName); ok {
+		p.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
 
 	// not amazing to double compute the basename..
 	basename := filepath.Base(ca.fileName)
 	if _, ok := p.discardedBasenames.Get(basename); ok {
+		p.stats.fileCreateSkippedDiscardedBasenames++
 		return nil, errDiscardedPath
 	}
 
