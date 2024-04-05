@@ -826,8 +826,9 @@ def explain_ci_failure(_, pipeline: str):
         raise Exit("tabulate module is not installed, please install it to continue")
 
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
-    _, test_jobs = get_all_jobs_for_pipeline(pipeline)
+    setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
 
+    failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
     failed_jobs = [j for j in test_jobs if j.status == "failed"]
     failreasons: Dict[str, str] = {}
     ok = "✅"
@@ -839,7 +840,7 @@ def explain_ci_failure(_, pipeline: str):
         None: " ",
     }
 
-    if len(failed_jobs) == 0:
+    if len(failed_jobs) == 0 and len(failed_setup_jobs) == 0:
         info("[+] No KMT tests failed")
         return
 
@@ -862,9 +863,15 @@ def explain_ci_failure(_, pipeline: str):
 
         failreasons[job.name] = failreason
 
+    # Check setup-env jobs that failed, they are infra failures for all related test jobs
+    for job in failed_setup_jobs:
+        for test_job in job.associated_test_jobs:
+            failreasons[test_job.name] = infrafail
+            failed_jobs.append(test_job)
+
     warn(f"[!] Found {len(failed_jobs)} failed jobs. Showing only distros with failures")
 
-    print(f"Legend: OK {ok} | Test failure {testfail} | Infra failure {infrafail}")
+    print(f"Legend: OK {ok} | Test failure {testfail} | Infra failure {infrafail} | Skip ' ' (empty cell)")
 
     def groupby_comp_vmset(job: KMTTestRunJob) -> Tuple[str, str]:
         return (job.component, job.vmset)
@@ -873,18 +880,26 @@ def explain_ci_failure(_, pipeline: str):
     jobs_by_comp_and_vmset = itertools.groupby(sorted(failed_jobs, key=groupby_comp_vmset), groupby_comp_vmset)
     for (component, vmset), group_jobs in jobs_by_comp_and_vmset:
         group_jobs = list(group_jobs)  # Consume the iterator, make a copy
-        distros: Dict[str, Dict[Arch, str]] = defaultdict(lambda: {"x86_64": ok, "arm64": ok})
+        distros: Dict[str, Dict[Arch, str]] = defaultdict(lambda: {"x86_64": " ", "arm64": " "})
         distro_arch_with_test_failures: List[Tuple[str, Arch]] = []
 
-        for job in group_jobs:
-            failreason = failreasons[job.name]
+        # Build the distro table with all jobs for this component and vmset, to correctly
+        # differentiate between skipped and ok jobs
+        for job in test_jobs:
+            if job.component != component or job.vmset != vmset:
+                continue
+
+            failreason = failreasons.get(job.name, ok)
             distros[job.distro][job.arch] = failreason
             if failreason == testfail:
                 distro_arch_with_test_failures.append((job.distro, job.arch))
 
+        # Filter out distros with no failures
+        distros = {d: v for d, v in distros.items() if any(r == testfail or r == infrafail for r in v.values())}
+
         print(f"\n=== Job failures for {component} - {vmset}")
         table = [[d, v["x86_64"], v["arm64"]] for d, v in distros.items()]
-        print(tabulate(table, headers=["Distro", "x86_64", "arm64"]))
+        print(tabulate(sorted(table, key=lambda x: x[0]), headers=["Distro", "x86_64", "arm64"]))
 
         ## Show a table summary with failed tests
         jobs_with_failed_tests = [j for j in group_jobs if failreasons[j.name] == testfail]

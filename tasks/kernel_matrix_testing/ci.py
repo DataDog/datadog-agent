@@ -106,6 +106,7 @@ class KMTSetupEnvJob(KMTJob):
 
     def __init__(self, job_data: Dict[str, Any]):
         super().__init__(job_data)
+        self.associated_test_jobs: List[KMTTestRunJob] = []
 
     @property
     def stack_output(self) -> StackOutput:
@@ -240,6 +241,7 @@ def get_all_jobs_for_pipeline(pipeline_id: Union[int, str]) -> Tuple[List[KMTSet
         for setup_job in setup_jobs:
             if job.arch == setup_job.arch and job.component == setup_job.component:
                 job.setup_job = setup_job
+                setup_job.associated_test_jobs.append(job)
                 break
 
     return setup_jobs, test_jobs
