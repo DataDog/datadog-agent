@@ -27,6 +27,9 @@ class KMTJob:
         self.gitlab = get_gitlab()
         self.job_data = job_data
 
+    def __str__(self):
+        return f"<KMTJob: {self.name}>"
+
     @property
     def id(self) -> int:
         return self.job_data["id"]

@@ -4,6 +4,7 @@ import itertools
 import json
 import os
 import platform
+import re
 import shutil
 import tempfile
 from collections import defaultdict
@@ -947,7 +948,12 @@ def explain_ci_failure(_, pipeline: str):
 
         infra_fail_table: List[List[str]] = []
         for failed_job in group_jobs:
-            boot_log = setup_job.get_vm_boot_log(failed_job.distro, failed_job.vmset)
+            try:
+                boot_log = setup_job.get_vm_boot_log(failed_job.distro, failed_job.vmset)
+            except Exception as e:
+                error(f"[x] error getting boot log for {failed_job.distro}: {e}")
+                continue
+
             if boot_log is None:
                 error(f"[x] no boot log present for {failed_job.distro}")
                 continue
@@ -958,12 +964,29 @@ def explain_ci_failure(_, pipeline: str):
                 continue
             microvm_ip = vmdata[1]
 
-            booted = "ddvm login: " in boot_log
-            setup_ddvm = "Finished \033[0;1;39mSetup ddvm\033[0m." in boot_log
+            # Some distros do not show the systemd service status in the boot log, which means
+            # that we cannot infer the state of services from that boot log. Filter only non-kernel
+            # lines in the output (kernel logs always are prefaced by [ seconds-since-boot ] so
+            # they're easy to filter out) to see if there we can find clues that tell us whether
+            # we have status logs or not.
+            non_kernel_boot_log_lines = [
+                l for l in boot_log.splitlines() if re.match(r"\[[0-9 \.]+\]", l) is None
+            ]  # reminder: match only searches pattern at the beginning of string
+            non_kernel_boot_log = "\n".join(non_kernel_boot_log_lines)
+            # systemd will always show the journal service starting in the boot log if it's outputting there
+            have_service_status_logs = re.search("Journal Service", non_kernel_boot_log, re.IGNORECASE) is not None
+
+            # From the boot log we can get clues about the state of the VM
+            booted = re.search(r"(ddvm|pool[0-9\-]+) login: ", boot_log) is not None
+            setup_ddvm = (
+                re.search("(Finished|Started) ([^\\n]+)?Setup ddvm", non_kernel_boot_log) is not None
+                if have_service_status_logs
+                else None
+            )
             ip_assigned = microvm_ip in setup_job.seen_ips
 
             boot_log_savepath = (
-                Path(tempfile.gettempdir())
+                Path("/tmp")
                 / f"kmt-pipeline-{pipeline}"
                 / f"{arch}-{component}-{failed_job.distro}-{failed_job.vmset}.boot.log"
             )
