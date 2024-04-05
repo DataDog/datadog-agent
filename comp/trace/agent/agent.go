@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -56,6 +57,7 @@ type dependencies struct {
 	Workloadmeta       workloadmeta.Component
 	Statsd             statsd.Component
 	Tagger             tagger.Component
+	EventPlatform      eventplatform.Component
 }
 
 type component struct{}
@@ -73,6 +75,7 @@ type agent struct {
 	statsd             statsd.Component
 	workloadmeta       workloadmeta.Component
 	wg                 sync.WaitGroup
+	eventplatform      eventplatform.Component
 }
 
 func newAgent(deps dependencies) Component {
@@ -85,6 +88,7 @@ func newAgent(deps dependencies) Component {
 		_ = deps.Shutdowner.Shutdown()
 		return c
 	}
+
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	ag := &agent{
 		cancel:             cancel,
@@ -97,6 +101,7 @@ func newAgent(deps dependencies) Component {
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
+		eventplatform:      deps.EventPlatform,
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -132,6 +137,16 @@ func start(ag *agent) error {
 		return err
 	}
 	setupShutdown(ag.ctx, ag.shutdowner, statsdCl)
+
+	forwarder, found := ag.eventplatform.Get()
+
+	if found {
+		log.Info("Starting Event Platform")
+		forwarder.Start()
+	} else {
+		log.Info("Event Platform not found, skipping start")
+	}
+
 	ag.Agent = pkgagent.NewAgent(
 		ag.ctx,
 		ag.config.Object(),
@@ -167,6 +182,13 @@ func setupMetrics(statsd statsd.Component, cfg config.Component, telemetryCollec
 }
 
 func stop(ag *agent) error {
+	forwarder, found := ag.eventplatform.Get()
+	if found {
+		log.Info("Stopping Event Platform")
+		forwarder.Purge()
+		forwarder.Stop()
+	}
+
 	ag.cancel()
 	ag.wg.Wait()
 	if err := ag.Statsd.Flush(); err != nil {

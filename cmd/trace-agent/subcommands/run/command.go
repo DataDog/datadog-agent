@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -23,6 +24,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	"github.com/DataDog/datadog-agent/comp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -99,6 +103,11 @@ func runTraceAgentProcess(ctx context.Context, cliParams *RunParams, defaultConf
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
 		trace.Bundle(),
+		forwarder.Bundle(),
+		eventplatformimpl.Module(),
+		eventplatformreceiverimpl.Module(),
+		fx.Provide(eventplatformimpl.NewDefaultParams),
+		hostnameimpl.Module(),
 		fx.Invoke(func(_ agent.Component) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
