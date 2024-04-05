@@ -244,23 +244,6 @@ cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_T
 (cd ${SERVERLESS_INTEGRATION_TESTS_DIR}; npm install --no-save serverless-plugin-conditional-functions)
 serverless deploy --stage "${stage}"
 
-# deploy proxy functions with a different datadog.yaml
-if [ "$RUN_SUITE_PROXY" = true ]; then
-    echo "Updating datadog.yaml for proxy tests..."
-
-    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml
-    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
-
-    for function_name in "${proxy_functions[@]}"; do
-        if [[ "$function_name" = *-yaml-* ]]; then
-            serverless deploy function --stage "${stage}" --function $function_name
-        fi
-    done
-
-    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml
-    mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
-fi
-
 rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
 
 # Add a function to this list to skip checking its results
