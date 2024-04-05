@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
@@ -59,11 +60,12 @@ var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
 	testID := uuid.NewString()[:4]
+	agentConfig := config.GenDatadogAgentConfig(fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID), "tag1", "tag2")
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithAgentOptions(
-					agentparams.WithAgentConfig(fmt.Sprintf("hostname: %s-%s", ec2HostnamePrefix, testID)),
+					agentparams.WithAgentConfig(agentConfig),
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
@@ -207,6 +209,8 @@ func (a *agentSuite) Test02OpenSignal() {
 		testRuleEvent(collect, a, agentRuleName, func(e *api.RuleEvent) {
 			assert.Equal(collect, "open", e.Evt.Name, "event name should be open")
 			assert.Equal(collect, filepath, e.File.Path, "file path does not match")
+			assert.Contains(collect, e.Tags(), "tag1", "missing event tag")
+			assert.Contains(collect, e.Tags(), "tag2", "missing event tag")
 		})
 	}, 2*time.Minute, 20*time.Second)
 

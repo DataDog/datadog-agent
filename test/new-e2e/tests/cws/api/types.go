@@ -5,7 +5,11 @@
 
 package api
 
-import "errors"
+import (
+	"encoding/json"
+
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
+)
 
 // AgentContext represents the context of an agent
 type AgentContext struct {
@@ -15,16 +19,18 @@ type AgentContext struct {
 
 // Event represents a cws event
 type Event struct {
-	marshaler func() ([]byte, error) `json:"-" mapstructure:"-"`
-	Agent     AgentContext           `json:"agent" mapstructure:"agent"`
+	log   *datadogV2.LogAttributes `json:"-" mapstructure:"-"`
+	Agent AgentContext             `json:"agent" mapstructure:"agent"`
 }
 
-// MarshalJSON marshals an event
+// MarshalJSON marshals the event to JSON
 func (e *Event) MarshalJSON() ([]byte, error) {
-	if e.marshaler == nil {
-		return nil, errors.New("marshaler is nil")
-	}
-	return e.marshaler()
+	return json.Marshal(e.log.Attributes)
+}
+
+// Tags returns the tags of the event
+func (e *Event) Tags() []string {
+	return e.log.Tags
 }
 
 // Evt contains information about a rule event
