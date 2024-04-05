@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eo xtrace
+set -e
 
 DIR_NAME=$(dirname "$0")
 
@@ -37,7 +37,7 @@ else
         socat \
         curl \
         libvirt \
-        gnu-sed 
+        gnu-sed
 fi
 
 is_python_unsupported="$(python3 -c 'import sys; print(sys.version_info.major > 3 or sys.version_info.minor > 11)')"

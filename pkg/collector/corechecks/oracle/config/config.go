@@ -25,7 +25,7 @@ const defaultLoader = "core"
 // InitConfig is used to deserialize integration init config.
 type InitConfig struct {
 	MinCollectionInterval int           `yaml:"min_collection_interval"`
-	CustomQueries         []CustomQuery `yaml:"custom_queries"`
+	CustomQueries         []CustomQuery `yaml:"global_custom_queries"`
 	UseInstantClient      bool          `yaml:"use_instant_client"`
 	Service               string        `yaml:"service"`
 	Loader                string        `yaml:"loader"`

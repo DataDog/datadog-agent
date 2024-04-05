@@ -8,7 +8,6 @@ package run
 
 import (
 	"context"
-	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
@@ -35,7 +34,8 @@ import (
 	// checks implemented as components
 
 	// core components
-	"github.com/DataDog/datadog-agent/comp/agent"
+
+	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -53,8 +53,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/pid"
+	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
 
+	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
@@ -114,7 +117,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -157,13 +159,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		return fxutil.OneShot(run,
-			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 				LogParams:            logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
+			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -206,7 +208,6 @@ func run(log log.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
-	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
 	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
@@ -222,12 +223,14 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ expvarserver.Component,
+	_ pid.Component,
 	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, agentAPI)
+		stopAgent(agentAPI)
 	}()
 
 	// prepare go runtime
@@ -267,7 +270,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams,
+	if err := startAgent(
 		log,
 		flare,
 		telemetry,
@@ -416,7 +419,6 @@ func getSharedFxOption() fx.Option {
 
 // startAgent Initializes the agent process
 func startAgent(
-	cliParams *cliParams,
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -469,27 +471,9 @@ func startAgent(
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
-	expvarPort := pkgconfig.Datadog.GetString("expvar_port")
 	http.Handle("/telemetry", telemetryHandler)
-	go func() {
-		common.ExpvarServer = &http.Server{
-			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
-			Handler: http.DefaultServeMux,
-		}
-		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
-		}
-	}()
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-
-	if cliParams.pidfilePath != "" {
-		err = pidfile.WritePID(cliParams.pidfilePath)
-		if err != nil {
-			return log.Errorf("Error while writing PID file, exiting: %v", err)
-		}
-		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
-	}
 
 	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
 	if err != nil {
@@ -608,11 +592,11 @@ func startAgent(
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
 func StopAgentWithDefaults(agentAPI internalAPI.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, agentAPI)
+	stopAgent(agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
+func stopAgent(agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -622,20 +606,12 @@ func stopAgent(cliParams *cliParams, agentAPI internalAPI.Component) {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	if common.ExpvarServer != nil {
-		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
-			pkglog.Errorf("Error shutting down expvar server: %v", err)
-		}
-	}
-
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 
 	gui.StopGUIServer()
 	profiler.Stop()
-
-	os.Remove(cliParams.pidfilePath)
 
 	// gracefully shut down any component
 	_, cancel := pkgcommon.GetMainCtxCancel()
