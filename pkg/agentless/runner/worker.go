@@ -43,6 +43,7 @@ type WorkerOptions struct {
 	ScannerID   types.ScannerID
 	ScannersMax int
 	Statsd      ddogstatsd.ClientInterface
+	Waiter      *awsbackend.ResourceWaiter
 }
 
 // Worker is a worker that runs scans.
@@ -50,8 +51,7 @@ type Worker struct {
 	types.ScannerConfig
 	WorkerOptions
 
-	id     int
-	waiter awsbackend.ResourceWaiter
+	id int
 }
 
 // NewWorker creates a new worker.
