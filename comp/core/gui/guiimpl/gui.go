@@ -89,13 +89,13 @@ type dependencies struct {
 // GUI component implementation constructor
 // @param deps dependencies needed to construct the gui, bundled in a struct
 // @return an optional, depending of "GUI_port" configuration value
-func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
+func newGui(deps dependencies) optional.Option[guicomp.Component] {
 
 	guiPort := deps.Config.GetString("GUI_port")
 
 	if guiPort == "-1" {
 		deps.Log.Infof("GUI server port -1 specified: not starting the GUI.")
-		return optional.NewNoneOption[guicomp.Component](), nil
+		return optional.NewNoneOption[guicomp.Component]()
 	}
 
 	g := gui{
@@ -107,14 +107,14 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 	e := g.createCSRFToken()
 	if e != nil {
 		g.logger.Errorf("GUI server initialization failed (unable to create CSRF token): ", e)
-		return optional.NewNoneOption[guicomp.Component](), nil
+		return optional.NewNoneOption[guicomp.Component]()
 	}
 
 	// Fetch the authentication token (persists across sessions)
 	g.authToken, e = security.FetchAuthToken(deps.Config)
 	if e != nil {
 		g.logger.Errorf("GUI server initialization failed (unable to get the AuthToken): ", e)
-		return optional.NewNoneOption[guicomp.Component](), nil
+		return optional.NewNoneOption[guicomp.Component]()
 	}
 
 	// Instantiate the gorilla/mux router
@@ -145,7 +145,7 @@ func newGui(deps dependencies) (optional.Option[guicomp.Component], error) {
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	return optional.NewOption[guicomp.Component](g), nil
+	return optional.NewOption[guicomp.Component](g)
 }
 
 // start function is provided to fx as OnStart lifecycle hook, it run the GUI server
