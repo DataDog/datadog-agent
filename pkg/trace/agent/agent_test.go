@@ -1065,10 +1065,7 @@ func TestSampling(t *testing.T) {
 			TargetTPS:          5,
 			ErrorTPS:           10,
 			RareSamplerEnabled: !ac.rareSamplerDisabled,
-			// 			ProbabilisticSamplerEnabled:            ac.probabilisticSampler,
-			// 			ProbabilisticSamplerSamplingPercentage: ac.probabilisticSamplerSamplingPercentage,
 		}
-		//fmt.Printf("SAMPLED CONFIG: %#v\n", sampledCfg)
 
 		statsd := &statsd.NoOpClient{}
 		a := &Agent{

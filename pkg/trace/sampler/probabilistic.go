@@ -49,11 +49,6 @@ func (ps *ProbabilisticSampler) Sample(root *trace.Span) bool {
 	if !ps.enabled {
 		return false
 	}
-	// todo: do this at a higher level
-	//// User manual drop chunks will not be sampled
-	//if pt.IsManualUserDrop() {
-	//	return false
-	//}
 
 	tid, err := get128BitTraceID(root)
 	if err != nil {
