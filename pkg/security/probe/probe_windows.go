@@ -682,11 +682,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	discardedBasenames, err := simplelru.NewLRU[string, struct{}](1<<10, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
