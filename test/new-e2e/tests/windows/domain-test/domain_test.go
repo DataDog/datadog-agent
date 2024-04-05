@@ -40,7 +40,7 @@ func TestInstallsOnDomainController(t *testing.T) {
 		suite := suite
 		t.Run(reflect.TypeOf(suite).Elem().Name(), func(t *testing.T) {
 			t.Parallel()
-			e2e.Run(t, suite, e2e.WithProvisioner(awsHostWindows.Provisioner(
+			e2e.Run(t, suite, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgent(
 				awsHostWindows.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 					activedirectory.WithDomainUser(TestUser, TestPassword),
