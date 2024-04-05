@@ -23,6 +23,7 @@
 agent_dmg-x64-a7:
   extends: .agent_build_common_dmg
   rules:
+    - !reference [.on_macos_gui_change]
     - !reference [.on_packaging_change]
     - !reference [.on_main_or_release_branch]
     - !reference [.on_all_builds]
