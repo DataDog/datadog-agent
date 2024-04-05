@@ -73,7 +73,6 @@ func (ds *DirectMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Secur
 
 // NewDirectMsgSender returns a new direct sender
 func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
-	runPath := pkgconfig.Datadog.GetString("runtime_security_config.run_path")
 	useSecRuntimeTrack := pkgconfig.SystemProbe.GetBool("runtime_security_config.use_secruntime_track")
 
 	endpoints, destinationsCtx, err := common.NewLogContextRuntime(useSecRuntimeTrack)
@@ -87,7 +86,7 @@ func NewDirectMsgSender(stopper startstop.Stopper) (*DirectMsgSender, error) {
 
 	// we set the hostname to the empty string to take advantage of the out of the box message hostname
 	// resolution
-	reporter, err := reporter.NewCWSReporter("", runPath, stopper, endpoints, destinationsCtx)
+	reporter, err := reporter.NewCWSReporter("", stopper, endpoints, destinationsCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

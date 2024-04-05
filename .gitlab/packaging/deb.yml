@@ -3,7 +3,7 @@
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/$(inv agent.version -u)-1
+    - export INSTALL_DIR=/opt/datadog/updater/
   stage: packaging
   script:
     - source /root/.bashrc
@@ -21,7 +21,9 @@
 
 updater_deb-amd64:
   extends: .updater_package_deb_common
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["updater-amd64"]
@@ -31,7 +33,9 @@ updater_deb-amd64:
 
 updater_deb-arm64:
   extends: .updater_package_deb_common
-  rules: !reference [.on_a7]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
   needs: ["updater-arm64"]
