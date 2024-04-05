@@ -177,6 +177,7 @@ DEFAULT_MODULES = {
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
     "comp/core/status": GoModule("comp/core/status", independent=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
+    "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
@@ -185,6 +186,10 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
+    ),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),

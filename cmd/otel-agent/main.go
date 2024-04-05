@@ -19,6 +19,5 @@ import (
 
 func main() {
 	flavor.SetFlavor(flavor.OTelAgent)
-
 	os.Exit(runcmd.Run(command.MakeRootCommand()))
 }
