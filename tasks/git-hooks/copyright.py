@@ -2,7 +2,7 @@
 
 import sys
 
-sys.path.insert(0, "tasks")
+sys.path.insert(0, ".")
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure  # noqa: E402
 
 # Exclude non go files

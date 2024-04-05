@@ -763,6 +763,26 @@ workflow:
 
 # New E2E related rules
 
+.on_e2e_or_fakeintake_changes_or_manual:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - test/new-e2e/fakeintake/**/*
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    variables:
+      FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
+    when: on_success
+  - changes:
+      paths:
+        - test/new-e2e/pkg/**/*
+        - test/new-e2e/test-infra-definition/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+  - when: manual
+    allow_failure: true
+
 
 .on_e2e_main_release_or_rc: # This rule is used as a base for all new-e2e rules
   - <<: *if_disable_e2e_tests
@@ -993,22 +1013,18 @@ workflow:
         - .go-version
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_fakeintake_changes: &on_fakeintake_changes
+.fakeintake_changes: &fakeintake_changes
   changes:
     - "test/fakeintake/**/*"
     - .gitlab/binary_build/fakeintake.yml
     - .gitlab/container_build/fakeintake.yml
     - .gitlab/dev_container_deploy/fakeintake.yml
 
-.on_fakeintake_changes_on_main_or_manual:
-  - <<: *on_fakeintake_changes
-    if: $CI_COMMIT_BRANCH == "main"
-  - <<: *on_fakeintake_changes
-    when: manual
-    allow_failure: true
+.on_fakeintake_changes:
+  - <<: *fakeintake_changes
 
 .on_fakeintake_changes_on_main:
-  - <<: *on_fakeintake_changes
+  - <<: *fakeintake_changes
     if: $CI_COMMIT_BRANCH == "main"
 
 .fast_on_dev_branch_only:
