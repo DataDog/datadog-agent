@@ -33,8 +33,6 @@ import (
 	// checks implemented as components
 
 	// core components
-	"github.com/DataDog/datadog-agent/comp/agent"
-
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"

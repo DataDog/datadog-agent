@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/cloudfoundrycontainerimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver/expvarserverimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler/metadataschedulerimpl"
