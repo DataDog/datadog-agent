@@ -78,7 +78,7 @@ func (s *ddLogSubmitter) getLogMessage(e *eventWithMessage) (*message.Message, e
 	err = s.enrichEvent(m, e)
 	if err != nil {
 		log.Errorf("%v", err)
-		// continue to submit the event event if we failed to enrich it
+		// continue to submit the event even if we failed to enrich it
 	}
 
 	msg, err := windowsevent.MapToMessage(m, s.logSource, true)
