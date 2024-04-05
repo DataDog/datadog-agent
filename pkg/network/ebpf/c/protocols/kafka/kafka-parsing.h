@@ -91,10 +91,80 @@ enum parse_result {
     RET_LOOP_END = -2,
 };
 
-static __always_inline enum parse_result kafka_continue_parse_response(kafka_response_context_t *response, struct __sk_buff *skb, __u32 offset)
+static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, const struct __sk_buff *skb,
+                                                             __u32 *offset, s32 *val, bool first)
+{
+    if (*offset >= skb->len) {
+        response->carry_over_offset = *offset - skb->len;
+        return RET_EOP;
+    }
+
+    __u32 avail = skb->len - *offset;
+    __u32 remainder = response->remainder;
+    __u32 want = sizeof(s32);
+
+    extra_debug("avail %u want %u remainder %u", avail, want, remainder);
+
+    // Statically optimize away code for non-first iteration of loop since there
+    // can be no intra-packet remainder.
+    if (!first) {
+        remainder = 0;
+    }
+
+    if (avail < want) {
+        if (remainder) {
+            extra_debug("Continuation packet less than 4 bytes?");
+            return RET_ERR;
+        }
+
+        // This is negative, caller will check and save remainder.
+        response->carry_over_offset = *offset - skb->len;
+        return RET_EOP;
+    }
+
+    if (!remainder) {
+        bpf_skb_load_bytes(skb, *offset, val, sizeof(*val));
+        *offset += sizeof(*val);
+        *val = bpf_ntohl(*val);
+        extra_debug("read without remainder: %d", *val);
+        return RET_DONE;
+    }
+
+    response->remainder = 0;
+
+    __u8 *out = response->buf;
+    __u8 pkttmp[4] = {0};
+
+    bpf_skb_load_bytes(skb, *offset, &pkttmp, 4);
+
+    switch (remainder) {
+    case 1:
+        out[1] = pkttmp[0];
+        out[2] = pkttmp[1];
+        out[3] = pkttmp[2];
+        break;
+    case 2:
+        out[2] = pkttmp[0];
+        out[3] = pkttmp[1];
+        break;
+    case 3:
+        out[3] = pkttmp[0];
+        break;
+    }
+
+    *offset += want - remainder;
+    *val = bpf_ntohl(*(u32 *)out);
+    extra_debug("read with remainder: %d", *val);
+
+    return RET_DONE;
+}
+
+static __always_inline enum parse_result kafka_continue_parse_response_loop(kafka_response_context_t *response,
+                                                                            struct __sk_buff *skb, __u32 offset)
 {
     __u32 orig_offset = offset;
     kafka_transaction_t *request = &response->transaction;
+    enum parse_result ret;
 
     extra_debug("carry_over_offset %d", response->carry_over_offset);
 
@@ -107,6 +177,9 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
 
 #pragma unroll(KAFKA_RESPONSE_PARSER_MAX_ITERATIONS)
     for (int i = 0; i < KAFKA_RESPONSE_PARSER_MAX_ITERATIONS; i++) {
+        bool first = i == 0;
+
+        extra_debug("state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
@@ -126,14 +199,11 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
 
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (request->request_api_version >= 4) {
-                if (offset + sizeof(s32) > skb->len) {
-                    response->carry_over_offset = offset - skb->len;
-                    return RET_EOP;
-                }
-
                 s32 aborted_transactions = 0;
-                read_big_endian_s32(skb, offset, &aborted_transactions);
-                offset += sizeof(aborted_transactions);
+                ret = read_with_remainder(response, skb, &offset, &aborted_transactions, first);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
 
                 // Note that -1 is a valid value which means that the list is empty.
                 if (aborted_transactions < -1) {
@@ -148,7 +218,8 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
                     return RET_ERR;
                 }
                 if (aborted_transactions >= 0) {
-                    // TODO this and the aborted_transaction code paths need test cases
+                    // This and the aborted_transaction code paths need test cases, it's not
+                    // yet seen in real life pcaps.
                     // producer_id and first_offset in each aborted transaction
                     offset += sizeof(s64) * 2 * aborted_transactions;
                 }
@@ -162,13 +233,12 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
-            if (offset + sizeof(s32) > skb->len) {
-                response->carry_over_offset = offset - skb->len;
-                return RET_EOP;
+            ret = read_with_remainder(response, skb, &offset, &response->record_batches_num_bytes, first);
+            if (ret != RET_DONE) {
+                return ret;
             }
 
-            read_big_endian_s32(skb, offset, &response->record_batches_num_bytes);
-            offset += sizeof(response->record_batches_num_bytes);
+            extra_debug("record_batches_num_bytes: %d", response->record_batches_num_bytes);
 
             if (response->record_batches_num_bytes == 0) {
                 response->state = KAFKA_FETCH_RESPONSE_PARTITION_END;
@@ -184,20 +254,33 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
-            if (offset + sizeof(s32) > skb->len) {
-                response->carry_over_offset = offset - skb->len;
-                return RET_EOP;
+            ret = read_with_remainder(response, skb, &offset, &response->record_batch_length, first);
+            if (ret != RET_DONE) {
+                return ret;
             }
 
-            read_big_endian_s32(skb, offset, &response->record_batch_length);
-
-            offset += sizeof(response->record_batch_length);
+            extra_debug("batchLength %d", response->record_batch_length);
             if (response->record_batch_length <= 0) {
                 extra_debug("batchLength too small %d", response->record_batch_length);
                 return RET_ERR;
             }
             if (response->record_batch_length + sizeof(u32) + sizeof(u64) > response->record_batches_num_bytes) {
-                extra_debug("batchLength too large %d", response->record_batch_length);
+                extra_debug("batchLength too large %d (record_batches_num_bytes: %d)", response->record_batch_length,
+                            response->record_batches_num_bytes);
+
+                // Kafka fetch responses can have some partial, unparseable records in the record
+                // batch block which are truncated due to the maximum response size specified in
+                // the request.  If there are no more paritions left, assume we've reached such
+                // a block and report what we have.
+                if (response->transaction.records_count > 0 && response->partitions_count == 1) {
+                    extra_debug("assuming truncated data due to maxsize");
+                    response->record_batch_length = 0;
+                    response->record_batches_num_bytes = 0;
+                    response->state = KAFKA_FETCH_RESPONSE_PARTITION_END;
+                    continue;
+                }
+
+                extra_debug("assuming corrupt packet");
                 return RET_ERR;
             }
 
@@ -229,18 +312,21 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
             // fallthrough
 
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
-            if (offset + sizeof(s32) > skb->len) {
-                response->carry_over_offset = offset - skb->len;
-                return RET_EOP;
-            }
+            {
+                s32 records_count = 0;
+                ret = read_with_remainder(response, skb, &offset, &records_count, first);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
 
-            READ_BIG_ENDIAN_WRAPPER(s32, records_count, skb, offset);
-            if (records_count <= 0) {
-                extra_debug("Invalid records count: %d", records_count);
-                return RET_ERR;
-            }
+                extra_debug("records_count: %d", records_count);
+                if (records_count <= 0) {
+                    extra_debug("Invalid records count: %d", records_count);
+                    return RET_ERR;
+                }
 
-            response->transaction.records_count += records_count;
+                response->transaction.records_count += records_count;
+            }
 
             offset += response->record_batch_length
             - sizeof(s32) // Skip partitionLeaderEpoch
@@ -297,6 +383,39 @@ static __always_inline enum parse_result kafka_continue_parse_response(kafka_res
     return RET_LOOP_END;
 }
 
+static __always_inline enum parse_result kafka_continue_parse_response(kafka_response_context_t *response, struct __sk_buff *skb, __u32 offset)
+{
+    enum parse_result ret;
+
+    ret = kafka_continue_parse_response_loop(response, skb, offset);
+    if (ret != RET_EOP) {
+        return ret;
+    }
+
+    if (response->carry_over_offset < 0) {
+        extra_debug("Saving remainder %d", response->carry_over_offset);
+
+        switch (response->carry_over_offset) {
+        case -1:
+            bpf_skb_load_bytes(skb, skb->len - 1, &response->buf, 1);
+            break;
+        case -2:
+            bpf_skb_load_bytes(skb, skb->len - 2, &response->buf, 2);
+            break;
+        case -3:
+            bpf_skb_load_bytes(skb, skb->len - 3, &response->buf, 3);
+            break;
+        default:
+            return RET_ERR;
+        }
+
+        response->remainder = -1 * response->carry_over_offset;
+        response->carry_over_offset = 0;
+    }
+
+    return ret;
+}
+
 static __always_inline void kafka_call_response_parser(conn_tuple_t *tup, struct __sk_buff *skb)
 {
     bpf_tail_call_compat(skb, &protocols_progs, PROG_KAFKA_RESPONSE_PARSER);
@@ -346,14 +465,21 @@ int socket__kafka_response_parser(struct __sk_buff *skb) {
         // We ran out of iterations in the loop, but we're not done
         // processing this packet, so continue in a self tail call.
         kafka_call_response_parser(&tup, skb);
+
+        // If we failed (due to exceeding tail calls), at least flush what
+        // we have.
+        if (response->transaction.records_count) {
+            extra_debug("kafka: enqueue (incomplete), records_count %d", response->transaction.records_count);
+            kafka_batch_enqueue(&response->transaction);
+        }
         break;
     }
 
     return 0;
 }
 
-// Similar to has_sequence_seen_before() except that this ignores all segments with
-// and older sequence number rather than only the last repeated segment.
+// Somewhat similar to has_sequence_seen_before() except that this ignores all
+// segments with an older sequence number.
 static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info_t *skb_info) {
     if (!skb_info || !skb_info->tcp_seq) {
         return false;
@@ -361,47 +487,42 @@ static __always_inline bool kafka_is_old_tcp_segment(conn_tuple_t *tup, skb_info
 
     u32 *tcp_seq = bpf_map_lookup_elem(&kafka_tcp_seq, tup);
 
-    if (tcp_seq != NULL) {
+    if (tcp_seq != NULL && skb_info->tcp_seq != *tcp_seq) {
         u32 old = *tcp_seq;
         u32 new = skb_info->tcp_seq;
 
-        // Check if we've seen this TCP segment before. This can happen in the
-        // context of localhost traffic where the same TCP segment can be seen
-        // multiple times coming in and out from different interfaces.
-        if (new == old) {
-            return true;
-        }
-
-        // When the sequence number is greater than the earlier packet, we don't
-        // know for sure that we saw the older segment since segments in between
-        // the previous and the current one could have been lost. But since we
-        // anyway don't do reassembly we can't handle such out-of-order segments
-        // properly if they arrive later. So just drop all older segments here
-        // since it helps on systems where groups of packets (a couple of TCP
-        // segments) are seen to often be duplicated.
+        // When the sequence number is greater than the end of the earlier
+        // segment, we don't know for sure if we saw all the older data since
+        // segments in between the previous and the current one could have
+        // been lost. But since we anyway don't do reassembly we can't
+        // handle such out-of-order segments properly if they arrive later.
+        // So just drop all older segments here since it helps on systems
+        // where groups of packets (a couple of TCP segments) are seen to
+        // often be duplicated.
         //
-        // This check handles wraparound of sequence numbers.
+        // The comparison is done this way to handle wraparound of sequence numbers.
         s32 diff = new - old;
         if (diff < 0) {
             return true;
         }
     }
 
-    bpf_map_update_elem(&kafka_tcp_seq, tup, &skb_info->tcp_seq, BPF_ANY);
+    u32 data_len = skb_info->data_end - skb_info->data_off;
+    u32 next_seq = skb_info->tcp_seq + data_len;
+
+    bpf_map_update_elem(&kafka_tcp_seq, tup, &next_seq, BPF_ANY);
     return false;
 }
 
 static __always_inline bool kafka_process_response(kafka_info_t *kafka, struct __sk_buff* skb, skb_info_t *skb_info) {
     __u32 offset = skb_info->data_off;
-    // Put it on the stack since the verifier on 4.14 complains otherwise
-    // when it's used as a key to lookup maps.
     conn_tuple_t tup = kafka->tup;
     __u32 orig_offset = offset;
     kafka_response_context_t *response = bpf_map_lookup_elem(&kafka_response, &tup);
     if (response) {
         if (kafka_is_old_tcp_segment(&tup, skb_info)) {
             extra_debug("kafka: skip old TCP segment");
-            // We know it's on the response path, so need to process as request.
+            // We know it's on the response path, so not need to process as request.
             return true;
         }
 

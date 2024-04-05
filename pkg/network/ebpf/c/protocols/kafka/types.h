@@ -52,6 +52,8 @@ typedef struct {
     __s32 carry_over_offset;
     __u32 partitions_count;
     kafka_transaction_t transaction;
+    __u32 remainder;
+    char buf[4];
 } kafka_response_context_t;
 
 typedef struct {
