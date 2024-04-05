@@ -26,7 +26,7 @@ func TestNewCreditCardsObfuscator(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation.CreditCards.Enabled = true
-	NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, nil)
 	_, ok = pb.MetaHook()
 	assert.True(t, ok)
 }
@@ -114,7 +114,7 @@ func agentWithDefaults(features ...string) (agnt *Agent, stop func()) {
 		cfg.Features[f] = struct{}{}
 	}
 	cfg.Endpoints[0].APIKey = "test"
-	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}), cancelFunc
+	return NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, nil), cancelFunc
 }
 
 func TestObfuscateConfig(t *testing.T) {
@@ -130,7 +130,7 @@ func TestObfuscateConfig(t *testing.T) {
 			cfg := config.New()
 			cfg.Endpoints[0].APIKey = "test"
 			cfg.Obfuscation = ocfg
-			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+			agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, nil)
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
 			agnt.obfuscateSpan(span)

@@ -187,6 +187,18 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
+	{
+		eventType:                     eventplatform.EventTypeDataobs,
+		category:                      "Dataobs",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "dataobs.",
+		hostnameEndpointPrefix:        "dataobs-intake.",
+		intakeTrackType:               "dataobs",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
 }
 
 // An EventPlatformForwarder forwards Messages to a destination based on their event type

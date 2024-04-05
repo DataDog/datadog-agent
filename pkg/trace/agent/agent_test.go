@@ -47,7 +47,7 @@ import (
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
-	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{})
+	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, nil)
 	a.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
 	a.Concentrator.In = make(chan stats.Input, 1000)
 	return a
@@ -370,7 +370,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, nil)
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))

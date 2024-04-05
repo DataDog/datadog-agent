@@ -152,6 +152,7 @@ func start(ag *agent) error {
 		ag.config.Object(),
 		ag.telemetryCollector,
 		statsdCl,
+		forwarder,
 	)
 	if err := runAgentSidekicks(ag); err != nil {
 		return err
