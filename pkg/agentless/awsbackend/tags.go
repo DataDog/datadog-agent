@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/agentless/types"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -39,6 +40,7 @@ func cloudResourceTagSpec(scan *types.ScanTask, target types.CloudID, resourceTy
 			ResourceType: resType,
 			Tags: []ec2types.Tag{
 				{Key: aws.String("DatadogAgentlessScanner"), Value: aws.String("true")},
+				{Key: aws.String("DatadogAgentlessScannerVersion"), Value: aws.String(version.AgentVersion)},
 				{Key: aws.String("DatadogAgentlessScannerTarget"), Value: aws.String(target.AsText())},
 				{Key: aws.String("DatadogAgentlessScannerScanId"), Value: aws.String(scan.ID)},
 				{Key: aws.String("DatadogAgentlessScannerScannerHostname"), Value: aws.String(scan.ScannerID.Hostname)},

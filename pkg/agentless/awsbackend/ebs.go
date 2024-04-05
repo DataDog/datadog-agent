@@ -102,10 +102,11 @@ func createSnapshot(ctx context.Context, statsd ddogstatsd.ClientInterface, scan
 		snapshotCreatedAt = time.Now()
 		createSnapshotOutput, errSnapshot = ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 			VolumeId:          aws.String(volumeID.ResourceName()),
+			Description:       aws.String(fmt.Sprintf("Datadog Agentless scanner snapshot from volume %q", volumeID.ResourceName())),
 			TagSpecifications: cloudResourceTagSpec(scan, volumeID, types.ResourceTypeSnapshot),
 		})
 		if errSnapshot == nil {
-			break // abort retry loop
+			break
 		}
 		var isRateExceededError bool
 		var isVolumeNotFoundError bool
