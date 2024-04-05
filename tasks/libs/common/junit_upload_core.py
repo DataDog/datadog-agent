@@ -19,6 +19,7 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
 )
 
+E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
 DATADOG_CI_COMMAND = ["datadog-ci", "junit", "upload"]
@@ -225,7 +226,7 @@ def is_e2e_internal_failure(xml_path):
     Check if the given JUnit XML file contains E2E INTERAL ERROR string.
     """
     filecontent = open(xml_path).read()
-    return "E2E INTERNAL ERROR" in filecontent
+    return E2E_INTERNAL_ERROR_STRING in filecontent
 
 
 def _update_environ(unpack_dir):
