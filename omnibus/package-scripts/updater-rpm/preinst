@@ -1,0 +1,5 @@
+#!/bin/sh
+
+SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-updater || true
+
+exit 0

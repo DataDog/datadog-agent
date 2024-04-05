@@ -231,3 +231,14 @@ deploy_remote_updater_deb_amd64:
   variables:
     PACKAGE_ARCH: amd64
 
+deploy_remote_updater_rpm_arm64:
+  extends: .deploy_packages_rpm-7
+  needs: ["updater_rpm-arm64"]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_remote_updater_rpm_amd64:
+  extends: .deploy_packages_rpm-7
+  needs: ["updater_rpm-amd64"]
+  variables:
+    PACKAGE_ARCH: x86_64

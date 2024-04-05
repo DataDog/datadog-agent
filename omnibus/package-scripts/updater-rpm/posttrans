@@ -1,0 +1,75 @@
+#!/bin/sh
+
+readonly INSTALL_DIR=/opt/datadog/updater
+readonly UPDATER_HELPER=${INSTALL_DIR}/bin/updater/updater-helper
+readonly PACKAGES_DIR=/opt/datadog-packages
+readonly LOG_DIR=/var/log/datadog
+readonly PACKAGES_LOCK_DIR=/var/run/datadog-packages
+readonly CONFIG_DIR=/etc/datadog-agent
+
+add_user_and_group() {
+    # Only create group and/or user if they don't already exist
+    NAME=$1
+    HOME_DIR=$2
+    getent group "$NAME" >/dev/null || (echo "Creating $NAME group" && groupadd --system "$NAME")
+    if ! id -u "$NAME" >/dev/null 2>&1; then
+        echo "Creating $NAME user"
+        useradd --system --shell /usr/sbin/nologin --home "$HOME_DIR" --no-create-home --no-user-group -g "$NAME" "$NAME"
+    elif id -nG "$NAME" | grep --invert-match --word-regexp --quiet "$NAME"; then
+        # User exists but is not part of the $NAME group
+        echo "Adding $NAME user to $NAME group"
+        usermod -g "$NAME" "$NAME"
+    fi
+}
+
+# We're in the initial install case
+add_user_and_group 'dd-updater' $PACKAGES_DIR
+add_user_and_group 'dd-agent' $PACKAGES_DIR/datadog-agent
+usermod -aG dd-agent dd-updater
+
+# Set proper rights to the dd-agent user
+chown -R dd-agent:dd-agent ${CONFIG_DIR}
+chmod -R g+rw ${CONFIG_DIR}
+chown -R dd-agent:dd-agent ${LOG_DIR}
+chmod -R g+rw ${LOG_DIR}
+chown -R dd-updater:dd-updater ${INSTALL_DIR}
+chown -R dd-updater:dd-updater ${PACKAGES_DIR}
+chown -R dd-updater:dd-updater ${PACKAGES_LOCK_DIR}
+
+chmod -R 755 ${PACKAGES_DIR}
+# Lock_dir is world read/write/x as any application with a tracer injected
+# needs to write PID files
+chmod -R 777 ${PACKAGES_LOCK_DIR}
+
+# Make system-probe configs read-only
+chmod 0440 ${CONFIG_DIR}/system-probe.yaml.example || true
+if [ -f "$CONFIG_DIR/system-probe.yaml" ]; then
+    chmod 0440 ${CONFIG_DIR}/system-probe.yaml || true
+fi
+
+# Make security-agent config read-only
+chmod 0440 ${CONFIG_DIR}/security-agent.yaml.example || true
+if [ -f "$CONFIG_DIR/security-agent.yaml" ]; then
+    chmod 0440 ${CONFIG_DIR}/security-agent.yaml || true
+fi
+
+if [ -d "$CONFIG_DIR/compliance.d" ]; then
+    chown -R root:root ${CONFIG_DIR}/compliance.d || true
+fi
+
+if [ -d "$CONFIG_DIR/runtime-security.d" ]; then
+    chown -R root:root ${CONFIG_DIR}/runtime-security.d || true
+fi
+
+# Set updater helper rights
+chmod 750 ${UPDATER_HELPER}
+setcap cap_setuid+ep ${UPDATER_HELPER}
+
+$INSTALL_DIR/bin/updater/updater bootstrap -P datadog-agent
+
+# start updater
+SYSTEMCTL_SKIP_SYSV=true systemctl enable datadog-updater || true
+SYSTEMCTL_SKIP_SYSV=true systemctl start datadog-updater || true
+
+exit 0
+

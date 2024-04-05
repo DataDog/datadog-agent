@@ -151,6 +151,23 @@ deploy_deb_testing-a7_arm64:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
+deploy_deb_testing-u7_amd64:
+  rules:
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends:
+    - .deploy_deb_testing-u7
+  needs: ["updater_deb-amd64", "lint_linux-x64"]
+  script:
+    - *setup_apt_signing_key
+    - set +x # make sure we don't output the creds to the build log
+
+    - *setup_signing_keys_package
+
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-updater*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+
 deploy_deb_testing-u7_arm64:
   rules:
     - !reference [.except_no_tests_no_deploy]
@@ -244,6 +261,38 @@ deploy_rpm_testing-a7_arm64:
     - *setup_rpm_signing_key
     - set +x
     - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
+
+.deploy_rpm_testing-u7:
+  stage: kitchen_deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    DD_PIPELINE_ID: $CI_PIPELINE_ID-u7
+  before_script:
+    - source /root/.bashrc
+    - ls $OMNIBUS_PACKAGE_DIR
+
+deploy_rpm_testing-u7_arm64:
+  extends:
+    - .deploy_rpm_testing-u7
+  needs: ["updater_rpm-arm64", "lint_linux-arm64"]
+  script:
+    - *setup_rpm_signing_key
+    - set +x # make sure we don't output the creds to the build log
+    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/aarch64/" -a "aarch64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*aarch64.rpm
+
+deploy_rpm_testing-u7_x64:
+  extends:
+    - .deploy_rpm_testing-u7
+  needs: ["updater_rpm-amd64", "lint_linux-x64"]
+  script:
+    - *setup_rpm_signing_key
+    - set +x # make sure we don't output the creds to the build log
+    - echo "$RPM_SIGNING_PASSPHRASE" | rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/7/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-7.*x86_64.rpm
 
 deploy_suse_rpm_testing_x64-a6:
   rules: !reference [.on_kitchen_tests]

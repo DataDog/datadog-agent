@@ -1,0 +1,23 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps prior to remove the old package.
+
+readonly INSTALL_DIR=/opt/datadog/updater
+
+SYSTEMCTL_SKIP_SYSV=true systemctl stop datadog-updater || true
+SYSTEMCTL_SKIP_SYSV=true systemctl disable datadog-updater || true
+
+set -e
+
+case "$1" in
+    0)
+        # $1 contains the number of packages with the same name left
+        # on the system after the current action completes.
+        # If 0, then we are uninstalling
+        $INSTALL_DIR/bin/updater/updater purge
+    ;;
+    *)
+        # For other cases, we're upgrading
+    ;;
+esac
+exit 0

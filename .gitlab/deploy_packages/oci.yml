@@ -1,0 +1,37 @@
+---
+
+.deploy_packages_oci:
+  resource_group: oci_bucket
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  tags: ["arch:amd64"]
+  stage: deploy_packages
+  rules:
+    !reference [.on_deploy]
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    - python3 -m pip install -r tasks/libs/requirements-github.txt
+    - set +x
+    - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
+    - export GITHUB_APP_ID=682216
+    - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
+    - export VERSION=$(inv agent.version --url-safe)-1
+    - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
+    - git clone https://github.com/DataDog/datadog-packages /tmp/datadog-packages
+    - cd /tmp/datadog-packages/cmd/datadog-package
+    - go build .
+    - ./datadog-package push registry.ddbuild.io/ci/remote-updates/${OCI_PRODUCT}:${VERSION} ${OMNIBUS_PACKAGE_DIR}/${OCI_PRODUCT}-${MAJOR_VERSION}.*.oci.tar
+  variables:
+    MAJOR_VERSION: 7
+
+deploy_agent_oci:
+  extends: ".deploy_packages_oci"
+  needs: [ "agent_oci" ]
+  variables:
+    OCI_PRODUCT: "datadog-agent"
+
+deploy_updater_oci:
+  extends: ".deploy_packages_oci"
+  needs: [ "updater_oci" ]
+  variables:
+    OCI_PRODUCT: "datadog-updater"
