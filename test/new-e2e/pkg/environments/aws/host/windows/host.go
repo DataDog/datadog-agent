@@ -1,4 +1,10 @@
-package windows
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package winawshost contains the definition of the AWS Windows Host environment.
+package winawshost
 
 import (
 	"fmt"
@@ -59,10 +65,26 @@ func WithAgentOptions(opts ...agentparams.Option) ProvisionerOption {
 	}
 }
 
+// WithoutAgent disables the creation of the Agent.
+func WithoutAgent() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentOptions = nil
+		return nil
+	}
+}
+
 // WithFakeIntakeOptions adds options to the FakeIntake.
 func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.fakeintakeOptions = append(params.fakeintakeOptions, opts...)
+		return nil
+	}
+}
+
+// WithoutFakeIntake disables the creation of the FakeIntake.
+func WithoutFakeIntake() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fakeintakeOptions = nil
 		return nil
 	}
 }
@@ -85,12 +107,10 @@ func WithDefenderOptions(opts ...defender.Option) ProvisionerOption {
 
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
-	// Suite inits all fields by default, so we need to explicitly set it to nil
-	env.FakeIntake = nil
-	env.Agent = nil
-	env.ActiveDirectory = nil
-
 	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
+	}
 
 	// Make sure to override any OS other than Windows
 	// TODO: Make the Windows version configurable
@@ -132,6 +152,9 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 				agentparams.WithPulumiResourceOptions(
 					pulumi.DependsOn(activeDirectoryResources)))
 		}
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.ActiveDirectory = nil
 	}
 
 	// Create FakeIntake if required
@@ -150,6 +173,8 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
+	} else {
+		env.FakeIntake = nil
 	}
 
 	if params.agentOptions != nil {
@@ -161,6 +186,8 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		if err != nil {
 			return err
 		}
+	} else {
+		env.Agent = nil
 	}
 
 	return nil
@@ -168,11 +195,10 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 
 func getProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := &ProvisionerParams{
-		name:                   "",
-		instanceOptions:        []ec2.VMOption{},
-		agentOptions:           []agentparams.Option{},
-		fakeintakeOptions:      []fakeintake.Option{},
-		activeDirectoryOptions: []activedirectory.Option{},
+		name:              "",
+		instanceOptions:   []ec2.VMOption{},
+		agentOptions:      []agentparams.Option{},
+		fakeintakeOptions: []fakeintake.Option{},
 		// Disable Windows Defender on VMs by default
 		defenderoptions: []defender.Option{defender.WithDefenderDisabled()},
 	}
@@ -196,4 +222,31 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Wi
 	}, nil)
 
 	return provisioner
+}
+
+// ProvisionerNoAgent wraps Provisioner with hardcoded WithoutAgent options.
+func ProvisionerNoAgent(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutAgent())
+
+	return Provisioner(mergedOpts...)
+}
+
+// ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
+func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutAgent(), WithoutFakeIntake())
+
+	return Provisioner(mergedOpts...)
+}
+
+// ProvisionerNoFakeIntake wraps Provisioner with hardcoded WithoutFakeIntake option.
+func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.WindowsHost] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutFakeIntake())
+
+	return Provisioner(mergedOpts...)
 }
