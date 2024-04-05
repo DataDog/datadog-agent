@@ -10,7 +10,6 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
-    - source /root/.bashrc
     - cd $CI_PROJECT_DIR
     - $S3_CP_CMD $S3_DD_AGENT_OMNIBUS_BTFS_URI/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar.gz .
     - tar -xf btfs-$ARCH.tar.gz
