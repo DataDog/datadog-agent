@@ -274,7 +274,7 @@ func awsSnapshotCmd(_ complog.Component, sc *types.ScannerConfig, params *awsSna
 	}
 	cfg := awsbackend.GetConfigFromCloudID(ctx, statsd, sc, sc.DefaultRolesMapping, scan.TargetID)
 	ec2client := ec2.NewFromConfig(cfg)
-	snapshotID, err := awsbackend.CreateSnapshot(ctx, statsd, scan, &awsbackend.ResourceWaiter{}, ec2client, scan.TargetID)
+	snapshotID, err := awsbackend.CreateSnapshot(ctx, statsd, scan, ec2client, scan.TargetID)
 	if err != nil {
 		return err
 	}
@@ -648,13 +648,12 @@ func awsAttachCmd(_ complog.Component, sc *types.ScannerConfig, params *awsAttac
 		}
 	}()
 
-	var waiter awsbackend.ResourceWaiter
-	snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, statsd, sc, scan, &waiter)
+	snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, statsd, sc, scan)
 	if err != nil {
 		return err
 	}
 
-	err = awsbackend.SetupEBSVolume(ctx, statsd, sc, scan, &waiter, snapshotID)
+	err = awsbackend.SetupEBSVolume(ctx, statsd, sc, scan, snapshotID)
 	if err != nil {
 		return err
 	}

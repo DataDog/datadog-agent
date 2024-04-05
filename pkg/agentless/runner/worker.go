@@ -43,7 +43,6 @@ type WorkerOptions struct {
 	ScannerID   types.ScannerID
 	ScannersMax int
 	Statsd      ddogstatsd.ClientInterface
-	Waiter      *awsbackend.ResourceWaiter
 }
 
 // Worker is a worker that runs scans.
@@ -211,7 +210,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 
 	case types.TaskTypeAMI:
 		assert(scan.TargetID.Provider() == types.CloudProviderAWS)
-		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter)
+		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan)
 		if err != nil {
 			return err
 		}
@@ -219,7 +218,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		case types.DiskModeNoAttach:
 			w.scanSnaphotNoAttach(ctx, scan, snapshotID, pool, resultsCh)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err = awsbackend.SetupEBSVolume(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter, snapshotID)
+			err = awsbackend.SetupEBSVolume(ctx, w.Statsd, &w.ScannerConfig, scan, snapshotID)
 			if err != nil {
 				return err
 			}
@@ -237,7 +236,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 
 	case types.TaskTypeEBS:
 		assert(scan.TargetID.Provider() == types.CloudProviderAWS)
-		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter)
+		snapshotID, err := awsbackend.SetupEBSSnapshot(ctx, w.Statsd, &w.ScannerConfig, scan)
 		if err != nil {
 			return err
 		}
@@ -245,7 +244,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		case types.DiskModeNoAttach:
 			w.scanSnaphotNoAttach(ctx, scan, snapshotID, pool, resultsCh)
 		case types.DiskModeNBDAttach, types.DiskModeVolumeAttach:
-			err := awsbackend.SetupEBSVolume(ctx, w.Statsd, &w.ScannerConfig, scan, &w.waiter, snapshotID)
+			err := awsbackend.SetupEBSVolume(ctx, w.Statsd, &w.ScannerConfig, scan, snapshotID)
 			if err != nil {
 				return err
 			}

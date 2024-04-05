@@ -72,7 +72,6 @@ type Runner struct {
 
 	findingsReporter *LogReporter
 	rcClient         *client.Client
-	waiter           awsbackend.ResourceWaiter
 
 	touchedMu sync.Mutex
 	touched   map[scanRecord]struct{}
@@ -441,7 +440,6 @@ func (s *Runner) Start(ctx context.Context) {
 				ScannerID:   s.ScannerID,
 				ScannersMax: s.ScannersMax,
 				Statsd:      s.Statsd,
-				Waiter:      &s.waiter,
 			})
 			w.Run(ctx, triggeredScansCh, finishedScansCh, s.resultsCh)
 			wg.Done()
