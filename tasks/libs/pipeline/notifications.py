@@ -9,6 +9,7 @@ from typing import Dict
 import yaml
 
 from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
+from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobs, Test
 
 
@@ -30,13 +31,6 @@ DEFAULT_JIRA_PROJECT = "AGNTR"
 # Map keys in lowercase
 GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
 GITHUB_JIRA_MAP = load_and_validate("github_jira_map.yaml", "DEFAULT_JIRA_PROJECT", DEFAULT_JIRA_PROJECT)
-
-
-def read_owners(owners_file):
-    from codeowners import CodeOwners
-
-    with open(owners_file, 'r') as f:
-        return CodeOwners(f.read())
 
 
 def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_file=".github/CODEOWNERS"):
