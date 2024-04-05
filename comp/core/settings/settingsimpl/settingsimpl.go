@@ -67,11 +67,7 @@ func (s *settingsRegistry) GetRuntimeSetting(setting string) (interface{}, error
 	if _, ok := s.settings[setting]; !ok {
 		return nil, &settings.SettingNotFoundError{Name: setting}
 	}
-	value, err := s.settings[setting].Get()
-	if err != nil {
-		return nil, err
-	}
-	return value, nil
+	return s.settings[setting].Get()
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
