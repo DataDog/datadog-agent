@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
-from tasks.libs.pipeline_notifications import (
+from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
     GITHUB_JIRA_MAP,
