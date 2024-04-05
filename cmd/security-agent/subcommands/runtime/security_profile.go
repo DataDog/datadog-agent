@@ -74,19 +74,19 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 		&cliParams.file,
 		flags.SecurityProfileInput,
 		"",
-		"path to the activity dump file",
+		"path to the security-profile file",
 	)
 
 	return []*cobra.Command{securityProfileShowCmd}
 }
 
 func showSecurityProfile(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileCliParams) error {
-	prof, err := profile.LoadProfileFromFile(args.file)
+	pp, err := profile.LoadProtoFromFile(args.file)
 	if err != nil {
 		return err
 	}
 
-	b, err := json.MarshalIndent(prof, "", "  ")
+	b, err := json.MarshalIndent(pp, "", "  ")
 	if err != nil {
 		return err
 	}
