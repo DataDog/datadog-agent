@@ -592,49 +592,37 @@ func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStat
 	return events
 }
 
-// runSamplers runs all the agent's samplers on pt and returns the sampling decision
-// along with the sampling rate.
+// runSamplers runs all the agent's samplers on pt and returns the sampling decision along with the
+// sampling rate.
+//
+// The rare sampler is run first, catching all rare traces early. If the Probabilistic sampler is
+// enabled, it is run next. Only when the Probabilistic sampler is *not* enabled, and the trace has
+// a priority set, the sampling priority is used with te Priority Sampler. If none of these have
+// chosen to sample the trace, the error sampler is run. Finally, for traces with no priority set,
+// the NoPrioritySampler is run.
 func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPriority bool) bool {
-	if hasPriority {
-		return a.samplePriorityTrace(now, pt)
-	}
-	return a.sampleNoPriorityTrace(now, pt)
-}
-
-// samplePriorityTrace samples traces with priority set on them. PrioritySampler and
-// ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
-// or measured spans that are not caught by PrioritySampler and ErrorSampler.
-func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	// run this early to make sure the signature gets counted by the RareSampler.
-	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
-	if a.conf.ProbabilisticSamplerEnabled {
-		if a.ProbabilisticSampler.Sample(pt.Root) {
-			return true
-		}
-	} else {
-		// We can do probabilistic sampling OR head based sampling - not both
-		if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
-			return true
-		}
+	if a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv) {
+		return true
 	}
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
-	}
-	return rare
-}
 
-// sampleNoPriorityTrace samples traces with no priority set on them. The traces
-// get sampled by either the score sampler or the error sampler if they have an error.
-func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
 	if a.conf.ProbabilisticSamplerEnabled {
 		if a.ProbabilisticSampler.Sample(pt.Root) {
 			return true
 		}
-	} //todo: is this right here? this should be a rare case
+	} else if hasPriority && a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
+		// Can only run this if we have priority and the probabilistic sampler is *not* enabled
+		return true
+	}
+
 	if traceContainsError(pt.TraceChunk.Spans) {
 		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
 	}
-	return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+
+	if !hasPriority {
+		return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	}
+	return false
 }
 
 func traceContainsError(trace pb.Trace) bool {

@@ -1095,7 +1095,7 @@ func TestSampling(t *testing.T) {
 		testCases   []samplingTestCase
 	}{
 		"nopriority-unsampled": {
-			agentConfig: agentConfig{noPrioritySampled: false},
+			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: false},
 			},
@@ -1119,7 +1119,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"error-unsampled": {
-			agentConfig: agentConfig{errorsSampled: false},
+			agentConfig: agentConfig{errorsSampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityNone, true), wantSampled: false},
 			},
@@ -1149,7 +1149,7 @@ func TestSampling(t *testing.T) {
 			},
 		},
 		"error-prio-unsampled": {
-			agentConfig: agentConfig{errorsSampled: false},
+			agentConfig: agentConfig{errorsSampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
 				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: false},
 			},
