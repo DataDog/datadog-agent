@@ -95,6 +95,9 @@ func New(config types.ScannerConfig, opts Options) (*Runner, error) {
 	if opts.EventForwarder == nil {
 		panic("programmer error: missing EventForwarder option")
 	}
+	if _, found := opts.EventForwarder.Get(); !found {
+		panic("programmer error: EventForwarder component is not initialized")
+	}
 	if opts.Workers == 0 {
 		panic("programmer error: Workers is 0")
 	}
@@ -343,13 +346,6 @@ func (s *Runner) CleanSlate() error {
 }
 
 func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *types.ScanTask, <-chan struct{}) {
-	eventPlatform, found := s.EventForwarder.Get()
-	if found {
-		eventPlatform.Start()
-	} else {
-		log.Info("not starting the event platform forwarder")
-	}
-
 	if s.rcClient != nil {
 		s.rcClient.Start()
 	}
@@ -366,7 +362,6 @@ func (s *Runner) init(ctx context.Context) (<-chan *types.ScanTask, chan<- *type
 	doneCh := make(chan struct{})
 	go func() {
 		s.reportResults(s.resultsCh)
-		eventPlatform.Stop()
 		s.findingsReporter.Stop()
 		close(doneCh)
 	}()
