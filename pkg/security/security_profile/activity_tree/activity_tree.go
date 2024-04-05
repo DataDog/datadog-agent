@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -97,6 +98,11 @@ const (
 	// MaxNodeGenerationType is the maximum node type
 	MaxNodeGenerationType NodeGenerationType = 4
 )
+
+// SECLRuleOpts defines SECL rules options
+type SECLRuleOpts struct {
+	EnableKill bool
+}
 
 func (genType NodeGenerationType) String() string {
 	switch genType {
@@ -853,4 +859,95 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 		}
 	}
 	at.ProcessNodes = newProcessNodes
+}
+
+func (at *ActivityTree) visitProcessNode(processNode *ProcessNode, cb func(processNode *ProcessNode)) {
+	for _, pn := range processNode.Children {
+		at.visitProcessNode(pn, cb)
+	}
+	cb(processNode)
+}
+
+func (at *ActivityTree) visitFileNode(fileNode *FileNode, cb func(fileNode *FileNode)) {
+	if len(fileNode.Children) == 0 {
+		cb(fileNode)
+		return
+	}
+
+	for _, file := range fileNode.Children {
+		at.visitFileNode(file, cb)
+	}
+}
+
+func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
+	for _, pn := range at.ProcessNodes {
+		at.visitProcessNode(pn, cb)
+	}
+}
+
+func applyKillAction(ruleDef *rules.RuleDefinition) {
+	ruleDef.Actions = []*rules.ActionDefinition{
+		{
+			Kill: &rules.KillDefinition{
+				Signal: "SIGKILL",
+			},
+		},
+	}
+}
+
+func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.RuleDefinition {
+	processPath := processNode.Process.FileEvent.PathnameStr
+
+	var parentPath string
+	if parent := processNode.GetParent(); parent != nil {
+		if parentNode, ok := parent.(*ProcessNode); ok {
+			parentPath = parentNode.Process.FileEvent.PathnameStr
+		}
+	}
+
+	ruleDef := &rules.RuleDefinition{
+		Expression: fmt.Sprintf(`exec.file.path == "%s" && process.parent.file.path != "%s" && process.parent.container.id != ""`, processPath, parentPath),
+	}
+
+	if opts.EnableKill {
+		applyKillAction(ruleDef)
+	}
+
+	return ruleDef
+}
+
+// ToSECL return SECL rules matching the activity of the given tree
+func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
+	var (
+		path        []string
+		ruleDefs    []*rules.RuleDefinition
+		execRuleExp []string
+	)
+
+	at.visit(func(processNode *ProcessNode) {
+		execRuleExp = append(execRuleExp, "("+processToSECLExecRules(processNode, opts).Expression+")")
+		path = append(path, processNode.Process.FileEvent.PathnameStr)
+
+		for _, file := range processNode.Files {
+			at.visitFileNode(file, func(fileNode *FileNode) {
+				fmt.Print(">>>>>: %+v\n", fileNode.File.PathnameStr)
+			})
+		}
+	})
+
+	execRuleDef := &rules.RuleDefinition{
+		Expression: strings.Join(execRuleExp, " && "),
+	}
+	ruleDefs = append(ruleDefs, execRuleDef)
+
+	denyDef := &rules.RuleDefinition{
+		Expression: fmt.Sprintf(`exec.file.path not in ["%s"]`, strings.Join(path, `","`)),
+	}
+	if opts.EnableKill {
+		applyKillAction(denyDef)
+	}
+
+	ruleDefs = append(ruleDefs, denyDef)
+
+	return ruleDefs, nil
 }

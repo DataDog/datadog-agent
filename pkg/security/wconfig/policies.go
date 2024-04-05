@@ -34,13 +34,13 @@ const (
 
 // AllowPolicy defines an allow policy strategy
 type AllowPolicy struct {
-	Action string   `yaml:"action"`
-	Allow  []string `yaml:"allow"`
+	Action string   `yaml:"action,omitempty"`
+	Allow  []string `yaml:"allow,omitempty"`
 }
 
 // SECLPolicy defines a SECL rule based policy
 type SECLPolicy struct {
-	Rules []*rules.RuleDefinition `yaml:"rules"`
+	Rules []*rules.RuleDefinition `yaml:"rules,omitempty"`
 }
 
 // WorkloadPolicy defines a workload policy
@@ -49,13 +49,16 @@ type WorkloadPolicy struct {
 	Name string `yaml:"name"`
 	Kind string `yaml:"kind"`
 
-	AllowPolicy `yaml:",inline"`
-	SECLPolicy  `yaml:",inline"`
+	AllowPolicy `yaml:",inline,omitempty"`
+	SECLPolicy  `yaml:",inline,omitempty"`
 }
 
 func (p *SECLPolicy) convert(wp *WorkloadPolicy) ([]*rules.RuleDefinition, error) {
 	// patch rules with the container ID
-	for _, ruleDef := range wp.SECLPolicy.Rules {
+	for i, ruleDef := range wp.SECLPolicy.Rules {
+		ruleDef.ID = fmt.Sprintf(`workload_policy_%s_%d`, wp.ID, i)
+		ruleDef.GroupID = "workload_policy"
+		ruleDef.Description = "Workload policy"
 		ruleDef.Expression = fmt.Sprintf(`(%s) && container.id == "%s"`, ruleDef.Expression, wp.ID)
 	}
 

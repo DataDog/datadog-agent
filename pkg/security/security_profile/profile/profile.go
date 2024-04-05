@@ -25,6 +25,7 @@ import (
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -55,6 +56,9 @@ type LoadOpts struct {
 	DNSMatchMaxDepth  int
 	DifferentiateArgs bool
 }
+
+// SECLRuleOpts see sub type
+type SECLRuleOpts = activity_tree.SECLRuleOpts
 
 // SecurityProfile defines a security profile
 type SecurityProfile struct {
@@ -486,4 +490,9 @@ func (p *SecurityProfile) GetVersions() []string {
 		versions = append(versions, version)
 	}
 	return versions
+}
+
+// ToSECL return SECL rules matching the activity of the given tree
+func (p *SecurityProfile) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
+	return p.ActivityTree.ToSECLRules(opts)
 }
