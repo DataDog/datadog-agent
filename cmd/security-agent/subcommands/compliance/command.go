@@ -178,7 +178,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log log.Component, config config.Component, eventArgs *eventCliParams) error {
+func eventRun(log log.Component, eventArgs *eventCliParams) error {
 	hostnameDetected, err := secutils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)

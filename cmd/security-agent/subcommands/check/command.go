@@ -221,7 +221,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		}
 	}
 	if checkArgs.report {
-		if err := reportComplianceEvents(log, config, events); err != nil {
+		if err := reportComplianceEvents(log, events); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -244,7 +244,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, config config.Component, events []*compliance.CheckEvent) error {
+func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent) error {
 	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.Background())
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
