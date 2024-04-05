@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package gui
+package guiimpl
 
 import (
 	"encoding/json"
@@ -75,7 +75,7 @@ func sendRunningChecks(w http.ResponseWriter, _ *http.Request) {
 
 // Schedules a specific check
 func runCheckHandler(collector collector.Component, ac autodiscovery.Component) func(_ http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(_ http.ResponseWriter, r *http.Request) {
 		// Fetch the desired check
 		name := mux.Vars(r)["name"]
 		instances := pkgcollector.GetChecksByNameForConfigs(name, ac.GetAllConfigs())
