@@ -30,6 +30,7 @@ import (
 type LogReporter struct {
 	hostname         string
 	pipelineProvider pipeline.Provider
+	auditor          auditor.Auditor
 	logSource        *sources.LogSource
 	logChan          chan *message.Message
 	endpoints        *config.Endpoints
@@ -69,6 +70,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 	return &LogReporter{
 		hostname:         hostname,
 		pipelineProvider: pipelineProvider,
+		auditor:          auditor,
 		logSource:        logSource,
 		logChan:          logChan,
 		endpoints:        endpoints,
@@ -79,6 +81,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 // Stop stops the LogReporter
 func (r *LogReporter) Stop() {
 	r.pipelineProvider.Stop()
+	r.auditor.Stop()
 }
 
 // Endpoints returns the endpoints associated with the log reporter.
