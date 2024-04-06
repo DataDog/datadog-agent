@@ -39,6 +39,7 @@ const (
 	catalogOverridePath = defaultRepositoriesPath + "/catalog.json"
 	// bootstrapVersionsOverridePath is the path to the bootstrap versions override file
 	bootstrapVersionsOverridePath = defaultRepositoriesPath + "/bootstrap.json"
+	bootUpdater                   = defaultRepositoriesPath + "/installer_boot"
 )
 
 var (
@@ -46,6 +47,11 @@ var (
 	// It is the sum of the maximum size of the extracted oci-layout and the maximum size of the datadog package
 	requiredDiskSpace = ociLayoutMaxSize + datadogPackageMaxSize
 	fsDisk            = filesystem.NewDisk()
+	avoidPurge        = map[string]struct{}{
+		catalogOverridePath:           {},
+		bootstrapVersionsOverridePath: {},
+		bootUpdater:                   {},
+	}
 )
 
 // Updater is the updater used to update packages.
@@ -107,7 +113,7 @@ func cleanDir(dir string, cleanFunc func(string) error) {
 
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
-		if path == catalogOverridePath || path == bootstrapVersionsOverridePath {
+		if _, ok := avoidPurge[path]; ok {
 			continue
 		}
 		err := cleanFunc(path)
