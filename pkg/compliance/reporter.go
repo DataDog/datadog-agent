@@ -39,8 +39,11 @@ type LogReporter struct {
 
 // NewLogReporter instantiates a new log LogReporter
 func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
-	// setup the pipeline provider that provides pairs of processor and sender
+	// setup the auditor
 	auditor := auditor.NewNullAuditor()
+	auditor.Start()
+
+	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agent.NewStatusProvider(), hostnameimpl.NewHostnameService(), coreconfig.Datadog)
 	pipelineProvider.Start()
 
