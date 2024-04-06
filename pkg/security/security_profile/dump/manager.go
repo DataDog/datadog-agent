@@ -238,10 +238,7 @@ func (adm *ActivityDumpManager) resolveTagsPerAd(ad *ActivityDump) {
 // resolveTags resolves activity dump container tags when they are missing
 func (adm *ActivityDumpManager) resolveTags() {
 	// fetch the list of dumps and release the manager as soon as possible
-	adm.Lock()
-	dumps := make([]*ActivityDump, len(adm.activeDumps))
-	copy(dumps, adm.activeDumps)
-	adm.Unlock()
+	dumps := adm.ClonedADs()
 
 	for _, ad := range dumps {
 		adm.resolveTagsPerAd(ad)
@@ -785,17 +782,16 @@ func (adm *ActivityDumpManager) TranscodingRequest(params *api.TranscodingReques
 
 // SendStats sends the activity dump manager stats
 func (adm *ActivityDumpManager) SendStats() error {
-	adm.Lock()
-	defer adm.Unlock()
+	activeDumps := adm.ClonedADs()
 
-	for _, ad := range adm.activeDumps {
+	for _, ad := range activeDumps {
 		if err := ad.SendStats(); err != nil {
 			return fmt.Errorf("couldn't send metrics for [%s]: %w", ad.GetSelectorStr(), err)
 		}
 	}
 
-	activeDumps := float64(len(adm.activeDumps))
-	if err := adm.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumps, activeDumps, []string{}, 1.0); err != nil {
+	activeDumpsCount := float64(len(activeDumps))
+	if err := adm.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumps, activeDumpsCount, []string{}, 1.0); err != nil {
 		seclog.Errorf("couldn't send MetricActivityDumpActiveDumps metric: %v", err)
 	}
 
@@ -974,6 +970,7 @@ func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.Workl
 	}
 
 	adm.Lock()
+	// TODO: fix this bug because len(activeDumps) is always 0 here
 	activeDumps := make([]*ActivityDump, 0, len(adm.activeDumps))
 	copy(activeDumps, adm.activeDumps)
 	adm.Unlock()
@@ -989,4 +986,14 @@ func (adm *ActivityDumpManager) StopDumpsWithSelector(selector cgroupModel.Workl
 	}
 	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
+}
+
+// ClonedADs returns a copy of the active dumps, locking while doing the copy
+func (adm *ActivityDumpManager) ClonedADs() []*ActivityDump {
+	adm.Lock()
+	defer adm.Unlock()
+
+	ads := make([]*ActivityDump, len(adm.activeDumps))
+	copy(ads, adm.activeDumps)
+	return ads
 }
