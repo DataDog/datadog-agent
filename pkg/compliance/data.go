@@ -66,6 +66,7 @@ type CheckContainerMeta struct {
 	ImageID     string `json:"image_id"`
 	ImageName   string `json:"image_name"`
 	ImageTag    string `json:"image_tag"`
+	RepoDigest  string `json:"repo_digest"`
 }
 
 // CheckEvent is the data structure sent to the backend as a result of a rule
@@ -81,7 +82,6 @@ type CheckEvent struct {
 	ResourceType string                 `json:"resource_type,omitempty"`
 	ResourceID   string                 `json:"resource_id,omitempty"`
 	Container    *CheckContainerMeta    `json:"container,omitempty"`
-	K8SManaged   *string                `json:"k8s_managed,omitempty"`
 	Tags         []string               `json:"tags"`
 	Data         map[string]interface{} `json:"data"`
 

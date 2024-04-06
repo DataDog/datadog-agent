@@ -19,6 +19,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -124,8 +125,6 @@ type Agent struct {
 
 	finish chan struct{}
 	cancel context.CancelFunc
-
-	k8sManaged *string
 }
 
 func xccdfEnabled() bool {
@@ -218,11 +217,6 @@ func (a *Agent) Start() error {
 			return a.getChecksStatus()
 		}),
 	)
-
-	_, k8sResourceData := k8sconfig.LoadConfiguration(ctx, a.opts.HostRoot)
-	if k8sResourceData != nil && k8sResourceData.ManagedEnvironment != nil {
-		a.k8sManaged = &k8sResourceData.ManagedEnvironment.Name
-	}
 
 	var wg sync.WaitGroup
 
@@ -403,8 +397,27 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 		if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, "kubernetes-configuration") {
 			return
 		}
-		k8sResourceType, k8sResourceData := k8sconfig.LoadConfiguration(ctx, a.opts.HostRoot)
-		a.reportResourceLog(checkInterval, NewResourceLog(a.opts.Hostname, k8sResourceType, k8sResourceData))
+		procs, err := process.ProcessesWithContext(ctx)
+		if err == nil {
+			groups := groupProcesses(procs, k8sconfig.GetProcResourceType)
+			for keyGroup, procs := range groups {
+				var rootPath string
+				if keyGroup.containerID != "" {
+					overlayPath, err := utils.GetContainerOverlayPath(procs[0].Pid)
+					if err != nil {
+						log.Warnf("failed to get overlay path for container: %v", err)
+					} else {
+						rootPath = filepath.Join(a.opts.HostRoot, overlayPath)
+					}
+				} else {
+					rootPath = a.opts.HostRoot
+				}
+				resourceType, resource, ok := k8sconfig.LoadConfiguration(ctx, rootPath, procs)
+				if ok {
+					a.reportResourceLog(defaultCheckIntervalLowPriority, keyGroup.containerID, resourceType, resource)
+				}
+			}
+		}
 		if sleepAborted(ctx, runTicker.C) {
 			return
 		}
@@ -435,7 +448,7 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 			return
 		}
 		aptResourceType, aptResourceData := aptconfig.LoadConfiguration(ctx, a.opts.HostRoot)
-		a.reportResourceLog(checkInterval, NewResourceLog(a.opts.Hostname, aptResourceType, aptResourceData))
+		a.reportResourceLog(checkInterval, "", aptResourceType, aptResourceData)
 		if sleepAborted(ctx, runTicker.C) {
 			return
 		}
@@ -456,7 +469,8 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 			continue
 		}
 		groups := groupProcesses(procs, dbconfig.GetProcResourceType)
-		for keyGroup, proc := range groups {
+		for keyGroup, procs := range groups {
+			proc := procs[0]
 			if keyGroup.containerID != "" {
 				if err := a.reportDBConfigurationFromSystemProbe(ctx, keyGroup.containerID, proc.Pid); err != nil {
 					log.Warnf("error reporting DB configuration from system-probe: %s", err)
@@ -464,8 +478,7 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 			} else {
 				resourceType, resource, ok := dbconfig.LoadConfiguration(ctx, a.opts.HostRoot, proc)
 				if ok {
-					log := NewResourceLog(a.opts.Hostname, resourceType, resource)
-					a.reportResourceLog(defaultCheckIntervalLowPriority, log)
+					a.reportResourceLog(defaultCheckIntervalLowPriority, "", resourceType, resource)
 				}
 			}
 		}
@@ -512,11 +525,7 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, contai
 		return err
 	}
 	if resource != nil {
-		dbResourceLog := NewResourceLog(a.opts.Hostname+"_"+string(containerID), resource.Type, resource.Config)
-		dbResourceLog.Container = &CheckContainerMeta{
-			ContainerID: string(containerID),
-		}
-		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
+		a.reportResourceLog(defaultCheckIntervalLowPriority, containerID, resource.Type, resource.Config)
 	}
 	return nil
 }
@@ -526,8 +535,8 @@ type procGroup struct {
 	containerID utils.ContainerID
 }
 
-func groupProcesses(procs []*process.Process, getKey func(*process.Process) (string, bool)) map[procGroup]*process.Process {
-	groups := make(map[procGroup]*process.Process)
+func groupProcesses(procs []*process.Process, getKey func(*process.Process) (string, bool)) map[procGroup][]*process.Process {
+	groups := make(map[procGroup][]*process.Process)
 	for _, proc := range procs {
 		key, ok := getKey(proc)
 		if !ok {
@@ -543,24 +552,58 @@ func groupProcesses(procs []*process.Process, getKey func(*process.Process) (str
 			key:         key,
 			containerID: containerID,
 		}
-		if _, ok := groups[groupKey]; !ok {
-			groups[groupKey] = proc
-		}
+		groups[groupKey] = append(groups[groupKey], proc)
 	}
 	return groups
 }
 
-func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
+func (a *Agent) reportResourceLog(resourceTTL time.Duration, containerID utils.ContainerID, resourceType string, resource interface{}) {
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
-	resourceLog.ExpireAt = &expireAt
-	if a.wmeta != nil && resourceLog.Container != nil {
-		if ctnr, _ := a.wmeta.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
-			resourceLog.Container.ImageID = ctnr.Image.ID
-			resourceLog.Container.ImageName = ctnr.Image.Name
-			resourceLog.Container.ImageTag = ctnr.Image.Tag
+	var resourceLog *ResourceLog
+	if ctnrID := string(containerID); ctnrID != "" {
+		// If we have a pod, we can get more information about the container
+		// name from the Pod metadata.
+		if cpod, err := a.wmeta.GetKubernetesPodForContainer(ctnrID); err == nil {
+			resourceLog = NewResourceLog(a.opts.Hostname+"_"+cpod.Name, resourceType, resource)
+			for _, ctrn := range cpod.Containers {
+				if ctrn.ID == ctnrID {
+					resourceLog.Container = &CheckContainerMeta{
+						ContainerID: ctnrID,
+						ImageID:     ctrn.Image.ID,
+						ImageName:   ctrn.Image.Name,
+						ImageTag:    ctrn.Image.Tag,
+						RepoDigest:  ctrn.Image.RepoDigest,
+					}
+					break
+				}
+			}
 		}
+		if resourceLog == nil {
+			// If we don't have a pod, we can still get the container name from
+			// the container's image metadata.
+			ctnr, err := a.wmeta.GetContainer(ctnrID)
+			if err != nil {
+				log.Warnf("could not find container for container ID %q", containerID)
+			} else if ctnr == nil {
+				log.Warnf("could not find container for container ID %q (container is nil)", containerID)
+			} else {
+				resourceLog = NewResourceLog(ctnr.Image.Name+"_"+ctnrID, resourceType, resource)
+				resourceLog.Container = &CheckContainerMeta{
+					ContainerID: ctnrID,
+					ImageID:     ctnr.Image.ID,
+					ImageName:   ctnr.Image.Name,
+					ImageTag:    ctnr.Image.Tag,
+					RepoDigest:  ctnr.Image.RepoDigest,
+				}
+			}
+		}
+	} else {
+		resourceLog = NewResourceLog(a.opts.Hostname, resourceType, resource)
 	}
-	a.opts.Reporter.ReportEvent(resourceLog)
+	if resourceLog != nil {
+		resourceLog.ExpireAt = &expireAt
+		a.opts.Reporter.ReportEvent(resourceLog)
+	}
 }
 
 func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent) {
@@ -578,7 +621,6 @@ func (a *Agent) reportCheckEvents(eventsTTL time.Duration, events ...*CheckEvent
 				event.Container.ImageTag = ctnr.Image.Tag
 			}
 		}
-		event.K8SManaged = a.k8sManaged
 		a.opts.Reporter.ReportEvent(event)
 	}
 }

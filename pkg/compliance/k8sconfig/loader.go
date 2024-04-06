@@ -36,7 +36,6 @@ const (
 	k8sKubeconfigsDir = "/etc/kubernetes"
 )
 
-type procsLoader func(ctx context.Context) []proc
 type proc struct {
 	name  string
 	flags map[string]string
@@ -54,14 +53,29 @@ type loader struct {
 // The knowledge of each components specificities is based on the
 // k8s_types_generator.go utility that encodes every relevant flags
 // specificities (see types_generated.go).
-func LoadConfiguration(ctx context.Context, hostroot string) (string, *K8sNodeConfig) {
+func LoadConfiguration(ctx context.Context, hostroot string, procs []*process.Process) (string, *K8sNodeConfig, bool) {
 	l := &loader{hostroot: hostroot}
-	return l.load(ctx, l.loadProcesses)
+	var processes []proc
+	for _, proc := range procs {
+		name, err := proc.NameWithContext(ctx)
+		if err != nil {
+			l.pushError(err)
+			continue
+		}
+		cmdline, err := proc.CmdlineSliceWithContext(ctx)
+		if err != nil {
+			l.pushError(err)
+			continue
+		}
+		processes = append(processes, buildProc(name, cmdline))
+	}
+	if len(processes) == 0 {
+		return "", nil, false
+	}
+	return l.load(processes)
 }
 
-// NOTE(jinroh): the reason we rely on the loadProcesses argument is to simplify
-// our testing to mock the process table. see loader_test.go
-func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *K8sNodeConfig) {
+func (l *loader) load(procs []proc) (string, *K8sNodeConfig, bool) {
 	node := K8sNodeConfig{Version: version}
 
 	node.KubeletService = l.loadServiceFileMeta([]string{
@@ -89,7 +103,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 		node.Manifests.Etcd = c
 	}
 
-	for _, proc := range loadProcesses(ctx) {
+	for _, proc := range procs {
 		switch proc.name {
 		case "etcd":
 			node.Components.Etcd = l.newK8sEtcdConfig(proc.flags)
@@ -120,7 +134,7 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 		}
 	}
 
-	resourceType := "kubernetes_worker_node"
+	var resourceType string
 	if managedEnv := node.ManagedEnvironment; managedEnv != nil {
 		switch managedEnv.Name {
 		case "eks":
@@ -135,9 +149,11 @@ func (l *loader) load(ctx context.Context, loadProcesses procsLoader) (string, *
 		node.Components.KubeControllerManager != nil ||
 		node.Components.KubeScheduler != nil {
 		resourceType = "kubernetes_master_node"
+	} else if node.Components.Kubelet != nil {
+		resourceType = "kubernetes_worker_node"
 	}
 
-	return resourceType, &node
+	return resourceType, &node, resourceType != ""
 }
 
 func (l *loader) detectManagedEnvironment(flags map[string]string, kubelet *K8sKubeletConfig) *K8sManagedEnvConfig {
@@ -578,33 +594,19 @@ func printColumnSeparatedHex(d []byte) string {
 	return sb.String()
 }
 
-func (l *loader) loadProcesses(ctx context.Context) []proc {
-	var procs []proc
-	processes, err := process.ProcessesWithContext(ctx)
+// GetProcResourceType returns the resource type of the given process.
+func GetProcResourceType(proc *process.Process) (string, bool) {
+	name, err := proc.Name()
 	if err != nil {
-		l.pushError(err)
-		return nil
+		return "", false
 	}
-	for _, p := range processes {
-		name, err := p.Name()
-		if err != nil {
-			l.pushError(err)
-			continue
-		}
-		switch name {
-		case "etcd",
-			"kube-apiserver", "apiserver",
-			"kube-controller-manager", "kube-controller", "controller-manager",
-			"kube-scheduler", "kubelet", "kube-proxy":
-			cmdline, err := p.CmdlineSlice()
-			if err != nil {
-				l.pushError(err)
-			} else {
-				procs = append(procs, buildProc(name, cmdline))
-			}
-		}
+	switch name {
+	case "etcd", "kube-apiserver", "apiserver",
+		"kube-controller-manager", "kube-controller", "controller-manager",
+		"kube-scheduler", "kubelet", "kube-proxy":
+		return "kubernetes", true
 	}
-	return procs
+	return "", false
 }
 
 func (l *loader) pushError(err error) {
