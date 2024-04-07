@@ -654,10 +654,9 @@ func (adm *ActivityDumpManager) HasActiveActivityDump(event *model.Event) bool {
 		return false
 	}
 
-	adm.Lock()
-	defer adm.Unlock()
+	activeDumps := adm.ClonedADs()
 
-	for _, d := range adm.activeDumps {
+	for _, d := range activeDumps {
 		d.Lock()
 		matches := d.MatchesSelector(event.ProcessCacheEntry)
 		state := d.state
