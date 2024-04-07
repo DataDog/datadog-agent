@@ -53,6 +53,7 @@ func RegisterProviders(providerCatalog map[string]ConfigProviderFactory) {
 	RegisterProvider(names.KubeEndpointsRegisterName, NewKubeEndpointsConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesFileRegisterName, NewKubeServiceFileConfigProvider, providerCatalog)
 	RegisterProvider(names.KubeServicesRegisterName, NewKubeServiceConfigProvider, providerCatalog)
+	RegisterProvider(names.NetworkPathRegisterName, NewNetworkPathConfigProvider, providerCatalog)
 	RegisterProvider(names.PrometheusPodsRegisterName, NewPrometheusPodsConfigProvider, providerCatalog)
 	RegisterProvider(names.PrometheusServicesRegisterName, NewPrometheusServicesConfigProvider, providerCatalog)
 	RegisterProvider(names.ZookeeperRegisterName, NewZookeeperConfigProvider, providerCatalog)

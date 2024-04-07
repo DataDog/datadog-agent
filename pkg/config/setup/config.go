@@ -711,6 +711,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	// Network Path
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
+	config.BindEnvAndSetDefault("network_path.active_connections.enabled", false)
 
 	// Kube ApiServer
 	config.BindEnvAndSetDefault("kubernetes_kubeconfig_path", "")
