@@ -1,0 +1,40 @@
+# This file contains a mapping of DataDog Github teams to slack channels.
+# The DEFAULT_SLACK_CHANNEL value is interpreted as '#agent-developer-experience'.
+# Note that the values must be quoted if they contain a '#' symbol, because
+# YAML interprets that as the beginning of a comment. Keys must also be quoted
+# because the '@' symbol is reserved in YAML.
+'@datadog/agent-platform': DEFAULT_SLACK_CHANNEL
+'@datadog/documentation': DEFAULT_SLACK_CHANNEL
+'@datadog/container-integrations': '#container-integrations'
+'@datadog/container-ecosystems': '#container-ecosystems'
+'@datadog/platform-integrations': '#platform-integrations-ops'
+'@datadog/agent-security': '#security-and-compliance-agent-ops'
+'@datadog/agent-apm': '#apm-agent'
+'@datadog/network-device-monitoring': '#network-device-monitoring'
+'@datadog/processes': '#process-agent-ops'
+'@datadog/agent-metrics-logs': '#agent-metrics-logs'
+'@datadog/agent-shared-components': '#agent-shared-components'
+'@datadog/container-app': '#container-app'
+'@datadog/metrics-aggregation': '#metrics-aggregation'
+'@datadog/serverless': '#serverless-agent'
+'@datadog/remote-config': '#remote-config-monitoring'
+'@datadog/fleet': '#fleet-automation'
+'@datadog/agent-all': '#datadog-agent-pipelines'
+'@datadog/ebpf-platform': '#ebpf-platform-ops'
+'@datadog/networks': '#network-performance-monitoring'
+'@datadog/universal-service-monitoring': '#universal-service-monitoring'
+'@datadog/windows-agent': '#windows-agent-ops'
+'@datadog/windows-kernel-integrations': '#windows-kernel-integrations-ops'
+'@datadog/opentelemetry': '#opentelemetry-ops'
+'@datadog/agent-e2e-testing': '#agent-testing-and-qa'
+'@datadog/software-integrity-and-trust': '#sit'
+'@datadog/single-machine-performance': '#single-machine-performance'
+'@datadog/agent-integrations': '#agent-integrations'
+'@datadog/debugger': '#debugger-ops-prod'
+'@datadog/database-monitoring': '#database-monitoring'
+'@datadog/agent-cspm': '#k9-cspm-ops'
+'@datadog/telemetry-and-analytics': '#instrumentation-telemetry'
+'@datadog/asm-go': '#k9-asm-library-go'
+'@datadog/agent-build-and-releases': '#agent-build-and-releases'
+'@datadog/agent-ci-experience': '#agent-developer-experience'
+'@datadog/agent-developer-tools': '#agent-developer-experience'

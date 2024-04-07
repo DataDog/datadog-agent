@@ -1,0 +1,40 @@
+# This file contains a mapping of DataDog Github teams to JIRA projects.
+# The DEFAULT_JIRA_PROJECT value is interpreted as "AGNTR".
+# Note that keys must be quoted because the '@' symbol is reserved in YAML.
+'@datadog/agent-platform': APL
+'@datadog/documentation': DOCS
+'@datadog/container-integrations': CONTINT
+'@datadog/container-ecosystems': CECO
+'@datadog/platform-integrations': PLINT
+'@datadog/agent-security': CWS
+'@datadog/agent-apm': AIT
+'@datadog/network-device-monitoring': NDMII
+'@datadog/processes': PROCS
+'@datadog/agent-metrics-logs': AMLII
+'@datadog/agent-shared-components': ASCII
+'@datadog/container-app': CAP
+'@datadog/metrics-aggregation': AGGR
+'@datadog/serverless': SVLS
+'@datadog/remote-config': RC
+'@datadog/fleet': FA
+'@datadog/agent-all': DEFAULT_JIRA_PROJECT
+'@datadog/ebpf-platform': EBPF
+'@datadog/networks': NPM
+'@datadog/universal-service-monitoring': USMON
+'@datadog/windows-agent': WINA
+'@datadog/windows-kernel-integrations': WKINT
+'@datadog/opentelemetry': OTEL
+'@datadog/agent-e2e-testing': APL
+'@datadog/software-integrity-and-trust': SINT
+'@datadog/single-machine-performance': SMP
+'@datadog/agent-integrations': AI
+'@datadog/debugger': DEBUG
+'@datadog/database-monitoring': DBMON
+'@datadog/agent-cspm': SEC
+'@datadog/telemetry-and-analytics': DEFAULT_JIRA_PROJECT
+'@datadog/asm-go': APPSEC
+'@datadog/agent-build-and-releases': BARX
+'@datadog/agent-developer-tools': ADXT
+'@datadog/agent-ci-experience': ACIX
+'@datadog/apm-onboarding': APMON
+'@datadog/agent-processing-and-routing': APR

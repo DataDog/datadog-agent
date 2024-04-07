@@ -11,7 +11,6 @@
 package probe
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -38,7 +37,7 @@ type KillActionReport struct {
 // JKillActionReport used to serialize date
 // easyjson:json
 type JKillActionReport struct {
-	Name       string              `json:"type"`
+	Type       string              `json:"type"`
 	Signal     string              `json:"signal"`
 	Scope      string              `json:"scope"`
 	CreatedAt  utils.EasyjsonTime  `json:"created_at"`
@@ -49,17 +48,15 @@ type JKillActionReport struct {
 }
 
 // ToJSON marshal the action
-func (k *KillActionReport) ToJSON() ([]byte, error) {
+func (k *KillActionReport) ToJSON() ([]byte, bool, error) {
 	k.RLock()
 	defer k.RUnlock()
 
 	// for sigkill wait for exit
-	if k.Signal == "SIGKILL" && !k.resolved {
-		return nil, errors.New("not resolved")
-	}
+	resolved := k.Signal != "SIGKILL" || k.resolved
 
 	jk := JKillActionReport{
-		Name:       rules.KillAction,
+		Type:       rules.KillAction,
 		Signal:     k.Signal,
 		Scope:      k.Scope,
 		CreatedAt:  utils.NewEasyjsonTime(k.CreatedAt),
@@ -72,5 +69,10 @@ func (k *KillActionReport) ToJSON() ([]byte, error) {
 		jk.TTR = k.ExitedAt.Sub(k.CreatedAt).String()
 	}
 
-	return utils.MarshalEasyJSON(jk)
+	data, err := utils.MarshalEasyJSON(jk)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return data, resolved, nil
 }

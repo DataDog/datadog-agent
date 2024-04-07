@@ -11,6 +11,7 @@ package tests
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"path"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"text/template"
 	"time"
@@ -28,6 +30,7 @@ import (
 
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -79,9 +82,14 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 
 func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
 
-func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, _ func() []string, _ string) {
+func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() []string, service string) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
+
+	// forward to the API server
+	if tm.cws != nil {
+		tm.cws.APIServer().SendEvent(rule, event, extTagsCb, service)
+	}
 
 	switch ev := event.(type) {
 	case *events.CustomEvent:
@@ -698,6 +706,10 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		opts.securityProfileDir = "/tmp/activity_dumps/profiles"
 	}
 
+	if opts.securityProfileMaxImageTags <= 0 {
+		opts.securityProfileMaxImageTags = 3
+	}
+
 	erpcDentryResolutionEnabled := true
 	if opts.disableERPCDentryResolution {
 		erpcDentryResolutionEnabled = false
@@ -733,6 +745,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
 		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
 		"EnableSecurityProfile":                      opts.enableSecurityProfile,
+		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
 		"EnableAutoSuppression":                      opts.enableAutoSuppression,
@@ -800,4 +813,58 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 	secconfig.Probe.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
 	return emconfig, secconfig, nil
+}
+
+type fakeMsgSender struct {
+	sync.Mutex
+
+	testMod *testModule
+	msgs    map[eval.RuleID]*api.SecurityEventMessage
+}
+
+func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, expireFnc func(*api.SecurityEventMessage)) {
+	fs.Lock()
+	defer fs.Unlock()
+
+	msgStruct := struct {
+		AgentContext events.AgentContext `json:"agent"`
+	}{}
+
+	if err := json.Unmarshal(msg.Data, &msgStruct); err != nil {
+		fs.testMod.t.Fatal(err)
+	}
+
+	fs.msgs[msgStruct.AgentContext.RuleID] = msg
+}
+
+func (fs *fakeMsgSender) getMsg(ruleID eval.RuleID) *api.SecurityEventMessage {
+	fs.Lock()
+	defer fs.Unlock()
+
+	return fs.msgs[ruleID]
+}
+
+func (fs *fakeMsgSender) flush() {
+	fs.Lock()
+	defer fs.Unlock()
+
+	fs.msgs = make(map[eval.RuleID]*api.SecurityEventMessage)
+}
+
+func newFakeMsgSender(testMod *testModule) *fakeMsgSender {
+	return &fakeMsgSender{
+		testMod: testMod,
+		msgs:    make(map[eval.RuleID]*api.SecurityEventMessage),
+	}
+}
+
+func jsonPathValidation(testMod *testModule, data []byte, fnc func(testMod *testModule, obj interface{})) {
+	var obj interface{}
+
+	if err := json.Unmarshal(data, &obj); err != nil {
+		testMod.t.Error(err)
+		return
+	}
+
+	fnc(testMod, obj)
 }

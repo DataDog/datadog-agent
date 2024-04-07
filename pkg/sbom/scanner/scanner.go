@@ -44,19 +44,26 @@ type Scanner struct {
 	// cacheMutex is used to protect the cache from concurrent access
 	// It cannot be cleaned when a scan is running
 	cacheMutex sync.Mutex
+
+	wmeta optional.Option[workloadmeta.Component]
 }
 
 // NewScanner creates a new SBOM scanner. Call Start to start the store and its
 // collectors.
-func NewScanner(cfg config.Config) *Scanner {
+func NewScanner(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) *Scanner {
 	return &Scanner{
-		scanQueue: workqueue.NewRateLimitingQueue(
+		scanQueue: workqueue.NewRateLimitingQueueWithConfig(
 			workqueue.NewItemExponentialFailureRateLimiter(
 				cfg.GetDuration("sbom.scan_queue.base_backoff"),
 				cfg.GetDuration("sbom.scan_queue.max_backoff"),
 			),
+			workqueue.RateLimitingQueueConfig{
+				Name:            "sbom_request",
+				MetricsProvider: telemetry.QueueMetricProvider{},
+			},
 		),
-		disk: filesystem.NewDisk(),
+		disk:  filesystem.NewDisk(),
+		wmeta: wmeta,
 	}
 }
 
@@ -78,7 +85,7 @@ func CreateGlobalScanner(cfg config.Config, wmeta optional.Option[workloadmeta.C
 		}
 	}
 
-	globalScanner = NewScanner(cfg)
+	globalScanner = NewScanner(cfg, wmeta)
 	return globalScanner, nil
 }
 
@@ -220,8 +227,8 @@ func (s *Scanner) handleScanRequest(ctx context.Context, r interface{}) {
 // getImageMetadata returns the image metadata if the collector is a container image collector
 // and the metadata is found in the store.
 func (s *Scanner) getImageMetadata(request sbom.ScanRequest) *workloadmeta.ContainerImageMetadata {
-	store := workloadmeta.GetGlobalStore()
-	if store == nil {
+	store, ok := s.wmeta.Get()
+	if !ok {
 		_ = log.Errorf("workloadmeta store is not initialized")
 		s.scanQueue.AddRateLimited(request)
 		return nil

@@ -35,6 +35,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -1183,6 +1184,38 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 			expectedEndpoints: nil,
 		},
+		{
+			name: "remainder + header remainder",
+			// Testing the scenario where we have both a remainder (a frame's payload split over 2 packets) and in the
+			// second packet, we have the remainder and a partial frame header of a new request. We're testing that we
+			// can capture the 2 requests in this scenario.
+			messageBuilder: func() [][]byte {
+				data := []byte("testcontent")
+				request1 := newFramer().
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).
+					writeData(t, 1, true, data).bytes()
+				request2 := newFramer().
+					writeHeaders(t, 3, usmhttp2.HeadersFrameOptions{Headers: headersWithGivenEndpoint("/bbb")}).
+					writeData(t, 3, true, emptyBody).bytes()
+				firstPacket := request1[:len(request1)-6]
+				secondPacket := append(request1[len(request1)-6:], request2[:5]...)
+				return [][]byte{
+					firstPacket,
+					secondPacket,
+					request2[5:],
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/bbb")},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1202,7 +1235,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				return validateStats(usmMonitor, res, tt.expectedEndpoints)
+				return validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -1389,7 +1422,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints))
+				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS))
 
 				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
@@ -1431,10 +1464,11 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 			name: "validate clean with remainder and header zero",
 			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
 			messageBuilder: func() [][]byte {
+				data := []byte("test12345")
 				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
-				b := newFramer().writeData(t, 1, true, []byte("test12345")).bytes()
-				message := append(a, b[11:]...)
+					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideContentLength: len(data)})}).bytes()
+				b := newFramer().writeData(t, 1, true, data).bytes()
+				message := append(a, b[:11]...)
 				return [][]byte{
 					// we split it in 11 bytes in order to split the payload itself.
 					message,
@@ -1461,7 +1495,6 @@ func (s *usmHTTP2Suite) TestRemainderTable() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			usmMonitor := setupUSMTLSMonitor(t, cfg)
 			if s.isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
@@ -1545,7 +1578,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints) {
+				if !validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
 					return false
 				}
 
@@ -1594,7 +1627,7 @@ func TestHTTP2InFlightMapCleaner(t *testing.T) {
 }
 
 // validateStats validates that the stats we get from the monitor are as expected.
-func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int) bool {
+func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
 	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
 			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
@@ -1603,6 +1636,10 @@ func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]i
 			// 200 as the status code.
 			if statusCode == 0 {
 				statusCode = 200
+			}
+			hasTag := stat.Data[statusCode].StaticTags == network.ConnTagGo
+			if hasTag != isTLS {
+				continue
 			}
 			count := stat.Data[statusCode].Count
 			newKey := usmhttp.Key{

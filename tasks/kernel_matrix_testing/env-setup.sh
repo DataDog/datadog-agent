@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -eo xtrace
+set -e
 
 DIR_NAME=$(dirname "$0")
 
@@ -35,7 +35,9 @@ else
         aria2 \
         fio \
         socat \
-        curl
+        curl \
+        libvirt \
+        gnu-sed
 fi
 
 pip3 install -r "${DIR_NAME}"/requirements.txt
@@ -46,5 +48,6 @@ fi
 
 
 # Pulumi Setup
+# shellcheck disable=SC1090
 source ~/.bashrc
 pulumi login --local

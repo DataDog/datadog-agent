@@ -31,10 +31,10 @@ func ExtractDeployment(d *appsv1.Deployment) *model.Deployment {
 	deploy.DeploymentStrategy = string(d.Spec.Strategy.Type)
 	if deploy.DeploymentStrategy == "RollingUpdate" && d.Spec.Strategy.RollingUpdate != nil {
 		if d.Spec.Strategy.RollingUpdate.MaxUnavailable != nil {
-			deploy.MaxUnavailable = d.Spec.Strategy.RollingUpdate.MaxUnavailable.StrVal
+			deploy.MaxUnavailable = d.Spec.Strategy.RollingUpdate.MaxUnavailable.String()
 		}
 		if d.Spec.Strategy.RollingUpdate.MaxSurge != nil {
-			deploy.MaxSurge = d.Spec.Strategy.RollingUpdate.MaxSurge.StrVal
+			deploy.MaxSurge = d.Spec.Strategy.RollingUpdate.MaxSurge.String()
 		}
 	}
 	if d.Spec.Selector != nil {

@@ -270,7 +270,6 @@ func TestConverter(t *testing.T) {
 		"apm_config.apm_non_local_traffic": true,
 		"dogstatsd_non_local_traffic":      true,
 		"skip_ssl_validation":              false,
-		"apm_config.log_throttling":        true, // trace.config.log_throttling
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetBool(k), k)

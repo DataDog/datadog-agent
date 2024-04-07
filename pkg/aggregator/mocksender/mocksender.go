@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -42,7 +43,7 @@ func CreateDefaultDemultiplexer() *aggregator.AgentDemultiplexer {
 	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, log, forwarder.NewOptions(config.Datadog, log, nil))
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostnameimpl.NewHostnameService()))
-	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, "")
+	return aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, compressionimpl.NewMockCompressor(), "")
 
 }
 
@@ -90,6 +91,16 @@ func (m *MockSender) SetupAcceptAll() {
 		mock.AnythingOfType("[]string"), // Tags
 		mock.AnythingOfType("bool"),     // FlushFirstValue
 	).Return()
+	metricWithTimestampCalls := []string{"GaugeWithTimestamp", "CountWithTimestamp"}
+	for _, call := range metricWithTimestampCalls {
+		m.On(call,
+			mock.AnythingOfType("string"),   // Metric
+			mock.AnythingOfType("float64"),  // Value
+			mock.AnythingOfType("string"),   // Hostname
+			mock.AnythingOfType("[]string"), // Tags
+			mock.AnythingOfType("float64"),  // Timestamp
+		).Return(nil)
+	}
 	m.On("ServiceCheck",
 		mock.AnythingOfType("string"),                          // checkName (e.g: docker.exit)
 		mock.AnythingOfType("servicecheck.ServiceCheckStatus"), // (e.g: servicecheck.ServiceCheckOK)

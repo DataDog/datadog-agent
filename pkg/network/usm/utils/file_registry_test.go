@@ -157,6 +157,40 @@ func TestFilePathInCallbackArgument(t *testing.T) {
 	assert.Equal(t, expectedPath, capturedPath)
 }
 
+func TestRelativeFilePathInCallbackArgument(t *testing.T) {
+	var capturedPath string
+	callback := func(f FilePath) error {
+		capturedPath = f.HostPath
+		return nil
+	}
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	// If cwd has symlinks, then the result of `filepath.Rel` below is not
+	// necessarily a valid path.
+	cwd, err = filepath.EvalSymlinks(cwd)
+	require.NoError(t, err)
+
+	path, _ := createTempTestFile(t, "foobar")
+
+	relpath, err := filepath.Rel(cwd, path)
+	require.NoError(t, err)
+
+	cmd, err := testutil.OpenFromAnotherProcess(t, relpath)
+	require.NoError(t, err)
+	pid := cmd.Process.Pid
+
+	r := newFileRegistry()
+	r.Register(relpath, uint32(pid), callback, callback)
+
+	// Assert that the callback paths match the pattern <proc_root>/<pid>/cwd/<path>.
+	// We need to avoid `filepath.Join` for the last component since using
+	// since that would `Clean` the path, removing the relative components.
+	expectedPath := filepath.Join(r.procRoot, strconv.Itoa(pid), "cwd") + string(filepath.Separator) + relpath
+	assert.Equal(t, expectedPath, capturedPath)
+}
+
 func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 	path := filepath.Join(t.TempDir(), name)
 

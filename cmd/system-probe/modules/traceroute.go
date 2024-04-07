@@ -9,7 +9,9 @@ package modules
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
@@ -45,12 +47,12 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		vars := mux.Vars(req)
 		id := getClientID(req)
-		host := vars["host"]
-
-		cfg := tracerouteutil.Config{
-			DestHostname: host,
+		cfg, err := parseParams(req)
+		if err != nil {
+			log.Errorf("invalid params for host: %s: %s", cfg.DestHostname, err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 
 		// Run traceroute
@@ -73,7 +75,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		runCount := runCounter.Inc()
-		logTracerouteRequests(host, id, runCount, start)
+		logTracerouteRequests(cfg.DestHostname, id, runCount, start)
 	})
 
 	return nil
@@ -94,4 +96,36 @@ func logTracerouteRequests(host string, client string, runCount uint64, start ti
 	default:
 		log.Debugf(msg, args...)
 	}
+}
+
+func parseParams(req *http.Request) (tracerouteutil.Config, error) {
+	vars := mux.Vars(req)
+	host := vars["host"]
+	port, err := parseUint(req, "port", 16)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid port: %s", err)
+	}
+	maxTTL, err := parseUint(req, "max_ttl", 8)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
+	}
+	timeout, err := parseUint(req, "timeout", 32)
+	if err != nil {
+		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
+	}
+
+	return tracerouteutil.Config{
+		DestHostname: host,
+		DestPort:     uint16(port),
+		MaxTTL:       uint8(maxTTL),
+		TimeoutMs:    uint(timeout),
+	}, nil
+}
+
+func parseUint(req *http.Request, field string, bitSize int) (uint64, error) {
+	if req.URL.Query().Has(field) {
+		return strconv.ParseUint(req.URL.Query().Get(field), 10, bitSize)
+	}
+
+	return 0, nil
 }

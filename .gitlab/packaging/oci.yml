@@ -1,64 +1,76 @@
-packaging_oci:
+.package_oci:
   stage: packaging
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules: !reference [.on_a7]
-  needs:
-    [
-      "agent_remote_updater-x64-a7",
-      "agent_remote_updater-arm64-a7",
-    ]
-  variables:
-    KUBERNETES_CPU_REQUEST: 16
-    KUBERNETES_MEMORY_REQUEST: "32Gi"
-    KUBERNETES_MEMORY_LIMIT: "32Gi"
+  before_script:
+    - source /root/.bashrc
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
+    - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}-1
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
     - export GITHUB_APP_ID=682216
-    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)
-    - export SIMPLE_VERSION=$(inv agent.version --no-include-git --no-include-pre --major-version 7)
     - set +x
     - export GH_TOKEN=$(inv -e github.get-token-from-app --app-id-env=GITHUB_APP_ID --pkey-env=GITHUB_KEY_B64)
     - git config --global credential.helper '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; };f'
     - cd /tmp/
-    - git clone https://github.com/DataDog/datadog-packages
+    - for i in $(seq 1 5); do git clone --depth=1 https://github.com/DataDog/datadog-packages && break; done
     - cd datadog-packages/cmd/datadog-package
     - go build .
     - OUTPUT_DIR="/tmp/oci_output"
+    - mkdir -p ${OUTPUT_DIR}
     - |
       for ARCH in "amd64" "arm64"; do
-        INPUT_FILE="$OMNIBUS_PACKAGE_DIR/datadog${FLAVOR:+-$FLAVOR}-agent-*${ARCH}.tar.xz"
-        OUTPUT_FILE="$(basename -a -s .xz $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1)"
+        INPUT_FILE="$OMNIBUS_PACKAGE_DIR/${OCI_PRODUCT}-*${ARCH}.tar.xz"
+        OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
         MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
         export MERGED_FILE
         INPUT_DIR="/tmp/input_${ARCH}"
         mkdir -p ${INPUT_DIR}
-        mkdir -p ${OUTPUT_DIR}
         echo "Generating OCI for $ARCH."
         echo "Extracting to temporary input dir $INPUT_FILE -> $INPUT_DIR"
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
         ./datadog-package create \
           --version ${PACKAGE_VERSION} \
-          --package datadog-agent \
+          --package ${OCI_PRODUCT} \
           --os linux \
           --arch ${ARCH} \
           --archive --archive-path "${OUTPUT_DIR}/${OUTPUT_FILE}" \
-          ${INPUT_DIR}/opt/datadog-packages/datadog-agent/${SIMPLE_VERSION}*/
+          ${INPUT_DIR}/${INSTALL_DIR}/
         rm -f ${INPUT_FILE}
       done
     - echo "Aggregating all layers into one package -> ${MERGED_FILE}"
     - ls -l ${OUTPUT_DIR}/
     - ./datadog-package merge ${OUTPUT_DIR}/*.tar
-    - mkdir -p ${OMNIBUS_PACKAGE_DIR}
     # We need to propagate the exact version in the pipeline artifact
     - cp merged.tar ${OMNIBUS_PACKAGE_DIR}/${MERGED_FILE}
     # Only the major version is needed in the S3 bucket
-    - $S3_CP_CMD merged.tar $S3_ARTIFACTS_URI/datadog-agent_7_oci.tar
-  before_script:
-    - source /root/.bashrc
+    - $S3_CP_CMD merged.tar $S3_ARTIFACTS_URI/${OCI_PRODUCT}_7_oci.tar
   artifacts:
     paths:
       - ${OMNIBUS_PACKAGE_DIR}
 
+
+agent_oci:
+  extends: .package_oci
+  needs:
+    [
+      "agent_remote_updater-x64-a7",
+      "agent_remote_updater-arm64-a7",
+    ]
+  variables:
+    OCI_PRODUCT: "datadog-agent"
+
+updater_oci:
+  extends: .package_oci
+  needs:
+    [
+      "updater-arm64-oci",
+      "updater-amd64-oci",
+    ]
+  variables:
+    OCI_PRODUCT: "datadog-updater"
