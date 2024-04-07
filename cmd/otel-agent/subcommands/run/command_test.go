@@ -3,18 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build otlp
-
-package main
+package run
 
 import (
+	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestFxRun(t *testing.T) {
-	// TODO: (components) "missing type: *aggregator.AgentDemultiplexer"
-	t.SkipNow()
-	fxutil.TestOneShot(t, main)
+	fxutil.TestRun(t, func() error {
+		ctx := context.Background()
+		cliParams := &subcommands.GlobalParams{}
+		return runOTelAgentCommand(ctx, cliParams)
+	})
 }
