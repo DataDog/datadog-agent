@@ -16,7 +16,7 @@ import (
 )
 
 // NetworkPathConfigProvider implements the Config Provider interface, it should
-// be called periodically and returns templates from Cloud Foundry BBS for AutoConf.
+// be called periodically and returns network_path integration instances.
 type NetworkPathConfigProvider struct {
 	lastCollected time.Time
 }
