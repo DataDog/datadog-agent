@@ -681,10 +681,9 @@ func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	adm.Lock()
-	defer adm.Unlock()
+	activeDumps := adm.ClonedADs()
 
-	for _, d := range adm.activeDumps {
+	for _, d := range activeDumps {
 		d.Insert(event)
 	}
 }
