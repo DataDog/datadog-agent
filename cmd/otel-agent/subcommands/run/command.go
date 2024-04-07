@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -91,6 +93,11 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			return corelogimpl.ForOneShot(params.LoggerName, "debug", true)
 		}),
 		logs.Bundle(),
+		// We create strategy.ZlibStrategy directly to avoid build tags
+		fx.Provide(strategy.NewZlibStrategy),
+		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
+			return s
+		}),
 		fx.Provide(serializer.NewSerializer),
 		// For FX to provide the serializer.MetricSerializer from the serializer.Serializer
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
