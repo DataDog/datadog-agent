@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
-	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -43,10 +42,6 @@ import (
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
-
-var (
-	signalTypeSet = attribute.NewSet(attribute.String("signal", "traces"))
-)
 
 var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 
@@ -65,6 +60,11 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	computeTopLevelBySpanKindVal := 0.0
+	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelBySpanKindVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing}
 }
 
@@ -185,7 +185,7 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), signalTypeSet)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -264,7 +264,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	p := Payload{
 		Source:                 tagstats,
 		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -520,8 +520,14 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	for k, v := range rattr {
 		setMetaOTLP(span, k, v)
 	}
+
+	spanKind := in.Kind()
+	if o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelAndMeasured(span, spanKind)
+	}
+
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
-	setMetaOTLP(span, "span.kind", spanKindName(in.Kind()))
+	setMetaOTLP(span, "span.kind", spanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
@@ -718,4 +724,23 @@ func spanKindName(k ptrace.SpanKind) string {
 		return "unknown"
 	}
 	return name
+}
+
+// computeTopLevelAndMeasured updates the span's top-level and measured attributes.
+//
+// An OTLP span is considered top-level if it is a root span or has a span kind of server or consumer.
+// An OTLP span is marked as measured if it has a span kind of client or producer.
+func computeTopLevelAndMeasured(span *pb.Span, spanKind ptrace.SpanKind) {
+	if span.ParentID == 0 {
+		// span is a root span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer {
+		// span is a server-side span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer {
+		// span is a client-side span, not top-level but we still want stats
+		traceutil.SetMeasured(span, true)
+	}
 }

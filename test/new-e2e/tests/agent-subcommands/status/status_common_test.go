@@ -8,12 +8,13 @@ package status
 import (
 	"fmt"
 	"regexp"
-	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type baseStatusSuite struct {
@@ -59,7 +60,7 @@ type expectedSection struct {
 }
 
 // verifySectionContent verifies that a specific status section behaves as expected (is correctly present or not, contains specific strings or not)
-func verifySectionContent(t *testing.T, statusOutput string, section expectedSection) {
+func verifySectionContent(t require.TestingT, statusOutput string, section expectedSection) {
 	sectionContent, err := getStatusComponentContent(statusOutput, section.name)
 
 	if section.shouldBePresent {
@@ -180,9 +181,12 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		},
 	}
 
-	status := v.Env().Agent.Client.Status()
+	// the test will not run until the core-agent is running, but it can run before the process-agent or trace-agent are running
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		status := v.Env().Agent.Client.Status()
 
-	for _, section := range expectedSections {
-		verifySectionContent(v.T(), status.Content, section)
-	}
+		for _, section := range expectedSections {
+			verifySectionContent(t, status.Content, section)
+		}
+	}, 2*time.Minute, 20*time.Second)
 }

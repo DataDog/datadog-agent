@@ -10,16 +10,25 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy *schedulers.MockSourceManager) {
-	ac = autodiscoveryimpl.CreateMockAutoConfig(t, nil)
+	ac = fxutil.Test[autodiscovery.Mock](t,
+		fx.Supply(autodiscoveryimpl.MockParams{}),
+		autodiscoveryimpl.MockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		core.MockBundle())
 	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return

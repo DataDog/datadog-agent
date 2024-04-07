@@ -101,10 +101,10 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	require.NoError(t, err)
 	port := u.Port()
 
-	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
 	mockConfig.SetWithoutSource("expvar_port", port)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
+	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
 	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
 	mockConfig.SetWithoutSource("process_config.expvar_port", port)
 	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
@@ -144,9 +144,9 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 }
 
 func TestReadProfileDataErrors(t *testing.T) {
-	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
+	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)

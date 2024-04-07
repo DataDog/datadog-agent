@@ -59,7 +59,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost, true)
+		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -105,6 +105,13 @@ func (v *ec2VMSuite) BeforeTest(suiteName, testName string) {
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	}
+}
+
+// AfterTest will be called after each test
+func (v *ec2VMSuite) AfterTest(suiteName, testName string) {
+	test1HostFakeIntakeNPMDumpInfo(v.T(), v.Env().FakeIntake)
+
+	v.BaseSuite.AfterTest(suiteName, testName)
 }
 
 // TestFakeIntakeNPM_HostRequests Validate the agent can communicate with the (fake) backend and send connections every 30 seconds

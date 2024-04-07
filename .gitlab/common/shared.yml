@@ -18,7 +18,6 @@
   - set +x
   - *get_artifactory_token_linux
   - if [ "${USE_CACHING_PROXY_RUBY}" = "true" ] && [ "${ARTIFACTORY_BYPASS}" = "false" ]; then export BUNDLE_MIRROR__RUBYGEMS__ORG=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_GEMS_PATH}; fi
-  - set -x
 
 .setup_ruby_mirror_win:
   - *get_artifactory_bypass_win
@@ -30,9 +29,14 @@
   - set +x
   - *get_artifactory_token_linux
   - if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ] && [ "${ARTIFACTORY_BYPASS}" = "false" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
-  - set -x
 
 .setup_python_mirror_win:
   - *get_artifactory_bypass_win
   - *get_artifactory_token_win
   - if (($Env:USE_CACHING_PROXY_PYTHON -eq "true") -and ($Env:ARTIFACTORY_BYPASS -eq "false")) { $PIP_INDEX_URL="https://${Env:ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${Env:ARTIFACTORY_URL}/${Env:ARTIFACTORY_PYPI_PATH}" }
+
+.setup_deb_signing_key: &setup_deb_signing_key
+  - set +x
+  - DEB_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_GPG_KEY_SSM_NAME)
+  - printf -- "${DEB_GPG_KEY}" | gpg --import --batch
+  - export DEB_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $DEB_SIGNING_PASSPHRASE_SSM_NAME)

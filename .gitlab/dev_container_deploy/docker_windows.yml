@@ -1,12 +1,12 @@
 ---
 include:
-  - /.gitlab/common/container_publish_job_templates.yml
+  - .gitlab/common/container_publish_job_templates.yml
 
 dev_branch-a7-windows:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_a7_manual]
+    !reference [.manual]
   needs:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
@@ -37,7 +37,7 @@ dev_branch-a6-windows:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_a6_manual]
+    !reference [.manual]
   needs:
     - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows2022_core
@@ -53,7 +53,7 @@ dev_master-a7-windows:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_main_a7]
+    !reference [.on_main]
   needs:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
@@ -84,7 +84,7 @@ dev_master-a6-windows:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_main_a6]
+    !reference [.on_main]
   needs:
     - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows2022_core
@@ -100,7 +100,7 @@ dev_nightly-a7-windows:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_deploy_nightly_repo_branch_a7]
+    !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent7_windows1809
     - docker_build_agent7_windows1809_jmx
@@ -131,7 +131,7 @@ dev_nightly-a6-windows:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    !reference [.on_deploy_nightly_repo_branch_a6]
+    !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent6_windows1809_core
     - docker_build_agent6_windows2022_core

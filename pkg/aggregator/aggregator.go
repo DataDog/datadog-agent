@@ -450,7 +450,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	tagger.EnrichTags(tb, sc.OriginFromUDS, sc.OriginFromClient, sc.Cardinality)
+	tagger.EnrichTags(tb, sc.OriginInfo)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -464,7 +464,7 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	tagger.EnrichTags(tb, e.OriginFromUDS, e.OriginFromClient, e.Cardinality)
+	tagger.EnrichTags(tb, e.OriginInfo)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -831,6 +831,9 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	}
 	if withVersion {
 		tags = append(tags, "version:"+version.AgentVersion)
+		if version.AgentPackageVersion != "" {
+			tags = append(tags, "package_version:"+version.AgentPackageVersion)
+		}
 	}
 	// nil to empty string
 	// This is expected by other components/tests

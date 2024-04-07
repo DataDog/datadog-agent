@@ -632,6 +632,10 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 
 func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
 		switch {
 		// action.Kill has to handled by a ruleset listener
 		case action.Set != nil:

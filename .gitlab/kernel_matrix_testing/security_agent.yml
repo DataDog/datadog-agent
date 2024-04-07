@@ -1,6 +1,6 @@
 # Security agent overrides
-upload_dependencies_security_agent_x64:
-  needs: []
+upload_dependencies_secagent_x64:
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -10,8 +10,8 @@ upload_dependencies_security_agent_x64:
     INSTANCE_TYPE: m5d.metal
     TEST_COMPONENT: security-agent
 
-upload_dependencies_security_agent_arm64:
-  needs: []
+upload_dependencies_secagent_arm64:
+  needs: ["go_deps", "go_tools_deps"]
   extends:
     - .package_dependencies
   rules: !reference [.on_security_agent_changes_or_manual]
@@ -21,9 +21,9 @@ upload_dependencies_security_agent_arm64:
     INSTANCE_TYPE: m6gd.metal
     TEST_COMPONENT: security-agent
 
-kernel_matrix_testing_setup_env_security_agent_arm64:
+kmt_setup_env_secagent_arm64:
   extends:
-    - .kernel_matrix_testing_setup_env
+    - .kmt_setup_env
   rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     INSTANCE_TYPE: "m6gd.metal"
@@ -34,9 +34,9 @@ kernel_matrix_testing_setup_env_security_agent_arm64:
     TEST_COMPONENT: security-agent
     TEST_SETS: all_tests
 
-kernel_matrix_testing_setup_env_security_agent_x64:
+kmt_setup_env_secagent_x64:
   extends:
-    - .kernel_matrix_testing_setup_env
+    - .kmt_setup_env
   rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     INSTANCE_TYPE: "m5d.metal"
@@ -47,13 +47,13 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     TEST_COMPONENT: security-agent
     TEST_SETS: all_tests
 
-.upload_security_agent_tests:
+.upload_secagent_tests:
   stage: kernel_matrix_testing_prepare
   allow_failure: true
   rules: !reference [.on_security_agent_changes_or_manual]
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    - !reference [.kernel_matrix_testing_new_profile]
+    - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
     - !reference [.prepare_common_dependency_upload]
@@ -100,9 +100,9 @@ kernel_matrix_testing_setup_env_security_agent_x64:
     paths:
       - $CI_PROJECT_DIR/connector-${ARCH}
 
-upload_security_agent_tests_x64:
+upload_secagent_tests_x64:
   extends:
-    - .upload_security_agent_tests
+    - .upload_secagent_tests
   needs: ["go_deps", "prepare_ebpf_functional_tests_x64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -110,9 +110,9 @@ upload_security_agent_tests_x64:
     ARCH: x86_64
     INSTANCE_TYPE: m5d.metal
 
-upload_security_agent_tests_arm64:
+upload_secagent_tests_arm64:
   extends:
-    - .upload_security_agent_tests
+    - .upload_secagent_tests
   needs: ["go_deps", "prepare_ebpf_functional_tests_arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
@@ -120,23 +120,23 @@ upload_security_agent_tests_arm64:
     ARCH: arm64
     INSTANCE_TYPE: m6gd.metal
 
-.kernel_matrix_testing_run_security_agent_tests:
-  extends: .kernel_matrix_testing_run_tests
+.kmt_run_secagent_tests:
+  extends: .kmt_run_tests
   allow_failure: true
   stage: kernel_matrix_testing_security_agent
   rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     TEST_COMPONENT: security-agent
 
-kernel_matrix_testing_run_security_agent_tests_x64:
+kmt_run_secagent_tests_x64:
   extends:
-    - .kernel_matrix_testing_run_security_agent_tests
+    - .kmt_run_secagent_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    - kernel_matrix_testing_setup_env_security_agent_x64
-    - upload_dependencies_security_agent_x64
-    - upload_security_agent_tests_x64
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
   timeout: 3h
   variables:
     ARCH: "x86_64"
@@ -154,59 +154,70 @@ kernel_matrix_testing_run_security_agent_tests_x64:
           - "debian_10"
           - "debian_11"
           - "debian_12"
+          - "oracle_8.9"
+          - "oracle_9.3"
+          - "rocky_8.5"
+          - "rocky_9.3"
         TEST_SET: [all_tests]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
 
-kernel_matrix_testing_run_security_agent_tests_arm64:
+
+kmt_run_secagent_tests_arm64:
   extends:
-    - .kernel_matrix_testing_run_security_agent_tests
+    - .kmt_run_secagent_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
   needs:
-    - kernel_matrix_testing_setup_env_security_agent_arm64
-    - upload_dependencies_security_agent_arm64
-    - upload_security_agent_tests_arm64
+    - kmt_setup_env_secagent_arm64
+    - upload_dependencies_secagent_arm64
+    - upload_secagent_tests_arm64
   timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
     matrix:
       - TAG:
-          - "ubuntu_18.04"
-          - "ubuntu_20.04"
           - "ubuntu_22.04"
           - "ubuntu_23.10"
           - "amzn_5.4"
           - "amzn_5.10"
           - "fedora_37"
           - "fedora_38"
-          - "debian_10"
           - "debian_11"
           - "debian_12"
+          - "oracle_8.9"
+          - "oracle_9.3"
+          - "rocky_8.5"
+          - "rocky_9.3"
         TEST_SET: ["all_tests"]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
 
-.kernel_matrix_testing_security_agent_cleanup:
+.kmt_secagent_cleanup:
   extends:
-    - .kernel_matrix_testing_cleanup
+    - .kmt_cleanup
   rules: !reference [.on_security_agent_changes_or_manual]
   variables:
     TEST_COMPONENT: security-agent
 
-kernel_matrix_testing_security_agent_cleanup_arm64:
+kmt_secagent_cleanup_arm64:
   extends:
-    - .kernel_matrix_testing_security_agent_cleanup
+    - .kmt_secagent_cleanup
   needs:
-    - kernel_matrix_testing_setup_env_security_agent_arm64
-    - kernel_matrix_testing_run_security_agent_tests_arm64
+    - kmt_setup_env_secagent_arm64
+    - kmt_run_secagent_tests_arm64
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
 
-kernel_matrix_testing_security_agent_cleanup_x64:
+kmt_secagent_cleanup_x64:
   extends:
-    - .kernel_matrix_testing_security_agent_cleanup
+    - .kmt_secagent_cleanup
   needs:
-    - kernel_matrix_testing_setup_env_security_agent_x64
-    - kernel_matrix_testing_run_security_agent_tests_x64
+    - kmt_setup_env_secagent_x64
+    - kmt_run_secagent_tests_x64
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
