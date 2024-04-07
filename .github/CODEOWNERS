@@ -315,6 +315,7 @@
 /comp/core/autodiscovery/providers/config_reader*.go @DataDog/container-integrations @DataDog/agent-metrics-logs
 /comp/core/autodiscovery/providers/cloudfoundry*.go  @DataDog/platform-integrations
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
+/comp/core/autodiscovery/providers/network_path*.go  @DataDog/network-device-monitoring @DataDog/Networks
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-integrations
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
