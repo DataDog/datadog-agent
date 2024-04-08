@@ -362,7 +362,6 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        include_sds=include_sds,
     )
 
     # Use stdout if no profile is set
