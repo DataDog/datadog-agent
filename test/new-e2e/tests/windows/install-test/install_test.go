@@ -39,7 +39,7 @@ type agentMSISuite struct {
 }
 
 func TestMSI(t *testing.T) {
-	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.Provisioner())}
+	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgentNoFakeIntake())}
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
 	if err != nil {
