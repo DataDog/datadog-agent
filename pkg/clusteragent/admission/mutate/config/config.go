@@ -66,6 +66,16 @@ var (
 		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
 	}
 
+	defaultDdEntityIDEnvVar = corev1.EnvVar{
+		Name:  ddEntityIDEnvVarName,
+		Value: "",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{
+				FieldPath: "metadata.uid",
+			},
+		},
+	}
+
 	traceURLSocketEnvVar = corev1.EnvVar{
 		Name:  traceURLEnvVarName,
 		Value: config.Datadog.GetString("admission_controller.inject_config.trace_agent_socket"),
@@ -77,9 +87,15 @@ var (
 	}
 )
 
+// conf is the configuration for the webhook
+type conf struct {
+	injectContName bool
+}
+
 // Webhook is the webhook that injects DD_AGENT_HOST and DD_ENTITY_ID into a pod
 type Webhook struct {
 	name       string
+	config     conf
 	isEnabled  bool
 	endpoint   string
 	resources  []string
@@ -91,7 +107,10 @@ type Webhook struct {
 // NewWebhook returns a new Webhook
 func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
-		name:       webhookName,
+		name: webhookName,
+		config: conf{
+			injectContName: config.Datadog.GetBool("admission_controller.inject_config.inject_container_name"),
+		},
 		isEnabled:  config.Datadog.GetBool("admission_controller.inject_config.enabled"),
 		endpoint:   config.Datadog.GetString("admission_controller.inject_config.endpoint"),
 		resources:  []string{"pods"},
@@ -173,7 +192,11 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 		return false, errors.New(metrics.InvalidInput)
 	}
 
-	injectedEntity = injectIdentity(pod)
+	if w.config.injectContName {
+		injectedEntity = injectFullIdentity(pod)
+	} else {
+		injectedEntity = common.InjectEnv(pod, defaultDdEntityIDEnvVar)
+	}
 
 	return injectedConfig || injectedEntity, nil
 }
@@ -230,9 +253,9 @@ func injectIdentityInContainer(container *corev1.Container, prefix, podStr strin
 	return true
 }
 
-// injectIdentity injects `DD_INTERNAL_CONTAINER_NAME`, `DD_INTERNAL_POD_UID` and `DD_ENTITY_ID`
+// injectFullIdentity injects `DD_INTERNAL_CONTAINER_NAME`, `DD_INTERNAL_POD_UID` and `DD_ENTITY_ID`
 // as `en-(init.)$(DD_INTERNAL_POD_UID)/$(DD_INTERNAL_CONTAINER_NAME)`.
-func injectIdentity(pod *corev1.Pod) bool {
+func injectFullIdentity(pod *corev1.Pod) bool {
 	injected := false
 	podStr := common.PodString(pod)
 	for i := range pod.Spec.Containers {
