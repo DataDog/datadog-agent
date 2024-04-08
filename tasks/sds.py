@@ -9,7 +9,10 @@ is_windows = sys.platform == "win32"
 is_darwin = sys.platform == "darwin"
 
 @task
-def build_sds_library(ctx):
+def build_library(ctx):
+    """
+    Build the SDS shared library
+    """
     if is_windows:
         print("not supported")
         return
