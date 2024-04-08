@@ -186,12 +186,6 @@ class TestE2EKubernetes(unittest.TestCase):
                 f"Sending event message for rule `{agent_rule_name}`",
             )
 
-            wait_agent_log(
-                "security-agent",
-                self.kubernetes_helper,
-                "Successfully posted payload to",
-            )
-
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
             event = self.app.wait_app_log(f"rule_id:{agent_rule_name}")
             attributes = event["data"][0]["attributes"]

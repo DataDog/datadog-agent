@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	sectelemetry "github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // telemetry reports environment information (e.g containers running) when the runtime security component is running
@@ -28,13 +28,14 @@ type telemetry struct {
 	logProfiledWorkloads  bool
 }
 
-func newTelemetry(senderManager sender.SenderManager, wmeta workloadmeta.Component, logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
+func newTelemetry(statsdClient statsd.ClientInterface, wmeta workloadmeta.Component, logProfiledWorkloads, ignoreDDAgentContainers bool) (*telemetry, error) {
 	runtimeSecurityClient, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err
 	}
 
-	containersTelemetry, err := sectelemetry.NewContainersTelemetry(senderManager, wmeta)
+	telemetrySender := sectelemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
+	containersTelemetry, err := sectelemetry.NewContainersTelemetry(telemetrySender, wmeta)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +143,7 @@ func (t *telemetry) reportProfiledContainers() error {
 	if t.logProfiledWorkloads && len(missing) > 0 {
 		log.Infof("not yet profiled workloads (%d/%d): %v; finished profiling: %v", len(missing), len(profiled), missing, doneProfiling)
 	}
-	t.containers.Sender.Gauge(metrics.MetricActivityDumpNotYetProfiledWorkload, float64(len(missing)), "", nil)
+	t.containers.TelemetrySender.Gauge(metrics.MetricActivityDumpNotYetProfiledWorkload, float64(len(missing)), nil)
 	return nil
 }
 

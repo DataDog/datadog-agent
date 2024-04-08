@@ -21,13 +21,13 @@ import (
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type tooLargeEntityStatsEntry struct {
@@ -202,12 +202,12 @@ func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest,
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender sender.Sender) {
+func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
 	for entry, count := range storage.tooLargeEntities {
 		if entityCount := count.Swap(0); entityCount > 0 {
 			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
-			sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", tags)
+			_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(entityCount), tags, 1.0)
 		}
 	}
 }
