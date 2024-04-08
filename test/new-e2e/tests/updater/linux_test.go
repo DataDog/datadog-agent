@@ -30,7 +30,7 @@ const (
 	logDir         = "/var/log/datadog"
 	locksDir       = "/var/run/datadog-packages"
 	packagesDir    = "/opt/datadog-packages"
-	bootUpdaterDir = "/opt/datadog-packages/installer_boot"
+	bootUpdaterDir = "/opt/datadog-installer"
 )
 
 type vmUpdaterSuite struct {
@@ -77,7 +77,7 @@ func (v *vmUpdaterSuite) TestSharedAgentDirs() {
 }
 
 func (v *vmUpdaterSuite) TestUpdaterDirs() {
-	for _, dir := range []string{locksDir, packagesDir} {
+	for _, dir := range []string{locksDir, packagesDir, bootUpdaterDir} {
 		require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "dd-installer\n", v.Env().RemoteHost.MustExecute(`stat -c "%G" `+dir))
 	}

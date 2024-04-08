@@ -39,7 +39,6 @@ const (
 	catalogOverridePath = defaultRepositoriesPath + "/catalog.json"
 	// bootstrapVersionsOverridePath is the path to the bootstrap versions override file
 	bootstrapVersionsOverridePath = defaultRepositoriesPath + "/bootstrap.json"
-	bootUpdater                   = defaultRepositoriesPath + "/installer_boot"
 )
 
 var (
@@ -50,7 +49,6 @@ var (
 	avoidPurge        = map[string]struct{}{
 		catalogOverridePath:           {},
 		bootstrapVersionsOverridePath: {},
-		bootUpdater:                   {},
 	}
 )
 
