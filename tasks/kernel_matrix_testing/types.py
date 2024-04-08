@@ -76,7 +76,7 @@ VMDef = Tuple[Recipe, str, ArchOrLocal]
 
 
 class HasName(Protocol):
-    def name(self) -> str:
+    def name(self) -> str:  # noqa: U100
         ...
 
 
@@ -93,3 +93,16 @@ class SSHKey(TypedDict):
 
 class KMTConfig(TypedDict, total=False):
     ssh: SSHKey  # noqa: F841
+
+
+StackOutputMicroVM = TypedDict(
+    'StackOutputMicroVM', {'id': str, 'ip': 'str', 'ssh-key-path': str, 'tag': str, 'vmset-tags': List[str]}
+)
+
+
+class StackOutputArchData(TypedDict):
+    ip: str
+    microvms: List[StackOutputMicroVM]
+
+
+StackOutput = Dict[Arch, StackOutputArchData]
