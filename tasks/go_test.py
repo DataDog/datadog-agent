@@ -142,7 +142,7 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
             os.chmod(self.cov_test_path, 0o755)
             os.chmod(self.call_ps1_from_bat, 0o755)
 
-        return self.cov_test_path_sh if platform.system() != 'Windows' else self.call_ps1_from_bat
+        return self.cov_test_path_sh if platform.system() != 'Windows' else self.cov_test_path_ps1
 
     def __exit__(self, *_):
         if self.coverage:
