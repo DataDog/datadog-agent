@@ -11,6 +11,7 @@
 
 .get_artifactory_bypass_win: &get_artifactory_bypass_win
   - $ARTIFACTORY_BYPASS=$(& "$env:CI_PROJECT_DIR\tools\ci\aws_ssm_get_wrapper.ps1" $ARTIFACTORY_BYPASS_SSM_NAME)
+  - echo $ARTIFACTORY_BYPASS
   - if ($Env:ARTIFACTORY_BYPASS -eq "true") { Write-Host "Bypassing Artifactory" }
 
 .setup_ruby_mirror_linux:
