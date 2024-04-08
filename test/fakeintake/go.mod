@@ -7,7 +7,7 @@ replace github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.4
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/kr/pretty v0.3.1
