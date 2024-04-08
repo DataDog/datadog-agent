@@ -524,9 +524,6 @@ func (ad *ActivityDump) Insert(event *model.Event) {
 		// check dump size
 		ad.checkInMemorySize()
 	}
-
-	//nolint:gosimple // TODO(SEC) Fix gosimple linter
-	return
 }
 
 // FindMatchingRootNodes return the matching nodes of requested comm
