@@ -64,11 +64,6 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 		ValueSize:  0,
 		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditKeyValue,
 	}
-}
-
-// EnableFailedConnRingbufferViaMapEditor sets up the ring buffer for failed connection events via a map editor
-func EnableFailedConnRingbufferViaMapEditor(mgrOpts *manager.Options) {
-	log.Info("adamk enabling failed connection ring buffer via map editor")
 	mgrOpts.MapSpecEditors[probes.FailedConnEventMap] = manager.MapSpecEditor{
 		Type:       cebpf.RingBuf,
 		MaxEntries: uint32(computeDefaultFailedConnectionsRingBufferSize()),

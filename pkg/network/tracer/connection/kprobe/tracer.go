@@ -251,7 +251,6 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	if FailedConnectionsSupported(config) {
 		util.AddBoolConst(&mgrOpts, "tcp_failed_connections_enabled", true)
-		util.EnableFailedConnRingbufferViaMapEditor(&mgrOpts)
 	}
 
 	// Use the config to determine what kernel probes should be enabled
