@@ -328,7 +328,6 @@
 /pkg/collector/corechecks/ebpf/probe/ebpfcheck/       @DataDog/ebpf-platform
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/        @Datadog/agent-ci-experience
-/pkg/collector/corechecks/embed/jmx/    @Datadog/agent-metrics-logs
 /pkg/collector/corechecks/embed/apm/            @Datadog/agent-ci-experience @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process/  @Datadog/agent-ci-experience @DataDog/processes
 /pkg/collector/corechecks/network-devices/         @DataDog/network-device-monitoring
