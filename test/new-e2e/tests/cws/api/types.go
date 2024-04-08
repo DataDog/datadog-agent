@@ -5,12 +5,6 @@
 
 package api
 
-import (
-	"encoding/json"
-
-	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
-)
-
 // AgentContext represents the context of an agent
 type AgentContext struct {
 	RuleID string `json:"rule_id" mapstructure:"rule_id"`
@@ -19,18 +13,18 @@ type AgentContext struct {
 
 // Event represents a cws event
 type Event struct {
-	log   *datadogV2.LogAttributes `json:"-" mapstructure:"-"`
-	Agent AgentContext             `json:"agent" mapstructure:"agent"`
+	marshaler func() ([]byte, error) `json:"-" mapstructure:"-"`
+	Tags      []string               `json:"-" mapstructure:"-"`
+	// log       *datadogV2.LogAttributes `json:"-" mapstructure:"-"`
+	Agent AgentContext `json:"agent" mapstructure:"agent"`
 }
 
 // MarshalJSON marshals the event to JSON
 func (e *Event) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.log.Attributes)
-}
-
-// Tags returns the tags of the event
-func (e *Event) Tags() []string {
-	return e.log.Tags
+	if e.marshaler == nil {
+		return nil, nil
+	}
+	return e.marshaler()
 }
 
 // Evt contains information about a rule event
@@ -44,6 +38,11 @@ type RuleEvent struct {
 	Evt     `json:"evt" mapstructure:"evt"`
 	Process Process `json:"process" mapstructure:"process"`
 	File    File    `json:"file" mapstructure:"file"`
+}
+
+// Get implements the GetterFromPointer interface
+func (e *RuleEvent) Get() *Event {
+	return &e.Event
 }
 
 // File represents a file
@@ -68,6 +67,11 @@ type RulesetLoadedEvent struct {
 	Policies []Policy `json:"policies" mapstructure:"policies"`
 }
 
+// Get implements the GetterFromPointer interface
+func (e *RulesetLoadedEvent) Get() *Event {
+	return &e.Event
+}
+
 // ContainsPolicy checks if a policy, given its source and name, is contained in the ruleset loaded event
 func (e *RulesetLoadedEvent) ContainsPolicy(policySource string, policyName string) bool {
 	for _, policy := range e.Policies {
@@ -83,4 +87,9 @@ type SelftestsEvent struct {
 	Event          `mapstructure:",squash"`
 	SucceededTests []string `json:"succeeded_tests" mapstructure:"succeeded_tests"`
 	FailedTests    []string `json:"failed_tests" mapstructure:"failed_tests"`
+}
+
+// Get implements the GetterFromPointer interface
+func (e *SelftestsEvent) Get() *Event {
+	return &e.Event
 }

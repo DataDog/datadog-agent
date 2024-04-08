@@ -26,7 +26,7 @@ type eventValidationCb[T any] func(e T)
 
 func testRulesetLoaded(t assert.TestingT, ts testSuite, policySource string, policyName string, extraValidations ...eventValidationCb[*api.RulesetLoadedEvent]) {
 	query := fmt.Sprintf("rule_id:ruleset_loaded host:%s @policies.source:%s @policies.name:%s", ts.Hostname(), policySource, policyName)
-	rulesetLoaded, err := ts.Client().GetAppRulesetLoadedEvent(query)
+	rulesetLoaded, err := api.GetAppEvent[api.RulesetLoadedEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get %s/%s ruleset_loaded event for host %s", policySource, policyName, ts.Hostname()) {
 		return
 	}
@@ -42,7 +42,7 @@ func testRulesetLoaded(t assert.TestingT, ts testSuite, policySource string, pol
 
 func testRuleEvent(t assert.TestingT, ts testSuite, ruleID string, extraValidations ...eventValidationCb[*api.RuleEvent]) {
 	query := fmt.Sprintf("rule_id:%s host:%s", ruleID, ts.Hostname())
-	ruleEvent, err := ts.Client().GetAppRuleEvent(query)
+	ruleEvent, err := api.GetAppEvent[api.RuleEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get %s event for host %s", ruleID, ts.Hostname()) {
 		return
 	}
@@ -104,7 +104,7 @@ func testCwsEnabled(t assert.TestingT, ts testSuite) {
 
 func testSelftestsEvent(t assert.TestingT, ts testSuite, extraValidations ...eventValidationCb[*api.SelftestsEvent]) {
 	query := fmt.Sprintf("rule_id:self_test host:%s", ts.Hostname())
-	selftestsEvent, err := ts.Client().GetAppSelftestsEvent(query)
+	selftestsEvent, err := api.GetAppEvent[api.SelftestsEvent](ts.Client(), query)
 	if !assert.NoErrorf(t, err, "could not get selftests event for host %s", ts.Hostname()) {
 		return
 	}

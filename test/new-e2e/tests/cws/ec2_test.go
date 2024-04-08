@@ -209,8 +209,8 @@ func (a *agentSuite) Test02OpenSignal() {
 		testRuleEvent(collect, a, agentRuleName, func(e *api.RuleEvent) {
 			assert.Equal(collect, "open", e.Evt.Name, "event name should be open")
 			assert.Equal(collect, filepath, e.File.Path, "file path does not match")
-			assert.Contains(collect, e.Tags(), "tag1", "missing event tag")
-			assert.Contains(collect, e.Tags(), "tag2", "missing event tag")
+			assert.Contains(collect, e.Tags, "tag1", "missing event tag")
+			assert.Contains(collect, e.Tags, "tag2", "missing event tag")
 		})
 	}, 2*time.Minute, 20*time.Second)
 

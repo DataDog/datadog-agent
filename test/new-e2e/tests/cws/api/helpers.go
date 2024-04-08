@@ -6,6 +6,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
@@ -27,56 +28,27 @@ func (c *Client) GetSignal(query string) (*datadogV2.SecurityMonitoringSignalAtt
 	return nil, ErrNoSignalFound
 }
 
-// GetAppRulesetLoadedEvent returns a ruleset loaded event
-func (c *Client) GetAppRulesetLoadedEvent(query string) (*RulesetLoadedEvent, error) {
-	log, err := c.getLastMatchingLog(query)
-	if err != nil {
-		return nil, err
-	}
-	ruleset := RulesetLoadedEvent{
-		Event: Event{
-			log: log,
-		},
-	}
-	err = mapstructure.Decode(log.Attributes, &ruleset)
-	if err != nil {
-		return nil, err
-	}
-	return &ruleset, nil
+// GetterFromPointer is a type constraint for log-based events
+type GetterFromPointer[T any, E any] interface {
+	*T
+	Get() E
 }
 
-// GetAppRuleEvent returns a rule event
-func (c *Client) GetAppRuleEvent(query string) (*RuleEvent, error) {
+// GetAppEvent returns the last event matching the query
+func GetAppEvent[T any, PT GetterFromPointer[T, *Event]](c *Client, query string) (*T, error) {
 	log, err := c.getLastMatchingLog(query)
 	if err != nil {
 		return nil, err
 	}
-	event := RuleEvent{
-		Event: Event{
-			log: log,
-		},
-	}
-	err = mapstructure.Decode(log.Attributes, &event)
+	var e T
+	err = mapstructure.Decode(log.Attributes, &e)
 	if err != nil {
 		return nil, err
 	}
-	return &event, nil
-}
-
-// GetAppSelftestsEvent returns a selftests event
-func (c *Client) GetAppSelftestsEvent(query string) (*SelftestsEvent, error) {
-	log, err := c.getLastMatchingLog(query)
-	if err != nil {
-		return nil, err
+	ptr := PT(&e)
+	ptr.Get().marshaler = func() ([]byte, error) {
+		return json.Marshal(log.Attributes)
 	}
-	selftests := SelftestsEvent{
-		Event: Event{
-			log: log,
-		},
-	}
-	err = mapstructure.Decode(log.Attributes, &selftests)
-	if err != nil {
-		return nil, err
-	}
-	return &selftests, nil
+	ptr.Get().Tags = log.Tags
+	return &e, nil
 }
