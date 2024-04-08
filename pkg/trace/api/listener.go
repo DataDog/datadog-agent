@@ -109,6 +109,8 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 		} else {
 			ln.errored.Inc()
 		}
+		<-ln.sem
+		return nil, err
 	} else {
 		ln.accepted.Inc()
 		log.Tracef("Accepted connection named %q.", ln.name)
