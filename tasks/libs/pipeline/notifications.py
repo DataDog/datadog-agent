@@ -7,10 +7,11 @@ from collections import defaultdict
 from typing import Dict
 
 import yaml
+from invoke.context import Context
 
 from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
 from tasks.libs.owners.parsing import read_owners
-from tasks.libs.types.types import FailedJobs, Test
+from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
 
 
 def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> Dict[str, str]:
@@ -83,6 +84,11 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     owners = read_owners(owners_file)
     owners_to_notify = defaultdict(FailedJobs)
 
+    # For e2e test infrastructure errors, notify the agent-e2e-testing team
+    for job in failed_jobs.mandatory_infra_job_failures:
+        if job.failure_type == FailedJobReason.E2E_INFRA_FAILURE:
+            owners_to_notify["@datadog/agent-e2e-testing"].add_failed_job(job)
+
     for job in failed_jobs.all_non_infra_failures():
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
@@ -119,9 +125,11 @@ def base_message(header, state):
 {enhanced_commit_title} (<{commit_url_gitlab}|{commit_short_sha}>)(:github: <{commit_url_github}|link>) by {author}"""
 
 
-def get_git_author():
+def get_git_author(email=False):
+    format = 'ae' if email else 'an'
+
     return (
-        subprocess.check_output(["git", "show", "-s", "--format='%an'", "HEAD"])
+        subprocess.check_output(["git", "show", "-s", f"--format='%{format}'", "HEAD"])
         .decode('utf-8')
         .strip()
         .replace("'", "")
@@ -130,3 +138,11 @@ def get_git_author():
 
 def send_slack_message(recipient, message):
     subprocess.run(["postmessage", recipient, message], check=True)
+
+
+def email_to_slackid(ctx: Context, email: str) -> str:
+    slackid = ctx.run(f"echo '{email}' | email2slackid", hide=True, warn=True).stdout.strip()
+
+    assert slackid != '', 'Email not found'
+
+    return slackid

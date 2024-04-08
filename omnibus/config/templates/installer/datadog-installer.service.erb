@@ -1,14 +1,14 @@
 [Unit]
-Description=Datadog Updater
+Description=Datadog Installer
 After=network.target
 
 [Service]
 Type=simple
-PIDFile=<%= install_dir %>/run/updater.pid
-User=dd-updater
+PIDFile=<%= install_dir %>/run/installer.pid
+User=dd-installer
 Restart=on-failure
 EnvironmentFile=-<%= etc_dir %>/environment
-ExecStart=<%= install_dir %>/bin/updater/updater run -p <%= install_dir %>/run/updater.pid
+ExecStart=<%= install_dir %>/bin/installer/updater run -p <%= install_dir %>/run/installer.pid
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.
 StartLimitInterval=10

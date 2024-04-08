@@ -1,13 +1,12 @@
 ---
 
-.updater_package_rpm_common:
+.installer_package_rpm_common:
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export INSTALL_DIR=/opt/datadog/updater/
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
@@ -19,7 +18,7 @@
     - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
-    - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps
+    - inv -e installer.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps
     - ls -la $OMNIBUS_PACKAGE_DIR/
   stage: packaging
   artifacts:
@@ -27,22 +26,22 @@
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-updater_rpm-amd64:
-  extends: .updater_package_rpm_common
+installer_rpm-amd64:
+  extends: .installer_package_rpm_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["updater-amd64"]
+  needs: ["installer-amd64"]
   variables:
     PACKAGE_ARCH: x86_64
-    DESTINATION_RPM: "datadog-updater_7_amd64.rpm"
+    DESTINATION_RPM: "datadog-installer_7_amd64.rpm"
 
-updater_rpm-arm64:
-  extends: .updater_package_rpm_common
+installer_rpm-arm64:
+  extends: .installer_package_rpm_common
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["updater-arm64"]
+  needs: ["installer-arm64"]
   variables:
     PACKAGE_ARCH: aarch64
-    DESTINATION_RPM: "datadog-updater_7_arm64.rpm"
+    DESTINATION_RPM: "datadog-installer_7_arm64.rpm"
 
 

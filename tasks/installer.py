@@ -1,7 +1,6 @@
 """
-Updater namespaced tasks
+installer namespaced tasks
 """
-
 
 import os
 import sys
@@ -178,7 +177,7 @@ def omnibus_build(
         go_mod_cache=go_mod_cache,
     )
 
-    target_project = "updater"
+    target_project = "installer"
 
     with timed(quiet=True) as bundle_elapsed:
         bundle_install_omnibus(ctx, gem_path, env)

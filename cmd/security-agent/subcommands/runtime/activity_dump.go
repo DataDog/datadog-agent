@@ -11,7 +11,6 @@ package runtime
 import (
 	"fmt"
 	"os"
-	"sync"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -400,7 +399,6 @@ NEXT2:
 
 func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[string]bool) *dump.ActivityDump {
 	return &dump.ActivityDump{
-		Mutex: new(sync.Mutex),
 		ActivityTree: &activity_tree.ActivityTree{
 			ProcessNodes: diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
 		},

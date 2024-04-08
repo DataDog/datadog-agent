@@ -30,8 +30,8 @@ deploy_agent_oci:
   variables:
     OCI_PRODUCT: "datadog-agent"
 
-deploy_updater_oci:
+deploy_installer_oci:
   extends: ".deploy_packages_oci"
-  needs: [ "updater_oci" ]
+  needs: [ "installer_oci" ]
   variables:
-    OCI_PRODUCT: "datadog-updater"
+    OCI_PRODUCT: "datadog-installer"
