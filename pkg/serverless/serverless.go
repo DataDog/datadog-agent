@@ -141,7 +141,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
 
-			if !daemon.IsExecutionSpanComplete() {
+			if daemon.IsExecutionSpanIncomplete() {
 				finishTimeoutExecutionSpan(daemon, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 			}
 		}
@@ -234,5 +234,5 @@ func finishTimeoutExecutionSpan(daemon *daemon.Daemon, isColdStart bool, isProac
 	}
 	log.Debug("Could not complete the execution span due to a time out. Attempting to finish the span without details from the tracer.")
 	daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
-	daemon.SetExecutionSpanComplete(true)
+	daemon.SetExecutionSpanIncomplete(false)
 }

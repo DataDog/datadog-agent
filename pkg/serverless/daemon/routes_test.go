@@ -356,7 +356,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 	}
 }
 
-func TestStartEndInvocationIsExecutionSpanComplete(t *testing.T) {
+func TestStartEndInvocationIsExecutionSpanIncomplete(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
@@ -374,7 +374,7 @@ func TestStartEndInvocationIsExecutionSpanComplete(t *testing.T) {
 	assert.Nil(err)
 	startResp.Body.Close()
 	assert.True(m.OnInvokeStartCalled)
-	assert.False(d.IsExecutionSpanComplete())
+	assert.True(d.IsExecutionSpanIncomplete())
 
 	body = bytes.NewBuffer([]byte(`{}`))
 	endReq, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
@@ -383,7 +383,7 @@ func TestStartEndInvocationIsExecutionSpanComplete(t *testing.T) {
 	assert.Nil(err)
 	endResp.Body.Close()
 	assert.True(m.OnInvokeEndCalled)
-	assert.True(d.IsExecutionSpanComplete())
+	assert.False(d.IsExecutionSpanIncomplete())
 }
 
 // Helper function for reading test file

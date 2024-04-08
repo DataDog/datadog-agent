@@ -69,8 +69,8 @@ type Daemon struct {
 	// LambdaLibraryStateLock keeps track of whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryStateLock sync.Mutex
 
-	// executionSpanComplete indicates whether the Lambda span has been completed by the Extension
-	executionSpanComplete bool
+	// executionSpanIncomplete indicates whether the Lambda span has been completed by the Extension
+	executionSpanIncomplete bool
 
 	// ExecutionSpanStateLock keeps track of whether the serverless Invocation routes have been hit to complete the execution span
 	ExecutionSpanStateLock sync.Mutex
@@ -452,16 +452,16 @@ func (d *Daemon) IsLambdaLibraryDetected() bool {
 	return d.LambdaLibraryDetected
 }
 
-// IsExecutionSpanComplete checks if the Lambda execution span was finished
-func (d *Daemon) IsExecutionSpanComplete() bool {
+// IsExecutionSpanIncomplete checks if the Lambda execution span was finished
+func (d *Daemon) IsExecutionSpanIncomplete() bool {
 	d.ExecutionSpanStateLock.Lock()
 	defer d.ExecutionSpanStateLock.Unlock()
-	return d.executionSpanComplete
+	return d.executionSpanIncomplete
 }
 
-// SetExecutionSpanComplete keeps track of whether the Extension completed the Lambda execution span
-func (d *Daemon) SetExecutionSpanComplete(spanComplete bool) {
+// SetExecutionSpanIncomplete keeps track of whether the Extension completed the Lambda execution span
+func (d *Daemon) SetExecutionSpanIncomplete(spanIncomplete bool) {
 	d.ExecutionSpanStateLock.Lock()
 	defer d.ExecutionSpanStateLock.Unlock()
-	d.executionSpanComplete = spanComplete
+	d.executionSpanIncomplete = spanIncomplete
 }
