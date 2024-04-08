@@ -72,15 +72,16 @@ func SetupAgentUnits() (err error) {
 			return
 		}
 	}
+	// write installinfo before start, or the agent could write it
+	if err = installinfo.WriteInstallInfo("updater_package", "manual_update"); err != nil {
+		return
+	}
 	for _, unit := range stableUnits {
 		if err = startUnit(unit); err != nil {
 			return
 		}
 	}
-	if err = createAgentSymlink(); err != nil {
-		return
-	}
-	err = installinfo.WriteInstallInfo("updater_package", "manual_update_via_apt")
+	err = createAgentSymlink()
 	return
 }
 
