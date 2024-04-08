@@ -50,6 +50,7 @@ class FailedJobReason(Enum):
     GITLAB = 6
     KITCHEN = 7
     EC2_SPOT = 8
+    E2E_INFRA_FAILURE = 9
 
 
 class FailedJobs:
