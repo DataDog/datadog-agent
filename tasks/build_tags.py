@@ -26,6 +26,7 @@ ALL_TAGS = {
     "etcd",
     "fargateprocess",
     "gce",
+    "goexperiment.systemcrypto", ## enable go's FIPS compliant crypto libraries
     "jmx",
     "jetson",
     "kubeapiserver",
@@ -39,6 +40,7 @@ ALL_TAGS = {
     "podman",
     "process",
     "python",
+    "requirefips", ## causes process to panic if fips not enabled
     "sds",
     "serverless",
     "systemd",
@@ -179,6 +181,9 @@ UNIT_TEST_TAGS = {"test"}
 # List of tags to always remove when running unit tests
 UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf"}
 
+# List of tags for FIPS mode
+FIPS_TAGS = {"requirefips", "goexperiment.systemcrypto"}
+
 # Build type: maps flavor to build tags map
 build_tags = {
     AgentFlavor.base: {
@@ -285,6 +290,7 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, p
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
 
+    include.update(FIPS_TAGS)
     return sorted(filter_incompatible_tags(include, arch=arch, platform=platform))
 
 

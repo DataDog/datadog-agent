@@ -6,6 +6,7 @@
 package main
 
 import (
+	_ "crypto/tls/fipsonly"
 	_ "expvar"
 	_ "net/http/pprof"
 	"os"
