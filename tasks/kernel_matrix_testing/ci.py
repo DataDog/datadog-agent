@@ -34,7 +34,7 @@ class KMTJob:
 
     @property
     def pipeline_id(self) -> int:
-        return self.job.pipeline.id
+        return self.job.pipeline["id"]
 
     @property
     def name(self) -> str:
@@ -228,7 +228,7 @@ def get_all_jobs_for_pipeline(pipeline_id: Union[int, str]) -> Tuple[List[KMTSet
     test_jobs: List[KMTTestRunJob] = []
 
     gitlab = get_gitlab_repo()
-    jobs = gitlab.pipelines.get(pipeline_id, lazy=True).jobs.list(all=True)
+    jobs = gitlab.pipelines.get(pipeline_id, lazy=True).jobs.list(per_page=100, all=True)
     for job in jobs:
         name = job.name
         if name.startswith("kmt_setup_env"):

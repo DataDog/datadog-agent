@@ -852,8 +852,8 @@ def explain_ci_failure(_, pipeline: str):
 
             # Now check the artifacts, we'll guess why the job failed based on the size
             for artifact in job.job.artifacts:
-                if artifact["filename"] == "artifacts.zip":
-                    fsize = artifact["size"]
+                if artifact.get("filename") == "artifacts.zip":
+                    fsize = artifact.get("size", 0)
                     if fsize < 1500:
                         # This means we don't have the junit test results, assuming an infra
                         # failure because tests didn't even run
