@@ -4,7 +4,7 @@ from invoke.context import Context
 from tasks.libs.common.color import color_message
 
 
-@task()
+@task
 def shell_check_no_set_x(ctx: Context):
     """
     Check that shell scripts do not use 'set -x'"
@@ -13,8 +13,7 @@ def shell_check_no_set_x(ctx: Context):
 
     result = ctx.run(command, hide=True, warn=True)
     if result.return_code == 0:
-        print(result.stdout.strip())
-        print()
-        print(color_message('error:', 'red'), 'No shell script should use "set -x"')
+        print(result.stdout.strip(), end="\n\n")
+        print(color_message('error:', 'red'), 'No shell script should use "set -x"', file=sys.stderr)
 
         exit(1)
