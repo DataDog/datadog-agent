@@ -1,12 +1,14 @@
 import os
 import sys
 import tempfile
-from tasks.rtloader import get_dev_path
 
 from invoke import task
 
+from tasks.rtloader import get_dev_path
+
 is_windows = sys.platform == "win32"
 is_darwin = sys.platform == "darwin"
+
 
 @task
 def build_library(ctx):
@@ -34,4 +36,3 @@ def build_library(ctx):
                     ctx.run(f"cp target/release/libsds_go.so {lib_path}")
                     if os.path.exists(lib64_path):
                         ctx.run(f"cp target/release/libsds_go.so {lib64_path}")
-
