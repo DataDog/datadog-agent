@@ -8,13 +8,14 @@ package logs
 import (
 	"bufio"
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -119,12 +120,15 @@ func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
 	yet_another_key: 'dddd'`
 
-	cfg := pkgconfigsetup.Datadog
+	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 	// Setup the config with the ENV var keys
 	ddFlareStrippedKeys := "some_other_key"
 	ddScrubberAdditionalKeys := "app_key yet_another_key"
 	t.Setenv("DD_FLARE_STRIPPED_KEYS", ddFlareStrippedKeys)
 	t.Setenv("DD_SCRUBBER_ADDITIONAL_KEYS", ddScrubberAdditionalKeys)
+
+	cfg.BindEnv("flare_stripped_keys", "DD_FLARE_STRIPPED_KEYS")
+	cfg.BindEnv("scrubber.additional_keys", "DD_SCRUBBER_ADDITIONAL_KEYS")
 
 	getAdditionalKeysToScrubber := MergeAdditionalKeysToScrubber(
 		cfg.GetStringSlice("flare_stripped_keys"),
