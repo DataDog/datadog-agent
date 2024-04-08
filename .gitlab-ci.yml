@@ -358,6 +358,15 @@ variables:
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+.fakeintake_changes: &fakeintake_changes
+  changes:
+    paths:
+      - "test/fakeintake/**/*"
+      - .gitlab/binary_build/fakeintake.yml
+      - .gitlab/container_build/fakeintake.yml
+      - .gitlab/dev_container_deploy/fakeintake.yml
+    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
@@ -1009,14 +1018,6 @@ workflow:
       paths:
         - .go-version
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-
-.fakeintake_changes: &fakeintake_changes
-  changes:
-    - "test/fakeintake/**/*"
-    - .gitlab/binary_build/fakeintake.yml
-    - .gitlab/container_build/fakeintake.yml
-    - .gitlab/dev_container_deploy/fakeintake.yml
-    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_fakeintake_changes:
   - <<: *fakeintake_changes
