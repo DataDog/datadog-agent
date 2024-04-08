@@ -26,6 +26,7 @@ import (
 	"golang.org/x/exp/maps"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -40,6 +41,7 @@ type provides struct {
 
 	Comp          secrets.Component
 	FlareProvider flaretypes.Provider
+	Endpoints     []api.AgentEndpointProvider
 }
 
 type dependencies struct {
@@ -109,9 +111,15 @@ func newEnabledSecretResolver() *secretResolver {
 func newSecretResolverProvider(deps dependencies) provides {
 	resolver := newEnabledSecretResolver()
 	resolver.enabled = deps.Params.Enabled
+	infoEndpoint := InfoProvider{secretResolver: resolver}
+	refreshEndpoint := RefreshProvider{secretResolver: resolver}
 	return provides{
 		Comp:          resolver,
 		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
+		Endpoints: []api.AgentEndpointProvider{
+			api.NewAgentEndpointProvider(infoEndpoint, "/secrets", "GET"),
+			api.NewAgentEndpointProvider(refreshEndpoint, "/secret/refresh", "GET"),
+		},
 	}
 }
 

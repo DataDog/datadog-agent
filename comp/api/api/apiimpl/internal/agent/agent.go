@@ -31,13 +31,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -115,8 +116,6 @@ func SetupHandlers(
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
-	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
-	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
 	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
 	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
@@ -424,19 +423,6 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	}
 
 	w.Write(jsonDump)
-}
-
-func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
-	secretResolver.GetDebugInfo(w)
-}
-
-func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
-	result, err := secretResolver.Refresh()
-	if err != nil {
-		setJSONError(w, err, 500)
-		return
-	}
-	w.Write([]byte(result))
 }
 
 func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {

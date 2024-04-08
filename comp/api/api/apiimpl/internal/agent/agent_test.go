@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -66,9 +67,9 @@ type handlerdeps struct {
 	LogsAgent             optional.Option[logsAgent.Component]
 	HostMetadata          host.Component
 	InvAgent              inventoryagent.Component
+	SecretResolver        secrets.Component
 	Demux                 demultiplexer.Component
 	InvHost               inventoryhost.Component
-	SecretResolver        secrets.Component
 	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Mock
@@ -161,6 +162,11 @@ func TestSetupHandlers(t *testing.T) {
 			method:   "POST",
 			wantCode: 200,
 		},
+		{
+			route:    "/secrets",
+			method:   "GET",
+			wantCode: 200,
+		},
 	}
 	router := setupRoutes(t)
 	ts := httptest.NewServer(router)
@@ -175,6 +181,6 @@ func TestSetupHandlers(t *testing.T) {
 		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 
-		assert.Equal(t, tc.wantCode, resp.StatusCode)
+		assert.Equal(t, tc.wantCode, resp.StatusCode, "%s %s failed with a %d, want %d", tc.method, tc.route, resp.StatusCode, tc.wantCode)
 	}
 }
