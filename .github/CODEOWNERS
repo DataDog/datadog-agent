@@ -35,6 +35,7 @@
 /repository.datadog.yml                 @DataDog/agent-ci-experience
 /generate_tools.go                      @DataDog/agent-ci-experience
 /service.datadog.yaml                   @DataDog/agent-build-and-releases
+/.pre-commit-config.yaml                @DataDog/agent-developer-tools
 
 /.circleci/                             @DataDog/agent-ci-experience
 
@@ -123,6 +124,7 @@
 
 /.gitlab/source_test/ebpf.yml                        @DataDog/ebpf-platform @DataDog/agent-ci-experience
 /.gitlab/source_test/windows.yml                     @DataDog/agent-ci-experience @DataDog/windows-agent
+/.gitlab/source_test/go_generate_check.yml           @DataDog/agent-security
 
 /.gitlab/package_build/                              @DataDog/agent-build-and-releases
 /.gitlab/package_build/windows.yml                   @DataDog/agent-build-and-releases @DataDog/windows-agent
@@ -192,6 +194,7 @@
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/updater/                           @DataDog/fleet
+/cmd/installer/                         @DataDog/fleet
 
 /dev/                                   @DataDog/agent-developer-tools
 /devenv/                                @DataDog/agent-developer-tools
@@ -270,6 +273,7 @@
 /comp/metadata/packagesigning @DataDog/agent-build-and-releases
 /comp/trace/etwtracer @DataDog/windows-agent
 /comp/etw @DataDog/windows-agent
+/comp/serializer/compression @DataDog/agent-metrics-logs
 # END COMPONENTS
 
 # pkg
@@ -383,6 +387,7 @@
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/updater/                           @DataDog/fleet
+/pkg/installer/                         @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
@@ -513,6 +518,7 @@
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
 /tasks/updater.py                       @DataDog/fleet
+/tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-developer-tools
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
@@ -545,6 +551,8 @@
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
+/test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/network-device-monitoring
+/test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/network-device-monitoring
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-developer-tools
 /test/new-e2e/test-infra-definition           @DataDog/agent-developer-tools
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
@@ -565,6 +573,7 @@
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/updater                   @DataDog/fleet
+/test/new-e2e/tests/installer                 @DataDog/fleet
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

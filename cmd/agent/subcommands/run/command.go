@@ -8,7 +8,6 @@ package run
 
 import (
 	"context"
-	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
@@ -35,7 +34,8 @@ import (
 	// checks implemented as components
 
 	// core components
-	"github.com/DataDog/datadog-agent/comp/agent"
+
+	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -56,7 +56,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/process"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
+	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
 	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
@@ -222,6 +224,7 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	_ expvarserver.Component,
 	_ pid.Component,
 	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
@@ -341,12 +344,19 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(httpproxyStatus.GetProvider(config))
 		}),
+		fx.Supply(
+			rcclient.Params{
+				AgentName:    "core-agent",
+				AgentVersion: version.AgentVersion,
+			},
+		),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
@@ -469,17 +479,7 @@ func startAgent(
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
 
-	expvarPort := pkgconfig.Datadog.GetString("expvar_port")
 	http.Handle("/telemetry", telemetryHandler)
-	go func() {
-		common.ExpvarServer = &http.Server{
-			Addr:    fmt.Sprintf("127.0.0.1:%s", expvarPort),
-			Handler: http.DefaultServeMux,
-		}
-		if err := common.ExpvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Errorf("Error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
-		}
-	}()
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 
@@ -496,22 +496,18 @@ func startAgent(
 
 	// start remote configuration management
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		if err := rcclient.Start("core-agent"); err != nil {
-			pkglog.Errorf("Failed to start the RC client component: %s", err)
-		} else {
-			// Subscribe to `AGENT_TASK` product
-			rcclient.SubscribeAgentTask()
+		// Subscribe to `AGENT_TASK` product
+		rcclient.SubscribeAgentTask()
 
-			// Subscribe to `APM_TRACING` product
-			rcclient.SubscribeApmTracing()
+		// Subscribe to `APM_TRACING` product
+		rcclient.SubscribeApmTracing()
 
-			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
-				// Spin up the config provider to schedule integrations through remote-config
-				rcProvider := providers.NewRemoteConfigProvider()
-				rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
-				// LoadAndRun is called later on
-				ac.AddConfigProvider(rcProvider, true, 10*time.Second)
-			}
+		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+			// Spin up the config provider to schedule integrations through remote-config
+			rcProvider := providers.NewRemoteConfigProvider()
+			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+			// LoadAndRun is called later on
+			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
 	}
 
@@ -612,12 +608,6 @@ func stopAgent(agentAPI internalAPI.Component) {
 		pkglog.Warnf("Agent health unknown: %s", err)
 	} else if len(health.Unhealthy) > 0 {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
-	}
-
-	if common.ExpvarServer != nil {
-		if err := common.ExpvarServer.Shutdown(context.Background()); err != nil {
-			pkglog.Errorf("Error shutting down expvar server: %v", err)
-		}
 	}
 
 	agentAPI.StopServer()

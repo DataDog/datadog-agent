@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -103,6 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmeta.OptionalModule(),
 				tagger.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(),
+				compressionimpl.Module(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
