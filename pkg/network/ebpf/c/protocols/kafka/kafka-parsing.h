@@ -116,6 +116,7 @@ static __always_inline bool kafka_process(kafka_transaction_t *kafka_transaction
     offset += sizeof(s32);
     READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+        // Since topic_name_size doesn't adhere to the protocol, there's no need to update our telemetry, as it's not a valid Kafka field
         return false;
     }
     update_topic_name_size_telemetry(kafka_tel, topic_name_size);
