@@ -41,7 +41,7 @@ type GlobalParams struct {
 }
 
 // ConfigProvider returns the scanner configuration
-func ConfigProvider(globalParams *GlobalParams) func (c compconfig.Component) (*types.ScannerConfig, error) {
+func ConfigProvider(globalParams *GlobalParams) func(c compconfig.Component) (*types.ScannerConfig, error) {
 	return func(c compconfig.Component) (*types.ScannerConfig, error) {
 		defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
 		if err != nil {

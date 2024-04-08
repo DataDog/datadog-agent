@@ -259,16 +259,18 @@ func Mount(ctx context.Context, scan *types.ScanTask, partitions []Partition) ([
 		if mp.FSType == "btrfs" {
 			// Replace fsid of btrfs partition with randomly generated UUID.
 			log.Debugf("%s: execing btrfstune -f -u %s", scan, mp.DevicePath)
-			_, err := exec.CommandContext(mntctx, "btrfstune", "-f", "-u", mp.DevicePath).CombinedOutput()
+			btrfsTuneOut, err := exec.CommandContext(mntctx, "btrfstune", "-f", "-u", mp.DevicePath).CombinedOutput()
 			if err != nil {
-				return nil, err
+				log.Warnf("%s: could not set new UUID for btrfs partition %q: %s: %s", scan, mp.DevicePath, err, string(btrfsTuneOut))
+				continue
 			}
 
 			// Clear the tree log, to prevent "failed to read log tree" warning, which leads to "open_ctree failed" error.
 			log.Debugf("%s: execing btrfs rescue zero-log %s", scan, mp.DevicePath)
-			_, err = exec.CommandContext(mntctx, "btrfs", "rescue", "zero-log", mp.DevicePath).CombinedOutput()
+			btrfsRescueOut, err := exec.CommandContext(mntctx, "btrfs", "rescue", "zero-log", mp.DevicePath).CombinedOutput()
 			if err != nil {
-				return nil, err
+				log.Warnf("%s: could not clear the tree log for btrfs partition %q: %s: %s", scan, mp.DevicePath, err, string(btrfsRescueOut))
+				continue
 			}
 		}
 
