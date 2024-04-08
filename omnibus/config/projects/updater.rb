@@ -13,9 +13,20 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-INSTALL_DIR = '/opt/datadog/updater'
+INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-packages/installer_boot'
 
 install_dir INSTALL_DIR
+
+if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
+  COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
+else
+  COMPRESSION_THREADS = 1
+end
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+  COMPRESSION_LEVEL = 9
+else
+  COMPRESSION_LEVEL = 5
+end
 
 if redhat_target? || suse_target?
   maintainer 'Datadog, Inc <package@datadoghq.com>'
@@ -86,6 +97,9 @@ package :deb do
   license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
   if ENV.has_key?('DEB_SIGNING_PASSPHRASE') and not ENV['DEB_SIGNING_PASSPHRASE'].empty?
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
@@ -94,8 +108,29 @@ package :deb do
   end
 end
 
+package :rpm do
+  skip_packager !generate_distro_package
+  vendor 'Datadog <package@datadoghq.com>'
+  epoch 1
+  dist_tag ''
+  license 'Apache License Version 2.0'
+  category 'System Environment/Daemons'
+  priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
+  if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
+    signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
+    end
+  end
+end
+
 package :xz do
   skip_packager generate_distro_package
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
 end
 
 # ------------------------------------
@@ -107,16 +142,24 @@ if linux_target?
   if debian_target?
     systemd_directory = "/lib/systemd/system"
   end
-  extra_package_file "#{systemd_directory}/datadog-updater.service"
+  extra_package_file "#{systemd_directory}/datadog-installer.service"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/var/log/datadog/'
   extra_package_file '/var/run/datadog-packages/'
   extra_package_file '/opt/datadog-packages/'
 end
 
+# Include all package scripts for the intermediary XZ package, or only those
+# for the package being created
 if linux_target?
+  if !generate_distro_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
+  end
   if debian_target?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-deb"
+  elsif redhat_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/updater-rpm"
   end
 end
 

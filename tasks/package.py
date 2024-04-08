@@ -93,7 +93,7 @@ def send_size(
     Use --no-send-series to skip the metrics submission part (and the need for a DD_API_KEY).
     """
 
-    from tasks.libs.datadog_api import send_metrics
+    from tasks.libs.common.datadog_api import send_metrics
 
     if not os.path.exists(package_path):
         raise Exit(code=1, message=color_message(f"Package not found at path {package_path}", "orange"))

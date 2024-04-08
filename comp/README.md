@@ -141,6 +141,10 @@ doesn't exist or doesn't contain a PID for a running process.
 
 Package secrets decodes secret values by invoking the configured executable command
 
+### [comp/core/settings](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/settings)
+
+Package settings defines the interface for the component that manage settings that can be changed at runtime
+
 ### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
 
 Package status displays information about the agent.
@@ -522,3 +526,9 @@ Package updater is the updater component.
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/serializer/compression](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/serializer/compression)
+
+*Datadog Team*: agent-metrics-logs
+
+Package compression provides a compression implementation based on the configuration or available build tags.
