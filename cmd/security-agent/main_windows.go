@@ -24,8 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -44,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -51,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/servicemain"
 )
@@ -91,7 +96,7 @@ func (s *service) Run(svcctx context.Context) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, telemetry, "", demultiplexer, statusComponent)
+			err := start.RunAgent(ctx, log, config, telemetry, demultiplexer, statusComponent)
 			if err != nil {
 				return err
 			}
@@ -113,6 +118,7 @@ func (s *service) Run(svcctx context.Context) error {
 		dogstatsd.ClientBundle,
 		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
@@ -174,6 +180,11 @@ func (s *service) Run(svcctx context.Context) error {
 		}),
 
 		statusimpl.Module(),
+
+		fetchonlyimpl.Module(),
+		configsyncimpl.OptionalModule(),
+		// Force the instantiation of the component
+		fx.Invoke(func(_ optional.Option[configsync.Component]) {}),
 	)
 
 	return err

@@ -59,7 +59,7 @@ var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: 
 type Destination struct {
 	// Config
 	url                 string
-	apiKey              string
+	endpoint            config.Endpoint
 	contentType         string
 	host                string
 	client              *httputils.ResetClient
@@ -136,7 +136,7 @@ func newDestination(endpoint config.Endpoint,
 	return &Destination{
 		host:                endpoint.Host,
 		url:                 buildURL(endpoint),
-		apiKey:              endpoint.APIKey,
+		endpoint:            endpoint,
 		contentType:         contentType,
 		client:              httputils.NewResetClient(endpoint.ConnectionResetInterval, httpClientFactory(timeout, cfg)),
 		destinationsContext: destinationsContext,
@@ -238,7 +238,13 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()
-			log.Warnf("Could not send payload: %v", err)
+
+			// shouldRetry is false for serverless. This log line is too verbose for serverless so make it debug only.
+			if d.shouldRetry {
+				log.Warnf("Could not send payload: %v", err)
+			} else {
+				log.Debugf("Could not send payload: %v", err)
+			}
 		}
 
 		if err == context.Canceled {
@@ -280,7 +286,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// this can happen when the method or the url are valid.
 		return err
 	}
-	req.Header.Set("DD-API-KEY", d.apiKey)
+	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
 	if payload.Encoding != "" {
 		req.Header.Set("Content-Encoding", payload.Encoding)
@@ -378,7 +384,7 @@ func httpClientFactory(timeout time.Duration, cfg pkgconfigmodel.Reader) func() 
 // buildURL buils a url from a config endpoint.
 func buildURL(endpoint config.Endpoint) string {
 	var scheme string
-	if endpoint.GetUseSSL() {
+	if endpoint.UseSSL() {
 		scheme = "https"
 	} else {
 		scheme = "http"

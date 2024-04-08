@@ -84,9 +84,9 @@ def golangci_lint(
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     DEPRECATED
-    Please use inv lint-go instead
+    Please use inv linter.go instead
     """
-    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
+    print("WARNING: golangci-lint task is deprecated, please migrate to linter.go task")
     raise Exit(code=1)
 
 
@@ -154,7 +154,7 @@ def lint_licenses(ctx):
         for line in f:
             licenses.append(line.rstrip())
 
-    new_licenses = get_licenses_list(ctx)
+    new_licenses = get_licenses_list(ctx, file)
 
     removed_licenses = [ele for ele in new_licenses if ele not in licenses]
     for license in removed_licenses:
@@ -183,27 +183,7 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
     Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
     """
-    new_licenses = get_licenses_list(ctx)
-
-    # check that all deps have a non-"UNKNOWN" copyright and license
-    unknown_licenses = False
-    for line in new_licenses:
-        if ',UNKNOWN' in line:
-            unknown_licenses = True
-            print(f"! {line}")
-
-    if unknown_licenses:
-        raise Exit(
-            message=textwrap.dedent(
-                """\
-                At least one dependency's license or copyright could not be determined.
-
-                Consult the dependency's source, update
-                `.copyright-overrides.yml` or `.wwhrd.yml` accordingly, and run
-                `inv generate-licenses` to update {}."""
-            ).format(filename),
-            code=1,
-        )
+    new_licenses = get_licenses_list(ctx, filename)
 
     with open(filename, 'w') as f:
         f.write("Component,Origin,License,Copyright\n")
@@ -372,6 +352,28 @@ def reset(ctx):
     # remove vendor folder
     print("Remove vendor folder")
     ctx.run("rm -rf ./vendor")
+
+
+@task
+def check_go_mod_replaces(_ctx):
+    errors_found = set()
+    for mod in DEFAULT_MODULES.values():
+        go_sum = os.path.join(mod.full_path(), "go.sum")
+        if not os.path.exists(go_sum):
+            continue
+        with open(go_sum) as f:
+            for line in f:
+                if "github.com/datadog/datadog-agent" in line.lower():
+                    err_mod = line.split()[0]
+                    errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
+
+    if errors_found:
+        message = "\nErrors found:\n"
+        message += "\n".join("  - " + error for error in sorted(errors_found))
+        message += (
+            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy-all` before re-running this task."
+        )
+        raise Exit(message=message)
 
 
 @task

@@ -12,6 +12,9 @@ type (
 	Config struct {
 		// TODO: add common configuration
 		DestHostname string
+		DestPort     uint16
+		MaxTTL       uint8
+		TimeoutMs    uint
 	}
 
 	// Traceroute defines an interface for running
@@ -51,5 +54,6 @@ type (
 		Source      NetworkPathSource      `json:"source"`
 		Destination NetworkPathDestination `json:"destination"`
 		Hops        []NetworkPathHop       `json:"hops"`
+		Tags        []string               `json:"tags"`
 	}
 )

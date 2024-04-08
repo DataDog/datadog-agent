@@ -14,9 +14,9 @@ from time import sleep
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
+from tasks.libs.ciproviders.github_api import GithubAPI
+from tasks.libs.ciproviders.gitlab import Gitlab, get_gitlab_token
 from tasks.libs.common.color import color_message
-from tasks.libs.common.github_api import GithubAPI
-from tasks.libs.common.gitlab import Gitlab, get_gitlab_token
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
@@ -26,7 +26,7 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
-from tasks.libs.version import Version
+from tasks.libs.types.version import Version
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
 
@@ -1086,10 +1086,10 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
 
     # Step 4: add release changelog preludes
     print(color_message("Adding Agent release changelog prelude", "bold"))
-    add_prelude(ctx, new_version)
+    add_prelude(ctx, str(new_version))
 
     print(color_message("Adding DCA release changelog prelude", "bold"))
-    add_dca_prelude(ctx, new_version)
+    add_dca_prelude(ctx, str(new_version))
 
     ok = try_git_command(ctx, f"git commit -m 'Add preludes for {new_version} release'")
     if not ok:

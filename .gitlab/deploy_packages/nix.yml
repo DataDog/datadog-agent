@@ -148,7 +148,7 @@ deploy_packages_agentless_scanner_rpm-arm64-7:
   extends: .deploy_packages_rpm-7
   needs: [ agentless_scanner_rpm-arm64 ]
   variables:
-    PACKAGE_ARCH: arm64
+    PACKAGE_ARCH: aarch64
 
 deploy_packages_suse_rpm-x64-7:
   extends: .deploy_packages_suse_rpm-7
@@ -182,7 +182,7 @@ deploy_packages_agentless_scanner_suse_rpm-x64-7:
 
 deploy_packages_dmg-x64-a7:
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -195,7 +195,7 @@ deploy_packages_dmg-x64-a7:
 # deploy dogstatsd x64, non-static binary to staging bucket
 deploy_staging_dsd:
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -208,7 +208,7 @@ deploy_staging_dsd:
 # deploy iot-agent x64 binary to staging bucket
 deploy_staging_iot_agent:
   rules:
-    !reference [.on_deploy_a7]
+    !reference [.on_deploy]
   stage: deploy_packages
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["arch:amd64"]
@@ -231,3 +231,14 @@ deploy_remote_updater_deb_amd64:
   variables:
     PACKAGE_ARCH: amd64
 
+deploy_remote_updater_rpm_arm64:
+  extends: .deploy_packages_rpm-7
+  needs: ["updater_rpm-arm64"]
+  variables:
+    PACKAGE_ARCH: aarch64
+
+deploy_remote_updater_rpm_amd64:
+  extends: .deploy_packages_rpm-7
+  needs: ["updater_rpm-amd64"]
+  variables:
+    PACKAGE_ARCH: x86_64

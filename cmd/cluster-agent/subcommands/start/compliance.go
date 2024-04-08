@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -80,7 +79,6 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 	}
 	stopper.Add(ctx)
 
-	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
@@ -89,10 +87,7 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 		return err
 	}
 
-	runner := runner.NewRunner(senderManager)
-	stopper.Add(runner)
-
-	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	reporter := compliance.NewLogReporter(hname, "compliance-agent", "compliance", endpoints, ctx)
 	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
 		ConfigDir:     configDir,
 		Reporter:      reporter,

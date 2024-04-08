@@ -160,8 +160,9 @@ func TestETWRegistryNotifications(t *testing.T) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 4*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)

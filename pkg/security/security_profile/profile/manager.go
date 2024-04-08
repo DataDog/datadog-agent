@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"slices"
 	"sync"
 	"time"
@@ -60,22 +61,63 @@ const (
 	WorkloadWarmup
 )
 
-func (efr EventFilteringProfileState) toTag() string {
+func (efr EventFilteringProfileState) String() string {
 	switch efr {
 	case NoProfile:
-		return "profile_state:no_profile"
+		return "no_profile"
 	case ProfileAtMaxSize:
-		return "profile_state:profile_at_max_size"
+		return "profile_at_max_size"
 	case UnstableEventType:
-		return "profile_state:unstable_event_type"
+		return "unstable_event_type"
 	case StableEventType:
-		return "profile_state:stable_event_type"
+		return "stable_event_type"
 	case AutoLearning:
-		return "profile_state:auto_learning"
+		return "auto_learning"
 	case WorkloadWarmup:
-		return "profile_state:workload_warmup"
+		return "workload_warmup"
 	}
 	return ""
+}
+
+func (efr EventFilteringProfileState) toTag() string {
+	return "profile_state:" + efr.String()
+}
+
+func (efr EventFilteringProfileState) toProto() proto.EventProfileState {
+	switch efr {
+	case NoProfile:
+		return proto.EventProfileState_NO_PROFILE
+	case ProfileAtMaxSize:
+		return proto.EventProfileState_PROFILE_AT_MAX_SIZE
+	case UnstableEventType:
+		return proto.EventProfileState_UNSTABLE_PROFILE
+	case StableEventType:
+		return proto.EventProfileState_STABLE_PROFILE
+	case AutoLearning:
+		return proto.EventProfileState_AUTO_LEARNING
+	case WorkloadWarmup:
+		return proto.EventProfileState_WORKLOAD_WARMUP
+	}
+	return proto.EventProfileState_NO_PROFILE
+}
+
+// ProtoToState converts a proto state to a profile one
+func ProtoToState(eps proto.EventProfileState) EventFilteringProfileState {
+	switch eps {
+	case proto.EventProfileState_NO_PROFILE:
+		return NoProfile
+	case proto.EventProfileState_PROFILE_AT_MAX_SIZE:
+		return ProfileAtMaxSize
+	case proto.EventProfileState_UNSTABLE_PROFILE:
+		return UnstableEventType
+	case proto.EventProfileState_STABLE_PROFILE:
+		return StableEventType
+	case proto.EventProfileState_AUTO_LEARNING:
+		return AutoLearning
+	case proto.EventProfileState_WORKLOAD_WARMUP:
+		return WorkloadWarmup
+	}
+	return NoProfile
 }
 
 // EventFilteringResult is used to compute metrics for the event filtering feature
@@ -131,8 +173,10 @@ type SecurityProfileManager struct {
 	securityProfileMap         *ebpf.Map
 	securityProfileSyscallsMap *ebpf.Map
 
-	profilesLock sync.Mutex
-	profiles     map[cgroupModel.WorkloadSelector]*SecurityProfile
+	profilesLock        sync.Mutex
+	profiles            map[cgroupModel.WorkloadSelector]*SecurityProfile
+	evictedVersions     []cgroupModel.WorkloadSelector
+	evictedVersionsLock sync.Mutex
 
 	pendingCacheLock sync.Mutex
 	pendingCache     *simplelru.LRU[cgroupModel.WorkloadSelector, *SecurityProfile]
@@ -286,18 +330,21 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 		return
 	}
 
+	selector := workload.WorkloadSelector
+	selector.Tag = "*"
+
 	// check if the workload of this selector already exists
-	profile, ok := m.profiles[workload.WorkloadSelector]
+	profile, ok := m.profiles[selector]
 	if !ok {
 		// check the cache
 		m.pendingCacheLock.Lock()
 		defer m.pendingCacheLock.Unlock()
-		profile, ok = m.pendingCache.Get(workload.WorkloadSelector)
+		profile, ok = m.pendingCache.Get(selector)
 		if ok {
 			m.cacheHit.Inc()
 
 			// remove profile from cache
-			_ = m.pendingCache.Remove(workload.WorkloadSelector)
+			_ = m.pendingCache.Remove(selector)
 
 			// since the profile was in cache, it was removed from kernel space, load it now
 			// (locking isn't necessary here, but added as a safeguard)
@@ -311,13 +358,13 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			}
 
 			// insert the profile in the list of active profiles
-			m.profiles[workload.WorkloadSelector] = profile
+			m.profiles[selector] = profile
 		} else {
 			m.cacheMiss.Inc()
 
 			// create a new entry
-			profile = NewSecurityProfile(workload.WorkloadSelector, m.eventTypes)
-			m.profiles[workload.WorkloadSelector] = profile
+			profile = NewSecurityProfile(selector, m.eventTypes)
+			m.profiles[selector] = profile
 
 			// notify the providers that we're interested in a new workload selector
 			m.propagateWorkloadSelectorsToProviders()
@@ -377,7 +424,7 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 }
 
 // FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
-func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext) {
+func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ctx *model.SecurityProfileContext, imageTag string) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
@@ -387,8 +434,10 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 			instance.Lock()
 			if instance.ID == id {
 				ctx.Name = profile.Metadata.Name
-				ctx.Version = profile.Version
-				ctx.Tags = profile.Tags
+				profileContext, ok := profile.versionContexts[imageTag]
+				if ok { // should always be the case
+					ctx.Tags = profileContext.Tags
+				}
 			}
 			instance.Unlock()
 		}
@@ -397,7 +446,7 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 }
 
 // FillProfileContextFromProfile fills the given ctx with profile infos
-func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *SecurityProfile) {
+func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *SecurityProfile, imageTag string) {
 	profile.Lock()
 	defer profile.Unlock()
 
@@ -406,15 +455,21 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 		ctx.Name = DefaultProfileName
 	}
 
-	ctx.Version = profile.Version
-	ctx.Tags = profile.Tags
 	ctx.EventTypes = profile.eventTypes
+	profileContext, ok := profile.versionContexts[imageTag]
+	if ok { // should always be the case
+		ctx.Tags = profileContext.Tags
+	}
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
 	// lookup the profile
-	profile := m.GetProfile(workload.WorkloadSelector)
+	selector := cgroupModel.WorkloadSelector{
+		Image: workload.WorkloadSelector.Image,
+		Tag:   "*",
+	}
+	profile := m.GetProfile(selector)
 	if profile == nil {
 		// nothing to do, leave
 		return
@@ -451,6 +506,13 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	if profile.loadedInKernel {
 		// remove profile from kernel space
 		m.unloadProfile(profile)
+
+		// only persist the profile if it was actively used
+		if profile.ActivityTree != nil {
+			if err := m.persistProfile(profile); err != nil {
+				seclog.Errorf("couldn't persist profile: %v", err)
+			}
+		}
 	}
 
 	// cleanup profile before insertion in cache
@@ -465,59 +527,76 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	m.pendingCache.Add(profile.selector, profile)
 }
 
+func (m *SecurityProfileManager) protoToSecurityProfile(output *SecurityProfile, input *proto.SecurityProfile) {
+	// decode the content of the profile
+	ProtoToSecurityProfile(output, m.pathsReducer, input)
+	output.ActivityTree.DNSMatchMaxDepth = m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth
+	if m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs && input.Metadata.DifferentiateArgs {
+		output.ActivityTree.DifferentiateArgs()
+	}
+	output.loadedInKernel = false
+	// compute activity tree initial stats
+	output.ActivityTree.ComputeActivityTreeStats()
+	// prepare the profile for insertion
+	m.prepareProfile(output)
+	// if the input is an activity dump then change the selector to a profile selector
+	if input.Selector.GetImageTag() != "*" {
+		output.selector.Tag = "*"
+	}
+}
+
 // OnNewProfileEvent handles the arrival of a new profile (or the new version of a profile) from a provider
 func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.WorkloadSelector, newProfile *proto.SecurityProfile) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
+	// a profile loaded from file can be of two forms:
+	// 1. a profile coming from the activity dump manager, providing an activity tree corresponding to
+	//    the selector image_name + image_tag.
+	// 2. a profile coming from the security profile manager, providing an activity tree corresponding to
+	//    the selector image_name, containing multiple image tag versions. Not yet the case, but it will be.
+	profileManagerSelector := selector
+	if selector.Tag != "*" {
+		profileManagerSelector.Tag = "*"
+	}
+
 	// Update the Security Profile content
-	profile, ok := m.profiles[selector]
+	profile, ok := m.profiles[profileManagerSelector]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
 		profile = NewSecurityProfile(selector, m.eventTypes)
-	}
 
-	if profile.Version == newProfile.Version {
-		// this is the same file, ignore
+		// decode the content of the profile
+		m.protoToSecurityProfile(profile, newProfile)
+
+		// insert in cache and leave
+		m.pendingCacheLock.Lock()
+		defer m.pendingCacheLock.Unlock()
+		m.pendingCache.Add(profileManagerSelector, profile)
 		return
 	}
-
-	m.pendingCacheLock.Lock()
-	defer m.pendingCacheLock.Unlock()
 
 	profile.Lock()
 	defer profile.Unlock()
-	profile.loadedInKernel = false
 
-	// decode the content of the profile
-	ProtoToSecurityProfile(profile, m.pathsReducer, newProfile)
-	profile.ActivityTree.DNSMatchMaxDepth = m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth
-	if m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs && newProfile.Metadata.DifferentiateArgs {
-		profile.ActivityTree.DifferentiateArgs()
-	}
+	// if profile was waited, push it
+	if !profile.loadedInKernel {
+		// decode the content of the profile
+		m.protoToSecurityProfile(profile, newProfile)
 
-	// compute activity tree initial stats
-	profile.ActivityTree.ComputeActivityTreeStats()
-
-	// prepare the profile for insertion
-	m.prepareProfile(profile)
-
-	if !ok {
-		// insert in cache and leave
-		m.pendingCache.Add(selector, profile)
+		// load the profile in kernel space
+		if err := m.loadProfile(profile); err != nil {
+			seclog.Errorf("couldn't load security profile %s in kernel space: %v", profile.selector, err)
+			return
+		}
+		// link all workloads
+		for _, workload := range profile.Instances {
+			m.linkProfile(profile, workload)
+		}
 		return
 	}
 
-	// load the profile in kernel space
-	if err := m.loadProfile(profile); err != nil {
-		seclog.Errorf("couldn't load security profile %s in kernel space: %v", profile.selector, err)
-		return
-	}
-
-	// link all workloads
-	for _, workload := range profile.Instances {
-		m.linkProfile(profile, workload)
-	}
+	// if we already have a loaded profile for this workload, just ignore the new one
 }
 
 func (m *SecurityProfileManager) stop() {
@@ -549,12 +628,20 @@ func (m *SecurityProfileManager) SendStats() error {
 	defer m.pendingCacheLock.Unlock()
 
 	profilesLoadedInKernel := 0
-	for _, profile := range m.profiles {
+	profileVersions := make(map[string]int)
+	for selector, profile := range m.profiles {
 		if profile.loadedInKernel { // make sure the profile is loaded
+			profileVersions[selector.Image] = len(profile.versionContexts)
 			if err := profile.SendStats(m.statsdClient); err != nil {
 				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
 			}
 			profilesLoadedInKernel++
+		}
+	}
+
+	for imageName, nbVersions := range profileVersions {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileVersions, float64(nbVersions), []string{"security_profile_image_name:" + imageName}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSecurityProfileVersions: %w", err)
 		}
 	}
 
@@ -592,6 +679,18 @@ func (m *SecurityProfileManager) SendStats() error {
 		}
 	}
 
+	m.evictedVersionsLock.Lock()
+	evictedVersions := m.evictedVersions
+	m.evictedVersions = []cgroupModel.WorkloadSelector{}
+	m.evictedVersionsLock.Unlock()
+	for _, version := range evictedVersions {
+		tags := version.ToTags()
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileEvictedVersions, 1, tags, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSecurityProfileEvictedVersions metric: %w", err)
+		}
+
+	}
+
 	return nil
 }
 
@@ -614,7 +713,7 @@ func (m *SecurityProfileManager) loadProfile(profile *SecurityProfile) error {
 	}
 
 	// TODO: load generated programs
-	seclog.Debugf("security profile %s (version:%s) loaded in kernel space", profile.Metadata.Name, profile.Version)
+	seclog.Debugf("security profile %s loaded in kernel space", profile.Metadata.Name)
 	return nil
 }
 
@@ -628,7 +727,7 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 	}
 
 	// TODO: delete all kernel space programs
-	seclog.Debugf("security profile %s (version:%s) unloaded from kernel space", profile.Metadata.Name, profile.Version)
+	seclog.Debugf("security profile %s unloaded from kernel space", profile.Metadata.Name)
 }
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
@@ -656,6 +755,45 @@ func (m *SecurityProfileManager) canGenerateAnomaliesFor(e *model.Event) bool {
 	return m.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, e.GetEventType())
 }
 
+// persistProfile (thread unsafe) persists a profile to the filesystem
+func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error {
+	proto := SecurityProfileToProto(profile)
+	if proto == nil {
+		return fmt.Errorf("couldn't encode profile (nil proto)")
+	}
+	raw, err := proto.MarshalVT()
+	if err != nil {
+		return fmt.Errorf("couldn't encode profile: %w", err)
+	}
+
+	filename := profile.Metadata.Name + ".profile"
+	outputPath := path.Join(m.config.RuntimeSecurity.SecurityProfileDir, filename)
+
+	// create output directory and output file, truncate existing file if a profile already exists
+	err = os.MkdirAll(m.config.RuntimeSecurity.SecurityProfileDir, 0400)
+	if err != nil {
+		return fmt.Errorf("couldn't ensure directory [%s] exists: %w", m.config.RuntimeSecurity.SecurityProfileDir, err)
+	}
+
+	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
+	if err != nil {
+		return fmt.Errorf("couldn't persist profile to file [%s]: %w", outputPath, err)
+	}
+	defer file.Close()
+
+	if _, err = file.Write(raw); err != nil {
+		return fmt.Errorf("couldn't write profile to file [%s]: %w", outputPath, err)
+	}
+
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("error trying to close profile file [%s]: %w", file.Name(), err)
+	}
+
+	seclog.Infof("[profile] file for %s written at: [%s]", profile.selector.String(), outputPath)
+
+	return nil
+}
+
 // LookupEventInProfiles lookups event in profiles
 func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// ignore events with an error
@@ -674,8 +812,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	if len(event.ContainerContext.Tags) == 0 {
 		return
 	}
-
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), utils.GetTagValue("image_tag", event.ContainerContext.Tags))
+	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), "*")
 	if err != nil {
 		return
 	}
@@ -686,11 +823,49 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
+	if !profile.IsEventTypeValid(event.GetEventType()) || !profile.loadedInKernel {
+		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
+		return
+	}
 
 	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
 
 	// check if the event should be injected in the profile automatically
-	profileState := m.tryAutolearn(profile, event)
+	imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+	if imageTag == "" {
+		imageTag = "latest" // not sure about this one
+	}
+
+	profile.versionContextsLock.Lock()
+	ctx, found := profile.versionContexts[imageTag]
+	if found {
+		// update the lastseen of this version
+		ctx.lastSeenNano = uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(time.Now()))
+	} else {
+		// create a new version
+		evictedVersions := profile.prepareNewVersion(imageTag, event.ContainerContext.Tags, m.config.RuntimeSecurity.SecurityProfileMaxImageTags)
+		for _, evictedVersion := range evictedVersions {
+			m.CountEvictedVersion(imageTag, evictedVersion)
+		}
+		ctx, found = profile.versionContexts[imageTag]
+		if !found { // should never happen
+			profile.versionContextsLock.Unlock()
+			return
+		}
+	}
+	profile.versionContextsLock.Unlock()
+
+	// if we have one version of the profile in unstable for this event type, just skip the whole process
+	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
+	if globalEventTypeProfilState == UnstableEventType {
+		m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
+		return
+	}
+
+	profileState := m.tryAutolearn(profile, ctx, event, imageTag)
+	if profileState != NoProfile {
+		ctx.eventTypeState[event.GetEventType()].state = profileState
+	}
 	switch profileState {
 	case NoProfile, ProfileAtMaxSize, UnstableEventType:
 		// an error occurred or we are in unstable state
@@ -698,25 +873,26 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	case AutoLearning, WorkloadWarmup:
 		// the event was either already in the profile, or has just been inserted
-		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag)
 		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
+
 		return
 	case StableEventType:
 		// check if the event is in its profile
 		// and if this is not an exec event, check if we can benefit of the occasion to add missing processes
 		insertMissingProcesses := false
 		if event.GetEventType() != model.ExecEventType {
-			if execState := m.getEventTypeState(profile, event, model.ExecEventType); execState == AutoLearning || execState == WorkloadWarmup {
+			if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == AutoLearning || execState == WorkloadWarmup {
 				insertMissingProcesses = true
 			}
 		}
-		found, err := profile.ActivityTree.Contains(event, insertMissingProcesses, activity_tree.ProfileDrift, m.resolvers)
+		found, err := profile.ActivityTree.Contains(event, insertMissingProcesses, imageTag, activity_tree.ProfileDrift, m.resolvers)
 		if err != nil {
 			// ignore, evaluation failed
 			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 			return
 		}
-		FillProfileContextFromProfile(&event.SecurityProfileContext, profile)
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag)
 		if found {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
@@ -730,17 +906,14 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 }
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
-func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *model.Event) EventFilteringProfileState {
-	profile.eventTypeStateLock.Lock()
-	defer profile.eventTypeStateLock.Unlock()
-
-	profileState := m.getEventTypeState(profile, event, event.GetEventType())
+func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *VersionContext, event *model.Event, imageTag string) EventFilteringProfileState {
+	profileState := m.getEventTypeState(profile, ctx, event, event.GetEventType(), imageTag)
 	var nodeType activity_tree.NodeGenerationType
 	if profileState == AutoLearning {
 		nodeType = activity_tree.ProfileDrift
 	} else if profileState == WorkloadWarmup {
 		nodeType = activity_tree.WorkloadWarmup
-	} else {
+	} else { // Stable or Unstable state
 		return profileState
 	}
 
@@ -751,19 +924,27 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, event *m
 	insertMissingProcesses := false
 	if event.GetEventType() == model.ExecEventType {
 		insertMissingProcesses = true
-	} else if execState := m.getEventTypeState(profile, event, model.ExecEventType); execState == AutoLearning || execState == WorkloadWarmup {
+	} else if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == AutoLearning || execState == WorkloadWarmup {
 		insertMissingProcesses = true
 	}
 
-	newEntry, err := profile.ActivityTree.Insert(event, insertMissingProcesses, nodeType, m.resolvers)
+	newEntry, err := profile.ActivityTree.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
 	if err != nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return NoProfile
 	} else if newEntry {
-		eventState, ok := profile.eventTypeState[event.GetEventType()]
+		eventState, ok := ctx.eventTypeState[event.GetEventType()]
 		if ok { // should always be the case
 			eventState.lastAnomalyNano = event.TimestampRaw
 		}
+
+		// if a previous version of this profile was stable for this event type,
+		// and a new entry was added, trigger an anomaly detection
+		globalEventTypeState := profile.GetGlobalEventTypeState(event.GetEventType())
+		if globalEventTypeState == StableEventType && m.canGenerateAnomaliesFor(event) {
+			event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+		}
+
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 	} else { // no newEntry
 		m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
@@ -779,7 +960,7 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 	defer m.profilesLock.Unlock()
 
 	for _, p := range m.profiles {
-		msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity)
+		msg := p.ToSecurityProfileMessage()
 		out.Profiles = append(out.Profiles, msg)
 	}
 
@@ -791,7 +972,7 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 			if !ok {
 				continue
 			}
-			msg := p.ToSecurityProfileMessage(m.resolvers.TimeResolver, m.config.RuntimeSecurity)
+			msg := p.ToSecurityProfileMessage()
 			out.Profiles = append(out.Profiles, msg)
 		}
 	}
@@ -800,7 +981,7 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 
 // SaveSecurityProfile saves the requested security profile to disk
 func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
-	selector, err := cgroupModel.NewWorkloadSelector(params.GetSelector().GetName(), params.GetSelector().GetTag())
+	selector, err := cgroupModel.NewWorkloadSelector(params.GetSelector().GetName(), "*")
 	if err != nil {
 		return &api.SecurityProfileSaveMessage{
 			Error: err.Error(),
@@ -862,19 +1043,14 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 	return out
 }
 
-func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, event *model.Event, eventType model.EventType) EventFilteringProfileState {
-	// eventTypeStateLock already locked here
-
-	var nodeType activity_tree.NodeGenerationType
-	var profileState EventFilteringProfileState
-
-	eventState, ok := profile.eventTypeState[eventType]
+func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, pctx *VersionContext, event *model.Event, eventType model.EventType, imageTag string) EventFilteringProfileState {
+	eventState, ok := pctx.eventTypeState[event.GetEventType()]
 	if !ok {
 		eventState = &EventTypeState{
-			lastAnomalyNano: profile.loadedNano,
-			state:           NoProfile,
+			lastAnomalyNano: pctx.firstSeenNano,
+			state:           AutoLearning,
 		}
-		profile.eventTypeState[eventType] = eventState
+		pctx.eventTypeState[eventType] = eventState
 	} else if eventState.state == UnstableEventType {
 		// If for the given event type we already are on UnstableEventType, just return
 		// (once reached, this state is immutable)
@@ -884,6 +1060,8 @@ func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, eve
 		return UnstableEventType
 	}
 
+	var nodeType activity_tree.NodeGenerationType
+	var profileState EventFilteringProfileState
 	// check if we are at the beginning of a workload lifetime
 	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
 		nodeType = activity_tree.WorkloadWarmup
@@ -900,7 +1078,9 @@ func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, eve
 				eventState.state = StableEventType
 				// call the activity dump manager to stop dumping workloads from the current profile selector
 				if m.activityDumpManager != nil {
-					m.activityDumpManager.StopDumpsWithSelector(profile.selector)
+					uniqueImageTagSeclector := profile.selector
+					uniqueImageTagSeclector.Tag = imageTag
+					m.activityDumpManager.StopDumpsWithSelector(uniqueImageTagSeclector)
 				}
 				return StableEventType
 			}
@@ -921,7 +1101,7 @@ func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, eve
 		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
 		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
 		// rearming the lastAnomalyNano timer based on if it's something new or not.
-		found, err := profile.ActivityTree.Contains(event, false /*insertMissingProcesses*/, nodeType, m.resolvers)
+		found, err := profile.ActivityTree.Contains(event, false /*insertMissingProcesses*/, imageTag, nodeType, m.resolvers)
 		if err != nil {
 			m.incrementEventFilteringStat(eventType, NoProfile, NA)
 			return NoProfile
@@ -935,4 +1115,26 @@ func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, eve
 		return ProfileAtMaxSize
 	}
 	return profileState
+}
+
+// ListAllProfileStates list all profiles and their versions (debug purpose only)
+func (m *SecurityProfileManager) ListAllProfileStates() {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+	for selector, profile := range m.profiles {
+		if len(profile.versionContexts) > 0 {
+			fmt.Printf("### Profile: %+v\n", selector)
+			profile.ListAllVersionStates()
+		}
+	}
+}
+
+// CountEvictedVersion count the evicted version for associated metric
+func (m *SecurityProfileManager) CountEvictedVersion(imageName, imageTag string) {
+	m.evictedVersionsLock.Lock()
+	defer m.evictedVersionsLock.Unlock()
+	m.evictedVersions = append(m.evictedVersions, cgroupModel.WorkloadSelector{
+		Image: imageName,
+		Tag:   imageTag,
+	})
 }

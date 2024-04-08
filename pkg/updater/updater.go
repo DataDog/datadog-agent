@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	updaterErrors "github.com/DataDog/datadog-agent/pkg/updater/errors"
@@ -33,6 +35,10 @@ const (
 	defaultLocksPath = "/var/run/datadog-packages"
 	// gcInterval is the interval at which the GC will run
 	gcInterval = 1 * time.Hour
+	// catalogOverridePath is the path to the catalog override file
+	catalogOverridePath = defaultRepositoriesPath + "/catalog.json"
+	// bootstrapVersionsOverridePath is the path to the bootstrap versions override file
+	bootstrapVersionsOverridePath = defaultRepositoriesPath + "/bootstrap.json"
 )
 
 var (
@@ -76,42 +82,124 @@ type disk interface {
 }
 
 // Bootstrap bootstraps the default version for the given package.
-func Bootstrap(ctx context.Context, pkg string) error {
+func Bootstrap(ctx context.Context, pkg string, config config.Reader) error {
 	rc := newNoopRemoteConfig()
-	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath)
+	u := newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, catalogOverridePath, bootstrapVersionsOverridePath, config)
 	return u.Bootstrap(ctx, pkg)
 }
 
 // Purge removes files installed by the updater
 func Purge() {
+	purge(defaultLocksPath, defaultRepositoriesPath)
+}
+
+func purge(locksPath, repositoryPath string) {
 	service.RemoveAgentUnits()
-	if err := os.RemoveAll(defaultLocksPath); err != nil {
-		log.Warnf("updater: could not purge directory %s: %v", defaultLocksPath, err)
+	cleanDir(locksPath, os.RemoveAll)
+	cleanDir(repositoryPath, service.RemoveAll)
+}
+
+func cleanDir(dir string, cleanFunc func(string) error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Warnf("updater: could not read directory %s: %v", dir, err)
 	}
-	if err := os.RemoveAll(defaultRepositoriesPath); err != nil {
-		log.Warnf("updater: could not purge directory %s: %v", defaultRepositoriesPath, err)
+
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		if path == catalogOverridePath || path == bootstrapVersionsOverridePath {
+			continue
+		}
+		err := cleanFunc(path)
+		if err != nil {
+			log.Warnf("updater: could not remove %s: %v", path, err)
+		}
 	}
 }
 
+func getDefaultCatalog(catalogOverridePath string) (catalog, error) {
+	var c catalog
+
+	file, err := os.ReadFile(catalogOverridePath)
+	if err != nil {
+		return catalog{}, fmt.Errorf("could not read provided catalog file: %w", err)
+	}
+
+	err = json.Unmarshal(file, &c)
+	if err != nil {
+		return catalog{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
+	}
+
+	return c, err
+}
+
+func getDefaultBootstrapVersions(bootstrapVersionsOverridePath string) (bootstrapVersions, error) {
+	var b bootstrapVersions
+
+	file, err := os.ReadFile(bootstrapVersionsOverridePath)
+	if err != nil {
+		return bootstrapVersions{}, fmt.Errorf("could not read provided catalog file: %w", err)
+	}
+
+	err = json.Unmarshal(file, &b)
+	if err != nil {
+		return bootstrapVersions{}, fmt.Errorf("could not unmarshal provided catalog file: %w", err)
+	}
+
+	return b, err
+}
+
+func getDefaults(catalogOverridePath string, bootstrapVersionsOverridePath string) (catalog catalog, versions bootstrapVersions, overridden bool) {
+	catalog = defaultCatalog
+
+	tmpCatalog, err := getDefaultCatalog(catalogOverridePath)
+	if err != nil {
+		log.Debug(fmt.Sprintf("could not read override catalog file: %s, falling back to default", err))
+	} else {
+		catalog = tmpCatalog
+		overridden = true
+	}
+
+	versions = defaultBootstrapVersions
+	tmpVersions, err := getDefaultBootstrapVersions(bootstrapVersionsOverridePath)
+	if err != nil {
+		log.Debug(fmt.Sprintf("could not read provided catalog file: %s, falling back to default", err))
+	} else {
+		versions = tmpVersions
+		overridden = true
+	}
+
+	return
+}
+
 // NewUpdater returns a new Updater.
-func NewUpdater(rcFetcher client.ConfigFetcher) (Updater, error) {
+func NewUpdater(rcFetcher client.ConfigFetcher, config config.Reader) (Updater, error) {
 	rc, err := newRemoteConfig(rcFetcher)
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath), nil
+	return newUpdater(rc, defaultRepositoriesPath, defaultLocksPath, catalogOverridePath, bootstrapVersionsOverridePath, config), nil
 }
 
-func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string) *updaterImpl {
+func newUpdater(rc *remoteConfig, repositoriesPath string, locksPath string, catalogOverridePath string, bootstrapVersionsOverridePath string, config config.Reader) *updaterImpl {
 	repositories := repository.NewRepositories(repositoriesPath, locksPath)
+	remoteRegistryOverride := config.GetString("updater.registry")
+
+	rcClient := rc
+	catalog, defaultVersions, overridden := getDefaults(catalogOverridePath, bootstrapVersionsOverridePath)
+	if overridden {
+		log.Info("updater: catalog and/or default versions overridden, disabling remote config")
+		rcClient = newNoopRemoteConfig()
+	}
+
 	u := &updaterImpl{
-		rc:                rc,
+		rc:                rcClient,
 		repositories:      repositories,
-		downloader:        newDownloader(http.DefaultClient),
+		downloader:        newDownloader(http.DefaultClient, remoteRegistryOverride),
 		installer:         newInstaller(repositories),
-		catalog:           defaultCatalog,
+		catalog:           catalog,
 		requests:          make(chan remoteAPIRequest, 32),
-		bootstrapVersions: defaultBootstrapVersions,
+		bootstrapVersions: defaultVersions,
 		stopChan:          make(chan struct{}),
 	}
 	u.refreshState(context.Background())

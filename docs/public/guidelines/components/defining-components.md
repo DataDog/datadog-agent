@@ -48,11 +48,18 @@ The Component interface and the `Module` definition are implemented in the file 
         Config config.Component
         // ...
     }
+    
+    type provides struct {
+        fx.Out
+
+        Comp comp.Component
+        // ...
+    }
 
     func newFoo(deps dependencies) Component { ...  }
 
     // foo implements Component#Foo.
-    func (f *foo) Foo(key string) string { ... }
+    func (f *foo) Foo(key string) provides { ... }
     ```
 
 The constructor `newFoo` is an `fx` constructor. It can refer to other dependencies and expect them to be automatically supplied via `fx`.

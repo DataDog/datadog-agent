@@ -26,9 +26,10 @@ from tasks.cluster_agent import integration_tests as dca_integration_tests
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
+from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, get_build_flags
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.junit_upload_core import enrich_junitxml, produce_junit_tar
+from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.trace_agent import integration_tests as trace_integration_tests
@@ -786,7 +787,9 @@ def create_dependencies(ctx, build_tags=None):
     for modules in DEFAULT_MODULES:
         with ctx.cd(modules):
             res = ctx.run(
-                'go list ' + f'-tags "{" ".join(build_tags)}" ' + '-f "{{.ImportPath}} {{.Imports}}" ./...',
+                'go list '
+                + f'-tags "{" ".join(build_tags)}" '
+                + '-f "{{.ImportPath}} {{.Imports}} {{.TestImports}}" ./...',
                 hide=True,
                 warn=True,
             )
@@ -797,6 +800,7 @@ def create_dependencies(ctx, build_tags=None):
                 for imported_package in imported_packages:
                     if imported_package.startswith("github.com/DataDog/datadog-agent"):
                         modules_deps[imported_package].add(package)
+
     return modules_deps
 
 
@@ -830,20 +834,16 @@ def format_packages(ctx, impacted_packages):
     modules_to_test = {}
 
     for package in packages:
-        match_precision = 0
-        best_module_path = None
-        # Since several modules can match the path we take only the most precise one
-        for module_path in DEFAULT_MODULES:
-            package_path = Path(package)
-            if package_path.is_relative_to(module_path):
-                if len(module_path) > match_precision:
-                    match_precision = len(module_path)
-                    best_module_path = module_path
+        module_path = get_go_module(package).replace("./", "")
+
+        # Check if the module is in the target list of the modules we want to test
+        if module_path not in DEFAULT_MODULES:
+            continue
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in DEFAULT_MODULES[best_module_path].targets:
-            if normpath(os.path.join(best_module_path, target)) in package:
+        for target in DEFAULT_MODULES[module_path].targets:
+            if normpath(os.path.join(module_path, target)) in package:
                 targeted = True
                 break
         if not targeted:
@@ -853,16 +853,13 @@ def format_packages(ctx, impacted_packages):
         if not os.path.exists(package):
             continue
 
-        relative_target = "./" + os.path.relpath(package, best_module_path).replace("\\", "/")
+        relative_target = "./" + os.path.relpath(package, module_path).replace("\\", "/")
 
-        if best_module_path in modules_to_test:
-            if (
-                modules_to_test[best_module_path].targets is not None
-                and package not in modules_to_test[best_module_path].targets
-            ):
-                modules_to_test[best_module_path].targets.append(relative_target)
+        if module_path in modules_to_test:
+            if modules_to_test[module_path].targets is not None and package not in modules_to_test[module_path].targets:
+                modules_to_test[module_path].targets.append(relative_target)
         else:
-            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
+            modules_to_test[module_path] = GoModule(module_path, targets=[relative_target])
 
     # Clean up duplicated paths to reduce Go test cmd length
     for module in modules_to_test:
@@ -875,22 +872,23 @@ def format_packages(ctx, impacted_packages):
     module_to_remove = []
     # Clean up to avoid running tests on package with no Go files matching build tags
     for module in modules_to_test:
-        res = ctx.run(
-            f"go list -tags '{' '.join(build_tags)}' {' '.join([normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
-            hide=True,
-            warn=True,
-        )
-        if res is not None and res.stderr is not None:
-            for package in res.stderr.splitlines():
-                package_to_remove = os.path.relpath(
-                    package.split(" ")[1].strip(":").replace("github.com/DataDog/datadog-agent/", ""), module
-                ).replace("\\", "/")
-                try:
-                    modules_to_test[module].targets.remove(f"./{package_to_remove}")
-                    if len(modules_to_test[module].targets) == 0:
-                        module_to_remove.append(module)
-                except Exception:
-                    print("Could not remove ", package_to_remove, ", ignoring...")
+        with ctx.cd(module):
+            res = ctx.run(
+                f"go list -tags '{' '.join(build_tags)}' {' '.join([normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
+                hide=True,
+                warn=True,
+            )
+            if res is not None and res.stderr is not None:
+                for package in res.stderr.splitlines():
+                    package_to_remove = os.path.relpath(
+                        package.split(" ")[1].strip(":").replace("github.com/DataDog/datadog-agent/", ""), module
+                    ).replace("\\", "/")
+                    try:
+                        modules_to_test[module].targets.remove(f"./{package_to_remove}")
+                        if len(modules_to_test[module].targets) == 0:
+                            module_to_remove.append(module)
+                    except Exception:
+                        print("Could not remove ", package_to_remove, ", ignoring...")
     for module in module_to_remove:
         del modules_to_test[module]
 
@@ -903,3 +901,47 @@ def format_packages(ctx, impacted_packages):
 
 def normpath(path):  # Normpath with forward slashes to avoid issues on Windows
     return os.path.normpath(path).replace("\\", "/")
+
+
+def get_go_module(path):
+    while path != '/':
+        go_mod_path = os.path.join(path, 'go.mod')
+        if os.path.isfile(go_mod_path):
+            return path
+        path = os.path.dirname(path)
+    raise Exception(f"No go.mod file found for package at {path}")
+
+
+@task(iterable=['flavors'])
+def lint_go(
+    ctx,
+    module=None,
+    targets=None,
+    flavors=None,
+    build="lint",
+    build_tags=None,
+    build_include=None,
+    build_exclude=None,
+    rtloader_root=None,
+    arch="x64",
+    cpus=None,
+    timeout: int = None,
+    golangci_lint_kwargs="",
+    headless_mode=False,
+):
+    _lint_go(
+        ctx,
+        module,
+        targets,
+        flavors,
+        build,
+        build_tags,
+        build_include,
+        build_exclude,
+        rtloader_root,
+        arch,
+        cpus,
+        timeout,
+        golangci_lint_kwargs,
+        headless_mode,
+    )

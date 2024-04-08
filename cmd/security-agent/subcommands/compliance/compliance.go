@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -30,7 +29,6 @@ import (
 // and checks.
 func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, senderManager sender.SenderManager, wmeta workloadmeta.Component) (*compliance.Agent, error) {
 	enabled := config.GetBool("compliance_config.enabled")
-	runPath := config.GetString("compliance_config.run_path")
 	configDir := config.GetString("compliance_config.dir")
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 	checkInterval := config.GetDuration("compliance_config.check_interval")
@@ -62,16 +60,13 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 
 	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
-		compliance.AptExporter,
 		compliance.KubernetesExporter,
 	}
 	if config.GetBool("compliance_config.database_benchmarks.enabled") {
 		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
 	}
 
-	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", runPath, endpoints, context)
-	runner := runner.NewRunner(senderManager)
-	stopper.Add(runner)
+	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context)
 	agent := compliance.NewAgent(senderManager, wmeta, compliance.AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,

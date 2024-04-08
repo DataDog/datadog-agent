@@ -15,6 +15,7 @@ from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -26,7 +27,6 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
@@ -723,7 +723,7 @@ def generate_syscall_table(ctx):
             f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
-    linux_version = "v6.1"
+    linux_version = "v6.8"
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
@@ -921,3 +921,29 @@ def print_fentry_stats(ctx):
 
     for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
         ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
+
+
+@task
+def sync_secl_win_pkg(ctx):
+    files_to_copy = [
+        ("model.go", None),
+        ("events.go", None),
+        ("args_envs.go", None),
+        ("consts_common.go", None),
+        ("consts_other.go", None),
+        ("consts_map_names.go", None),
+        ("model_windows.go", "model_win.go"),
+        ("field_handlers_windows.go", "field_handlers_win.go"),
+        ("accessors_windows.go", "accessors_win.go"),
+    ]
+
+    ctx.run("rm -r pkg/security/seclwin/model")
+    ctx.run("mkdir -p pkg/security/seclwin/model")
+
+    for (ffrom, fto) in files_to_copy:
+        if not fto:
+            fto = ffrom
+
+        ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
+        ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")

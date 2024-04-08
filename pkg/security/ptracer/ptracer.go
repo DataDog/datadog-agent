@@ -269,6 +269,9 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 		if waitStatus.Stopped() {
 			if signal := waitStatus.StopSignal(); signal != syscall.SIGTRAP {
+				if signal == syscall.SIGSTOP {
+					signal = syscall.Signal(0)
+				}
 				if err := syscall.PtraceCont(pid, int(signal)); err == nil {
 					continue
 				}
@@ -276,7 +279,14 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 			if err := syscall.PtraceGetRegs(pid, &regs); err != nil {
 				t.opts.Logger.Debugf("unable to get registers for pid %d: %v", pid, err)
-				break
+
+				// it got probably killed
+				cb(CallbackExitType, ExitNr, pid, 0, regs, &waitStatus)
+
+				if pid == t.PID {
+					break
+				}
+				continue
 			}
 
 			nr := GetSyscallNr(regs)

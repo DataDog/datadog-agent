@@ -15,7 +15,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	timeResolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -71,7 +71,7 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 
 	securityProfileShowCmd.Flags().StringVar(
 		&cliParams.file,
-		flags.SecurityProfileInput,
+		"input",
 		"",
 		"path to the activity dump file",
 	)
@@ -117,7 +117,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 
 	securityProfileListCmd.Flags().BoolVar(
 		&cliParams.includeCache,
-		flags.IncludeCache,
+		"include-cache",
 		false,
 		"defines if the profiles in the Security Profile manager LRU cache should be returned",
 	)
@@ -162,13 +162,17 @@ func printActivityTreeStats(prefix string, msg *api.ActivityTreeStatsMessage) {
 }
 
 func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
+	timeResolver, err := timeResolver.NewResolver()
+	if err != nil {
+		fmt.Printf("can't get new time resolver: %v\n", err)
+		return
+	}
+
 	prefix := "  "
-	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s## NAME: %s ##\n", prefix, msg.GetMetadata().GetName())
 	fmt.Printf("%s  workload_selector:\n", prefix)
 	fmt.Printf("%s    image_name: %v\n", prefix, msg.GetSelector().GetName())
 	fmt.Printf("%s    image_tag: %v\n", prefix, msg.GetSelector().GetTag())
-	fmt.Printf("%s  version: %v\n", prefix, msg.GetVersion())
-	fmt.Printf("%s  status: %v\n", prefix, msg.GetStatus())
 	fmt.Printf("%s  kernel_space:\n", prefix)
 	fmt.Printf("%s    loaded: %v\n", prefix, msg.GetLoadedInKernel())
 	if msg.GetLoadedInKernel() {
@@ -176,22 +180,25 @@ func printSecurityProfileMessage(msg *api.SecurityProfileMessage) {
 		fmt.Printf("%s    cookie: %v - 0x%x\n", prefix, msg.GetProfileCookie(), msg.GetProfileCookie())
 	}
 	fmt.Printf("%s  event_types: %v\n", prefix, msg.GetEventTypes())
-	if len(msg.GetLastAnomalies()) > 0 {
-		fmt.Printf("%s  last_anomalies:\n", prefix)
-		for _, ano := range msg.GetLastAnomalies() {
-			fmt.Printf("%s    - event_type: %s\n", prefix, ano.GetEventType())
-			fmt.Printf("%s      timestamp: %s\n", prefix, ano.GetTimestamp())
-			fmt.Printf("%s      is_stable: %v\n", prefix, ano.GetIsStableEventType())
+	fmt.Printf("%s  global_state: %v\n", prefix, msg.GetProfileGlobalState())
+	fmt.Printf("%s  Versions:\n", prefix)
+	for imageTag, ctx := range msg.GetProfileContexts() {
+		fmt.Printf("%s  - %s:\n", prefix, imageTag)
+		fmt.Printf("%s    tags: %v\n", prefix, ctx.GetTags())
+		fmt.Printf("%s    first seen: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(ctx.GetFirstSeen()))
+		fmt.Printf("%s    last seen: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(ctx.GetLastSeen()))
+		for et, state := range ctx.GetEventTypeState() {
+			fmt.Printf("%s    . %s: %s\n", prefix, et, state.GetEventProfileState())
+			fmt.Printf("%s      last anomaly: %v\n", prefix, timeResolver.ResolveMonotonicTimestamp(state.GetLastAnomalyNano()))
 		}
 	}
 	if len(msg.GetInstances()) > 0 {
 		fmt.Printf("%s  instances:\n", prefix)
 		for _, inst := range msg.GetInstances() {
-			fmt.Printf("%s    - container_id: %s\n", prefix, inst.GetContainerID())
+			fmt.Printf("%s    . container_id: %s\n", prefix, inst.GetContainerID())
 			fmt.Printf("%s      tags: %v\n", prefix, inst.GetTags())
 		}
 	}
-	fmt.Printf("%s  tags: %v\n", prefix, msg.GetTags())
 	printActivityTreeStats(prefix, msg.GetStats())
 }
 
@@ -217,18 +224,18 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 
 	securityProfileSaveCmd.Flags().StringVar(
 		&cliParams.imageName,
-		flags.ImageName,
+		"name",
 		"",
 		"image name of the workload selector used to lookup the profile",
 	)
-	_ = securityProfileSaveCmd.MarkFlagRequired(flags.ImageName)
+	_ = securityProfileSaveCmd.MarkFlagRequired("name")
 	securityProfileSaveCmd.Flags().StringVar(
 		&cliParams.imageTag,
-		flags.ImageTag,
+		"tag",
 		"",
 		"image tag of the workload selector used to lookup the profile",
 	)
-	_ = securityProfileSaveCmd.MarkFlagRequired(flags.ImageTag)
+	_ = securityProfileSaveCmd.MarkFlagRequired("tag")
 
 	return []*cobra.Command{securityProfileSaveCmd}
 }

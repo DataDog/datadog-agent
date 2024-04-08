@@ -166,7 +166,7 @@ DEFAULT_MODULES = {
     "pkg/gohai": GoModule("pkg/gohai", independent=True, importable=False),
     "pkg/proto": GoModule("pkg/proto", independent=True, used_by_otel=True),
     "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
-    "pkg/tagger": GoModule("pkg/tagger", independent=True),
+    "pkg/tagger/types": GoModule("pkg/tagger/types", independent=True),
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
@@ -177,6 +177,7 @@ DEFAULT_MODULES = {
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
     "comp/core/status": GoModule("comp/core/status", independent=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
+    "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
@@ -185,7 +186,12 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
+    ),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
+    "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),
     "pkg/api": GoModule("pkg/api", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
@@ -202,12 +208,16 @@ DEFAULT_MODULES = {
     "pkg/logs/message": GoModule("pkg/logs/message", independent=True),
     "pkg/logs/metrics": GoModule("pkg/logs/metrics", independent=True),
     "pkg/logs/pipeline": GoModule("pkg/logs/pipeline", independent=True),
+    "pkg/logs/sds": GoModule("pkg/logs/sds", independent=True),
     "pkg/logs/sender": GoModule("pkg/logs/sender", independent=True),
     "pkg/logs/sources": GoModule("pkg/logs/sources", independent=True),
     "pkg/logs/status/statusinterface": GoModule("pkg/logs/status/statusinterface", independent=True),
     "pkg/logs/status/utils": GoModule("pkg/logs/status/utils", independent=True),
     "pkg/serializer": GoModule("pkg/serializer", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True, legacy_go_mod_version=True),
+    "pkg/security/seclwin": GoModule(
+        "pkg/security/seclwin", independent=True, condition=lambda: False, legacy_go_mod_version=True
+    ),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True, used_by_otel=True),
     "pkg/util/cgroups": GoModule(
@@ -221,7 +231,6 @@ DEFAULT_MODULES = {
     "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True),
     "pkg/util/cache": GoModule("pkg/util/cache", independent=True),
     "pkg/util/common": GoModule("pkg/util/common", independent=True),
-    "pkg/util/compression": GoModule("pkg/util/compression", independent=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
     "pkg/util/flavor": GoModule("pkg/util/flavor", independent=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),
@@ -325,3 +334,15 @@ def go_work(_: Context):
             prefix = "" if mod.condition() else "//"
             f.write(f"\t{prefix}{mod.path}\n")
         f.write(")\n")
+
+
+@task
+def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
+    """
+    Run the given command in the directory of each module.
+    """
+    for mod in DEFAULT_MODULES.values():
+        if skip_untagged and not mod.should_tag:
+            continue
+        with ctx.cd(mod.full_path()):
+            ctx.run(cmd)

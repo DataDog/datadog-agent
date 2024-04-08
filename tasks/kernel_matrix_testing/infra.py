@@ -1,26 +1,55 @@
+from __future__ import annotations
+
 import glob
 import json
 import os
+from typing import TYPE_CHECKING, Dict, List, Optional
+
+from invoke.context import Context
 
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.tool import Exit, ask, error
 
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import ArchOrLocal, PathOrStr, StackOutput
+
+# Common SSH options for all SSH commands
+SSH_OPTIONS = {
+    # Disable host key checking, the IPs of the QEMU machines are reused and we don't want constant
+    # warnings about changed host keys. We need the combination of both options, if we just set
+    # StrictHostKeyChecking to no, it will still check the known hosts file and disable some options
+    # and print out scary warnings if the key doesn't match.
+    "StrictHostKeyChecking": "accept-new",
+    "UserKnownHostsFile": "/dev/null",
+}
+
+
+def ssh_options_command(extra_opts: Optional[Dict[str, str]] = None):
+    opts = SSH_OPTIONS.copy()
+    if extra_opts is not None:
+        opts.update(extra_opts)
+
+    return " ".join([f"-o {k}={v}" for k, v in opts.items()])
+
 
 class LocalCommandRunner:
     @staticmethod
-    def run_cmd(ctx, _, cmd, allow_fail, verbose):
+    def run_cmd(ctx: Context, _: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
         res = ctx.run(cmd.format(proxy_cmd=""), hide=(not verbose), warn=allow_fail)
-        if not res.ok:
-            error(f"[-] Failed: {cmd}")
-            if allow_fail:
-                return False
-            print_failed(res.stderr)
-            raise Exit("command failed")
+        if res is not None and res.ok:
+            return True
 
-        return True
+        error(f"[-] Failed: {cmd}")
+        if allow_fail:
+            return False
+        if res is not None:
+            print_failed(res.stderr)
+        raise Exit("command failed")
 
     @staticmethod
-    def move_to_shared_directory(ctx, _, source, subdir=None):
+    def move_to_shared_directory(
+        ctx: Context, _: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
+    ):
         recursive = ""
         if os.path.isdir(source):
             recursive = "-R"
@@ -34,43 +63,46 @@ class LocalCommandRunner:
 
 class RemoteCommandRunner:
     @staticmethod
-    def run_cmd(ctx, instance, cmd, allow_fail, verbose):
+    def run_cmd(ctx: Context, instance: 'HostInstance', cmd: str, allow_fail: bool, verbose: bool):
         res = ctx.run(
             cmd.format(
-                proxy_cmd=f"-o ProxyCommand='ssh -o StrictHostKeyChecking=no -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
+                proxy_cmd=f"-o ProxyCommand='ssh {ssh_options_command()} -i {instance.ssh_key} -W %h:%p ubuntu@{instance.ip}'"
             ),
             hide=(not verbose),
             warn=allow_fail,
         )
-        if not res.ok:
-            error(f"[-] Failed: {cmd}")
-            if allow_fail:
-                return False
-            print_failed(res.stderr)
-            raise Exit("command failed")
+        if res is not None and res.ok:
+            return True
 
-        return True
+        error(f"[-] Failed: {cmd}")
+        if allow_fail:
+            return False
+        if res is not None:
+            print_failed(res.stderr)
+        raise Exit("command failed")
 
     @staticmethod
-    def move_to_shared_directory(ctx, instance, source, subdir=None):
+    def move_to_shared_directory(
+        ctx: Context, instance: 'HostInstance', source: PathOrStr, subdir: Optional[PathOrStr] = None
+    ):
         full_target = get_kmt_os().shared_dir
         if subdir is not None:
             full_target = os.path.join(get_kmt_os().shared_dir, subdir)
             RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
 
         ctx.run(
-            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
+            f"rsync -e \"ssh {ssh_options_command()} -i {instance.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
         )
 
 
-def get_instance_runner(arch):
+def get_instance_runner(arch: ArchOrLocal):
     if arch == "local":
         return LocalCommandRunner
     else:
         return RemoteCommandRunner
 
 
-def print_failed(output):
+def print_failed(output: str):
     out = list()
     for line in output.split("\n"):
         out.append(f"\t{line}")
@@ -78,7 +110,15 @@ def print_failed(output):
 
 
 class LibvirtDomain:
-    def __init__(self, ip, domain_id, tag, vmset_tags, ssh_key_path, instance):
+    def __init__(
+        self,
+        ip: str,
+        domain_id: str,
+        tag: str,
+        vmset_tags: List[str],
+        ssh_key_path: Optional[str],
+        instance: 'HostInstance',
+    ):
         self.ip = ip
         self.name = domain_id
         self.tag = tag
@@ -86,45 +126,56 @@ class LibvirtDomain:
         self.ssh_key = ssh_key_path
         self.instance = instance
 
-    def run_cmd(self, ctx, cmd, allow_fail=False, verbose=False):
-        run = f"ssh -o StrictHostKeyChecking=no -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
+    def run_cmd(self, ctx: Context, cmd: str, allow_fail=False, verbose=False, timeout_sec=None):
+        if timeout_sec is not None:
+            extra_opts = {"ConnectTimeout": str(timeout_sec)}
+        else:
+            extra_opts = None
+
+        run = f"ssh {ssh_options_command(extra_opts)} -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def copy(self, ctx, source, target):
-        run = f"rsync -e \"ssh -o StrictHostKeyChecking=no {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{self.ip}:{target}"
+    def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr):
+        run = f"rsync -e \"ssh {ssh_options_command()} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{self.ip}:{target}"
         return self.instance.runner.run_cmd(ctx, self.instance, run, False, False)
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
 
+    def check_reachable(self, ctx: Context) -> bool:
+        return self.run_cmd(ctx, "true", allow_fail=True, timeout_sec=2)
+
 
 class HostInstance:
-    def __init__(self, ip, arch, ssh_key):
-        self.ip = ip
-        self.arch = arch
-        self.ssh_key = ssh_key
-        self.microvms = []
+    def __init__(self, ip: str, arch: ArchOrLocal, ssh_key: Optional[str]):
+        self.ip: str = ip
+        self.arch: ArchOrLocal = arch
+        self.ssh_key: Optional[str] = ssh_key
+        self.microvms: List[LibvirtDomain] = []
         self.runner = get_instance_runner(arch)
 
-    def add_microvm(self, domain):
+    def add_microvm(self, domain: LibvirtDomain):
         self.microvms.append(domain)
 
-    def copy_to_all_vms(self, ctx, path, subdir=None):
+    def copy_to_all_vms(self, ctx: Context, path: PathOrStr, subdir: Optional[PathOrStr] = None):
         self.runner.move_to_shared_directory(ctx, self, path, subdir)
 
     def __repr__(self):
         return f"<HostInstance> {self.ip} {self.arch}"
 
 
-def build_infrastructure(stack, remote_ssh_key=None):
+def build_infrastructure(stack: str, remote_ssh_key: Optional[str] = None):
     stack_output = os.path.join(get_kmt_os().stacks_dir, stack, "stack.output")
     if not os.path.exists(stack_output):
-        raise Exit("no stack.output file present")
+        raise Exit(f"no stack.output file present at {stack_output}")
 
     with open(stack_output, 'r') as f:
-        infra_map = json.load(f)
+        try:
+            infra_map: StackOutput = json.load(f)
+        except json.decoder.JSONDecodeError:
+            raise Exit(f"{stack_output} file is not a valid json file")
 
-    infra = dict()
+    infra: Dict[ArchOrLocal, HostInstance] = dict()
     for arch in infra_map:
         if arch != "local" and remote_ssh_key is None:
             if ask_for_ssh():
@@ -135,8 +186,13 @@ def build_infrastructure(stack, remote_ssh_key=None):
             key = ssh_key_to_path(remote_ssh_key)
         instance = HostInstance(infra_map[arch]["ip"], arch, key)
         for vm in infra_map[arch]["microvms"]:
+            # We use the local ddvm_rsa key as the path to the key stored in the pulumi output JSON
+            # file refers to the location in the remote instance, which might not be the same as the
+            # location in the local machine.
             instance.add_microvm(
-                LibvirtDomain(vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], vm["ssh-key-path"], instance)
+                LibvirtDomain(
+                    vm["ip"], vm["id"], vm["tag"], vm["vmset-tags"], os.fspath(get_kmt_os().ddvm_rsa), instance
+                )
             )
 
         infra[arch] = instance
@@ -144,7 +200,7 @@ def build_infrastructure(stack, remote_ssh_key=None):
     return infra
 
 
-def ssh_key_to_path(ssh_key):
+def ssh_key_to_path(ssh_key: str) -> str:
     ssh_key_path = ""
     if ssh_key != "":
         ssh_key.rstrip(".pem")
@@ -153,7 +209,7 @@ def ssh_key_to_path(ssh_key):
     return ssh_key_path
 
 
-def ask_for_ssh():
+def ask_for_ssh() -> bool:
     return (
         ask(
             "You may want to provide ssh key, since the given config launches a remote instance.\nContinue without a ssh key?[Y/n]"
@@ -162,7 +218,7 @@ def ask_for_ssh():
     )
 
 
-def find_ssh_key(ssh_key):
+def find_ssh_key(ssh_key: str) -> str:
     possible_paths = [f"~/.ssh/{ssh_key}", f"~/.ssh/{ssh_key}.pem"]
 
     # Try direct files
