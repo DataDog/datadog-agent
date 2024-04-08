@@ -766,9 +766,7 @@ workflow:
 .on_e2e_or_fakeintake_changes_or_manual:
   - <<: *if_main_branch
   - !reference [.except_mergequeue]
-  - changes:
-      paths:
-        - test/fakeintake/**/*
+  - <<: *fakeintake_changes
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     variables:
       FAKEINTAKE_IMAGE_OVERRIDE: "public.ecr.aws/datadog/fakeintake:v$CI_COMMIT_SHORT_SHA"
@@ -1019,6 +1017,7 @@ workflow:
     - .gitlab/binary_build/fakeintake.yml
     - .gitlab/container_build/fakeintake.yml
     - .gitlab/dev_container_deploy/fakeintake.yml
+    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_fakeintake_changes:
   - <<: *fakeintake_changes
