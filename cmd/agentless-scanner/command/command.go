@@ -73,6 +73,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(
 					runCmd,
 					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
 					fx.Supply(&params),
 				)
 			},
@@ -180,11 +181,8 @@ func runCmd(_ complog.Component, sc *types.ScannerConfig, params *runParams, evp
 	return nil
 }
 
-func runScannerCmd(_ complog.Component, sc *types.ScannerConfig, params *runScannerParams) error {
+func runScannerCmd(_ complog.Component, params *runScannerParams) error {
 	ctx := common.CtxTerminated()
-	statsd := common.InitStatsd(*sc)
-	var opts types.ScannerOptions
-
 	conn, err := net.Dial("unix", params.sock)
 	if err != nil {
 		return err
@@ -193,6 +191,19 @@ func runScannerCmd(_ complog.Component, sc *types.ScannerConfig, params *runScan
 
 	dec := json.NewDecoder(conn)
 	enc := json.NewEncoder(conn)
+
+	var sc types.ScannerConfig
+	_ = conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+	if err := dec.Decode(&sc); err != nil {
+		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+			return nil
+		}
+		return err
+	}
+
+	statsd := common.InitStatsd(sc)
+
+	var opts types.ScannerOptions
 	_ = conn.SetReadDeadline(time.Now().Add(4 * time.Second))
 	if err := dec.Decode(&opts); err != nil {
 		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
@@ -201,7 +212,7 @@ func runScannerCmd(_ complog.Component, sc *types.ScannerConfig, params *runScan
 		return err
 	}
 
-	result := runner.LaunchScannerInSameProcess(ctx, statsd, sc, opts)
+	result := runner.LaunchScannerInSameProcess(ctx, statsd, &sc, opts)
 	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
 	if err := enc.Encode(result); err != nil {
 		return err

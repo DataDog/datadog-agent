@@ -96,6 +96,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(
 					awsScanCmd,
 					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Supply(&params),
@@ -119,6 +120,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(
 					awsSnapshotCmd,
 					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Supply(&params),
@@ -142,6 +144,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(
 					awsOfflineCmd,
 					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Supply(&params),
@@ -166,6 +169,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(
 					awsAttachCmd,
 					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Supply(&params),
@@ -189,6 +193,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(
 					awsCleanupCmd,
 					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
 					fx.Supply(&awsGlobalParams),
 					fx.Provide(probeAWSEnv),
 					fx.Supply(&params),

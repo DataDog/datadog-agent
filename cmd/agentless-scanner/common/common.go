@@ -40,42 +40,42 @@ type GlobalParams struct {
 	ConfigFilePath string
 }
 
-func getScannerConfig(c compconfig.Component, globalParams *GlobalParams) (*types.ScannerConfig, error) {
-	defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
-	if err != nil {
-		return nil, fmt.Errorf("could not parse default roles mapping: %w", err)
+// ConfigProvider returns the scanner configuration
+func ConfigProvider(globalParams *GlobalParams) func (c compconfig.Component) (*types.ScannerConfig, error) {
+	return func(c compconfig.Component) (*types.ScannerConfig, error) {
+		defaultRolesMapping, err := types.ParseRolesMapping(c.GetStringSlice("agentless_scanner.default_roles"))
+		if err != nil {
+			return nil, fmt.Errorf("could not parse default roles mapping: %w", err)
+		}
+		diskMode, err := types.ParseDiskMode(globalParams.DiskMode)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse disk mode: %w", err)
+		}
+		defaultActions, err := types.ParseScanActions(globalParams.DefaultActions)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse default actions: %w", err)
+		}
+		return &types.ScannerConfig{
+			Env:                 c.GetString("env"),
+			DogstatsdHost:       pkgconfig.GetBindHost(),
+			DogstatsdPort:       c.GetInt("dogstatsd_port"),
+			DefaultRolesMapping: defaultRolesMapping,
+			DefaultActions:      defaultActions,
+			NoForkScanners:      globalParams.NoForkScanners,
+			DiskMode:            diskMode,
+			AWSRegion:           c.GetString("agentless_scanner.aws_region"),
+			AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
+			AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
+			AWSEBSGetBlockRate:  c.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
+			AWSDefaultRate:      c.GetFloat64("agentless_scanner.limits.aws_default_rate"),
+			AzureClientID:       c.GetString("agentless_scanner.azure_client_id"),
+		}, nil
 	}
-	diskMode, err := types.ParseDiskMode(globalParams.DiskMode)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse disk mode: %w", err)
-	}
-	defaultActions, err := types.ParseScanActions(globalParams.DefaultActions)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse default actions: %w", err)
-	}
-	return &types.ScannerConfig{
-		Env:                 c.GetString("env"),
-		DogstatsdHost:       pkgconfig.GetBindHost(),
-		DogstatsdPort:       c.GetInt("dogstatsd_port"),
-		DefaultRolesMapping: defaultRolesMapping,
-		DefaultActions:      defaultActions,
-		NoForkScanners:      globalParams.NoForkScanners,
-		DiskMode:            diskMode,
-		AWSRegion:           c.GetString("agentless_scanner.aws_region"),
-		AWSEC2Rate:          c.GetFloat64("agentless_scanner.limits.aws_ec2_rate"),
-		AWSEBSListBlockRate: c.GetFloat64("agentless_scanner.limits.aws_ebs_list_block_rate"),
-		AWSEBSGetBlockRate:  c.GetFloat64("agentless_scanner.limits.aws_ebs_get_block_rate"),
-		AWSDefaultRate:      c.GetFloat64("agentless_scanner.limits.aws_default_rate"),
-		AzureClientID:       c.GetString("agentless_scanner.azure_client_id"),
-	}, nil
 }
 
 // Bundle returns the fx.Option for the agentless-scanner
 func Bundle(globalParams *GlobalParams) fx.Option {
 	return fx.Options(
-		fx.Provide(func(config compconfig.Component) (*types.ScannerConfig, error) {
-			return getScannerConfig(config, globalParams)
-		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: compconfig.NewAgentParams(globalParams.ConfigFilePath),
 			SecretParams: secrets.NewEnabledParams(),

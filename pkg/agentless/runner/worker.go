@@ -195,6 +195,7 @@ func (w *Worker) triggerScan(ctx context.Context, scan *types.ScanTask, resultsC
 		}
 	}()
 
+	log.Infof("%s: %s: starting scans for resource", scan, scan.TargetID)
 	if err := os.MkdirAll(scan.Path(), 0700); err != nil {
 		return err
 	}
@@ -676,7 +677,7 @@ func (p *scannersPool) launchScanner(ctx context.Context, opts types.ScannerOpti
 		if p.noFork {
 			result = LaunchScannerInSameProcess(ctx, p.statsd, &p.scannerConfig, opts)
 		} else {
-			result = launchScannerInChildProcess(ctx, opts)
+			result = launchScannerInChildProcess(ctx, &p.scannerConfig, opts)
 		}
 		<-p.sem
 		ch <- result
@@ -732,7 +733,7 @@ func LaunchScannerInSameProcess(ctx context.Context, statsd ddogstatsd.ClientInt
 	}
 }
 
-func launchScannerInChildProcess(ctx context.Context, opts types.ScannerOptions) types.ScanResult {
+func launchScannerInChildProcess(ctx context.Context, sc *types.ScannerConfig, opts types.ScannerOptions) types.ScanResult {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
@@ -764,6 +765,9 @@ func launchScannerInChildProcess(ctx context.Context, opts types.ScannerOptions)
 
 		enc := json.NewEncoder(conn)
 		dec := json.NewDecoder(conn)
+		if err := enc.Encode(sc); err != nil {
+			return opts.ErrResult(err)
+		}
 		if err := enc.Encode(opts); err != nil {
 			return opts.ErrResult(err)
 		}

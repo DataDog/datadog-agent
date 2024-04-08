@@ -9,19 +9,19 @@ package types
 
 // ScannerConfig is the representation of the scan configuration after being
 type ScannerConfig struct {
-	Env                 string
-	DogstatsdHost       string
-	DogstatsdPort       int
-	DefaultRolesMapping RolesMapping
-	DefaultActions      []ScanAction
-	DiskMode            DiskMode
-	NoForkScanners      bool
+	Env                 string       `json:"Env"`
+	DogstatsdHost       string       `json:"DogstatsdHost"`
+	DogstatsdPort       int          `json:"DogstatsdPort"`
+	DefaultRolesMapping RolesMapping `json:"DefaultRolesMapping"`
+	DefaultActions      []ScanAction `json:"DefaultActions"`
+	DiskMode            DiskMode     `json:"DiskMode"`
+	NoForkScanners      bool         `json:"NoForkScanners"`
 
-	AWSRegion           string
-	AWSEC2Rate          float64
-	AWSEBSListBlockRate float64
-	AWSEBSGetBlockRate  float64
-	AWSDefaultRate      float64
+	AWSRegion           string  `json:"AWSRegion"`
+	AWSEC2Rate          float64 `json:"AWSEC2Rate"`
+	AWSEBSListBlockRate float64 `json:"AWSEBSListBlockRate"`
+	AWSEBSGetBlockRate  float64 `json:"AWSEBSGetBlockRate"`
+	AWSDefaultRate      float64 `json:"AWSDefaultRate"`
 
-	AzureClientID string
+	AzureClientID string `json:"AzureClientID"`
 }

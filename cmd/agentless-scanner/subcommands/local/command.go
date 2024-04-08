@@ -44,6 +44,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(
 					localScanCmd,
 					common.Bundle(globalParams),
+					fx.Provide(common.ConfigProvider(globalParams)),
 					fx.Supply(&params),
 				)
 			},
