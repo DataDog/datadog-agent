@@ -115,6 +115,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	return nil
 }
 
+// MergeAdditionalKeysToScrubber merges multiple slices of keys into a single slice
 func MergeAdditionalKeysToScrubber(elems ...[]string) []string {
 	keys := make(map[string]struct{})
 	for _, elem := range elems {
