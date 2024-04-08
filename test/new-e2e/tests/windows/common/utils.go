@@ -7,6 +7,8 @@ package common
 
 import (
 	"fmt"
+	"strings"
+
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -21,4 +23,17 @@ func ConvertUTF16ToUTF8(content []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to convert UTF-16 to UTF-8: %v", err)
 	}
 	return utf8, nil
+}
+
+// TrimTrailingSlashesAndLower trims trailing slashes and lowercases the path for use in simple comparisons.
+//
+// Some cases may require a more comprehensive comparison, which could be made by normalizing the path on the host
+// via PowerShell, to support removing dot paths, resolving links, etc
+func TrimTrailingSlashesAndLower(path string) string {
+	// Normalize paths
+	// trim trailing slashes
+	path = strings.TrimSuffix(path, `\`)
+	// windows paths are case-insensitive
+	path = strings.ToLower(path)
+	return path
 }
