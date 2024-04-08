@@ -99,7 +99,18 @@ func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
 	}, 4*time.Minute, 10*time.Second)
 }
 
-func (a *agentSuite) Test02OpenSignal() {
+func (a *agentSuite) Test02Selftests() {
+	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+		testSelftestsEvent(collect, a, func(event *api.SelftestsEvent) {
+			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_open", "missing selftest result")
+			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chmod", "missing selftest result")
+			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
+			validateEventSchema(collect, &event.Event, "self_test_schema.json")
+		})
+	}, 4*time.Minute, 10*time.Second)
+}
+
+func (a *agentSuite) Test03OpenSignal() {
 	var agentRuleID, signalRuleID, dirname string
 	// Cleanup function
 	defer func() {
@@ -186,16 +197,6 @@ func (a *agentSuite) Test02OpenSignal() {
 		testRulesetLoaded(collect, a, "file", policyName)
 	}, 4*time.Minute, 5*time.Second)
 
-	// Check selftests
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
-		testSelftestsEvent(collect, a, func(event *api.SelftestsEvent) {
-			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_open", "missing selftest result")
-			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chmod", "missing selftest result")
-			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
-			validateEventSchema(collect, &event.Event, "self_test_schema.json")
-		})
-	}, 4*time.Minute, 5*time.Second)
-
 	// Check 'datadog.security_agent.runtime.running' metric
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
 		testMetricExists(collect, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
@@ -204,7 +205,7 @@ func (a *agentSuite) Test02OpenSignal() {
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
 
-	// Check backend log
+	// Check app event
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
 		testRuleEvent(collect, a, agentRuleName, func(e *api.RuleEvent) {
 			assert.Equal(collect, "open", e.Evt.Name, "event name should be open")
