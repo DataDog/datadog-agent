@@ -11,10 +11,10 @@ build do
     if linux_target? || osx_target?
         command "cargo build --release", cwd: "#{project_dir}/sds-go/rust"
         if osx_target?
-            command "cp sds-go/rust/target/release/libsds_go.dylib #{install_dir}/embedded/lib"
+            copy "sds-go/rust/target/release/libsds_go.dylib", "#{install_dir}/embedded/lib"
         end
         if linux_target?
-            command "cp sds-go/rust/target/release/libsds_go.so #{install_dir}/embedded/lib"
+            copy "sds-go/rust/target/release/libsds_go.so", "#{install_dir}/embedded/lib"
         end
     end
 end
