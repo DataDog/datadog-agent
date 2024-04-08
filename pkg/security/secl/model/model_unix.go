@@ -70,6 +70,9 @@ type Event struct {
 	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
+	// on-demand events
+	OnDemand OnDemandEvent `field:"ondemand" event:"ondemand"` // [7.54] [Kernel] An On-Demand event was generated
+
 	// internal usage
 	Umount           UmountEvent           `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
@@ -616,4 +619,15 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+}
+
+// OnDemandEvent identifies an on-demand event generated from on-demand probes
+type OnDemandEvent struct {
+	ID      uint32    `field:"-"`
+	Name    string    `field:"name,handler:ResolveOnDemandName"` // SECLDoc[name] Definition:`No doc`
+	Data    [256]byte `field:"-"`
+	Arg1Str string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"` // SECLDoc[arg1.str] Definition:`No doc`
+	Arg2Str string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"` // SECLDoc[arg2.str] Definition:`No doc`
+	Arg3Str string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"` // SECLDoc[arg3.str] Definition:`No doc`
+	Arg4Str string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"` // SECLDoc[arg4.str] Definition:`No doc`
 }

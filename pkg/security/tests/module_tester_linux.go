@@ -182,6 +182,17 @@ runtime_security_config:
 const testPolicy = `---
 version: 1.2.3
 
+on_demand:
+{{range $OnDemandProbe := .OnDemandProbes}}
+  - name: {{$OnDemandProbe.Name}}
+    syscall: {{$OnDemandProbe.IsSyscall}}
+    args:
+{{range $Arg := $OnDemandProbe.Args}}
+      - n: {{$Arg.N}}
+        kind: {{$Arg.Kind}}
+{{end}}
+{{end}}
+
 macros:
 {{range $Macro := .Macros}}
   - id: {{$Macro.ID}}
@@ -605,6 +616,10 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
+	return newTestModuleWithOnDemandProbes(t, nil, macroDefs, ruleDefs, fopts...)
+}
+
+func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
@@ -655,7 +670,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, onDemandHooks, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 

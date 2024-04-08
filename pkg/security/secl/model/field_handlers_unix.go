@@ -480,6 +480,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount)
 	case "mprotect":
+	case "ondemand":
+		_ = ev.FieldHandlers.ResolveOnDemandName(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg1Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg2Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg3Str(ev, &ev.OnDemand)
+		_ = ev.FieldHandlers.ResolveOnDemandArg4Str(ev, &ev.OnDemand)
 	case "open":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Open.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Open.File.FileFields)
@@ -989,6 +995,11 @@ type FieldHandlers interface {
 	ResolveMountRootPath(ev *Event, e *MountEvent) string
 	ResolveMountSourcePath(ev *Event, e *MountEvent) string
 	ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string
+	ResolveOnDemandArg1Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg2Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg3Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandArg4Str(ev *Event, e *OnDemandEvent) string
+	ResolveOnDemandName(ev *Event, e *OnDemandEvent) string
 	ResolvePackageName(ev *Event, e *FileEvent) string
 	ResolvePackageSourceVersion(ev *Event, e *FileEvent) string
 	ResolvePackageVersion(ev *Event, e *FileEvent) string
@@ -1080,7 +1091,20 @@ func (dfh *FakeFieldHandlers) ResolveMountSourcePath(ev *Event, e *MountEvent) s
 func (dfh *FakeFieldHandlers) ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string {
 	return e.IfName
 }
-func (dfh *FakeFieldHandlers) ResolvePackageName(ev *Event, e *FileEvent) string { return e.PkgName }
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg1Str(ev *Event, e *OnDemandEvent) string {
+	return e.Arg1Str
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg2Str(ev *Event, e *OnDemandEvent) string {
+	return e.Arg2Str
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg3Str(ev *Event, e *OnDemandEvent) string {
+	return e.Arg3Str
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandArg4Str(ev *Event, e *OnDemandEvent) string {
+	return e.Arg4Str
+}
+func (dfh *FakeFieldHandlers) ResolveOnDemandName(ev *Event, e *OnDemandEvent) string { return e.Name }
+func (dfh *FakeFieldHandlers) ResolvePackageName(ev *Event, e *FileEvent) string      { return e.PkgName }
 func (dfh *FakeFieldHandlers) ResolvePackageSourceVersion(ev *Event, e *FileEvent) string {
 	return e.PkgSrcVersion
 }

@@ -3249,6 +3249,40 @@
       ]
     },
     {
+      "name": "ondemand",
+      "definition": "An On-Demand event was generated",
+      "type": "Kernel",
+      "from_agent_version": "7.54",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "ondemand.arg1.str",
+          "definition": "No doc",
+          "property_doc_link": "ondemand-arg1-str-doc"
+        },
+        {
+          "name": "ondemand.arg2.str",
+          "definition": "No doc",
+          "property_doc_link": "ondemand-arg2-str-doc"
+        },
+        {
+          "name": "ondemand.arg3.str",
+          "definition": "No doc",
+          "property_doc_link": "ondemand-arg3-str-doc"
+        },
+        {
+          "name": "ondemand.arg4.str",
+          "definition": "No doc",
+          "property_doc_link": "ondemand-arg4-str-doc"
+        },
+        {
+          "name": "ondemand.name",
+          "definition": "No doc",
+          "property_doc_link": "ondemand-name-doc"
+        }
+      ]
+    },
+    {
       "name": "open",
       "definition": "A file was opened",
       "type": "File",
@@ -9418,6 +9452,66 @@
       "definition": "size in bytes of the network packet",
       "prefixes": [
         "network"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ondemand.arg1.str",
+      "link": "ondemand-arg1-str-doc",
+      "type": "string",
+      "definition": "No doc",
+      "prefixes": [
+        "ondemand"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ondemand.arg2.str",
+      "link": "ondemand-arg2-str-doc",
+      "type": "string",
+      "definition": "No doc",
+      "prefixes": [
+        "ondemand"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ondemand.arg3.str",
+      "link": "ondemand-arg3-str-doc",
+      "type": "string",
+      "definition": "No doc",
+      "prefixes": [
+        "ondemand"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ondemand.arg4.str",
+      "link": "ondemand-arg4-str-doc",
+      "type": "string",
+      "definition": "No doc",
+      "prefixes": [
+        "ondemand"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "ondemand.name",
+      "link": "ondemand-name-doc",
+      "type": "string",
+      "definition": "No doc",
+      "prefixes": [
+        "ondemand"
       ],
       "constants": "",
       "constants_link": "",
