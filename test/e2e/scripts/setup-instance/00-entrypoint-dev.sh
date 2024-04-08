@@ -2,7 +2,6 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
 
 BASE64_FLAGS="-w 0"
 # OSX with 2 types of base64 binary in PATH ...

@@ -59,14 +59,13 @@ build do
       mkdir "/usr/lib/systemd/system/"
       systemdPath = "/usr/lib/systemd/system/"
     end
-
-    erb source: "datadog-updater.service.erb",
-       dest: systemdPath + "datadog-updater.service",
+    erb source: "datadog-installer.service.erb",
+       dest: systemdPath + "datadog-installer.service",
        mode: 0644,
        vars: { install_dir: "/opt/datadog-packages/datadog-updater/stable", etc_dir: etc_dir}
 
-    erb source: "datadog-updater-exp.service.erb",
-       dest: systemdPath + "datadog-updater-exp.service",
+    erb source: "datadog-installer-exp.service.erb",
+       dest: systemdPath + "datadog-installer-exp.service",
        mode: 0644,
        vars: { install_dir: "/opt/datadog-packages/datadog-updater/experiment", etc_dir: etc_dir}
 

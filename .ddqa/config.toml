@@ -10,6 +10,14 @@ github_team = "agent-metrics-logs"
 github_labels = ["team/agent-metrics-logs"]
 exclude_members = ["olivielpeau"]
 
+[teams."Agent Processing and Routing"]
+jira_project = "APR"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "agent-processing-and-routing"
+github_labels = ["team/agent-processing-and-routing"]
+exclude_members = []
+
 [teams."Agent Shared Components"]
 jira_project = "ASCII"
 jira_issue_type = "QA"
@@ -108,6 +116,13 @@ jira_issue_type = "QA"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "remote-config"
 github_labels = ["team/remote-config"]
+
+[teams."Fleet Automation"]
+jira_project = "FA"
+jira_issue_type = "QA"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "fleet-automation"
+github_labels = ["team/fleet-automation"]
 
 [teams."Container Integrations"]
 jira_project = "CONTINT"
