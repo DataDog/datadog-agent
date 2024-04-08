@@ -135,7 +135,10 @@ type EBPFProbe struct {
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
+	useSyscallWrapper  bool
 	useFentry          bool
+
+	onDemandManager *OnDemandProbesManager
 }
 
 func (p *EBPFProbe) detectKernelVersion() error {
@@ -259,8 +262,9 @@ func (p *EBPFProbe) Init() error {
 	if err != nil {
 		return err
 	}
+	p.useSyscallWrapper = useSyscallWrapper
 
-	loader := ebpf.NewProbeLoader(p.config.Probe, useSyscallWrapper, p.UseRingBuffers(), p.useFentry, p.statsdClient)
+	loader := ebpf.NewProbeLoader(p.config.Probe, p.useSyscallWrapper, p.UseRingBuffers(), p.useFentry, p.statsdClient)
 	defer loader.Close()
 
 	bytecodeReader, runtimeCompiled, err := loader.Load()
@@ -956,6 +960,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.OnDemandEventType:
+		if _, err = event.OnDemand.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode on-demand event for syscall event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	}
 
 	// resolve the container context
@@ -1172,6 +1181,10 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	}
 
 	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
+
+	// on-demand probes
+	p.onDemandManager.updateProbes()
+	activatedProbes = append(activatedProbes, p.onDemandManager.selectProbes())
 
 	if needRawSyscalls {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
@@ -1512,6 +1525,8 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	p.onDemandManager.setHookPoints(rs.GetOnDemandHookPoints())
+
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
@@ -1790,7 +1805,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		hostname = "unknown"
 	}
 
-	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname}
+	p.onDemandManager = &OnDemandProbesManager{
+		probe:   p,
+		manager: p.Manager,
+	}
+
+	p.fieldHandlers = &EBPFFieldHandlers{config: config, resolvers: p.Resolvers, hostname: hostname, onDemand: p.onDemandManager}
 
 	if useRingBuffers {
 		p.eventStream = ringbuffer.New(p.handleEvent)
@@ -2074,4 +2094,110 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			ev.ResolveFields()
 		}
 	}
+}
+
+// OnDemandProbesManager is the manager for on-demand probes
+type OnDemandProbesManager struct {
+	sync.RWMutex
+
+	probe *EBPFProbe
+
+	hookPoints   []rules.OnDemandHookPoint
+	manager      *manager.Manager
+	probes       []*manager.Probe
+	probeCounter uint16
+}
+
+func (sm *OnDemandProbesManager) setHookPoints(hps []rules.OnDemandHookPoint) {
+	sm.Lock()
+	defer sm.Unlock()
+
+	sm.hookPoints = hps
+}
+
+func (sm *OnDemandProbesManager) getHookNameFromID(id int) string {
+	sm.RLock()
+	defer sm.RUnlock()
+
+	if id >= len(sm.hookPoints) {
+		return ""
+	}
+
+	return sm.hookPoints[id].Name
+}
+
+func (sm *OnDemandProbesManager) updateProbes() {
+	sm.Lock()
+	defer sm.Unlock()
+
+	sm.probes = make([]*manager.Probe, 0)
+	for hookID, hookPoint := range sm.hookPoints {
+		var baseProbe *manager.Probe
+		if hookPoint.IsSyscall && sm.probe.useSyscallWrapper {
+			baseProbe = probes.GetOnDemandSyscallProbe()
+		} else {
+			baseProbe = probes.GetOnDemandRegularProbe()
+		}
+
+		newProbe := baseProbe.Copy()
+		newProbe.CopyProgram = true
+		newProbe.UID = fmt.Sprintf("%s_%s_on_demand_%d", probes.SecurityAgentUID, hookPoint.Name, sm.probeCounter)
+		sm.probeCounter++
+		newProbe.KeepProgramSpec = false
+		if hookPoint.IsSyscall {
+			newProbe.HookFuncName = probes.GetSyscallFnName(hookPoint.Name)
+		} else {
+			newProbe.HookFuncName = hookPoint.Name
+		}
+
+		argsEditors := buildArgsEditors(hookPoint.Args)
+		argsEditors = append(argsEditors, manager.ConstantEditor{
+			Name:  "synth_id",
+			Value: uint64(hookID),
+		})
+
+		if err := sm.manager.CloneProgram(probes.SecurityAgentUID, newProbe, argsEditors, nil); err != nil {
+			seclog.Errorf("error cloning on-demand probe: %v", err)
+		}
+		sm.probes = append(sm.probes, newProbe)
+	}
+}
+
+func (sm *OnDemandProbesManager) selectProbes() manager.ProbesSelector {
+	sm.RLock()
+	defer sm.RUnlock()
+
+	var activatedProbes manager.BestEffort
+	for _, p := range sm.probes {
+		activatedProbes.Selectors = append(activatedProbes.Selectors, &manager.ProbeSelector{
+			ProbeIdentificationPair: p.ProbeIdentificationPair,
+		})
+	}
+	return &activatedProbes
+}
+
+func buildArgsEditors(args []rules.HookPointArg) []manager.ConstantEditor {
+	argKinds := make(map[int]int)
+	for _, arg := range args {
+		var kind int
+		switch arg.Kind {
+		case "int":
+			kind = 1
+		case "null-terminated-string":
+			kind = 2
+		default:
+			panic(fmt.Errorf("unknown kind for arg: %s", arg.Kind))
+		}
+
+		argKinds[arg.N] = kind
+	}
+
+	editors := make([]manager.ConstantEditor, 0, len(argKinds))
+	for n, kind := range argKinds {
+		editors = append(editors, manager.ConstantEditor{
+			Name:  fmt.Sprintf("param%dkind", n),
+			Value: uint64(kind),
+		})
+	}
+	return editors
 }

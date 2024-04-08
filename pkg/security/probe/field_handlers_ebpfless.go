@@ -395,3 +395,28 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *mo
 func (fh *EBPFLessFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return fh.hostname
 }
+
+// ResolveOnDemandName resolves the on-demand event name
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandName(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg1Str resolves the string value of the first argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg1Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg2Str resolves the string value of the second argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg2Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg3Str resolves the string value of the third argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg3Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg4Str resolves the string value of the fourth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
