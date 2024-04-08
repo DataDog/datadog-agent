@@ -12,7 +12,10 @@
         Histogram Buckets: {{humanize .HistogramBuckets}}, Total: {{humanize .TotalHistogramBuckets}}<br>
         {{- end -}}
         Last Execution Date : {{formatUnixTime .UpdateTimestamp}}<br>
-        Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}<br>
+        Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
+        {{- if .Cancelling}}
+        Cancelling: True
+        {{- end -}}<br>
       {{- if .LastError}}
         <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
               {{lastErrorTraceback .LastError -}}
