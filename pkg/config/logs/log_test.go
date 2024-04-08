@@ -110,7 +110,7 @@ func TestMergedKeys(t *testing.T) {
 	// Test that the merged keys are correctly computed
 	s1 := []string{"foo", "bar"}
 	s2 := []string{"bar", "buzz"}
-	assert.Equal(t, []string{"foo", "bar", "buzz"}, MergeAdditionalKeysToScrubber(s1, s2))
+	assert.Equal(t, []string{"foo", "bar", "buzz"}, mergeAdditionalKeysToScrubber(s1, s2))
 }
 
 func TestENVAdditionalKeysToScrubber(t *testing.T) {
@@ -130,7 +130,7 @@ func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	cfg.BindEnv("flare_stripped_keys")
 	cfg.BindEnv("scrubber.additional_keys")
 
-	getAdditionalKeysToScrubber := MergeAdditionalKeysToScrubber(
+	getAdditionalKeysToScrubber := mergeAdditionalKeysToScrubber(
 		cfg.GetStringSlice("flare_stripped_keys"),
 		cfg.GetStringSlice("scrubber.additional_keys"))
 

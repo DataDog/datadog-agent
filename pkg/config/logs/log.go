@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -109,25 +110,20 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
 	log.SetupLogger(loggerInterface, seelogLogLevel)
-	scrubber.AddStrippedKeys(MergeAdditionalKeysToScrubber(
+	scrubber.AddStrippedKeys(mergeAdditionalKeysToScrubber(
 		cfg.GetStringSlice("flare_stripped_keys"),
 		cfg.GetStringSlice("scrubber.additional_keys")))
 	return nil
 }
 
-// MergeAdditionalKeysToScrubber merges multiple slices of keys into a single slice
-func MergeAdditionalKeysToScrubber(elems ...[]string) []string {
-	keys := make(map[string]struct{})
+// mergeAdditionalKeysToScrubber merges multiple slices of keys into a single slice
+func mergeAdditionalKeysToScrubber(elems ...[]string) []string {
+	set := []string{}
 	for _, elem := range elems {
-		for _, key := range elem {
-			keys[key] = struct{}{}
-		}
+		clone := slices.Clone(elem)
+		set = append(set, clone...)
 	}
-	res := make([]string, 0, len(keys))
-	for key := range keys {
-		res = append(res, key)
-	}
-	return res
+	return slices.Compact(set)
 }
 
 // SetupJMXLogger sets up a logger with JMX logger name and log level
