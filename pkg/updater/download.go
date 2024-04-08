@@ -34,6 +34,9 @@ const (
 	ociLayoutName                 = "oci-layout"
 	ociLayoutArchiveMaxSize int64 = 1 << 30 // 1GiB
 	ociLayoutMaxSize        int64 = 1 << 30 // 1GiB
+
+	annotationPackage = "com.datadoghq.package.name"
+	annotationVersion = "com.datadoghq.package.version"
 )
 
 // downloader is the downloader used by the updater to download packages.
@@ -62,7 +65,7 @@ func (d *downloader) Download(ctx context.Context, tmpDir string, pkg Package) (
 	case "http", "https":
 		image, err = d.downloadHTTP(ctx, pkg.URL, pkg.SHA256, pkg.Size, tmpDir)
 	case "oci":
-		image, err = d.downloadRegistry(ctx, pkg)
+		image, err = d.downloadRegistry(ctx, d.getRegistryURL(pkg.URL))
 	default:
 		return nil, fmt.Errorf("unsupported package URL scheme: %s", url.Scheme)
 	}
@@ -73,33 +76,63 @@ func (d *downloader) Download(ctx context.Context, tmpDir string, pkg Package) (
 	return image, nil
 }
 
-func (d *downloader) getRegistryURL(pkg Package) string {
-	downloadURL := strings.TrimPrefix(pkg.URL, "oci://")
+// Package returns the downloadable package at the given URL.
+func (d *downloader) Package(ctx context.Context, pkgURL string) (Package, error) {
+	log.Debugf("Getting package information from %s", pkgURL)
+	url, err := url.Parse(pkgURL)
+	if err != nil {
+		return Package{}, fmt.Errorf("could not parse package URL: %w", err)
+	}
+	if url.Scheme != "oci" {
+		return Package{}, fmt.Errorf("unsupported package URL scheme: %s", url.Scheme)
+	}
+	image, err := d.downloadRegistry(ctx, d.getRegistryURL(pkgURL))
+	if err != nil {
+		return Package{}, fmt.Errorf("could not download package from %s: %w", pkgURL, err)
+	}
+	manifest, err := image.Manifest()
+	if err != nil {
+		return Package{}, fmt.Errorf("could not get image manifest: %w", err)
+	}
+	pkg, ok := manifest.Annotations[annotationPackage]
+	if !ok {
+		return Package{}, fmt.Errorf("package manifest is missing package annotation")
+	}
+	version, ok := manifest.Annotations[annotationVersion]
+	if !ok {
+		return Package{}, fmt.Errorf("package manifest is missing version annotation")
+	}
+	return Package{
+		Name:    pkg,
+		Version: version,
+		URL:     pkgURL,
+	}, nil
+}
+
+func (d *downloader) getRegistryURL(url string) string {
+	downloadURL := strings.TrimPrefix(url, "oci://")
 	if d.remoteBaseURL != "" {
 		remoteBaseURL := d.remoteBaseURL
 		if !strings.HasSuffix(d.remoteBaseURL, "/") {
 			remoteBaseURL += "/"
 		}
-		split := strings.Split(pkg.URL, "/")
+		split := strings.Split(url, "/")
 		downloadURL = remoteBaseURL + split[len(split)-1]
 	}
 	return downloadURL
 }
 
-func (d *downloader) downloadRegistry(ctx context.Context, pkg Package) (oci.Image, error) {
-	url := d.getRegistryURL(pkg)
-
+func (d *downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
 	// the image URL is parsed as a digest to ensure we use the <repository>/<image>@<digest> format
-	digest, err := name.NewDigest(url, name.StrictValidation)
+	ref, err := name.ParseReference(url, name.StrictValidation)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse digest: %w", err)
+		return nil, fmt.Errorf("could not parse ref: %w", err)
 	}
-
 	platform := oci.Platform{
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
 	}
-	index, err := remote.Index(digest, remote.WithContext(ctx))
+	index, err := remote.Index(ref, remote.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("could not download image: %w", err)
 	}

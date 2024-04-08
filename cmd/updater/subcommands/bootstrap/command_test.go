@@ -19,3 +19,26 @@ func TestCommand(t *testing.T) {
 		bootstrap,
 		func() {})
 }
+
+func TestPackageURL(t *testing.T) {
+	type test struct {
+		site     string
+		pkg      string
+		version  string
+		expected string
+	}
+
+	tests := []test{
+		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://public.ecr.aws/datadoghq/agent-package:1.2.3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.site, func(t *testing.T) {
+			actual := packageURL(tt.site, tt.pkg, tt.version)
+			if actual != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, actual)
+			}
+		})
+	}
+}

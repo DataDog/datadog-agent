@@ -10,9 +10,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 var (
@@ -21,6 +22,16 @@ var (
 			{
 				Name:    "datadog-agent",
 				Version: "7.31.0",
+				URL:     "https://example.com/datadog-agent-7.31.0.tar",
+			},
+		},
+	}
+	testAgentCatalogBadOCIWithTag = catalog{
+		Packages: []Package{
+			{
+				Name:    "datadog-agent",
+				Version: "7.31.0",
+				URL:     "oci://example.com/datadog-agent:7.31.0",
 			},
 		},
 	}
@@ -29,14 +40,16 @@ var (
 			{
 				Name:    "dd-trace-py",
 				Version: "1.31.0",
+				URL:     "oci://example.com/dd-trace-py@sha256:2a5ca68f1f0a088cdf1cd1efa086ffe0ca80f8339c7fa12a7f41bbe9d1527cb6",
 			},
 		},
 	}
 	testCatalog = catalog{
 		Packages: append(testAgentCatalog.Packages, testTracerCatalog.Packages...),
 	}
-	testAgentCatalogJSON, _  = json.Marshal(testAgentCatalog)
-	testTracerCatalogJSON, _ = json.Marshal(testTracerCatalog)
+	testAgentCatalogJSON, _              = json.Marshal(testAgentCatalog)
+	testAgentCatalogBadOCIWithTagJSON, _ = json.Marshal(testAgentCatalogBadOCIWithTag)
+	testTracerCatalogJSON, _             = json.Marshal(testTracerCatalog)
 )
 
 var (
@@ -115,6 +128,20 @@ func TestCatalogUpdateError(t *testing.T) {
 	handler(map[string]state.RawConfig{
 		"agent":  {Config: testAgentCatalogJSON},
 		"tracer": {Config: testTracerCatalogJSON},
+	}, callback.applyStateCallback)
+
+	callback.AssertExpectations(t)
+}
+
+func TestCatalogUpdateBadPackageWithOCITag(t *testing.T) {
+	callback := &callbackMock{}
+	handler := handleUpdaterCatalogDDUpdate(callback.handleCatalogUpdate)
+	callback.On("applyStateCallback", "agent", mock.MatchedBy(func(s state.ApplyStatus) bool {
+		return s.State == state.ApplyStateError
+	})).Return()
+
+	handler(map[string]state.RawConfig{
+		"agent": {Config: testAgentCatalogBadOCIWithTagJSON},
 	}, callback.applyStateCallback)
 
 	callback.AssertExpectations(t)
