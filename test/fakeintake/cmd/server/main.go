@@ -27,7 +27,7 @@ func main() {
 	log.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
 	fi := fakeintake.NewServer(fakeintake.WithPort(*portPtr), fakeintake.WithReadyChannel(ready))
-	// fi.Start()
+	// f i.Start()
 	timeout := time.NewTimer(5 * time.Second)
 
 	select {
