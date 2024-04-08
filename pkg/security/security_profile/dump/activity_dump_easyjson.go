@@ -11,7 +11,6 @@ import (
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
 	jwriter "github.com/mailru/easyjson/jwriter"
-	sync "sync"
 )
 
 // suppress unused package warning
@@ -31,7 +30,6 @@ func easyjson9a9a4de6DecodeGithubComDataDogDatadogAgentPkgSecuritySecurityProfil
 		in.Skip()
 		return
 	}
-	out.Mutex = new(sync.Mutex)
 	in.Delim('{')
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
