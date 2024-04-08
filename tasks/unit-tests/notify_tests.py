@@ -27,6 +27,33 @@ class TestSendMessage(unittest.TestCase):
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
         list_mock.assert_called()
 
+    def test_post_to_channel1(self):
+        self.assertTrue(notify._should_send_message_to_channel('main', default_branch='main'))
+
+    def test_post_to_channel2(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.x', default_branch='main'))
+
+    def test_post_to_channel3(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.0', default_branch='main'))
+
+    def test_post_to_channel4(self):
+        self.assertTrue(notify._should_send_message_to_channel('7.52.0-rc.1', default_branch='main'))
+
+    def test_post_to_author1(self):
+        self.assertFalse(notify._should_send_message_to_channel('7.52.0-beta-test-feature', default_branch='main'))
+
+    def test_post_to_author2(self):
+        self.assertFalse(notify._should_send_message_to_channel('7.52.0-rc.1-beta-test-feature', default_branch='main'))
+
+    def test_post_to_author3(self):
+        self.assertFalse(notify._should_send_message_to_channel('celian/7.52.0', default_branch='main'))
+
+    def test_post_to_author4(self):
+        self.assertFalse(notify._should_send_message_to_channel('a.b.c', default_branch='main'))
+
+    def test_post_to_author5(self):
+        self.assertFalse(notify._should_send_message_to_channel('my-feature', default_branch='main'))
+
 
 class TestSendStats(unittest.TestCase):
     @patch('tasks.libs.common.gitlab_api.get_gitlab_api')

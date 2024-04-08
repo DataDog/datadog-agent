@@ -1,6 +1,6 @@
 import unittest
 
-from tasks.libs.common.gitlab_api import generate_gitlab_full_configuration, read_includes
+from tasks.libs.ciproviders.gitlab_api import generate_gitlab_full_configuration, read_includes
 
 
 class TestReadIncludes(unittest.TestCase):

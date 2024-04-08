@@ -22,10 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	strategyUtils "github.com/DataDog/datadog-agent/pkg/serializer/compression/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
@@ -174,8 +174,8 @@ func TestEventsSeveralPayloadsCreateSingleMarshaler(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategyUtils.ZlibKind},
-		"zstd": {kind: strategyUtils.ZstdKind},
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -198,8 +198,8 @@ func TestEventsSeveralPayloadsCreateMarshalersBySourceType(t *testing.T) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategyUtils.ZlibKind},
-		"zstd": {kind: strategyUtils.ZstdKind},
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -260,8 +260,8 @@ func assertEqualEventsToMarshalJSON(t *testing.T, events Events) {
 	tests := map[string]struct {
 		kind string
 	}{
-		"zlib": {kind: strategyUtils.ZlibKind},
-		"zstd": {kind: strategyUtils.ZstdKind},
+		"zlib": {kind: compressionimpl.ZlibKind},
+		"zstd": {kind: compressionimpl.ZstdKind},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -372,7 +372,7 @@ func BenchmarkCreateSingleMarshalerOneEventBySource(b *testing.B) {
 func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem int) Events) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.NewCompressor(cfg))
 		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -386,7 +386,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.NewCompressor(cfg))
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -402,7 +402,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressionimpl.NewCompressor(cfg))
 
 		events := Events{}
 		// Half of events have the same source type
