@@ -84,9 +84,9 @@ def golangci_lint(
     Example invocation:
         inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
     DEPRECATED
-    Please use inv lint-go instead
+    Please use inv linter.go instead
     """
-    print("WARNING: golangci-lint task is deprecated, please migrate to lint-go task")
+    print("WARNING: golangci-lint task is deprecated, please migrate to linter.go task")
     raise Exit(code=1)
 
 
@@ -368,7 +368,11 @@ def check_go_mod_replaces(_ctx):
                     errors_found.add(f"{mod.import_path}/go.mod is missing a replace for {err_mod}")
 
     if errors_found:
-        message = "\nErrors found:\n" + "\n".join("  - " + error for error in sorted(errors_found))
+        message = "\nErrors found:\n"
+        message += "\n".join("  - " + error for error in sorted(errors_found))
+        message += (
+            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy-all` before re-running this task."
+        )
         raise Exit(message=message)
 
 

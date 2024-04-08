@@ -57,6 +57,20 @@ inv -e kmt.init
 inv -e kmt.init --lite
 ```
 
+This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `inv -e kmt.config-ssh-key`. See more details below
+
+#### SSH key configuration
+
+In order to create EC2 instances, we need to specify which SSH key will be provisioned on them. As that key is usually always the same, we ask the user to provide it once and store it in the configuration file. This way, the user does not need to provide it every time they launch a stack (although it's possible to change it by using the argument `--ssh-key` with KMT tasks).
+
+The configuration wizards will ask for the SSH key to use. There are three methods supported:
+
+- Keys stored in `.ssh`. The wizard will automatically look for key files present there, and you will be able to choose one of them.
+- Keys stored in a SSH agent (main use: 1Password SSH agent). The wizard will look for agent keys. Note that with this method we don't know the path to the private key file, which means that SSH configurations will not specify the key to use. This might be problematic if you have a lot of keys in the agent, as SSH will try all of them and it might reject your connection before finding the correct one. In that case you should download the public key from 1Password and configure it manually. [See more details in 1Password docs](https://developer.1password.com/docs/ssh/agent/advanced/).
+- Manual input. If you have a key that is not in `.ssh` or in the agent, you can provide the path to the private key file and key name. Note that **this method performs no validation**.
+
+In all cases, you will be able to input a key name for AWS, in case the keypair you stored in AWS has a different name than the name present in the key file.
+
 ### Create stack
 
 ```bash
@@ -90,9 +104,7 @@ The `--use-local-if-possible` flag will attempt to use local VMs if they are ava
 This will bring up all the VMs previously configured.
 
 ```bash
-# SSH key name for the key to use for launching remobe machine in sandbox
-# The tasks will automatically look for the key in ~/.ssh
-inv -e kmt.launch-stack --stack=demo-stack --ssh-key=<ssh-key>
+inv -e kmt.launch-stack --stack=demo-stack
 ```
 
 ### Connecting to VMs
@@ -120,7 +132,7 @@ This is the recommended approach, as it automatically configures the proxy jumps
 You can connect manually to the VMs using the IP addresses printed by the following command:
 
 ```bash
-inv -e kmt.stack --stack=demo-stack
+inv -e kmt.status --stack=demo-stack
 ```
 
 To connect to the VM first ssh to the remote machine, if required.
@@ -250,11 +262,11 @@ inv -e kmt.launch-stack
 # Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
 inv -e kmt.gen-config  --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
 # Name of the ssh key to use
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack
 # Add amazon linux
 inv -e kmt.gen-config  --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
 # Name of the ssh key to use
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack
 ```
 
 #### Example 3
@@ -263,7 +275,7 @@ inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 # Configure custom kernels
 inv -e kmt.gen-config  --vms=custom-5.4-local,custom-4.14-local,custom-5.7-arm64
 # Launch stack
-inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
+inv -e kmt.launch-stack
 ```
 
 ### VMs List
@@ -310,21 +322,24 @@ If you are just launching local VMs you do not need to specify an ssh key
 inv -e kmt.launch-stack
 ```
 
-If you are launching remote instances then the ssh key used to access the machine is required.
-Only the ssh key name is required. The program will automatically look in `~/.ssh/` directory for the key.
+If you are launching remote instances then the ssh key used to access the machine is required. This is usually configured with the `inv -e kmt.config-ssh-key` and does not need to be provided manually. However, you can provide a specific key for use with the `--ssh-key` argument. There are several possible values for this argument:
+
+- A path pointing the private key
+- The filename of a private key located in `~/.ssh`. For example, if you pass `--ssh-key=id_ed25519`, we will look for keys `~/.ssh/id_ed25519` or `~/.ssh/id_ed25519.pem`.
+- A key name (the third part of the public key file). We will look for public key files in `~/.ssh/*.pub` and in the current SSH agent and try to find one matching that name.
 
 ```bash
 inv -e kmt.launch-stack  --ssh-key=<ssh-key-name>
 ```
 
-If you are launching local VMs, you will be queried for you password. This is required since the program has to run some commands as root. However, we do not run the entire scenario with `sudo` to avoid broken permissions.
+If you are launching local VMs, you will be queried for your password. This is required since the program has to run some commands as root. However, we do not run the entire scenario with `sudo` to avoid broken permissions.
 
 ### List the stack
 
 Prints information about the stack.
 
 ```bash
-inv -e kmt.stack [--stack=<name>]
+inv -e kmt.status [--stack=<name>]
 ```
 
 > At the moment this just prints the running VMs and their IP addresses. This information will be enriched in later versions of the tool.
@@ -365,3 +380,25 @@ This is only relevant for VMs running in the local environment. This has no effe
 ### Resuming the stack
 
 This resumes a previously paused stack. This is only applicable for VMs running locally.
+
+## Interacting with the CI
+
+KMT has some tasks whose purpose is to make it easier to interact with the CI. They are described below.
+
+### Creating a stack from a failed CI pipeline
+
+To avoid having to copy and paste all the data from the CI to generate a list of VMs, you can use the `--from-ci-pipeline` flag to automatically generate a configuration file that replicates the jobs that failed in a CI pipeline. See the [Configuring stack from a failed CI pipeline](#configuring-stack-from-a-failed-ci-pipeline) section for more details.
+
+### Summary of failed tests in a CI pipeline
+
+To get a summary of the tests that were run in a CI pipeline, you can use the following command:
+
+```bash
+inv -e kmt.explain-ci-failure <pipeline-id>
+```
+
+This will show several tables, skipping the cases where all jobs/tests passed to avoid polluting the output.
+
+- For each component (security-agent or system-probe) and vmset (e.g., in system-probe we have `only_tracersuite` and `no_tracersuite` test sets) it will show the jobs that failed and why (e.g., if the job failed due to an infra or a test failure).
+- Again, for each component and vmset, it will show which tests failed in a table showing in which distros/archs they failed (tests and distros that did not have any failures will not be shown).
+- For each job that failed due to infra reasons, it will show a summary with quick detection of possible boot causes (e.g., it will show if the VM did not reach the login prompt, or if it didn't get an IP address, etc).
