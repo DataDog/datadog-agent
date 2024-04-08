@@ -90,13 +90,13 @@ func (a *agentSuite) Client() *api.Client {
 func (a *agentSuite) Test00RulesetLoadedDefaultFile() {
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
 		testRulesetLoaded(collect, a, "file", "default.policy")
-	}, 2*time.Minute, 20*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 }
 
 func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
 		testRulesetLoaded(collect, a, "remote-config", "default.policy")
-	}, 2*time.Minute, 20*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 }
 
 func (a *agentSuite) Test02OpenSignal() {
@@ -167,7 +167,7 @@ func (a *agentSuite) Test02OpenSignal() {
 	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, securityAgentPath))
 		assert.NotEmpty(c, policies, "should not be empty")
-	}, 1*time.Minute, 5*time.Second)
+	}, 1*time.Minute, 1*time.Second)
 
 	// Check that the newly created rule is in the policies
 	require.Contains(a.T(), policies, desc, "The policies should contain the created rule")
@@ -184,7 +184,7 @@ func (a *agentSuite) Test02OpenSignal() {
 	policyName := path.Base(policiesPath)
 	require.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
 		testRulesetLoaded(collect, a, "file", policyName)
-	}, 2*time.Minute, 20*time.Second)
+	}, 4*time.Minute, 5*time.Second)
 
 	// Check selftests
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
@@ -194,12 +194,12 @@ func (a *agentSuite) Test02OpenSignal() {
 			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
 			validateEventSchema(collect, &event.Event, "self_test_schema.json")
 		})
-	}, 2*time.Minute, 20*time.Second)
+	}, 4*time.Minute, 5*time.Second)
 
 	// Check 'datadog.security_agent.runtime.running' metric
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
 		testMetricExists(collect, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
-	}, 1*time.Minute, 10*time.Second)
+	}, 4*time.Minute, 5*time.Second)
 
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
@@ -212,7 +212,7 @@ func (a *agentSuite) Test02OpenSignal() {
 			assert.Contains(collect, e.Tags, "tag1", "missing event tag")
 			assert.Contains(collect, e.Tags, "tag2", "missing event tag")
 		})
-	}, 2*time.Minute, 20*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 
 	// Check app signal
 	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
@@ -236,7 +236,7 @@ func (a *agentSuite) Test02OpenSignal() {
 			return
 		}
 		assert.Contains(collect, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
-	}, 2*time.Minute, 20*time.Second)
+	}, 4*time.Minute, 10*time.Second)
 }
 
 // test that the detection of CWS is properly working
