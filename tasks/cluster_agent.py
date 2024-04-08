@@ -158,11 +158,11 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
 
 @task
 def hacky_dev_image_build(
-    ctx, 
-    base_image=None, 
-    target_image="cluster-agent", 
-    target_tag="latest", 
-    push=False, 
+    ctx,
+    base_image=None,
+    target_image="cluster-agent",
+    target_tag="latest",
+    push=False,
     signed_pull=False,
 ):
     os.environ["DELVE"] = "1"
