@@ -4,7 +4,7 @@ extra packages that might not be available in runtime.
 """
 
 import os
-from typing import Dict, List, Tuple, TypeVar, Union
+from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
 from typing_extensions import Literal, Protocol, TypedDict
 
@@ -76,8 +76,33 @@ VMDef = Tuple[Recipe, str, ArchOrLocal]
 
 
 class HasName(Protocol):
-    def name(self) -> str:
+    def name(self) -> str:  # noqa: U100
         ...
 
 
 TNamed = TypeVar('TNamed', bound=HasName)
+
+
+class SSHKey(TypedDict):
+    path: Optional[
+        str
+    ]  # Path to the key in the local filesystem. Note that some keys (like 1Password ones) might not be found locally
+    aws_key_name: str  # Name of the key in AWS
+    name: str  # Name of the public key (identification for the agent, based on the public key comment)
+
+
+class KMTConfig(TypedDict, total=False):
+    ssh: SSHKey  # noqa: F841
+
+
+StackOutputMicroVM = TypedDict(
+    'StackOutputMicroVM', {'id': str, 'ip': 'str', 'ssh-key-path': str, 'tag': str, 'vmset-tags': List[str]}
+)
+
+
+class StackOutputArchData(TypedDict):
+    ip: str
+    microvms: List[StackOutputMicroVM]
+
+
+StackOutput = Dict[Arch, StackOutputArchData]

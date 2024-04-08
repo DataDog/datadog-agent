@@ -63,6 +63,7 @@ core,github.com/DataDog/datadog-operator/apis/datadoghq/v2alpha1,Apache-2.0,"Cop
 core,github.com/DataDog/datadog-operator/apis/utils,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/datadog-operator/pkg/defaulting,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/datadog-operator/pkg/utils,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
+core,github.com/DataDog/dd-sensitive-data-scanner/sds-go/go,Apache-2.0,"Copyright 2024-present Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
@@ -1759,7 +1760,6 @@ core,go.opentelemetry.io/collector/confmap/provider/yamlprovider,Apache-2.0,Copy
 core,go.opentelemetry.io/collector/connector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/consumer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper/internal,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1806,7 +1806,6 @@ core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/logs,Apache-2.
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/receiverhelper,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/receiver/receivertest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.18.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/semconv/v1.6.1,Apache-2.0,Copyright The OpenTelemetry Authors

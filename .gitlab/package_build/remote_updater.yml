@@ -107,6 +107,9 @@ agent_remote_updater-arm64-a7:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+# We build a "regular" updater, meant to be packaged as deb/rpm, without a custom install path
+# and an artifact intended for OCI packaging, which has a custom install path
+
 updater-amd64:
   extends: .updater_build_common
   rules:
@@ -119,8 +122,7 @@ updater-amd64:
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-updater_7-amd64.tar.xz"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
+    RELEASE_VERSION: "$RELEASE_VERSION_7"
 
 updater-arm64:
   extends: .updater_build_common
@@ -134,6 +136,20 @@ updater-arm64:
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-updater_7-arm64.tar.xz"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
+    RELEASE_VERSION: "$RELEASE_VERSION_7"
 
+updater-amd64-oci:
+  extends: updater-amd64
+  variables:
+    DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
+  before_script:
+    - source /root/.bashrc
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1
+
+updater-arm64-oci:
+  extends: updater-arm64
+  variables:
+    DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
+  before_script:
+    - source /root/.bashrc
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1
