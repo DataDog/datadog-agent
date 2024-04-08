@@ -10,12 +10,6 @@
       "package": "datadog-agent",
       "version": "7.53.0-devel.git.156.4681fd9.pipeline.29311299-1",
       "url": "oci://us-docker.pkg.dev/datadog-sandbox/updater-dev/agent@sha256:868287768e7f224fbf210a864c3da614ab19cde23ddbd8a94e747c915d8c9ab1"
-    },
-    {
-      "package": "datadog-apm-inject",
-      "version": "0.12.3-dev.bbde8e9.glci480385625.g3d679b20-1",
-      "url": "oci://docker.io/datadog/apm-inject-package-dev@sha256:4d5f062b6cc59dd891961a7db0b780b65a7a00b67aa0f61032e160d09d6a0706",
-      "sha256": "4d5f062b6cc59dd891961a7db0b780b65a7a00b67aa0f61032e160d09d6a0706"
     }
   ]
 }
