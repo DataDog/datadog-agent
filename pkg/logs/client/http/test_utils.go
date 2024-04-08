@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -73,16 +72,13 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	port, _ := strconv.Atoi(url[2])
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
-	endpoint := config.Endpoint{
-		APIKey:           "test",
-		Host:             strings.Replace(url[1], "/", "", -1),
-		Port:             port,
-		UseSSL:           pointer.Ptr(false),
-		BackoffFactor:    1,
-		BackoffBase:      1,
-		BackoffMax:       10,
-		RecoveryInterval: 1,
-	}
+
+	endpoint := config.NewEndpoint("test", strings.Replace(url[1], "/", "", -1), port, false)
+	endpoint.BackoffFactor = 1
+	endpoint.BackoffBase = 1
+	endpoint.BackoffMax = 10
+	endpoint.RecoveryInterval = 1
+
 	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", cfg)
 	return &TestServer{
 		httpServer:          ts,

@@ -49,9 +49,10 @@ type Collectors struct {
 	PIDs           CollectorRef[ContainerPIDsGetter]
 
 	// These collectors are used in the meta collector
-	ContainerIDForPID   CollectorRef[ContainerIDForPIDRetriever]
-	ContainerIDForInode CollectorRef[ContainerIDForInodeRetriever]
-	SelfContainerID     CollectorRef[SelfContainerIDRetriever]
+	ContainerIDForPID               CollectorRef[ContainerIDForPIDRetriever]
+	ContainerIDForInode             CollectorRef[ContainerIDForInodeRetriever]
+	SelfContainerID                 CollectorRef[SelfContainerIDRetriever]
+	ContainerIDForPodUIDAndContName CollectorRef[ContainerIDForPodUIDAndContNameRetriever]
 }
 
 func (c *Collectors) merge(runtime RuntimeMetadata, otherID string, oth *Collectors) {
@@ -61,6 +62,7 @@ func (c *Collectors) merge(runtime RuntimeMetadata, otherID string, oth *Collect
 	c.PIDs = c.PIDs.bestCollector(runtime, otherID, oth.PIDs)
 	c.ContainerIDForPID = c.ContainerIDForPID.bestCollector(runtime, otherID, oth.ContainerIDForPID)
 	c.ContainerIDForInode = c.ContainerIDForInode.bestCollector(runtime, otherID, oth.ContainerIDForInode)
+	c.ContainerIDForPodUIDAndContName = c.ContainerIDForPodUIDAndContName.bestCollector(runtime, otherID, oth.ContainerIDForPodUIDAndContName)
 	c.SelfContainerID = c.SelfContainerID.bestCollector(runtime, otherID, oth.SelfContainerID)
 }
 

@@ -8,7 +8,7 @@ package tailers
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	assert "github.com/stretchr/testify/require"
 )
 

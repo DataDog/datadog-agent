@@ -338,6 +338,19 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*KubernetesDeployment
 	return entity.(*KubernetesDeployment), nil
 }
 
+// ListECSTasks implements Store#ListECSTasks
+func (w *workloadmeta) ListECSTasks() []*ECSTask {
+	entities := w.listEntitiesByKind(KindECSTask)
+
+	tasks := make([]*ECSTask, 0, len(entities))
+	for _, entity := range entities {
+		task := entity.(*ECSTask)
+		tasks = append(tasks, task)
+	}
+
+	return tasks
+}
+
 // GetECSTask implements Store#GetECSTask
 func (w *workloadmeta) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := w.getEntityByKind(KindECSTask, id)

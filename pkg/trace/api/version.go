@@ -109,6 +109,15 @@ const (
 	//
 	v05 Version = "v0.5"
 
+	// V06 API
+	//
+	// Request: Stats Payload.
+	// 	Content-Type: application/msgpack
+	// 	Payload: ClientStatsPayload (pkg/proto/datadog/trace/stats.proto)
+	//
+	//
+	V06 Version = "v0.6"
+
 	// V07 API
 	//
 	// Request: Tracer Payload.

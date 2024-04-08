@@ -18,6 +18,43 @@ CSM Threats logs have the following JSON schema:
 {
     "$id": "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers",
     "$defs": {
+        "AgentContext": {
+            "properties": {
+                "rule_id": {
+                    "type": "string"
+                },
+                "rule_version": {
+                    "type": "string"
+                },
+                "rule_actions": {
+                    "items": true,
+                    "type": "array"
+                },
+                "policy_name": {
+                    "type": "string"
+                },
+                "policy_version": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "os": {
+                    "type": "string"
+                },
+                "arch": {
+                    "type": "string"
+                },
+                "origin": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "rule_id"
+            ]
+        },
         "AnomalyDetectionSyscallEvent": {
             "properties": {
                 "syscall": {
@@ -1335,6 +1372,12 @@ CSM Threats logs have the following JSON schema:
         }
     },
     "properties": {
+        "agent": {
+            "$ref": "#/$defs/AgentContext"
+        },
+        "title": {
+            "type": "string"
+        },
         "evt": {
             "$ref": "#/$defs/EventContext"
         },
@@ -1405,13 +1448,18 @@ CSM Threats logs have the following JSON schema:
     },
     "additionalProperties": false,
     "type": "object",
-    "description": "EventSerializer serializes an event to JSON"
+    "required": [
+        "agent",
+        "title"
+    ]
 }
 
 {{< /code-block >}}
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
+| `agent` | $ref | Please see [AgentContext](#agentcontext) |
+| `title` | string |  |
 | `evt` | $ref | Please see [EventContext](#eventcontext) |
 | `date` | string |  |
 | `file` | $ref | Please see [FileEvent](#fileevent) |
@@ -1434,6 +1482,52 @@ CSM Threats logs have the following JSON schema:
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `anomaly_detection_syscall` | $ref | Please see [AnomalyDetectionSyscallEvent](#anomalydetectionsyscallevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
+
+## `AgentContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "rule_id": {
+            "type": "string"
+        },
+        "rule_version": {
+            "type": "string"
+        },
+        "rule_actions": {
+            "items": true,
+            "type": "array"
+        },
+        "policy_name": {
+            "type": "string"
+        },
+        "policy_version": {
+            "type": "string"
+        },
+        "version": {
+            "type": "string"
+        },
+        "os": {
+            "type": "string"
+        },
+        "arch": {
+            "type": "string"
+        },
+        "origin": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "rule_id"
+    ]
+}
+
+{{< /code-block >}}
+
+
 
 ## `AnomalyDetectionSyscallEvent`
 

@@ -6,6 +6,7 @@ from invoke import Collection
 
 from tasks import (
     agent,
+    agentless_scanner,
     bench,
     buildimages,
     cluster_agent,
@@ -122,6 +123,7 @@ ns.add_task(send_unit_tests_stats)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(agentless_scanner)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)

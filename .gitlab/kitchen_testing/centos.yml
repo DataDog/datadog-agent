@@ -5,7 +5,6 @@
 # include:
 #   - /.gitlab/kitchen_testing/testing.yml
 
-
 # Kitchen: OSes
 # -------------
 
@@ -14,7 +13,7 @@
 .kitchen_os_centos_no_support_for_fips:
   variables:
     KITCHEN_PLATFORM: "centos"
-    KITCHEN_OSVERS: "centos-610,centos-77,rhel-81"
+    KITCHEN_OSVERS: "centos-77,rhel-81"
     KITCHEN_CWS_SUPPORTED_OSVERS: "centos-77,rhel-81"
   before_script:
     - cd $DD_AGENT_TESTING_DIR

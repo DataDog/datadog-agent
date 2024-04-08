@@ -27,17 +27,28 @@ JOB_ENV_FILE_NAME = "job_env.txt"
 TAGS_FILE_NAME = "tags.txt"
 
 
-def add_flavor_to_junitxml(xml_path: str, flavor: AgentFlavor):
+def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
     """
-    Takes a JUnit XML file and adds a flavor field to it, to allow tagging
-    tests by flavor.
+    Modifies the JUnit XML file:
+    1. Adds a flavor field to it, to allow tagging tests by flavor.
+    2. Assigns empty classname attributes for each test case given the name
+       of the parent test suite (timeouts do not have classnames).
     """
     tree = ET.parse(xml_path)
+    root = tree.getroot()
 
-    # Create a new element containing the flavor and append it to the tree
+    # 1. Create a new element containing the flavor and append it to the tree
     flavor_element = ET.Element('flavor')
     flavor_element.text = flavor.name
-    tree.getroot().append(flavor_element)
+    root.append(flavor_element)
+
+    # 2. Assign empty test cases
+    for testsuite in root.findall('.//testsuite'):
+        testsuite_name = testsuite.get('name')
+        for testcase in testsuite.findall('.//testcase'):
+            # The class name cannot be found, set it to the testsuite name
+            if testcase.get('classname') == '':
+                testcase.set('classname', testsuite_name)
 
     # Write back to the original file
     tree.write(xml_path)
@@ -89,13 +100,13 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     empty_tgzs = []
     for tgz, count in xmlcounts.items():
         print(f"Submitted results for {count} JUnit XML files from {tgz}")
-        if count == 0 and not tgz.endswith(
-            "-fast.tgz"
-        ):  # *-fast.tgz contains only tests related to the modified code, they can be empty
+        if (
+            count == 0 and "-fast" not in tgz
+        ):  # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
             empty_tgzs.append(tgz)
 
     if empty_tgzs:
-        raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
+        raise Exit(f"[ERROR] No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
 
 
 def get_flaky_from_test_output():

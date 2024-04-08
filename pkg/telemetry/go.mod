@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/telemetry
 
-go 1.21.7
+go 1.21.8
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry
@@ -8,12 +8,12 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.52.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2
 	go.uber.org/atomic v1.7.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.52.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -29,7 +29,7 @@ require (
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
+	github.com/stretchr/testify v1.9.0 // indirect
 	go.opentelemetry.io/otel v1.20.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.20.0 // indirect

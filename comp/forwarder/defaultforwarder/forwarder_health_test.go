@@ -6,9 +6,12 @@
 package defaultforwarder
 
 import (
+	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sort"
 	"testing"
 
@@ -21,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestHasValidAPIKey(t *testing.T) {
+func TestCheckValidAPIKey(t *testing.T) {
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -39,7 +42,7 @@ func TestHasValidAPIKey(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
 	fh.init()
-	assert.True(t, fh.hasValidAPIKey())
+	assert.True(t, fh.checkValidAPIKey())
 
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key1"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with _key2"))
@@ -88,7 +91,7 @@ func TestComputeDomainsURL(t *testing.T) {
 	assert.Equal(t, expectedMap, fh.keysPerAPIEndpoint)
 }
 
-func TestHasValidAPIKeyErrors(t *testing.T) {
+func TestCheckValidAPIKeyErrors(t *testing.T) {
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		if r.Form.Get("api_key") == "api_key1" {
@@ -121,11 +124,65 @@ func TestHasValidAPIKeyErrors(t *testing.T) {
 	fh := forwarderHealth{log: log, config: cfg}
 	fh.init()
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
-	assert.True(t, fh.hasValidAPIKey())
+	assert.True(t, fh.checkValidAPIKey())
 
 	assert.Equal(t, nil, apiKeyStatus.Get("API key ending with _key1"))
 	assert.Equal(t, &apiKeyInvalid, apiKeyFailure.Get("API key ending with _key1"))
 	assert.Equal(t, &apiKeyUnexpectedStatusCode, apiKeyStatus.Get("API key ending with _key2"))
 	assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with key3"))
 	assert.Equal(t, &apiKeyEndpointUnreachable, apiKeyStatus.Get("API key ending with key4"))
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts1.Close()
+	defer ts2.Close()
+
+	// get ports from the test servers to make expected data
+	addr, _ := url.Parse(ts1.URL)
+	_, ts1Port, _ := net.SplitHostPort(addr.Host)
+	addr, _ = url.Parse(ts2.URL)
+	_, ts2Port, _ := net.SplitHostPort(addr.Host)
+
+	// swap if necessary to ensure ts1 has a smaller port than ts2
+	// makes the json marshal deterministic so test is not flakey
+	if ts1Port > ts2Port {
+		swapPort := ts1Port
+		ts1Port = ts2Port
+		ts2Port = swapPort
+		swapServer := ts1
+		ts1 = ts2
+		ts2 = swapServer
+	}
+
+	// starting API Keys, before the update
+	keysPerDomains := map[string][]string{
+		ts1.URL: {"api_key1", "api_key2"},
+		ts2.URL: {"api_key3"},
+	}
+
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
+	cfg := fxutil.Test[config.Component](t, config.MockModule())
+
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolver.NewSingleDomainResolvers(keysPerDomains)}
+	fh.init()
+	assert.True(t, fh.checkValidAPIKey())
+
+	// forwardHealth's keysPerAPIEndpoint has the given API Keys
+	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
+	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
+	assert.Equal(t, expect, string(data))
+
+	// update the API Key
+	fh.updateAPIKey("api_key1", "api_key4")
+
+	// ensure that keysPerAPIEndpoint has the new API Key
+	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
+	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key4","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
+	assert.Equal(t, expect, string(data))
 }

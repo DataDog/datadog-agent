@@ -23,15 +23,12 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	processagentStatus "github.com/DataDog/datadog-agent/pkg/status/processagent"
 	systemprobeStatus "github.com/DataDog/datadog-agent/pkg/status/systemprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,7 +46,7 @@ type searchPaths map[string]string
 
 // CompleteFlare packages up the files with an already created builder. This is aimed to be used by the flare
 // component while we migrate to a component architecture.
-func CompleteFlare(fb flaretypes.FlareBuilder, invAgent inventoryagent.Component, diagnoseDeps diagnose.SuitesDeps) error {
+func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps) error {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -61,7 +58,6 @@ func CompleteFlare(fb flaretypes.FlareBuilder, invAgent inventoryagent.Component
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?"))
 	} else {
-		fb.AddFileFromFunc("status.log", func() ([]byte, error) { return status.GetAndFormatStatus(invAgent) })
 		fb.AddFileFromFunc("config-check.log", getConfigCheck)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
@@ -92,7 +88,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, invAgent inventoryagent.Component
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
-	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)
+	fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) })
 	fb.AddFileFromFunc("docker_ps.log", getDockerPs)
 
 	getRegistryJSON(fb)
@@ -202,8 +198,12 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 	procStatusURL := fmt.Sprintf("http://%s/config/all", addressPort)
 
-	cfgB := processagentStatus.GetRuntimeConfig(procStatusURL)
-	return cfgB, nil
+	bytes, err := getHTTPCallContent(procStatusURL)
+
+	if err != nil {
+		return []byte("error: process-agent is not running or is unreachable\n"), nil
+	}
+	return bytes, nil
 }
 
 func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]string) {

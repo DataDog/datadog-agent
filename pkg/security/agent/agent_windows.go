@@ -8,11 +8,12 @@ package agent
 import (
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
-func NewRuntimeSecurityAgent(_ sender.SenderManager, hostname string, _ RSAOptions) (*RuntimeSecurityAgent, error) {
+func NewRuntimeSecurityAgent(_ sender.SenderManager, hostname string, _ RSAOptions, _ workloadmeta.Component) (*RuntimeSecurityAgent, error) {
 	client, err := NewRuntimeSecurityClient()
 	if err != nil {
 		return nil, err

@@ -10,3 +10,6 @@ const SecretBackendTimeoutDefault = 30
 
 // SecretBackendOutputMaxSizeDefault defines the default value of the max size of the JSON output from a secrets reader backend
 const SecretBackendOutputMaxSizeDefault = 1024 * 1024
+
+// SecretAuditFileMaxSizeDefault defines the default max size for the audit file
+const SecretAuditFileMaxSizeDefault = 1024 * 1024

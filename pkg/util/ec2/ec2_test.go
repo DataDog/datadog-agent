@@ -103,14 +103,14 @@ func TestGetInstanceID(t *testing.T) {
 	// API successful, should return API result
 	responseCode = http.StatusOK
 	val, err = GetInstanceID(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
 	// the internal cache is populated now, should return the cached value even if API errors out
 	responseCode = http.StatusInternalServerError
 	val, err = GetInstanceID(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 
@@ -118,7 +118,7 @@ func TestGetInstanceID(t *testing.T) {
 	responseCode = http.StatusOK
 	expected = "i-aaaaaaaaaaaaaaaaa"
 	val, err = GetInstanceID(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 }
@@ -221,14 +221,14 @@ func TestGetHostname(t *testing.T) {
 	// API successful, should return hostname
 	responseCode = http.StatusOK
 	val, err = GetHostname(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
 	// the internal cache is populated now, should return the cached hostname even if API errors out
 	responseCode = http.StatusInternalServerError
 	val, err = GetHostname(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 
@@ -236,7 +236,7 @@ func TestGetHostname(t *testing.T) {
 	responseCode = http.StatusOK
 	expected = "ip-20-20-20-20.ec2.internal"
 	val, err = GetHostname(ctx)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, expected, val)
 	assert.Equal(t, lastRequest.URL.Path, "/hostname")
 

@@ -25,6 +25,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
@@ -172,7 +173,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.Endpoint{Host: "fake:", Port: 0}
+	endpoint := config.NewEndpoint("", "fake:", 0, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	coreConfig.SetFeatures(suite.T(), coreConfig.Docker, coreConfig.Kubernetes)
@@ -235,11 +236,7 @@ func (suite *AgentTestSuite) TestStatusProvider() {
 		suite.T().Run(test.name, func(*testing.T) {
 			suite.configOverrides["logs_enabled"] = test.enabled
 
-			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-				core.MockBundle(),
-				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-				inventoryagentimpl.MockModule(),
-			))
+			deps := suite.createDeps()
 
 			provides := newLogsAgent(deps)
 
@@ -254,9 +251,9 @@ func (suite *AgentTestSuite) TestStatusOut() {
 	mockResult := logsStatus.Status{
 		IsRunning: true,
 		Endpoints: []string{"foo", "bar"},
-		StatusMetrics: map[string]int64{
-			"hello": 12,
-			"world": 13,
+		StatusMetrics: map[string]string{
+			"hello": "12",
+			"world": "13",
 		},
 		ProcessFileStats: map[string]uint64{
 			"CoreAgentProcessOpenFiles": 27,
@@ -279,11 +276,7 @@ func (suite *AgentTestSuite) TestStatusOut() {
 
 	suite.configOverrides["logs_enabled"] = true
 
-	deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-		core.MockBundle(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-		inventoryagentimpl.MockModule(),
-	))
+	deps := suite.createDeps()
 
 	provides := newLogsAgent(deps)
 
@@ -370,11 +363,7 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 		suite.T().Run(test.name, func(*testing.T) {
 			suite.configOverrides["logs_enabled"] = test.enabled
 
-			deps := fxutil.Test[dependencies](suite.T(), fx.Options(
-				core.MockBundle(),
-				fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-				inventoryagentimpl.MockModule(),
-			))
+			deps := suite.createDeps()
 
 			provides := newLogsAgent(deps)
 
@@ -386,6 +375,16 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 			}
 		})
 	}
+}
+
+func (suite *AgentTestSuite) createDeps() dependencies {
+	return fxutil.Test[dependencies](suite.T(), fx.Options(
+		core.MockBundle(),
+		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
+		inventoryagentimpl.MockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
 }
 
 func TestAgentTestSuite(t *testing.T) {

@@ -19,7 +19,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +36,7 @@ var (
 		// Must initialize the sets, as we can register callbacks prior to calling Initialize.
 		processExecCallbacks: make(map[*ProcessCallback]struct{}, 0),
 		processExitCallbacks: make(map[*ProcessCallback]struct{}, 0),
-		oversizedLogLimit:    util.NewLogLimit(10, 10*time.Minute),
+		oversizedLogLimit:    log.NewLogLimit(10, 10*time.Minute),
 	}
 )
 
@@ -124,7 +123,7 @@ type ProcessMonitor struct {
 
 	tel processMonitorTelemetry
 
-	oversizedLogLimit *util.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.
