@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func TestExtractShortPathFromFullPath(t *testing.T) {
@@ -101,4 +103,50 @@ func BenchmarkLogFormatWithoutContextFormatting(b *testing.B) {
 
 func BenchmarkLogFormatWithContextFormatting(b *testing.B) {
 	benchmarkLogFormatWithContext("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg %ExtraJSONContext", b)
+}
+
+func TestMergedKeys(t *testing.T) {
+	// Test that the merged keys are correctly computed
+	s1 := []string{"foo", "bar"}
+	s2 := []string{"bar", "buzz"}
+	assert.Equal(t, []string{"foo", "bar", "buzz"}, MergeAdditionalKeysToScrubber(s1, s2))
+}
+
+func TestENVAdditionalKeysToScrubber(t *testing.T) {
+	// Test that the scrubber is correctly configured with the expected keys
+	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+	some_other_key: 'bbbb'
+	app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+	yet_another_key: 'dddd'`
+
+	cfg := pkgconfigsetup.Datadog
+	// Setup the config with the ENV var keys
+	ddFlareStrippedKeys := "some_other_key"
+	ddScrubberAdditionalKeys := "app_key yet_another_key"
+	t.Setenv("DD_FLARE_STRIPPED_KEYS", ddFlareStrippedKeys)
+	t.Setenv("DD_SCRUBBER_ADDITIONAL_KEYS", ddScrubberAdditionalKeys)
+
+	getAdditionalKeysToScrubber := MergeAdditionalKeysToScrubber(
+		cfg.GetStringSlice("flare_stripped_keys"),
+		cfg.GetStringSlice("scrubber.additional_keys"))
+
+	// Check that the scrubber is correctly configured
+	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
+	assert.Nil(t, err)
+	expected := `api_key: '***************************aaaaa'
+	some_other_key: 'bbbb'
+	app_key: '***********************************acccc'
+	yet_another_key: 'dddd'`
+	assert.Equal(t, expected, scrubbed)
+
+	scrubber.AddStrippedKeys(getAdditionalKeysToScrubber)
+
+	scrubbed, err = scrubber.ScrubYamlString(stringToScrub)
+	assert.Nil(t, err)
+	expected = `api_key: '***************************aaaaa'
+	some_other_key: '********'
+	app_key: '***********************************acccc'
+	yet_another_key: '********'`
+	assert.Equal(t, expected, scrubbed)
+
 }
