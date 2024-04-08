@@ -200,8 +200,6 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 		} else {
 			return cfg
 		}
-	} else {
-		ia.log.Infof("could not fetch %s process configuration: %s", name, err)
 	}
 	return localConf
 }
