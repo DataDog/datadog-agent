@@ -5,7 +5,7 @@
 
 //go:build jmx
 
-package jmx
+package jmxfetch
 
 import (
 	"fmt"

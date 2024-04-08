@@ -5,7 +5,7 @@
 
 //go:build jmx
 
-package jmx
+package jmxfetch
 
 import (
 	"fmt"
@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 )
 
 type jmxState struct {
@@ -32,10 +34,6 @@ var state = jmxState{
 	lock:        &sync.Mutex{},
 }
 
-func (s *jmxState) scheduleCheck(c *JMXCheck) error {
-	return s.scheduleConfig(string(c.id), c.config)
-}
-
 func (s *jmxState) scheduleConfig(id string, config integration.Config) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -47,10 +45,6 @@ func (s *jmxState) scheduleConfig(id string, config integration.Config) error {
 	}
 	s.configs.Add(id, config)
 	return nil
-}
-
-func (s *jmxState) unscheduleCheck(c *JMXCheck) {
-	s.unscheduleConfig(string(c.id))
 }
 
 func (s *jmxState) unscheduleConfig(id string) {
@@ -98,4 +92,9 @@ func StopJmxfetch() {
 	if err != nil {
 		log.Errorf("failure to kill jmxfetch process: %s", err)
 	}
+}
+
+// InitRunner inits the runner and injects the dogstatsd server component
+func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component) {
+	state.runner.initRunner(server, logger)
 }
