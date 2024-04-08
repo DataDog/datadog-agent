@@ -19,25 +19,11 @@ type agentHostExecutor struct {
 	host        *components.RemoteHost
 }
 
-func newAgentHostExecutor(host *components.RemoteHost) agentCommandExecutor {
-	var err error
-	var path string
-	switch host.OSFamily {
-	case os.WindowsFamily:
-		// If the agent is installed get the path from the registry, fallback to default path
-		path, err = windowsAgent.GetInstallPathFromRegistry(host)
-		if err != nil {
-			path = windowsAgent.DefaultInstallPath
-		}
-	}
-	return newAgentHostExecutorWithInstallPath(host, path)
-}
-
-func newAgentHostExecutorWithInstallPath(host *components.RemoteHost, installPath string) agentCommandExecutor {
+func newDefaultAgentHostExecutor(host *components.RemoteHost) agentCommandExecutor {
 	var baseCommand string
 	switch host.OSFamily {
 	case os.WindowsFamily:
-		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
+		baseCommand = agentHostBaseCommandWithInstallPath(host, defaultWindowsAgentInstallPath(host))
 	case os.LinuxFamily:
 		baseCommand = "sudo datadog-agent"
 	case os.MacOSFamily:
@@ -46,6 +32,10 @@ func newAgentHostExecutorWithInstallPath(host *components.RemoteHost, installPat
 		panic(fmt.Sprintf("unsupported OS family: %v", host.OSFamily))
 	}
 
+	return newAgentHostExecutor(host, baseCommand)
+}
+
+func newAgentHostExecutor(host *components.RemoteHost, baseCommand string) agentCommandExecutor {
 	return &agentHostExecutor{
 		baseCommand: baseCommand,
 		host:        host,
@@ -59,4 +49,24 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 	}
 
 	return ae.host.Execute(ae.baseCommand + " " + parameters)
+}
+
+func agentHostBaseCommandWithInstallPath(host *components.RemoteHost, installPath string) string {
+	var baseCommand string
+	switch host.OSFamily {
+	case os.WindowsFamily:
+		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
+	default:
+		panic(fmt.Sprintf("OS family %v does not support custom install paths", host.OSFamily))
+	}
+	return baseCommand
+}
+
+func defaultWindowsAgentInstallPath(host *components.RemoteHost) string {
+	// If the agent is installed get the path from the registry, fallback to default path
+	path, err := windowsAgent.GetInstallPathFromRegistry(host)
+	if err != nil {
+		path = windowsAgent.DefaultInstallPath
+	}
+	return path
 }
