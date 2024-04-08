@@ -1033,8 +1033,7 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 
 	for selector, profile := range m.profiles {
 		profile.Lock()
-		//nolint:gosimple // TODO(SEC) Fix gosimple linter
-		if profile.loadedInKernel == false {
+		if !profile.loadedInKernel {
 			out[selector] = profile.Instances
 		}
 		profile.Unlock()
