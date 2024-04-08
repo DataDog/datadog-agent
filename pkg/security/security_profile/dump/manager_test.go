@@ -193,7 +193,6 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, ad := range tt.fields.activeDumps {
 				ad.state = Running
-				ad.Mutex = &sync.Mutex{}
 			}
 
 			adm := &ActivityDumpManager{
