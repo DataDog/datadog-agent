@@ -37,7 +37,6 @@ excluded_folders = [
 
 if osx_target?
   # Temporarily exclude Aerospike until builder supports new dependency
-  excluded_packages.push(/^aerospike==/)
   excluded_folders.push('aerospike')
 end
 
