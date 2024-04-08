@@ -1,4 +1,7 @@
 ---
+#
+# Remote updater payloads
+#
 .agent_build_common_remote_updater:
   script:
     - echo "About to build for $RELEASE_VERSION"
@@ -34,7 +37,8 @@
 agent_remote_updater-x64-a7:
   extends: .agent_build_common_remote_updater
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -58,7 +62,8 @@ agent_remote_updater-x64-a7:
 agent_remote_updater-arm64-a7:
   extends: .agent_build_common_remote_updater
   rules:
-    - !reference [.on_a7]
+    - !reference [.except_mergequeue]
+    - when: on_success
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:arm64"]
@@ -77,3 +82,74 @@ agent_remote_updater-arm64-a7:
   before_script:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+#
+# The updater program
+#
+.updater_build_common:
+  script:
+    - source /root/.bashrc
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.retrieve_linux_go_deps]
+    - echo "About to build for $RELEASE_VERSION"
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
+    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
+    - inv -e updater.omnibus-build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod"
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-updater-*-${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
+    - !reference [.upload_sbom_artifacts]
+  variables:
+    AGENT_MAJOR_VERSION: 7
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+# We build a "regular" updater, meant to be packaged as deb/rpm, without a custom install path
+# and an artifact intended for OCI packaging, which has a custom install path
+
+updater-amd64:
+  extends: .updater_build_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DESTINATION_FILE: "datadog-updater_7-amd64.tar.xz"
+    RELEASE_VERSION: "$RELEASE_VERSION_7"
+
+updater-arm64:
+  extends: .updater_build_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DESTINATION_FILE: "datadog-updater_7-arm64.tar.xz"
+    RELEASE_VERSION: "$RELEASE_VERSION_7"
+
+updater-amd64-oci:
+  extends: updater-amd64
+  variables:
+    DESTINATION_FILE: "datadog-updater_7-amd64-oci.tar.xz"
+  before_script:
+    - source /root/.bashrc
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1
+
+updater-arm64-oci:
+  extends: updater-arm64
+  variables:
+    DESTINATION_FILE: "datadog-updater_7-arm64-oci.tar.xz"
+  before_script:
+    - source /root/.bashrc
+    - export INSTALL_DIR=/opt/datadog-packages/datadog-updater/$(inv agent.version -u)-1

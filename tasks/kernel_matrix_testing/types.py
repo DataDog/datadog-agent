@@ -11,6 +11,7 @@ from typing_extensions import Literal, Protocol, TypedDict
 Arch = Literal['x86_64', 'arm64']
 ArchOrLocal = Union[Arch, Literal['local']]
 PathOrStr = Union[os.PathLike, str]
+Component = Literal['system-probe', 'security-agent']
 
 
 class DependencyBuild(TypedDict):  # We cannot do 'TypedDict' as a string import as it's a base class here
@@ -80,3 +81,16 @@ class HasName(Protocol):
 
 
 TNamed = TypeVar('TNamed', bound=HasName)
+
+
+StackOutputMicroVM = TypedDict(
+    'StackOutputMicroVM', {'id': str, 'ip': 'str', 'ssh-key-path': str, 'tag': str, 'vmset-tags': List[str]}
+)
+
+
+class StackOutputArchData(TypedDict):
+    ip: str
+    microvms: List[StackOutputMicroVM]
+
+
+StackOutput = Dict[Arch, StackOutputArchData]

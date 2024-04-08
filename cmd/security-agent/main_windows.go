@@ -47,6 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -95,7 +96,7 @@ func (s *service) Run(svcctx context.Context) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, telemetry, "", demultiplexer, statusComponent)
+			err := start.RunAgent(ctx, log, config, telemetry, demultiplexer, statusComponent)
 			if err != nil {
 				return err
 			}
@@ -117,6 +118,7 @@ func (s *service) Run(svcctx context.Context) error {
 		dogstatsd.ClientBundle,
 		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
+		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
