@@ -88,24 +88,24 @@ func (a *agentSuite) Client() *api.Client {
 }
 
 func (a *agentSuite) Test00RulesetLoadedDefaultFile() {
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
-		testRulesetLoaded(collect, a, "file", "default.policy")
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, a, "file", "default.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
 func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
-		testRulesetLoaded(collect, a, "remote-config", "default.policy")
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, a, "remote-config", "default.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
 func (a *agentSuite) Test02Selftests() {
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
-		testSelftestsEvent(collect, a, func(event *api.SelftestsEvent) {
-			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_open", "missing selftest result")
-			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chmod", "missing selftest result")
-			assert.Contains(collect, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
-			validateEventSchema(collect, &event.Event, "self_test_schema.json")
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testSelftestsEvent(c, a, func(event *api.SelftestsEvent) {
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_open", "missing selftest result")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_chmod", "missing selftest result")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
+			validateEventSchema(c, &event.Event, "self_test_schema.json")
 		})
 	}, 4*time.Minute, 10*time.Second)
 }
@@ -150,21 +150,21 @@ func (a *agentSuite) Test03OpenSignal() {
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
 	// Check if system-probe has started
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
-		if !assert.NoError(collect, err) {
+		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Contains(collect, output, systemProbeStartLog, "system-probe could not start")
+		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
 	}, 30*time.Second, 1*time.Second)
 
 	// Check if security-agent has started
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/security-agent.log")
-		if !assert.NoError(collect, err) {
+		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Contains(collect, output, securityStartLog, "security-agent could not start")
+		assert.Contains(c, output, securityStartLog, "security-agent could not start")
 	}, 30*time.Second, 1*time.Second)
 
 	// Download policies
@@ -193,56 +193,56 @@ func (a *agentSuite) Test03OpenSignal() {
 
 	// Check if the policy is loaded
 	policyName := path.Base(policiesPath)
-	require.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
-		testRulesetLoaded(collect, a, "file", policyName)
+	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, a, "file", policyName)
 	}, 4*time.Minute, 5*time.Second)
 
 	// Check 'datadog.security_agent.runtime.running' metric
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
-		testMetricExists(collect, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testMetricExists(c, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
 	}, 4*time.Minute, 5*time.Second)
 
 	// Trigger agent event
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
 
 	// Check app event
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
-		testRuleEvent(collect, a, agentRuleName, func(e *api.RuleEvent) {
-			assert.Equal(collect, "open", e.Evt.Name, "event name should be open")
-			assert.Equal(collect, filepath, e.File.Path, "file path does not match")
-			assert.Contains(collect, e.Tags, "tag1", "missing event tag")
-			assert.Contains(collect, e.Tags, "tag2", "missing event tag")
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRuleEvent(c, a, agentRuleName, func(e *api.RuleEvent) {
+			assert.Equal(c, "open", e.Evt.Name, "event name should be open")
+			assert.Equal(c, filepath, e.File.Path, "file path does not match")
+			assert.Contains(c, e.Tags, "tag1", "missing event tag")
+			assert.Contains(c, e.Tags, "tag2", "missing event tag")
 		})
 	}, 4*time.Minute, 10*time.Second)
 
 	// Check app signal
-	assert.EventuallyWithT(a.T(), func(collect *assert.CollectT) {
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		signal, err := a.apiClient.GetSignal(fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
-		if !assert.NoError(collect, err) {
+		if !assert.NoError(c, err) {
 			return
 		}
-		if !assert.NotNil(collect, signal) {
+		if !assert.NotNil(c, signal) {
 			return
 		}
-		assert.Contains(collect, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
-		if !assert.Contains(collect, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
+		assert.Contains(c, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
+		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
 			return
 		}
 		attributes := signal.AdditionalProperties["attributes"].(map[string]interface{})
-		if !assert.Contains(collect, attributes, "agent", "unable to find 'agent' field in signal's attributes") {
+		if !assert.Contains(c, attributes, "agent", "unable to find 'agent' field in signal's attributes") {
 			return
 		}
 		agentContext := attributes["agent"].(map[string]interface{})
-		if !assert.Contains(collect, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context") {
+		if !assert.Contains(c, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context") {
 			return
 		}
-		assert.Contains(collect, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
+		assert.Contains(c, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
 	}, 4*time.Minute, 10*time.Second)
 }
 
 // test that the detection of CWS is properly working
 func (a *agentSuite) Test99CWSEnabled() {
-	a.Assert().EventuallyWithTf(func(collect *assert.CollectT) {
-		testCwsEnabled(collect, a)
+	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
+		testCwsEnabled(c, a)
 	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }

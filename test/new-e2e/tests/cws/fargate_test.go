@@ -248,13 +248,13 @@ func (s *ecsFargateSuite) Client() *api.Client {
 }
 
 func (s *ecsFargateSuite) TestRulesetLoaded() {
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		testRulesetLoaded(c, s, "file", selfTestsPolicyName)
 	}, 1*time.Minute, 5*time.Second)
 }
 
 func (s *ecsFargateSuite) TestExecRule() {
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		testRuleEvent(c, s, execRuleID, func(event *api.RuleEvent) {
 			assert.Equal(c, "exec", event.Evt.Name, "event name should be exec")
 			assert.Equal(c, execFilePath, event.Process.Executable.Path, "exec path does not match")
@@ -263,7 +263,7 @@ func (s *ecsFargateSuite) TestExecRule() {
 }
 
 func (s *ecsFargateSuite) TestOpenRule() {
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		testRuleEvent(c, s, openRuleID, func(event *api.RuleEvent) {
 			assert.Equal(c, "open", event.Evt.Name, "event name should be open")
 			assert.Equal(c, openFilePath, event.File.Path, "file path does not match")
@@ -272,7 +272,7 @@ func (s *ecsFargateSuite) TestOpenRule() {
 }
 
 func (s *ecsFargateSuite) TestSelftests() {
-	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		testSelftestsEvent(c, s, func(event *api.SelftestsEvent) {
 			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_exec", "missing selftest result")
 		})
