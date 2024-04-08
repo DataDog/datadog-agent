@@ -80,6 +80,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion}),
 				compstatsd.Module(),
 				config.Module(),
 				telemetry.Module(),
@@ -248,7 +249,7 @@ func StopSystemProbeWithDefaults() {
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
+func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, _ rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	var err error
 	var ctx context.Context
 	ctx, common.MainCtxCancel = context.WithCancel(context.Background())
@@ -284,15 +285,6 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 	}
 
 	setupInternalProfiling(sysprobeconfig, configPrefix, log)
-
-	if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
-		// Even if the system-probe happen to not have access to ddconfig.Datadog, the
-		// thin client will deactivate itself if the core-agent RC server is disabled
-		err = rcclient.Start("system-probe")
-		if err != nil {
-			return log.Criticalf("unable to start remote configuration client: %s", err)
-		}
-	}
 
 	err = manager.ConfigureAutoExit(ctx, sysprobeconfig)
 	if err != nil {

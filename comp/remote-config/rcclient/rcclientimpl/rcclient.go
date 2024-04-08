@@ -8,6 +8,8 @@
 package rcclientimpl
 
 import (
+	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Module defines the fx options for this component.
@@ -59,7 +60,9 @@ type dependencies struct {
 	fx.In
 
 	Log log.Component
+	Lc  fx.Lifecycle
 
+	Params        rcclient.Params             `optional:"true"`
 	Listeners     []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
 	TaskListeners []types.RCAgentTaskListener `group:"rCAgentTaskListener"` // <-- Fill automatically by Fx
 }
@@ -74,13 +77,22 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		return nil, err
 	}
 
+	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
+		return nil, fmt.Errorf("Remote config client is missing agent name or version parameter")
+	}
+
+	// Append client options
+	optsWithDefault := []func(*client.Options){
+		client.WithPollInterval(5 * time.Second),
+		client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
+	}
+
 	// We have to create the client in the constructor and set its name later
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		config.GetIPCPort(),
 		func() (string, error) { return security.FetchAuthToken(config.Datadog) },
-		client.WithAgent("unknown", version.AgentVersion),
-		client.WithPollInterval(5*time.Second),
+		optsWithDefault...,
 	)
 	if err != nil {
 		return nil, err
@@ -92,8 +104,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 			ipcAddress,
 			config.GetIPCPort(),
 			func() (string, error) { return security.FetchAuthToken(config.Datadog) },
-			client.WithAgent("unknown", version.AgentVersion), // We have to create the client in the constructor and set its name later
-			client.WithPollInterval(5*time.Second),
+			optsWithDefault...,
 		)
 		if err != nil {
 			return nil, err
@@ -108,13 +119,27 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		clientHA:      clientHA,
 	}
 
+	if config.IsRemoteConfigEnabled(config.Datadog) {
+		deps.Lc.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				rc.start()
+				return nil
+			},
+		})
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStop: func(context.Context) error {
+			rc.client.Close()
+			return nil
+		},
+	})
+
 	return rc, nil
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
-func (rc rcClient) Start(agentName string) error {
-	rc.client.SetAgentName(agentName)
-
+func (rc rcClient) start() {
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -127,12 +152,9 @@ func (rc rcClient) Start(agentName string) error {
 	rc.client.Start()
 
 	if rc.clientHA != nil {
-		rc.clientHA.SetAgentName(agentName)
 		rc.clientHA.Subscribe(state.ProductAgentFailover, rc.haUpdateCallback)
 		rc.clientHA.Start()
 	}
-
-	return nil
 }
 
 func (rc rcClient) haUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
