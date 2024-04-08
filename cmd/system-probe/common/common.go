@@ -7,7 +7,6 @@
 package common
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
@@ -19,7 +18,4 @@ var (
 
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
-
-	// MainCtxCancel cancels the main system-probe context
-	MainCtxCancel context.CancelFunc
 )

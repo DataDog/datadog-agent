@@ -252,7 +252,6 @@ func StopSystemProbeWithDefaults() {
 // startSystemProbe Initializes the system-probe process
 func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	var err error
-	_, common.MainCtxCancel = context.WithCancel(context.Background())
 	cfg := sysprobeconfig.SysProbeObject()
 
 	log.Infof("starting system-probe v%v", version.AgentVersion)
@@ -337,8 +336,6 @@ func stopSystemProbe() {
 		common.MemoryMonitor.Stop()
 	}
 
-	// gracefully shut down any component
-	common.MainCtxCancel()
 	pkglog.Flush()
 }
 
