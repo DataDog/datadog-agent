@@ -192,12 +192,23 @@ func TestActivityDumpManager_getExpiredDumps(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			for _, ad := range tt.fields.activeDumps {
+				ad.state = Running
+				ad.Mutex = &sync.Mutex{}
+			}
+
 			adm := &ActivityDumpManager{
 				activeDumps:        tt.fields.activeDumps,
 				ignoreFromSnapshot: make(map[string]bool),
 			}
 
-			compareListOfDumps(t, adm.getExpiredDumps(), tt.expiredDumps)
+			expiredDumps := adm.getExpiredDumps()
+			for _, ad := range expiredDumps {
+				ad.state = Stopped
+			}
+			adm.RemoveStoppedActivityDumps()
+
+			compareListOfDumps(t, expiredDumps, tt.expiredDumps)
 			compareListOfDumps(t, adm.activeDumps, tt.activeDumps)
 		})
 	}
