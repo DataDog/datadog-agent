@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	portPtr := flag.Int("port", 8000, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
+	portPtr := flag.Int("port", 80, "fakeintake listening port, default to 80. Using -port=0 will use a random available port")
 	flag.Parse()
 
 	sigs := make(chan os.Signal, 1)
@@ -27,7 +27,7 @@ func main() {
 	log.Println("⌛️ Starting fake intake")
 	ready := make(chan bool, 1)
 	fi := fakeintake.NewServer(fakeintake.WithPort(*portPtr), fakeintake.WithReadyChannel(ready))
-	// f i.Sta  rt  ()
+	fi.Start()
 	timeout := time.NewTimer(5 * time.Second)
 
 	select {
