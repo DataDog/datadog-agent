@@ -127,8 +127,8 @@ func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	t.Setenv("DD_FLARE_STRIPPED_KEYS", ddFlareStrippedKeys)
 	t.Setenv("DD_SCRUBBER_ADDITIONAL_KEYS", ddScrubberAdditionalKeys)
 
-	cfg.BindEnv("flare_stripped_keys", "DD_FLARE_STRIPPED_KEYS")
-	cfg.BindEnv("scrubber.additional_keys", "DD_SCRUBBER_ADDITIONAL_KEYS")
+	cfg.BindEnv("flare_stripped_keys")
+	cfg.BindEnv("scrubber.additional_keys")
 
 	getAdditionalKeysToScrubber := MergeAdditionalKeysToScrubber(
 		cfg.GetStringSlice("flare_stripped_keys"),
@@ -148,9 +148,9 @@ func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	scrubbed, err = scrubber.ScrubYamlString(stringToScrub)
 	assert.Nil(t, err)
 	expected = `api_key: '***************************aaaaa'
-	some_other_key: '********'
+	some_other_key: "********"
 	app_key: '***********************************acccc'
-	yet_another_key: '********'`
+	yet_another_key: "********"`
 	assert.Equal(t, expected, scrubbed)
 
 }

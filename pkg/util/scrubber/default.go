@@ -351,7 +351,7 @@ func AddStrippedKeys(strippedKeys []string) {
 		replacer := matchYAMLKey(
 			fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")),
 			strippedKeys,
-			[]byte(`$1 '********'`),
+			[]byte(`$1 "********"`),
 		)
 		// We add the new replacer to the default scrubber and to the list of dynamicReplacers so any new
 		// scubber will inherit it.
