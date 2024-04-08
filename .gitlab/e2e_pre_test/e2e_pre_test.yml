@@ -9,13 +9,11 @@ e2e_pre_test:
     - job: publish_fakeintake
       optional: true
   script:
-    - echo "ENV VARIABLES FAKEINTAKE"
-    - echo $FAKEINTAKE_IMAGE_OVERRIDE
-    # - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
-  # after_script:
-  #   - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
-  #   - inv -e junit-upload --tgz-path junit-${CI_JOB_ID}.tgz
-  # variables:
-  #   TEAM: "agent-developer-tools"
-  #   # override to use latest stable agent
-  #   E2E_PIPELINE_ID: ""
+    - inv -e new-e2e-tests.run --targets ./test-infra-definition --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+  after_script:
+    - export DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.datadog_api_key_org2)
+    - inv -e junit-upload --tgz-path junit-${CI_JOB_ID}.tgz
+  variables:
+    TEAM: "agent-developer-tools"
+    # override to use latest stable agent
+    E2E_PIPELINE_ID: ""
