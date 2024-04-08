@@ -29,11 +29,6 @@ type dependencies struct {
 	Config config.Component
 }
 
-// ExitDetector is common interface for shutdown mechanisms
-type ExitDetector interface {
-	check() bool
-}
-
 // ConfigureAutoExit starts automatic shutdown mechanism if necessary
 func newAutoExit(deps dependencies) (autoexit.Component, error) {
 
