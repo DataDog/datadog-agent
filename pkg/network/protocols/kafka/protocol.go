@@ -186,6 +186,7 @@ func (p *protocol) setUpKernelTelemetryCollection(mgr *manager.Manager) {
 	}()
 }
 
+// GetKernelTelemetryMap retrieves Kafka kernel telemetry map from the provided manager
 func GetKernelTelemetryMap(mgr *manager.Manager) (*RawKernelTelemetry, error) {
 	mp, err := protocols.GetMap(mgr, eBPFTelemetryMap)
 	if err != nil {
