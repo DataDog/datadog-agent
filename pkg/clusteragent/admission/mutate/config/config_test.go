@@ -93,40 +93,42 @@ func TestInjectService(t *testing.T) {
 }
 
 func TestInjectEntityID(t *testing.T) {
-	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
-	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-	wmeta := fxutil.Test[workloadmeta.Component](
-		t,
-		core.MockBundle(),
-		workloadmeta.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-	)
-	webhook := NewWebhook(wmeta)
-	injected, err := webhook.inject(pod, "", nil)
-	assert.Nil(t, err)
-	assert.True(t, injected)
-	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithFieldRefValue("DD_ENTITY_ID", "metadata.uid"))
-}
-
-func TestFullIdentityInjectEntityID(t *testing.T) {
-	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{
-		Name: "cont-name",
-	})
-	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-	wmeta := fxutil.Test[workloadmeta.Component](
-		t,
-		core.MockBundle(),
-		workloadmeta.MockModule(),
-		fx.Supply(workloadmeta.NewParams()),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"admission_controller.inject_config.inject_container_name": true,
-		}}),
-	)
-	webhook := NewWebhook(wmeta)
-	injected, err := webhook.inject(pod, "", nil)
-	assert.Nil(t, err)
-	assert.True(t, injected)
-	assert.Contains(t, pod.Spec.Containers[0].Env, corev1.EnvVar{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"})
+	for _, tt := range []struct {
+		name            string
+		env             corev1.EnvVar
+		configOverrides map[string]interface{}
+	}{
+		{
+			name: "inject container name and pod uid",
+			env:  corev1.EnvVar{Name: ddEntityIDEnvVarName, Value: "en-$(DD_INTERNAL_POD_UID)/cont-name"},
+			configOverrides: map[string]interface{}{
+				"admission_controller.inject_config.inject_container_name": true,
+			},
+		},
+		{
+			name: "inject pod uid",
+			env:  mutatecommon.FakeEnvWithFieldRefValue("DD_ENTITY_ID", "metadata.uid"),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{
+				Name: "cont-name",
+			})
+			pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
+			wmeta := fxutil.Test[workloadmeta.Component](
+				t,
+				core.MockBundle(),
+				workloadmeta.MockModule(),
+				fx.Supply(workloadmeta.NewParams()),
+				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
+			)
+			webhook := NewWebhook(wmeta)
+			injected, err := webhook.inject(pod, "", nil)
+			assert.Nil(t, err)
+			assert.True(t, injected)
+			assert.Contains(t, pod.Spec.Containers[0].Env, tt.env)
+		})
+	}
 }
 
 func TestInjectIdentity(t *testing.T) {
