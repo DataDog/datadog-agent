@@ -1,6 +1,6 @@
 ---
 #
-# Remote updater payloads
+# Datadog installer payloads
 #
 .common_build_oci:
   script:
@@ -33,7 +33,6 @@
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# build Agent package for the new installer
 datadog-agent-oci-x64-a7:
   extends: .common_build_oci
   rules:
@@ -58,7 +57,6 @@ datadog-agent-oci-x64-a7:
     - source /root/.bashrc
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
-# build Agent package for installer-x64
 datadog-agent-oci-arm64-a7:
   extends: .common_build_oci
   rules:
@@ -107,7 +105,7 @@ datadog-agent-oci-arm64-a7:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
-# We build a "regular" updater, meant to be packaged as deb/rpm, without a custom install path
+# We build a "regular" installer, meant to be packaged as deb/rpm, without a custom install path
 # and an artifact intended for OCI packaging, which has a custom install path
 
 installer-amd64:
@@ -137,8 +135,6 @@ installer-arm64:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
     RELEASE_VERSION: "$RELEASE_VERSION_7"
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 installer-amd64-oci:
   extends: installer-amd64

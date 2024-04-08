@@ -13,7 +13,7 @@ from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version, load_release_versions, timed
 
-BIN_PATH = os.path.join(".", "bin", "updater")
+BIN_PATH = os.path.join(".", "bin", "installer")
 MAJOR_VERSION = '7'
 
 
