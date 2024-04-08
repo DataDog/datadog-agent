@@ -103,6 +103,15 @@ func (c *collector) Stop() {
 	}
 }
 
+func (c *collector) stop(context.Context) error {
+	c.Stop()
+	return nil
+}
+
+func (c *collector) start(context.Context) error {
+	return c.Start()
+}
+
 // Status returns the status of the collector.
 func (c *collector) Status() otlp.CollectorStatus {
 	return c.col.GetCollectorStatus()
@@ -110,7 +119,14 @@ func (c *collector) Status() otlp.CollectorStatus {
 
 // newPipeline creates a new Component for this module and returns any errors on failure.
 func newPipeline(deps dependencies) (provides, error) {
-	collector := &collector{deps: deps}
+	collector := &collector{
+		deps: deps,
+	}
+
+	deps.Lc.Append(fx.Hook{
+		OnStart: collector.start,
+		OnStop:  collector.stop,
+	})
 
 	return provides{
 		Comp:           collector,

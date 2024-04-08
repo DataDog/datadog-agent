@@ -3,18 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build otlp
+//go:build python
 
-package main
+package gui
 
 import (
-	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
 
-func TestFxRun(t *testing.T) {
-	// TODO: (components) "missing type: *aggregator.AgentDemultiplexer"
-	t.SkipNow()
-	fxutil.TestOneShot(t, main)
+func getPythonChecks() ([]string, error) {
+	return python.GetPythonIntegrationList()
 }

@@ -194,6 +194,7 @@
 /cmd/systray/                           @DataDog/windows-agent
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/updater/                           @DataDog/fleet
+/cmd/installer/                         @DataDog/fleet
 
 /dev/                                   @DataDog/agent-developer-tools
 /devenv/                                @DataDog/agent-developer-tools
@@ -382,6 +383,7 @@
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/updater/                           @DataDog/fleet
+/pkg/installer/                         @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components
 /pkg/util/aggregatingqueue              @DataDog/container-integrations
 /pkg/util/cloudproviders/cloudfoundry/  @DataDog/platform-integrations
@@ -519,6 +521,7 @@
 /tasks/components.py                    @DataDog/agent-shared-components
 /tasks/components_templates             @DataDog/agent-shared-components
 /tasks/updater.py                       @DataDog/fleet
+/tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-developer-tools
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
@@ -573,6 +576,7 @@
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/updater                   @DataDog/fleet
+/test/new-e2e/tests/installer                 @DataDog/fleet
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm

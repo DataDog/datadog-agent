@@ -3,16 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package guiimpl
-
-import (
-	"fmt"
-)
-
-func restartEnabled() bool {
-	return false
-}
-
-func restart() error {
-	return fmt.Errorf("restarting the agent is not implemented on non-windows platforms")
-}
+// Package run : This package is used to run the application
+package run

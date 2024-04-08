@@ -3,11 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !python
+package gui
 
-package guiimpl
+import (
+	"fmt"
+)
 
-// stub: no python interprter
-func getPythonChecks() ([]string, error) {
-	return []string{}, nil
+func restartEnabled() bool {
+	return false
+}
+
+func restart() error {
+	return fmt.Errorf("restarting the agent is not implemented on non-windows platforms")
 }
