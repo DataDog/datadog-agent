@@ -60,7 +60,8 @@ var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
 	testID := uuid.NewString()[:4]
-	agentConfig := config.GenDatadogAgentConfig(fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID), "tag1", "tag2")
+	ddHostname := fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID)
+	agentConfig := config.GenDatadogAgentConfig(ddHostname, "tag1", "tag2")
 	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
@@ -72,6 +73,7 @@ func TestAgentSuite(t *testing.T) {
 			),
 		),
 	)
+	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 }
 
 func (a *agentSuite) SetupSuite() {
@@ -241,6 +243,7 @@ func (a *agentSuite) Test03OpenSignal() {
 }
 
 // test that the detection of CWS is properly working
+// this test can be quite long so run it last
 func (a *agentSuite) Test99CWSEnabled() {
 	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
 		testCwsEnabled(c, a)

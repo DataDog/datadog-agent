@@ -232,6 +232,7 @@ func TestECSFargate(t *testing.T) {
 			return nil
 		}, nil),
 	)
+	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 }
 
 func (s *ecsFargateSuite) SetupSuite() {
