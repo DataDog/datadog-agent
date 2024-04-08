@@ -28,6 +28,7 @@ func NSTimestampToFloat(ns uint64) float64 {
 	return math.Float64frombits(b)
 }
 
+// GetMap retrieves an eBPF map by name from the provided manager
 func GetMap(mgr *manager.Manager, name string) (*ebpf.Map, error) {
 	m, _, err := mgr.GetMap(name)
 	if err != nil {
