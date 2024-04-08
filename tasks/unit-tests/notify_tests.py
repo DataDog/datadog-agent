@@ -20,7 +20,7 @@ def get_fake_jobs() -> List[ProjectJob]:
 
 
 class TestSendMessage(unittest.TestCase):
-    @patch('tasks.libs.common.gitlab_api.get_gitlab_api')
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge(self, api_mock):
         list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
         list_mock.side_effect = [get_fake_jobs(), []]
@@ -56,7 +56,7 @@ class TestSendMessage(unittest.TestCase):
 
 
 class TestSendStats(unittest.TestCase):
-    @patch('tasks.libs.common.gitlab_api.get_gitlab_api')
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch("tasks.notify.create_count", new=MagicMock())
     def test_nominal(self, api_mock):
         list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
@@ -66,7 +66,7 @@ class TestSendStats(unittest.TestCase):
 
 
 class TestCheckConsistentFailures(unittest.TestCase):
-    @patch('tasks.libs.common.gitlab_api.get_gitlab_api')
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_nominal(self, api_mock):
         os.environ["CI_PIPELINE_ID"] = "456"
         list_mock = api_mock.return_value.projects.get.return_value.pipelines.get.return_value.jobs.list
