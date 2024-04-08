@@ -31,19 +31,19 @@ const (
 
 // Configuration for the Cisco SD-WAN check
 type checkCfg struct {
-	VManageEndpoint       string `yaml:"vmanage_endpoint"`
-	Username              string `yaml:"username"`
-	Password              string `yaml:"password"`
-	Namespace             string `yaml:"namespace"`
-	MaxAttempts           int    `yaml:"max_attempts"`
-	MaxPages              int    `yaml:"max_pages"`
-	MaxCount              int    `yaml:"max_count"`
-	Lookback              int    `yaml:"lookback"`
-	UseHTTP               bool   `yaml:"use_http"`
-	Insecure              bool   `yaml:"insecure"`
-	CAFile                string `yaml:"ca_file"`
-	SendNDMMetadata       *bool  `yaml:"send_ndm_metadata"`
-	MinCollectionInterval int    `yaml:"min_collection_interval"`
+	VManageEndpoint           string `yaml:"vmanage_endpoint"`
+	Username                  string `yaml:"username"`
+	Password                  string `yaml:"password"`
+	Namespace                 string `yaml:"namespace"`
+	MaxAttempts               int    `yaml:"max_attempts"`
+	MaxPages                  int    `yaml:"max_pages"`
+	MaxCount                  int    `yaml:"max_count"`
+	LookbackTimeWindowMinutes int    `yaml:"lookback_time_window_minutes"`
+	UseHTTP                   bool   `yaml:"use_http"`
+	Insecure                  bool   `yaml:"insecure"`
+	CAFile                    string `yaml:"ca_file"`
+	SendNDMMetadata           *bool  `yaml:"send_ndm_metadata"`
+	MinCollectionInterval     int    `yaml:"min_collection_interval"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -196,8 +196,8 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 		clientOptions = append(clientOptions, client.WithMaxCount(instanceConfig.MaxCount))
 	}
 
-	if instanceConfig.Lookback > 0 {
-		clientOptions = append(clientOptions, client.WithLookback(time.Second*time.Duration(instanceConfig.Lookback)))
+	if instanceConfig.LookbackTimeWindowMinutes > 0 {
+		clientOptions = append(clientOptions, client.WithLookback(time.Minute*time.Duration(instanceConfig.LookbackTimeWindowMinutes)))
 	}
 
 	c.clientOptions = clientOptions
